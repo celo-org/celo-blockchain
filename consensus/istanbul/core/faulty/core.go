@@ -132,6 +132,11 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 func (c *core) broadcast(msg *message) {
 	logger := c.logger.New("state", c.state)
 
+	if c.notBroadcast() {
+		logger.Info("Not broadcast message", "message", msg)
+		return
+	}
+
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
 		logger.Error("Failed to finalize message", "msg", msg, "err", err)

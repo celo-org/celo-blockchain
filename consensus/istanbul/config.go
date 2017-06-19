@@ -28,10 +28,10 @@ type FaultyMode uint64
 const (
 	Disabled FaultyMode = iota
 	Random
-	NotResponse
+	NotBroadcast
 	SendWrongMsg
-	ModifiedSig
-	FakeProposer
+	ModifySig
+	BeFakeProposer
 )
 
 func (f FaultyMode) Uint64() uint64 {
@@ -44,14 +44,14 @@ func (f FaultyMode) String() string {
 		return "Disabled"
 	case Random:
 		return "Random"
-	case NotResponse:
-		return "NotResponse"
+	case NotBroadcast:
+		return "NotBroadcast"
 	case SendWrongMsg:
 		return "SendWrongMsg"
-	case ModifiedSig:
-		return "ModifiedSig"
-	case FakeProposer:
-		return "FakeProposer"
+	case ModifySig:
+		return "ModifySig"
+	case BeFakeProposer:
+		return "BeFakeProposer"
 	default:
 		return "Undefined"
 	}
