@@ -38,6 +38,6 @@ func (c *core) modifySig() bool {
 	return c.config.FaultyMode == istanbul.ModifySig.Uint64() || c.random()
 }
 
-func (c *core) beFakeProposer() bool {
-	return c.config.FaultyMode == istanbul.BeFakeProposer.Uint64() || c.random()
+func (c *core) alwaysPropose() bool {
+	return c.config.FaultyMode == istanbul.AlwaysPropose.Uint64() || c.random()
 }

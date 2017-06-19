@@ -31,7 +31,7 @@ const (
 	NotBroadcast
 	SendWrongMsg
 	ModifySig
-	BeFakeProposer
+	AlwaysPropose
 )
 
 func (f FaultyMode) Uint64() uint64 {
@@ -50,8 +50,8 @@ func (f FaultyMode) String() string {
 		return "SendWrongMsg"
 	case ModifySig:
 		return "ModifySig"
-	case BeFakeProposer:
-		return "BeFakeProposer"
+	case AlwaysPropose:
+		return "AlwaysPropose"
 	default:
 		return "Undefined"
 	}
