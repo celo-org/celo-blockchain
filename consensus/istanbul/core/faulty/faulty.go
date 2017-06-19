@@ -23,7 +23,7 @@ import (
 )
 
 func (c *core) random() bool {
-	return c.config.FaultyMode == istanbul.Random.Uint64() && rand.Intn(1) == 1
+	return c.config.FaultyMode == istanbul.Random.Uint64() && rand.Intn(2) == 1
 }
 
 func (c *core) notBroadcast() bool {

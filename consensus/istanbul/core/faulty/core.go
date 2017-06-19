@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"math"
 	"math/big"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -135,6 +136,12 @@ func (c *core) broadcast(msg *message) {
 	if c.notBroadcast() {
 		logger.Info("Not broadcast message", "message", msg)
 		return
+	}
+
+	if c.sendWrongMsg() {
+		code := uint64(rand.Intn(4))
+		logger.Info("Modify the message code", "old", msg.Code, "new", code)
+		msg.Code = code
 	}
 
 	payload, err := c.finalizeMessage(msg)
