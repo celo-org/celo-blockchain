@@ -26,11 +26,17 @@ const (
 type FaultyMode uint64
 
 const (
+	// Disabled disables the faulty mode
 	Disabled FaultyMode = iota
+	// Random selects one attack randomly
 	Random
+	// NotBroadcast doesn't broadcast any messages to other validators
 	NotBroadcast
+	// SendWrongMsg sends the message with the wrong message code
 	SendWrongMsg
+	// ModifySig modifies the message signature
 	ModifySig
+	// AlwaysPropose always proposes a proposal to validators
 	AlwaysPropose
 )
 
