@@ -121,6 +121,11 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 		return nil, err
 	}
 
+	if c.modifySig() {
+		c.logger.Info("Modify the signature")
+		str := "fake"
+		copy(msg.Signature[:len(str)], []byte(str)[:])
+	}
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
