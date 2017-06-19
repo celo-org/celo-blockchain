@@ -23,11 +23,21 @@ const (
 	Sticky
 )
 
+const (
+	Disabled uint64 = iota
+	Random
+	NotResponse
+	SendWrongMsg
+	ModifiedSig
+	FakeProposer
+)
+
 type Config struct {
 	RequestTimeout uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
 	BlockPeriod    uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch          uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	FaultyMode     uint64         `toml:",omitempty"` // The faulty node indicates the faulty node's behavior
 }
 
 var DefaultConfig = &Config{
@@ -35,4 +45,5 @@ var DefaultConfig = &Config{
 	BlockPeriod:    1,
 	ProposerPolicy: RoundRobin,
 	Epoch:          30000,
+	FaultyMode:     Disabled,
 }
