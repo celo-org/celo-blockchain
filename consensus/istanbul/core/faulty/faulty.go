@@ -41,3 +41,7 @@ func (c *core) modifySig() bool {
 func (c *core) alwaysPropose() bool {
 	return c.config.FaultyMode == istanbul.AlwaysPropose.Uint64() || c.random()
 }
+
+func (c *core) alwaysRoundChange() bool {
+	return c.config.FaultyMode == istanbul.AlwaysRoundChange.Uint64() || c.random()
+}

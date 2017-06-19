@@ -28,7 +28,7 @@ type FaultyMode uint64
 const (
 	// Disabled disables the faulty mode
 	Disabled FaultyMode = iota
-	// Random selects one attack randomly
+	// Random attacks randomly
 	Random
 	// NotBroadcast doesn't broadcast any messages to other validators
 	NotBroadcast
@@ -38,6 +38,8 @@ const (
 	ModifySig
 	// AlwaysPropose always proposes a proposal to validators
 	AlwaysPropose
+	// AlwaysRoundChange always sends round change while receiving messages
+	AlwaysRoundChange
 )
 
 func (f FaultyMode) Uint64() uint64 {
@@ -58,6 +60,8 @@ func (f FaultyMode) String() string {
 		return "ModifySig"
 	case AlwaysPropose:
 		return "AlwaysPropose"
+	case AlwaysRoundChange:
+		return "AlwaysRoundChange"
 	default:
 		return "Undefined"
 	}
