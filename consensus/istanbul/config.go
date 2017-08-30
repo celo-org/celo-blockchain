@@ -40,6 +40,8 @@ const (
 	AlwaysPropose
 	// AlwaysRoundChange always sends round change while receiving messages
 	AlwaysRoundChange
+	// BadBlock always proposes a block with bad body
+	BadBlock
 )
 
 func (f FaultyMode) Uint64() uint64 {
@@ -62,6 +64,8 @@ func (f FaultyMode) String() string {
 		return "AlwaysPropose"
 	case AlwaysRoundChange:
 		return "AlwaysRoundChange"
+	case BadBlock:
+		return "BadBlock"
 	default:
 		return "Undefined"
 	}
