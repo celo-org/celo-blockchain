@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package faulty
 
 import (
 	"bytes"
@@ -24,20 +24,17 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/core/faulty"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
+	metrics "github.com/ethereum/go-ethereum/metrics"
+	goMetrics "github.com/rcrowley/go-metrics"
+	"gopkg.in/karalabe/cookiejar.v2/collections/prque"
 )
 
 // New creates an Istanbul consensus core
 func New(backend istanbul.Backend, config *istanbul.Config) Engine {
-	if config.FaultyMode != istanbul.Disabled.Uint64() {
-		return faulty.New(backend, config)
-	}
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
@@ -47,12 +44,12 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		backend:            backend,
 		backlogs:           make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu:         new(sync.Mutex),
-		pendingRequests:    prque.New(nil),
+		pendingRequests:    prque.New(),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
-		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
-		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
-		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		roundMeter:         metrics.NewMeter("consensus/istanbul/core/round"),
+		sequenceMeter:      metrics.NewMeter("consensus/istanbul/core/sequence"),
+		consensusTimer:     metrics.NewTimer("consensus/istanbul/core/consensus"),
 	}
 	c.validateFn = c.checkValidatorSignature
 	return c
@@ -90,11 +87,11 @@ type core struct {
 
 	consensusTimestamp time.Time
 	// the meter to record the round change rate
-	roundMeter metrics.Meter
+	roundMeter goMetrics.Meter
 	// the meter to record the sequence update rate
-	sequenceMeter metrics.Meter
+	sequenceMeter goMetrics.Meter
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimer metrics.Timer
+	consensusTimer goMetrics.Timer
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {

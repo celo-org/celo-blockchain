@@ -23,14 +23,39 @@ const (
 	Sticky
 )
 
+type FaultyMode uint64
+
 const (
-	Disabled uint64 = iota
+	Disabled FaultyMode = iota
 	Random
 	NotResponse
 	SendWrongMsg
 	ModifiedSig
 	FakeProposer
 )
+
+func (f FaultyMode) Uint64() uint64 {
+	return uint64(f)
+}
+
+func (f FaultyMode) String() string {
+	switch f {
+	case Disabled:
+		return "Disabled"
+	case Random:
+		return "Random"
+	case NotResponse:
+		return "NotResponse"
+	case SendWrongMsg:
+		return "SendWrongMsg"
+	case ModifiedSig:
+		return "ModifiedSig"
+	case FakeProposer:
+		return "FakeProposer"
+	default:
+		return "Undefined"
+	}
+}
 
 type Config struct {
 	RequestTimeout uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
@@ -45,5 +70,5 @@ var DefaultConfig = &Config{
 	BlockPeriod:    1,
 	ProposerPolicy: RoundRobin,
 	Epoch:          30000,
-	FaultyMode:     Disabled,
+	FaultyMode:     Disabled.Uint64(),
 }
