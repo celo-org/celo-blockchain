@@ -101,6 +101,7 @@ func (s *stateObject) empty() bool {
 type Account struct {
 	Nonce    uint64
 	Balance  *big.Int
+  NumPhoneVerifications uint64
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
 }
@@ -368,6 +369,14 @@ func (self *stateObject) setNonce(nonce uint64) {
 	}
 }
 
+func (self *stateObject) setNumPhoneVerifications(numPhoneVerifications uint64) {
+	self.data.NumPhoneVerifications = numPhoneVerifications
+	if self.onDirty != nil {
+		self.onDirty(self.Address())
+		self.onDirty = nil
+	}
+}
+
 func (self *stateObject) CodeHash() []byte {
 	return self.data.CodeHash
 }
@@ -378,6 +387,10 @@ func (self *stateObject) Balance() *big.Int {
 
 func (self *stateObject) Nonce() uint64 {
 	return self.data.Nonce
+}
+
+func (self *stateObject) NumPhoneVerifications() uint64 {
+	return self.data.NumPhoneVerifications
 }
 
 // Never called, but must be present to allow stateObject to be used

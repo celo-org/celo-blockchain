@@ -23,6 +23,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+  "net/http"
+  "net/url"
+  "strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -319,6 +322,30 @@ func (self *worker) wait() {
 				// implicit by posting ChainHeadEvent
 				mustCommitNewWork = false
 			}
+
+      // Added for Jem.
+      log.Debug("!!! New block: " + block.Hash().Hex(), nil, nil)
+      for _, tx := range block.Transactions() {
+        data := string(tx.Data())
+
+        log.Debug("PM - TX: " + tx.Hash().Hex() + " " + data, nil, nil)
+
+        if len(data) > 0 && (strings.HasPrefix(data, "reqVerify") || strings.HasPrefix(data, "reqAndVerify")) {
+          dataArray := strings.Split(data, "-")
+          phone := dataArray[len(dataArray) - 1]
+          secret := url.QueryEscape("Your Jem verification code: 872924")
+          log.Debug("PM - New Verification request: " + tx.Hash().Hex() + " " + phone, nil, nil)
+          if len(phone) > 0 {
+            ip := "10.1.30.90"
+            // ip := "192.168.1.47"
+            url := fmt.Sprintf("http://%s:8080/?phone=%s&msg=%s", ip, phone, secret)
+            http.Get(url)
+            log.Debug("PM - Sent SMS", nil, nil)
+          }
+        }
+      }
+      // End added for Jem.
+
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
 			var (

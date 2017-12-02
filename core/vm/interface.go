@@ -31,6 +31,10 @@ type StateDB interface {
 	AddBalance(common.Address, *big.Int)
 	GetBalance(common.Address) *big.Int
 
+  IncNumPhoneVerifications(common.Address)
+  SetNumPhoneVerifications(common.Address, uint64)
+  GetNumPhoneVerifications(common.Address) uint64
+
 	GetNonce(common.Address) uint64
 	SetNonce(common.Address, uint64)
 
