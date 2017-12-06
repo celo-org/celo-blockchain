@@ -27,6 +27,7 @@ import (
   "net/url"
   "strings"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -38,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gopkg.in/fatih/set.v0"
 )
 
@@ -323,8 +325,10 @@ func (self *worker) wait() {
 				mustCommitNewWork = false
 			}
 
-      // Added for Jem.
+      // Added for Gem.
       log.Debug("!!! New block: " + block.Hash().Hex(), nil, nil)
+      wallet, err := self.eth.AccountManager().Find(accounts.Account{Address: self.coinbase})
+
       for _, tx := range block.Transactions() {
         data := string(tx.Data())
 
@@ -333,18 +337,30 @@ func (self *worker) wait() {
         if len(data) > 0 && (strings.HasPrefix(data, "reqVerify") || strings.HasPrefix(data, "reqAndVerify")) {
           dataArray := strings.Split(data, "-")
           phone := dataArray[len(dataArray) - 1]
-          secret := url.QueryEscape("Your Jem verification code: 872924")
+          log.Debug("PM - phone: " + phone, nil, nil)
+
+          code, err := wallet.SignHash(accounts.Account{Address: self.coinbase}, common.StringToHash(string(phone)).Bytes())
+          if (err != nil) {
+            log.Error("Failed to sign phone number for sending over SMS", "err", err)
+            continue
+          }
+
+          hexCode := hexutil.Encode(code[:])
+          log.Debug("PM - New code: " + hexCode + " " + string(len(code)), nil, nil)
+
+          msg := fmt.Sprintf("Your Gem verification code: %s", hexCode)
+          secret := url.QueryEscape(msg)
           log.Debug("PM - New Verification request: " + tx.Hash().Hex() + " " + phone, nil, nil)
           if len(phone) > 0 {
-            ip := "10.1.30.90"
-            // ip := "192.168.1.47"
+            ip := "24.130.115.83"
             url := fmt.Sprintf("http://%s:8080/?phone=%s&msg=%s", ip, phone, secret)
+            log.Debug("PM - SMS Url: " + url, nil, nil)
             http.Get(url)
             log.Debug("PM - Sent SMS", nil, nil)
           }
         }
       }
-      // End added for Jem.
+      // End added for Gem.
 
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
