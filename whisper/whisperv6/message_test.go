@@ -70,7 +70,7 @@ func singleMessageTest(t *testing.T, symmetric bool) {
 	text := make([]byte, 0, 512)
 	text = append(text, params.Payload...)
 
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -128,7 +128,7 @@ func TestMessageWrap(t *testing.T) {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
 
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -146,7 +146,7 @@ func TestMessageWrap(t *testing.T) {
 	}
 
 	// set PoW target too high, expect error
-	msg2, err := NewSentMessage(params)
+	msg2, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -169,15 +169,13 @@ func TestMessageSeal(t *testing.T) {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
 
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
 	params.TTL = 1
-	aesnonce := make([]byte, 12)
-	mrand.Read(aesnonce)
 
-	env := NewEnvelope(params.TTL, params.Topic, aesnonce, msg)
+	env := NewEnvelope(params.TTL, params.Topic, msg)
 	if err != nil {
 		t.Fatalf("failed Wrap with seed %d: %s.", seed, err)
 	}
@@ -233,7 +231,7 @@ func singleEnvelopeOpenTest(t *testing.T, symmetric bool) {
 	text := make([]byte, 0, 512)
 	text = append(text, params.Payload...)
 
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -242,7 +240,12 @@ func singleEnvelopeOpenTest(t *testing.T, symmetric bool) {
 		t.Fatalf("failed Wrap with seed %d: %s.", seed, err)
 	}
 
-	f := Filter{KeyAsym: key, KeySym: params.KeySym}
+	var f Filter
+	if symmetric {
+		f = Filter{KeySym: params.KeySym}
+	} else {
+		f = Filter{KeyAsym: key}
+	}
 	decrypted := env.Open(&f)
 	if decrypted == nil {
 		t.Fatalf("failed to open with seed %d.", seed)
@@ -283,7 +286,7 @@ func TestEncryptWithZeroKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -297,7 +300,7 @@ func TestEncryptWithZeroKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
-	msg, err = NewSentMessage(params)
+	msg, err = newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -311,7 +314,7 @@ func TestEncryptWithZeroKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
-	msg, err = NewSentMessage(params)
+	msg, err = newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -329,7 +332,7 @@ func TestRlpEncode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed generateMessageParams with seed %d: %s.", seed, err)
 	}
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -373,7 +376,7 @@ func singlePaddingTest(t *testing.T, padSize int) {
 	if n != padSize {
 		t.Fatalf("padding is not copied (seed %d): %s", seed, err)
 	}
-	msg, err := NewSentMessage(params)
+	msg, err := newSentMessage(params)
 	if err != nil {
 		t.Fatalf("failed to create new message with seed %d: %s.", seed, err)
 	}
@@ -411,5 +414,61 @@ func TestPadding(t *testing.T) {
 	for i := 0; i < 256; i++ {
 		n := mrand.Intn(256*1024) + 256*256
 		singlePaddingTest(t, n)
+	}
+}
+
+func TestPaddingAppendedToSymMessages(t *testing.T) {
+	params := &MessageParams{
+		Payload: make([]byte, 246),
+		KeySym:  make([]byte, aesKeyLength),
+	}
+
+	// Simulate a message with a payload just under 256 so that
+	// payload + flag + aesnonce > 256. Check that the result
+	// is padded on the next 256 boundary.
+	msg := sentMessage{}
+	msg.Raw = make([]byte, len(params.Payload)+1+AESNonceLength)
+
+	err := msg.appendPadding(params)
+
+	if err != nil {
+		t.Fatalf("Error appending padding to message %v", err)
+		return
+	}
+
+	if len(msg.Raw) != 512 {
+		t.Errorf("Invalid size %d != 512", len(msg.Raw))
+	}
+}
+
+func TestPaddingAppendedToSymMessagesWithSignature(t *testing.T) {
+	params := &MessageParams{
+		Payload: make([]byte, 246),
+		KeySym:  make([]byte, aesKeyLength),
+	}
+
+	pSrc, err := crypto.GenerateKey()
+
+	if err != nil {
+		t.Fatalf("Error creating the signature key %v", err)
+		return
+	}
+	params.Src = pSrc
+
+	// Simulate a message with a payload just under 256 so that
+	// payload + flag + aesnonce > 256. Check that the result
+	// is padded on the next 256 boundary.
+	msg := sentMessage{}
+	msg.Raw = make([]byte, len(params.Payload)+1+AESNonceLength+signatureLength)
+
+	err = msg.appendPadding(params)
+
+	if err != nil {
+		t.Fatalf("Error appending padding to message %v", err)
+		return
+	}
+
+	if len(msg.Raw) != 512 {
+		t.Errorf("Invalid size %d != 512", len(msg.Raw))
 	}
 }

@@ -296,7 +296,7 @@ func (p *peer) RequestHelperTrieProofs(reqID, cost uint64, reqs []HelperTrieReq)
 			}
 			blockNum := binary.BigEndian.Uint64(req.Key)
 			// convert HelperTrie request to old CHT request
-			reqsV1[i] = ChtReq{ChtNum: (req.TrieIdx+1)*(light.ChtFrequency/light.ChtV1Frequency) - 1, BlockNum: blockNum, FromLevel: req.FromLevel}
+			reqsV1[i] = ChtReq{ChtNum: (req.TrieIdx + 1) * (light.ChtFrequency / light.ChtV1Frequency), BlockNum: blockNum, FromLevel: req.FromLevel}
 		}
 		return sendRequest(p.rw, GetHeaderProofsMsg, reqID, cost, reqsV1)
 	case lpv2:
@@ -400,7 +400,7 @@ func (p *peer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis 
 
 	var send keyValueList
 	send = send.add("protocolVersion", uint64(p.version))
-	send = send.add("networkId", uint64(p.network))
+	send = send.add("networkId", p.network)
 	send = send.add("headTd", td)
 	send = send.add("headHash", head)
 	send = send.add("headNum", headNum)

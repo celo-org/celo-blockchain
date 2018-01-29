@@ -169,7 +169,7 @@ func (bc *LightChain) SetHead(head uint64) {
 }
 
 // GasLimit returns the gas limit of the current HEAD block.
-func (self *LightChain) GasLimit() *big.Int {
+func (self *LightChain) GasLimit() uint64 {
 	self.mu.RLock()
 	defer self.mu.RUnlock()
 
@@ -393,7 +393,7 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 		return err
 	}
 	i, err := self.hc.InsertHeaderChain(chain, whFunc, start)
-	go self.postChainEvents(events)
+	self.postChainEvents(events)
 	return i, err
 }
 
@@ -456,6 +456,9 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 	}
 	return GetHeaderByNumber(ctx, self.odr, number)
 }
+
+// Config retrieves the header chain's chain configuration.
+func (self *LightChain) Config() *params.ChainConfig { return self.hc.Config() }
 
 func (self *LightChain) SyncCht(ctx context.Context) bool {
 	if self.odr.ChtIndexer() == nil {

@@ -33,7 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Options specifies the exact way a message should be wrapped into an Envelope.
+// MessageParams specifies the exact way a message should be wrapped
+// into an Envelope.
 type MessageParams struct {
 	TTL      uint32
 	Src      *ecdsa.PrivateKey
@@ -61,6 +62,7 @@ type ReceivedMessage struct {
 	Payload   []byte
 	Padding   []byte
 	Signature []byte
+	Salt      []byte
 
 	PoW   float64          // Proof of work as described in the Whisper spec
 	Sent  uint32           // Time when the message was posted into the network
@@ -69,9 +71,8 @@ type ReceivedMessage struct {
 	Dst   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
 	Topic TopicType
 
-	SymKeyHash      common.Hash // The Keccak256Hash of the key, associated with the Topic
-	EnvelopeHash    common.Hash // Message envelope hash to act as a unique id
-	EnvelopeVersion uint64
+	SymKeyHash   common.Hash // The Keccak256Hash of the key, associated with the Topic
+	EnvelopeHash common.Hash // Message envelope hash to act as a unique id
 }
 
 func isMessageSigned(flags byte) bool {
@@ -86,8 +87,8 @@ func (msg *ReceivedMessage) isAsymmetricEncryption() bool {
 	return msg.Dst != nil
 }
 
-// NewMessage creates and initializes a non-signed, non-encrypted Whisper message.
-func NewSentMessage(params *MessageParams) (*sentMessage, error) {
+// NewSentMessage creates and initializes a non-signed, non-encrypted Whisper message.
+func newSentMessage(params *MessageParams) (*sentMessage, error) {
 	msg := sentMessage{}
 	msg.Raw = make([]byte, 1, len(params.Payload)+len(params.Padding)+signatureLength+padSizeLimit)
 	msg.Raw[0] = 0 // set all the flags to zero
@@ -123,6 +124,10 @@ func (msg *sentMessage) appendPadding(params *MessageParams) error {
 	rawSize := len(params.Payload) + 1
 	if params.Src != nil {
 		rawSize += signatureLength
+	}
+
+	if params.KeySym != nil {
+		rawSize += AESNonceLength
 	}
 	odd := rawSize % padSizeLimit
 
@@ -196,31 +201,31 @@ func (msg *sentMessage) encryptAsymmetric(key *ecdsa.PublicKey) error {
 
 // encryptSymmetric encrypts a message with a topic key, using AES-GCM-256.
 // nonce size should be 12 bytes (see cipher.gcmStandardNonceSize).
-func (msg *sentMessage) encryptSymmetric(key []byte) (nonce []byte, err error) {
+func (msg *sentMessage) encryptSymmetric(key []byte) (err error) {
 	if !validateSymmetricKey(key) {
-		return nil, errors.New("invalid key provided for symmetric encryption")
+		return errors.New("invalid key provided for symmetric encryption")
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	aesgcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// never use more than 2^32 random nonces with a given key
-	nonce = make([]byte, aesgcm.NonceSize())
-	_, err = crand.Read(nonce)
+	salt := make([]byte, aesgcm.NonceSize())
+	_, err = crand.Read(salt)
 	if err != nil {
-		return nil, err
-	} else if !validateSymmetricKey(nonce) {
-		return nil, errors.New("crypto/rand failed to generate nonce")
+		return err
+	} else if !validateSymmetricKey(salt) {
+		return errors.New("crypto/rand failed to generate salt")
 	}
 
-	msg.Raw = aesgcm.Seal(nil, nonce, msg.Raw, nil)
-	return nonce, nil
+	msg.Raw = append(aesgcm.Seal(nil, salt, msg.Raw, nil), salt...)
+	return nil
 }
 
 // Wrap bundles the message into an Envelope to transmit over the network.
@@ -233,11 +238,10 @@ func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err er
 			return nil, err
 		}
 	}
-	var nonce []byte
 	if options.Dst != nil {
 		err = msg.encryptAsymmetric(options.Dst)
 	} else if options.KeySym != nil {
-		nonce, err = msg.encryptSymmetric(options.KeySym)
+		err = msg.encryptSymmetric(options.KeySym)
 	} else {
 		err = errors.New("unable to encrypt the message: neither symmetric nor assymmetric key provided")
 	}
@@ -245,7 +249,7 @@ func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err er
 		return nil, err
 	}
 
-	envelope = NewEnvelope(options.TTL, options.Topic, nonce, msg)
+	envelope = NewEnvelope(options.TTL, options.Topic, msg)
 	if err = envelope.Seal(options); err != nil {
 		return nil, err
 	}
@@ -254,7 +258,14 @@ func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err er
 
 // decryptSymmetric decrypts a message with a topic key, using AES-GCM-256.
 // nonce size should be 12 bytes (see cipher.gcmStandardNonceSize).
-func (msg *ReceivedMessage) decryptSymmetric(key []byte, nonce []byte) error {
+func (msg *ReceivedMessage) decryptSymmetric(key []byte) error {
+	// In v6, symmetric messages are expected to contain the 12-byte
+	// "salt" at the end of the payload.
+	if len(msg.Raw) < AESNonceLength {
+		return errors.New("missing salt or invalid payload in symmetric message")
+	}
+	salt := msg.Raw[len(msg.Raw)-AESNonceLength:]
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return err
@@ -263,15 +274,16 @@ func (msg *ReceivedMessage) decryptSymmetric(key []byte, nonce []byte) error {
 	if err != nil {
 		return err
 	}
-	if len(nonce) != aesgcm.NonceSize() {
-		log.Error("decrypting the message", "AES nonce size", len(nonce))
-		return errors.New("wrong AES nonce size")
+	if len(salt) != aesgcm.NonceSize() {
+		log.Error("decrypting the message", "AES salt size", len(salt))
+		return errors.New("wrong AES salt size")
 	}
-	decrypted, err := aesgcm.Open(nil, nonce, msg.Raw, nil)
+	decrypted, err := aesgcm.Open(nil, salt, msg.Raw[:len(msg.Raw)-AESNonceLength], nil)
 	if err != nil {
 		return err
 	}
 	msg.Raw = decrypted
+	msg.Salt = salt
 	return nil
 }
 
@@ -330,7 +342,8 @@ func (msg *ReceivedMessage) extractPadding(end int) (int, bool) {
 	return paddingSize, true
 }
 
-// Recover retrieves the public key of the message signer.
+// SigToPubKey returns the public key associated to the message's
+// signature.
 func (msg *ReceivedMessage) SigToPubKey() *ecdsa.PublicKey {
 	defer func() { recover() }() // in case of invalid signature
 

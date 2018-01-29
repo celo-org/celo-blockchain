@@ -305,7 +305,7 @@ func (bc *BlockChain) FastSyncCommitHead(hash common.Hash) error {
 }
 
 // GasLimit returns the gas limit of the current HEAD block.
-func (bc *BlockChain) GasLimit() *big.Int {
+func (bc *BlockChain) GasLimit() uint64 {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
@@ -465,7 +465,7 @@ func (bc *BlockChain) insert(block *types.Block) {
 	}
 	bc.currentBlock = block
 
-	// If the block is better than out head or is on a different chain, force update heads
+	// If the block is better than our head or is on a different chain, force update heads
 	if updateHeads {
 		bc.hc.SetCurrentHeader(block.Header())
 
@@ -677,9 +677,9 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 		}
 		// The used gas can be calculated based on previous receipts
 		if j == 0 {
-			receipts[j].GasUsed = new(big.Int).Set(receipts[j].CumulativeGasUsed)
+			receipts[j].GasUsed = receipts[j].CumulativeGasUsed
 		} else {
-			receipts[j].GasUsed = new(big.Int).Sub(receipts[j].CumulativeGasUsed, receipts[j-1].CumulativeGasUsed)
+			receipts[j].GasUsed = receipts[j].CumulativeGasUsed - receipts[j-1].CumulativeGasUsed
 		}
 		// The derived log fields can simply be set from the block and transaction
 		for k := 0; k < len(receipts[j].Logs); k++ {
@@ -818,7 +818,12 @@ func (bc *BlockChain) WriteBlockAndState(block *types.Block, receipts []*types.R
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
-	if externTd.Cmp(localTd) > 0 || (externTd.Cmp(localTd) == 0 && mrand.Float64() < 0.5) {
+	reorg := externTd.Cmp(localTd) > 0
+	if !reorg && externTd.Cmp(localTd) == 0 {
+		// Split same-difficulty blocks by number, then at random
+		reorg = block.NumberU64() < bc.currentBlock.NumberU64() || (block.NumberU64() == bc.currentBlock.NumberU64() && mrand.Float64() < 0.5)
+	}
+	if reorg {
 		// Reorganise the chain if the parent is not the head block
 		if block.ParentHash() != bc.currentBlock.Hash() {
 			if err := bc.reorg(bc.currentBlock, block); err != nil {
@@ -997,7 +1002,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 			events = append(events, ChainSideEvent{block})
 		}
 		stats.processed++
-		stats.usedGas += usedGas.Uint64()
+		stats.usedGas += usedGas
 		stats.report(chain, i)
 	}
 	// Append a single chain head event if we've progressed the chain
@@ -1135,18 +1140,17 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
+	// Insert the new chain, taking care of the proper incremental order
 	var addedTxs types.Transactions
-	// insert blocks. Order does not matter. Last block will be written in ImportChain itself which creates the new head properly
-	for _, block := range newChain {
+	for i := len(newChain) - 1; i >= 0; i-- {
 		// insert the block in the canonical way, re-writing history
-		bc.insert(block)
+		bc.insert(newChain[i])
 		// write lookup entries for hash based transaction/receipt searches
-		if err := WriteTxLookupEntries(bc.chainDb, block); err != nil {
+		if err := WriteTxLookupEntries(bc.chainDb, newChain[i]); err != nil {
 			return err
 		}
-		addedTxs = append(addedTxs, block.Transactions()...)
+		addedTxs = append(addedTxs, newChain[i].Transactions()...)
 	}
-
 	// calculate the difference between deleted and added transactions
 	diff := types.TxDifference(deletedTxs, addedTxs)
 	// When transactions get deleted from the database that means the
@@ -1191,10 +1195,11 @@ func (bc *BlockChain) PostChainEvents(events []interface{}, logs []*types.Log) {
 }
 
 func (bc *BlockChain) update() {
-	futureTimer := time.Tick(5 * time.Second)
+	futureTimer := time.NewTicker(5 * time.Second)
+	defer futureTimer.Stop()
 	for {
 		select {
-		case <-futureTimer:
+		case <-futureTimer.C:
 			bc.procFutureBlocks()
 		case <-bc.quit:
 			return
