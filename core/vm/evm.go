@@ -173,18 +173,23 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
     nil)
   if len(data) > 0 && strings.HasPrefix(data, "reqVerify") {
     log.Debug(
-      "TP: REQUESTING VERIFICATION: " + caller.Address().Hex() + " data " + string(input), 
+      "!!! TP: REQUESTING VERIFICATION: " + caller.Address().Hex() + " data " + string(input), 
       nil, 
       nil)
   } else if len(data) > 0 && 
     (strings.HasPrefix(data, "verify") || strings.HasPrefix(data, "reqAndVerify")) {
     log.Debug(
-      "TP: VERIFICATION PROOF RECEIVED: " + caller.Address().Hex() + " data " + string(input), 
+      "!!! TP: VERIFICATION PROOF RECEIVED: " + caller.Address().Hex() + " data " + string(input), 
       nil, 
       nil)
 	  // evm.IncNumPhoneVerifications(evm.StateDB, caller.Address())
-  }
 
+    phone := strings.Split(data, "-")[2]
+    phoneAddress := common.BytesToAddress(crypto.Keccak256([]byte(phone))[12:])
+ 		evm.StateDB.CreatePhoneMapping(phoneAddress, caller.Address().Big())
+
+    log.Debug("TP: CREATED MAPPING AT ADDRESS: " + phoneAddress.Hex(), nil, nil)
+  }
 
 	// initialise a new contract and set the code that is to be used by the
 	// E The contract is a scoped environment for this execution context

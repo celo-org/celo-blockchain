@@ -449,6 +449,13 @@ func (self *StateDB) CreateAccount(addr common.Address) {
 	}
 }
 
+// Create an account used to map phone numbers to ethereum addresses, where the address is stored 
+// in the balance as a temporary hack.
+func (self *StateDB) CreatePhoneMapping(phone common.Address, addr *big.Int) {
+	new, _ := self.createObject(phone)
+  new.setBalance(addr)
+}
+
 func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) {
 	so := db.getStateObject(addr)
 	if so == nil {
