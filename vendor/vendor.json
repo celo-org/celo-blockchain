@@ -322,10 +322,10 @@
 			"revisionTime": "2016-11-28T21:05:44Z"
 		},
 		{
-			"checksumSHA1": "1ESHllhZOIBg7MnlGHUdhz047bI=",
+			"checksumSHA1": "Wl3OHbdTg47anZk5/ogBzNU/qk8=",
 			"path": "github.com/rjeczalik/notify",
-			"revision": "27b537f07230b3f917421af6dcf044038dbe57e2",
-			"revisionTime": "2018-01-03T13:19:05Z"
+			"revision": "d152f3ce359a5464dc41e84a8919fc67e55bbbf0",
+			"revisionTime": "2018-03-12T21:30:58Z"
 		},
 		{
 			"checksumSHA1": "5uqO4ITTDMklKi3uNaE/D9LQ5nM=",
@@ -754,5 +754,5 @@
 			"revisionTime": "2017-08-11T01:42:03Z"
 		}
 	],
-	"rootPath": "github.com/ethereum/go-ethereum"
+	"rootPath": "go-jem"
 }
