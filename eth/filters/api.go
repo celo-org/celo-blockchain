@@ -98,7 +98,7 @@ func (api *PublicFilterAPI) timeoutLoop() {
 // NewPendingTransactionFilter creates a filter that fetches pending transaction hashes
 // as transactions enter the pending state.
 //
-// It is part of the filter package because this filter can be used throug the
+// It is part of the filter package because this filter can be used through the
 // `eth_getFilterChanges` polling method that is also used for log filters.
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_newpendingtransactionfilter
@@ -268,14 +268,8 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 }
 
 // FilterCriteria represents a request to create a new filter.
-//
-// TODO(karalabe): Kill this in favor of ethereum.FilterQuery.
-type FilterCriteria struct {
-	FromBlock *big.Int
-	ToBlock   *big.Int
-	Addresses []common.Address
-	Topics    [][]common.Hash
-}
+// Same as ethereum.FilterQuery but with UnmarshalJSON() method.
+type FilterCriteria ethereum.FilterQuery
 
 // NewFilter creates a new filter and returns the filter id. It can be
 // used to retrieve logs when the state changes. This method cannot be
