@@ -342,10 +342,12 @@ func (self *stateObject) setNonce(nonce uint64) {
 
 func (self *stateObject) setNumPhoneVerifications(numPhoneVerifications uint64) {
 	self.data.NumPhoneVerifications = numPhoneVerifications
+  /*
 	if self.onDirty != nil {
 		self.onDirty(self.Address())
 		self.onDirty = nil
 	}
+  */
 }
 
 func (self *stateObject) CodeHash() []byte {
