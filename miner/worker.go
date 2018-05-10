@@ -361,7 +361,7 @@ func (self *worker) wait() {
           log.Debug("!!! PM - phone: " + phone, nil, nil)
 
           nonce := tx.Nonce()
-          unsignedCode := common.BytesToHash(string(phone) + string(nonce))
+          unsignedCode := common.BytesToHash([]byte(string(phone) + string(nonce)))
           code, err := wallet.SignHash(accounts.Account{Address: self.coinbase}, unsignedCode.Bytes())
           if (err != nil) {
             log.Error("!!! Failed to sign phone number for sending over SMS", "err", err)
