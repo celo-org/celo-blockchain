@@ -1,6 +1,6 @@
 {
-    "name": "@celo/geth",
-    "version": "0.0.1",
-    "description": "celo geth",
-    "install": "make android"
+  "name": "@celo/geth",
+  "version": "0.0.1",
+  "description": "celo geth",
+  "postinstall": "make android"
 }
