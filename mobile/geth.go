@@ -78,10 +78,10 @@ type NodeConfig struct {
 	PprofAddress string
 
 	// Host of the http server
-	HTTPHost string
+	// HTTPHost string
 
-	// Port the http server is listening on
-	HTTPPort int
+	// // Port the http server is listening on
+	// HTTPPort int
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
@@ -124,10 +124,13 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 
 	// Create the empty networking stack
 	nodeConf := &node.Config{
-		Name:        clientIdentifier,
-		Version:     params.Version,
-		DataDir:     datadir,
-		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		Name:             clientIdentifier,
+		Version:          params.Version,
+		DataDir:          datadir,
+		KeyStoreDir:      filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		HTTPHost:         "localhost",
+		HTTPPort:         8545,
+		HTTPVirtualHosts: []string{"localhost"},
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      true,
