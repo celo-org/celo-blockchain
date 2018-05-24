@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -67,8 +66,7 @@ func SendTexts(block *types.Block, coinbase common.Address, accountManager *acco
 			hexCode := hexutil.Encode(code[:])
 			log.Debug("[Celo] PM - New code: "+hexCode+" "+string(len(code)), nil, nil)
 
-			msg := fmt.Sprintf("Gem verification code: %s", hexCode)
-			secret := url.QueryEscape(msg)
+			secret := fmt.Sprintf("Gem verification code: %s", hexCode)
 			log.Debug("[Celo] PM - New Verification request: "+tx.Hash().Hex()+" "+phone, nil, nil)
 
 			if len(phone) > 0 {
