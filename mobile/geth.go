@@ -131,6 +131,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		HTTPHost:         "localhost",
 		HTTPPort:         8545,
 		HTTPVirtualHosts: []string{"localhost"},
+		HTTPModules:      []string{"db", "eth", "net", "web3", "personal"},
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      true,
