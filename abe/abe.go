@@ -32,13 +32,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func SendTexts(block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
+func SendVerificationTexts(block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
 	numTransactions := 0
 	for range block.Transactions() {
 		numTransactions += 1
 	}
-
 	log.Debug("\n[Celo] New block: "+block.Hash().Hex()+", "+strconv.Itoa(numTransactions), nil, nil)
+
 	wallet, err := accountManager.Find(accounts.Account{Address: coinbase})
 	if err != nil {
 		log.Error("[Celo] Failed to get account", "err", err)

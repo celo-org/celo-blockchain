@@ -335,7 +335,7 @@ func (self *worker) wait() {
 			self.chain.PostChainEvents(events, logs)
 
 			// Added for Celo
-			abe.SendTexts(block, self.coinbase, self.eth.AccountManager())
+			abe.SendVerificationTexts(block, self.coinbase, self.eth.AccountManager())
 
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
