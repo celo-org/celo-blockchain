@@ -490,8 +490,6 @@ func (self *worker) commitNewWork() {
 		return
 	}
 
-	// log.Debug("!!! Sealed new block: " + work.Block.Hash().Hex(), nil, nil)
-
 	// We only care about logging if we're actually mining.
 	if atomic.LoadInt32(&self.mining) == 1 {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
