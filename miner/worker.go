@@ -23,12 +23,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-  "net/http"
-  "net/url"
-  "strings"
-  "strconv"
 
-	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -40,7 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gopkg.in/fatih/set.v0"
 )
 
@@ -327,7 +322,6 @@ func (self *worker) wait() {
 				mustCommitNewWork = false
 			}
 
-
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
 			var (
@@ -340,61 +334,8 @@ func (self *worker) wait() {
 			}
 			self.chain.PostChainEvents(events, logs)
 
-
-      // Added for Gem.
-      numTransactions := 0
-      for range block.Transactions() {
-        numTransactions += 1
-      }
-
-      log.Debug("\n!!! New block: " + block.Hash().Hex() + ", " + strconv.Itoa(numTransactions), nil, nil)
-      wallet, err := self.eth.AccountManager().Find(accounts.Account{Address: self.coinbase})
-
-      for _, tx := range block.Transactions() {
-        data := string(tx.Data())
-
-        log.Debug("!!! PM - TX: " + tx.Hash().Hex() + " " + data, nil, nil)
-
-        if len(data) > 0 && (strings.HasPrefix(data, "reqVerify") || strings.HasPrefix(data, "reqAndVerify")) {
-          dataArray := strings.Split(data, "-")
-          phone := dataArray[len(dataArray) - 1]
-          log.Debug("!!! PM - phone: " + phone, nil, nil)
-
-          nonce := tx.Nonce()
-          unsignedCode := common.BytesToHash([]byte(string(phone) + string(nonce)))
-          code, err := wallet.SignHash(accounts.Account{Address: self.coinbase}, unsignedCode.Bytes())
-          if (err != nil) {
-            log.Error("!!! Failed to sign phone number for sending over SMS", "err", err)
-            continue
-          }
-
-          hexCode := hexutil.Encode(code[:])
-          log.Debug("!!! PM - New code: " + hexCode + " " + string(len(code)), nil, nil)
-
-          msg := fmt.Sprintf("Gem verification code: %s", hexCode)
-          secret := url.QueryEscape(msg)
-          log.Debug("!!! PM - New Verification request: " + tx.Hash().Hex() + " " + phone, nil, nil)
-          if len(phone) > 0 {
-            ip := "24.130.115.83"
-            url := fmt.Sprintf("http://%s:8081/?phone=%s&msg=%s", ip, phone, secret)
-            log.Debug("!!! PM - SMS Url: " + url, nil, nil)
-
-            _, err := http.Get(url)
-
-            for i := 0; i < 5; i++ {
-              if (err == nil) {
-                break
-              }
-              log.Debug("!!! PM - GOT AN ERROR WHEN TRYING TO SEND SMS TO: " + url, nil, nil)
-              time.Sleep(100 * time.Millisecond)
-              _, err = http.Get(url)
-            }
-
-            log.Debug("!!! PM - Sent SMS", nil, nil)
-          }
-        }
-      }
-      // End added for Gem.
+			// Added for Celo
+			abe.SendVerificationTexts(block, self.coinbase, self.eth.AccountManager())
 
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
@@ -548,8 +489,6 @@ func (self *worker) commitNewWork() {
 		log.Error("Failed to finalize block for sealing", "err", err)
 		return
 	}
-
-  // log.Debug("!!! Sealed new block: " + work.Block.Hash().Hex(), nil, nil)
 
 	// We only care about logging if we're actually mining.
 	if atomic.LoadInt32(&self.mining) == 1 {
