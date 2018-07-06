@@ -322,12 +322,6 @@ func (self *worker) wait() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
-			// check if canon block and write transactions
-			if stat == core.CanonStatTy {
-				// implicit by posting ChainHeadEvent
-				mustCommitNewWork = false
-			}
-
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
 			var (
