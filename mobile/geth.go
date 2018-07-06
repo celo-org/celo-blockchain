@@ -76,12 +76,6 @@ type NodeConfig struct {
 
 	// Listening address of pprof server.
 	PprofAddress string
-
-	// Host of the http server
-	// HTTPHost string
-
-	// // Port the http server is listening on
-	// HTTPPort int
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
