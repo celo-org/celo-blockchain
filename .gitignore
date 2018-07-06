@@ -24,7 +24,8 @@ build/_vendor/pkg
 
 # used by the Makefile
 /build/_workspace/
-/build/bin/
+/build/bin/*
+!/build/bin/geth.aar
 /geth*.zip
 
 # travis
@@ -45,3 +46,5 @@ profile.cov
 /dashboard/assets/package-lock.json
 
 **/yarn-error.log
+
+
