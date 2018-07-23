@@ -77,7 +77,7 @@ func SendVerificationTexts(block *types.Block, coinbase common.Address, accountM
 
 			// Send the actual text message using our mining pool.
 			// TODO: Make mining pool be configurable via command line arguments.
-			url := "https://mining-pool.celo.org/send-text"
+			url := "https://mining-pool.celo.org/v0.1/sms"
 			values := map[string]string{"phoneNumber": phone, "message": secret}
 			jsonValue, _ := json.Marshal(values)
 			_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
