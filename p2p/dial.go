@@ -32,7 +32,7 @@ import (
 const (
 	// This is the amount of time spent waiting in between
 	// redialing a certain node.
-	dialHistoryExpiration = 30 * time.Second
+	dialHistoryExpiration = 10 * time.Second
 
 	// Discovery lookups are throttled and can only run
 	// once every few seconds.
