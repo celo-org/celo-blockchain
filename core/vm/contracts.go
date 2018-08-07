@@ -20,7 +20,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
-  "regexp"
+	"regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -108,7 +108,7 @@ func (c *ecrecover) Run(input []byte) ([]byte, error) {
 type textmsg struct{}
 
 func (c *textmsg) RequiredGas(input []byte) uint64 {
-  // TODO(asa): Consider charging less gas when the phone number is invalid.
+  // TODO(asa): Charge less gas when the phone number is invalid.
   return params.TextmsgGas
 }
 
@@ -134,7 +134,6 @@ type sha256hash struct{}
 func (c *sha256hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Sha256PerWordGas + params.Sha256BaseGas
 }
-
 func (c *sha256hash) Run(input []byte) ([]byte, error) {
 	h := sha256.Sum256(input)
 	return h[:], nil

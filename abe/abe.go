@@ -44,8 +44,8 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 		return
 	}
 
-  for _, receipt := range receipts {
-    for _, phone := range receipt.SmsQueue {
+	for _, receipt := range receipts {
+		for _, phone := range receipt.SmsQueue {
 			log.Debug("[Celo] Sending text to phone: "+phone, nil, nil)
 
 			if len(phone) <= 0 {
@@ -54,8 +54,7 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 			}
 
 			// Construct the secret code to be sent via SMS.
-			nonce := block.Number()
-			unsignedCode := common.BytesToHash([]byte(phone + nonce.String()))
+			unsignedCode := common.BytesToHash([]byte(phone + block.Number().String()))
 			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
 			if err != nil {
 				log.Error("[Celo] Failed to sign phone number for sending over SMS", "err", err)

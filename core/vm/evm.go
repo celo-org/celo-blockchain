@@ -111,8 +111,8 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-  // Maintains a queue of SMS to be sent by the miner of the block
-  SmsQueue []string
+	// Maintains a queue of SMS to be sent by the miner of the block
+	SmsQueue []string
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
