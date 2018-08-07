@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -121,6 +122,9 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Set the receipt logs and create a bloom for filtering
 	receipt.Logs = statedb.GetLogs(tx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+  // Celo: Add text messages to queue.
+  log.Debug("Copying evm SmsQueue to receipt", nil, nil)
+  receipt.SmsQueue = vmenv.SmsQueue
 
 	return receipt, gas, err
 }

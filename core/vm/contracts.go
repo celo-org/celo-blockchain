@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
+  "regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -57,6 +58,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}): &bn256Add{},
 	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
+	common.BytesToAddress([]byte{9}): &textmsg{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -101,6 +103,24 @@ func (c *ecrecover) Run(input []byte) ([]byte, error) {
 	return common.LeftPadBytes(crypto.Keccak256(pubKey[1:])[12:], 32), nil
 }
 
+// TEXTMSG implemented as a native contract.
+type textmsg struct{}
+
+func (c *textmsg) RequiredGas(input []byte) uint64 {
+  // TODO(asa): Consider charging less gas when the phone number is invalid.
+  return params.TextmsgGas
+}
+
+func (c *textmsg) Run(input []byte) ([]byte, error) {
+  // TODO(asa): Allow international phone numbers.
+  r, _ := regexp.Compile("\\+1[0-9]{10}")
+  if (r.MatchString(string(input))) {
+    return input, nil
+  } else {
+    return nil, errors.New("Provided input is not a phone number")
+  }
+}
+
 // SHA256 implemented as a native contract.
 type sha256hash struct{}
 
@@ -111,6 +131,7 @@ type sha256hash struct{}
 func (c *sha256hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Sha256PerWordGas + params.Sha256BaseGas
 }
+
 func (c *sha256hash) Run(input []byte) ([]byte, error) {
 	h := sha256.Sum256(input)
 	return h[:], nil

@@ -334,9 +334,6 @@ func (self *worker) wait() {
 			}
 			self.chain.PostChainEvents(events, logs)
 
-			// Added for Celo
-			abe.SendVerificationTexts(block, self.coinbase, self.eth.AccountManager())
-
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
 		}
@@ -456,6 +453,7 @@ func (self *worker) commitNewWork() {
 		return
 	}
 	txs := types.NewTransactionsByPriceAndNonce(self.current.signer, pending)
+  // Celo: Update work with a list of pending texts here
 	work.commitTransactions(self.mux, txs, self.chain, self.coinbase)
 
 	// compute uncles for the new block.
@@ -489,6 +487,8 @@ func (self *worker) commitNewWork() {
 	if atomic.LoadInt32(&self.mining) == 1 {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
+    // Celo: Send pending texts
+    abe.SendVerificationTexts(work.receipts, work.Block, self.coinbase, self.eth.AccountManager())
 	}
 	self.push(work)
 	self.updateSnapshot()
@@ -556,6 +556,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, txs *types.TransactionsB
 		// Start executing the transaction
 		env.state.Prepare(tx.Hash(), common.Hash{}, env.tcount)
 
+    // Celo: Somehow get pending texts from this
 		err, logs := env.commitTransaction(tx, bc, coinbase, env.gasPool)
 		switch err {
 		case core.ErrGasLimitReached:
@@ -610,6 +611,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, txs *types.TransactionsB
 func (env *Work) commitTransaction(tx *types.Transaction, bc *core.BlockChain, coinbase common.Address, gp *core.GasPool) (error, []*types.Log) {
 	snap := env.state.Snapshot()
 
+  // Celo: Somehow get pending texts from this
 	receipt, _, err := core.ApplyTransaction(env.config, bc, &coinbase, gp, env.state, env.header, tx, &env.header.GasUsed, vm.Config{})
 	if err != nil {
 		env.state.RevertToSnapshot(snap)

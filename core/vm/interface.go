@@ -26,15 +26,10 @@ import (
 // StateDB is an EVM database for full state querying.
 type StateDB interface {
 	CreateAccount(common.Address)
-	CreatePhoneMapping(common.Address, *big.Int)
 
 	SubBalance(common.Address, *big.Int)
 	AddBalance(common.Address, *big.Int)
 	GetBalance(common.Address) *big.Int
-
-  IncNumPhoneVerifications(common.Address)
-  SetNumPhoneVerifications(common.Address, uint64)
-  GetNumPhoneVerifications(common.Address) uint64
 
 	GetNonce(common.Address) uint64
 	SetNonce(common.Address, uint64)

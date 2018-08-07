@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -32,7 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func SendVerificationTexts(block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
+func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
 	numTransactions := 0
 	for range block.Transactions() {
 		numTransactions += 1
@@ -45,16 +44,8 @@ func SendVerificationTexts(block *types.Block, coinbase common.Address, accountM
 		return
 	}
 
-	// Iterate through all transactions in the currently sealed block to find verification
-	// transactions.
-	for _, tx := range block.Transactions() {
-		data := string(tx.Data())
-		log.Debug("[Celo] Block transaction:: "+tx.Hash().Hex()+" "+data, nil, nil)
-
-		if len(data) > 0 && (strings.HasPrefix(data, "reqVerify") || strings.HasPrefix(data, "reqAndVerify")) {
-			// Get the phone number to send the secret to.
-			dataArray := strings.Split(data, "-")
-			phone := dataArray[len(dataArray)-1]
+  for _, receipt := range receipts {
+    for _, phone := range receipt.SmsQueue {
 			log.Debug("[Celo] Sending text to phone: "+phone, nil, nil)
 
 			if len(phone) <= 0 {
@@ -63,8 +54,8 @@ func SendVerificationTexts(block *types.Block, coinbase common.Address, accountM
 			}
 
 			// Construct the secret code to be sent via SMS.
-			nonce := tx.Nonce()
-			unsignedCode := common.BytesToHash([]byte(string(phone) + string(nonce)))
+			nonce := block.Number()
+			unsignedCode := common.BytesToHash([]byte(phone + nonce.String()))
 			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
 			if err != nil {
 				log.Error("[Celo] Failed to sign phone number for sending over SMS", "err", err)
@@ -73,7 +64,7 @@ func SendVerificationTexts(block *types.Block, coinbase common.Address, accountM
 			hexCode := hexutil.Encode(code[:])
 			log.Debug("[Celo] Secret code: "+hexCode+" "+string(len(code)), nil, nil)
 			secret := fmt.Sprintf("Gem verification code: %s", hexCode)
-			log.Debug("[Celo] New verification request: "+tx.Hash().Hex()+" "+phone, nil, nil)
+			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+phone, nil, nil)
 
 			// Send the actual text message using our mining pool.
 			// TODO: Make mining pool be configurable via command line arguments.
