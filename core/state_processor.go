@@ -123,8 +123,9 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	receipt.Logs = statedb.GetLogs(tx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
   // Celo: Add text messages to queue.
-  log.Debug("Copying evm SmsQueue to receipt", nil, nil)
-  receipt.SmsQueue = vmenv.SmsQueue
-
+  if (len(vmenv.SmsQueue) > 0) {
+    log.Debug("Copying evm SmsQueue to receipt", nil, nil)
+    receipt.SmsQueue = vmenv.SmsQueue
+  }
 	return receipt, gas, err
 }
