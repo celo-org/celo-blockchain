@@ -125,6 +125,6 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 
 	if (len(vmenv.SmsQueue) > 0) {
 		receipt.SmsQueue = vmenv.SmsQueue
-  }
+	}
 	return receipt, gas, err
 }
