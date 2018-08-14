@@ -1,26 +1,7 @@
-Hi there,
+### Expected Behavior
 
-please note that this is an issue tracker reserved for bug reports and feature requests.
+Please describe the behavior you are expecting
 
-For general questions please use the gitter channel or the Ethereum stack exchange at https://ethereum.stackexchange.com.
+### Current Behavior
 
-#### System information
-
-Geth version: `geth version`
-OS & Version: Windows/Linux/OSX
-Commit hash : (if `develop`)
-
-#### Expected behaviour
-
-
-#### Actual behaviour
-
-
-#### Steps to reproduce the behaviour
-
-
-#### Backtrace
-
-````
-[backtrace]
-````
+What is the current behavior?
