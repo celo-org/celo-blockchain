@@ -681,8 +681,8 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 		gas += params.CallStipend
 	}
 	ret, returnGas, err := evm.Call(contract, toAddr, args, gas, value)
-	if (toAddr == common.BytesToAddress([]byte{9}) && err == nil) {
-		log.Debug("[Celo]: Adding " + string(ret) + " to evm SMS queue", nil, nil)
+	if toAddr == textmsgAddress && err == nil {
+		log.Debug("[Celo]: Adding "+string(ret)+" to evm SMS queue", nil, nil)
 		evm.SmsQueue = append(evm.SmsQueue, string(ret))
 	}
 	if err != nil {

@@ -48,6 +48,8 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
+var textmsgAddress = common.BytesToAddress([]byte{255})
+
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
@@ -59,7 +61,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}): &bn256Add{},
 	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
-	common.BytesToAddress([]byte{9}): &textmsg{},
+	textmsgAddress:                   &textmsg{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -102,26 +104,6 @@ func (c *ecrecover) Run(input []byte) ([]byte, error) {
 
 	// the first byte of pubkey is bitcoin heritage
 	return common.LeftPadBytes(crypto.Keccak256(pubKey[1:])[12:], 32), nil
-}
-
-// TEXTMSG implemented as a native contract.
-type textmsg struct{}
-
-func (c *textmsg) RequiredGas(input []byte) uint64 {
-  // TODO(asa): Charge less gas when the phone number is invalid.
-  return params.TextmsgGas
-}
-
-func (c *textmsg) Run(input []byte) ([]byte, error) {
-  // TODO(asa): Allow international phone numbers.
-  r, _ := regexp.Compile("\\+1[0-9]{10}")
-  if (r.MatchString(string(input))) {
-    log.Debug("Received valid phone number: " + string(input), nil, nil)
-    return input, nil
-  } else {
-    log.Debug("Received invalid phone number: " + string(input), nil, nil)
-    return nil, errors.New("Provided input is not a phone number")
-  }
 }
 
 // SHA256 implemented as a native contract.
@@ -380,4 +362,24 @@ func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
 		return true32Byte, nil
 	}
 	return false32Byte, nil
+}
+
+// TEXTMSG implemented as a native contract.
+type textmsg struct{}
+
+func (c *textmsg) RequiredGas(input []byte) uint64 {
+	// TODO(asa): Charge less gas when the phone number is invalid.
+	return params.TextmsgGas
+}
+
+func (c *textmsg) Run(input []byte) ([]byte, error) {
+	// TODO(asa): Allow international phone numbers.
+	r, _ := regexp.Compile("\\+1[0-9]{10}")
+	if r.MatchString(string(input)) {
+		log.Debug("Received valid phone number: "+string(input), nil, nil)
+		return input, nil
+	} else {
+		log.Debug("Received invalid phone number: "+string(input), nil, nil)
+		return nil, errors.New("Provided input is not a phone number")
+	}
 }

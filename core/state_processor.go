@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -119,12 +118,9 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if msg.To() == nil {
 		receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
 	}
+	receipt.SmsQueue = vmenv.SmsQueue
 	// Set the receipt logs and create a bloom for filtering
 	receipt.Logs = statedb.GetLogs(tx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-
-	if (len(vmenv.SmsQueue) > 0) {
-		receipt.SmsQueue = vmenv.SmsQueue
-	}
 	return receipt, gas, err
 }
