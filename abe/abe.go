@@ -40,7 +40,7 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 
 	wallet, err := accountManager.Find(accounts.Account{Address: coinbase})
 	if err != nil {
-		log.Error("[Celo] Failed to get account", "err", err)
+		log.Error("[Celo] Failed to get account for sms signature", "err", err)
 		return
 	}
 

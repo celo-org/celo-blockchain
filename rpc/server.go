@@ -306,7 +306,12 @@ func (s *Server) handle(ctx context.Context, codec ServerCodec, req *serverReque
 	}
 
 	// execute RPC method and return result
+  // TODO(asa): This seems to be the key!
 	reply := req.callb.method.Func.Call(arguments)
+  log.Debug("Handle args", arguments)
+  //log.Debug("Reply", reply[0])
+  //log.Debug(reply[0].TypeOf())
+
 	if len(reply) == 0 {
 		return codec.CreateResponse(req.id, nil), nil
 	}
@@ -329,6 +334,8 @@ func (s *Server) exec(ctx context.Context, codec ServerCodec, req *serverRequest
 	} else {
 		response, callback = s.handle(ctx, codec, req)
 	}
+  log.Info("exec response", response)
+  //log.Info(response)
 
 	if err := codec.Write(response); err != nil {
 		log.Error(fmt.Sprintf("%v\n", err))
@@ -423,6 +430,7 @@ func (s *Server) readRequest(codec ServerCodec) ([]*serverRequest, bool, Error) 
 			continue
 		}
 
+    // TODO(asa): Callback decided here
 		if callb, ok := svc.callbacks[r.method]; ok { // lookup RPC method
 			requests[i] = &serverRequest{id: r.id, svcname: svc.name, callb: callb}
 			if r.params != nil && len(callb.argTypes) > 0 {

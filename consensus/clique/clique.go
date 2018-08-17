@@ -573,6 +573,7 @@ func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, sta
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+  header.Signature = "test"
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
