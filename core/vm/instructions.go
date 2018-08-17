@@ -743,8 +743,8 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 	}
 	ret, returnGas, err := interpreter.evm.Call(contract, toAddr, args, gas, value)
 	if toAddr == textmsgAddress && err == nil {
-		log.Debug("[Celo]: Adding "+string(ret)+" to evm SMS queue", nil, nil)
-		interpreter.evm.SmsQueue = append(interpreter.evm.SmsQueue, string(ret))
+		log.Debug("[Celo]: Adding to evm SMS queue", nil, nil)
+		interpreter.evm.SmsQueue = append(interpreter.evm.SmsQueue, ret)
 	}
 	if err != nil {
 		stack.push(interpreter.intPool.getZero())

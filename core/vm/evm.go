@@ -126,7 +126,8 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 	// Maintains a queue of SMS to be sent by the miner of the block
-	SmsQueue []string
+  // TODO(asa): Should be saved in the statedb and returned that way instead.
+	SmsQueue [][]byte
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should

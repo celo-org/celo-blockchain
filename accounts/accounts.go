@@ -75,6 +75,8 @@ type Wallet interface {
 	// to the wallet's tracked account list.
 	Derive(path DerivationPath, pin bool) (Account, error)
 
+  Decrypt(account Account, data []byte) ([]byte, error)
+
 	// SelfDerive sets a base account derivation path from which the wallet attempts
 	// to discover non zero accounts and automatically add them to list of tracked
 	// accounts.

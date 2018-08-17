@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
-	"regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -373,12 +372,12 @@ func (c *textmsg) RequiredGas(input []byte) uint64 {
 }
 
 func (c *textmsg) Run(input []byte) ([]byte, error) {
-	// TODO(asa): Allow international phone numbers.
-	r, _ := regexp.Compile("\\+1[0-9]{10}")
-	if r.MatchString(string(input)) {
+  // TODO(asa): Validate input length
+	if len(input) == (32 + 65) {
+		log.Debug("Received valid phoneHash/encryptedPhone", nil, nil)
 		return input, nil
 	} else {
-		log.Error("[Celo] Provided input is not a valid phone number: "+string(input), nil, nil)
-		return nil, errors.New("Provided input is not a valid phone number")
+		log.Debug("Received invalid phoneHash/encryptedPhone", nil, nil)
+		return nil, errors.New("Provided input is not of valid length")
 	}
 }

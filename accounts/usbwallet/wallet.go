@@ -495,6 +495,13 @@ func (w *wallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainSt
 	w.deriveChain = chain
 }
 
+// TODO(asa): Possibly implement this?
+func (w *wallet) Decrypt(a accounts.Account, data []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+// SignHash calculates a ECDSA signature for the given hash. The produced
+
 // SignHash implements accounts.Wallet, however signing arbitrary data is not
 // supported for hardware wallets, so this method will always return an error.
 func (w *wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
