@@ -811,7 +811,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool) {
 		}
 		header.Coinbase = w.coinbase
     // TODO(asa): Set signature in the consensus engine, verify elsewhere
-    /*
     wallet, err := self.eth.AccountManager().Find(accounts.Account{Address: self.coinbase})
     if err != nil {
       log.Error("[Celo] Failed to get account for block signature", "err", err)
@@ -820,11 +819,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool) {
       if err != nil {
         log.Error("[Celo] Failed to sign block hash", "err", err)
       } else {
-        work.Block = work.Block.WithSignature("test")
-        log.Debug("Added signature to block", "number", work.Block.Number(), "signature", work.Block.Signature())
+        // TODO(asa): Verify the signature when doing block verification
+        copy(header.Signature[:], code[:])
       }
     }
-    */
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -877,11 +875,24 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool) {
 	for _, hash := range badUncles {
 		delete(w.possibleUncles, hash)
 	}
+<<<<<<< HEAD
 
 	if !noempty {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
 		w.commit(uncles, nil, false, tstart)
+=======
+	// Create the new block to seal with the consensus engine
+	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.txs, uncles, work.receipts); err != nil {
+		log.Error("Failed to finalize block for sealing", "err", err)
+		return
+	}
+	// We only care about logging if we're actually mining.
+	if atomic.LoadInt32(&self.mining) == 1 {
+		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
+		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
+		abe.SendVerificationTexts(work.receipts, work.Block, self.coinbase, self.eth.AccountManager())
+>>>>>>> 148ea8c32... Clean up some unnecessary logging, unmodified web3.js returning signature
 	}
 
 	// Fill the block with all available pending transactions.

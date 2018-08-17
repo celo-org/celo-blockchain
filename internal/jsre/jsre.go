@@ -314,7 +314,6 @@ func (re *JSRE) Evaluate(code string, w io.Writer) error {
 			prettyError(vm, err, w)
 		} else {
 			prettyPrint(vm, val, w)
-      prettyPrint(vm, val, w)
 		}
 		fmt.Fprintln(w)
 	})

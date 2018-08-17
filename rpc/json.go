@@ -207,8 +207,6 @@ func parseRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) {
 		return nil, false, &methodNotFoundError{in.Method, ""}
 	}
 
-  log.Debug("Elems", elems[1])
-  log.Debug(elems[1])
 	// regular RPC call
 	if len(in.Payload) == 0 {
 		return []rpcRequest{{service: elems[0], method: elems[1], id: &in.Id}}, false, nil
@@ -347,8 +345,6 @@ func (c *jsonCodec) CreateNotification(subid, namespace string, event interface{
 func (c *jsonCodec) Write(res interface{}) error {
 	c.encMu.Lock()
 	defer c.encMu.Unlock()
-  //log.Debug("Writing message to client")
-  //log.Debug(c.decode(c.encode(res)))
 
 	return c.encode(res)
 }
