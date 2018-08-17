@@ -813,7 +813,8 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"timestamp":        (*hexutil.Big)(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
-		"signature":     head.Signature,
+    // TODO(asa): Could include the signature of the previous block instead of the previous block hash?
+    "signature":        hexutil.Bytes(common.CopyBytes([]byte(head.Signature[:]))),
 	}
 
 	if inclTx {

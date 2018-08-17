@@ -42,10 +42,10 @@ var (
 // out on a block.
 type BlockNonce [8]byte
 
-// A BlockSignature is a 65-byte signature of the blockHash. This makes
+// A BlockSignature is a 65-byte signature of the previous blockHash. This makes
 // the public key available and verifies that the miner has access to the
 // private key associated with the etherbase.
-// type BlockSignature [8]byte
+type BlockSignature [65]byte
 
 // EncodeNonce converts the given integer to a block nonce.
 func EncodeNonce(i uint64) BlockNonce {
@@ -88,7 +88,7 @@ type Header struct {
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
 	MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
 	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
-	Signature   string         `json:"signature"        gencodec:"required"`
+	Signature   BlockSignature `json:"signature"        gencodec:"required"`
 }
 
 // field type overrides for gencodec
@@ -105,23 +105,7 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	return rlpHash([]interface{}{
-		h.ParentHash,
-		h.UncleHash,
-		h.Coinbase,
-		h.Root,
-		h.TxHash,
-		h.ReceiptHash,
-		h.Bloom,
-		h.Difficulty,
-		h.Number,
-		h.GasLimit,
-		h.GasUsed,
-		h.Time,
-		h.Extra,
-		h.MixDigest,
-		h.Nonce,
-	})
+  return rlpHash(h)
 }
 
 // HashNoNonce returns the hash which is used as input for the proof-of-work search.
@@ -340,8 +324,7 @@ func (b *Block) TxHash() common.Hash       { return b.header.TxHash }
 func (b *Block) ReceiptHash() common.Hash  { return b.header.ReceiptHash }
 func (b *Block) UncleHash() common.Hash    { return b.header.UncleHash }
 func (b *Block) Extra() []byte             { return common.CopyBytes(b.header.Extra) }
-//func (b *Block) Signature() []byte { return common.CopyBytes([]byte(b.header.Signature[:])) }
-func (b *Block) Signature() string { return b.header.Signature }
+func (b *Block) Signature() []byte { return common.CopyBytes([]byte(b.header.Signature[:])) }
 
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
@@ -373,18 +356,6 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 
 func CalcUncleHash(uncles []*Header) common.Hash {
 	return rlpHash(uncles)
-}
-
-// WithSignature returns a new block with the data from b but with a signature.
-/*
-func (b *Block) WithSignature(signature []byte) *Block {
-  b.header.Signature = signature
-	return b
-}
-*/
-func (b *Block) WithSignature(signature string) *Block {
-  b.header.Signature = signature
-	return b
 }
 
 // WithSeal returns a new block with the data from b but the header replaced with

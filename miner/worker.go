@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sync"

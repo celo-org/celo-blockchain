@@ -569,10 +569,7 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := bc.blockCache.Get(hash); ok {
-    b := block.(*types.Block).WithSignature("test")
-    log.Debug("Getting block hopefully with signature")
-    log.Debug(b.Signature())
-		return b
+    return block.(*types.Block)
 	}
 	block := rawdb.ReadBlock(bc.db, hash, number)
 	if block == nil {
