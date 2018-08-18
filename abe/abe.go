@@ -69,7 +69,9 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 			log.Debug("[Celo] Decrypted phone: "+string(phone), nil, nil)
 
       r, _ := regexp.Compile("\\+1[0-9]{10}")
-      if bytes.Equal(crypto.Keccak256(phone), phoneHash) {
+      log.Debug("Checking for phone hash match")
+      log.Debug(hex.EncodeToString(crypto.Keccak256(phone)))
+      if !bytes.Equal(crypto.Keccak256(phone), phoneHash) {
 				log.Error("[Celo] Phone hash doesn't match decrypted phone number", nil, nil)
 				continue
 			} else if !r.MatchString(string(phone)) {
