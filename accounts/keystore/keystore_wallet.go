@@ -74,7 +74,7 @@ func (w *keystoreWallet) Derive(path accounts.DerivationPath, pin bool) (account
 	return accounts.Account{}, accounts.ErrNotSupported
 }
 
-func (w *keystoreWallet) Decrypt(account accounts.Account, data []byte) ([]byte, error) {
+func (w *keystoreWallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, error) {
 	if account.Address != w.account.Address {
 		return nil, accounts.ErrUnknownAccount
 	}
@@ -82,7 +82,18 @@ func (w *keystoreWallet) Decrypt(account accounts.Account, data []byte) ([]byte,
 		return nil, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
-	return w.keystore.Decrypt(account, data)
+	return w.keystore.Decrypt(account, c, s1, s2)
+}
+
+func (w *keystoreWallet) Encrypt(account accounts.Account, m, s1, s2 []byte) ([]byte, error) {
+	if account.Address != w.account.Address {
+		return nil, accounts.ErrUnknownAccount
+	}
+	if account.URL != (accounts.URL{}) && account.URL != w.account.URL {
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.Encrypt(account, m, s1, s2)
 }
 
 // SelfDerive implements accounts.Wallet, but is a noop for plain wallets since

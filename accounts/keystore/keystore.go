@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -255,7 +256,7 @@ func (ks *KeyStore) Delete(a accounts.Account, passphrase string) error {
 
 // Decrypt calculates a ECIES signature for the given hash. The produced
 // signature is in the [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) Decrypt(a accounts.Account, data []byte) ([]byte, error) {
+func (ks *KeyStore) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -264,13 +265,43 @@ func (ks *KeyStore) Decrypt(a accounts.Account, data []byte) ([]byte, error) {
 	if !found {
 		return nil, ErrLocked
 	}
-  c := data[:16]
-  s1 := data[16:81]
-  s2 := data[81:113]
 	// Import the ECDSA key as an ECIES key and decrypt the data.
   eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey)
+  log.Debug("ECDSA private key")
+  log.Debug(fmt.Sprintf("%x", unlockedKey.PrivateKey.D))
   return eciesKey.Decrypt(c, s1, s2)
 }
+
+// Decrypt calculates a ECIES signature for the given hash. The produced
+// signature is in the [R || S || V] format where V is 0 or 1.
+func (ks *KeyStore) Encrypt(a accounts.Account, m, s1, s2 []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	// Import the ECDSA key as an ECIES key and decrypt the data.
+  eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey).PublicKey
+  return ecies.Encrypt(crand.Reader, &eciesKey,m, s1, s2)
+}
+
+/*
+func (ks *KeyStore) PublicKey(a accounts.Account) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	// Import the ECDSA key as an ECIES key and decrypt the data.
+  return crypto.FromECDSAPub(unlockedKey.PrivateKey.PublicKey), nil
+}
+*/
 
 // SignHash calculates a ECDSA signature for the given hash. The produced
 // signature is in the [R || S || V] format where V is 0 or 1.

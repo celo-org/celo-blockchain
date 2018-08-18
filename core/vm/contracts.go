@@ -47,7 +47,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var textmsgAddress = common.BytesToAddress([]byte{255})
+var textmsgAddress = common.BytesToAddress([]byte{9})
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -373,6 +373,7 @@ func (c *textmsg) RequiredGas(input []byte) uint64 {
 
 func (c *textmsg) Run(input []byte) ([]byte, error) {
   // TODO(asa): Validate input length
+  /*
 	if len(input) == (32 + 65) {
 		log.Debug("Received valid phoneHash/encryptedPhone", nil, nil)
 		return input, nil
@@ -380,4 +381,7 @@ func (c *textmsg) Run(input []byte) ([]byte, error) {
 		log.Debug("Received invalid phoneHash/encryptedPhone", nil, nil)
 		return nil, errors.New("Provided input is not of valid length")
 	}
+  */
+  log.Debug("Received phoneHash/encryptedPhone", nil, nil)
+  return input, nil
 }

@@ -18,8 +18,8 @@ package miner
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
+	"encoding/hex"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -815,7 +815,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool) {
     if err != nil {
       log.Error("[Celo] Failed to get account for block signature", "err", err)
     } else {
-      code, err := wallet.SignHash(accounts.Account{Address: self.coinbase}, work.Block.Hash().Bytes())
+      code, err := wallet.SignHash(accounts.Account{Address: self.coinbase}, header.ParentHash.Bytes())
       if err != nil {
         log.Error("[Celo] Failed to sign block hash", "err", err)
       } else {

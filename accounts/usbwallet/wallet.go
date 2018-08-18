@@ -496,7 +496,13 @@ func (w *wallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainSt
 }
 
 // TODO(asa): Possibly implement this?
-func (w *wallet) Decrypt(a accounts.Account, data []byte) ([]byte, error) {
+func (w *wallet) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+func (w *wallet) Encrypt(a accounts.Account, m, s1, s2 []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+func (w *wallet) PublicKey(a accounts.Account) ([]byte, error) {
 	return nil, accounts.ErrNotSupported
 }
 
