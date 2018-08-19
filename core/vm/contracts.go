@@ -376,10 +376,9 @@ func (c *textmsg) Run(input []byte) ([]byte, error) {
 	// TODO(asa): Allow international phone numbers.
 	r, _ := regexp.Compile("\\+1[0-9]{10}")
 	if r.MatchString(string(input)) {
-		log.Debug("Received valid phone number: "+string(input), nil, nil)
 		return input, nil
 	} else {
-		log.Debug("Received invalid phone number: "+string(input), nil, nil)
-		return nil, errors.New("Provided input is not a phone number")
+		log.Error("[Celo] Provided input is not a valid phone number: "+string(input), nil, nil)
+		return nil, errors.New("Provided input is not a valid phone number")
 	}
 }

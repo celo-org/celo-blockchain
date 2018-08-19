@@ -57,7 +57,7 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 			unsignedCode := common.BytesToHash([]byte(phone + block.Number().String()))
 			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
 			if err != nil {
-				log.Error("[Celo] Failed to sign phone number for sending over SMS", "err", err)
+				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
 				continue
 			}
 			hexCode := hexutil.Encode(code[:])
