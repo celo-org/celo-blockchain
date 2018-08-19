@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -52,19 +53,28 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
       phoneHash := data[:32]
       log.Debug("Found phone hash")
       log.Debug(hex.EncodeToString(phoneHash))
-      encryptedMsgLength := data[63]
+
+      unsignedMessage := data[32:64]
+      log.Debug("Found unsignedMessage")
+      log.Debug(hex.EncodeToString(unsignedMessage))
+
+      // casat with (*big.Int)
+      index, parsed := math.ParseBig256(hexutil.Encode(data[64:96]))
+      if !parsed {
+        log.Error("[Celo] Unable to decode verification index: "+ hexutil.Encode(data[64:96]), "err", err)
+      }
+      log.Debug("Found index")
+      log.Debug(index.String())
+
+      encryptedMsgLength := data[127]
       log.Debug("Encrypted message length")
       log.Debug(fmt.Sprintf("%v", encryptedMsgLength))
-      // TODO(asa): Perhaps I need to be able to know the length of the message?
-      encryptedPhone := data[64:64 + encryptedMsgLength]
+
+      encryptedPhone := data[128:128 + encryptedMsgLength]
       log.Debug("Found encrypted phone number")
       log.Debug(hex.EncodeToString(encryptedPhone))
-      blockNum := data[64+encryptedMsgLength:]
-      log.Debug("Found encrypted blockNum")
-      log.Debug(hex.EncodeToString(blockNum))
-      //c, err := hex.DecodeString("04c48aefc487295f2bc8e3dcd7a5b60246b1daeab26aac1af86d341068f6b4134cd934f97b9ac28312d3e130154f5177609db1e5d5a1b8d96550390f1dd58fad8c189d145da5c5c0b2154a2040c3b72acd54c63fd89e0ed2c7fefbd71db8203ed6de50a3203e2d4d8a3a7a0392f99af5647f715785cf1cf7ec2bfb0b9e")
+
       phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, encryptedPhone, nil, nil)
-      //phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, c, nil, nil)
       if err != nil {
         log.Error("[Celo] Failed to decrypt phone number", "err", err)
         continue
@@ -83,21 +93,20 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
       }
 
 			// Construct the secret code to be sent via SMS.
-			unsignedCode := common.BytesToHash([]byte(string(phone) + block.Number().String()))
-			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
+			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedMessage)
 			if err != nil {
 				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
 				continue
 			}
-			hexCode := hexutil.Encode(code[:])
-			log.Debug("[Celo] Secret code: "+hexCode+" "+string(len(code)), nil, nil)
-			secret := fmt.Sprintf("Gem verification code: %s", hexCode)
+      secret := fmt.Sprintf("%s:%s", hexutil.Encode(code[:]), index.String())
+			log.Debug("[Celo] Secret: " + secret, nil, nil)
+      message := fmt.Sprintf("Gem verification code: %s", secret)
 			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+string(phone), nil, nil)
 
 			// Send the actual text message using our mining pool.
 			// TODO: Make mining pool be configurable via command line arguments.
 			url := "https://mining-pool.celo.org/v0.1/sms"
-			values := map[string]string{"phoneNumber": string(phone), "message": secret}
+			values := map[string]string{"phoneNumber": string(phone), "message": message}
 			jsonValue, _ := json.Marshal(values)
 			_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
 			log.Debug("[Celo] SMS send Url: "+url, nil, nil)

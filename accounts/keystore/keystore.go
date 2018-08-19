@@ -288,21 +288,6 @@ func (ks *KeyStore) Encrypt(a accounts.Account, m, s1, s2 []byte) ([]byte, error
   return ecies.Encrypt(crand.Reader, &eciesKey,m, s1, s2)
 }
 
-/*
-func (ks *KeyStore) PublicKey(a accounts.Account) ([]byte, error) {
-	// Look up the key to sign with and abort if it cannot be found
-	ks.mu.RLock()
-	defer ks.mu.RUnlock()
-
-	unlockedKey, found := ks.unlocked[a.Address]
-	if !found {
-		return nil, ErrLocked
-	}
-	// Import the ECDSA key as an ECIES key and decrypt the data.
-  return crypto.FromECDSAPub(unlockedKey.PrivateKey.PublicKey), nil
-}
-*/
-
 // SignHash calculates a ECDSA signature for the given hash. The produced
 // signature is in the [R || S || V] format where V is 0 or 1.
 func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
