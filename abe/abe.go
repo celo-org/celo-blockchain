@@ -59,6 +59,9 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
       encryptedPhone := data[64:64 + encryptedMsgLength]
       log.Debug("Found encrypted phone number")
       log.Debug(hex.EncodeToString(encryptedPhone))
+      blockNum := data[64+encryptedMsgLength:]
+      log.Debug("Found encrypted blockNum")
+      log.Debug(hex.EncodeToString(blockNum))
       //c, err := hex.DecodeString("04c48aefc487295f2bc8e3dcd7a5b60246b1daeab26aac1af86d341068f6b4134cd934f97b9ac28312d3e130154f5177609db1e5d5a1b8d96550390f1dd58fad8c189d145da5c5c0b2154a2040c3b72acd54c63fd89e0ed2c7fefbd71db8203ed6de50a3203e2d4d8a3a7a0392f99af5647f715785cf1cf7ec2bfb0b9e")
       phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, encryptedPhone, nil, nil)
       //phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, c, nil, nil)
