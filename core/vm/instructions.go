@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -680,6 +681,10 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 		gas += params.CallStipend
 	}
 	ret, returnGas, err := evm.Call(contract, toAddr, args, gas, value)
+	if toAddr == textmsgAddress && err == nil {
+		log.Debug("[Celo]: Adding "+string(ret)+" to evm SMS queue", nil, nil)
+		evm.SmsQueue = append(evm.SmsQueue, string(ret))
+	}
 	if err != nil {
 		stack.push(evm.interpreter.intPool.getZero())
 	} else {

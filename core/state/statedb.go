@@ -205,15 +205,6 @@ func (self *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
-func (self *StateDB) GetNumPhoneVerifications(addr common.Address) uint64 {
-	stateObject := self.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.NumPhoneVerifications()
-	}
-
-	return 0
-}
-
 func (self *StateDB) GetCode(addr common.Address) []byte {
 	stateObject := self.getStateObject(addr)
 	if stateObject != nil {
@@ -297,15 +288,6 @@ func (self *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
-// AddBalance adds amount to the account associated with addr
-func (self *StateDB) IncNumPhoneVerifications(addr common.Address) {
-	stateObject := self.GetOrNewStateObject(addr)
-	if stateObject != nil {
-    numVerifications := stateObject.NumPhoneVerifications()
-		stateObject.setNumPhoneVerifications(numVerifications + 1)
-	}
-}
-
 func (self *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
@@ -317,13 +299,6 @@ func (self *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	stateObject := self.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
-	}
-}
-
-func (self *StateDB) SetNumPhoneVerifications(addr common.Address, numPhoneVerifications uint64) {
-	stateObject := self.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.setNumPhoneVerifications(numPhoneVerifications)
 	}
 }
 
@@ -429,7 +404,6 @@ func (self *StateDB) createObject(addr common.Address) (newobj, prev *stateObjec
 	prev = self.getStateObject(addr)
 	newobj = newObject(self, addr, Account{})
 	newobj.setNonce(0) // sets the object to dirty
-	newobj.setNumPhoneVerifications(0) // sets the object to dirty
 	if prev == nil {
 		self.journal.append(createObjectChange{account: &addr})
 	} else {
@@ -454,13 +428,6 @@ func (self *StateDB) CreateAccount(addr common.Address) {
 	if prev != nil {
 		new.setBalance(prev.data.Balance)
 	}
-}
-
-// Create an account used to map phone numbers to ethereum addresses, where the address is stored 
-// in the balance as a temporary hack.
-func (self *StateDB) CreatePhoneMapping(phone common.Address, addr *big.Int) {
-	new, _ := self.createObject(phone)
-  new.setBalance(addr)
 }
 
 func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) {

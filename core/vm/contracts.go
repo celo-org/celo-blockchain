@@ -20,11 +20,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
+	"regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -46,6 +48,8 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
+var textmsgAddress = common.BytesToAddress([]byte{255})
+
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
@@ -57,6 +61,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}): &bn256Add{},
 	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
+	textmsgAddress:                   &textmsg{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -357,4 +362,23 @@ func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
 		return true32Byte, nil
 	}
 	return false32Byte, nil
+}
+
+// TEXTMSG implemented as a native contract.
+type textmsg struct{}
+
+func (c *textmsg) RequiredGas(input []byte) uint64 {
+	// TODO(asa): Charge less gas when the phone number is invalid.
+	return params.TextmsgGas
+}
+
+func (c *textmsg) Run(input []byte) ([]byte, error) {
+	// TODO(asa): Allow international phone numbers.
+	r, _ := regexp.Compile("\\+1[0-9]{10}")
+	if r.MatchString(string(input)) {
+		return input, nil
+	} else {
+		log.Error("[Celo] Provided input is not a valid phone number: "+string(input), nil, nil)
+		return nil, errors.New("Provided input is not a valid phone number")
+	}
 }
