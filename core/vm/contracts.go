@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
+	"regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -47,7 +48,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var textmsgAddress = common.BytesToAddress([]byte{9})
+var textmsgAddress = common.BytesToAddress([]byte{255})
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.

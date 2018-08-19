@@ -50,6 +50,7 @@ type Receipt struct {
 	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
 	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
 	Logs              []*Log `json:"logs"              gencodec:"required"`
+	SmsQueue          []string
 
   // Celo fields
 	SmsQueue          [][]byte

@@ -93,15 +93,16 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
       }
 
 			// Construct the secret code to be sent via SMS.
-			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedMessage)
+			unsignedCode := common.BytesToHash([]byte(phone + block.Number().String()))
+			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
 			if err != nil {
 				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
 				continue
 			}
-      secret := fmt.Sprintf("%s:%s", hexutil.Encode(code[:]), index.String())
-			log.Debug("[Celo] Secret: " + secret, nil, nil)
-      message := fmt.Sprintf("Gem verification code: %s", secret)
-			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+string(phone), nil, nil)
+			hexCode := hexutil.Encode(code[:])
+			log.Debug("[Celo] Secret code: "+hexCode+" "+string(len(code)), nil, nil)
+			secret := fmt.Sprintf("Gem verification code: %s", hexCode)
+			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+phone, nil, nil)
 
 			// Send the actual text message using our mining pool.
 			// TODO: Make mining pool be configurable via command line arguments.

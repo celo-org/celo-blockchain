@@ -566,7 +566,6 @@ func (w *worker) resultLoop() {
 
 			// Insert the block into the set of pending ones to resultLoop for confirmations
 			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
-
 		case <-w.exitCh:
 			return
 		}
