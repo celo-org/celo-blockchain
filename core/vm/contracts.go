@@ -21,6 +21,7 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -381,11 +382,12 @@ func (c *requestVerificationMessage) RequiredGas(input []byte) uint64 {
 // data[128:128 + encryptedPhoneLength] bytes encryptedPhone
 func (c *requestVerificationMessage) Run(input []byte) ([]byte, error) {
 	encryptedPhoneLength := int(input[127])
-	// Input to call() expected to be a multiple of 32 bytes
-	expectedInputLength := 32 * (5 + encryptedPhoneLength/32)
+	expectedInputLength := 32*4 + encryptedPhoneLength
 	// The minimum length of a valid international phone number is 7 digits
-	if encryptedPhoneLength <= 7 || len(input) != expectedInputLength {
-		err := errors.New("Provided input to requestVerificationMessage is not of valid length")
+	// The initialization vector, ephemeral public key, and the mac take up 16, 65, and 32 bytes,
+	// respectively.
+	if encryptedPhoneLength <= (16+65+32+7) || len(input) != expectedInputLength {
+		err := errors.New("Provided input to requestVerificationMessage is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
 		log.Error("[Celo] Unable to parse input to requestVerificationMessage", "err", err)
 		return nil, err
 	}
