@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,24 +47,15 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 	}
 
 	for _, receipt := range receipts {
-		// 'data' is expected to be formatted in the following way
-		// data[0:32]: bytes32 phoneHash
-		// data[32:64]: bytes32 unsignedMessageHash
-		// data[64:96]: bytes32 verificationIndex
-		// data[96:128]: uint8 encryptedPhoneLength
-		// data[128:128 + encryptedPhoneLength] bytes encryptedPhone
-		for _, data := range receipt.VerificationRequests {
+		for _, request := range receipt.VerificationRequests {
 			// Decrypt and validate encrypted phone number
-			phoneHash := data[:32]
-			encryptedPhoneLength := int(data[127])
-			encryptedPhone := data[128 : 128+encryptedPhoneLength]
-			phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, encryptedPhone, nil, nil)
+			phone, err := wallet.Decrypt(accounts.Account{Address: coinbase}, request.EncryptedPhone, nil, nil)
 			if err != nil {
 				log.Error("[Celo] Failed to decrypt phone number", "err", err)
 				continue
 			}
 			r, _ := regexp.Compile("\\+1[0-9]{10}")
-			if !bytes.Equal(crypto.Keccak256(phone), phoneHash) {
+			if !bytes.Equal(crypto.Keccak256(phone), request.PhoneHash.Bytes()) {
 				log.Error("[Celo] Phone hash doesn't match decrypted phone number", nil, nil)
 				continue
 			} else if !r.MatchString(string(phone)) {
@@ -75,19 +65,13 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 			log.Debug("[Celo] Decrypted phone: "+string(phone), nil, nil)
 
 			// Construct the verification code to be sent via SMS.
-			unsignedMessageHash := data[32:64]
-			signature, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedMessageHash)
+			signature, err := wallet.SignHash(accounts.Account{Address: coinbase}, request.UnsignedMessageHash.Bytes())
 			if err != nil {
 				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
 				continue
 			}
-			verificationIndex, parsed := math.ParseBig256(hexutil.Encode(data[64:96]))
-			if !parsed {
-				log.Error("[Celo] Unable to decode verificationIndex: "+hexutil.Encode(data[64:96]), "err", err)
-				continue
-			}
-			verificationCode := fmt.Sprintf("%s:%s", hexutil.Encode(signature[:]), verificationIndex.String())
-      log.Debug("[Celo] Verification code: "+verificationCode, nil, nil)
+			verificationCode := fmt.Sprintf("%s:%s", hexutil.Encode(signature[:]), request.VerificationIndex.String())
+			log.Debug("[Celo] Verification code: "+verificationCode, nil, nil)
 			smsMessage := fmt.Sprintf("Celo verification code: %s", verificationCode)
 			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+string(phone), nil, nil)
 

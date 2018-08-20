@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
@@ -54,15 +55,15 @@ var requestVerificationAddress = common.BytesToAddress([]byte{255})
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):  &ecrecover{},
-	common.BytesToAddress([]byte{2}):  &sha256hash{},
-	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):  &dataCopy{},
-	common.BytesToAddress([]byte{5}):  &bigModExp{},
-	common.BytesToAddress([]byte{6}):  &bn256Add{},
-	common.BytesToAddress([]byte{7}):  &bn256ScalarMul{},
-	common.BytesToAddress([]byte{8}):  &bn256Pairing{},
-	requestVerificationAddress:        &requestVerification{},
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{},
+	common.BytesToAddress([]byte{6}): &bn256Add{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
+	common.BytesToAddress([]byte{8}): &bn256Pairing{},
+	requestVerificationAddress:       &requestVerification{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -374,22 +375,13 @@ func (c *requestVerification) RequiredGas(input []byte) uint64 {
 	return params.VerificationRequestGas
 }
 
-// 'input' is expected to be formatted in the following way
-// data[0:32]: bytes32 phoneHash
-// data[32:64]: bytes32 unsignedMessageHash
-// data[64:96]: bytes32 verificationIndex
-// data[96:128]: uint8 encryptedPhoneLength
-// data[128:128 + encryptedPhoneLength] bytes encryptedPhone
+// Ensures that the input is parsable as a VerificationRequest.
 func (c *requestVerification) Run(input []byte) ([]byte, error) {
-	encryptedPhoneLength := int(input[127])
-	expectedInputLength := 32*4 + encryptedPhoneLength
-	// The minimum length of a valid international phone number is 7 digits
-	// The initialization vector, ephemeral public key, and the mac take up 16, 65, and 32 bytes,
-	// respectively.
-	if encryptedPhoneLength <= (16+65+32+7) || len(input) != expectedInputLength {
-		err := errors.New("Provided input to requestVerification is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
-		log.Error("[Celo] Unable to parse input to requestVerification", "err", err)
-		return nil, err
-	}
-	return input, nil
+  _, err := types.DecodeVerificationRequest(input)
+  if err != nil {
+		log.Error("[Celo] Unable to decode verification request", "err", err)
+    return nil, err
+  } else {
+    return input, nil
+  }
 }

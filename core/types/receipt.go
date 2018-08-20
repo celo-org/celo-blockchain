@@ -20,10 +20,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
+	"strconv"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -42,6 +45,14 @@ const (
 	ReceiptStatusSuccessful = uint64(1)
 )
 
+type VerificationRequest struct {
+  PhoneHash            common.Hash
+  UnsignedMessageHash  common.Hash
+  VerificationIndex    *big.Int
+  EncryptedPhoneLength int
+  EncryptedPhone       hexutil.Bytes
+}
+
 // Receipt represents the results of a transaction.
 type Receipt struct {
 	// Consensus fields
@@ -50,10 +61,9 @@ type Receipt struct {
 	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
 	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
 	Logs              []*Log `json:"logs"              gencodec:"required"`
-	SmsQueue          []string
 
 	// Celo fields
-	VerificationRequests [][]byte
+	VerificationRequests []VerificationRequest
 
 	// Implementation fields (don't reorder!)
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`
@@ -95,6 +105,36 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 		r.Status = ReceiptStatusSuccessful
 	}
 	return r
+}
+
+// TODO(asa): Do we need to pass encryptedPhoneLength?
+// Decode a VerificationRequest from raw input bytes.
+// Input is expected to be encoded in the following manner:
+// input[0:32]: bytes32 phoneHash
+// input[32:64]: bytes32 unsignedMessageHash
+// input[64:96]: bytes32 verificationIndex
+// input[96:128]: uint8 encryptedPhoneLength
+// input[128:128 + encryptedPhoneLength] bytes encryptedPhone
+func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
+  var v VerificationRequest
+  v.PhoneHash = common.BytesToHash(input[0:32])
+  v.UnsignedMessageHash = common.BytesToHash(input[32:64])
+  var parsed bool
+  v.VerificationIndex, parsed = math.ParseBig256(hexutil.Encode(input[64:96]))
+  if !parsed {
+    return v, fmt.Errorf("Unable to parse VerificationIndex from " + hexutil.Encode(input[64:96]))
+  }
+  v.EncryptedPhoneLength = int(input[127])
+  v.EncryptedPhone = input[128 : 128+v.EncryptedPhoneLength]
+
+	expectedInputLength := 32*4 + v.EncryptedPhoneLength
+	// The minimum length of a valid international phone number is 7 digits
+	// The initialization vector, ephemeral public key, and the mac take up 16, 65, and 32 bytes,
+	// respectively.
+	if v.EncryptedPhoneLength <= (16+65+32+7) || len(input) != expectedInputLength {
+		return v, fmt.Errorf("Provided input to requestVerification is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
+	}
+  return v, nil
 }
 
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
