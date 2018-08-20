@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"strconv"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -110,11 +109,10 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // TODO(asa): Do we need to pass encryptedPhoneLength?
 // Decode a VerificationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
-// input[0:32]: bytes32 phoneHash
+// input[0:32]:  bytes32 phoneHash
 // input[32:64]: bytes32 unsignedMessageHash
 // input[64:96]: bytes32 verificationIndex
-// input[96:128]: uint8 encryptedPhoneLength
-// input[128:128 + encryptedPhoneLength] bytes encryptedPhone
+// input[96:]    bytes encryptedPhone
 func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
   var v VerificationRequest
   v.PhoneHash = common.BytesToHash(input[0:32])
@@ -122,17 +120,15 @@ func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
   var parsed bool
   v.VerificationIndex, parsed = math.ParseBig256(hexutil.Encode(input[64:96]))
   if !parsed {
-    return v, fmt.Errorf("Unable to parse VerificationIndex from " + hexutil.Encode(input[64:96]))
+    return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse VerificationIndex from " + hexutil.Encode(input[64:96]))
   }
-  v.EncryptedPhoneLength = int(input[127])
-  v.EncryptedPhone = input[128 : 128+v.EncryptedPhoneLength]
-
-	expectedInputLength := 32*4 + v.EncryptedPhoneLength
-	// The minimum length of a valid international phone number is 7 digits
+  v.EncryptedPhone = input[96:]
 	// The initialization vector, ephemeral public key, and the mac take up 16, 65, and 32 bytes,
 	// respectively.
-	if v.EncryptedPhoneLength <= (16+65+32+7) || len(input) != expectedInputLength {
-		return v, fmt.Errorf("Provided input to requestVerification is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
+	// The minimum length of a valid international phone number is 7 digits, and the ciphertext
+  // is the same length as the message text.
+	if len(v.EncryptedPhone) <= (16+65+32+7) {
+    return v, fmt.Errorf("Error parsing VerificationRequest: encrypted phone too short")
 	}
   return v, nil
 }
