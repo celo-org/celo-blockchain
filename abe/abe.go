@@ -87,7 +87,7 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 				continue
 			}
 			verificationCode := fmt.Sprintf("%s:%s", hexutil.Encode(signature[:]), verificationIndex.String())
-			log.Debug("[Celo] Secret: "+verificationCode, nil, nil)
+      log.Debug("[Celo] Verification code: "+verificationCode, nil, nil)
 			smsMessage := fmt.Sprintf("Celo verification code: %s", verificationCode)
 			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+string(phone), nil, nil)
 

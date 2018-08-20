@@ -49,7 +49,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var requestVerificationMessageAddress = common.BytesToAddress([]byte{255})
+var requestVerificationAddress = common.BytesToAddress([]byte{255})
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -62,7 +62,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}):  &bn256Add{},
 	common.BytesToAddress([]byte{7}):  &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}):  &bn256Pairing{},
-	requestVerificationMessageAddress: &requestVerificationMessage{},
+	requestVerificationAddress:        &requestVerification{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -367,9 +367,9 @@ func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
 
 // Requesting verification in the Celo address based encryption  protocol is implemented as a
 // native contract.
-type requestVerificationMessage struct{}
+type requestVerification struct{}
 
-func (c *requestVerificationMessage) RequiredGas(input []byte) uint64 {
+func (c *requestVerification) RequiredGas(input []byte) uint64 {
 	// TODO(asa): Charge less gas when the phone number is invalid.
 	return params.VerificationRequestGas
 }
@@ -380,15 +380,15 @@ func (c *requestVerificationMessage) RequiredGas(input []byte) uint64 {
 // data[64:96]: bytes32 verificationIndex
 // data[96:128]: uint8 encryptedPhoneLength
 // data[128:128 + encryptedPhoneLength] bytes encryptedPhone
-func (c *requestVerificationMessage) Run(input []byte) ([]byte, error) {
+func (c *requestVerification) Run(input []byte) ([]byte, error) {
 	encryptedPhoneLength := int(input[127])
 	expectedInputLength := 32*4 + encryptedPhoneLength
 	// The minimum length of a valid international phone number is 7 digits
 	// The initialization vector, ephemeral public key, and the mac take up 16, 65, and 32 bytes,
 	// respectively.
 	if encryptedPhoneLength <= (16+65+32+7) || len(input) != expectedInputLength {
-		err := errors.New("Provided input to requestVerificationMessage is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
-		log.Error("[Celo] Unable to parse input to requestVerificationMessage", "err", err)
+		err := errors.New("Provided input to requestVerification is not of valid length. expected: " + strconv.Itoa(expectedInputLength) + " actual: " + strconv.Itoa(len(input)))
+		log.Error("[Celo] Unable to parse input to requestVerification", "err", err)
 		return nil, err
 	}
 	return input, nil

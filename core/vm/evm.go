@@ -126,7 +126,7 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 	// Maintains a queue of Celo Address Based Encryption verification requests
-	// TODO(asa): Save this in StateDB as an array of VerificationRequest objects
+	// TODO(asa): Save this in StateDB as []VerificationRequest
 	VerificationRequests [][]byte
 }
 

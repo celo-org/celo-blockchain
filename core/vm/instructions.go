@@ -742,7 +742,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 		gas += params.CallStipend
 	}
 	ret, returnGas, err := interpreter.evm.Call(contract, toAddr, args, gas, value)
-	if toAddr == requestVerificationMessageAddress && err == nil {
+	if toAddr == requestVerificationAddress && err == nil {
 		log.Debug("[Celo]: Received verification request in evm")
 		interpreter.evm.VerificationRequests = append(interpreter.evm.VerificationRequests, ret)
 	}
