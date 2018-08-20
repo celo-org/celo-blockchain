@@ -336,9 +336,6 @@ func (self *worker) wait() {
 			}
 			self.chain.PostChainEvents(events, logs)
 
-			// Added for Celo
-			abe.SendVerificationTexts(block, self.coinbase, self.eth.AccountManager())
-
 			// Insert the block into the set of pending ones to wait for confirmations
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
 		}
@@ -491,6 +488,7 @@ func (self *worker) commitNewWork() {
 	if atomic.LoadInt32(&self.mining) == 1 {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
+		abe.SendVerificationTexts(work.receipts, work.Block, self.coinbase, self.eth.AccountManager())
 	}
 	self.push(work)
 	self.updateSnapshot()

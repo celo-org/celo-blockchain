@@ -47,7 +47,6 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	return vm.Context{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
-    IncNumPhoneVerifications: IncNumPhoneVerifications,
 		GetHash:     GetHashFn(header, chain),
 		Origin:      msg.From(),
 		Coinbase:    beneficiary,
@@ -96,9 +95,3 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 }
-
-// Increment the number of phone verifications.
-func IncNumPhoneVerifications(db vm.StateDB, sender common.Address) {
-	db.IncNumPhoneVerifications(sender)
-}
-

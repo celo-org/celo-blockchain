@@ -19,13 +19,11 @@ package vm
 import (
 	"math/big"
 	"sync/atomic"
-  "strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -37,7 +35,6 @@ type (
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
 	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
-  IncNumPhoneVerificationsFunc func(StateDB, common.Address) 
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
@@ -78,7 +75,6 @@ type Context struct {
 	CanTransfer CanTransferFunc
 	// Transfer transfers ether from one account to the other
 	Transfer TransferFunc
-	IncNumPhoneVerifications IncNumPhoneVerificationsFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
 
@@ -129,6 +125,8 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
+	// Maintains a queue of SMS to be sent by the miner of the block
+	SmsQueue []string
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -198,31 +196,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
-
-  data := string(input)
-  log.Debug(
-    "TP: NEW TRANSACTION: " + caller.Address().Hex() + " data " + data, 
-    nil, 
-    nil)
-  if len(data) > 0 && strings.HasPrefix(data, "reqVerify") {
-    log.Debug(
-      "!!! TP: REQUESTING VERIFICATION: " + caller.Address().Hex() + " data " + string(input), 
-      nil, 
-      nil)
-  } else if len(data) > 0 && 
-    (strings.HasPrefix(data, "verify") || strings.HasPrefix(data, "reqAndVerify")) {
-    log.Debug(
-      "!!! TP: VERIFICATION PROOF RECEIVED: " + caller.Address().Hex() + " data " + string(input), 
-      nil, 
-      nil)
-	  // evm.IncNumPhoneVerifications(evm.StateDB, caller.Address())
-
-    phone := strings.Split(data, "-")[2]
-    phoneAddress := common.BytesToAddress(crypto.Keccak256([]byte(phone))[12:])
- 		evm.StateDB.CreatePhoneMapping(phoneAddress, caller.Address().Big())
-
-    log.Debug("TP: CREATED MAPPING AT ADDRESS: " + phoneAddress.Hex(), nil, nil)
-  }
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
