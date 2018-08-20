@@ -34,11 +34,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-  "github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -230,6 +229,21 @@ func (ks *KeyStore) Accounts() []accounts.Account {
 	return ks.cache.accounts()
 }
 
+// Decrypt calculates the result of ECIES decryption of the given ciphertext.
+func (ks *KeyStore) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	// Import the ECDSA key as an ECIES key and decrypt the data.
+	eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey)
+	return eciesKey.Decrypt(c, s1, s2)
+}
+
 // Delete deletes the key matched by account if the passphrase is correct.
 // If the account contains no filename, the address must match a unique key.
 func (ks *KeyStore) Delete(a accounts.Account, passphrase string) error {
@@ -252,40 +266,6 @@ func (ks *KeyStore) Delete(a accounts.Account, passphrase string) error {
 		ks.refreshWallets()
 	}
 	return err
-}
-
-// Decrypt calculates a ECIES signature for the given hash. The produced
-// signature is in the [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	// Look up the key to sign with and abort if it cannot be found
-	ks.mu.RLock()
-	defer ks.mu.RUnlock()
-
-	unlockedKey, found := ks.unlocked[a.Address]
-	if !found {
-		return nil, ErrLocked
-	}
-	// Import the ECDSA key as an ECIES key and decrypt the data.
-  eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey)
-  log.Debug("ECDSA private key")
-  log.Debug(fmt.Sprintf("%x", unlockedKey.PrivateKey.D))
-  return eciesKey.Decrypt(c, s1, s2)
-}
-
-// Decrypt calculates a ECIES signature for the given hash. The produced
-// signature is in the [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) Encrypt(a accounts.Account, m, s1, s2 []byte) ([]byte, error) {
-	// Look up the key to sign with and abort if it cannot be found
-	ks.mu.RLock()
-	defer ks.mu.RUnlock()
-
-	unlockedKey, found := ks.unlocked[a.Address]
-	if !found {
-		return nil, ErrLocked
-	}
-	// Import the ECDSA key as an ECIES key and decrypt the data.
-  eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey).PublicKey
-  return ecies.Encrypt(crand.Reader, &eciesKey,m, s1, s2)
 }
 
 // SignHash calculates a ECDSA signature for the given hash. The produced

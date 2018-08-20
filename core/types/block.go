@@ -105,7 +105,7 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-  return rlpHash(h)
+	return rlpHash(h)
 }
 
 // HashNoNonce returns the hash which is used as input for the proof-of-work search.
@@ -313,18 +313,18 @@ func (b *Block) GasUsed() uint64      { return b.header.GasUsed }
 func (b *Block) Difficulty() *big.Int { return new(big.Int).Set(b.header.Difficulty) }
 func (b *Block) Time() *big.Int       { return new(big.Int).Set(b.header.Time) }
 
-func (b *Block) NumberU64() uint64         { return b.header.Number.Uint64() }
-func (b *Block) MixDigest() common.Hash    { return b.header.MixDigest }
-func (b *Block) Nonce() uint64             { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
-func (b *Block) Bloom() Bloom              { return b.header.Bloom }
-func (b *Block) Coinbase() common.Address  { return b.header.Coinbase }
-func (b *Block) Root() common.Hash         { return b.header.Root }
-func (b *Block) ParentHash() common.Hash   { return b.header.ParentHash }
-func (b *Block) TxHash() common.Hash       { return b.header.TxHash }
-func (b *Block) ReceiptHash() common.Hash  { return b.header.ReceiptHash }
-func (b *Block) UncleHash() common.Hash    { return b.header.UncleHash }
-func (b *Block) Extra() []byte             { return common.CopyBytes(b.header.Extra) }
-func (b *Block) Signature() []byte { return common.CopyBytes([]byte(b.header.Signature[:])) }
+func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
+func (b *Block) MixDigest() common.Hash   { return b.header.MixDigest }
+func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
+func (b *Block) Bloom() Bloom             { return b.header.Bloom }
+func (b *Block) Coinbase() common.Address { return b.header.Coinbase }
+func (b *Block) Root() common.Hash        { return b.header.Root }
+func (b *Block) ParentHash() common.Hash  { return b.header.ParentHash }
+func (b *Block) TxHash() common.Hash      { return b.header.TxHash }
+func (b *Block) ReceiptHash() common.Hash { return b.header.ReceiptHash }
+func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
+func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
+func (b *Block) Signature() []byte        { return common.CopyBytes([]byte(b.header.Signature[:])) }
 
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 

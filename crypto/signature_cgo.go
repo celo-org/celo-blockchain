@@ -20,11 +20,9 @@ package crypto
 
 import (
 	"crypto/ecdsa"
-	"encoding/hex"
 	"crypto/elliptic"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
@@ -59,15 +57,8 @@ func Sign(hash []byte, prv *ecdsa.PrivateKey) (sig []byte, err error) {
 	}
 	seckey := math.PaddedBigBytes(prv.D, prv.Params().BitSize/8)
 	defer zeroBytes(seckey)
-  log.Debug("Signing hash: " + hex.EncodeToString(hash))
 	return secp256k1.Sign(hash, seckey)
 }
-
-func SignHash(data []byte) []byte {
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
-	return Keccak256([]byte(msg))
-}
-
 
 // VerifySignature checks that the given public key created signature over hash.
 // The public key should be in compressed (33 bytes) or uncompressed (65 bytes) format.

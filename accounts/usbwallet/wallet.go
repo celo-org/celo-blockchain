@@ -441,6 +441,10 @@ func (w *wallet) Contains(account accounts.Account) bool {
 	return exists
 }
 
+func (w *wallet) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 // Derive implements accounts.Wallet, deriving a new account at the specific
 // derivation path. If pin is set to true, the account will be added to the list
 // of tracked accounts.
@@ -494,19 +498,6 @@ func (w *wallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainSt
 	w.deriveNextAddr = common.Address{}
 	w.deriveChain = chain
 }
-
-// TODO(asa): Possibly implement this?
-func (w *wallet) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
-}
-func (w *wallet) Encrypt(a accounts.Account, m, s1, s2 []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
-}
-func (w *wallet) PublicKey(a accounts.Account) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
-}
-
-// SignHash calculates a ECDSA signature for the given hash. The produced
 
 // SignHash implements accounts.Wallet, however signing arbitrary data is not
 // supported for hardware wallets, so this method will always return an error.

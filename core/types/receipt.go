@@ -52,8 +52,8 @@ type Receipt struct {
 	Logs              []*Log `json:"logs"              gencodec:"required"`
 	SmsQueue          []string
 
-  // Celo fields
-	SmsQueue          [][]byte
+	// Celo fields
+	VerificationRequests [][]byte
 
 	// Implementation fields (don't reorder!)
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`

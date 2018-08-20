@@ -70,14 +70,13 @@ type Wallet interface {
 	// Contains returns whether an account is part of this particular wallet or not.
 	Contains(account Account) bool
 
+	// Decrypt requests the wallet to decrypt the given ciphertext.
+	Decrypt(account Account, c, s1, s2 []byte) ([]byte, error)
+
 	// Derive attempts to explicitly derive a hierarchical deterministic account at
 	// the specified derivation path. If requested, the derived account will be added
 	// to the wallet's tracked account list.
 	Derive(path DerivationPath, pin bool) (Account, error)
-
-  Decrypt(account Account, c, s1, s2 []byte) ([]byte, error)
-  Encrypt(account Account, c, s1, s2 []byte) ([]byte, error)
-  //PublicKey(account Account) ([]byte, error)
 
 	// SelfDerive sets a base account derivation path from which the wallet attempts
 	// to discover non zero accounts and automatically add them to list of tracked
