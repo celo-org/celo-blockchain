@@ -70,7 +70,7 @@ type Wallet interface {
 	// Contains returns whether an account is part of this particular wallet or not.
 	Contains(account Account) bool
 
-	// Decrypt requests the wallet to decrypt the given ciphertext.
+	// Decrypt decrypts an ECIES ciphertext.
 	Decrypt(account Account, c, s1, s2 []byte) ([]byte, error)
 
 	// Derive attempts to explicitly derive a hierarchical deterministic account at

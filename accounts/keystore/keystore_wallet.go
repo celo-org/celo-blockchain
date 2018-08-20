@@ -68,7 +68,7 @@ func (w *keystoreWallet) Contains(account accounts.Account) bool {
 	return account.Address == w.account.Address && (account.URL == (accounts.URL{}) || account.URL == w.account.URL)
 }
 
-// Decrypt calculates the result of ECIES decryption of the given ciphertext.
+// Decrypt decrypts an ECIES ciphertext.
 func (w *keystoreWallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, error) {
 	if account.Address != w.account.Address {
 		return nil, accounts.ErrUnknownAccount

@@ -377,11 +377,11 @@ func (c *requestVerification) RequiredGas(input []byte) uint64 {
 
 // Ensures that the input is parsable as a VerificationRequest.
 func (c *requestVerification) Run(input []byte) ([]byte, error) {
-  _, err := types.DecodeVerificationRequest(input)
-  if err != nil {
+	_, err := types.DecodeVerificationRequest(input)
+	if err != nil {
 		log.Error("[Celo] Unable to decode verification request", "err", err)
-    return nil, err
-  } else {
-    return input, nil
-  }
+		return nil, err
+	} else {
+		return input, nil
+	}
 }

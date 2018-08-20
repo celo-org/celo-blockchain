@@ -229,7 +229,7 @@ func (ks *KeyStore) Accounts() []accounts.Account {
 	return ks.cache.accounts()
 }
 
-// Decrypt calculates the result of ECIES decryption of the given ciphertext.
+// Decrypt decrypts an ECIES ciphertext.
 func (ks *KeyStore) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
