@@ -74,9 +74,9 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 			}
 			log.Debug("[Celo] Decrypted phone: "+string(phone), nil, nil)
 
-			// Construct the secret code to be sent via SMS.
+			// Construct the verification code to be sent via SMS.
 			unsignedMessageHash := data[32:64]
-			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedMessageHash)
+			signature, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedMessageHash)
 			if err != nil {
 				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
 				continue
@@ -86,9 +86,9 @@ func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinba
 				log.Error("[Celo] Unable to decode verificationIndex: "+hexutil.Encode(data[64:96]), "err", err)
 				continue
 			}
-			secret := fmt.Sprintf("%s:%s", hexutil.Encode(code[:]), verificationIndex.String())
-			log.Debug("[Celo] Secret: "+secret, nil, nil)
-			smsMessage := fmt.Sprintf("Gem verification code: %s", secret)
+			verificationCode := fmt.Sprintf("%s:%s", hexutil.Encode(signature[:]), verificationIndex.String())
+			log.Debug("[Celo] Secret: "+verificationCode, nil, nil)
+			smsMessage := fmt.Sprintf("Celo verification code: %s", verificationCode)
 			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+string(phone), nil, nil)
 
 			// Send the actual text message using our mining pool.
