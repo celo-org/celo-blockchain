@@ -223,7 +223,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		}
 		snap.Recents[number] = signer
 
-    proposedSigner := ProposedSigner(header.Extra)
+		proposedSigner := ProposedSigner(header.Extra)
 		// Header authorized, discard any previous votes from the signer
 		for i, vote := range snap.Votes {
 			if vote.Signer == signer && vote.Address == proposedSigner {
