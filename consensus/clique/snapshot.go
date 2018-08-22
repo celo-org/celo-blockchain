@@ -225,7 +225,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 
 		// Header authorized, discard any previous votes from the signer
 		for i, vote := range snap.Votes {
-			if vote.Signer == signer && vote.Address == Beneficiary(header) {
+			if vote.Signer == signer && vote.Address == ProposedSigner(header) {
 				// Uncast the vote from the cached tally
 				snap.uncast(vote.Address, vote.Authorize)
 
@@ -244,20 +244,20 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		default:
 			return nil, errInvalidVote
 		}
-		if snap.cast(Beneficiary(header), authorize) {
+		if snap.cast(ProposedSigner(header), authorize) {
 			snap.Votes = append(snap.Votes, &Vote{
 				Signer:    signer,
 				Block:     number,
-				Address:   Beneficiary(header),
+				Address:   ProposedSigner(header),
 				Authorize: authorize,
 			})
 		}
 		// If the vote passed, update the list of signers
-		if tally := snap.Tally[Beneficiary(header)]; tally.Votes > len(snap.Signers)/2 {
+		if tally := snap.Tally[ProposedSigner(header)]; tally.Votes > len(snap.Signers)/2 {
 			if tally.Authorize {
-				snap.Signers[Beneficiary(header)] = struct{}{}
+				snap.Signers[ProposedSigner(header)] = struct{}{}
 			} else {
-				delete(snap.Signers, Beneficiary(header))
+				delete(snap.Signers, ProposedSigner(header))
 
 				// Signer list shrunk, delete any leftover recent caches
 				if limit := uint64(len(snap.Signers)/2 + 1); number >= limit {
@@ -265,7 +265,7 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 				}
 				// Discard any previous votes the deauthorized signer cast
 				for i := 0; i < len(snap.Votes); i++ {
-					if snap.Votes[i].Signer == Beneficiary(header) {
+					if snap.Votes[i].Signer == ProposedSigner(header) {
 						// Uncast the vote from the cached tally
 						snap.uncast(snap.Votes[i].Address, snap.Votes[i].Authorize)
 
@@ -278,12 +278,12 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 			// Discard any previous votes around the just changed account
 			for i := 0; i < len(snap.Votes); i++ {
-				if snap.Votes[i].Address == Beneficiary(header) {
+				if snap.Votes[i].Address == ProposedSigner(header) {
 					snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
 					i--
 				}
 			}
-			delete(snap.Tally, Beneficiary(header))
+			delete(snap.Tally, ProposedSigner(header))
 		}
 	}
 	snap.Number += uint64(len(headers))
