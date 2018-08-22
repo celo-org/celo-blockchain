@@ -57,6 +57,7 @@ var (
 	// TODO(asa): Consider allowing more bytes here
 	extraVanity         = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraProposedSigner = 20 // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
+  extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
 	extraSeal           = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
@@ -199,21 +200,19 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 
 // Insert the proposed signer into the header extra data.
 func SetProposedSigner(extra []byte, signer common.Address) []byte {
-	if len(extra) < (extraVanity + extraProposedSigner) {
-		extra = append(extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraProposedSigner)-len(extra))...)
+	if len(extra) < (extraPrefix) {
+		extra = append(extra, bytes.Repeat([]byte{0x00}, (extraPrefix)-len(extra))...)
 	}
-	for i := 0; i < extraProposedSigner; i++ {
-		extra[i+extraVanity] = signer[i]
-	}
-	return extra
+	copy(extra[extraVanity:extraPrefix], signer.Bytes())
+  return extra
 }
 
-// Return the beficiary from the header extra data.
+// Return the proposed signer from the header extra data.
 func ProposedSigner(extra []byte) common.Address {
-	if len(extra) < extraVanity+extraProposedSigner {
+	if len(extra) < extraPrefix {
 		return common.Address{}
 	}
-	return common.BytesToAddress(extra[extraVanity : extraVanity+extraProposedSigner])
+	return common.BytesToAddress(extra[extraVanity : extraPrefix])
 }
 
 // Clique is the proof-of-authority consensus engine proposed to support the
@@ -315,14 +314,14 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	if len(header.Extra) < extraVanity {
 		return errMissingVanity
 	}
-	if len(header.Extra) < extraVanity+extraProposedSigner {
+	if len(header.Extra) < extraPrefix {
 		return errMissingProposedSigner
 	}
-	if len(header.Extra) < extraVanity+extraProposedSigner+extraSeal {
+	if len(header.Extra) < extraPrefix+extraSeal {
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	signersBytes := len(header.Extra) - extraVanity - extraProposedSigner - extraSeal
+	signersBytes := len(header.Extra) - extraPrefix - extraSeal
 	if !checkpoint && signersBytes != 0 {
 		return errExtraSigners
 	}
@@ -386,7 +385,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 			copy(signers[i*common.AddressLength:], signer[:])
 		}
 		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity+extraProposedSigner:extraSuffix], signers) {
+		if !bytes.Equal(header.Extra[extraPrefix:extraSuffix], signers) {
 			return errInvalidCheckpointSigners
 		}
 	}
@@ -421,9 +420,9 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
 
-				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraProposedSigner-extraSeal)/common.AddressLength)
+				signers := make([]common.Address, (len(checkpoint.Extra)-extraPrefix-extraSeal)/common.AddressLength)
 				for i := 0; i < len(signers); i++ {
-					copy(signers[i][:], checkpoint.Extra[extraVanity+extraProposedSigner+i*common.AddressLength:])
+					copy(signers[i][:], checkpoint.Extra[extraPrefix+i*common.AddressLength:])
 				}
 				snap = newSnapshot(c.config, c.signatures, number, hash, signers)
 				if err := snap.store(c.db); err != nil {
@@ -571,7 +570,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	if len(header.Extra) < extraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
 	}
-	header.Extra = header.Extra[:extraVanity+extraProposedSigner]
+	header.Extra = header.Extra[:extraPrefix]
 
 	if number%c.config.Epoch == 0 {
 		for _, signer := range snap.signers() {
