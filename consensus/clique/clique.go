@@ -198,22 +198,22 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 }
 
 // Insert the proposed signer into the header extra data.
-func SetProposedSigner(h *types.Header, b common.Address) []byte {
-	if len(h.Extra) < (extraVanity + extraProposedSigner) {
-		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraProposedSigner)-len(h.Extra))...)
+func SetProposedSigner(extra []byte, signer common.Address) []byte {
+	if len(extra) < (extraVanity + extraProposedSigner) {
+		extra = append(extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraProposedSigner)-len(extra))...)
 	}
 	for i := 0; i < extraProposedSigner; i++ {
-		h.Extra[i+extraVanity] = b[i]
+		extra[i+extraVanity] = signer[i]
 	}
-	return h.Extra
+	return extra
 }
 
 // Return the beficiary from the header extra data.
-func ProposedSigner(h *types.Header) common.Address {
-	if len(h.Extra) < extraVanity+extraProposedSigner {
+func ProposedSigner(extra []byte) common.Address {
+	if len(extra) < extraVanity+extraProposedSigner {
 		return common.Address{}
 	}
-	return common.BytesToAddress(h.Extra[extraVanity : extraVanity+extraProposedSigner])
+	return common.BytesToAddress(extra[extraVanity : extraVanity+extraProposedSigner])
 }
 
 // Clique is the proof-of-authority consensus engine proposed to support the
@@ -301,7 +301,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	}
 	// Checkpoint blocks need to enforce zero proposed signer
 	checkpoint := (number % c.config.Epoch) == 0
-	if checkpoint && ProposedSigner(header) != (common.Address{}) {
+	if checkpoint && ProposedSigner(header.Extra) != (common.Address{}) {
 		return errInvalidCheckpointProposedSigner
 	}
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
@@ -534,7 +534,7 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 // header for running the transactions on top.
 func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-	header.Extra = SetProposedSigner(header, common.Address{})
+	header.Extra = SetProposedSigner(header.Extra, common.Address{})
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -555,8 +555,8 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 		}
 		// If there's pending proposals, cast a vote on them
 		if len(addresses) > 0 {
-			header.Extra = SetProposedSigner(header, addresses[rand.Intn(len(addresses))])
-			if c.proposals[ProposedSigner(header)] {
+			header.Extra = SetProposedSigner(header.Extra, addresses[rand.Intn(len(addresses))])
+			if c.proposals[ProposedSigner(header.Extra)] {
 				copy(header.Nonce[:], nonceAuthVote)
 			} else {
 				copy(header.Nonce[:], nonceDropVote)
