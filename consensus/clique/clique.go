@@ -52,7 +52,7 @@ const (
 
 // Clique proof-of-authority protocol constants.
 var (
-	epochLength = uint64(10) // Default number of blocks after which to checkpoint and reset the pending votes
+	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
 	// TODO(asa): Consider allowing more bytes here
 	extraVanity      = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
@@ -218,7 +218,6 @@ type Clique struct {
 func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
-  conf.Epoch = epochLength
 	if conf.Epoch == 0 {
 		conf.Epoch = epochLength
 	}
