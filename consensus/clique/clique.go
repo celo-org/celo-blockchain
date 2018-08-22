@@ -54,10 +54,10 @@ const (
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
-  // TODO(asa): Consider allowing more bytes here
-	extraVanity = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
-  extraBeneficiary = 20 //Fixed number of extra-data prefix bytes reserved for the beneficiary of the vote. Comes after extraVanity.
-	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	// TODO(asa): Consider allowing more bytes here
+	extraVanity      = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraBeneficiary = 20 //Fixed number of extra-data prefix bytes reserved for the beneficiary of the vote. Comes after extraVanity.
+	extraSeal        = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
@@ -510,30 +510,30 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 }
 
 func SetBeneficiary(h *types.Header, b common.Address) []byte {
-  log.Debug("[Celo] Setting beneficiary: received extradata: "+hexutil.Encode(h.Extra[:]) + " setting beneficiary to: " + hexutil.Encode(b[:]), nil, nil)
+	log.Debug("[Celo] Setting beneficiary: received extradata: "+hexutil.Encode(h.Extra[:])+" setting beneficiary to: "+hexutil.Encode(b[:]), nil, nil)
 
 	if len(h.Extra) < (extraVanity + extraBeneficiary) {
-		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity + extraBeneficiary) -len(h.Extra))...)
+		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraBeneficiary)-len(h.Extra))...)
 	}
-  log.Debug("[Celo] Padded extradata: "+hexutil.Encode(h.Extra[:]) + " setting beneficiary to: " + hexutil.Encode(b[:]), nil, nil)
-  for i := 0; i < extraBeneficiary; i++ {
-    h.Extra[i + extraVanity] = b[i]
-  }
-  return h.Extra
+	log.Debug("[Celo] Padded extradata: "+hexutil.Encode(h.Extra[:])+" setting beneficiary to: "+hexutil.Encode(b[:]), nil, nil)
+	for i := 0; i < extraBeneficiary; i++ {
+		h.Extra[i+extraVanity] = b[i]
+	}
+	return h.Extra
 }
 
 func Beneficiary(h *types.Header) common.Address {
-  if len(h.Extra) < extraVanity + extraBeneficiary {
-    return common.Address{}
-  }
-  return common.BytesToAddress(h.Extra[extraVanity:extraVanity+extraBeneficiary])
+	if len(h.Extra) < extraVanity+extraBeneficiary {
+		return common.Address{}
+	}
+	return common.BytesToAddress(h.Extra[extraVanity : extraVanity+extraBeneficiary])
 }
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-  header.Extra = SetBeneficiary(header, common.Address{})
+	header.Extra = SetBeneficiary(header, common.Address{})
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -554,7 +554,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 		}
 		// If there's pending proposals, cast a vote on them
 		if len(addresses) > 0 {
-      header.Extra = SetBeneficiary(header, addresses[rand.Intn(len(addresses))])
+			header.Extra = SetBeneficiary(header, addresses[rand.Intn(len(addresses))])
 			if c.proposals[Beneficiary(header)] {
 				copy(header.Nonce[:], nonceAuthVote)
 			} else {
