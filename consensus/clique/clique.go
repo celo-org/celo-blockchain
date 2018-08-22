@@ -55,9 +55,9 @@ var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
 	// TODO(asa): Consider allowing more bytes here
-	extraVanity      = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraVanity         = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraProposedSigner = 20 // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
-	extraSeal        = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraSeal           = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
@@ -195,6 +195,25 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 
 	sigcache.Add(hash, signer)
 	return signer, nil
+}
+
+// Insert the proposed signer into the header extra data.
+func SetProposedSigner(h *types.Header, b common.Address) []byte {
+	if len(h.Extra) < (extraVanity + extraProposedSigner) {
+		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraProposedSigner)-len(h.Extra))...)
+	}
+	for i := 0; i < extraProposedSigner; i++ {
+		h.Extra[i+extraVanity] = b[i]
+	}
+	return h.Extra
+}
+
+// Return the beficiary from the header extra data.
+func ProposedSigner(h *types.Header) common.Address {
+	if len(h.Extra) < extraVanity+extraProposedSigner {
+		return common.Address{}
+	}
+	return common.BytesToAddress(h.Extra[extraVanity : extraVanity+extraProposedSigner])
 }
 
 // Clique is the proof-of-authority consensus engine proposed to support the
@@ -509,25 +528,6 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 		return errInvalidDifficulty
 	}
 	return nil
-}
-
-// Insert the proposed signer into the header extra data.
-func SetProposedSigner(h *types.Header, b common.Address) []byte {
-	if len(h.Extra) < (extraVanity + extraProposedSigner) {
-		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraProposedSigner)-len(h.Extra))...)
-	}
-	for i := 0; i < extraProposedSigner; i++ {
-		h.Extra[i+extraVanity] = b[i]
-	}
-	return h.Extra
-}
-
-// Return the beficiary from the header extra data.
-func ProposedSigner(h *types.Header) common.Address {
-	if len(h.Extra) < extraVanity+extraProposedSigner {
-		return common.Address{}
-	}
-	return common.BytesToAddress(h.Extra[extraVanity : extraVanity+extraProposedSigner])
 }
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
