@@ -52,7 +52,7 @@ const (
 
 // Clique proof-of-authority protocol constants.
 var (
-	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
+	epochLength = uint64(10) // Default number of blocks after which to checkpoint and reset the pending votes
 
 	// TODO(asa): Consider allowing more bytes here
 	extraVanity      = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
@@ -216,6 +216,7 @@ type Clique struct {
 func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
+  conf.Epoch = epochLength
 	if conf.Epoch == 0 {
 		conf.Epoch = epochLength
 	}
@@ -509,19 +510,18 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	return nil
 }
 
+// Insert the beneficiary into the header extra data.
 func SetBeneficiary(h *types.Header, b common.Address) []byte {
-	log.Debug("[Celo] Setting beneficiary: received extradata: "+hexutil.Encode(h.Extra[:])+" setting beneficiary to: "+hexutil.Encode(b[:]), nil, nil)
-
 	if len(h.Extra) < (extraVanity + extraBeneficiary) {
 		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity+extraBeneficiary)-len(h.Extra))...)
 	}
-	log.Debug("[Celo] Padded extradata: "+hexutil.Encode(h.Extra[:])+" setting beneficiary to: "+hexutil.Encode(b[:]), nil, nil)
 	for i := 0; i < extraBeneficiary; i++ {
 		h.Extra[i+extraVanity] = b[i]
 	}
 	return h.Extra
 }
 
+// Return the beficiary from the header extra data.
 func Beneficiary(h *types.Header) common.Address {
 	if len(h.Extra) < extraVanity+extraBeneficiary {
 		return common.Address{}
