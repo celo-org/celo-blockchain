@@ -54,7 +54,9 @@ const (
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
-	extraVanity = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
+  // TODO(asa): Consider allowing more bytes here
+	extraVanity = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
+  extraBeneficiary = 20 //Fixed number of extra-data prefix bytes reserved for the beneficiary of the vote. Comes after extraVanity.
 	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
@@ -90,6 +92,8 @@ var (
 	// errMissingVanity is returned if a block's extra-data section is shorter than
 	// 32 bytes, which is required to store the signer vanity.
 	errMissingVanity = errors.New("extra-data 32 byte vanity prefix missing")
+
+	errMissingBeneficiary = errors.New("extra-data 20 byte beneficiary suffix missing")
 
 	// errMissingSignature is returned if a block's extra-data section doesn't seem
 	// to contain a 65 byte secp256k1 signature.
@@ -276,7 +280,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	}
 	// Checkpoint blocks need to enforce zero beneficiary
 	checkpoint := (number % c.config.Epoch) == 0
-	if checkpoint && header.Coinbase != (common.Address{}) {
+	if checkpoint && Beneficiary(header) != (common.Address{}) {
 		return errInvalidCheckpointBeneficiary
 	}
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
@@ -290,11 +294,14 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	if len(header.Extra) < extraVanity {
 		return errMissingVanity
 	}
-	if len(header.Extra) < extraVanity+extraSeal {
+	if len(header.Extra) < extraVanity+extraBeneficiary {
+		return errMissingBeneficiary
+	}
+	if len(header.Extra) < extraVanity+extraBeneficiary+extraSeal {
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	signersBytes := len(header.Extra) - extraVanity - extraSeal
+	signersBytes := len(header.Extra) - extraVanity - extraBeneficiary - extraSeal
 	if !checkpoint && signersBytes != 0 {
 		return errExtraSigners
 	}
@@ -358,7 +365,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 			copy(signers[i*common.AddressLength:], signer[:])
 		}
 		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], signers) {
+		if !bytes.Equal(header.Extra[extraVanity+extraBeneficiary:extraSuffix], signers) {
 			return errInvalidCheckpointSigners
 		}
 	}
@@ -393,9 +400,9 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
 
-				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraSeal)/common.AddressLength)
+				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraBeneficiary-extraSeal)/common.AddressLength)
 				for i := 0; i < len(signers); i++ {
-					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
+					copy(signers[i][:], checkpoint.Extra[extraVanity+extraBeneficiary+i*common.AddressLength:])
 				}
 				snap = newSnapshot(c.config, c.signatures, number, hash, signers)
 				if err := snap.store(c.db); err != nil {
@@ -502,11 +509,31 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	return nil
 }
 
+func SetBeneficiary(h *types.Header, b common.Address) []byte {
+  log.Debug("[Celo] Setting beneficiary: received extradata: "+hexutil.Encode(h.Extra[:]) + " setting beneficiary to: " + hexutil.Encode(b[:]), nil, nil)
+
+	if len(h.Extra) < (extraVanity + extraBeneficiary) {
+		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, (extraVanity + extraBeneficiary) -len(h.Extra))...)
+	}
+  log.Debug("[Celo] Padded extradata: "+hexutil.Encode(h.Extra[:]) + " setting beneficiary to: " + hexutil.Encode(b[:]), nil, nil)
+  for i := 0; i < extraBeneficiary; i++ {
+    h.Extra[i + extraVanity] = b[i]
+  }
+  return h.Extra
+}
+
+func Beneficiary(h *types.Header) common.Address {
+  if len(h.Extra) < extraVanity + extraBeneficiary {
+    return common.Address{}
+  }
+  return common.BytesToAddress(h.Extra[extraVanity:extraVanity+extraBeneficiary])
+}
+
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-	header.Coinbase = common.Address{}
+  header.Extra = SetBeneficiary(header, common.Address{})
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -527,8 +554,8 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 		}
 		// If there's pending proposals, cast a vote on them
 		if len(addresses) > 0 {
-			header.Coinbase = addresses[rand.Intn(len(addresses))]
-			if c.proposals[header.Coinbase] {
+      header.Extra = SetBeneficiary(header, addresses[rand.Intn(len(addresses))])
+			if c.proposals[Beneficiary(header)] {
 				copy(header.Nonce[:], nonceAuthVote)
 			} else {
 				copy(header.Nonce[:], nonceDropVote)
@@ -543,7 +570,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	if len(header.Extra) < extraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
 	}
-	header.Extra = header.Extra[:extraVanity]
+	header.Extra = header.Extra[:extraVanity+extraBeneficiary]
 
 	if number%c.config.Epoch == 0 {
 		for _, signer := range snap.signers() {
