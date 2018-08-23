@@ -17,12 +17,15 @@
 package testutil
 
 import (
+	"context"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarm/storage/mru"
@@ -32,17 +35,16 @@ type TestServer interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
 }
 
-// simulated timeProvider
-type fakeTimeProvider struct {
-	currentTime uint64
+type fakeBackend struct {
+	blocknumber int64
 }
 
-func (f *fakeTimeProvider) Tick() {
-	f.currentTime++
-}
-
-func (f *fakeTimeProvider) Now() mru.Timestamp {
-	return mru.Timestamp{Time: f.currentTime}
+func (f *fakeBackend) HeaderByNumber(context context.Context, _ string, bigblock *big.Int) (*types.Header, error) {
+	f.blocknumber++
+	biggie := big.NewInt(f.blocknumber)
+	return &types.Header{
+		Number: biggie,
+	}, nil
 }
 
 func NewTestSwarmServer(t *testing.T, serverFunc func(*api.API) TestServer) *TestSwarmServer {
@@ -66,25 +68,24 @@ func NewTestSwarmServer(t *testing.T, serverFunc func(*api.API) TestServer) *Tes
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fakeTimeProvider := &fakeTimeProvider{
-		currentTime: 42,
+	rhparams := &mru.HandlerParams{
+		QueryMaxPeriods: &mru.LookupParams{},
+		HeaderGetter: &fakeBackend{
+			blocknumber: 42,
+		},
 	}
-	mru.TimestampProvider = fakeTimeProvider
-	rhparams := &mru.HandlerParams{}
 	rh, err := mru.NewTestHandler(resourceDir, rhparams)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a := api.NewAPI(fileStore, nil, rh.Handler)
+	a := api.NewAPI(fileStore, nil, rh)
 	srv := httptest.NewServer(serverFunc(a))
 	return &TestSwarmServer{
-		Server:            srv,
-		FileStore:         fileStore,
-		dir:               dir,
-		Hasher:            storage.MakeHashFunc(storage.DefaultHash)(),
-		timestampProvider: fakeTimeProvider,
+		Server:    srv,
+		FileStore: fileStore,
+		dir:       dir,
+		Hasher:    storage.MakeHashFunc(storage.DefaultHash)(),
 		cleanup: func() {
 			srv.Close()
 			rh.Close()
@@ -96,17 +97,12 @@ func NewTestSwarmServer(t *testing.T, serverFunc func(*api.API) TestServer) *Tes
 
 type TestSwarmServer struct {
 	*httptest.Server
-	Hasher            storage.SwarmHash
-	FileStore         *storage.FileStore
-	dir               string
-	cleanup           func()
-	timestampProvider *fakeTimeProvider
+	Hasher    storage.SwarmHash
+	FileStore *storage.FileStore
+	dir       string
+	cleanup   func()
 }
 
 func (t *TestSwarmServer) Close() {
 	t.cleanup()
-}
-
-func (t *TestSwarmServer) GetCurrentTime() mru.Timestamp {
-	return t.timestampProvider.Now()
 }

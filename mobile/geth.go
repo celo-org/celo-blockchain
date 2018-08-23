@@ -118,10 +118,15 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 
 	// Create the empty networking stack
 	nodeConf := &node.Config{
-		Name:        clientIdentifier,
-		Version:     params.VersionWithMeta,
-		DataDir:     datadir,
-		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		Name:             clientIdentifier,
+		Version:          params.Version,
+		DataDir:          datadir,
+		KeyStoreDir:      filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		HTTPHost:         "localhost",
+		HTTPPort:         8545,
+		HTTPVirtualHosts: []string{"localhost"},
+		HTTPModules:      []string{"db", "eth", "net", "web3", "personal"},
+		IPCPath:          "geth.ipc",
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      true,

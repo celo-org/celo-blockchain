@@ -17,7 +17,6 @@
 package storage
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -74,7 +73,7 @@ func NewHasherStore(chunkStore ChunkStore, hashFunc SwarmHasher, toEncrypt bool)
 // Put stores the chunkData into the ChunkStore of the hasherStore and returns the reference.
 // If hasherStore has a chunkEncryption object, the data will be encrypted.
 // Asynchronous function, the data will not necessarily be stored when it returns.
-func (h *hasherStore) Put(ctx context.Context, chunkData ChunkData) (Reference, error) {
+func (h *hasherStore) Put(chunkData ChunkData) (Reference, error) {
 	c := chunkData
 	size := chunkData.Size()
 	var encryptionKey encryption.Key
@@ -87,7 +86,7 @@ func (h *hasherStore) Put(ctx context.Context, chunkData ChunkData) (Reference, 
 	}
 	chunk := h.createChunk(c, size)
 
-	h.storeChunk(ctx, chunk)
+	h.storeChunk(chunk)
 
 	return Reference(append(chunk.Addr, encryptionKey...)), nil
 }
@@ -95,14 +94,14 @@ func (h *hasherStore) Put(ctx context.Context, chunkData ChunkData) (Reference, 
 // Get returns data of the chunk with the given reference (retrieved from the ChunkStore of hasherStore).
 // If the data is encrypted and the reference contains an encryption key, it will be decrypted before
 // return.
-func (h *hasherStore) Get(ctx context.Context, ref Reference) (ChunkData, error) {
+func (h *hasherStore) Get(ref Reference) (ChunkData, error) {
 	key, encryptionKey, err := parseReference(ref, h.hashSize)
 	if err != nil {
 		return nil, err
 	}
 	toDecrypt := (encryptionKey != nil)
 
-	chunk, err := h.store.Get(ctx, key)
+	chunk, err := h.store.Get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -127,10 +126,9 @@ func (h *hasherStore) Close() {
 // Wait returns when
 //    1) the Close() function has been called and
 //    2) all the chunks which has been Put has been stored
-func (h *hasherStore) Wait(ctx context.Context) error {
+func (h *hasherStore) Wait() {
 	<-h.closed
 	h.wg.Wait()
-	return nil
 }
 
 func (h *hasherStore) createHash(chunkData ChunkData) Address {
@@ -207,13 +205,13 @@ func (h *hasherStore) RefSize() int64 {
 	return h.refSize
 }
 
-func (h *hasherStore) storeChunk(ctx context.Context, chunk *Chunk) {
+func (h *hasherStore) storeChunk(chunk *Chunk) {
 	h.wg.Add(1)
 	go func() {
 		<-chunk.dbStoredC
 		h.wg.Done()
 	}()
-	h.store.Put(ctx, chunk)
+	h.store.Put(chunk)
 }
 
 func parseReference(ref Reference, hashSize int) (Address, encryption.Key, error) {

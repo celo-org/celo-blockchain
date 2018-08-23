@@ -94,8 +94,7 @@ processing will proceed even if an individual RLP-file import failure occurs.`,
 Requires a first argument of the file to write to.
 Optional second and third arguments control the first and
 last block to write. In this mode, the file will be appended
-if already existing. If the file ends with .gz, the output will
-be gzipped.`,
+if already existing.`,
 	}
 	importPreimagesCommand = cli.Command{
 		Action:    utils.MigrateFlags(importPreimages),

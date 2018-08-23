@@ -180,8 +180,7 @@ func (m *mockNode) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 	for {
 		select {
 		case trig := <-m.trigger:
-			wmsg := Wrap(trig.Msg)
-			m.err <- p2p.Send(rw, trig.Code, wmsg)
+			m.err <- p2p.Send(rw, trig.Code, trig.Msg)
 		case exps := <-m.expect:
 			m.err <- expectMsgs(rw, exps)
 		case <-m.stop:
@@ -221,7 +220,7 @@ func expectMsgs(rw p2p.MsgReadWriter, exps []Expect) error {
 		}
 		var found bool
 		for i, exp := range exps {
-			if exp.Code == msg.Code && bytes.Equal(actualContent, mustEncodeMsg(Wrap(exp.Msg))) {
+			if exp.Code == msg.Code && bytes.Equal(actualContent, mustEncodeMsg(exp.Msg)) {
 				if matched[i] {
 					return fmt.Errorf("message #%d received two times", i)
 				}
@@ -236,7 +235,7 @@ func expectMsgs(rw p2p.MsgReadWriter, exps []Expect) error {
 				if matched[i] {
 					continue
 				}
-				expected = append(expected, fmt.Sprintf("code %d payload %x", exp.Code, mustEncodeMsg(Wrap(exp.Msg))))
+				expected = append(expected, fmt.Sprintf("code %d payload %x", exp.Code, mustEncodeMsg(exp.Msg)))
 			}
 			return fmt.Errorf("unexpected message code %d payload %x, expected %s", msg.Code, actualContent, strings.Join(expected, " or "))
 		}
@@ -267,18 +266,4 @@ func mustEncodeMsg(msg interface{}) []byte {
 		panic("content encode error: " + err.Error())
 	}
 	return contentEnc
-}
-
-type WrappedMsg struct {
-	Context []byte
-	Size    uint32
-	Payload []byte
-}
-
-func Wrap(msg interface{}) interface{} {
-	data, _ := rlp.EncodeToBytes(msg)
-	return &WrappedMsg{
-		Size:    uint32(len(data)),
-		Payload: data,
-	}
 }

@@ -16,7 +16,6 @@
 package storage
 
 import (
-	"context"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/swarm/log"
@@ -38,7 +37,7 @@ func PutChunks(store *LocalStore, chunks ...*Chunk) {
 		}
 	}()
 	for _, c := range chunks {
-		go store.Put(context.TODO(), c)
+		go store.Put(c)
 	}
 	wg.Wait()
 }

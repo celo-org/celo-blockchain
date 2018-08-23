@@ -32,10 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/network/stream/intervals"
 	"github.com/ethereum/go-ethereum/swarm/pot"
-	"github.com/ethereum/go-ethereum/swarm/spancontext"
 	"github.com/ethereum/go-ethereum/swarm/state"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -237,7 +235,7 @@ func (r *Registry) RequestSubscription(peerId discover.NodeID, s Stream, h *Rang
 		if e, ok := err.(*notFoundError); ok && e.t == "server" {
 			// request subscription only if the server for this stream is not created
 			log.Debug("RequestSubscription ", "peer", peerId, "stream", s, "history", h)
-			return peer.Send(context.TODO(), &RequestSubscriptionMsg{
+			return peer.Send(&RequestSubscriptionMsg{
 				Stream:   s,
 				History:  h,
 				Priority: prio,
@@ -287,7 +285,7 @@ func (r *Registry) Subscribe(peerId discover.NodeID, s Stream, h *Range, priorit
 	}
 	log.Debug("Subscribe ", "peer", peerId, "stream", s, "history", h)
 
-	return peer.SendPriority(context.TODO(), msg, priority)
+	return peer.SendPriority(msg, priority)
 }
 
 func (r *Registry) Unsubscribe(peerId discover.NodeID, s Stream) error {
@@ -301,7 +299,7 @@ func (r *Registry) Unsubscribe(peerId discover.NodeID, s Stream) error {
 	}
 	log.Debug("Unsubscribe ", "peer", peerId, "stream", s)
 
-	if err := peer.Send(context.TODO(), msg); err != nil {
+	if err := peer.Send(msg); err != nil {
 		return err
 	}
 	return peer.removeClient(s)
@@ -322,17 +320,11 @@ func (r *Registry) Quit(peerId discover.NodeID, s Stream) error {
 	}
 	log.Debug("Quit ", "peer", peerId, "stream", s)
 
-	return peer.Send(context.TODO(), msg)
+	return peer.Send(msg)
 }
 
-func (r *Registry) Retrieve(ctx context.Context, chunk *storage.Chunk) error {
-	var sp opentracing.Span
-	ctx, sp = spancontext.StartSpan(
-		ctx,
-		"registry.retrieve")
-	defer sp.Finish()
-
-	return r.delivery.RequestFromPeers(ctx, chunk.Addr[:], r.skipCheck)
+func (r *Registry) Retrieve(chunk *storage.Chunk) error {
+	return r.delivery.RequestFromPeers(chunk.Addr[:], r.skipCheck)
 }
 
 func (r *Registry) NodeInfo() interface{} {
@@ -468,11 +460,11 @@ func (r *Registry) runProtocol(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 }
 
 // HandleMsg is the message handler that delegates incoming messages
-func (p *Peer) HandleMsg(ctx context.Context, msg interface{}) error {
+func (p *Peer) HandleMsg(msg interface{}) error {
 	switch msg := msg.(type) {
 
 	case *SubscribeMsg:
-		return p.handleSubscribeMsg(ctx, msg)
+		return p.handleSubscribeMsg(msg)
 
 	case *SubscribeErrorMsg:
 		return p.handleSubscribeErrorMsg(msg)
@@ -481,22 +473,22 @@ func (p *Peer) HandleMsg(ctx context.Context, msg interface{}) error {
 		return p.handleUnsubscribeMsg(msg)
 
 	case *OfferedHashesMsg:
-		return p.handleOfferedHashesMsg(ctx, msg)
+		return p.handleOfferedHashesMsg(msg)
 
 	case *TakeoverProofMsg:
-		return p.handleTakeoverProofMsg(ctx, msg)
+		return p.handleTakeoverProofMsg(msg)
 
 	case *WantedHashesMsg:
-		return p.handleWantedHashesMsg(ctx, msg)
+		return p.handleWantedHashesMsg(msg)
 
 	case *ChunkDeliveryMsg:
-		return p.streamer.delivery.handleChunkDeliveryMsg(ctx, p, msg)
+		return p.streamer.delivery.handleChunkDeliveryMsg(p, msg)
 
 	case *RetrieveRequestMsg:
-		return p.streamer.delivery.handleRetrieveRequestMsg(ctx, p, msg)
+		return p.streamer.delivery.handleRetrieveRequestMsg(p, msg)
 
 	case *RequestSubscriptionMsg:
-		return p.handleRequestSubscription(ctx, msg)
+		return p.handleRequestSubscription(msg)
 
 	case *QuitMsg:
 		return p.handleQuitMsg(msg)
@@ -516,7 +508,7 @@ type server struct {
 // Server interface for outgoing peer Streamer
 type Server interface {
 	SetNextBatch(uint64, uint64) (hashes []byte, from uint64, to uint64, proof *HandoverProof, err error)
-	GetData(context.Context, []byte) ([]byte, error)
+	GetData([]byte) ([]byte, error)
 	Close()
 }
 
@@ -559,7 +551,7 @@ func (c client) NextInterval() (start, end uint64, err error) {
 
 // Client interface for incoming peer Streamer
 type Client interface {
-	NeedData(context.Context, []byte) func()
+	NeedData([]byte) func()
 	BatchDone(Stream, uint64, []byte, []byte) func() (*TakeoverProof, error)
 	Close()
 }
@@ -596,7 +588,7 @@ func (c *client) batchDone(p *Peer, req *OfferedHashesMsg, hashes []byte) error 
 		if err != nil {
 			return err
 		}
-		if err := p.SendPriority(context.TODO(), tp, c.priority); err != nil {
+		if err := p.SendPriority(tp, c.priority); err != nil {
 			return err
 		}
 		if c.to > 0 && tp.Takeover.End >= c.to {
@@ -653,7 +645,7 @@ func (c *clientParams) clientCreated() {
 // Spec is the spec of the streamer protocol
 var Spec = &protocols.Spec{
 	Name:       "stream",
-	Version:    5,
+	Version:    4,
 	MaxMsgSize: 10 * 1024 * 1024,
 	Messages: []interface{}{
 		UnsubscribeMsg{},

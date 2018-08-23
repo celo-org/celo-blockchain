@@ -475,14 +475,9 @@ func (db *Database) dereference(child common.Hash, parent common.Hash) {
 	}
 	if node.parents == 0 {
 		// Remove the node from the flush-list
-		switch child {
-		case db.oldest:
+		if child == db.oldest {
 			db.oldest = node.flushNext
-			db.nodes[node.flushNext].flushPrev = common.Hash{}
-		case db.newest:
-			db.newest = node.flushPrev
-			db.nodes[node.flushPrev].flushNext = common.Hash{}
-		default:
+		} else {
 			db.nodes[node.flushPrev].flushNext = node.flushNext
 			db.nodes[node.flushNext].flushPrev = node.flushPrev
 		}
@@ -702,14 +697,9 @@ func (db *Database) uncache(hash common.Hash) {
 		return
 	}
 	// Node still exists, remove it from the flush-list
-	switch hash {
-	case db.oldest:
+	if hash == db.oldest {
 		db.oldest = node.flushNext
-		db.nodes[node.flushNext].flushPrev = common.Hash{}
-	case db.newest:
-		db.newest = node.flushPrev
-		db.nodes[node.flushPrev].flushNext = common.Hash{}
-	default:
+	} else {
 		db.nodes[node.flushPrev].flushNext = node.flushNext
 		db.nodes[node.flushNext].flushPrev = node.flushPrev
 	}

@@ -199,15 +199,10 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-
-		logdir := ""
-		if ctx.GlobalBool(utils.DashboardEnabledFlag.Name) {
-			logdir = (&node.Config{DataDir: utils.MakeDataDir(ctx)}).ResolvePath("logs")
-		}
-		if err := debug.Setup(ctx, logdir); err != nil {
+		if err := debug.Setup(ctx); err != nil {
 			return err
 		}
-		// Cap the cache allowance and tune the garbage collector
+		// Cap the cache allowance and tune the garbage colelctor
 		var mem gosigar.Mem
 		if err := mem.Get(); err == nil {
 			allowance := int(mem.Total / 1024 / 1024 / 3)
@@ -251,9 +246,6 @@ func main() {
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
 func geth(ctx *cli.Context) error {
-	if args := ctx.Args(); len(args) > 0 {
-		return fmt.Errorf("invalid command: %q", args[0])
-	}
 	node := makeFullNode(ctx)
 	startNode(ctx, node)
 	node.Wait()
@@ -308,11 +300,11 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				status, _ := event.Wallet.Status()
 				log.Info("New wallet appeared", "url", event.Wallet.URL(), "status", status)
 
-				derivationPath := accounts.DefaultBaseDerivationPath
 				if event.Wallet.URL().Scheme == "ledger" {
-					derivationPath = accounts.DefaultLedgerBaseDerivationPath
+					event.Wallet.SelfDerive(accounts.DefaultLedgerBaseDerivationPath, stateReader)
+				} else {
+					event.Wallet.SelfDerive(accounts.DefaultBaseDerivationPath, stateReader)
 				}
-				event.Wallet.SelfDerive(derivationPath, stateReader)
 
 			case accounts.WalletDropped:
 				log.Info("Old wallet dropped", "url", event.Wallet.URL())

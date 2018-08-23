@@ -18,7 +18,6 @@ package api
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -114,13 +113,12 @@ func (fs *FileSystem) Upload(lpath, index string, toEncrypt bool) (string, error
 			if err == nil {
 				stat, _ := f.Stat()
 				var hash storage.Address
-				var wait func(context.Context) error
-				ctx := context.TODO()
-				hash, wait, err = fs.api.fileStore.Store(ctx, f, stat.Size(), toEncrypt)
+				var wait func()
+				hash, wait, err = fs.api.fileStore.Store(f, stat.Size(), toEncrypt)
 				if hash != nil {
 					list[i].Hash = hash.Hex()
 				}
-				err = wait(ctx)
+				wait()
 				awg.Done()
 				if err == nil {
 					first512 := make([]byte, 512)
@@ -191,7 +189,7 @@ func (fs *FileSystem) Download(bzzpath, localpath string) error {
 	if err != nil {
 		return err
 	}
-	addr, err := fs.api.Resolve(context.TODO(), uri)
+	addr, err := fs.api.Resolve(uri)
 	if err != nil {
 		return err
 	}
@@ -202,7 +200,7 @@ func (fs *FileSystem) Download(bzzpath, localpath string) error {
 	}
 
 	quitC := make(chan bool)
-	trie, err := loadManifest(context.TODO(), fs.api.fileStore, addr, quitC)
+	trie, err := loadManifest(fs.api.fileStore, addr, quitC)
 	if err != nil {
 		log.Warn(fmt.Sprintf("fs.Download: loadManifestTrie error: %v", err))
 		return err
@@ -275,9 +273,9 @@ func retrieveToFile(quitC chan bool, fileStore *storage.FileStore, addr storage.
 	if err != nil {
 		return err
 	}
-	reader, _ := fileStore.Retrieve(context.TODO(), addr)
+	reader, _ := fileStore.Retrieve(addr)
 	writer := bufio.NewWriter(f)
-	size, err := reader.Size(context.TODO(), quitC)
+	size, err := reader.Size(quitC)
 	if err != nil {
 		return err
 	}

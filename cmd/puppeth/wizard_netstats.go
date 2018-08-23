@@ -203,7 +203,7 @@ func (stats serverStats) render() {
 
 	table.SetHeader([]string{"Server", "Address", "Service", "Config", "Value"})
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetColWidth(40)
+	table.SetColWidth(100)
 
 	// Find the longest lines for all columns for the hacked separator
 	separator := make([]string, 5)
@@ -222,10 +222,8 @@ func (stats serverStats) render() {
 				if len(config) > len(separator[3]) {
 					separator[3] = strings.Repeat("-", len(config))
 				}
-				for _, val := range strings.Split(value, "\n") {
-					if len(val) > len(separator[4]) {
-						separator[4] = strings.Repeat("-", len(val))
-					}
+				if len(value) > len(separator[4]) {
+					separator[4] = strings.Repeat("-", len(value))
 				}
 			}
 		}
@@ -265,17 +263,13 @@ func (stats serverStats) render() {
 			sort.Strings(configs)
 
 			for k, config := range configs {
-				for l, value := range strings.Split(stats[server].services[service][config], "\n") {
-					switch {
-					case j == 0 && k == 0 && l == 0:
-						table.Append([]string{server, stats[server].address, service, config, value})
-					case k == 0 && l == 0:
-						table.Append([]string{"", "", service, config, value})
-					case l == 0:
-						table.Append([]string{"", "", "", config, value})
-					default:
-						table.Append([]string{"", "", "", "", value})
-					}
+				switch {
+				case j == 0 && k == 0:
+					table.Append([]string{server, stats[server].address, service, config, stats[server].services[service][config]})
+				case k == 0:
+					table.Append([]string{"", "", service, config, stats[server].services[service][config]})
+				default:
+					table.Append([]string{"", "", "", config, stats[server].services[service][config]})
 				}
 			}
 		}

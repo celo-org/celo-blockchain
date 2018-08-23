@@ -19,7 +19,6 @@
 package storage
 
 import (
-	"context"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -69,7 +68,7 @@ func NewMemStore(params *StoreParams, _ *LDBStore) (m *MemStore) {
 	}
 }
 
-func (m *MemStore) Get(ctx context.Context, addr Address) (*Chunk, error) {
+func (m *MemStore) Get(addr Address) (*Chunk, error) {
 	if m.disabled {
 		return nil, ErrChunkNotFound
 	}
@@ -91,7 +90,7 @@ func (m *MemStore) Get(ctx context.Context, addr Address) (*Chunk, error) {
 	return c.(*Chunk), nil
 }
 
-func (m *MemStore) Put(ctx context.Context, c *Chunk) {
+func (m *MemStore) Put(c *Chunk) {
 	if m.disabled {
 		return
 	}

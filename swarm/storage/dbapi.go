@@ -16,8 +16,6 @@
 
 package storage
 
-import "context"
-
 // wrapper of db-s to provide mockable custom local chunk store access to syncer
 type DBAPI struct {
 	db  *LDBStore
@@ -29,8 +27,8 @@ func NewDBAPI(loc *LocalStore) *DBAPI {
 }
 
 // to obtain the chunks from address or request db entry only
-func (d *DBAPI) Get(ctx context.Context, addr Address) (*Chunk, error) {
-	return d.loc.Get(ctx, addr)
+func (d *DBAPI) Get(addr Address) (*Chunk, error) {
+	return d.loc.Get(addr)
 }
 
 // current storage counter of chunk db
@@ -44,11 +42,11 @@ func (d *DBAPI) Iterator(from uint64, to uint64, po uint8, f func(Address, uint6
 }
 
 // to obtain the chunks from address or request db entry only
-func (d *DBAPI) GetOrCreateRequest(ctx context.Context, addr Address) (*Chunk, bool) {
-	return d.loc.GetOrCreateRequest(ctx, addr)
+func (d *DBAPI) GetOrCreateRequest(addr Address) (*Chunk, bool) {
+	return d.loc.GetOrCreateRequest(addr)
 }
 
 // to obtain the chunks from key or request db entry only
-func (d *DBAPI) Put(ctx context.Context, chunk *Chunk) {
-	d.loc.Put(ctx, chunk)
+func (d *DBAPI) Put(chunk *Chunk) {
+	d.loc.Put(chunk)
 }

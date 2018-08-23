@@ -18,7 +18,6 @@ package pss
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"errors"
@@ -42,7 +41,7 @@ import (
 
 const (
 	defaultPaddingByteSize     = 16
-	DefaultMsgTTL              = time.Second * 120
+	defaultMsgTTL              = time.Second * 120
 	defaultDigestCacheTTL      = time.Second * 10
 	defaultSymKeyCacheCapacity = 512
 	digestLength               = 32 // byte length of digest used for pss cache (currently same as swarm chunk hash)
@@ -72,7 +71,7 @@ type senderPeer interface {
 	Info() *p2p.PeerInfo
 	ID() discover.NodeID
 	Address() []byte
-	Send(context.Context, interface{}) error
+	Send(interface{}) error
 }
 
 // per-key peer related information
@@ -95,7 +94,7 @@ type PssParams struct {
 // Sane defaults for Pss
 func NewPssParams() *PssParams {
 	return &PssParams{
-		MsgTTL:              DefaultMsgTTL,
+		MsgTTL:              defaultMsgTTL,
 		CacheTTL:            defaultDigestCacheTTL,
 		SymKeyCacheCapacity: defaultSymKeyCacheCapacity,
 	}
@@ -345,7 +344,7 @@ func (p *Pss) getHandlers(topic Topic) map[*Handler]bool {
 // Check if address partially matches
 // If yes, it CAN be for us, and we process it
 // Only passes error to pss protocol handler if payload is not valid pssmsg
-func (p *Pss) handlePssMsg(ctx context.Context, msg interface{}) error {
+func (p *Pss) handlePssMsg(msg interface{}) error {
 	metrics.GetOrRegisterCounter("pss.handlepssmsg", nil).Inc(1)
 
 	pssmsg, ok := msg.(*PssMsg)
@@ -355,11 +354,11 @@ func (p *Pss) handlePssMsg(ctx context.Context, msg interface{}) error {
 	}
 	if int64(pssmsg.Expire) < time.Now().Unix() {
 		metrics.GetOrRegisterCounter("pss.expire", nil).Inc(1)
-		log.Warn("pss filtered expired message", "from", common.ToHex(p.Overlay.BaseAddr()), "to", common.ToHex(pssmsg.To))
+		log.Warn("pss filtered expired message", "from", fmt.Sprintf("%x", p.Overlay.BaseAddr()), "to", fmt.Sprintf("%x", common.ToHex(pssmsg.To)))
 		return nil
 	}
 	if p.checkFwdCache(pssmsg) {
-		log.Trace("pss relay block-cache match (process)", "from", common.ToHex(p.Overlay.BaseAddr()), "to", (common.ToHex(pssmsg.To)))
+		log.Trace(fmt.Sprintf("pss relay block-cache match (process): FROM %x TO %x", p.Overlay.BaseAddr(), common.ToHex(pssmsg.To)))
 		return nil
 	}
 	p.addFwdCache(pssmsg)
@@ -481,7 +480,7 @@ func (p *Pss) SetPeerPublicKey(pubkey *ecdsa.PublicKey, topic Topic, address *Ps
 }
 
 // Automatically generate a new symkey for a topic and address hint
-func (p *Pss) GenerateSymmetricKey(topic Topic, address *PssAddress, addToCache bool) (string, error) {
+func (p *Pss) generateSymmetricKey(topic Topic, address *PssAddress, addToCache bool) (string, error) {
 	keyid, err := p.w.GenerateSymKey()
 	if err != nil {
 		return "", err
@@ -845,7 +844,7 @@ func (p *Pss) forward(msg *PssMsg) error {
 		p.fwdPoolMu.RUnlock()
 
 		// attempt to send the message
-		err := pp.Send(context.TODO(), msg)
+		err := pp.Send(msg)
 		if err != nil {
 			metrics.GetOrRegisterCounter("pss.pp.send.error", nil).Inc(1)
 			log.Error(err.Error())

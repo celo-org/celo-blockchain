@@ -45,30 +45,7 @@ type Config struct {
 // passed environment to query external sources for state information.
 // The Interpreter will run the byte code VM based on the passed
 // configuration.
-type Interpreter interface {
-	// Run loops and evaluates the contract's code with the given input data and returns
-	// the return byte-slice and an error if one occurred.
-	Run(contract *Contract, input []byte) ([]byte, error)
-	// CanRun tells if the contract, passed as an argument, can be
-	// run by the current interpreter. This is meant so that the
-	// caller can do something like:
-	//
-	// ```golang
-	// for _, interpreter := range interpreters {
-	//   if interpreter.CanRun(contract.code) {
-	//     interpreter.Run(contract.code, input)
-	//   }
-	// }
-	// ```
-	CanRun([]byte) bool
-	// IsReadOnly reports if the interpreter is in read only mode.
-	IsReadOnly() bool
-	// SetReadOnly sets (or unsets) read only mode in the interpreter.
-	SetReadOnly(bool)
-}
-
-// EVMInterpreter represents an EVM interpreter
-type EVMInterpreter struct {
+type Interpreter struct {
 	evm      *EVM
 	cfg      Config
 	gasTable params.GasTable
@@ -78,8 +55,8 @@ type EVMInterpreter struct {
 	returnData []byte // Last CALL's return data for subsequent reuse
 }
 
-// NewEVMInterpreter returns a new instance of the Interpreter.
-func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
+// NewInterpreter returns a new instance of the Interpreter.
+func NewInterpreter(evm *EVM, cfg Config) *Interpreter {
 	// We use the STOP instruction whether to see
 	// the jump table was initialised. If it was not
 	// we'll set the default jump table.
@@ -96,14 +73,14 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 		}
 	}
 
-	return &EVMInterpreter{
+	return &Interpreter{
 		evm:      evm,
 		cfg:      cfg,
 		gasTable: evm.ChainConfig().GasTable(evm.BlockNumber),
 	}
 }
 
-func (in *EVMInterpreter) enforceRestrictions(op OpCode, operation operation, stack *Stack) error {
+func (in *Interpreter) enforceRestrictions(op OpCode, operation operation, stack *Stack) error {
 	if in.evm.chainRules.IsByzantium {
 		if in.readOnly {
 			// If the interpreter is operating in readonly mode, make sure no
@@ -125,7 +102,7 @@ func (in *EVMInterpreter) enforceRestrictions(op OpCode, operation operation, st
 // It's important to note that any errors returned by the interpreter should be
 // considered a revert-and-consume-all-gas operation except for
 // errExecutionReverted which means revert-and-keep-gas-left.
-func (in *EVMInterpreter) Run(contract *Contract, input []byte) (ret []byte, err error) {
+func (in *Interpreter) Run(contract *Contract, input []byte) (ret []byte, err error) {
 	if in.intPool == nil {
 		in.intPool = poolOfIntPools.get()
 		defer func() {
@@ -232,7 +209,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte) (ret []byte, err
 		}
 
 		// execute the operation
-		res, err := operation.execute(&pc, in, contract, mem, stack)
+		res, err := operation.execute(&pc, in.evm, contract, mem, stack)
 		// verifyPool is a build flag. Pool verification makes sure the integrity
 		// of the integer pool by comparing values to a default value.
 		if verifyPool {
@@ -256,20 +233,4 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte) (ret []byte, err
 		}
 	}
 	return nil, nil
-}
-
-// CanRun tells if the contract, passed as an argument, can be
-// run by the current interpreter.
-func (in *EVMInterpreter) CanRun(code []byte) bool {
-	return true
-}
-
-// IsReadOnly reports if the interpreter is in read only mode.
-func (in *EVMInterpreter) IsReadOnly() bool {
-	return in.readOnly
-}
-
-// SetReadOnly sets (or unsets) read only mode in the interpreter.
-func (in *EVMInterpreter) SetReadOnly(ro bool) {
-	in.readOnly = ro
 }

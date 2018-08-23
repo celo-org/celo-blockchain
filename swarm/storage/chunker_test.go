@@ -18,7 +18,6 @@ package storage
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -50,11 +49,11 @@ type fakeChunkStore struct {
 }
 
 // Put doesn't store anything it is just here to implement ChunkStore
-func (f *fakeChunkStore) Put(context.Context, *Chunk) {
+func (f *fakeChunkStore) Put(*Chunk) {
 }
 
 // Gut doesn't store anything it is just here to implement ChunkStore
-func (f *fakeChunkStore) Get(context.Context, Address) (*Chunk, error) {
+func (f *fakeChunkStore) Get(Address) (*Chunk, error) {
 	return nil, errors.New("FakeChunkStore doesn't support Get")
 }
 
@@ -82,7 +81,7 @@ func testRandomBrokenData(n int, tester *chunkerTester) {
 	putGetter := newTestHasherStore(NewMapChunkStore(), SHA3Hash)
 
 	expectedError := fmt.Errorf("Broken reader")
-	addr, _, err := TreeSplit(context.TODO(), brokendata, int64(n), putGetter)
+	addr, _, err := TreeSplit(brokendata, int64(n), putGetter)
 	if err == nil || err.Error() != expectedError.Error() {
 		tester.t.Fatalf("Not receiving the correct error! Expected %v, received %v", expectedError, err)
 	}
@@ -105,24 +104,20 @@ func testRandomData(usePyramid bool, hash string, n int, tester *chunkerTester) 
 	putGetter := newTestHasherStore(NewMapChunkStore(), hash)
 
 	var addr Address
-	var wait func(context.Context) error
+	var wait func()
 	var err error
-	ctx := context.TODO()
 	if usePyramid {
-		addr, wait, err = PyramidSplit(ctx, data, putGetter, putGetter)
+		addr, wait, err = PyramidSplit(data, putGetter, putGetter)
 	} else {
-		addr, wait, err = TreeSplit(ctx, data, int64(n), putGetter)
+		addr, wait, err = TreeSplit(data, int64(n), putGetter)
 	}
 	if err != nil {
 		tester.t.Fatalf(err.Error())
 	}
 	tester.t.Logf(" Key = %v\n", addr)
-	err = wait(ctx)
-	if err != nil {
-		tester.t.Fatalf(err.Error())
-	}
+	wait()
 
-	reader := TreeJoin(context.TODO(), addr, putGetter, 0)
+	reader := TreeJoin(addr, putGetter, 0)
 	output := make([]byte, n)
 	r, err := reader.Read(output)
 	if r != n || err != io.EOF {
@@ -205,15 +200,11 @@ func TestDataAppend(t *testing.T) {
 		chunkStore := NewMapChunkStore()
 		putGetter := newTestHasherStore(chunkStore, SHA3Hash)
 
-		ctx := context.TODO()
-		addr, wait, err := PyramidSplit(ctx, data, putGetter, putGetter)
+		addr, wait, err := PyramidSplit(data, putGetter, putGetter)
 		if err != nil {
 			tester.t.Fatalf(err.Error())
 		}
-		err = wait(ctx)
-		if err != nil {
-			tester.t.Fatalf(err.Error())
-		}
+		wait()
 
 		//create a append data stream
 		appendInput, found := tester.inputs[uint64(m)]
@@ -226,16 +217,13 @@ func TestDataAppend(t *testing.T) {
 		}
 
 		putGetter = newTestHasherStore(chunkStore, SHA3Hash)
-		newAddr, wait, err := PyramidAppend(ctx, addr, appendData, putGetter, putGetter)
+		newAddr, wait, err := PyramidAppend(addr, appendData, putGetter, putGetter)
 		if err != nil {
 			tester.t.Fatalf(err.Error())
 		}
-		err = wait(ctx)
-		if err != nil {
-			tester.t.Fatalf(err.Error())
-		}
+		wait()
 
-		reader := TreeJoin(ctx, newAddr, putGetter, 0)
+		reader := TreeJoin(newAddr, putGetter, 0)
 		newOutput := make([]byte, n+m)
 		r, err := reader.Read(newOutput)
 		if r != (n + m) {
@@ -281,7 +269,7 @@ func TestRandomBrokenData(t *testing.T) {
 }
 
 func benchReadAll(reader LazySectionReader) {
-	size, _ := reader.Size(context.TODO(), nil)
+	size, _ := reader.Size(nil)
 	output := make([]byte, 1000)
 	for pos := int64(0); pos < size; pos += 1000 {
 		reader.ReadAt(output, pos)
@@ -294,16 +282,12 @@ func benchmarkSplitJoin(n int, t *testing.B) {
 		data := testDataReader(n)
 
 		putGetter := newTestHasherStore(NewMapChunkStore(), SHA3Hash)
-		ctx := context.TODO()
-		key, wait, err := PyramidSplit(ctx, data, putGetter, putGetter)
+		key, wait, err := PyramidSplit(data, putGetter, putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		err = wait(ctx)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-		reader := TreeJoin(ctx, key, putGetter, 0)
+		wait()
+		reader := TreeJoin(key, putGetter, 0)
 		benchReadAll(reader)
 	}
 }
@@ -314,7 +298,7 @@ func benchmarkSplitTreeSHA3(n int, t *testing.B) {
 		data := testDataReader(n)
 		putGetter := newTestHasherStore(&fakeChunkStore{}, SHA3Hash)
 
-		_, _, err := TreeSplit(context.TODO(), data, int64(n), putGetter)
+		_, _, err := TreeSplit(data, int64(n), putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -327,7 +311,7 @@ func benchmarkSplitTreeBMT(n int, t *testing.B) {
 		data := testDataReader(n)
 		putGetter := newTestHasherStore(&fakeChunkStore{}, BMTHash)
 
-		_, _, err := TreeSplit(context.TODO(), data, int64(n), putGetter)
+		_, _, err := TreeSplit(data, int64(n), putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -340,7 +324,7 @@ func benchmarkSplitPyramidSHA3(n int, t *testing.B) {
 		data := testDataReader(n)
 		putGetter := newTestHasherStore(&fakeChunkStore{}, SHA3Hash)
 
-		_, _, err := PyramidSplit(context.TODO(), data, putGetter, putGetter)
+		_, _, err := PyramidSplit(data, putGetter, putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -354,7 +338,7 @@ func benchmarkSplitPyramidBMT(n int, t *testing.B) {
 		data := testDataReader(n)
 		putGetter := newTestHasherStore(&fakeChunkStore{}, BMTHash)
 
-		_, _, err := PyramidSplit(context.TODO(), data, putGetter, putGetter)
+		_, _, err := PyramidSplit(data, putGetter, putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -370,25 +354,18 @@ func benchmarkSplitAppendPyramid(n, m int, t *testing.B) {
 		chunkStore := NewMapChunkStore()
 		putGetter := newTestHasherStore(chunkStore, SHA3Hash)
 
-		ctx := context.TODO()
-		key, wait, err := PyramidSplit(ctx, data, putGetter, putGetter)
+		key, wait, err := PyramidSplit(data, putGetter, putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		err = wait(ctx)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
+		wait()
 
 		putGetter = newTestHasherStore(chunkStore, SHA3Hash)
-		_, wait, err = PyramidAppend(ctx, key, data1, putGetter, putGetter)
+		_, wait, err = PyramidAppend(key, data1, putGetter, putGetter)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		err = wait(ctx)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
+		wait()
 	}
 }
 

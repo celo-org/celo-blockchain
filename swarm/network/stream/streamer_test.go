@@ -18,7 +18,6 @@ package stream
 
 import (
 	"bytes"
-	"context"
 	"testing"
 	"time"
 
@@ -80,7 +79,7 @@ func newTestClient(t string) *testClient {
 	}
 }
 
-func (self *testClient) NeedData(ctx context.Context, hash []byte) func() {
+func (self *testClient) NeedData(hash []byte) func() {
 	self.receivedHashes[string(hash)] = hash
 	if bytes.Equal(hash, hash0[:]) {
 		return func() {
@@ -115,7 +114,7 @@ func (self *testServer) SetNextBatch(from uint64, to uint64) ([]byte, uint64, ui
 	return make([]byte, HashSize), from + 1, to + 1, nil, nil
 }
 
-func (self *testServer) GetData(context.Context, []byte) ([]byte, error) {
+func (self *testServer) GetData([]byte) ([]byte, error) {
 	return nil, nil
 }
 

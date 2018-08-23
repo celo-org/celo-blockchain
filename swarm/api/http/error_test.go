@@ -29,6 +29,7 @@ import (
 )
 
 func TestError(t *testing.T) {
+
 	srv := testutil.NewTestSwarmServer(t, serverFunc)
 	defer srv.Close()
 
