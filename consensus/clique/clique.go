@@ -55,7 +55,7 @@ var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
 	// TODO(asa): Consider allowing more bytes here
-	extraVanity         = 12 // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraVanity         = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraProposedSigner = 20 // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
   extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
 	extraSeal           = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
@@ -91,8 +91,8 @@ var (
 	errInvalidCheckpointVote = errors.New("vote nonce in checkpoint block non-zero")
 
 	// errMissingVanity is returned if a block's extra-data section is shorter than
-	// 12 bytes, which is required to store the signer vanity.
-	errMissingVanity = errors.New("extra-data 12 byte vanity prefix missing")
+	// 32 bytes, which is required to store the signer vanity.
+	errMissingVanity = errors.New("extra-data 32 byte vanity prefix missing")
 
 	// errMissingProposedSigner is returned if a block's extra-data section is shorter than
 	// 20 bytes, which is required to store the signer's proposed signer.
