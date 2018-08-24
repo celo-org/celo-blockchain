@@ -70,8 +70,8 @@ func runDialTest(t *testing.T, test dialtest) {
 				i, spew.Sdump(new), spew.Sdump(round.new), spew.Sdump(test.init), spew.Sdump(running))
 		}
 
-		// Time advances by 16 seconds on every round.
-		vtime = vtime.Add(16 * time.Second)
+		// Time advances by 6 seconds on every round.
+		vtime = vtime.Add(6 * time.Second)
 		running += len(new)
 	}
 }
@@ -151,7 +151,7 @@ func TestDialStateDynDial(t *testing.T) {
 					&dialTask{flags: dynDialedConn, dest: &discover.Node{ID: uintID(5)}},
 				},
 				new: []task{
-					&waitExpireTask{Duration: 14 * time.Second},
+					&waitExpireTask{Duration: 4 * time.Second},
 				},
 			},
 			// In this round, the peer with id 2 drops off. The query
@@ -485,7 +485,7 @@ func TestDialStateStaticDial(t *testing.T) {
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(5)}},
 				},
 				new: []task{
-					&waitExpireTask{Duration: 14 * time.Second},
+					&waitExpireTask{Duration: 4 * time.Second},
 				},
 			},
 			// Wait a round for dial history to expire, no new tasks should spawn.
@@ -542,7 +542,7 @@ func TestDialStaticAfterReset(t *testing.T) {
 				&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(2)}},
 			},
 			new: []task{
-				&waitExpireTask{Duration: 30 * time.Second},
+				&waitExpireTask{Duration: 10 * time.Second},
 			},
 		},
 	}
@@ -603,7 +603,7 @@ func TestDialStateCache(t *testing.T) {
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
 				},
 				new: []task{
-					&waitExpireTask{Duration: 14 * time.Second},
+					&waitExpireTask{Duration: 4 * time.Second},
 				},
 			},
 			// Still waiting for node 3's entry to expire in the cache.

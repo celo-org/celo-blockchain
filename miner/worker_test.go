@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
@@ -70,11 +71,12 @@ func init() {
 
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
 type testWorkerBackend struct {
-	db         ethdb.Database
-	txPool     *core.TxPool
-	chain      *core.BlockChain
-	testTxFeed event.Feed
-	uncleBlock *types.Block
+	accountManager *accounts.Manager
+	db             ethdb.Database
+	txPool         *core.TxPool
+	chain          *core.BlockChain
+	testTxFeed     event.Feed
+	uncleBlock     *types.Block
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) *testWorkerBackend {
@@ -101,17 +103,21 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, 1, func(i int, gen *core.BlockGen) {
 		gen.SetCoinbase(acc1Addr)
 	})
+	var backends []accounts.Backend
+	accountManager := accounts.NewManager(backends...)
 
 	return &testWorkerBackend{
-		db:         db,
-		chain:      chain,
-		txPool:     txpool,
-		uncleBlock: blocks[0],
+		accountManager: accountManager,
+		db:             db,
+		chain:          chain,
+		txPool:         txpool,
+		uncleBlock:     blocks[0],
 	}
 }
 
-func (b *testWorkerBackend) BlockChain() *core.BlockChain { return b.chain }
-func (b *testWorkerBackend) TxPool() *core.TxPool         { return b.txPool }
+func (b *testWorkerBackend) AccountManager() *accounts.Manager { return b.accountManager }
+func (b *testWorkerBackend) BlockChain() *core.BlockChain      { return b.chain }
+func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool }
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
