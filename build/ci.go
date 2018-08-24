@@ -316,13 +316,13 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 }
 
 func Filter(vs []string, f func(string) bool) []string {
-    vsf := make([]string, 0)
-    for _, v := range vs {
-        if f(v) {
-            vsf = append(vsf, v)
-        }
-    }
-    return vsf
+	vsf := make([]string, 0)
+	for _, v := range vs {
+		if f(v) {
+			vsf = append(vsf, v)
+		}
+	}
+	return vsf
 }
 
 // Running The Tests
@@ -331,7 +331,7 @@ func Filter(vs []string, f func(string) bool) []string {
 
 func doTest(cmdline []string) {
 	var (
-		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
+		coverage    = flag.Bool("coverage", false, "Whether to record code coverage")
 		excludeFuse = flag.Bool("exclude-fuse", false, "Whether to run tests that use fuse")
 	)
 	flag.CommandLine.Parse(cmdline)
@@ -342,11 +342,11 @@ func doTest(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
-  if *excludeFuse {
-    packages = Filter(packages, func(p string) bool {
-      return !strings.Contains(p, "/fuse")
-    })
-  }
+	if *excludeFuse {
+		packages = Filter(packages, func(p string) bool {
+			return !strings.Contains(p, "/fuse")
+		})
+	}
 
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
