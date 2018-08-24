@@ -78,7 +78,7 @@ const (
 	Bn256ScalarMulGas       uint64 = 40000   // Gas needed for an elliptic curve scalar multiplication
 	Bn256PairingBaseGas     uint64 = 100000  // Base price for an elliptic curve pairing check
 	Bn256PairingPerPointGas uint64 = 80000   // Per-point price for an elliptic curve pairing check
-	TextmsgGas              uint64 = 1000000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
+	TextmsgGas              uint64 = 1000001 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 )
 
 var (
