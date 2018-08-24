@@ -20,4 +20,4 @@ jobs:
 
       # specify any bash command here prefixed with `run: `
       - run: make lint
-      - run: make test
+      - run: build/env.sh go run build/ci.go test --exclude-fuse

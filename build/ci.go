@@ -315,6 +315,16 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
+func Filter(vs []string, f func(string) bool) []string {
+    vsf := make([]string, 0)
+    for _, v := range vs {
+        if f(v) {
+            vsf = append(vsf, v)
+        }
+    }
+    return vsf
+}
+
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
@@ -322,6 +332,7 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 func doTest(cmdline []string) {
 	var (
 		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
+		excludeFuse = flag.Bool("exclude-fuse", false, "Whether to run tests that use fuse")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
@@ -331,6 +342,11 @@ func doTest(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
+  if *excludeFuse {
+    packages = Filter(packages, func(p string) bool {
+      return !strings.Contains(p, "/fuse")
+    })
+  }
 
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
