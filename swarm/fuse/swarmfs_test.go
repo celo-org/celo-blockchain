@@ -20,6 +20,7 @@ package fuse
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"flag"
 	"fmt"
@@ -110,7 +111,7 @@ func createTestFilesAndUploadToSwarm(t *testing.T, api *api.API, files map[strin
 	}
 
 	//upload directory to swarm and return hash
-	bzzhash, err := api.Upload(uploadDir, "", toEncrypt)
+	bzzhash, err := api.Upload(context.TODO(), uploadDir, "", toEncrypt)
 	if err != nil {
 		t.Fatalf("Error uploading directory %v: %vm encryption: %v", uploadDir, err, toEncrypt)
 	}
@@ -1649,7 +1650,7 @@ func TestFUSE(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ta := &testAPI{api: api.NewAPI(fileStore, nil, nil)}
+	ta := &testAPI{api: api.NewAPI(fileStore, nil, nil, nil)}
 
 	//run a short suite of tests
 	//approx time: 28s
