@@ -565,6 +565,7 @@ func (w *worker) resultLoop() {
 
 			// Insert the block into the set of pending ones to resultLoop for confirmations
 			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
+
 		case <-w.exitCh:
 			return
 		}
@@ -601,6 +602,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	return nil
 }
 
+// commitUncle adds the given block to uncle block set, returns error if failed to add.
 func (w *worker) commitUncle(env *environment, uncle *types.Header) error {
 	hash := uncle.Hash()
 	if env.uncles.Contains(hash) {
