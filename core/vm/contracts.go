@@ -20,8 +20,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
-	"regexp"
-	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
