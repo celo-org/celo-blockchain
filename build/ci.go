@@ -331,8 +331,8 @@ func Filter(vs []string, f func(string) bool) []string {
 
 func doTest(cmdline []string) {
 	var (
-		coverage    = flag.Bool("coverage", false, "Whether to record code coverage")
-		excludeFuse = flag.Bool("exclude-fuse", false, "Whether to run tests that use fuse")
+		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
+		ignore   = flag.String("ignore", "", "Comma separated list of packages to ignore")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
@@ -342,11 +342,14 @@ func doTest(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
-	if *excludeFuse {
-		packages = Filter(packages, func(p string) bool {
-			return !strings.Contains(p, "/fuse")
-		})
+
+	ignorePackage := make(map[string]bool)
+	for _, ignoredPackage := range strings.Split(*ignore, ",") {
+		ignorePackage[ignoredPackage] = true
 	}
+	packages = Filter(packages, func(p string) bool {
+		return !ignorePackage[p]
+	})
 
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
