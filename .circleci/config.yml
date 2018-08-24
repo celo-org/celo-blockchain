@@ -1,24 +1,23 @@
 version: 2
- defaults: &defaults
-  working_directory: ~/app
-  docker:
-    - image: circleci/golang:1.9
- jobs:
-   lint-checks:
-    <<: *defaults
+jobs:
+  build:
+    docker:
+      # specify the version
+      - image: circleci/golang:1.9
+      
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+
+    #### TEMPLATE_NOTE: go expects specific checkout path representing url
+    #### expecting it in the form of
+    ####   /go/src/github.com/circleci/go-tool
+    ####   /go/src/bitbucket.org/circleci/go-tool
+    working_directory: /go/src/github.com/celo-org/geth
     steps:
-      - attach_workspace:
-          at: ~/app
-       - run: make lint
-   test:
-    <<: *defaults
-    steps:
-      - attach_workspace:
-          at: ~/app
-       - run: make test
- workflows:
-  version: 2
-  build-lint-test:
-    jobs:
-      - lint-checks
-      - test
+      - checkout
+
+      # specify any bash command here prefixed with `run: `
+      - run: make lint
+      - run: make test
