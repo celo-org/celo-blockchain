@@ -4,7 +4,7 @@ jobs:
     docker:
       # specify the version
       - image: circleci/golang:1.9
-      
+
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
       # documented at https://circleci.com/docs/2.0/circleci-images/
@@ -20,4 +20,5 @@ jobs:
 
       # specify any bash command here prefixed with `run: `
       - run: make lint
-      - run: build/env.sh go run build/ci.go test --ignore "github.com/ethereum/go-ethereum/cmd/swarm,github.com/ethereum/go-ethereum/swarm/network/simulations/discovery"
+      # TODO(celo): Use testing.Skip instead
+      - run: build/env.sh go run build/ci.go test --skip "github.com/ethereum/go-ethereum/cmd/swarm,github.com/ethereum/go-ethereum/swarm/network/simulations/discovery"

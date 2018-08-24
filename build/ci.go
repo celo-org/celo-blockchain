@@ -332,7 +332,8 @@ func Filter(vs []string, f func(string) bool) []string {
 func doTest(cmdline []string) {
 	var (
 		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
-		ignore   = flag.String("ignore", "", "Comma separated list of packages to ignore")
+		// TODO(celo): Use testing.Skip instead.
+		skip = flag.String("skip", "", "Comma separated list of packages to skip")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
@@ -343,12 +344,12 @@ func doTest(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
-	ignorePackage := make(map[string]bool)
-	for _, ignoredPackage := range strings.Split(*ignore, ",") {
-		ignorePackage[ignoredPackage] = true
+	skipPackage := make(map[string]bool)
+	for _, skippedPackage := range strings.Split(*skip, ",") {
+		skipPackage[skippedPackage] = true
 	}
 	packages = Filter(packages, func(p string) bool {
-		return !ignorePackage[p]
+		return !skipPackage[p]
 	})
 
 	// Run analysis tools before the tests.
