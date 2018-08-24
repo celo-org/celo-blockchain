@@ -1,0 +1,24 @@
+version: 2
+ defaults: &defaults
+  working_directory: ~/app
+  docker:
+    - image: circleci/golang:1.9
+ jobs:
+   lint-checks:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/app
+       - run: make lint
+   test:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/app
+       - run: make test
+ workflows:
+  version: 2
+  build-lint-test:
+    jobs:
+      - lint-checks
+      - test

@@ -374,7 +374,7 @@ func (c *textmsg) RequiredGas(input []byte) uint64 {
 
 func (c *textmsg) Run(input []byte) ([]byte, error) {
 	// TODO(asa): Allow international phone numbers.
-	r, _ := regexp.Compile("\\+1[0-9]{10}")
+	r, _ := regexp.Compile(`\\+1[0-9]{10}`)
 	if r.MatchString(string(input)) {
 		return input, nil
 	} else {

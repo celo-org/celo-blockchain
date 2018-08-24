@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-  "github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
@@ -36,7 +36,7 @@ import (
 
 // Backend wraps all methods required for mining.
 type Backend interface {
-  AccountManager() *accounts.Manager
+	AccountManager() *accounts.Manager
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 }
