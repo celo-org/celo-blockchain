@@ -795,6 +795,7 @@ func FormatLogs(logs []vm.StructLog) []StructLogRes {
 // transaction hashes.
 func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]interface{}, error) {
 	head := b.Header() // copies the header once
+	// TODO(asa): Consider removing parentHash
 	fields := map[string]interface{}{
 		"number":           (*hexutil.Big)(head.Number),
 		"hash":             b.Hash(),
@@ -813,8 +814,7 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"timestamp":        (*hexutil.Big)(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
-		// TODO(asa): Consider removing parentHash
-		"signature":        hexutil.Bytes(common.CopyBytes([]byte(head.Signature[:]))),
+		"signature":        hexutil.Bytes(common.CopyBytes(head.Signature[:])),
 	}
 
 	if inclTx {
