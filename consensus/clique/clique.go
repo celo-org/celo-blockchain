@@ -55,10 +55,10 @@ var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
 	// TODO(asa): Consider allowing more bytes here
-	extraVanity         = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
-	extraProposedSigner = 20 // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
-  extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
-	extraSeal           = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraVanity         = 32                                // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraProposedSigner = 20                                // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
+	extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
+	extraSeal           = 65                                // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
@@ -204,7 +204,7 @@ func SetProposedSigner(extra []byte, signer common.Address) []byte {
 		extra = append(extra, bytes.Repeat([]byte{0x00}, (extraPrefix)-len(extra))...)
 	}
 	copy(extra[extraVanity:extraPrefix], signer.Bytes())
-  return extra
+	return extra
 }
 
 // Return the proposed signer from the header extra data.
@@ -212,7 +212,7 @@ func ProposedSigner(extra []byte) common.Address {
 	if len(extra) < extraPrefix {
 		return common.Address{}
 	}
-	return common.BytesToAddress(extra[extraVanity : extraPrefix])
+	return common.BytesToAddress(extra[extraVanity:extraPrefix])
 }
 
 // Clique is the proof-of-authority consensus engine proposed to support the
