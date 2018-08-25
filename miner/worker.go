@@ -24,8 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/abe"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -931,7 +931,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 			log.Info("Commit new mining work", "number", block.Number(), "uncles", len(uncles), "txs", w.current.tcount,
 				"gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-      abe.SendVerificationTexts(w.current.receipts, block, self.coinbase, self.eth.AccountManager())
+			abe.SendVerificationTexts(w.current.receipts, block, w.coinbase, w.eth.AccountManager())
 
 		case <-w.exitCh:
 			log.Info("Worker has exited")
