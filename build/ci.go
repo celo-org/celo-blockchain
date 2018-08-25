@@ -315,14 +315,14 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
-func Filter(vs []string, f func(string) bool) []string {
-	vsf := make([]string, 0)
+func Filter(vs []string, pred func(string) bool) []string {
+	filtered := make([]string, 0)
 	for _, v := range vs {
-		if f(v) {
-			vsf = append(vsf, v)
+		if pred(v) {
+			filtered = append(filtered, v)
 		}
 	}
-	return vsf
+	return filtered
 }
 
 // Running The Tests
