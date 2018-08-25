@@ -343,7 +343,7 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:     &config,
-		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, 65)...),
+		ExtraData:  append(append(make([]byte, 52), faucet[:]...), make([]byte, 65)...),
 		GasLimit:   6283185,
 		Difficulty: big.NewInt(1),
 		Alloc: map[common.Address]GenesisAccount{

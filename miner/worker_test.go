@@ -90,8 +90,9 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	switch engine.(type) {
 	case *clique.Clique:
-		gspec.ExtraData = make([]byte, 32+common.AddressLength+65)
-		copy(gspec.ExtraData[32:], testBankAddress[:])
+		gspec.ExtraData = make([]byte, 52+common.AddressLength+65)
+		copy(gspec.ExtraData[52:], testBankAddress[:])
+		copy(gspec.ExtraData[52:], testBankAddress[:])
 	case *ethash.Ethash:
 	default:
 		t.Fatal("unexpect consensus engine type")

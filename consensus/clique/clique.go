@@ -567,8 +567,8 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	header.Difficulty = CalcDifficulty(snap, c.signer)
 
 	// Ensure the extra data has all it's components
-	if len(header.Extra) < extraVanity {
-		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
+	if len(header.Extra) < extraPrefix {
+		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraPrefix-len(header.Extra))...)
 	}
 	header.Extra = header.Extra[:extraPrefix]
 
