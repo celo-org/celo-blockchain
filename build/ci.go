@@ -315,6 +315,16 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
+func Filter(vs []string, pred func(string) bool) []string {
+	filtered := make([]string, 0)
+	for _, v := range vs {
+		if pred(v) {
+			filtered = append(filtered, v)
+		}
+	}
+	return filtered
+}
+
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
@@ -322,6 +332,8 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 func doTest(cmdline []string) {
 	var (
 		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
+		// TODO(celo): Use testing.Skip instead.
+		skip = flag.String("skip", "", "Comma separated list of packages to skip")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
@@ -331,6 +343,14 @@ func doTest(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
+
+	skipPackage := make(map[string]bool)
+	for _, skippedPackage := range strings.Split(*skip, ",") {
+		skipPackage[skippedPackage] = true
+	}
+	packages = Filter(packages, func(p string) bool {
+		return !skipPackage[p]
+	})
 
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))

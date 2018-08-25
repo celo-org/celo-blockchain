@@ -928,5 +928,5 @@
 			"revisionTime": "2017-08-11T01:42:03Z"
 		}
 	],
-	"rootPath": "go-jem"
+	"rootPath": "github.com/celo-org/geth"
 }
