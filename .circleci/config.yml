@@ -9,4 +9,4 @@ jobs:
       - checkout
       - run: make lint
       # TODO(celo): Use testing.Skip instead
-      - run: build/env.sh go run build/ci.go test --skip "github.com/ethereum/go-ethereum/cmd/swarm,github.com/ethereum/go-ethereum/swarm/network/simulations/discovery"
+      - run: build/env.sh go run build/ci.go test --skip "github.com/ethereum/go-ethereum/cmd/swarm,github.com/ethereum/go-ethereum/swarm/network/simulations/discovery,github.com/ethereum/go-ethereum/swarm/network/stream"

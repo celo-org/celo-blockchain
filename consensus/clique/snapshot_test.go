@@ -346,10 +346,10 @@ func TestVoting(t *testing.T) {
 		}
 		// Create the genesis block with the initial set of signers
 		genesis := &core.Genesis{
-			ExtraData: make([]byte, extraVanity+common.AddressLength*len(signers)+extraSeal),
+			ExtraData: make([]byte, extraPrefix+common.AddressLength*len(signers)+extraSeal),
 		}
 		for j, signer := range signers {
-			copy(genesis.ExtraData[extraVanity+j*common.AddressLength:], signer[:])
+			copy(genesis.ExtraData[extraPrefix+j*common.AddressLength:], signer[:])
 		}
 		// Create a pristine blockchain with the genesis injected
 		db := ethdb.NewMemDatabase()
@@ -359,11 +359,11 @@ func TestVoting(t *testing.T) {
 		headers := make([]*types.Header, len(tt.votes))
 		for j, vote := range tt.votes {
 			headers[j] = &types.Header{
-				Number:   big.NewInt(int64(j) + 1),
-				Time:     big.NewInt(int64(j) * 15),
-				Coinbase: accounts.address(vote.voted),
-				Extra:    make([]byte, extraVanity+extraSeal),
+				Number: big.NewInt(int64(j) + 1),
+				Time:   big.NewInt(int64(j) * 15),
+				Extra:  make([]byte, extraPrefix+extraSeal),
 			}
+			headers[j].Extra = SetProposedSigner(headers[j].Extra, accounts.address(vote.voted))
 			if j > 0 {
 				headers[j].ParentHash = headers[j-1].Hash()
 			}
