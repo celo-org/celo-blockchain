@@ -54,7 +54,6 @@ const (
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
-	// TODO(asa): Consider allowing more bytes here
 	extraVanity         = 32                                // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraProposedSigner = 20                                // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
 	extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
