@@ -49,6 +49,7 @@ type VerificationRequest struct {
 	PhoneHash           common.Hash
 	UnsignedMessageHash common.Hash
 	VerificationIndex   *big.Int
+	Verifier            common.Address
 	EncryptedPhone      hexutil.Bytes
 }
 
@@ -111,6 +112,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // input[0:32]:  bytes32 phoneHash
 // input[32:64]: bytes32 unsignedMessageHash
 // input[64:96]: bytes32 verificationIndex
+// input[96:128]: address verifier
 // input[96:]    bytes encryptedPhone
 func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	var v VerificationRequest
@@ -121,8 +123,10 @@ func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	if !parsed {
 		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse VerificationIndex from " + hexutil.Encode(input[64:96]))
 	}
+	v.Verifier = common.BytesToAddress(input[96:128])
+
 	// TODO(asa): Consider validating the length of EncryptedPhone
-	v.EncryptedPhone = input[96:]
+	v.EncryptedPhone = input[128:]
 	return v, nil
 }
 

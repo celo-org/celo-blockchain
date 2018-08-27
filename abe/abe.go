@@ -84,6 +84,9 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 
 	for _, receipt := range receipts {
 		for _, request := range receipt.VerificationRequests {
+			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
+				continue
+			}
 			phoneNumber, err := decryptPhoneNumber(request, account, wallet)
 			if err != nil {
 				log.Error("[Celo] Failed to decrypt phone number", "err", err)
@@ -97,7 +100,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 				continue
 			}
 
-			log.Debug(fmt.Sprintf("[Celo] Sending verification message: %s", message), nil, nil)
+			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
 			err = sendSms(phoneNumber, message)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
