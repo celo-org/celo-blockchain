@@ -61,15 +61,15 @@ func sendSms(phoneNumber string, message string) error {
 	url := "https://mining-pool.celo.org/v0.1/sms"
 	values := map[string]string{"phoneNumber": phoneNumber, "message": message}
 	jsonValue, _ := json.Marshal(values)
-	_, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
+	var err error
 
 	// Retry 5 times if we fail.
 	for i := 0; i < 5; i++ {
+		_, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
 		if err == nil {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
-		_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
 	}
 	return err
 }
