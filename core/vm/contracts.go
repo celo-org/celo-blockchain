@@ -48,7 +48,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var CeloPrecompiledContractsAddressOffset = []byte{0xff}
+var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
