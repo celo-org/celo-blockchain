@@ -39,7 +39,7 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 		return "", err
 	}
 	// TODO(asa): Better validation of phone numbers
-	r, _ := regexp.Compile(`\+1[0-9]{10}`)
+	r, _ := regexp.Compile(`^\+[0-9]{8,15}$`)
 	if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
 		return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
 	} else if !r.MatchString(string(phoneNumber)) {
