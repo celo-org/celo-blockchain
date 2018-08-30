@@ -122,6 +122,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		Version:     params.VersionWithMeta,
 		DataDir:     datadir,
 		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		IPCPath:     "geth.ipc",
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      true,
