@@ -441,6 +441,10 @@ func (w *wallet) Contains(account accounts.Account) bool {
 	return exists
 }
 
+func (w *wallet) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 // Derive implements accounts.Wallet, deriving a new account at the specific
 // derivation path. If pin is set to true, the account will be added to the list
 // of tracked accounts.

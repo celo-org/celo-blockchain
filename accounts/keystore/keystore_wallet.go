@@ -68,6 +68,18 @@ func (w *keystoreWallet) Contains(account accounts.Account) bool {
 	return account.Address == w.account.Address && (account.URL == (accounts.URL{}) || account.URL == w.account.URL)
 }
 
+// Decrypt decrypts an ECIES ciphertext.
+func (w *keystoreWallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	if account.Address != w.account.Address {
+		return nil, accounts.ErrUnknownAccount
+	}
+	if account.URL != (accounts.URL{}) && account.URL != w.account.URL {
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.Decrypt(account, c, s1, s2)
+}
+
 // Derive implements accounts.Wallet, but is a noop for plain wallets since there
 // is no notion of hierarchical account derivation for plain keystore accounts.
 func (w *keystoreWallet) Derive(path accounts.DerivationPath, pin bool) (accounts.Account, error) {

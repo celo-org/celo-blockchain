@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -742,9 +741,11 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 		gas += params.CallStipend
 	}
 	ret, returnGas, err := interpreter.evm.Call(contract, toAddr, args, gas, value)
-	if toAddr == textmsgAddress && err == nil {
-		log.Debug("[Celo]: Adding "+string(ret)+" to evm SMS queue", nil, nil)
-		interpreter.evm.SmsQueue = append(interpreter.evm.SmsQueue, string(ret))
+	// TODO(asa): Consider passing the EVM to RunPrecompiledContract instead.
+	if toAddr == requestVerificationAddress && err == nil {
+		// This should never return an error as we would have returned an error in Call.
+		request, _ := types.DecodeVerificationRequest(ret)
+		interpreter.evm.VerificationRequests = append(interpreter.evm.VerificationRequests, request)
 	}
 	if err != nil {
 		stack.push(interpreter.intPool.getZero())

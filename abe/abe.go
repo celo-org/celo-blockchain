@@ -19,71 +19,93 @@ package abe
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
+	"regexp"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func SendVerificationTexts(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
-	numTransactions := 0
-	for range block.Transactions() {
-		numTransactions += 1
-	}
-	log.Debug("\n[Celo] New block: "+block.Hash().Hex()+", "+strconv.Itoa(numTransactions), nil, nil)
-
-	wallet, err := accountManager.Find(accounts.Account{Address: coinbase})
+func decryptPhoneNumber(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	phoneNumber, err := wallet.Decrypt(account, request.EncryptedPhone, nil, nil)
 	if err != nil {
-		log.Error("[Celo] Failed to get account", "err", err)
+		return "", err
+	}
+	// TODO(asa): Better validation of phone numbers
+	r, _ := regexp.Compile(`^\+[0-9]{8,15}$`)
+	if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
+		return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
+	} else if !r.MatchString(string(phoneNumber)) {
+		return string(phoneNumber), fmt.Errorf("Decrypted phone number invalid: %s", string(phoneNumber))
+	}
+	return string(phoneNumber), nil
+}
+
+func createVerificationMessage(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	signature, err := wallet.SignHash(account, request.UnsignedMessageHash.Bytes())
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Celo verification code: %s:%d", hexutil.Encode(signature), request.VerificationIndex), nil
+}
+
+func sendSms(phoneNumber string, message string) error {
+	// Send the actual text message using our mining pool.
+	// TODO: Make mining pool be configurable via command line arguments.
+	url := "https://mining-pool.celo.org/v0.1/sms"
+	values := map[string]string{"phoneNumber": phoneNumber, "message": message}
+	jsonValue, _ := json.Marshal(values)
+	var err error
+
+	// Retry 5 times if we fail.
+	for i := 0; i < 5; i++ {
+		_, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return err
+}
+
+func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
+	account := accounts.Account{Address: coinbase}
+	wallet, err := accountManager.Find(account)
+	if err != nil {
+		log.Error("[Celo] Failed to get account for sms verification", "err", err)
 		return
 	}
 
 	for _, receipt := range receipts {
-		for _, phone := range receipt.SmsQueue {
-			log.Debug("[Celo] Sending text to phone: "+phone, nil, nil)
-
-			if len(phone) <= 0 {
-				log.Error("[Celo] Invalid phone number: "+phone, nil, nil)
+		for _, request := range receipt.VerificationRequests {
+			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
 				continue
 			}
-
-			// Construct the secret code to be sent via SMS.
-			unsignedCode := common.BytesToHash([]byte(phone + block.Number().String()))
-			code, err := wallet.SignHash(accounts.Account{Address: coinbase}, unsignedCode.Bytes())
+			phoneNumber, err := decryptPhoneNumber(request, account, wallet)
 			if err != nil {
-				log.Error("[Celo] Failed to sign message for sending over SMS", "err", err)
+				log.Error("[Celo] Failed to decrypt phone number", "err", err)
 				continue
 			}
-			hexCode := hexutil.Encode(code[:])
-			log.Debug("[Celo] Secret code: "+hexCode+" "+string(len(code)), nil, nil)
-			secret := fmt.Sprintf("Gem verification code: %s", hexCode)
-			log.Debug("[Celo] New verification request: "+receipt.TxHash.Hex()+" "+phone, nil, nil)
+			log.Debug(fmt.Sprintf("[Celo] Phone number %s requesting verification", phoneNumber))
 
-			// Send the actual text message using our mining pool.
-			// TODO: Make mining pool be configurable via command line arguments.
-			url := "https://mining-pool.celo.org/v0.1/sms"
-			values := map[string]string{"phoneNumber": phone, "message": secret}
-			jsonValue, _ := json.Marshal(values)
-			_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
-			log.Debug("[Celo] SMS send Url: "+url, nil, nil)
-
-			// Retry 5 times if we fail.
-			for i := 0; i < 5; i++ {
-				if err == nil {
-					break
-				}
-				log.Debug("[Celo] Got an error when trying to send SMS to: "+url, nil, nil)
-				time.Sleep(100 * time.Millisecond)
-				_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
+			message, err := createVerificationMessage(request, account, wallet)
+			if err != nil {
+				log.Error("[Celo] Failed to create verification message", "err", err)
+				continue
 			}
 
-			log.Debug("[Celo] Sent SMS", nil, nil)
+			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
+			err = sendSms(phoneNumber, message)
+			if err != nil {
+				log.Error("[Celo] Failed to send SMS", "err", err)
+			}
 		}
 	}
 }

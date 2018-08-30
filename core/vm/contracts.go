@@ -20,10 +20,10 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
-	"regexp"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,7 +48,8 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var textmsgAddress = common.BytesToAddress([]byte{255})
+var CeloPrecompiledContractsAddressOffset = byte(0xff)
+var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -61,7 +62,9 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}): &bn256Add{},
 	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
-	textmsgAddress:                   &textmsg{},
+
+	// Celo Precompiled Contracts
+	requestVerificationAddress: &requestVerification{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -364,21 +367,22 @@ func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
 	return false32Byte, nil
 }
 
-// TEXTMSG implemented as a native contract.
-type textmsg struct{}
+// Requesting verification in the Celo address based encryption  protocol is implemented as a
+// native contract.
+type requestVerification struct{}
 
-func (c *textmsg) RequiredGas(input []byte) uint64 {
+func (c *requestVerification) RequiredGas(input []byte) uint64 {
 	// TODO(asa): Charge less gas when the phone number is invalid.
-	return params.TextmsgGas
+	return params.VerificationRequestGas
 }
 
-func (c *textmsg) Run(input []byte) ([]byte, error) {
-	// TODO(asa): Allow international phone numbers.
-	r, _ := regexp.Compile(`\+1[0-9]{10}`)
-	if r.MatchString(string(input)) {
-		return input, nil
+// Ensures that the input is parsable as a VerificationRequest.
+func (c *requestVerification) Run(input []byte) ([]byte, error) {
+	_, err := types.DecodeVerificationRequest(input)
+	if err != nil {
+		log.Error("[Celo] Unable to decode verification request", "err", err)
+		return nil, err
 	} else {
-		log.Error("[Celo] Provided input is not a valid phone number: "+string(input), nil, nil)
-		return nil, errors.New("Provided input is not a valid phone number")
+		return input, nil
 	}
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -226,6 +227,21 @@ func (ks *KeyStore) HasAddress(addr common.Address) bool {
 // Accounts returns all key files present in the directory.
 func (ks *KeyStore) Accounts() []accounts.Account {
 	return ks.cache.accounts()
+}
+
+// Decrypt decrypts an ECIES ciphertext.
+func (ks *KeyStore) Decrypt(a accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	// Import the ECDSA key as an ECIES key and decrypt the data.
+	eciesKey := ecies.ImportECDSA(unlockedKey.PrivateKey)
+	return eciesKey.Decrypt(c, s1, s2)
 }
 
 // Delete deletes the key matched by account if the passphrase is correct.
