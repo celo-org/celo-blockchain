@@ -66,6 +66,8 @@ var (
 
 	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+
+	allowedFutureBlockTime = 5 * time.Second // Max time from current time allowed for blocks, before they're considered future blocks
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -294,7 +296,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	number := header.Number.Uint64()
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(big.NewInt(time.Now().Unix())) > 0 {
+	if header.Time.Cmp(big.NewInt(time.Now().Add(allowedFutureBlockTime).Unix())) > 0 {
 		return consensus.ErrFutureBlock
 	}
 	// Checkpoint blocks need to enforce zero proposed signer
