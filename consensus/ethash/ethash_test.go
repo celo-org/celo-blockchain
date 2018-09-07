@@ -34,17 +34,23 @@ import (
 func TestTestMode(t *testing.T) {
 	header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
 
-	ethash := NewTester(nil)
+	ethash := NewTester(nil, false)
 	defer ethash.Close()
 
-	block, err := ethash.Seal(nil, types.NewBlockWithHeader(header), nil)
+	results := make(chan *types.Block)
+	err := ethash.Seal(nil, types.NewBlockWithHeader(header), results, nil)
 	if err != nil {
 		t.Fatalf("failed to seal block: %v", err)
 	}
-	header.Nonce = types.EncodeNonce(block.Nonce())
-	header.MixDigest = block.MixDigest()
-	if err := ethash.VerifySeal(nil, header); err != nil {
-		t.Fatalf("unexpected verification error: %v", err)
+	select {
+	case block := <-results:
+		header.Nonce = types.EncodeNonce(block.Nonce())
+		header.MixDigest = block.MixDigest()
+		if err := ethash.VerifySeal(nil, header); err != nil {
+			t.Fatalf("unexpected verification error: %v", err)
+		}
+	case <-time.NewTimer(time.Second).C:
+		t.Error("sealing result timeout")
 	}
 }
 
@@ -56,7 +62,7 @@ func TestCacheFileEvict(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
-	e := New(Config{CachesInMem: 3, CachesOnDisk: 10, CacheDir: tmpdir, PowMode: ModeTest}, nil)
+	e := New(Config{CachesInMem: 3, CachesOnDisk: 10, CacheDir: tmpdir, PowMode: ModeTest}, nil, false)
 	defer e.Close()
 
 	workers := 8
@@ -85,7 +91,7 @@ func verifyTest(wg *sync.WaitGroup, e *Ethash, workerIndex, epochs int) {
 }
 
 func TestRemoteSealer(t *testing.T) {
-	ethash := NewTester(nil)
+	ethash := NewTester(nil, false)
 	defer ethash.Close()
 
 	api := &API{ethash}
@@ -94,36 +100,31 @@ func TestRemoteSealer(t *testing.T) {
 	}
 	header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
 	block := types.NewBlockWithHeader(header)
+	sealhash := ethash.SealHash(header)
 
 	// Push new work.
-	ethash.Seal(nil, block, nil)
+	results := make(chan *types.Block)
+	ethash.Seal(nil, block, results, nil)
 
 	var (
 		work [3]string
 		err  error
 	)
-	if work, err = api.GetWork(); err != nil || work[0] != block.HashNoNonce().Hex() {
+	if work, err = api.GetWork(); err != nil || work[0] != sealhash.Hex() {
 		t.Error("expect to return a mining work has same hash")
 	}
 
-	if res := api.SubmitWork(types.BlockNonce{}, block.HashNoNonce(), common.Hash{}); res {
+	if res := api.SubmitWork(types.BlockNonce{}, sealhash, common.Hash{}); res {
 		t.Error("expect to return false when submit a fake solution")
 	}
 	// Push new block with same block number to replace the original one.
 	header = &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(1000)}
 	block = types.NewBlockWithHeader(header)
-	ethash.Seal(nil, block, nil)
+	sealhash = ethash.SealHash(header)
+	ethash.Seal(nil, block, results, nil)
 
-	if work, err = api.GetWork(); err != nil || work[0] != block.HashNoNonce().Hex() {
+	if work, err = api.GetWork(); err != nil || work[0] != sealhash.Hex() {
 		t.Error("expect to return the latest pushed work")
-	}
-	// Push block with higher block number.
-	newHead := &types.Header{Number: big.NewInt(2), Difficulty: big.NewInt(100)}
-	newBlock := types.NewBlockWithHeader(newHead)
-	ethash.Seal(nil, newBlock, nil)
-
-	if res := api.SubmitWork(types.BlockNonce{}, block.HashNoNonce(), common.Hash{}); res {
-		t.Error("expect to return false when submit a stale solution")
 	}
 }
 
@@ -133,7 +134,7 @@ func TestHashRate(t *testing.T) {
 		expect   uint64
 		ids      = []common.Hash{common.HexToHash("a"), common.HexToHash("b"), common.HexToHash("c")}
 	)
-	ethash := NewTester(nil)
+	ethash := NewTester(nil, false)
 	defer ethash.Close()
 
 	if tot := ethash.Hashrate(); tot != 0 {
@@ -153,7 +154,7 @@ func TestHashRate(t *testing.T) {
 }
 
 func TestClosedRemoteSealer(t *testing.T) {
-	ethash := NewTester(nil)
+	ethash := NewTester(nil, false)
 	time.Sleep(1 * time.Second) // ensure exit channel is listening
 	ethash.Close()
 
