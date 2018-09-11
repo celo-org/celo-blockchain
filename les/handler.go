@@ -263,15 +263,20 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 
 	if !pm.lightSync && !p.Peer.Info().Network.Trusted {
-		addr, ok := p.RemoteAddr().(*net.TCPAddr)
-		// test peer address is not a tcp address, don't use client pool if can not typecast
-		if ok {
-			id := addr.IP.String()
-			if !pm.clientPool.connect(id, func() { go pm.removePeer(p.id) }) {
-				return p2p.DiscTooManyPeers
-			}
-			defer pm.clientPool.disconnect(id)
+		// addr, ok := p.RemoteAddr().(*net.TCPAddr)
+		// // test peer address is not a tcp address, don't use client pool if can not typecast
+		// if ok {
+		// id := addr.IP.String()
+		// geth upstream uses the IP address for the client pool to protect against malicious clients, in here we'll just use the peer's ID which can be changed but allows us to circumvent:
+		// 1. Kubernetes internal networking putting clients on the "same IP"
+		// 2. Light clients being on the same Wifi network
+		id := p.id
+		if !pm.clientPool.connect(id, func() { go pm.removePeer(p.id) }) {
+			p.Log().Debug(fmt.Sprintf("Unable to connect peer to client pool"))
+			return p2p.DiscTooManyPeers
 		}
+		defer pm.clientPool.disconnect(id)
+		// }
 	}
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
