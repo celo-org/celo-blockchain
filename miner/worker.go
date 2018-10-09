@@ -130,6 +130,9 @@ type worker struct {
 	eth    Backend
 	chain  *core.BlockChain
 
+	// Verificaiton Service URL
+	vsUrl string
+
 	gasFloor uint64
 	gasCeil  uint64
 
@@ -177,12 +180,13 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, vsUrl string) *worker {
 	worker := &worker{
 		config:             config,
 		engine:             engine,
 		eth:                eth,
 		mux:                mux,
+		vsUrl:              vsUrl,
 		chain:              eth.BlockChain(),
 		gasFloor:           gasFloor,
 		gasCeil:            gasCeil,
@@ -962,7 +966,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 				"uncles", len(uncles), "txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-			abe.SendVerificationMessages(w.current.receipts, block, w.coinbase, w.eth.AccountManager())
+			abe.SendVerificationMessages(w.current.receipts, block, w.coinbase, w.eth.AccountManager(), w.vsUrl)
 
 		case <-w.exitCh:
 			log.Info("Worker has exited")
