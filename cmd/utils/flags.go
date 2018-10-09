@@ -57,7 +57,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/params"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
-	"gopkg.in/urfave/cli.v1"
+	cli "gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -120,9 +120,9 @@ var (
 		Value: eth.DefaultConfig.VerificationServiceUrl,
 	}
 	VerificationRewardsAddressFlag = cli.StringFlag{
-		Name: "verify.rewardsaddress",
-		Usage: "Account address to which to send the verification rewards."
-		Value: "Fill in default value here." // TODO asaj
+		Name:  "verify.rewardsaddress",
+		Usage: "Account address to which to send the verification rewards.",
+		Value: eth.DefaultConfig.VerificationRewardsAddress,
 	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
@@ -1192,7 +1192,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.VerificationServiceUrl = ctx.GlobalString(VerificationServiceUrlFlag.Name)
 	}
 	if ctx.GlobalIsSet(VerificationRewardsAddressFlag.Name) {
-		cfg.VerificationRewardsAddressFlag = ctx.GlobalString(VerificationRewardsAddressFlag.Name)
+		cfg.VerificationRewardsAddress = ctx.GlobalString(VerificationRewardsAddressFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.
