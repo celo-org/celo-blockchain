@@ -53,8 +53,7 @@ var DefaultConfig = Config{
 	MinerGasPrice: big.NewInt(params.GWei),
 	MinerRecommit: 3 * time.Second,
 
-	VerificationServiceUrl:     "https://mining-pool.celo.org/v0.1/sms",
-	VerificationRewardsAddress: "Fill in default value here.", // TODO asaj
+	VerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
 
 	TxPool: core.DefaultTxPoolConfig,
 	GPO: gasprice.Config{
@@ -123,8 +122,7 @@ type Config struct {
 	EnablePreimageRecording bool
 
 	// Verification Service options
-	VerificationServiceUrl     string
-	VerificationRewardsAddress string
+	VerificationServiceUrl string
 
 	// Miscellaneous options
 	DocRoot string `toml:"-"`
