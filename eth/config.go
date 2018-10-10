@@ -52,8 +52,8 @@ var DefaultConfig = Config{
 	MinerGasCeil:  8000000,
 	MinerGasPrice: big.NewInt(params.GWei),
 	MinerRecommit: 3 * time.Second,
-
-	MinerVerificationRewards: "Fill in default value here.", // TODO asaj
+	// TODO(sklanje): Update this to Celo verification pool address.
+	MinerVerificationRewards: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 
 	TxPool: core.DefaultTxPoolConfig,
 	GPO: gasprice.Config{

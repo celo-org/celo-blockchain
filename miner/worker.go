@@ -177,32 +177,32 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
 	// Verification Service
-	verificationRewardsAddress common.Address
+	verificationRewards common.Address
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, verificationRewardsAddress common.Address) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, verificationRewards common.Address) *worker {
 	worker := &worker{
-		config:                     config,
-		engine:                     engine,
-		eth:                        eth,
-		mux:                        mux,
-		chain:                      eth.BlockChain(),
-		gasFloor:                   gasFloor,
-		gasCeil:                    gasCeil,
-		verificationRewardsAddress: verificationRewardsAddress,
-		possibleUncles:             make(map[common.Hash]*types.Block),
-		unconfirmed:                newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:               make(map[common.Hash]*task),
-		txsCh:                      make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:                make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:                make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:                  make(chan *newWorkReq),
-		taskCh:                     make(chan *task),
-		resultCh:                   make(chan *types.Block, resultQueueSize),
-		exitCh:                     make(chan struct{}),
-		startCh:                    make(chan struct{}, 1),
-		resubmitIntervalCh:         make(chan time.Duration),
-		resubmitAdjustCh:           make(chan *intervalAdjust, resubmitAdjustChanSize),
+		config:              config,
+		engine:              engine,
+		eth:                 eth,
+		mux:                 mux,
+		chain:               eth.BlockChain(),
+		gasFloor:            gasFloor,
+		gasCeil:             gasCeil,
+		verificationRewards: verificationRewards,
+		possibleUncles:      make(map[common.Hash]*types.Block),
+		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:           make(chan *newWorkReq),
+		taskCh:              make(chan *task),
+		resultCh:            make(chan *types.Block, resultQueueSize),
+		exitCh:              make(chan struct{}),
+		startCh:             make(chan struct{}, 1),
+		resubmitIntervalCh:  make(chan time.Duration),
+		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -966,7 +966,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 				"uncles", len(uncles), "txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-			abe.SendVerificationMessages(w.current.receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationRewardsAddress)
+			abe.SendVerificationMessages(w.current.receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationRewards)
 
 		case <-w.exitCh:
 			log.Info("Worker has exited")
