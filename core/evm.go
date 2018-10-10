@@ -107,6 +107,8 @@ func GetMinerOfFn(ref *types.Header, chain ChainContext) func(n uint64) common.A
 				return header.Coinbase
 			}
 		}
+
+		// Like GetHashFn we'll just return an empty address if we can't find it
 		return common.Address{}
 	}
 }
