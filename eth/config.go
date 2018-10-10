@@ -53,6 +53,8 @@ var DefaultConfig = Config{
 	MinerGasPrice: big.NewInt(params.GWei),
 	MinerRecommit: 3 * time.Second,
 
+	MinerVerificationRewards: "Fill in default value here.", // TODO asaj
+
 	TxPool: core.DefaultTxPoolConfig,
 	GPO: gasprice.Config{
 		Blocks:     20,
@@ -98,14 +100,15 @@ type Config struct {
 	TrieTimeout        time.Duration
 
 	// Mining-related options
-	Etherbase      common.Address `toml:",omitempty"`
-	MinerNotify    []string       `toml:",omitempty"`
-	MinerExtraData []byte         `toml:",omitempty"`
-	MinerGasFloor  uint64
-	MinerGasCeil   uint64
-	MinerGasPrice  *big.Int
-	MinerRecommit  time.Duration
-	MinerNoverify  bool
+	Etherbase                common.Address `toml:",omitempty"`
+	MinerNotify              []string       `toml:",omitempty"`
+	MinerExtraData           []byte         `toml:",omitempty"`
+	MinerGasFloor            uint64
+	MinerGasCeil             uint64
+	MinerGasPrice            *big.Int
+	MinerRecommit            time.Duration
+	MinerNoverify            bool
+	MinerVerificationRewards string
 
 	// Ethash options
 	Ethash ethash.Config

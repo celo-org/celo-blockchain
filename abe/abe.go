@@ -28,6 +28,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,12 +50,15 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 	return string(phoneNumber), nil
 }
 
-func createVerificationMessage(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	signature, err := wallet.SignHash(account, request.UnsignedMessageHash.Bytes())
+func createVerificationMessage(request types.VerificationRequest, verificationRewardsAddress common.Address, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	// TODO(asa): Unlikely that this unsigned message is correct, will need to abi.encodePacked here.
+	unsignedMessage := crypto.Keccak256(append(append(append(request.PhoneHash.Bytes(), request.Account.Bytes()...), math.PaddedBigBytes(request.VerificationIndex, 32)...), verificationRewardsAddress.Bytes()...))
+	log.Debug("[Celo] Created unsigned message: " + hexutil.Encode(unsignedMessage))
+	signature, err := wallet.SignHash(account, unsignedMessage)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Celo verification code: %s:%d", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex), nil
+	return fmt.Sprintf("Celo verification code: %s:%d:%s", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
 }
 
 func sendSms(phoneNumber string, message string) error {
@@ -75,7 +80,7 @@ func sendSms(phoneNumber string, message string) error {
 	return err
 }
 
-func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
+func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationRewardsAddress common.Address) {
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
 	if err != nil {
@@ -95,7 +100,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 			}
 			log.Debug(fmt.Sprintf("[Celo] Phone number %s requesting verification", phoneNumber))
 
-			message, err := createVerificationMessage(request, account, wallet)
+			message, err := createVerificationMessage(request, verificationRewardsAddress, account, wallet)
 			if err != nil {
 				log.Error("[Celo] Failed to create verification message", "err", err)
 				continue

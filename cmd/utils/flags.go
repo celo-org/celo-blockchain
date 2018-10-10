@@ -378,6 +378,12 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+	MinerVerificationRewardsFlag = cli.StringFlag{
+		Name:  "miner.verificationrewards",
+		Usage: "Account address to which to send the verification rewards.",
+		Value: eth.DefaultConfig.MinerVerificationRewards,
+	}
+
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -1171,6 +1177,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
 		cfg.MinerNoverify = ctx.Bool(MinerNoVerfiyFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerVerificationRewardsFlag.Name) {
+		cfg.MinerVerificationRewards = ctx.GlobalString(MinerVerificationRewardsFlag.Name)
 	}
 	if ctx.GlobalIsSet(VMEnableDebugFlag.Name) {
 		// TODO(fjl): force-enable this in --dev mode
