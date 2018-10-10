@@ -39,6 +39,9 @@ type (
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
+	// GetMinerOfFunc returns the nth block coinbase in the blockchain
+	// and is used by the Celo Precompiled Contract.
+	GetMinerOfFunc func(uint64) common.Address
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -49,7 +52,7 @@ func run(evm *EVM, contract *Contract, input []byte) ([]byte, error) {
 			precompiles = PrecompiledContractsByzantium
 		}
 		if p := precompiles[*contract.CodeAddr]; p != nil {
-			return RunPrecompiledContract(p, input, contract)
+			return RunPrecompiledContract(p, input, contract, evm)
 		}
 	}
 	for _, interpreter := range evm.interpreters {
@@ -78,6 +81,8 @@ type Context struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
+	// GetMinerOf returns the coinbase corresponding to n
+	GetMinerOf GetMinerOfFunc
 
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN

@@ -78,6 +78,7 @@ const (
 	// Celo precompiled contracts
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
 	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
+	GetMinerOfGas          uint64 = 20   //Equivalent to the cost of looking of blockhash
 )
 
 var (
