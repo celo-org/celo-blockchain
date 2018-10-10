@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -51,9 +50,7 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 }
 
 func createVerificationMessage(request types.VerificationRequest, verificationRewardsAddress common.Address, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	// TODO(asa): Unlikely that this unsigned message is correct, will need to abi.encodePacked here.
-	unsignedMessage := crypto.Keccak256(append(append(append(request.PhoneHash.Bytes(), request.Account.Bytes()...), math.PaddedBigBytes(request.VerificationIndex, 32)...), verificationRewardsAddress.Bytes()...))
-	log.Debug("[Celo] Created unsigned message: " + hexutil.Encode(unsignedMessage))
+	unsignedMessage := crypto.Keccak256(append(request.CodeHash.Bytes(), verificationRewardsAddress.Bytes()...))
 	signature, err := wallet.SignHash(account, unsignedMessage)
 	if err != nil {
 		return "", err
