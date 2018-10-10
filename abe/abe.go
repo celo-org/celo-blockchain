@@ -58,13 +58,9 @@ func createVerificationMessage(request types.VerificationRequest, account accoun
 
 func sendSms(phoneNumber string, message string, verificationServiceURL string) error {
 	// Send the actual text message using our mining pool.
-	// TODO: Make mining pool be configurable via command line arguments.
-	// url := "https://mining-pool.celo.org/v0.1/sms"
 	values := map[string]string{"phoneNumber": phoneNumber, "message": message}
 	jsonValue, _ := json.Marshal(values)
 	var err error
-
-	log.Debug("[Celo] VerifictionServiceUrl = " + verificationServiceURL)
 
 	// Retry 5 times if we fail.
 	for i := 0; i < 5; i++ {
