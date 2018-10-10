@@ -90,7 +90,7 @@ func GetMinerOfFn(ref *types.Header, chain ChainContext) func(n uint64) common.A
 	var cache map[uint64]common.Address
 
 	return func(n uint64) common.Address {
-		// If there's no hash cache yet, make one
+		// If there's no address cache yet, make one
 		if cache == nil {
 			cache = map[uint64]common.Address{
 				ref.Number.Uint64(): ref.Coinbase,
@@ -100,7 +100,7 @@ func GetMinerOfFn(ref *types.Header, chain ChainContext) func(n uint64) common.A
 		if address, ok := cache[n]; ok {
 			return address
 		}
-		// Not cached, iterate the blocks and cache the hashes
+		// Not cached, iterate the blocks and cache the addresses
 		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
 			cache[header.Number.Uint64()] = header.Coinbase
 			if n == header.Number.Uint64() {
