@@ -113,12 +113,6 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
-	// Verification Service Settings
-	VerificationServiceUrlFlag = cli.StringFlag{
-		Name:  "verify.url",
-		Usage: "URL to the verification service to be used by miner nodes to verify users' phone numbers",
-		Value: eth.DefaultConfig.VerificationServiceUrl,
-	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -383,6 +377,11 @@ var (
 	MinerNoVerfiyFlag = cli.BoolFlag{
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
+	}
+	VerificationServiceUrlFlag = cli.StringFlag{
+		Name:  "miner.verificationpool",
+		Usage: "URL to the verification service to be used by miner nodes to verify users' phone numbers",
+		Value: eth.DefaultConfig.VerificationServiceUrl,
 	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
