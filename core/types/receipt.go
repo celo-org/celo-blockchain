@@ -46,12 +46,12 @@ const (
 
 // VerificationRequest represents a request for verification in the Celo ABE protocol.
 type VerificationRequest struct {
-	PhoneHash                common.Hash
-	UnsignedMessageHash      common.Hash
-	VerificationRequestIndex *big.Int
-	VerificationIndex        *big.Int
-	Verifier                 common.Address
-	EncryptedPhone           hexutil.Bytes
+	PhoneHash           common.Hash
+	UnsignedMessageHash common.Hash
+	RequestIndex        *big.Int
+	VerificationIndex   *big.Int
+	Verifier            common.Address
+	EncryptedPhone      hexutil.Bytes
 }
 
 // Receipt represents the results of a transaction.
@@ -112,7 +112,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // Input is expected to be encoded in the following manner:
 // input[0:32]:  bytes32 phoneHash
 // input[32:64]: bytes32 unsignedMessageHash
-// input[64:96]: bytes32 verificationRequestIndex
+// input[64:96]: bytes32 requestIndex
 // input[96:128]: bytes32 verificationIndex
 // input[128:160]: address verifier
 // input[160:]:    bytes encryptedPhone
@@ -121,9 +121,9 @@ func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	v.PhoneHash = common.BytesToHash(input[0:32])
 	v.UnsignedMessageHash = common.BytesToHash(input[32:64])
 	var parsed bool
-	v.VerificationRequestIndex, parsed = math.ParseBig256(hexutil.Encode(input[64:96]))
+	v.RequestIndex, parsed = math.ParseBig256(hexutil.Encode(input[64:96]))
 	if !parsed {
-		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse VerificationRequestIndex from " + hexutil.Encode(input[64:96]))
+		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse RequestIndex from " + hexutil.Encode(input[64:96]))
 	}
 	v.VerificationIndex, parsed = math.ParseBig256(hexutil.Encode(input[96:128]))
 	if !parsed {
