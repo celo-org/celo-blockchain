@@ -52,7 +52,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
-var getMinerOfAddress = common.BytesToAddress(append([]byte{0}, 0xfe))
+var getCoinbaseAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -68,7 +68,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 	// Celo Precompiled Contracts
 	requestVerificationAddress: &requestVerification{},
-	getMinerOfAddress:          &getMinerOf{},
+	getCoinbaseAddress:         &getCoinbase{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -391,19 +391,19 @@ func (c *requestVerification) Run(input []byte, evm *EVM) ([]byte, error) {
 	}
 }
 
-type getMinerOf struct{}
+type getCoinbase struct{}
 
-func (c *getMinerOf) RequiredGas(input []byte) uint64 {
-	return params.GetMinerOfGas
+func (c *getCoinbase) RequiredGas(input []byte) uint64 {
+	return params.GetCoinbaseGas
 }
 
-func (c *getMinerOf) Run(input []byte, evm *EVM) ([]byte, error) {
+func (c *getCoinbase) Run(input []byte, evm *EVM) ([]byte, error) {
 	var blockNumber, parsingSuccess = math.ParseBig256(hexutil.Encode(input[0:32]))
 
 	if !parsingSuccess {
 		return input, fmt.Errorf("Error parsing block number:" + hexutil.Encode(input[0:32]))
 	}
 
-	var coinbase = evm.Context.GetMinerOf(blockNumber.Uint64())
+	var coinbase = evm.Context.GetCoinbase(blockNumber.Uint64())
 	return coinbase.Bytes(), nil
 }

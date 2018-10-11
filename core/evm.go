@@ -48,7 +48,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
-		GetMinerOf:  GetMinerOfFn(header, chain),
+		GetCoinbase: GetCoinbaseFn(header, chain),
 		Origin:      msg.From(),
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
@@ -85,8 +85,8 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	}
 }
 
-// GetMinerOfFn returns a GetMinerOfFunc which retrieves the coinbase by block number
-func GetMinerOfFn(ref *types.Header, chain ChainContext) func(n uint64) common.Address {
+// GetCoinbaseFn returns a GetCoinbaseFunc which retrieves the coinbase by block number
+func GetCoinbaseFn(ref *types.Header, chain ChainContext) func(n uint64) common.Address {
 	var cache map[uint64]common.Address
 
 	return func(n uint64) common.Address {
