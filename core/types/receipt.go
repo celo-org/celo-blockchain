@@ -115,6 +115,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // input[64:96]: bytes32 verificationRequestIndex
 // input[96:128]: bytes32 verificationIndex
 // input[128:160]: address verifier
+// input[160:]:    bytes encryptedPhone
 func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	var v VerificationRequest
 	v.PhoneHash = common.BytesToHash(input[0:32])
