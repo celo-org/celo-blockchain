@@ -54,7 +54,7 @@ var (
 	newTxs     []*types.Transaction
 
 	// Test Verification Pool
-	verificationService = "mining-pool.celo.org/v0.1/sms"
+	verificationService = ""
 )
 
 func init() {
