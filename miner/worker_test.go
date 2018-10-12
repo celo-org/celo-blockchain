@@ -49,7 +49,7 @@ var (
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
 
-	testVerificationService = ""
+	testVerificationService        = ""
 	testVerificationRewardsKey, _  = crypto.GenerateKey()
 	testVerificationRewardsAddress = crypto.PubkeyToAddress(testVerificationRewardsKey.PublicKey)
 

@@ -179,7 +179,6 @@ type worker struct {
 	// Verification Service
 	verificationService string
 	verificationRewards common.Address
-
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, verificationService string, verificationRewards common.Address) *worker {

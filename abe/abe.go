@@ -74,7 +74,6 @@ func sendSms(phoneNumber string, message string, verificationServiceURL string) 
 	return err
 }
 
-
 func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string, verificationRewardsAddress common.Address) {
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
