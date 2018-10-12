@@ -378,6 +378,13 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+	MinerVerificationRewardsFlag = cli.StringFlag{
+		Name:  "miner.verificationrewards",
+		Usage: "Account address to which to send the verification rewards.",
+		// TODO(sklanje): Update this to Celo verification pool address.
+		Value: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
+	}
+
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -865,6 +872,24 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	}
 }
 
+// setVerificationRewards retrieves the verificationrewards either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+func setVerificationRewards(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current verificationrewards
+	var verificationrewards string
+	if ctx.GlobalIsSet(MinerVerificationRewardsFlag.Name) {
+		verificationrewards = ctx.GlobalString(MinerVerificationRewardsFlag.Name)
+	}
+	// Convert the verificationrewards into an address and configure it
+	if verificationrewards != "" {
+		account, err := MakeAddress(ks, verificationrewards)
+		if err != nil {
+			Fatalf("Invalid miner verificationrewards: %v", err)
+		}
+		cfg.MinerVerificationRewards = account.Address
+	}
+}
+
 // MakePasswordList reads password lines from the file specified by the global --password flag.
 func MakePasswordList(ctx *cli.Context) []string {
 	path := ctx.GlobalString(PasswordFileFlag.Name)
@@ -1109,6 +1134,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	setEtherbase(ctx, ks, cfg)
+	setVerificationRewards(ctx, ks, cfg)
 	setGPO(ctx, &cfg.GPO)
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
