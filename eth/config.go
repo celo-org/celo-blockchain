@@ -52,8 +52,6 @@ var DefaultConfig = Config{
 	MinerGasCeil:  8000000,
 	MinerGasPrice: big.NewInt(params.GWei),
 	MinerRecommit: 3 * time.Second,
-	// TODO(sklanje): Update this to Celo verification pool address.
-	MinerVerificationRewards: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 
 	TxPool: core.DefaultTxPoolConfig,
 	GPO: gasprice.Config{
@@ -108,7 +106,7 @@ type Config struct {
 	MinerGasPrice            *big.Int
 	MinerRecommit            time.Duration
 	MinerNoverify            bool
-	MinerVerificationRewards string
+	MinerVerificationRewards common.Address
 
 	// Ethash options
 	Ethash ethash.Config
