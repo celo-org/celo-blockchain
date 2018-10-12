@@ -378,13 +378,17 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+	MinerVerificationServiceUrlFlag = cli.StringFlag{
+		Name:  "miner.verificationpool",
+		Usage: "URL to the verification service to be used by the miner to verify users' phone numbers",
+		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
+	}
 	MinerVerificationRewardsFlag = cli.StringFlag{
 		Name:  "miner.verificationrewards",
 		Usage: "Account address to which to send the verification rewards.",
 		// TODO(sklanje): Update this to Celo verification pool address.
 		Value: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 	}
-
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -1201,6 +1205,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(VMEnableDebugFlag.Name) {
 		// TODO(fjl): force-enable this in --dev mode
 		cfg.EnablePreimageRecording = ctx.GlobalBool(VMEnableDebugFlag.Name)
+	}
+
+	if ctx.GlobalIsSet(MinerVerificationServiceUrlFlag.Name) {
+		cfg.MinerVerificationServiceUrl = ctx.GlobalString(MinerVerificationServiceUrlFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.
