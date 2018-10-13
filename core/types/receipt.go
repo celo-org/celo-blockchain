@@ -47,8 +47,9 @@ const (
 // VerificationRequest represents a request for verification in the Celo ABE protocol.
 type VerificationRequest struct {
 	PhoneHash           common.Hash
-	UnsignedMessageHash common.Hash
+	Account             common.Address
 	VerificationIndex   *big.Int
+	UnsignedMessageHash common.Hash
 	Verifier            common.Address
 	EncryptedPhone      hexutil.Bytes
 }
@@ -110,23 +111,25 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // Decode a VerificationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
 // input[0:32]:  bytes32 phoneHash
-// input[32:64]: bytes32 unsignedMessageHash
+// input[32:64]: address account
 // input[64:96]: bytes32 verificationIndex
-// input[96:128]: address verifier
-// input[96:]    bytes encryptedPhone
+// input[96:128]: bytes32 unsignedMessageHash
+// input[128:160]: address verifier
+// input[160:]    bytes encryptedPhone
 func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	var v VerificationRequest
 	v.PhoneHash = common.BytesToHash(input[0:32])
-	v.UnsignedMessageHash = common.BytesToHash(input[32:64])
+	v.Account = common.BytesToAddress(input[32:64])
 	var parsed bool
 	v.VerificationIndex, parsed = math.ParseBig256(hexutil.Encode(input[64:96]))
 	if !parsed {
 		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse VerificationIndex from " + hexutil.Encode(input[64:96]))
 	}
-	v.Verifier = common.BytesToAddress(input[96:128])
+	v.UnsignedMessageHash = common.BytesToHash(input[96:128])
+	v.Verifier = common.BytesToAddress(input[128:160])
 
 	// TODO(asa): Consider validating the length of EncryptedPhone
-	v.EncryptedPhone = input[128:]
+	v.EncryptedPhone = input[160:]
 	return v, nil
 }
 

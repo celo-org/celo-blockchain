@@ -56,11 +56,11 @@ func createVerificationMessage(request types.VerificationRequest, account accoun
 	return fmt.Sprintf("Celo verification code: %s:%d", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex), nil
 }
 
-func sendSms(phoneNumber string, message string) error {
+func sendSms(phoneNumber string, message string, account common.Address) error {
 	// Send the actual text message using our mining pool.
 	// TODO: Make mining pool be configurable via command line arguments.
 	url := "https://mining-pool.celo.org/v0.1/sms"
-	values := map[string]string{"phoneNumber": phoneNumber, "message": message}
+	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
 
@@ -102,7 +102,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 			}
 
 			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
-			err = sendSms(phoneNumber, message)
+			err = sendSms(phoneNumber, message, request.Account)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
 			}
