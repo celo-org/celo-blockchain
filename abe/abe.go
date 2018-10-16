@@ -48,25 +48,23 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 	return string(phoneNumber), nil
 }
 
-func createVerificationMessage(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	signature, err := wallet.SignHash(account, request.UnsignedMessageHash.Bytes())
+func createVerificationMessage(request types.VerificationRequest, verificationRewardsAddress common.Address, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	unsignedMessage := crypto.Keccak256(append(request.CodeHash.Bytes(), verificationRewardsAddress.Bytes()...))
+	signature, err := wallet.SignHash(account, unsignedMessage)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Celo verification code: %s:%d", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex), nil
+	return fmt.Sprintf("Celo verification code: %s:%d:%s", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
 }
 
-func sendSms(phoneNumber string, message string, account common.Address) error {
-	// Send the actual text message using our mining pool.
-	// TODO: Make mining pool be configurable via command line arguments.
-	url := "https://mining-pool.celo.org/v0.1/sms"
+func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
 	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
 
 	// Retry 5 times if we fail.
 	for i := 0; i < 5; i++ {
-		_, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
+		_, err := http.Post(verificationServiceURL, "application/json", bytes.NewBuffer(jsonValue))
 		if err == nil {
 			break
 		}
@@ -75,7 +73,7 @@ func sendSms(phoneNumber string, message string, account common.Address) error {
 	return err
 }
 
-func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager) {
+func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string, verificationRewardsAddress common.Address) {
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
 	if err != nil {
@@ -95,14 +93,14 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 			}
 			log.Debug(fmt.Sprintf("[Celo] Phone number %s requesting verification", phoneNumber))
 
-			message, err := createVerificationMessage(request, account, wallet)
+			message, err := createVerificationMessage(request, verificationRewardsAddress, account, wallet)
 			if err != nil {
 				log.Error("[Celo] Failed to create verification message", "err", err)
 				continue
 			}
 
 			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
-			err = sendSms(phoneNumber, message, request.Account)
+			err = sendSms(phoneNumber, message, request.Account, verificationServiceURL)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
 			}
