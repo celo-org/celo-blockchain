@@ -20,6 +20,7 @@ package clique
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -235,14 +236,16 @@ type Clique struct {
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
-
+	// This does not belong here but passing it to every function is not possible since that breaks
+	// some implemented interfaces and introduces churn across the geth codebase.
+	fullHeaderChainAvailable bool // False for latest_block_only Sync mode, true otherwise
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
 }
 
 // New creates a Clique proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
+func New(config *params.CliqueConfig, db ethdb.Database, fullHeaderChainAvailable bool) *Clique {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
 	if conf.Epoch == 0 {
@@ -253,11 +256,12 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Clique{
-		config:     &conf,
-		db:         db,
-		recents:    recents,
-		signatures: signatures,
-		proposals:  make(map[common.Address]bool),
+		config:                   &conf,
+		db:                       db,
+		recents:                  recents,
+		signatures:               signatures,
+		proposals:                make(map[common.Address]bool),
+		fullHeaderChainAvailable: fullHeaderChainAvailable,
 	}
 }
 
@@ -282,6 +286,7 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Hea
 	go func() {
 		for i, header := range headers {
 			err := c.verifyHeader(chain, header, headers[:i])
+			log.Debug(fmt.Sprintf("clique/VerifyHeaders err is %v at header %d", err, header.Number))
 
 			select {
 			case <-abort:
@@ -376,26 +381,29 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-		return consensus.ErrUnknownAncestor
-	}
-	if parent.Time.Uint64()+c.config.Period > header.Time.Uint64() {
-		return ErrInvalidTimestamp
-	}
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
-	}
-	// If the block is a checkpoint block, verify the signer list
-	if number%c.config.Epoch == 0 {
-		signers := make([]byte, len(snap.Signers)*common.AddressLength)
-		for i, signer := range snap.signers() {
-			copy(signers[i*common.AddressLength:], signer[:])
+	// Added to bypass the situation when the parent is missing in latest_block_only mode
+	if c.fullHeaderChainAvailable {
+		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+			return consensus.ErrUnknownAncestor
 		}
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraPrefix:extraSuffix], signers) {
-			return errMismatchingCheckpointSigners
+		if parent.Time.Uint64()+c.config.Period > header.Time.Uint64() {
+			return ErrInvalidTimestamp
+		}
+		// Retrieve the snapshot needed to verify this header and cache it
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+		if err != nil {
+			return err
+		}
+		// If the block is a checkpoint block, verify the signer list
+		if number%c.config.Epoch == 0 {
+			signers := make([]byte, len(snap.Signers)*common.AddressLength)
+			for i, signer := range snap.signers() {
+				copy(signers[i*common.AddressLength:], signer[:])
+			}
+			extraSuffix := len(header.Extra) - extraSeal
+			if !bytes.Equal(header.Extra[extraPrefix:extraSuffix], signers) {
+				return errMismatchingCheckpointSigners
+			}
 		}
 	}
 	// All basic checks passed, verify the seal and return
@@ -453,18 +461,22 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if header == nil {
+			if c.fullHeaderChainAvailable && header == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
+		if header != nil {
+			headers = append(headers, header)
+			number, hash = number-1, header.ParentHash
+		} else if !c.fullHeaderChainAvailable {
+			number = number - 1
+		}
 	}
 	// Previous snapshot found, apply any pending headers on top of it
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers)
+	snap, err := snap.apply(headers, c.fullHeaderChainAvailable)
 	if err != nil {
 		return nil, err
 	}
@@ -507,7 +519,11 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	}
 	// Retrieve the snapshot needed to verify this header and cache it
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	if !c.fullHeaderChainAvailable && err == consensus.ErrUnknownAncestor {
+		err = nil
+	}
 	if err != nil {
+		log.Debug(fmt.Sprintf("verifySeal failed with %v", err))
 		return err
 	}
 

@@ -180,20 +180,23 @@ func (s *Snapshot) uncast(address common.Address, authorize bool) bool {
 
 // apply creates a new authorization snapshot by applying the given headers to
 // the original one.
-func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
+func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
 		return s, nil
 	}
 	// Sanity check that the headers can be applied
-	for i := 0; i < len(headers)-1; i++ {
-		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
+	if fullHeaderChainAvailable {
+		for i := 0; i < len(headers)-1; i++ {
+			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
+				return nil, errInvalidVotingChain
+			}
+		}
+		if headers[0].Number.Uint64() != s.Number+1 {
 			return nil, errInvalidVotingChain
 		}
 	}
-	if headers[0].Number.Uint64() != s.Number+1 {
-		return nil, errInvalidVotingChain
-	}
+
 	// Iterate through the headers and create a new snapshot
 	snap := s.copy()
 

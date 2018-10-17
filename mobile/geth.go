@@ -158,7 +158,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config.EthereumEnabled {
 		ethConf := eth.DefaultConfig
 		ethConf.Genesis = genesis
-		ethConf.SyncMode = downloader.LightSync
+		// Set the default sync mode for mobile to sync only the latest block
+		ethConf.SyncMode = downloader.LatestBlockOnly
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {

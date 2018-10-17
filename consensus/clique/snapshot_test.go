@@ -409,7 +409,7 @@ func TestClique(t *testing.T) {
 			Period: 1,
 			Epoch:  tt.epoch,
 		}
-		engine := New(config.Clique, db)
+		engine := New(config.Clique, db, true)
 		engine.fakeDiff = true
 
 		blocks, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(tt.votes), func(j int, gen *core.BlockGen) {
@@ -419,7 +419,7 @@ func TestClique(t *testing.T) {
 				copy(nonce[:], nonceAuthVote)
 				gen.SetNonce(nonce)
 			}
-		})
+		}, true)
 		// Iterate through the blocks and seal them individually
 		for j, block := range blocks {
 			// Geth the header and prepare it for signing
@@ -449,7 +449,7 @@ func TestClique(t *testing.T) {
 			batches[len(batches)-1] = append(batches[len(batches)-1], block)
 		}
 		// Pass all the headers through clique and ensure tallying succeeds
-		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
+		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil, true)
 		if err != nil {
 			t.Errorf("test %d: failed to create test chain: %v", i, err)
 			continue

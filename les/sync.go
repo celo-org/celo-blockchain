@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // syncer is responsible for periodically synchronising with the network, both
@@ -54,26 +55,37 @@ func (pm *ProtocolManager) syncer() {
 	}
 }
 
-func (pm *ProtocolManager) needToSync(peerHead blockInfo) bool {
+func (pm *ProtocolManager) needToSync(peerHead blockInfo, mode downloader.SyncMode) bool {
 	head := pm.blockchain.CurrentHeader()
-	currentTd := rawdb.ReadTd(pm.chainDb, head.Hash(), head.Number.Uint64())
-	return currentTd != nil && peerHead.Td.Cmp(currentTd) > 0
+	if mode == downloader.LatestBlockOnly {
+		// In the latest_block_only mode, the difficulty calculation is meaningless, so, we rely on the block
+		// numbers.
+		currentHead := head.Number.Uint64()
+		log.Debug("needToSync", "currentHead", currentHead, "peerHead", peerHead.Number)
+		return peerHead.Number > currentHead
+	} else {
+		currentTd := rawdb.ReadTd(pm.chainDb, head.Hash(), head.Number.Uint64())
+		log.Debug("needToSync", "currentTd", currentTd, "peerHead.Td", peerHead.Td)
+		return currentTd != nil && peerHead.Td.Cmp(currentTd) > 0
+	}
 }
 
 // synchronise tries to sync up our local block chain with a remote peer.
-func (pm *ProtocolManager) synchronise(peer *peer) {
+func (pm *ProtocolManager) synchronise(peer *peer, mode downloader.SyncMode) {
 	// Short circuit if no peers are available
 	if peer == nil {
+		log.Debug("Synchronise no peer available")
 		return
 	}
 
 	// Make sure the peer's TD is higher than our own.
-	if !pm.needToSync(peer.headBlockInfo()) {
+	if !pm.needToSync(peer.headBlockInfo(), mode) {
+		log.Debug("synchronise no need to sync")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pm.blockchain.(*light.LightChain).SyncCht(ctx)
-	pm.downloader.Synchronise(peer.id, peer.Head(), peer.Td(), downloader.LightSync)
+	pm.downloader.Synchronise(peer.id, peer.Head(), peer.Td(), mode)
 }

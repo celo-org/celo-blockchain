@@ -190,7 +190,7 @@ func initGenesis(ctx *cli.Context) error {
 	}
 	// Open an initialise both full and light databases
 	stack := makeFullNode(ctx)
-	for _, name := range []string{"chaindata", "lightchaindata"} {
+	for _, name := range []string{"chaindata", "lightchaindata", "latestblockonly"} {
 		chaindb, err := stack.OpenDatabase(name, 0, 0)
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
@@ -205,11 +205,15 @@ func initGenesis(ctx *cli.Context) error {
 }
 
 func importChain(ctx *cli.Context) error {
+	// As of now, importChain command does not support latest_block_only mode.
+	// In that mode fullHeaderChainAvailable is false.
+	// We can add the support later, when required.
+	fullHeaderChainAvailable := true
 	if len(ctx.Args()) < 1 {
 		utils.Fatalf("This command requires an argument.")
 	}
 	stack := makeFullNode(ctx)
-	chain, chainDb := utils.MakeChain(ctx, stack)
+	chain, chainDb := utils.MakeChain(ctx, stack, fullHeaderChainAvailable)
 	defer chainDb.Close()
 
 	// Start periodically gathering memory profiles
@@ -299,11 +303,15 @@ func importChain(ctx *cli.Context) error {
 }
 
 func exportChain(ctx *cli.Context) error {
+	// As of now, exportChain command does not support latest_block_only mode.
+	// In latest_block_only mode fullHeaderChainAvailable is false.
+	// We can add the support later, when required.
+	fullHeaderChainAvailable := true
 	if len(ctx.Args()) < 1 {
 		utils.Fatalf("This command requires an argument.")
 	}
 	stack := makeFullNode(ctx)
-	chain, _ := utils.MakeChain(ctx, stack)
+	chain, _ := utils.MakeChain(ctx, stack, fullHeaderChainAvailable)
 	start := time.Now()
 
 	var err error
@@ -363,13 +371,17 @@ func exportPreimages(ctx *cli.Context) error {
 }
 
 func copyDb(ctx *cli.Context) error {
+	// As of now, copyDb command does not support latest_block_only mode.
+	// In latest_block_only mode fullHeaderChainAvailable is false.
+	// We can add the support later, when required.
+	fullHeaderChainAvailable := true
 	// Ensure we have a source chain directory to copy
 	if len(ctx.Args()) != 1 {
 		utils.Fatalf("Source chaindata directory path argument missing")
 	}
 	// Initialize a new chain for the running node to sync into
 	stack := makeFullNode(ctx)
-	chain, chainDb := utils.MakeChain(ctx, stack)
+	chain, chainDb := utils.MakeChain(ctx, stack, fullHeaderChainAvailable)
 
 	syncmode := *utils.GlobalTextMarshaler(ctx, utils.SyncModeFlag.Name).(*downloader.SyncMode)
 	dl := downloader.New(syncmode, chainDb, new(event.TypeMux), chain, nil, nil)
@@ -379,7 +391,7 @@ func copyDb(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	hc, err := core.NewHeaderChain(db, chain.Config(), chain.Engine(), func() bool { return false })
+	hc, err := core.NewHeaderChain(db, chain.Config(), chain.Engine(), func() bool { return false }, fullHeaderChainAvailable)
 	if err != nil {
 		return err
 	}
@@ -440,8 +452,12 @@ func removeDB(ctx *cli.Context) error {
 }
 
 func dump(ctx *cli.Context) error {
+	// As of now, dump command does not support latest_block_only mode.
+	// In latest_block_only mode fullHeaderChainAvailable is false.
+	// We can add the support later, when required.
+	fullHeaderChainAvailable := true
 	stack := makeFullNode(ctx)
-	chain, chainDb := utils.MakeChain(ctx, stack)
+	chain, chainDb := utils.MakeChain(ctx, stack, fullHeaderChainAvailable)
 	for _, arg := range ctx.Args() {
 		var block *types.Block
 		if hashish(arg) {

@@ -19,6 +19,7 @@ package light
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -37,7 +38,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 		// if there is a canonical hash, there is a header too
 		header := rawdb.ReadHeader(db, hash, number)
 		if header == nil {
-			panic("Canonical hash present but header not found")
+			panic(fmt.Sprintf("Canonical hash present but header not found for %d", number))
 		}
 		return header, nil
 	}

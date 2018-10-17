@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -62,15 +62,17 @@ type HeaderChain struct {
 
 	procInterrupt func() bool
 
-	rand   *mrand.Rand
-	engine consensus.Engine
+	rand                     *mrand.Rand
+	engine                   consensus.Engine
+	fullHeaderChainAvailable bool
 }
 
 // NewHeaderChain creates a new HeaderChain structure.
 //  getValidator should return the parent's validator
 //  procInterrupt points to the parent's interrupt semaphore
 //  wg points to the parent's shutdown wait group
-func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine consensus.Engine, procInterrupt func() bool) (*HeaderChain, error) {
+func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine consensus.Engine,
+	procInterrupt func() bool, fullHeaderChainAvailable bool) (*HeaderChain, error) {
 	headerCache, _ := lru.New(headerCacheLimit)
 	tdCache, _ := lru.New(tdCacheLimit)
 	numberCache, _ := lru.New(numberCacheLimit)
@@ -82,14 +84,15 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	}
 
 	hc := &HeaderChain{
-		config:        config,
-		chainDb:       chainDb,
-		headerCache:   headerCache,
-		tdCache:       tdCache,
-		numberCache:   numberCache,
-		procInterrupt: procInterrupt,
-		rand:          mrand.New(mrand.NewSource(seed.Int64())),
-		engine:        engine,
+		config:                   config,
+		chainDb:                  chainDb,
+		headerCache:              headerCache,
+		tdCache:                  tdCache,
+		numberCache:              numberCache,
+		procInterrupt:            procInterrupt,
+		rand:                     mrand.New(mrand.NewSource(seed.Int64())),
+		engine:                   engine,
+		fullHeaderChainAvailable: fullHeaderChainAvailable,
 	}
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
@@ -97,10 +100,12 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 		return nil, ErrNoGenesis
 	}
 
+	log.Debug(fmt.Sprintf("Set current header to %d", hc.genesisHeader.Number))
 	hc.currentHeader.Store(hc.genesisHeader)
 	if head := rawdb.ReadHeadBlockHash(chainDb); head != (common.Hash{}) {
 		if chead := hc.GetHeaderByHash(head); chead != nil {
 			hc.currentHeader.Store(chead)
+			log.Debug(fmt.Sprintf("Set current header to %d", chead.Number))
 		}
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
@@ -140,8 +145,16 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	// Calculate the total difficulty of the header
 	ptd := hc.GetTd(header.ParentHash, number-1)
 	if ptd == nil {
-		return NonStatTy, consensus.ErrUnknownAncestor
+		if hc.fullHeaderChainAvailable {
+			return NonStatTy, consensus.ErrUnknownAncestor
+		} else { // Ancestors would be missing if the full header chain is not available.
+			var ptdAssumed int64 = int64(number) * 2
+			log.Debug(
+				fmt.Sprintf("previous header difficulty is not available, setting it to %v", ptdAssumed))
+			ptd = big.NewInt(ptdAssumed)
+		}
 	}
+	log.Debug(fmt.Sprintf("ptd is %v", ptd))
 	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
 	externTd := new(big.Int).Add(header.Difficulty, ptd)
 
@@ -175,6 +188,14 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
 			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
 
+			if !hc.fullHeaderChainAvailable {
+				if headHeader == nil {
+					// An issue in the latest_block_only mode where existing blocks are missing.
+					log.Debug("WriteHeader/nil head header encountered")
+					break
+				}
+			}
+
 			headHash = headHeader.ParentHash
 			headNumber = headHeader.Number.Uint64() - 1
 			headHeader = hc.GetHeader(headHash, headNumber)
@@ -184,6 +205,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		rawdb.WriteHeadHeaderHash(hc.chainDb, hash)
 
 		hc.currentHeaderHash = hash
+		log.Debug(fmt.Sprintf("set current header to %d", types.CopyHeader(header).Number))
 		hc.currentHeader.Store(types.CopyHeader(header))
 
 		status = CanonStatTy
@@ -244,6 +266,7 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int)
 		}
 		// Otherwise wait for headers checks and ensure they pass
 		if err := <-results; err != nil {
+			log.Debug(fmt.Sprintf("Error \"%v\" at block %d", err, header.Number))
 			return i, err
 		}
 	}
@@ -438,6 +461,8 @@ func (hc *HeaderChain) GetHeaderByNumber(number uint64) *types.Header {
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (hc *HeaderChain) CurrentHeader() *types.Header {
+	log.Debug(
+		fmt.Sprintf("Currentheader() invoked, going to return %v", hc.currentHeader.Load().(*types.Header).Number))
 	return hc.currentHeader.Load().(*types.Header)
 }
 
@@ -445,6 +470,7 @@ func (hc *HeaderChain) CurrentHeader() *types.Header {
 func (hc *HeaderChain) SetCurrentHeader(head *types.Header) {
 	rawdb.WriteHeadHeaderHash(hc.chainDb, head.Hash())
 
+	log.Debug(fmt.Sprintf("set current header to %d", head.Number))
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
 }
@@ -471,7 +497,9 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 		rawdb.DeleteHeader(batch, hash, num)
 		rawdb.DeleteTd(batch, hash, num)
 
-		hc.currentHeader.Store(hc.GetHeader(hdr.ParentHash, hdr.Number.Uint64()-1))
+		currentHeader := hc.GetHeader(hdr.ParentHash, hdr.Number.Uint64()-1)
+		log.Debug(fmt.Sprintf("set current header to %d", currentHeader.Number))
+		hc.currentHeader.Store(currentHeader)
 	}
 	// Roll back the canonical chain numbering
 	for i := height; i > head; i-- {
@@ -485,6 +513,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	hc.numberCache.Purge()
 
 	if hc.CurrentHeader() == nil {
+		log.Debug(fmt.Sprintf("set current header to %d", hc.genesisHeader.Number))
 		hc.currentHeader.Store(hc.genesisHeader)
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()

@@ -92,22 +92,25 @@ type ChainIndexer struct {
 
 	log  log.Logger
 	lock sync.RWMutex
+	// True if full header chain is available, false otherwise. This will be false only in the latest_block_only mode
+	fullHeaderChainAvailable bool
 }
 
 // NewChainIndexer creates a new chain indexer to do background processing on
 // chain segments of a given size after certain number of confirmations passed.
 // The throttling parameter might be used to prevent database thrashing.
-func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
+func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string, fullHeaderChainAvailable bool) *ChainIndexer {
 	c := &ChainIndexer{
-		chainDb:     chainDb,
-		indexDb:     indexDb,
-		backend:     backend,
-		update:      make(chan struct{}, 1),
-		quit:        make(chan chan error),
-		sectionSize: section,
-		confirmsReq: confirm,
-		throttling:  throttling,
-		log:         log.New("type", kind),
+		chainDb:                  chainDb,
+		indexDb:                  indexDb,
+		backend:                  backend,
+		update:                   make(chan struct{}, 1),
+		quit:                     make(chan chan error),
+		sectionSize:              section,
+		confirmsReq:              confirm,
+		throttling:               throttling,
+		log:                      log.New("type", kind),
+		fullHeaderChainAvailable: fullHeaderChainAvailable,
 	}
 	// Initialize database dependent fields and start the updater
 	c.loadValidSections()
@@ -387,6 +390,13 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	if err := c.backend.Reset(c.ctx, section, lastHead); err != nil {
 		c.setValidSections(0)
 		return common.Hash{}, err
+	}
+
+	// Full chain is not available in latest block only mode
+	// And we cannot check for the sync mode here since that leads to a cycle as downloader already depends
+	// on the core indexer code.
+	if !c.fullHeaderChainAvailable {
+		return lastHead, nil
 	}
 
 	for number := section * c.sectionSize; number < (section+1)*c.sectionSize; number++ {
