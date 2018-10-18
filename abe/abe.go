@@ -57,9 +57,8 @@ func createVerificationMessage(request types.VerificationRequest, verificationRe
 	return fmt.Sprintf("Celo verification code: %s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
 }
 
-func sendSms(phoneNumber string, message string, verificationServiceURL string) error {
-	// Send the actual text message using our mining pool.
-	values := map[string]string{"phoneNumber": phoneNumber, "message": message}
+func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
+	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
 
@@ -100,7 +99,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 			}
 
 			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
-			err = sendSms(phoneNumber, message, verificationServiceURL)
+			err = sendSms(phoneNumber, message, request.Account, verificationServiceURL)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
 			}
