@@ -356,10 +356,10 @@ func doTest(cmdline []string) {
 	build.MustRun(goTool("vet", packages...))
 
 	// Run the actual tests.
-	gotest := goTool("test", buildFlags(env)...)
 	// Test a single package at a time. CI builders are slow
 	// and some tests run into timeouts under load.
-	gotest.Args = append(gotest.Args, "-p", "1")
+	gotest := goTool("test", buildFlags(env)...)
+	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
 	}
@@ -1060,7 +1060,7 @@ func xgoTool(args []string) *exec.Cmd {
 func doPurge(cmdline []string) {
 	var (
 		store = flag.String("store", "", `Destination from where to purge archives (usually "gethstore/builds")`)
-		limit = flag.Int("days", 30, `Age threshold above which to delete unstalbe archives`)
+		limit = flag.Int("days", 30, `Age threshold above which to delete unstable archives`)
 	)
 	flag.CommandLine.Parse(cmdline)
 
