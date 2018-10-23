@@ -282,7 +282,6 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Hea
 	go func() {
 		for i, header := range headers {
 			err := c.verifyHeader(chain, header, headers[:i])
-			log.Debug(fmt.Sprintf("clique/VerifyHeaders err is %v at header %d", err, header.Number))
 
 			select {
 			case <-abort:
