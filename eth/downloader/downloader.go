@@ -1335,13 +1335,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 					}
 					// All verifications passed, store newly found uncertain headers
 					log.Debug(fmt.Sprintf("Adding headers for rollback: %v", headersToNumbers(unknown)))
-
-					if d.Mode != LatestBlockOnly {
-						// I am not sure why this has to be done for latest_block_only mode.
-						// But if I don't do this then the header which has just been added is rolled back and
-						// sync will fail.
-						rollback = append(rollback, unknown...)
-					}
+					rollback = append(rollback, unknown...)
 					if len(rollback) > fsHeaderSafetyNet {
 						log.Debug("Adding some headers for rollback")
 						rollback = append(rollback[:0], rollback[len(rollback)-fsHeaderSafetyNet:]...)
