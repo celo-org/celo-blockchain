@@ -62,9 +62,8 @@ type HeaderChain struct {
 
 	procInterrupt func() bool
 
-	rand                     *mrand.Rand
-	engine                   consensus.Engine
-	fullHeaderChainAvailable bool
+	rand   *mrand.Rand
+	engine consensus.Engine
 }
 
 // NewHeaderChain creates a new HeaderChain structure.
@@ -72,7 +71,7 @@ type HeaderChain struct {
 //  procInterrupt points to the parent's interrupt semaphore
 //  wg points to the parent's shutdown wait group
 func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine consensus.Engine,
-	procInterrupt func() bool, fullHeaderChainAvailable bool) (*HeaderChain, error) {
+	procInterrupt func() bool) (*HeaderChain, error) {
 	headerCache, _ := lru.New(headerCacheLimit)
 	tdCache, _ := lru.New(tdCacheLimit)
 	numberCache, _ := lru.New(numberCacheLimit)
@@ -84,15 +83,14 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	}
 
 	hc := &HeaderChain{
-		config:                   config,
-		chainDb:                  chainDb,
-		headerCache:              headerCache,
-		tdCache:                  tdCache,
-		numberCache:              numberCache,
-		procInterrupt:            procInterrupt,
-		rand:                     mrand.New(mrand.NewSource(seed.Int64())),
-		engine:                   engine,
-		fullHeaderChainAvailable: fullHeaderChainAvailable,
+		config:        config,
+		chainDb:       chainDb,
+		headerCache:   headerCache,
+		tdCache:       tdCache,
+		numberCache:   numberCache,
+		procInterrupt: procInterrupt,
+		rand:          mrand.New(mrand.NewSource(seed.Int64())),
+		engine:        engine,
 	}
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
@@ -145,7 +143,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	// Calculate the total difficulty of the header
 	ptd := hc.GetTd(header.ParentHash, number-1)
 	if ptd == nil {
-		if hc.fullHeaderChainAvailable {
+		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else { // Ancestors would be missing if the full header chain is not available.
 			var ptdAssumed int64 = int64(number) * 2
@@ -188,7 +186,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
 			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
 
-			if !hc.fullHeaderChainAvailable {
+			if !hc.config.FullHeaderChainAvailable {
 				if headHeader == nil {
 					// An issue in the latest_block_only mode where existing blocks are missing.
 					log.Debug("WriteHeader/nil head header encountered")

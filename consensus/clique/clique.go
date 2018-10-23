@@ -236,16 +236,13 @@ type Clique struct {
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
-	// This does not belong here but passing it to every function is not possible since that breaks
-	// some implemented interfaces and introduces churn across the geth codebase.
-	fullHeaderChainAvailable bool // False for latest_block_only Sync mode, true otherwise
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
 }
 
 // New creates a Clique proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.CliqueConfig, db ethdb.Database, fullHeaderChainAvailable bool) *Clique {
+func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
 	if conf.Epoch == 0 {
@@ -256,12 +253,11 @@ func New(config *params.CliqueConfig, db ethdb.Database, fullHeaderChainAvailabl
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Clique{
-		config:                   &conf,
-		db:                       db,
-		recents:                  recents,
-		signatures:               signatures,
-		proposals:                make(map[common.Address]bool),
-		fullHeaderChainAvailable: fullHeaderChainAvailable,
+		config:     &conf,
+		db:         db,
+		recents:    recents,
+		signatures: signatures,
+		proposals:  make(map[common.Address]bool),
 	}
 }
 
@@ -382,7 +378,8 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
 	// Added to bypass the situation when the parent is missing in latest_block_only mode
-	if c.fullHeaderChainAvailable {
+
+	if chain.Config().FullHeaderChainAvailable {
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor
 		}
@@ -461,14 +458,14 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if c.fullHeaderChainAvailable && header == nil {
+			if chain.Config().FullHeaderChainAvailable && header == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
 		if header != nil {
 			headers = append(headers, header)
 			number, hash = number-1, header.ParentHash
-		} else if !c.fullHeaderChainAvailable {
+		} else if !chain.Config().FullHeaderChainAvailable {
 			number = number - 1
 		}
 	}
@@ -476,7 +473,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers, c.fullHeaderChainAvailable)
+	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +516,7 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	}
 	// Retrieve the snapshot needed to verify this header and cache it
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if !c.fullHeaderChainAvailable && err == consensus.ErrUnknownAncestor {
+	if !chain.Config().FullHeaderChainAvailable && err == consensus.ErrUnknownAncestor {
 		err = nil
 	}
 	if err != nil {

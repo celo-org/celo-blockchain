@@ -40,7 +40,7 @@ var (
 func makeHeaderChain(parent *types.Header, n int, db ethdb.Database, seed int) []*types.Header {
 	blocks, _ := core.GenerateChain(params.TestChainConfig, types.NewBlockWithHeader(parent), ethash.NewFaker(), db, n, func(i int, b *core.BlockGen) {
 		b.SetCoinbase(common.Address{0: byte(seed), 19: byte(i)})
-	}, true)
+	})
 	headers := make([]*types.Header, len(blocks))
 	for i, block := range blocks {
 		headers[i] = block.Header()

@@ -130,7 +130,7 @@ func (dl *downloadTester) makeChain(n int, seed byte, parent *types.Block, paren
 				Number:     big.NewInt(block.Number().Int64() - 1),
 			})
 		}
-	}, true)
+	})
 	// Convert the block-chain into a hash-chain and header/block maps
 	hashes := make([]common.Hash, n+1)
 	hashes[len(hashes)-1] = parent.Hash()

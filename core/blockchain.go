@@ -138,8 +138,7 @@ type BlockChain struct {
 // available in the database. It initialises the default Ethereum Validator and
 // Processor.
 func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig,
-	engine consensus.Engine, vmConfig vm.Config, shouldPreserve func(block *types.Block) bool,
-	fullHeaderChainAvailable bool) (*BlockChain, error) {
+	engine consensus.Engine, vmConfig vm.Config, shouldPreserve func(block *types.Block) bool) (*BlockChain, error) {
 	if cacheConfig == nil {
 		cacheConfig = &CacheConfig{
 			TrieNodeLimit: 256 * 1024 * 1024,
@@ -174,7 +173,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine))
 
 	var err error
-	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, fullHeaderChainAvailable)
+	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt)
 	if err != nil {
 		return nil, err
 	}

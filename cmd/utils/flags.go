@@ -1376,6 +1376,8 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	name := "chaindata"
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name = "lightchaindata"
+	} else if ctx.GlobalString(SyncModeFlag.Name) == "latest_block_only" {
+		name = "latestblockchaindata"
 	}
 	chainDb, err := stack.OpenDatabase(name, cache, handles)
 	if err != nil {
@@ -1398,17 +1400,20 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 }
 
 // MakeChain creates a chain manager from set command line flags.
-func MakeChain(ctx *cli.Context, stack *node.Node, fullHeaderChainAvailable bool) (chain *core.BlockChain, chainDb ethdb.Database) {
+func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chainDb ethdb.Database) {
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
+	if ctx.GlobalString(SyncModeFlag.Name) == "latest_block_only" {
+		config.FullHeaderChainAvailable = true
+	}
 	if err != nil {
 		Fatalf("%v", err)
 	}
 	var engine consensus.Engine
 	if config.Clique != nil {
-		engine = clique.New(config.Clique, chainDb, fullHeaderChainAvailable)
+		engine = clique.New(config.Clique, chainDb)
 	} else {
 		engine = ethash.NewFaker()
 		if !ctx.GlobalBool(FakePoWFlag.Name) {
@@ -1434,7 +1439,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, fullHeaderChainAvailable bool
 		cache.TrieNodeLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
 	}
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.GlobalBool(VMEnableDebugFlag.Name)}
-	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil, fullHeaderChainAvailable)
+	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil)
 
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)

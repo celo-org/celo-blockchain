@@ -69,7 +69,7 @@ func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64) *SimulatedBac
 	database := ethdb.NewMemDatabase()
 	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc}
 	genesis.MustCommit(database)
-	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{}, nil, true)
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{}, nil)
 
 	backend := &SimulatedBackend{
 		database:   database,
@@ -102,7 +102,7 @@ func (b *SimulatedBackend) Rollback() {
 }
 
 func (b *SimulatedBackend) rollback() {
-	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), ethash.NewFaker(), b.database, 1, func(int, *core.BlockGen) {}, true)
+	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), ethash.NewFaker(), b.database, 1, func(int, *core.BlockGen) {})
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
@@ -311,7 +311,7 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 			block.AddTxWithChain(b.blockchain, tx)
 		}
 		block.AddTxWithChain(b.blockchain, tx)
-	}, true)
+	})
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
@@ -396,7 +396,7 @@ func (b *SimulatedBackend) AdjustTime(adjustment time.Duration) error {
 			block.AddTx(tx)
 		}
 		block.OffsetTime(int64(adjustment.Seconds()))
-	}, true)
+	})
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]

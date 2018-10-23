@@ -62,7 +62,7 @@ func makeChain(n int, seed byte, parent *types.Block) ([]common.Hash, map[common
 		if i%5 == 0 {
 			block.AddUncle(&types.Header{ParentHash: block.PrevBlock(i - 1).Hash(), Number: big.NewInt(int64(i - 1))})
 		}
-	}, true)
+	})
 	hashes := make([]common.Hash, n+1)
 	hashes[len(hashes)-1] = parent.Hash()
 	blockm := make(map[common.Hash]*types.Block, n+1)
