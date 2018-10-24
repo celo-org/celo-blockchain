@@ -1377,7 +1377,7 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name = "lightchaindata"
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "latest_block_only" {
-		name = "latestblockchaindata"
+		name = "latest_block_only_chaindata"
 	}
 	chainDb, err := stack.OpenDatabase(name, cache, handles)
 	if err != nil {
