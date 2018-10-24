@@ -389,10 +389,6 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 		return common.Hash{}, err
 	}
 
-	// Full chain is not available in latest block only mode
-	// And we cannot check for the sync mode here since that leads to a cycle as downloader already depends
-	// on the core indexer code.
-
 	for number := section * c.sectionSize; number < (section+1)*c.sectionSize; number++ {
 		hash := rawdb.ReadCanonicalHash(c.chainDb, number)
 		if hash == (common.Hash{}) {

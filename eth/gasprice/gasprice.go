@@ -165,7 +165,7 @@ func (t transactionsByGasPrice) Less(i, j int) bool { return t[i].GasPrice().Cmp
 // getBlockPrices calculates the lowest transaction gas price in a given block
 // and sends it to the result channel. If the block is empty, price is nil.
 func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, blockNum uint64, ch chan getBlockPricesResult) {
-	log.Debug(fmt.Sprintf("Getting gas price for block %d", blockNum))
+	log.Debug("Get gas price", "block", blockNum)
 	block, err := gpo.backend.BlockByNumber(ctx, rpc.BlockNumber(blockNum))
 	if block == nil {
 		ch <- getBlockPricesResult{nil, err}

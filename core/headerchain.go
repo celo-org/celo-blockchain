@@ -97,12 +97,12 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 		return nil, ErrNoGenesis
 	}
 
-	log.Debug(fmt.Sprintf("Set current header to %d", hc.genesisHeader.Number))
+	log.Trace("Set current header", "number", hc.genesisHeader.Number)
 	hc.currentHeader.Store(hc.genesisHeader)
 	if head := rawdb.ReadHeadBlockHash(chainDb); head != (common.Hash{}) {
 		if chead := hc.GetHeaderByHash(head); chead != nil {
 			hc.currentHeader.Store(chead)
-			log.Debug(fmt.Sprintf("Set current header to %d", chead.Number))
+			log.Trace("Set current header", "number", chead.Number)
 		}
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
@@ -139,19 +139,20 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		hash   = header.Hash()
 		number = header.Number.Uint64()
 	)
-	// Calculate the total difficulty of the header
+	// Calculate the total difficulty of the header.
+	// ptd seems to be abbreviation of "parent total difficulty".
 	ptd := hc.GetTd(header.ParentHash, number-1)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else { // Ancestors would be missing if the full header chain is not available.
-			var ptdAssumed int64 = int64(number) * 2
+			// 1024 is the genesis block's difficulty level.
+			var ptdAssumed = int64(number) + 1024
 			log.Debug(
-				fmt.Sprintf("previous header difficulty is not available, setting it to %v", ptdAssumed))
+				fmt.Sprintf("previous header difficulty is not available, setting it to %v + 1024", number))
 			ptd = big.NewInt(ptdAssumed)
 		}
 	}
-	log.Debug(fmt.Sprintf("ptd is %v", ptd))
 	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
 	externTd := new(big.Int).Add(header.Difficulty, ptd)
 
@@ -206,6 +207,8 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 
 		status = CanonStatTy
 	} else {
+		log.Debug("Encountered a block with difficulty lower than main chain",
+			"extern total difficulty", externTd, "local total difficulty", localTd)
 		status = SideStatTy
 	}
 
@@ -492,7 +495,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 		rawdb.DeleteTd(batch, hash, num)
 
 		currentHeader := hc.GetHeader(hdr.ParentHash, hdr.Number.Uint64()-1)
-		log.Debug(fmt.Sprintf("set current header to %d", currentHeader.Number))
+		log.Trace("Set current header", "number", currentHeader.Number)
 		hc.currentHeader.Store(currentHeader)
 	}
 	// Roll back the canonical chain numbering
@@ -507,7 +510,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	hc.numberCache.Purge()
 
 	if hc.CurrentHeader() == nil {
-		log.Debug(fmt.Sprintf("set current header to %d", hc.genesisHeader.Number))
+		log.Trace("Set current header", "number", hc.genesisHeader.Number)
 		hc.currentHeader.Store(hc.genesisHeader)
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
