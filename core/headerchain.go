@@ -202,7 +202,6 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		rawdb.WriteHeadHeaderHash(hc.chainDb, hash)
 
 		hc.currentHeaderHash = hash
-		log.Debug(fmt.Sprintf("set current header to %d", types.CopyHeader(header).Number))
 		hc.currentHeader.Store(types.CopyHeader(header))
 
 		status = CanonStatTy
@@ -458,8 +457,6 @@ func (hc *HeaderChain) GetHeaderByNumber(number uint64) *types.Header {
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (hc *HeaderChain) CurrentHeader() *types.Header {
-	log.Debug(
-		fmt.Sprintf("Currentheader() invoked, going to return %v", hc.currentHeader.Load().(*types.Header).Number))
 	return hc.currentHeader.Load().(*types.Header)
 }
 

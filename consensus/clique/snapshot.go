@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -186,13 +187,19 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 		return s, nil
 	}
 	// Sanity check that the headers can be applied
-	if fullHeaderChainAvailable {
-		for i := 0; i < len(headers)-1; i++ {
-			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
-				return nil, errInvalidVotingChain
-			}
+	for i := 0; i < len(headers)-1; i++ {
+		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
+			log.Debug("Error occurred while applying snapshot", "err", errInvalidVotingChain,
+				"prev number", headers[i].Number.Uint64(),
+				"next number", headers[i+1].Number.Uint64())
+			return nil, errInvalidVotingChain
 		}
+	}
+	if fullHeaderChainAvailable {
 		if headers[0].Number.Uint64() != s.Number+1 {
+			log.Debug("Error occurred while applying snapshot", "err", errInvalidVotingChain,
+				"prev number", s.Number,
+				"next number", headers[0].Number.Uint64())
 			return nil, errInvalidVotingChain
 		}
 	}

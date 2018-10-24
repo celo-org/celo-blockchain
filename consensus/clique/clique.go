@@ -236,6 +236,7 @@ type Clique struct {
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
+
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
 }

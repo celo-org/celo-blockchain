@@ -393,14 +393,15 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 	}
 	i, err := self.hc.InsertHeaderChain(chain, whFunc, start)
 	self.postChainEvents(events)
-	log.Debug(fmt.Sprintf("InsertHeaderChain %d: %v", i, err))
+	if err != nil {
+		log.Debug("InsertHeaderChaim", "failing index number", i, "err", err)
+	}
 	return i, err
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (self *LightChain) CurrentHeader() *types.Header {
-	log.Debug(fmt.Sprintf("CurrentHeader is %v", self.hc.CurrentHeader().Number))
 	return self.hc.CurrentHeader()
 }
 
