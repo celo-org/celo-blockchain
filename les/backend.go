@@ -82,8 +82,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	syncMode := config.SyncMode
 	if syncMode == downloader.LightSync {
 		chainName = "lightchaindata"
-	} else if syncMode == downloader.LatestBlockOnly {
-		chainName = "latest_block_only_chaindata"
+	} else if syncMode == downloader.CeloLatestSync {
+		chainName = "celolatestchaindata"
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}

@@ -165,7 +165,7 @@ type ChainConfig struct {
 	Clique *CliqueConfig `json:"clique,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
-	FullHeaderChainAvailable bool // False for latest_block_only Sync mode, true otherwise
+	FullHeaderChainAvailable bool // False for celolatest Sync mode, true otherwise
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.

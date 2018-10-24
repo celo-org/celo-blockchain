@@ -573,7 +573,7 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 
 	for i := len(headers) - 1; ; i-- {
 		// In latest block only mode, we only have the latest header
-		if f.pm.downloader.Mode == downloader.LatestBlockOnly && i < len(headers) {
+		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
 			return true
 		}
 		if i < 0 {
@@ -651,7 +651,7 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
 	// Disable this in Latest block only mode since we are not fetching the full chain
 	// now n is the latest downloaded header after syncing
-	if f.pm.downloader.Mode != downloader.LatestBlockOnly {
+	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {
 				break

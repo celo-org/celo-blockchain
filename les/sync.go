@@ -57,8 +57,8 @@ func (pm *ProtocolManager) syncer() {
 
 func (pm *ProtocolManager) needToSync(peerHead blockInfo, mode downloader.SyncMode) bool {
 	head := pm.blockchain.CurrentHeader()
-	if mode == downloader.LatestBlockOnly {
-		// In the latest_block_only mode, the difficulty calculation is meaningless, so, we rely on the block
+	if mode == downloader.CeloLatestSync {
+		// In the celolatest mode, the difficulty calculation is meaningless, so, we rely on the block
 		// numbers.
 		currentHead := head.Number.Uint64()
 		log.Debug("needToSync", "currentHead", currentHead, "peerHead", peerHead.Number)

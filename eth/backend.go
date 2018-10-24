@@ -103,8 +103,8 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 // initialisation of the common Ethereum object)
 func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
-	if config.SyncMode == downloader.LightSync || config.SyncMode == downloader.LatestBlockOnly {
-		return nil, errors.New("can't run eth.Ethereum in light sync mode or latest_block_only mode, use les.LightEthereum")
+	if config.SyncMode == downloader.LightSync || config.SyncMode == downloader.CeloLatestSync {
+		return nil, errors.New("can't run eth.Ethereum in light sync mode or celolatest mode, use les.LightEthereum")
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)

@@ -256,7 +256,7 @@ func (d *Downloader) Progress() ethereum.SyncProgress {
 		current = d.blockchain.CurrentFastBlock().NumberU64()
 	case LightSync:
 		fallthrough
-	case LatestBlockOnly:
+	case CeloLatestSync:
 		current = d.lightchain.CurrentHeader().Number.Uint64()
 	}
 	log.Debug(fmt.Sprintf("Current head is %v", current))
@@ -437,14 +437,14 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	if err != nil {
 		return err
 	}
-	if d.Mode == LatestBlockOnly {
-		log.Info("Mode is LatestBlockOnly, don't download the chain")
+	if d.Mode == CeloLatestSync {
+		log.Info("Mode is CeloLatestSync, don't download the chain")
 		// There is a convoluted piece of code in gasprices.go:SuggestPrice function
 		// which requires multiple blocks to calculate the gas price and if the blocks are missing
 		// then the code panics. Therefore, we have to fetch more than one block.
 		// Anecodotally, 128 seems to be large enough.
 		origin = height - 128 // Download just the latest block
-		log.Info(fmt.Sprintf("Mode is LatestBlockOnly, latest block is %d, new origin is %d", height, origin))
+		log.Info(fmt.Sprintf("Mode is CeloLatestSync, latest block is %d, new origin is %d", height, origin))
 	}
 	d.syncStatsLock.Lock()
 	if d.syncStatsChainHeight <= origin || d.syncStatsChainOrigin > origin {
@@ -870,7 +870,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 				if n := len(headers); n > 0 {
 					// Retrieve the current head we're at
 					head := uint64(0)
-					if d.Mode == LightSync || d.Mode == LatestBlockOnly {
+					if d.Mode == LightSync || d.Mode == CeloLatestSync {
 						head = d.lightchain.CurrentHeader().Number.Uint64()
 					} else {
 						head = d.blockchain.CurrentFastBlock().NumberU64()
@@ -1222,13 +1222,13 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				hashes[i] = header.Hash()
 			}
 			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, common.Big0, common.Big0
-			if d.Mode != LightSync && d.Mode != LatestBlockOnly {
+			if d.Mode != LightSync && d.Mode != CeloLatestSync {
 				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
 				lastBlock = d.blockchain.CurrentBlock().Number()
 			}
 			d.lightchain.Rollback(hashes)
 			curFastBlock, curBlock := common.Big0, common.Big0
-			if d.Mode != LightSync && d.Mode != LatestBlockOnly {
+			if d.Mode != LightSync && d.Mode != CeloLatestSync {
 				curFastBlock = d.blockchain.CurrentFastBlock().Number()
 				curBlock = d.blockchain.CurrentBlock().Number()
 			}
@@ -1269,7 +1269,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				// L: Sync begins, and finds common ancestor at 11
 				// L: Request new headers up from 11 (R's TD was higher, it must have something)
 				// R: Nothing to give
-				if d.Mode != LightSync && d.Mode != LatestBlockOnly {
+				if d.Mode != LightSync && d.Mode != CeloLatestSync {
 					head := d.blockchain.CurrentBlock()
 					if !gotHeaders && td.Cmp(d.blockchain.GetTd(head.Hash(), head.NumberU64())) > 0 {
 						return errStallingPeer
@@ -1283,7 +1283,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				// queued for processing when the header download completes. However, as long as the
 				// peer gave us something useful, we're already happy/progressed (above check).
 
-				// Note: This check would fail for LatestBlockOnly
+				// Note: This check would fail for CeloLatestSync
 				if d.Mode == FastSync || d.Mode == LightSync {
 					head := d.lightchain.CurrentHeader()
 					if td.Cmp(d.lightchain.GetTd(head.Hash(), head.Number.Uint64())) > 0 {
@@ -1312,7 +1312,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				chunk := headers[:limit]
 
 				// In case of header only syncing, validate the chunk immediately
-				if d.Mode == FastSync || d.Mode == LightSync || d.Mode == LatestBlockOnly {
+				if d.Mode == FastSync || d.Mode == LightSync || d.Mode == CeloLatestSync {
 					// Collect the yet unknown headers to mark them as uncertain
 					unknown := make([]*types.Header, 0, len(headers))
 					for _, header := range chunk {

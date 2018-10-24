@@ -22,14 +22,14 @@ import "fmt"
 type SyncMode int
 
 const (
-	FullSync        SyncMode = iota // Synchronise the entire blockchain history from full blocks
-	FastSync                        // Quickly download the headers, full sync only at the chain head
-	LightSync                       // Download only the headers and terminate afterwards
-	LatestBlockOnly                 // Latest block only (Celo-specific mode)
+	FullSync       SyncMode = iota // Synchronise the entire blockchain history from full blocks
+	FastSync                       // Quickly download the headers, full sync only at the chain head
+	LightSync                      // Download only the headers and terminate afterwards
+	CeloLatestSync                 // Latest block only (Celo-specific mode)
 )
 
 func (mode SyncMode) IsValid() bool {
-	return mode >= FullSync && mode <= LatestBlockOnly
+	return mode >= FullSync && mode <= CeloLatestSync
 }
 
 // String implements the stringer interface.
@@ -41,8 +41,8 @@ func (mode SyncMode) String() string {
 		return "fast"
 	case LightSync:
 		return "light"
-	case LatestBlockOnly:
-		return "LatestBlockOnly"
+	case CeloLatestSync:
+		return "celolatest"
 	default:
 		return "unknown"
 	}
@@ -56,8 +56,8 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("fast"), nil
 	case LightSync:
 		return []byte("light"), nil
-	case LatestBlockOnly:
-		return []byte("latest_block_only"), nil
+	case CeloLatestSync:
+		return []byte("celolatest"), nil
 	default:
 		return nil, fmt.Errorf("unknown sync mode %d", mode)
 	}
@@ -71,8 +71,8 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FastSync
 	case "light":
 		*mode = LightSync
-	case "latest_block_only":
-		*mode = LatestBlockOnly
+	case "celolatest":
+		*mode = CeloLatestSync
 	default:
 		return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
 	}

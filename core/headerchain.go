@@ -188,7 +188,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 
 			if !hc.config.FullHeaderChainAvailable {
 				if headHeader == nil {
-					// An issue in the latest_block_only mode where existing blocks are missing.
+					// An issue in the celolatest mode where existing blocks are missing.
 					log.Debug("WriteHeader/nil head header encountered")
 					break
 				}
