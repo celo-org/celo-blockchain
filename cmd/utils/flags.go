@@ -1406,7 +1406,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
 	if ctx.GlobalString(SyncModeFlag.Name) == "latest_block_only" {
-		config.FullHeaderChainAvailable = true
+		config.FullHeaderChainAvailable = false
 	}
 	if err != nil {
 		Fatalf("%v", err)

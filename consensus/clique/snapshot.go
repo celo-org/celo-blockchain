@@ -189,7 +189,7 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 	// Sanity check that the headers can be applied
 	for i := 0; i < len(headers)-1; i++ {
 		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
-			log.Debug("Error occurred while applying snapshot", "err", errInvalidVotingChain,
+			log.Warn("Error occurred while applying snapshot", "err", errInvalidVotingChain,
 				"prev number", headers[i].Number.Uint64(),
 				"next number", headers[i+1].Number.Uint64())
 			return nil, errInvalidVotingChain
@@ -197,7 +197,7 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 	}
 	if fullHeaderChainAvailable {
 		if headers[0].Number.Uint64() != s.Number+1 {
-			log.Debug("Error occurred while applying snapshot", "err", errInvalidVotingChain,
+			log.Warn("Error occurred while applying snapshot", "err", errInvalidVotingChain,
 				"prev number", s.Number,
 				"next number", headers[0].Number.Uint64())
 			return nil, errInvalidVotingChain

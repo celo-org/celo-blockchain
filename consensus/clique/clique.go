@@ -520,7 +520,7 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 		err = nil
 	}
 	if err != nil {
-		log.Debug(fmt.Sprintf("verifySeal failed with %v", err))
+		log.Warn(fmt.Sprintf("verifySeal failed with %v", err))
 		return err
 	}
 
