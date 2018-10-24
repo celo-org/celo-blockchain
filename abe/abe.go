@@ -54,7 +54,7 @@ func createVerificationMessage(request types.VerificationRequest, verificationRe
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Celo verification code: %s:%d:%s", base64.URLEncoding.EncodeToString(signature), request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
+	return fmt.Sprintf("Celo verification code: %s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
 }
 
 func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
@@ -91,7 +91,6 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 				log.Error("[Celo] Failed to decrypt phone number", "err", err)
 				continue
 			}
-			log.Debug(fmt.Sprintf("[Celo] Phone number %s requesting verification", phoneNumber))
 
 			message, err := createVerificationMessage(request, verificationRewardsAddress, account, wallet)
 			if err != nil {

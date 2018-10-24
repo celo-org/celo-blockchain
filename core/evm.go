@@ -48,6 +48,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
+		GetCoinbase: GetCoinbaseFn(header, chain),
 		Origin:      msg.From(),
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
@@ -81,6 +82,34 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 			}
 		}
 		return common.Hash{}
+	}
+}
+
+// GetCoinbaseFn returns a GetCoinbaseFunc which retrieves the coinbase by block number
+func GetCoinbaseFn(ref *types.Header, chain ChainContext) func(n uint64) common.Address {
+	var cache map[uint64]common.Address
+
+	return func(n uint64) common.Address {
+		// If there's no address cache yet, make one
+		if cache == nil {
+			cache = map[uint64]common.Address{
+				ref.Number.Uint64(): ref.Coinbase,
+			}
+		}
+		// Try to fulfill the request from the cache
+		if address, ok := cache[n]; ok {
+			return address
+		}
+		// Not cached, iterate the blocks and cache the addresses
+		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
+			cache[header.Number.Uint64()] = header.Coinbase
+			if n == header.Number.Uint64() {
+				return header.Coinbase
+			}
+		}
+
+		// Like GetHashFn we'll just return an empty address if we can't find it
+		return common.Address{}
 	}
 }
 
