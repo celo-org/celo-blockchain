@@ -19,9 +19,11 @@ package vm
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,8 +37,8 @@ import (
 // requires a deterministic gas count based on the input size of the Run method of the
 // contract.
 type PrecompiledContract interface {
-	RequiredGas(input []byte) uint64  // RequiredPrice calculates the contract gas use
-	Run(input []byte) ([]byte, error) // Run runs the precompiled contract
+	RequiredGas(input []byte) uint64            // RequiredPrice calculates the contract gas use
+	Run(input []byte, evm *EVM) ([]byte, error) // Run runs the precompiled contract
 }
 
 // PrecompiledContractsHomestead contains the default set of pre-compiled Ethereum
@@ -50,6 +52,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
+var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -65,13 +68,14 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 	// Celo Precompiled Contracts
 	requestVerificationAddress: &requestVerification{},
+	transferAddress:            &transfer{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
-func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract) (ret []byte, err error) {
+func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
 	gas := p.RequiredGas(input)
 	if contract.UseGas(gas) {
-		return p.Run(input)
+		return p.Run(input, evm)
 	}
 	return nil, ErrOutOfGas
 }
@@ -83,7 +87,7 @@ func (c *ecrecover) RequiredGas(input []byte) uint64 {
 	return params.EcrecoverGas
 }
 
-func (c *ecrecover) Run(input []byte) ([]byte, error) {
+func (c *ecrecover) Run(input []byte, evm *EVM) ([]byte, error) {
 	const ecRecoverInputLength = 128
 
 	input = common.RightPadBytes(input, ecRecoverInputLength)
@@ -119,7 +123,7 @@ type sha256hash struct{}
 func (c *sha256hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Sha256PerWordGas + params.Sha256BaseGas
 }
-func (c *sha256hash) Run(input []byte) ([]byte, error) {
+func (c *sha256hash) Run(input []byte, evm *EVM) ([]byte, error) {
 	h := sha256.Sum256(input)
 	return h[:], nil
 }
@@ -134,7 +138,7 @@ type ripemd160hash struct{}
 func (c *ripemd160hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Ripemd160PerWordGas + params.Ripemd160BaseGas
 }
-func (c *ripemd160hash) Run(input []byte) ([]byte, error) {
+func (c *ripemd160hash) Run(input []byte, evm *EVM) ([]byte, error) {
 	ripemd := ripemd160.New()
 	ripemd.Write(input)
 	return common.LeftPadBytes(ripemd.Sum(nil), 32), nil
@@ -150,7 +154,7 @@ type dataCopy struct{}
 func (c *dataCopy) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.IdentityPerWordGas + params.IdentityBaseGas
 }
-func (c *dataCopy) Run(in []byte) ([]byte, error) {
+func (c *dataCopy) Run(in []byte, evm *EVM) ([]byte, error) {
 	return in, nil
 }
 
@@ -231,7 +235,7 @@ func (c *bigModExp) RequiredGas(input []byte) uint64 {
 	return gas.Uint64()
 }
 
-func (c *bigModExp) Run(input []byte) ([]byte, error) {
+func (c *bigModExp) Run(input []byte, evm *EVM) ([]byte, error) {
 	var (
 		baseLen = new(big.Int).SetBytes(getData(input, 0, 32)).Uint64()
 		expLen  = new(big.Int).SetBytes(getData(input, 32, 32)).Uint64()
@@ -287,7 +291,7 @@ func (c *bn256Add) RequiredGas(input []byte) uint64 {
 	return params.Bn256AddGas
 }
 
-func (c *bn256Add) Run(input []byte) ([]byte, error) {
+func (c *bn256Add) Run(input []byte, evm *EVM) ([]byte, error) {
 	x, err := newCurvePoint(getData(input, 0, 64))
 	if err != nil {
 		return nil, err
@@ -309,7 +313,7 @@ func (c *bn256ScalarMul) RequiredGas(input []byte) uint64 {
 	return params.Bn256ScalarMulGas
 }
 
-func (c *bn256ScalarMul) Run(input []byte) ([]byte, error) {
+func (c *bn256ScalarMul) Run(input []byte, evm *EVM) ([]byte, error) {
 	p, err := newCurvePoint(getData(input, 0, 64))
 	if err != nil {
 		return nil, err
@@ -338,7 +342,7 @@ func (c *bn256Pairing) RequiredGas(input []byte) uint64 {
 	return params.Bn256PairingBaseGas + uint64(len(input)/192)*params.Bn256PairingPerPointGas
 }
 
-func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
+func (c *bn256Pairing) Run(input []byte, evm *EVM) ([]byte, error) {
 	// Handle some corner cases cheaply
 	if len(input)%192 > 0 {
 		return nil, errBadPairingInput
@@ -377,7 +381,7 @@ func (c *requestVerification) RequiredGas(input []byte) uint64 {
 }
 
 // Ensures that the input is parsable as a VerificationRequest.
-func (c *requestVerification) Run(input []byte) ([]byte, error) {
+func (c *requestVerification) Run(input []byte, evm *EVM) ([]byte, error) {
 	_, err := types.DecodeVerificationRequest(input)
 	if err != nil {
 		log.Error("[Celo] Unable to decode verification request", "err", err)
@@ -385,4 +389,24 @@ func (c *requestVerification) Run(input []byte) ([]byte, error) {
 	} else {
 		return input, nil
 	}
+}
+
+// Native transfer contract to make Celo Gold ERC20 compatible.
+type transfer struct{}
+
+func (c *transfer) RequiredGas(input []byte) uint64 {
+	return params.TxGas
+}
+
+// Ensures that the input is parsable as a VerificationRequest.
+func (c *transfer) Run(input []byte, evm *EVM) ([]byte, error) {
+	from := common.BytesToAddress(input[0:32])
+	to := common.BytesToAddress(input[32:64])
+	var parsed bool
+	value, parsed := math.ParseBig256(hexutil.Encode(input[64:96]))
+	if !parsed {
+		return nil, fmt.Errorf("Error parsing transfer: unable to parse value from " + hexutil.Encode(input[64:96]))
+	}
+	evm.Transfer(evm.StateDB, from, to, value)
+	return input, nil
 }
