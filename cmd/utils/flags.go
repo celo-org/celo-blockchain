@@ -160,7 +160,7 @@ var (
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",
-		Usage: `Blockchain sync mode ("fast", "full", or "light")`,
+		Usage: `Blockchain sync mode ("fast", "full", "light", or "celolatest")`,
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -1294,7 +1294,7 @@ func SetDashboardConfig(ctx *cli.Context, cfg *dashboard.Config) {
 // RegisterEthService adds an Ethereum client to the stack.
 func RegisterEthService(stack *node.Node, cfg *eth.Config) {
 	var err error
-	if cfg.SyncMode == downloader.LightSync {
+	if cfg.SyncMode == downloader.LightSync || cfg.SyncMode == downloader.CeloLatestSync {
 		err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 			return les.New(ctx, cfg)
 		})
@@ -1376,6 +1376,8 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	name := "chaindata"
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name = "lightchaindata"
+	} else if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
+		name = "celolatestchaindata"
 	}
 	chainDb, err := stack.OpenDatabase(name, cache, handles)
 	if err != nil {
@@ -1403,6 +1405,9 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	chainDb = MakeChainDatabase(ctx, stack)
 
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
+	if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
+		config.FullHeaderChainAvailable = false
+	}
 	if err != nil {
 		Fatalf("%v", err)
 	}

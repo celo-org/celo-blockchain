@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -97,10 +97,12 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 		return nil, ErrNoGenesis
 	}
 
+	log.Trace("Set current header", "number", hc.genesisHeader.Number)
 	hc.currentHeader.Store(hc.genesisHeader)
 	if head := rawdb.ReadHeadBlockHash(chainDb); head != (common.Hash{}) {
 		if chead := hc.GetHeaderByHash(head); chead != nil {
 			hc.currentHeader.Store(chead)
+			log.Trace("Set current header", "number", chead.Number)
 		}
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
@@ -137,13 +139,28 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		hash   = header.Hash()
 		number = header.Number.Uint64()
 	)
-	// Calculate the total difficulty of the header
+	// Calculate the total difficulty of the header.
+	// ptd seems to be abbreviation of "parent total difficulty".
 	ptd := hc.GetTd(header.ParentHash, number-1)
+	localTd := new(big.Int)
+	externTd := new(big.Int)
 	if ptd == nil {
-		return NonStatTy, consensus.ErrUnknownAncestor
+		if hc.config.FullHeaderChainAvailable {
+			return NonStatTy, consensus.ErrUnknownAncestor
+		} else {
+			// Ancestors would be missing if the full header chain is not available.
+			// Therefore, we cannot calculate the difficulty level, assume the difficulty of
+			// a block to be its block number for now. Later on, we will add some verification,
+			// so that, malicious blocks cannot be inserted.
+			totalDifficulty := big.NewInt(int64(number))
+			log.Debug(fmt.Sprintf("Previous header difficulty is not available, setting it to %v", totalDifficulty))
+			localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
+			externTd = externTd.Add(externTd, totalDifficulty)
+		}
+	} else {
+		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
+		externTd = externTd.Add(header.Difficulty, ptd)
 	}
-	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-	externTd := new(big.Int).Add(header.Difficulty, ptd)
 
 	// Irrelevant of the canonical status, write the td and header to the database
 	if err := hc.WriteTd(hash, number, externTd); err != nil {
@@ -175,6 +192,14 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
 			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
 
+			if !hc.config.FullHeaderChainAvailable {
+				if headHeader == nil {
+					// An issue in the celolatest mode where existing blocks are missing.
+					log.Debug("WriteHeader/nil head header encountered")
+					break
+				}
+			}
+
 			headHash = headHeader.ParentHash
 			headNumber = headHeader.Number.Uint64() - 1
 			headHeader = hc.GetHeader(headHash, headNumber)
@@ -188,6 +213,8 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 
 		status = CanonStatTy
 	} else {
+		log.Debug("Encountered a block with difficulty lower than main chain",
+			"extern total difficulty", externTd, "local total difficulty", localTd)
 		status = SideStatTy
 	}
 
@@ -244,6 +271,7 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int)
 		}
 		// Otherwise wait for headers checks and ensure they pass
 		if err := <-results; err != nil {
+			log.Error(fmt.Sprintf("Error \"%v\" at block %d", err, header.Number))
 			return i, err
 		}
 	}
@@ -445,6 +473,7 @@ func (hc *HeaderChain) CurrentHeader() *types.Header {
 func (hc *HeaderChain) SetCurrentHeader(head *types.Header) {
 	rawdb.WriteHeadHeaderHash(hc.chainDb, head.Hash())
 
+	log.Debug(fmt.Sprintf("set current header to %d", head.Number))
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
 }
@@ -471,7 +500,9 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 		rawdb.DeleteHeader(batch, hash, num)
 		rawdb.DeleteTd(batch, hash, num)
 
-		hc.currentHeader.Store(hc.GetHeader(hdr.ParentHash, hdr.Number.Uint64()-1))
+		currentHeader := hc.GetHeader(hdr.ParentHash, hdr.Number.Uint64()-1)
+		log.Trace("Set current header", "number", currentHeader.Number)
+		hc.currentHeader.Store(currentHeader)
 	}
 	// Roll back the canonical chain numbering
 	for i := height; i > head; i-- {
@@ -485,6 +516,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	hc.numberCache.Purge()
 
 	if hc.CurrentHeader() == nil {
+		log.Trace("Set current header", "number", hc.genesisHeader.Number)
 		hc.currentHeader.Store(hc.genesisHeader)
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()

@@ -240,6 +240,7 @@ func (bc *BlockChain) loadLastState() error {
 			currentHeader = header
 		}
 	}
+	log.Debug(fmt.Sprintf("Loading Last State: %v", currentHeader.Number))
 	bc.hc.SetCurrentHeader(currentHeader)
 
 	// Restore the last known head fast block
@@ -482,6 +483,7 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 //
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) insert(block *types.Block) {
+	log.Debug(fmt.Sprintf("Inserting %v", block.Number()))
 	// If the block is on a side chain or an unknown one, force other heads onto it too
 	updateHeads := rawdb.ReadCanonicalHash(bc.db, block.NumberU64()) != block.Hash()
 
