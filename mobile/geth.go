@@ -212,7 +212,8 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 		return downloader.FullSync
 	case SyncModeFastSync:
 		return downloader.FastSync
-	case SyncModeUnset: fallthrough
+	case SyncModeUnset:
+		fallthrough
 		// If unset, default to light sync.
 		// This maintains backward compatibility.
 	case SyncModeLightSync:
