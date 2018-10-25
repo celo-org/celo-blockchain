@@ -142,19 +142,25 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	// Calculate the total difficulty of the header.
 	// ptd seems to be abbreviation of "parent total difficulty".
 	ptd := hc.GetTd(header.ParentHash, number-1)
+	localTd := new(big.Int)
+	externTd := new(big.Int)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
-		} else { // Ancestors would be missing if the full header chain is not available.
-			// 1024 is the genesis block's difficulty level.
-			var ptdAssumed = int64(number) + 1024
-			log.Debug(
-				fmt.Sprintf("previous header difficulty is not available, setting it to %v + 1024", number))
-			ptd = big.NewInt(ptdAssumed)
+		} else {
+			// Ancestors would be missing if the full header chain is not available.
+			// Therefore, we cannot calculate the difficulty level, assume the difficulty of
+			// a block to be its block number for now. Later on, we will add some verification,
+			// so that, malicious blocks cannot be inserted.
+			totalDifficulty := big.NewInt(int64(number))
+			log.Debug(fmt.Sprintf("Previous header difficulty is not available, setting it to %v", totalDifficulty))
+			localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
+			externTd = externTd.Add(externTd, totalDifficulty)
 		}
+	} else {
+		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
+		externTd = externTd.Add(header.Difficulty, ptd)
 	}
-	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-	externTd := new(big.Int).Add(header.Difficulty, ptd)
 
 	// Irrelevant of the canonical status, write the td and header to the database
 	if err := hc.WriteTd(hash, number, externTd); err != nil {
