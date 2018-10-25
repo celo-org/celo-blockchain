@@ -87,10 +87,7 @@ type NodeConfig struct {
 
 	// Sync mode for the node (eth/downloader/modes.go)
 	// This has to be integer since Enum exports to Java are not supported by "gomobile"
-	// FullSync = 1
-	// FastSync = 2
-	// LightSync = 3 (default)
-	// CeloLatestSync = 4
+	// See getSyncMode(syncMode int)
 	SyncMode int
 }
 
