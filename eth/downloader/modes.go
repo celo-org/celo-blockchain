@@ -74,7 +74,7 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 	case "celolatest":
 		*mode = CeloLatestSync
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
+		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "celolatest"`, text)
 	}
 	return nil
 }
