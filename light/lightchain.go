@@ -19,6 +19,7 @@ package light
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -315,6 +316,7 @@ func (bc *LightChain) Stop() {
 // Rollback is designed to remove a chain of links from the database that aren't
 // certain enough to be valid.
 func (self *LightChain) Rollback(chain []common.Hash) {
+	log.Warn(fmt.Sprintf("Rollback %v", chain))
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
@@ -357,6 +359,7 @@ func (self *LightChain) postChainEvents(events []interface{}) {
 func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
 	start := time.Now()
 	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
+		log.Error(fmt.Sprintf("Failed to validate the header chain at %d due to \"%v\"", i, err))
 		return i, err
 	}
 
@@ -390,6 +393,9 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 	}
 	i, err := self.hc.InsertHeaderChain(chain, whFunc, start)
 	self.postChainEvents(events)
+	if err != nil {
+		log.Debug("InsertHeaderChaim", "failing index number", i, "err", err)
+	}
 	return i, err
 }
 

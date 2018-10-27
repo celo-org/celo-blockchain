@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
@@ -146,7 +147,7 @@ func testRCL() RequestCostList {
 // newTestProtocolManager creates a new protocol manager for testing purposes,
 // with the given number of blocks already known, potential notification
 // channels for different events and relative chain indexers array.
-func newTestProtocolManager(lightSync bool, blocks int, generator func(int, *core.BlockGen), odr *LesOdr, peers *peerSet, db ethdb.Database) (*ProtocolManager, error) {
+func newTestProtocolManager(syncmode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), odr *LesOdr, peers *peerSet, db ethdb.Database) (*ProtocolManager, error) {
 	var (
 		evmux  = new(event.TypeMux)
 		engine = ethash.NewFaker()
@@ -161,6 +162,7 @@ func newTestProtocolManager(lightSync bool, blocks int, generator func(int, *cor
 		peers = newPeerSet()
 	}
 
+	lightSync := syncmode == downloader.LightSync || syncmode == downloader.CeloLatestSync
 	if lightSync {
 		chain, _ = light.NewLightChain(odr, gspec.Config, engine)
 	} else {
@@ -176,7 +178,7 @@ func newTestProtocolManager(lightSync bool, blocks int, generator func(int, *cor
 	if lightSync {
 		indexConfig = light.TestClientIndexerConfig
 	}
-	pm, err := NewProtocolManager(gspec.Config, indexConfig, lightSync, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup))
+	pm, err := NewProtocolManager(gspec.Config, indexConfig, syncmode, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup))
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +202,8 @@ func newTestProtocolManager(lightSync bool, blocks int, generator func(int, *cor
 // with the given number of blocks already known, potential notification
 // channels for different events and relative chain indexers array. In case of an error, the constructor force-
 // fails the test.
-func newTestProtocolManagerMust(t *testing.T, lightSync bool, blocks int, generator func(int, *core.BlockGen), odr *LesOdr, peers *peerSet, db ethdb.Database) *ProtocolManager {
-	pm, err := newTestProtocolManager(lightSync, blocks, generator, odr, peers, db)
+func newTestProtocolManagerMust(t *testing.T, syncmode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), odr *LesOdr, peers *peerSet, db ethdb.Database) *ProtocolManager {
+	pm, err := newTestProtocolManager(syncmode, blocks, generator, odr, peers, db)
 	if err != nil {
 		t.Fatalf("Failed to create protocol manager: %v", err)
 	}
@@ -343,7 +345,7 @@ func newServerEnv(t *testing.T, blocks int, protocol int, waitIndexers func(*cor
 	db := ethdb.NewMemDatabase()
 	cIndexer, bIndexer, btIndexer := testIndexers(db, nil, light.TestServerIndexerConfig)
 
-	pm := newTestProtocolManagerMust(t, false, blocks, testChainGen, nil, nil, db)
+	pm := newTestProtocolManagerMust(t, downloader.FullSync, blocks, testChainGen, nil, nil, db)
 	peer, _ := newTestPeer(t, "peer", protocol, pm, true)
 
 	cIndexer.Start(pm.blockchain.(*core.BlockChain))
@@ -383,8 +385,8 @@ func newClientServerEnv(t *testing.T, blocks int, protocol int, waitIndexers fun
 	lcIndexer, lbIndexer, lbtIndexer := testIndexers(ldb, odr, light.TestClientIndexerConfig)
 	odr.SetIndexers(lcIndexer, lbtIndexer, lbIndexer)
 
-	pm := newTestProtocolManagerMust(t, false, blocks, testChainGen, nil, peers, db)
-	lpm := newTestProtocolManagerMust(t, true, 0, nil, odr, lPeers, ldb)
+	pm := newTestProtocolManagerMust(t, downloader.FullSync, blocks, testChainGen, nil, peers, db)
+	lpm := newTestProtocolManagerMust(t, downloader.LightSync, 0, nil, odr, lPeers, ldb)
 
 	startIndexers := func(clientMode bool, pm *ProtocolManager) {
 		if clientMode {

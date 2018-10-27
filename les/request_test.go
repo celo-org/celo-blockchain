@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
+	downloader "github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/light"
 )
@@ -85,7 +86,7 @@ func testAccess(t *testing.T, protocol int, fn accessTestFn) {
 	// Assemble the test environment
 	server, client, tearDown := newClientServerEnv(t, 4, protocol, nil, true)
 	defer tearDown()
-	client.pm.synchronise(client.rPeer)
+	client.pm.synchronise(client.rPeer, downloader.LightSync)
 
 	test := func(expFail uint64) {
 		for i := uint64(0); i <= server.pm.blockchain.CurrentHeader().Number.Uint64(); i++ {

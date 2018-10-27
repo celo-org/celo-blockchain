@@ -18,6 +18,7 @@ package gasprice
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sort"
 	"sync"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -124,6 +126,8 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 			maxEmpty--
 			continue
 		}
+		log.Debug(fmt.Sprintf("Number of blocks is %d starting from %d and going backwards",
+			gpo.checkBlocks, blockNum))
 		if blockNum > 0 && sent < gpo.maxBlocks {
 			go gpo.getBlockPrices(ctx, types.MakeSigner(gpo.backend.ChainConfig(), big.NewInt(int64(blockNum))), blockNum, ch)
 			sent++
@@ -161,6 +165,7 @@ func (t transactionsByGasPrice) Less(i, j int) bool { return t[i].GasPrice().Cmp
 // getBlockPrices calculates the lowest transaction gas price in a given block
 // and sends it to the result channel. If the block is empty, price is nil.
 func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, blockNum uint64, ch chan getBlockPricesResult) {
+	log.Debug("Get gas price", "block", blockNum)
 	block, err := gpo.backend.BlockByNumber(ctx, rpc.BlockNumber(blockNum))
 	if block == nil {
 		ch <- getBlockPricesResult{nil, err}

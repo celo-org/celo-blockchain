@@ -624,7 +624,7 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 		blocks += length - common
 		receipts += length - common - fsMinFullBlocks
 	}
-	switch tester.downloader.mode {
+	switch tester.downloader.Mode {
 	case FullSync:
 		receipts = 1
 	case LightSync:
