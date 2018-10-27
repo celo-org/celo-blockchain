@@ -18,7 +18,6 @@ package gasprice
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sort"
 	"sync"
@@ -26,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
