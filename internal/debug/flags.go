@@ -86,6 +86,14 @@ var (
 		Name:  "trace",
 		Usage: "Write execution trace to the given file",
 	}
+	consoleFormatFlag = cli.StringFlag{
+		Name:  "consoleformat",
+		Usage: "Write console logs as 'json' or 'term'",
+	}
+	stdoutFlag = cli.BoolFlag{
+		Name:  "stdout",
+		Usage: "Write console logs to stdout (not stderr)",
+	}
 )
 
 // Flags holds all command-line flags required for debugging.
@@ -93,6 +101,7 @@ var Flags = []cli.Flag{
 	verbosityFlag, vmoduleFlag, backtraceAtFlag, debugFlag,
 	pprofFlag, pprofAddrFlag, pprofPortFlag,
 	memprofilerateFlag, blockprofilerateFlag, cpuprofileFlag, traceFlag,
+	consoleFormatFlag, stdoutFlag,
 }
 
 var (
@@ -101,12 +110,7 @@ var (
 )
 
 func init() {
-	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
-	output := io.Writer(os.Stderr)
-	if usecolor {
-		output = colorable.NewColorableStderr()
-	}
-	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	ostream = log.StreamHandler(io.Writer(os.Stderr), log.TerminalFormat(false))
 	glogger = log.NewGlogHandler(ostream)
 }
 
@@ -114,6 +118,31 @@ func init() {
 // It should be called as early as possible in the program.
 func Setup(ctx *cli.Context, logdir string) error {
 	// logging
+
+	var output io.Writer
+	var usecolor bool
+
+	if ctx.GlobalBool(stdoutFlag.Name) {
+		output = io.Writer(os.Stdout)
+		usecolor = (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) && os.Getenv("TERM") != "dumb"
+		if usecolor {
+			output = colorable.NewColorableStdout()
+		}
+	} else {
+		output = io.Writer(os.Stderr)
+		usecolor = (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+		if usecolor {
+			output = colorable.NewColorableStderr()
+		}
+	}
+
+	if consoleFormat := ctx.GlobalString(consoleFormatFlag.Name); consoleFormat == "json" {
+		ostream = log.StreamHandler(output, log.JSONFormat())
+	} else {
+		ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	}
+	glogger = log.NewGlogHandler(ostream)
+
 	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
 	if logdir != "" {
 		rfh, err := log.RotatingFileHandler(
