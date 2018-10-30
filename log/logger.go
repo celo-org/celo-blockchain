@@ -8,8 +8,8 @@ import (
 	"github.com/go-stack/stack"
 )
 
-const timeKey = "t"
-const lvlKey = "lvl"
+const timeKey = "timestamp"
+const lvlKey = "severity"
 const msgKey = "msg"
 const ctxKey = "ctx"
 const errorKey = "LOG15_ERROR"
@@ -50,17 +50,17 @@ func (l Lvl) AlignedString() string {
 func (l Lvl) String() string {
 	switch l {
 	case LvlTrace:
-		return "trce"
+		return "debug"
 	case LvlDebug:
-		return "dbug"
+		return "debug"
 	case LvlInfo:
 		return "info"
 	case LvlWarn:
-		return "warn"
+		return "warning"
 	case LvlError:
-		return "eror"
+		return "error"
 	case LvlCrit:
-		return "crit"
+		return "critical"
 	default:
 		panic("bad level")
 	}
