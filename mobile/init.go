@@ -19,9 +19,10 @@
 package geth
 
 import (
+	"runtime"
+
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
-	"runtime"
 )
 
 func init() {
