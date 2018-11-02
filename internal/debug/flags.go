@@ -90,9 +90,11 @@ var (
 		Name:  "consoleformat",
 		Usage: "Write console logs as 'json' or 'term'",
 	}
-	stdoutFlag = cli.BoolFlag{
-		Name:  "stdout",
-		Usage: "Write console logs to stdout (not stderr)",
+	consoleOutputFlag = cli.StringFlag{
+		Name: "consoleoutput",
+		Usage: "(stderr|stdout|split) By default, console output goes to stderr. " +
+			"In stdout mode, write console logs to stdout (not stderr). " +
+			"In split mode, write critical console logs to stderr and non-critical to stdout",
 	}
 )
 
@@ -101,13 +103,39 @@ var Flags = []cli.Flag{
 	verbosityFlag, vmoduleFlag, backtraceAtFlag, debugFlag,
 	pprofFlag, pprofAddrFlag, pprofPortFlag,
 	memprofilerateFlag, blockprofilerateFlag, cpuprofileFlag, traceFlag,
-	consoleFormatFlag, stdoutFlag,
+	consoleFormatFlag, consoleOutputFlag,
 }
 
 var (
 	ostream log.Handler
 	glogger *log.GlogHandler
 )
+
+type StdoutStderrHandler struct {
+	stdoutHandler log.Handler
+	stderrHandler log.Handler
+}
+
+func (this StdoutStderrHandler) Log(r *log.Record) error {
+	switch r.Lvl {
+	case log.LvlCrit:
+		fallthrough
+	case log.LvlError:
+		fallthrough
+	case log.LvlWarn:
+		return this.stderrHandler.Log(r)
+
+	case log.LvlInfo:
+		fallthrough
+	case log.LvlDebug:
+		fallthrough
+	case log.LvlTrace:
+		return this.stdoutHandler.Log(r)
+
+	default:
+		return this.stdoutHandler.Log(r)
+	}
+}
 
 func init() {
 	ostream = log.StreamHandler(io.Writer(os.Stderr), log.TerminalFormat(false))
@@ -119,28 +147,10 @@ func init() {
 func Setup(ctx *cli.Context, logdir string) error {
 	// logging
 
-	var output io.Writer
-	var usecolor bool
+	consoleFormat := ctx.GlobalString(consoleFormatFlag.Name)
+	consoleOutputMode := ctx.GlobalString(consoleOutputFlag.Name)
 
-	if ctx.GlobalBool(stdoutFlag.Name) {
-		output = io.Writer(os.Stdout)
-		usecolor = (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) && os.Getenv("TERM") != "dumb"
-		if usecolor {
-			output = colorable.NewColorableStdout()
-		}
-	} else {
-		output = io.Writer(os.Stderr)
-		usecolor = (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
-		if usecolor {
-			output = colorable.NewColorableStderr()
-		}
-	}
-
-	if consoleFormat := ctx.GlobalString(consoleFormatFlag.Name); consoleFormat == "json" {
-		ostream = log.StreamHandler(output, log.JSONFormat())
-	} else {
-		ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
-	}
+	ostream := CreateStreamHandler(consoleFormat, consoleOutputMode)
 	glogger = log.NewGlogHandler(ostream)
 
 	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
@@ -180,6 +190,70 @@ func Setup(ctx *cli.Context, logdir string) error {
 		StartPProf(address)
 	}
 	return nil
+}
+
+func CreateStreamHandler(consoleFormat string, consoleOutputMode string) log.Handler {
+	if consoleOutputMode == "stdout" {
+		usecolor := useColor(os.Stdout)
+		var output io.Writer
+		if usecolor {
+			output = colorable.NewColorableStdout()
+		} else {
+			output = io.Writer(os.Stdout)
+		}
+		return log.StreamHandler(output, getConsoleLogFormat(consoleFormat, usecolor))
+	}
+
+	// This is the default mode to maintain backward-compatibility with the geth command-line
+	if consoleOutputMode == "stderr" || len(consoleOutputMode) == 0 {
+		usecolor := useColor(os.Stderr)
+		var output io.Writer
+		if usecolor {
+			output = colorable.NewColorableStderr()
+		} else {
+			output = io.Writer(os.Stderr)
+		}
+		return log.StreamHandler(output, getConsoleLogFormat(consoleFormat, usecolor))
+	}
+
+	if consoleOutputMode == "split" {
+		usecolorStdout := useColor(os.Stdout)
+		usecolorStderr := useColor(os.Stderr)
+
+		var outputStdout io.Writer
+		var outputStderr io.Writer
+
+		if usecolorStdout {
+			outputStdout = colorable.NewColorableStdout()
+		} else {
+			outputStdout = io.Writer(os.Stdout)
+		}
+
+		if usecolorStderr {
+			outputStderr = colorable.NewColorableStderr()
+		} else {
+			outputStderr = io.Writer(os.Stderr)
+		}
+
+		return StdoutStderrHandler{
+			stdoutHandler: log.StreamHandler(outputStdout, getConsoleLogFormat(consoleFormat, usecolorStdout)),
+			stderrHandler: log.StreamHandler(outputStderr, getConsoleLogFormat(consoleFormat, usecolorStderr))}
+	}
+
+	panic(fmt.Sprintf("Unexpected value for \"%s\" flag: \"%s\"", consoleOutputFlag.Name, consoleOutputMode))
+}
+func useColor(file *os.File) bool {
+	return (isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd())) && os.Getenv("TERM") != "dumb"
+}
+
+func getConsoleLogFormat(consoleFormat string, usecolor bool) log.Format {
+	if consoleFormat == "json" {
+		return log.JSONFormat()
+	}
+	if consoleFormat == "term" || len(consoleFormat) == 0 /* No explicit format specified */ {
+		return log.TerminalFormat(usecolor)
+	}
+	panic(fmt.Sprintf("Unexpected value for \"%s\" flag: \"%s\"", consoleFormatFlag.Name, consoleFormat))
 }
 
 func StartPProf(address string) {
