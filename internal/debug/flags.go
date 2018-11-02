@@ -94,7 +94,8 @@ var (
 		Name: "consoleoutput",
 		Usage: "(stderr|stdout|split) By default, console output goes to stderr. " +
 			"In stdout mode, write console logs to stdout (not stderr). " +
-			"In split mode, write critical console logs to stderr and non-critical to stdout",
+			"In split mode, write critical(warning, error, and critical) console logs to stderr " +
+			"and non-critical (info, debug, and trace) to stdout",
 	}
 )
 
@@ -242,6 +243,7 @@ func CreateStreamHandler(consoleFormat string, consoleOutputMode string) log.Han
 
 	panic(fmt.Sprintf("Unexpected value for \"%s\" flag: \"%s\"", consoleOutputFlag.Name, consoleOutputMode))
 }
+
 func useColor(file *os.File) bool {
 	return (isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd())) && os.Getenv("TERM") != "dumb"
 }
