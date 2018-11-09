@@ -19,15 +19,16 @@
 package geth
 
 import (
-	"os"
 	"runtime"
 
+	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 func init() {
+	handler := debug.CreateStreamHandler("term", "split")
 	// Initialize the logger
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, handler))
 
 	// Initialize the goroutine count
 	runtime.GOMAXPROCS(runtime.NumCPU())
