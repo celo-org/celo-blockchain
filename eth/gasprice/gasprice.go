@@ -35,6 +35,7 @@ type Config struct {
 	Blocks     int
 	Percentile int
 	Default    *big.Int `toml:",omitempty"`
+	AlwaysZero bool
 }
 
 // Oracle recommends gas prices based on the content of recent
@@ -48,6 +49,8 @@ type Oracle struct {
 
 	checkBlocks, maxEmpty, maxBlocks int
 	percentile                       int
+	floor                            *big.Int
+	alwaysZero                       bool
 }
 
 // NewOracle returns a new oracle.
@@ -70,11 +73,18 @@ func NewOracle(backend ethapi.Backend, params Config) *Oracle {
 		maxEmpty:    blocks / 2,
 		maxBlocks:   blocks * 5,
 		percentile:  percent,
+		floor:       params.Default,
+		alwaysZero:  params.AlwaysZero,
 	}
 }
 
 // SuggestPrice returns the recommended gas price.
 func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
+
+	if gpo.alwaysZero {
+		return big.NewInt(0), nil
+	}
+
 	gpo.cacheLock.RLock()
 	lastHead := gpo.lastHead
 	lastPrice := gpo.lastPrice
@@ -131,7 +141,7 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 			blockNum--
 		}
 	}
-	price := lastPrice
+	price := gpo.floor
 	if len(blockPrices) > 0 {
 		sort.Sort(bigIntArray(blockPrices))
 		price = blockPrices[(len(blockPrices)-1)*gpo.percentile/100]

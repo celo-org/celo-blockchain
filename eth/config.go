@@ -49,7 +49,7 @@ var DefaultConfig = Config{
 	TrieTimeout:                 60 * time.Minute,
 	MinerGasFloor:               8000000,
 	MinerGasCeil:                8000000,
-	MinerGasPrice:               big.NewInt(0), // params.GWei
+	MinerGasPrice:               big.NewInt(0), // Always free gas
 	MinerRecommit:               3 * time.Second,
 	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
 
@@ -57,6 +57,7 @@ var DefaultConfig = Config{
 	GPO: gasprice.Config{
 		Blocks:     20,
 		Percentile: 60,
+		AlwaysZero: true, // Always free gas
 	},
 }
 
