@@ -43,15 +43,18 @@ func SendLogsToFile(filename string, level int, format string) bool {
 		panic("Unexpected format: " + format)
 	}
 	currentHandler := log.Root().GetHandler()
-	// Note: For now, only terminal format is all
 	fileHandler, err := log.FileHandler(filename, consoleFormat)
 	levelFilterFileHandler := log.LvlFilterHandler(log.Lvl(level), fileHandler)
 	if err != nil {
 		log.Error("SendLogsToFile/Failed to open file " + filename + " for logging")
 		return false
 	} else {
-		multiHandler := log.MultiHandler(currentHandler, levelFilterFileHandler)
-		log.Root().SetHandler(multiHandler)
+		if currentHandler == nil {
+			log.Root().SetHandler(levelFilterFileHandler)
+		} else {
+			multiHandler := log.MultiHandler(currentHandler, levelFilterFileHandler)
+			log.Root().SetHandler(multiHandler)
+		}
 		return true
 	}
 }
