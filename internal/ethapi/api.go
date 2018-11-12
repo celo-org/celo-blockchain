@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	defaultGasPrice = params.GWei
+	defaultGasPrice = uint64(0) // Always free gas
 )
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
