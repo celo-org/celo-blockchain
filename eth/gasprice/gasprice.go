@@ -49,7 +49,7 @@ type Oracle struct {
 
 	checkBlocks, maxEmpty, maxBlocks int
 	percentile                       int
-	floor                            *big.Int
+	defaultPrice                     *big.Int
 	alwaysZero                       bool
 }
 
@@ -67,14 +67,14 @@ func NewOracle(backend ethapi.Backend, params Config) *Oracle {
 		percent = 100
 	}
 	return &Oracle{
-		backend:     backend,
-		lastPrice:   params.Default,
-		checkBlocks: blocks,
-		maxEmpty:    blocks / 2,
-		maxBlocks:   blocks * 5,
-		percentile:  percent,
-		floor:       params.Default,
-		alwaysZero:  params.AlwaysZero,
+		backend:      backend,
+		lastPrice:    params.Default,
+		checkBlocks:  blocks,
+		maxEmpty:     blocks / 2,
+		maxBlocks:    blocks * 5,
+		percentile:   percent,
+		defaultPrice: params.Default,
+		alwaysZero:   params.AlwaysZero,
 	}
 }
 
@@ -141,7 +141,7 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 			blockNum--
 		}
 	}
-	price := gpo.floor
+	price := gpo.defaultPrice
 	if len(blockPrices) > 0 {
 		sort.Sort(bigIntArray(blockPrices))
 		price = blockPrices[(len(blockPrices)-1)*gpo.percentile/100]
