@@ -20,6 +20,7 @@ package clique
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -376,26 +377,30 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-		return consensus.ErrUnknownAncestor
-	}
-	if parent.Time.Uint64()+c.config.Period > header.Time.Uint64() {
-		return ErrInvalidTimestamp
-	}
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
-	}
-	// If the block is a checkpoint block, verify the signer list
-	if number%c.config.Epoch == 0 {
-		signers := make([]byte, len(snap.Signers)*common.AddressLength)
-		for i, signer := range snap.signers() {
-			copy(signers[i*common.AddressLength:], signer[:])
+
+	// Added to bypass the situation when the parent is missing in celolatest mode
+	if chain.Config().FullHeaderChainAvailable {
+		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+			return consensus.ErrUnknownAncestor
 		}
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraPrefix:extraSuffix], signers) {
-			return errMismatchingCheckpointSigners
+		if parent.Time.Uint64()+c.config.Period > header.Time.Uint64() {
+			return ErrInvalidTimestamp
+		}
+		// Retrieve the snapshot needed to verify this header and cache it
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+		if err != nil {
+			return err
+		}
+		// If the block is a checkpoint block, verify the signer list
+		if number%c.config.Epoch == 0 {
+			signers := make([]byte, len(snap.Signers)*common.AddressLength)
+			for i, signer := range snap.signers() {
+				copy(signers[i*common.AddressLength:], signer[:])
+			}
+			extraSuffix := len(header.Extra) - extraSeal
+			if !bytes.Equal(header.Extra[extraPrefix:extraSuffix], signers) {
+				return errMismatchingCheckpointSigners
+			}
 		}
 	}
 	// All basic checks passed, verify the seal and return
@@ -453,18 +458,22 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if header == nil {
+			if chain.Config().FullHeaderChainAvailable && header == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
+		if header != nil {
+			headers = append(headers, header)
+			number, hash = number-1, header.ParentHash
+		} else if !chain.Config().FullHeaderChainAvailable {
+			number = number - 1
+		}
 	}
 	// Previous snapshot found, apply any pending headers on top of it
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers)
+	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
 	if err != nil {
 		return nil, err
 	}
@@ -507,7 +516,11 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	}
 	// Retrieve the snapshot needed to verify this header and cache it
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	if !chain.Config().FullHeaderChainAvailable && err == consensus.ErrUnknownAncestor {
+		err = nil
+	}
 	if err != nil {
+		log.Warn(fmt.Sprintf("verifySeal failed with %v", err))
 		return err
 	}
 

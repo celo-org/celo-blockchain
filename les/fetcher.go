@@ -18,6 +18,7 @@
 package les
 
 import (
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -451,7 +453,7 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64) {
 				go func() {
 					p := dp.(*peer)
 					p.Log().Debug("Synchronisation started")
-					f.pm.synchronise(p)
+					f.pm.synchronise(p, f.pm.downloader.Mode)
 					f.syncDone <- p
 				}()
 				return nil
@@ -570,6 +572,10 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 	)
 
 	for i := len(headers) - 1; ; i-- {
+		// In latest block only mode, we only have the latest header
+		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
+			return true
+		}
 		if i < 0 {
 			if n == nil {
 				// no more headers and nothing to match
@@ -587,6 +593,7 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 			header = headers[i]
 			td = tds[i]
 		}
+		log.Trace(fmt.Sprintf("checkAnnouncedHeaders/header %d/%d is %v", i, len(headers), header.Number))
 		hash := header.Hash()
 		number := header.Number.Uint64()
 		if n == nil {
@@ -640,13 +647,18 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	}
 	n := fp.lastAnnounced
 	var td *big.Int
-	for n != nil {
-		if td = f.chain.GetTd(n.hash, n.number); td != nil {
-			break
-		}
-		n = n.parent
-	}
+
+	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
+	// Disable this in Latest block only mode since we are not fetching the full chain
 	// now n is the latest downloaded header after syncing
+	if f.pm.downloader.Mode != downloader.CeloLatestSync {
+		for n != nil {
+			if td = f.chain.GetTd(n.hash, n.number); td != nil {
+				break
+			}
+			n = n.parent
+		}
+	}
 	if n == nil {
 		p.Log().Debug("Synchronisation failed")
 		go f.pm.removePeer(p.id)

@@ -17,12 +17,44 @@
 package geth
 
 import (
-	"os"
-
+	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 // SetVerbosity sets the global verbosity level (between 0 and 6 - see logger/verbosity.go).
 func SetVerbosity(level int) {
-	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(level), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	handler := debug.CreateStreamHandler("term", "split")
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(level), handler))
+}
+
+// Note: A call to SetVerbosity after a call to SendLogsToFile will disable file logging.
+// That's just how currently the code is structured. It is not an issue since we are going
+// to make the calls sequentially at the time of initialization and can choose a particular
+// order.
+// Logs will be sent to this file along with the logcat.
+// format has to be term or json. Anything else will cause the app to panic.
+func SendLogsToFile(filename string, level int, format string) bool {
+	var consoleFormat log.Format
+	if format == "term" {
+		consoleFormat = log.TerminalFormat(false)
+	} else if format == "json" {
+		consoleFormat = log.JSONFormat()
+	} else {
+		panic("Unexpected format: " + format)
+	}
+	currentHandler := log.Root().GetHandler()
+	fileHandler, err := log.FileHandler(filename, consoleFormat)
+	levelFilterFileHandler := log.LvlFilterHandler(log.Lvl(level), fileHandler)
+	if err != nil {
+		log.Error("SendLogsToFile/Failed to open file " + filename + " for logging")
+		return false
+	} else {
+		if currentHandler == nil {
+			log.Root().SetHandler(levelFilterFileHandler)
+		} else {
+			multiHandler := log.MultiHandler(currentHandler, levelFilterFileHandler)
+			log.Root().SetHandler(multiHandler)
+		}
+		return true
+	}
 }

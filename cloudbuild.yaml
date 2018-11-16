@@ -1,0 +1,10 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth:$COMMIT_SHA', '.' ]
+  waitFor: ["-"]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA', '-f', 'Dockerfile.alltools', '.' ]
+  waitFor: ["-"]
+images:
+- 'gcr.io/$PROJECT_ID/geth:$COMMIT_SHA'
+- 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA'
