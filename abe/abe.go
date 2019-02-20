@@ -54,7 +54,7 @@ func createVerificationMessage(request types.VerificationRequest, verificationRe
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Celo verification code: %s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
+	return fmt.Sprintf("%s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
 }
 
 func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
