@@ -122,12 +122,7 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	// TODO: If gold reserve is undercollaterized, figure out percentage of transfer amount that should
-	// be added to the reserve
-	// reserveBalance := db.GetBalance(params.ReserveAddress)
-	// if reserveBalance < 1000000
-	// percentage := new(big.Int).Mul(big.NewInt(1), amount)
-	tobinTax := new(big.Int).Div(new(big.Int).Mul(big.NewInt(10), amount), big.NewInt(100))
+	tobinTax := big.NewInt(0)
 
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, new(big.Int).Sub(amount, tobinTax))
