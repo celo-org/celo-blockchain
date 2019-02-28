@@ -75,7 +75,7 @@ type BlockChain interface {
 	GetTd(hash common.Hash, number uint64) *big.Int
 	State() (*state.StateDB, error)
 	InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error)
-	Rollback(chain []common.Hash)
+	Rollback(chain []common.Hash, fullHeaderChainAvailable bool)
 	GetHeaderByNumber(number uint64) *types.Header
 	GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64)
 	Genesis() *types.Block

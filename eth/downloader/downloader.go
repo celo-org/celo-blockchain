@@ -171,7 +171,7 @@ type LightChain interface {
 	InsertHeaderChain([]*types.Header, int) (int, error)
 
 	// Rollback removes a few recently added elements from the local chain.
-	Rollback([]common.Hash)
+	Rollback([]common.Hash, bool)
 }
 
 // BlockChain encapsulates functions required to sync a (full or fast) blockchain.
@@ -1226,7 +1226,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
 				lastBlock = d.blockchain.CurrentBlock().Number()
 			}
-			d.lightchain.Rollback(hashes)
+			d.lightchain.Rollback(hashes, d.Mode != CeloLatestSync)
 			curFastBlock, curBlock := common.Big0, common.Big0
 			if d.Mode != LightSync && d.Mode != CeloLatestSync {
 				curFastBlock = d.blockchain.CurrentFastBlock().Number()
