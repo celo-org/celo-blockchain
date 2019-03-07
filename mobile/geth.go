@@ -172,9 +172,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf := eth.DefaultConfig
 		ethConf.Genesis = genesis
 
-		// Once https://github.com/celo-org/geth/pull/62 is landed,
-		// change the ethConf.SyncMode to downloader.CeloLatestSync.
-		// It might be better to make this configurable.
 		ethConf.SyncMode = getSyncMode(config.SyncMode)
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache

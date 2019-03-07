@@ -371,7 +371,7 @@ func (dl *downloadTester) InsertReceiptChain(blocks types.Blocks, receipts []typ
 }
 
 // Rollback removes some recently added elements from the chain.
-func (dl *downloadTester) Rollback(hashes []common.Hash) {
+func (dl *downloadTester) Rollback(hashes []common.Hash, fullHeaderChainAvailable bool) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
