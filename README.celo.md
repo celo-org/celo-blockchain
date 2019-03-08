@@ -14,7 +14,7 @@ then `cp build/bin/geth.aar <celo-monorepo>/node_modules/@celo/geth/build/bin/ge
 
 ### How to test geth
 
-1. `make -j test` - this runs, primarily, the unittests which came  from go-ethereum open-source package
+1. `make -j test` - this runs, primarily, the unittests which came  from go-ethereum open-source package. To run an individual test, say tests for `eth/downloader.go`, run `build/env.sh go run build/ci.go test ./eth/downloader`
 2. `packages/protocol $ ./ci_test.sh` - this contains a few basic Celo-specific tests like transferring Celo $ and Celo Gold. Customize the [Geth dir](https://github.com/celo-org/celo-monorepo/blob/master/packages/celotool/geth_tests/constants.sh#L13) to run these tests against your local Geth node.
 
 
