@@ -9,6 +9,8 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 [![Travis](https://travis-ci.org/ethereum/go-ethereum.svg?branch=master)](https://travis-ci.org/ethereum/go-ethereum)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/nthXNEv)
 
+Celo specific README: [README.celo.md](README.celo.md)
+
 Celo geth fork: [![CircleCI](https://circleci.com/gh/celo-org/geth.svg?style=svg&circle-token=c0d6224076b9b9f7a6cf270c156d2e1d9f6e1263)](https://circleci.com/gh/celo-org/geth)
 
 Automated builds are available for stable releases and the unstable master branch.
