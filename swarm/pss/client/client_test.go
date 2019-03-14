@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/pss"
 	"github.com/ethereum/go-ethereum/swarm/state"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv5"
+	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 )
 
 type protoCtrl struct {
@@ -238,7 +238,7 @@ func newServices() adapters.Services {
 			return k
 		}
 		params := network.NewKadParams()
-		params.MinProxBinSize = 2
+		params.NeighbourhoodSize = 2
 		params.MaxBinSize = 3
 		params.MinBinSize = 1
 		params.MaxRetries = 1000
@@ -252,7 +252,13 @@ func newServices() adapters.Services {
 			ctxlocal, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			keys, err := wapi.NewKeyPair(ctxlocal)
+			if err != nil {
+				return nil, err
+			}
 			privkey, err := w.GetPrivateKey(keys)
+			if err != nil {
+				return nil, err
+			}
 			psparams := pss.NewPssParams().WithPrivateKey(privkey)
 			pskad := kademlia(ctx.Config.ID)
 			ps, err := pss.NewPss(pskad, psparams)
@@ -286,10 +292,6 @@ type testStore struct {
 	sync.Mutex
 
 	values map[string][]byte
-}
-
-func newTestStore() *testStore {
-	return &testStore{values: make(map[string][]byte)}
 }
 
 func (t *testStore) Load(key string) ([]byte, error) {

@@ -18,7 +18,6 @@ package stream
 
 import (
 	"context"
-	"math"
 	"strconv"
 	"time"
 
@@ -36,38 +35,27 @@ const (
 // * live request delivery with or without checkback
 // * (live/non-live historical) chunk syncing per proximity bin
 type SwarmSyncerServer struct {
-	po        uint8
-	store     storage.SyncChunkStore
-	sessionAt uint64
-	start     uint64
-	live      bool
-	quit      chan struct{}
+	po    uint8
+	store storage.SyncChunkStore
+	quit  chan struct{}
 }
 
-// NewSwarmSyncerServer is contructor for SwarmSyncerServer
-func NewSwarmSyncerServer(live bool, po uint8, syncChunkStore storage.SyncChunkStore) (*SwarmSyncerServer, error) {
-	sessionAt := syncChunkStore.BinIndex(po)
-	var start uint64
-	if live {
-		start = sessionAt
-	}
+// NewSwarmSyncerServer is constructor for SwarmSyncerServer
+func NewSwarmSyncerServer(po uint8, syncChunkStore storage.SyncChunkStore) (*SwarmSyncerServer, error) {
 	return &SwarmSyncerServer{
-		po:        po,
-		store:     syncChunkStore,
-		sessionAt: sessionAt,
-		start:     start,
-		live:      live,
-		quit:      make(chan struct{}),
+		po:    po,
+		store: syncChunkStore,
+		quit:  make(chan struct{}),
 	}, nil
 }
 
 func RegisterSwarmSyncerServer(streamer *Registry, syncChunkStore storage.SyncChunkStore) {
-	streamer.RegisterServerFunc("SYNC", func(p *Peer, t string, live bool) (Server, error) {
+	streamer.RegisterServerFunc("SYNC", func(_ *Peer, t string, _ bool) (Server, error) {
 		po, err := ParseSyncBinKey(t)
 		if err != nil {
 			return nil, err
 		}
-		return NewSwarmSyncerServer(live, po, syncChunkStore)
+		return NewSwarmSyncerServer(po, syncChunkStore)
 	})
 	// streamer.RegisterServerFunc(stream, func(p *Peer) (Server, error) {
 	// 	return NewOutgoingProvableSwarmSyncer(po, db)
@@ -88,25 +76,15 @@ func (s *SwarmSyncerServer) GetData(ctx context.Context, key []byte) ([]byte, er
 	return chunk.Data(), nil
 }
 
+// SessionIndex returns current storage bin (po) index.
+func (s *SwarmSyncerServer) SessionIndex() (uint64, error) {
+	return s.store.BinIndex(s.po), nil
+}
+
 // GetBatch retrieves the next batch of hashes from the dbstore
 func (s *SwarmSyncerServer) SetNextBatch(from, to uint64) ([]byte, uint64, uint64, *HandoverProof, error) {
 	var batch []byte
 	i := 0
-	if s.live {
-		if from == 0 {
-			from = s.start
-		}
-		if to <= from || from >= s.sessionAt {
-			to = math.MaxUint64
-		}
-	} else {
-		if (to < from && to != 0) || from > s.sessionAt {
-			return nil, 0, 0, nil, nil
-		}
-		if to == 0 || to > s.sessionAt {
-			to = s.sessionAt
-		}
-	}
 
 	var ticker *time.Ticker
 	defer func() {
@@ -149,19 +127,9 @@ func (s *SwarmSyncerServer) SetNextBatch(from, to uint64) ([]byte, uint64, uint6
 
 // SwarmSyncerClient
 type SwarmSyncerClient struct {
-	sessionAt     uint64
-	nextC         chan struct{}
-	sessionRoot   storage.Address
-	sessionReader storage.LazySectionReader
-	retrieveC     chan *storage.Chunk
-	storeC        chan *storage.Chunk
-	store         storage.SyncChunkStore
-	// chunker               storage.Chunker
-	currentRoot storage.Address
-	requestFunc func(chunk *storage.Chunk)
-	end, start  uint64
-	peer        *Peer
-	stream      Stream
+	store  storage.SyncChunkStore
+	peer   *Peer
+	stream Stream
 }
 
 // NewSwarmSyncerClient is a contructor for provable data exchange syncer
@@ -229,46 +197,6 @@ func (s *SwarmSyncerClient) BatchDone(stream Stream, from uint64, hashes []byte,
 	// 	return func() (*TakeoverProof, error) { return s.TakeoverProof(stream, from, hashes, root) }
 	// }
 	return nil
-}
-
-func (s *SwarmSyncerClient) TakeoverProof(stream Stream, from uint64, hashes []byte, root storage.Address) (*TakeoverProof, error) {
-	// for provable syncer currentRoot is non-zero length
-	// TODO: reenable this with putter/getter
-	// if s.chunker != nil {
-	// 	if from > s.sessionAt { // for live syncing currentRoot is always updated
-	// 		//expRoot, err := s.chunker.Append(s.currentRoot, bytes.NewReader(hashes), s.retrieveC, s.storeC)
-	// 		expRoot, _, err := s.chunker.Append(s.currentRoot, bytes.NewReader(hashes), s.retrieveC)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		if !bytes.Equal(root, expRoot) {
-	// 			return nil, fmt.Errorf("HandoverProof mismatch")
-	// 		}
-	// 		s.currentRoot = root
-	// 	} else {
-	// 		expHashes := make([]byte, len(hashes))
-	// 		_, err := s.sessionReader.ReadAt(expHashes, int64(s.end*HashSize))
-	// 		if err != nil && err != io.EOF {
-	// 			return nil, err
-	// 		}
-	// 		if !bytes.Equal(expHashes, hashes) {
-	// 			return nil, errors.New("invalid proof")
-	// 		}
-	// 	}
-	// 	return nil, nil
-	// }
-	s.end += uint64(len(hashes)) / HashSize
-	takeover := &Takeover{
-		Stream: stream,
-		Start:  s.start,
-		End:    s.end,
-		Root:   root,
-	}
-	// serialise and sign
-	return &TakeoverProof{
-		Takeover: takeover,
-		Sig:      nil,
-	}, nil
 }
 
 func (s *SwarmSyncerClient) Close() {}

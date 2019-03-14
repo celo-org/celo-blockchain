@@ -76,7 +76,16 @@ type RequestSubscriptionMsg struct {
 
 func (p *Peer) handleRequestSubscription(ctx context.Context, req *RequestSubscriptionMsg) (err error) {
 	log.Debug(fmt.Sprintf("handleRequestSubscription: streamer %s to subscribe to %s with stream %s", p.streamer.addr, p.ID(), req.Stream))
-	return p.streamer.Subscribe(p.ID(), req.Stream, req.History, req.Priority)
+	if err = p.streamer.Subscribe(p.ID(), req.Stream, req.History, req.Priority); err != nil {
+		// The error will be sent as a subscribe error message
+		// and will not be returned as it will prevent any new message
+		// exchange between peers over p2p. Instead, error will be returned
+		// only if there is one from sending subscribe error message.
+		err = p.Send(ctx, SubscribeErrorMsg{
+			Error: err.Error(),
+		})
+	}
+	return err
 }
 
 func (p *Peer) handleSubscribeMsg(ctx context.Context, req *SubscribeMsg) (err error) {
@@ -149,6 +158,7 @@ type SubscribeErrorMsg struct {
 }
 
 func (p *Peer) handleSubscribeErrorMsg(req *SubscribeErrorMsg) (err error) {
+	//TODO the error should be channeled to whoever calls the subscribe
 	return fmt.Errorf("subscribe to peer %s: %v", p.ID(), req.Error)
 }
 
@@ -290,7 +300,7 @@ func (p *Peer) handleOfferedHashesMsg(ctx context.Context, req *OfferedHashesMsg
 			return
 		}
 		log.Trace("sending want batch", "peer", p.ID(), "stream", msg.Stream, "from", msg.From, "to", msg.To)
-		err := p.SendPriority(ctx, msg, c.priority)
+		err := p.SendPriority(ctx, msg, c.priority, "")
 		if err != nil {
 			log.Warn("SendPriority error", "err", err)
 		}
@@ -326,7 +336,7 @@ func (p *Peer) handleWantedHashesMsg(ctx context.Context, req *WantedHashesMsg) 
 	// launch in go routine since GetBatch blocks until new hashes arrive
 	go func() {
 		if err := p.SendOfferedHashes(s, req.From, req.To); err != nil {
-			log.Warn("SendOfferedHashes error", "err", err)
+			log.Warn("SendOfferedHashes error", "peer", p.ID().TerminalString(), "err", err)
 		}
 	}()
 	// go p.SendOfferedHashes(s, req.From, req.To)
@@ -347,7 +357,8 @@ func (p *Peer) handleWantedHashesMsg(ctx context.Context, req *WantedHashesMsg) 
 				return fmt.Errorf("handleWantedHashesMsg get data %x: %v", hash, err)
 			}
 			chunk := storage.NewChunk(hash, data)
-			if err := p.Deliver(ctx, chunk, s.priority); err != nil {
+			syncing := true
+			if err := p.Deliver(ctx, chunk, s.priority, syncing); err != nil {
 				return err
 			}
 		}

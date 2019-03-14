@@ -27,11 +27,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarm/storage/feed"
 )
 
 const (
@@ -557,7 +556,6 @@ func (mt *manifestTrie) findPrefixOf(path string, quitC chan bool) (entry *manif
 			if path != entry.Path {
 				return nil, 0
 			}
-			pos = epl
 		}
 	}
 	return nil, 0
