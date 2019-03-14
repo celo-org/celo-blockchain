@@ -177,10 +177,6 @@ func (sb *backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if err != nil {
 		return err
 	}
-	validators := make([]byte, len(snap.validators())*common.AddressLength)
-	for i, validator := range snap.validators() {
-		copy(validators[i*common.AddressLength:], validator[:])
-	}
 	if err := sb.verifySigner(chain, header, parents); err != nil {
 		return err
 	}
@@ -671,7 +667,6 @@ func prepareExtra(header *types.Header, vals []common.Address) ([]byte, error) {
 }
 
 // writeSeal writes the extra-data field of the given header with the given seals.
-// suggest to rename to writeSeal.
 func writeSeal(h *types.Header, seal []byte) error {
 	if len(seal)%types.IstanbulExtraSeal != 0 {
 		return errInvalidSignature
