@@ -76,6 +76,9 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
+
+	// ErrUnregisteredGasCurrency is returned if the txn gas currency is not registered
+	ErrUnregisteredGasCurrency = errors.New("unregistered gas currency")
 )
 
 var (
@@ -586,6 +589,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err != nil {
 		return ErrInvalidSender
 	}
+
+	if tx.GasCurrency() != 0 && (pool.pc == nil || !pool.pc.HasCurrency(tx.GasCurrency())) {
+		return ErrUnregisteredGasCurrency
+	}
+
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
 	if !local && pool.pc.Cmp(pool.gasPrice, 0, tx.GasPrice(), tx.GasCurrency()) > 0 {
@@ -1212,9 +1220,9 @@ func (as *accountSet) flatten() []common.Address {
 // peeking into the pool in TxPool.Get without having to acquire the widely scoped
 // TxPool.mu mutex.
 type txLookup struct {
-	all       map[common.Hash]*types.Transaction
-	currCount map[uint64]uint64
-	lock      sync.RWMutex
+	all         map[common.Hash]*types.Transaction
+	txCurrCount map[uint64]uint64
+	lock        sync.RWMutex
 }
 
 // newTxLookup returns a new txLookup structure.
@@ -1257,7 +1265,7 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.currCount[tx.GasCurrency()]++
+	t.txCurrCount[tx.GasCurrency()]++
 	t.all[tx.Hash()] = tx
 }
 
@@ -1266,6 +1274,6 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.currCount[t.all[hash].GasCurrency()]--
+	t.txCurrCount[t.all[hash].GasCurrency()]--
 	delete(t.all, hash)
 }
