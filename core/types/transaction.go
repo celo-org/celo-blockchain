@@ -313,8 +313,8 @@ func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // TxByPrice implements both the sort and the heap interface, making it useful
 // for all at once sorting as well as individually adding and removing elements.
 type TxByPrice struct {
-     txs         Transactions
-     txCmpFunc   func(tx1, tx2 *Transaction) int
+	txs       Transactions
+	txCmpFunc func(tx1, tx2 *Transaction) int
 }
 
 func (s TxByPrice) Len() int           { return len(s.txs) }
@@ -334,11 +334,11 @@ func (s *TxByPrice) Pop() interface{} {
 }
 
 func (s *TxByPrice) Peek() *Transaction {
-        return s.txs[0]
+	return s.txs[0]
 }
 
 func (s *TxByPrice) Add(tx *Transaction) {
-        s.txs[0] = tx
+	s.txs[0] = tx
 }
 
 // TransactionsByPriceAndNonce represents a set of transactions that can return
@@ -358,9 +358,9 @@ type TransactionsByPriceAndNonce struct {
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, txCmpFunc func(tx1, tx2 *Transaction) int) *TransactionsByPriceAndNonce {
 	// Initialize a price based heap with the head transactions
 	heads := TxByPrice{
-			txs: make(Transactions,	0, len(txs)),
-			txCmpFunc: txCmpFunc,
-		 }
+		txs:       make(Transactions, 0, len(txs)),
+		txCmpFunc: txCmpFunc,
+	}
 	for from, accTxs := range txs {
 		heads.Push(accTxs[0])
 		// Ensure the sender address is from the signer
