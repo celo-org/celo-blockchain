@@ -173,10 +173,6 @@ func (sb *backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		return errInvalidTimestamp
 	}
 	// Verify validators in extraData. Validators in snapshot and extraData should be the same.
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
-	}
 	if err := sb.verifySigner(chain, header, parents); err != nil {
 		return err
 	}
