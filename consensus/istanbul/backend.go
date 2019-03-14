@@ -68,6 +68,6 @@ type Backend interface {
 	// ParentValidators returns the validator set of the given proposal's parent block
 	ParentValidators(proposal Proposal) ValidatorSet
 
-	// HasBadBlock returns whether the block with the hash is a bad block
+	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
 }

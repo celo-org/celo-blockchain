@@ -348,6 +348,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
+	// Send messages to the consensus engine first. If they are consensus related,
+	// e.g. for IBFT, let the consensus handler handle the message.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
 		pubKey := p.Node().Pubkey()
 		if err != nil {

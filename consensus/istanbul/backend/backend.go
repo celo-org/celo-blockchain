@@ -126,7 +126,7 @@ func (sb *backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 	return nil
 }
 
-// Broadcast implements istanbul.Backend.Gossip
+// Gossip implements istanbul.Backend.Gossip
 func (sb *backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 	hash := istanbul.RLPHash(payload)
 	sb.knownMessages.Add(hash, true)
@@ -261,7 +261,7 @@ func (sb *backend) CheckSignature(data []byte, address common.Address, sig []byt
 	return nil
 }
 
-// HasProposal implements istanbul.Backend.HashBlock
+// HasProposal implements istanbul.Backend.HasProposal
 func (sb *backend) HasProposal(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
