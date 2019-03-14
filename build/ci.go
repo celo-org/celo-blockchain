@@ -315,26 +315,12 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
-func Filter(vs []string, pred func(string) bool) []string {
-	filtered := make([]string, 0)
-	for _, v := range vs {
-		if pred(v) {
-			filtered = append(filtered, v)
-		}
-	}
-	return filtered
-}
-
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
 
 func doTest(cmdline []string) {
-	var (
-		coverage = flag.Bool("coverage", false, "Whether to record code coverage")
-		// TODO(celo): Use testing.Skip instead.
-		skip = flag.String("skip", "", "Comma separated list of packages to skip")
-	)
+	coverage := flag.Bool("coverage", false, "Whether to record code coverage")
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 
@@ -344,22 +330,11 @@ func doTest(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
-	skipPackage := make(map[string]bool)
-	for _, skippedPackage := range strings.Split(*skip, ",") {
-		skipPackage[skippedPackage] = true
-	}
-	packages = Filter(packages, func(p string) bool {
-		return !skipPackage[p]
-	})
-
-	// Run analysis tools before the tests.
-	build.MustRun(goTool("vet", packages...))
-
 	// Run the actual tests.
 	// Test a single package at a time. CI builders are slow
 	// and some tests run into timeouts under load.
 	gotest := goTool("test", buildFlags(env)...)
-	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m", "-v")
+	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
 	}
