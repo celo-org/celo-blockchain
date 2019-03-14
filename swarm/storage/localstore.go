@@ -92,7 +92,7 @@ func (ls *LocalStore) isValid(chunk Chunk) bool {
 	// ls.Validators contains a list of one validator per chunk type.
 	// if one validator succeeds, then the chunk is valid
 	for _, v := range ls.Validators {
-		if valid = v.Validate(chunk.Address(), chunk.Data()); valid {
+		if valid = v.Validate(chunk); valid {
 			break
 		}
 	}
@@ -132,6 +132,13 @@ func (ls *LocalStore) Put(ctx context.Context, chunk Chunk) error {
 	return err
 }
 
+// Has queries the underlying DbStore if a chunk with the given address
+// is being stored there.
+// Returns true if it is stored, false if not
+func (ls *LocalStore) Has(ctx context.Context, addr Address) bool {
+	return ls.DbStore.Has(ctx, addr)
+}
+
 // Get(chunk *Chunk) looks up a chunk in the local stores
 // This method is blocking until the chunk is retrieved
 // so additional timeout may be needed to wrap this call if
@@ -153,6 +160,7 @@ func (ls *LocalStore) get(ctx context.Context, addr Address) (chunk Chunk, err e
 
 	if err == nil {
 		metrics.GetOrRegisterCounter("localstore.get.cachehit", nil).Inc(1)
+		go ls.DbStore.MarkAccessed(addr)
 		return chunk, nil
 	}
 
@@ -193,33 +201,51 @@ func (ls *LocalStore) Close() {
 	ls.DbStore.Close()
 }
 
-// Migrate checks the datastore schema vs the runtime schema, and runs migrations if they don't match
+// Migrate checks the datastore schema vs the runtime schema and runs
+// migrations if they don't match
 func (ls *LocalStore) Migrate() error {
-	schema, err := ls.DbStore.GetSchema()
+	actualDbSchema, err := ls.DbStore.GetSchema()
 	if err != nil {
 		log.Error(err.Error())
 		return err
 	}
 
-	log.Debug("found schema", "schema", schema, "runtime-schema", CurrentDbSchema)
-	if schema != CurrentDbSchema {
-		// run migrations
-
-		if schema == "" {
-			log.Debug("running migrations for", "schema", schema, "runtime-schema", CurrentDbSchema)
-
-			// delete chunks that are not valid, i.e. chunks that do not pass any of the ls.Validators
-			ls.DbStore.Cleanup(func(c *chunk) bool {
-				return !ls.isValid(c)
-			})
-
-			err := ls.DbStore.PutSchema(DbSchemaPurity)
-			if err != nil {
-				log.Error(err.Error())
-				return err
-			}
-		}
+	if actualDbSchema == CurrentDbSchema {
+		return nil
 	}
 
+	log.Debug("running migrations for", "schema", actualDbSchema, "runtime-schema", CurrentDbSchema)
+
+	if actualDbSchema == DbSchemaNone {
+		ls.migrateFromNoneToPurity()
+		actualDbSchema = DbSchemaPurity
+	}
+
+	if err := ls.DbStore.PutSchema(actualDbSchema); err != nil {
+		return err
+	}
+
+	if actualDbSchema == DbSchemaPurity {
+		if err := ls.migrateFromPurityToHalloween(); err != nil {
+			return err
+		}
+		actualDbSchema = DbSchemaHalloween
+	}
+
+	if err := ls.DbStore.PutSchema(actualDbSchema); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (ls *LocalStore) migrateFromNoneToPurity() {
+	// delete chunks that are not valid, i.e. chunks that do not pass
+	// any of the ls.Validators
+	ls.DbStore.Cleanup(func(c *chunk) bool {
+		return !ls.isValid(c)
+	})
+}
+
+func (ls *LocalStore) migrateFromPurityToHalloween() error {
+	return ls.DbStore.CleanGCIndex()
 }

@@ -25,14 +25,13 @@ package dashboard
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"io"
 
 	"github.com/elastic/gosigar"
 	"github.com/ethereum/go-ethereum/log"

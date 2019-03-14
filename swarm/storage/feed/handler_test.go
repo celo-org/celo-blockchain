@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/chunk"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -41,7 +40,6 @@ var (
 	}
 	cleanF       func()
 	subtopicName = "føø.bar"
-	hashfunc     = storage.MakeHashFunc(storage.DefaultHash)
 )
 
 func init() {
@@ -367,7 +365,7 @@ func TestValidator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rh.Validate(chunk.Address(), chunk.Data()) {
+	if !rh.Validate(chunk) {
 		t.Fatal("Chunk validator fail on update chunk")
 	}
 
@@ -376,7 +374,7 @@ func TestValidator(t *testing.T) {
 	address[0] = 11
 	address[15] = 99
 
-	if rh.Validate(address, chunk.Data()) {
+	if rh.Validate(storage.NewChunk(address, chunk.Data())) {
 		t.Fatal("Expected Validate to fail with false chunk address")
 	}
 }
@@ -505,16 +503,4 @@ func newBobSigner() *GenericSigner {
 func newCharlieSigner() *GenericSigner {
 	privKey, _ := crypto.HexToECDSA("facadefacadefacadefacadefacadefacadefacadefacadefacadefacadefaca")
 	return NewGenericSigner(privKey)
-}
-
-func getUpdateDirect(rh *Handler, addr storage.Address) ([]byte, error) {
-	chunk, err := rh.chunkStore.Get(context.TODO(), addr)
-	if err != nil {
-		return nil, err
-	}
-	var r Request
-	if err := r.fromChunk(addr, chunk.Data()); err != nil {
-		return nil, err
-	}
-	return r.data, nil
 }

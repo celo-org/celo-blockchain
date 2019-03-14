@@ -30,9 +30,8 @@ import (
 	"flag"
 	"html/template"
 	"io/ioutil"
-	"strings"
-
 	"log"
+	"strings"
 )
 
 var (

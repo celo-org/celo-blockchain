@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/tests"
-
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -68,7 +67,7 @@ func stateTestCmd(ctx *cli.Context) error {
 	)
 	switch {
 	case ctx.GlobalBool(MachineFlag.Name):
-		tracer = NewJSONLogger(config, os.Stderr)
+		tracer = vm.NewJSONLogger(config, os.Stderr)
 
 	case ctx.GlobalBool(DebugFlag.Name):
 		debugger = vm.NewStructLogger(config)

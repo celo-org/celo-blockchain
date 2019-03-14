@@ -42,7 +42,8 @@ func MustRun(cmd *exec.Cmd) {
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
-			log.Fatal(err)
+			log.Printf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err)
+			log.Fatal(fmt.Sprintf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err))
 		}
 	}
 }
@@ -176,4 +177,35 @@ func ExpandPackagesNoVendor(patterns []string) []string {
 		return packages
 	}
 	return patterns
+}
+
+// UploadSFTP uploads files to a remote host using the sftp command line tool.
+// The destination host may be specified either as [user@]host[: or as a URI in
+// the form sftp://[user@]host[:port].
+func UploadSFTP(identityFile, host, dir string, files []string) error {
+	sftp := exec.Command("sftp")
+	sftp.Stdout = nil
+	sftp.Stderr = os.Stderr
+	if identityFile != "" {
+		sftp.Args = append(sftp.Args, "-i", identityFile)
+	}
+	sftp.Args = append(sftp.Args, host)
+	fmt.Println(">>>", strings.Join(sftp.Args, " "))
+	if *DryRunFlag {
+		return nil
+	}
+
+	stdin, err := sftp.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("can't create stdin pipe for sftp: %v", err)
+	}
+	if err := sftp.Start(); err != nil {
+		return err
+	}
+	in := io.MultiWriter(stdin, os.Stdout)
+	for _, f := range files {
+		fmt.Fprintln(in, "put", f, path.Join(dir, filepath.Base(f)))
+	}
+	stdin.Close()
+	return sftp.Wait()
 }
