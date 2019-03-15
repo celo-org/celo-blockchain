@@ -65,6 +65,12 @@ func TestCLISwarmFsDefaultIPCPath(t *testing.T) {
 // and without any log messages in the log:
 // /Library/Filesystems/osxfuse.fs/Contents/Resources/load_osxfuse.
 // This is the reason for this file not being built on darwin architecture.
+//
+// If `FUSE` is not installed and configured such that `fusermount` exists, this test will fail.
+// Because Celo uses circle-ci as our CI environment rather thant travis (the CI environment
+// that ethereum uses), `FUSE` is not configured in the testing environment.
+// As Celo does not use the Swarm Protocol, we consider it acceptable that this test does not
+// currently work. To enable this test, add fuse support to `.circleci/config.yml`.
 func TestCLISwarmFs(t *testing.T) {
 	_, err := exec.LookPath("fusermount")
 	if err != nil {
