@@ -7,6 +7,5 @@ jobs:
     working_directory: /go/src/github.com/celo-org/geth
     steps:
       - checkout
-      - run: make lint
-      # TODO(celo): Use testing.Skip instead
-      - run: build/env.sh go run build/ci.go test --skip "github.com/ethereum/go-ethereum/cmd/swarm,github.com/ethereum/go-ethereum/swarm/network/simulations/discovery,github.com/ethereum/go-ethereum/swarm/pss/notify,github.com/ethereum/go-ethereum/swarm/network/stream,github.com/ethereum/go-ethereum/cmd/swarm/swarm-snapshot,github.com/ethereum/go-ethereum/p2p/simulations,github.com/ethereum/go-ethereum/swarm/network/simulation"
+      - run: build/env.sh go run build/ci.go lint
+      - run: build/env.sh go run build/ci.go test

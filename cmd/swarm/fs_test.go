@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,6 +66,10 @@ func TestCLISwarmFsDefaultIPCPath(t *testing.T) {
 // /Library/Filesystems/osxfuse.fs/Contents/Resources/load_osxfuse.
 // This is the reason for this file not being built on darwin architecture.
 func TestCLISwarmFs(t *testing.T) {
+	_, err := exec.LookPath("fusermount")
+	if err != nil {
+		t.Skip("Could not find 'fusermount' in path which will cause this test to fail.")
+	}
 	cluster := newTestCluster(t, 3)
 	defer cluster.Shutdown()
 
