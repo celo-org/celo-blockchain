@@ -49,9 +49,10 @@ type TransactOpts struct {
 	Nonce  *big.Int       // Nonce to use for the transaction execution (nil = use pending state)
 	Signer SignerFn       // Method to use for signing the transaction (mandatory)
 
-	Value    *big.Int // Funds to transfer along along the transaction (nil = 0 = no funds)
-	GasPrice *big.Int // Gas price to use for the transaction execution (nil = gas price oracle)
-	GasLimit uint64   // Gas limit to set for the transaction execution (0 = estimate)
+	Value       *big.Int // Funds to transfer along along the transaction (nil = 0 = no funds)
+	GasPrice    *big.Int // Gas price to use for the transaction execution (nil = gas price oracle)
+	GasCurrency *common.Address   // Gas currency to be used for transaction (nil = default currency = Celo Gold)
+	GasLimit    uint64   // Gas limit to set for the transaction execution (0 = estimate)
 
 	Context context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 }
@@ -207,6 +208,14 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 			return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 		}
 	}
+	gasCurrency := opts.GasCurrency
+	// TODO(ashishb): Add SuggestGasCurrency to Transactor to get gas currency
+	// Otherwise, the user might not be able to pay in non-native currency for contract
+	// deployment. Paying for Contract deployment in non-native currency might not work right now.
+	// Only paying for token transfer in non-native currency is supported.
+	//if gasCurrency == 0 {
+	//	gasCurrency = c.transactor.SuggestGasCurrency(opts.Context)
+	//}
 	gasLimit := opts.GasLimit
 	if gasLimit == 0 {
 		// Gas estimation cannot succeed without code for method invocations
@@ -227,9 +236,9 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	// Create the transaction, sign it and schedule it for execution
 	var rawTx *types.Transaction
 	if contract == nil {
-		rawTx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, input)
+		rawTx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, gasCurrency, input)
 	} else {
-		rawTx = types.NewTransaction(nonce, c.address, value, gasLimit, gasPrice, input)
+		rawTx = types.NewTransaction(nonce, c.address, value, gasLimit, gasPrice, gasCurrency, input)
 	}
 	if opts.Signer == nil {
 		return nil, errors.New("no signer to authorize the transaction with")
