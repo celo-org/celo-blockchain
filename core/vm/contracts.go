@@ -79,6 +79,7 @@ func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contr
 	if contract.UseGas(gas) {
 		return p.Run(input, contract.CallerAddress, evm)
 	}
+	log.Debug("RunPrecompiledContract out of gas")
 	return nil, ErrOutOfGas
 }
 

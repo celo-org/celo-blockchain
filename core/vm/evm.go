@@ -134,18 +134,22 @@ type EVM struct {
 	// Maintains a queue of Celo Address Based Encryption verification requests
 	// TODO(asa): Save this in StateDB
 	VerificationRequests []types.VerificationRequest
+	// A map from Currency's Contract (or Contract Proxy) address which are acceptable this miner for mining
+	// A miner will not mine transactions with unknown currency addresses. It should still verify them.
+	CurrencyAddresses *[]common.Address
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
 	evm := &EVM{
-		Context:      ctx,
-		StateDB:      statedb,
-		vmConfig:     vmConfig,
-		chainConfig:  chainConfig,
-		chainRules:   chainConfig.Rules(ctx.BlockNumber),
-		interpreters: make([]Interpreter, 0, 1),
+		Context:           ctx,
+		StateDB:           statedb,
+		vmConfig:          vmConfig,
+		CurrencyAddresses: vmConfig.CurrencyAddresses,
+		chainConfig:       chainConfig,
+		chainRules:        chainConfig.Rules(ctx.BlockNumber),
+		interpreters:      make([]Interpreter, 0, 1),
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
