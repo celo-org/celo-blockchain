@@ -33,7 +33,7 @@ var (
 	// clumsy to always pass this map. Therefore, we preserve this map the first time we get it.
 	// It is possible that non-native currency transactions might get rejected in a case where this map has
 	// not been received. I have not seen that in practice and I don't see that as fatal either.
-	currencyAddresses *map[common.Address]bool = nil
+	gasCurrencyAddresses *map[common.Address]bool = nil
 )
 
 /*
@@ -74,7 +74,7 @@ type Message interface {
 	GasPrice() *big.Int
 	Gas() uint64
 	// nil correspond to Celo Gold (native currency).
-	// All other values can be correspond to contract Addresses eg. StableTokenProxy contract Address.
+	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	GasCurrency() *common.Address
 	Value() *big.Int
 
@@ -171,7 +171,7 @@ func (st *StateTransition) buyGas() error {
 
 	st.initialGas = st.msg.Gas()
 	gasCurrency := st.msg.GasCurrency()
-	err := st.debitErc20Balance(mgval, gasCurrency)
+	err := st.debitGas(mgval, gasCurrency)
 	if err != nil {
 		return err
 	}
@@ -190,26 +190,25 @@ func (ZeroAddress) Address() common.Address {
 func (st *StateTransition) debitOrCreditErc20Balance(
 	functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address, logTag string) (err error) {
 	if amount.Cmp(big.NewInt(0)) == 0 {
-		log.Debug(logTag + " successful: nothing to subtract")
+		log.Trace(logTag + " successful: nothing to debit or credit")
 		return nil
 	}
 
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	// non-native currency
 	evm := st.evm
-	st.maybeInitCurrencyAddresses()
+	st.maybeInitGasCurrencyAddresses()
 	if !isValidGasCurrency(*gasCurrency) {
-		log.Warn(logTag + " invalid gas currency", "gas currency", gasCurrency)
+		log.Debug(logTag + " invalid gas currency", "gas currency", gasCurrency)
 		return errors.New("Gas currency is invalid: " + gasCurrency.String())
 	}
-	customTokenContractAddress := *gasCurrency
-	contractData := getEncodedAbi(functionSelector, addressToAbi(address), amountToAbi(amount))
+	transactionData := getEncodedAbi(functionSelector, addressToAbi(address), amountToAbi(amount))
 
 	rootCaller := ZeroAddress(0)
-	log.Debug(logTag, "rootCaller", rootCaller, "customTokenContractAddress",
-		customTokenContractAddress, "gas", st.gas, "value", 0, "contractData", hexutil.Encode(contractData))
+	log.Trace(logTag, "rootCaller", rootCaller, "customTokenContractAddress",
+		*gasCurrency, "gas", st.gas, "value", 0, "transactionData", hexutil.Encode(transactionData))
 	ret, leftoverGas, err := evm.Call(
-		rootCaller, customTokenContractAddress, contractData, st.gas, big.NewInt(0))
+		rootCaller, *gasCurrency, transactionData, st.gas, big.NewInt(0))
 	if err != nil {
 		log.Debug(logTag + " failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
@@ -222,7 +221,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 }
 
 
-func (st *StateTransition) debitErc20Balance(amount *big.Int, gasCurrency *common.Address) (err error) {// native currency
+func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) { // native currency
 	// native currency
 	if gasCurrency == nil {
 		st.state.SubBalance(st.msg.From(), amount)
@@ -233,11 +232,11 @@ func (st *StateTransition) debitErc20Balance(amount *big.Int, gasCurrency *commo
 		st.msg.From(),
 		amount,
 		gasCurrency,
-		"debitErc20Balance",
+		"debitGas",
 		)
 }
 
-func (st *StateTransition) creditErc20Balance(amount *big.Int, gasCurrency *common.Address) (err error) {
+func (st *StateTransition) creditGas(amount *big.Int, gasCurrency *common.Address) (err error) {
 	// native currency
 	if gasCurrency == nil {
 		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
@@ -249,26 +248,26 @@ func (st *StateTransition) creditErc20Balance(amount *big.Int, gasCurrency *comm
 		st.evm.Coinbase,
 		amount,
 		gasCurrency,
-		"creditErc20Balance")
+		"creditGas")
 }
 
-func (st *StateTransition) maybeInitCurrencyAddresses() {
+func (st *StateTransition) maybeInitGasCurrencyAddresses() {
 	// Lookup the table and get the currency Contract address.
 	// GoldTokenProxy is always hard-coded to 0x000000000000000000000000000000000000ce10 but that's not even required.
 	// It seems StableTokenProxy is mapped to random addresses every time the contracts are compiled and
 	// therefore, its address has to be passed via command-line.
-	if currencyAddresses == nil && st.evm.CurrencyAddresses != nil {
+	if gasCurrencyAddresses == nil && st.evm.GasCurrencyAddresses != nil {
 		tmp := make(map[common.Address]bool, 0)
-		currencyAddresses = &tmp
-		for _, address := range *st.evm.CurrencyAddresses {
-			(*currencyAddresses)[address] = true
+		gasCurrencyAddresses = &tmp
+		for _, address := range *st.evm.GasCurrencyAddresses {
+			(*gasCurrencyAddresses)[address] = true
 		}
-		log.Debug("Currency addresses", "addresses", currencyAddresses)
+		log.Debug("Currency addresses", "addresses", gasCurrencyAddresses)
 	}
 }
 
 func isValidGasCurrency(gasCurrency common.Address) bool {
-	return currencyAddresses != nil && (*currencyAddresses)[gasCurrency]
+	return gasCurrencyAddresses != nil && (*gasCurrencyAddresses)[gasCurrency]
 }
 
 func getDebitFromFunctionSelector() []byte {
@@ -381,7 +380,7 @@ func (st *StateTransition) refundGas() {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	st.creditErc20Balance(remaining, st.msg.GasCurrency())
+	st.creditGas(remaining, st.msg.GasCurrency())
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.

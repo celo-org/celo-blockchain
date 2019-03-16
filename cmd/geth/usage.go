@@ -198,7 +198,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerNoVerfiyFlag,
 			utils.MinerVerificationServiceUrlFlag,
 			utils.MinerVerificationRewardsFlag,
-			utils.MinerCurrencyAddressesFlag,
+			utils.MinerGasCurrencyAddressesFlag,
 		},
 	},
 	{

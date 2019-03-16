@@ -407,8 +407,8 @@ var (
 		// TODO(sklanje): Update this to Celo verification pool address.
 		Value: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 	}
-	MinerCurrencyAddressesFlag = cli.StringFlag{
-		Name:  "miner.currencyaddresses",
+	MinerGasCurrencyAddressesFlag = cli.StringFlag{
+		Name:  "miner.gascurrencyaddresses",
 		Usage: "Contract address of the currency accepted by the miner, 0x1234...,0xf4ee... etc. All addresses should start with 0x and followed by 40 hex character",
 		Value: "",
 	}
@@ -1296,14 +1296,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
 	}
 
-	currencyAddresses := make([]common.Address, 0)
-	if ctx.GlobalIsSet(MinerCurrencyAddressesFlag.Name) {
+	gasCurrencyAddresses := make([]common.Address, 0)
+	if ctx.GlobalIsSet(MinerGasCurrencyAddressesFlag.Name) {
 		// 0x1234,0x123443,...
-		currencies := ctx.GlobalString(MinerCurrencyAddressesFlag.Name)
-		currencyAddressesAsString := strings.Split(currencies, ",")
+		currencies := ctx.GlobalString(MinerGasCurrencyAddressesFlag.Name)
+		gasCurrencyAddressesAsString := strings.Split(currencies, ",")
 		// Validation
-		for i := range currencyAddressesAsString {
-			currencyAddress := currencyAddressesAsString[i]
+		for i := range gasCurrencyAddressesAsString {
+			currencyAddress := gasCurrencyAddressesAsString[i]
 			if !strings.HasPrefix(currencyAddress, "0x") {
 				panic(fmt.Sprintf("Incorrect currency code, it does not start with 0x: \"%s\"", currencyAddress))
 			}
@@ -1315,11 +1315,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			if err != nil {
 				panic(fmt.Sprintf("Incorrect currency code, it is not a valid hex character set \"%s\"", currencyAddress))
 			}
-			currencyAddresses = append(currencyAddresses, common.BytesToAddress(hexValue))
+			gasCurrencyAddresses = append(gasCurrencyAddresses, common.BytesToAddress(hexValue))
 		}
-		log.Debug("Currencies parsed", "currencyAddresses", currencyAddressesAsString)
+		log.Debug("Currencies parsed", "gasCurrencyAddresses", gasCurrencyAddressesAsString)
 	}
-	cfg.CurrencyAddresses = &currencyAddresses
+	cfg.GasCurrencyAddresses = &gasCurrencyAddresses
 
 	// Override any default configs for hard coded networks.
 	switch {

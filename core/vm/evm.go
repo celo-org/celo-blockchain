@@ -136,7 +136,7 @@ type EVM struct {
 	VerificationRequests []types.VerificationRequest
 	// A map from Currency's Contract (or Contract Proxy) address which are acceptable this miner for mining
 	// A miner will not mine transactions with unknown currency addresses. It should still verify them.
-	CurrencyAddresses *[]common.Address
+	GasCurrencyAddresses *[]common.Address
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -146,7 +146,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		Context:           ctx,
 		StateDB:           statedb,
 		vmConfig:          vmConfig,
-		CurrencyAddresses: vmConfig.CurrencyAddresses,
+		GasCurrencyAddresses: vmConfig.GasCurrencyAddresses,
 		chainConfig:       chainConfig,
 		chainRules:        chainConfig.Rules(ctx.BlockNumber),
 		interpreters:      make([]Interpreter, 0, 1),
