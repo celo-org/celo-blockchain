@@ -25,9 +25,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -36,9 +39,10 @@ import (
 
 var (
 	// Test chain configurations
-	testTxPoolConfig  core.TxPoolConfig
-	ethashChainConfig *params.ChainConfig
-	cliqueChainConfig *params.ChainConfig
+	testTxPoolConfig    core.TxPoolConfig
+	ethashChainConfig   *params.ChainConfig
+	cliqueChainConfig   *params.ChainConfig
+	istanbulChainConfig *params.ChainConfig
 
 	// Test accounts
 	testBankKey, _  = crypto.GenerateKey()
@@ -61,6 +65,11 @@ func init() {
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
 		Epoch:  30000,
+	}
+	istanbulChainConfig = params.TestChainConfig
+	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
+		Epoch:          30000,
+		ProposerPolicy: 0,
 	}
 	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
@@ -91,6 +100,12 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		gspec.ExtraData = make([]byte, 32+common.AddressLength+65)
 		copy(gspec.ExtraData[32:], testBankAddress[:])
 	case *ethash.Ethash:
+	case *istanbulBackend.Backend:
+		addrs := []common.Address{testBankAddress}
+		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, addrs)
+
+		gspec.Mixhash = types.IstanbulDigest
+		gspec.Difficulty = big.NewInt(1)
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}
@@ -130,9 +145,11 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 
-func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
+func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
-	backend.txPool.AddLocals(pendingTxs)
+	if shouldAddPendingTxs {
+		backend.txPool.AddLocals(pendingTxs)
+	}
 	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil)
 	w.setEtherbase(testBankAddress)
 	return w, backend
@@ -144,11 +161,14 @@ func TestPendingStateAndBlockEthash(t *testing.T) {
 func TestPendingStateAndBlockClique(t *testing.T) {
 	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
+func TestPendingStateAndBlockIstanbul(t *testing.T) {
+	testPendingStateAndBlock(t, cliqueChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()))
+}
 
 func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0)
+	w, b := newTestWorker(t, chainConfig, engine, 0, true)
 	defer w.close()
 
 	// Ensure snapshot has been updated.
@@ -171,16 +191,23 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker())
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
 }
 func TestEmptyWorkClique(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, true)
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, false)
 }
 
-func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+func TestEmptyWorkIstanbul(t *testing.T) {
+	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), false, true)
+	// testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), true, false)
+}
+
+func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, expectEmptyBlock bool, shouldAddPendingTxs bool) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	w, _ := newTestWorker(t, chainConfig, engine, 0, shouldAddPendingTxs)
 	defer w.close()
 
 	var (
@@ -190,9 +217,15 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 
 	checkEqual := func(t *testing.T, task *task, index int) {
 		receiptLen, balance := 0, big.NewInt(0)
-		if index == 1 {
+
+		if !expectEmptyBlock && len(task.block.Body().Transactions) == 0 {
+			t.Errorf("Should have not received an empty block")
+		}
+
+		if !expectEmptyBlock || (index == 1 && shouldAddPendingTxs) {
 			receiptLen, balance = 1, big.NewInt(1000)
 		}
+
 		if len(task.receipts) != receiptLen {
 			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
 		}
@@ -211,7 +244,6 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
 	}
-
 	// Ensure worker has finished initialization
 	for {
 		b := w.pendingBlock()
@@ -221,12 +253,22 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 
 	w.start()
-	for i := 0; i < 2; i += 1 {
+	expectedTasksLen := 1
+	if shouldAddPendingTxs && expectEmptyBlock {
+		expectedTasksLen = 2
+	}
+	for i := 0; i < expectedTasksLen; i += 1 {
 		select {
 		case <-taskCh:
 		case <-time.NewTimer(time.Second).C:
 			t.Error("new task timeout")
 		}
+	}
+
+	select {
+	case <-taskCh:
+		t.Error("should have not received another task")
+	case <-time.NewTimer(time.Second).C:
 	}
 }
 
@@ -234,7 +276,7 @@ func TestStreamUncleBlock(t *testing.T) {
 	ethash := ethash.NewFaker()
 	defer ethash.Close()
 
-	w, b := newTestWorker(t, ethashChainConfig, ethash, 1)
+	w, b := newTestWorker(t, ethashChainConfig, ethash, 1, true)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -294,10 +336,67 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 
+func TestRegenerateMiningBlockIstanbul(t *testing.T) {
+	chainConfig := istanbulChainConfig
+	engine := istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase())
+
+	defer engine.Close()
+
+	w, b := newTestWorker(t, chainConfig, engine, 0, true)
+	defer w.close()
+
+	var taskCh = make(chan struct{})
+
+	taskIndex := 0
+	w.newTaskHook = func(task *task) {
+		if task.block.NumberU64() == 1 {
+			receiptLen, balance := 1, big.NewInt(1000)
+			if len(task.receipts) != receiptLen {
+				t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
+			}
+			if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
+				t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
+			}
+			taskCh <- struct{}{}
+			taskIndex += 1
+		}
+	}
+	w.skipSealHook = func(task *task) bool {
+		return true
+	}
+	w.fullTaskHook = func() {
+		time.Sleep(100 * time.Millisecond)
+	}
+	// Ensure worker has finished initialization
+	for {
+		b := w.pendingBlock()
+		if b != nil && b.NumberU64() == 1 {
+			break
+		}
+	}
+
+	w.start()
+	// expect one work
+	select {
+	case <-taskCh:
+	case <-time.NewTimer(time.Second).C:
+		t.Error("new task timeout")
+	}
+
+	b.txPool.AddLocals(newTxs)
+	time.Sleep(time.Second)
+
+	select {
+	case <-taskCh:
+		t.Error("Should have not received another task")
+	case <-time.NewTimer(time.Second).C:
+	}
+}
+
 func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0)
+	w, b := newTestWorker(t, chainConfig, engine, 0, true)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -362,7 +461,7 @@ func TestAdjustIntervalClique(t *testing.T) {
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	w, _ := newTestWorker(t, chainConfig, engine, 0, true)
 	defer w.close()
 
 	w.skipSealHook = func(task *task) bool {
