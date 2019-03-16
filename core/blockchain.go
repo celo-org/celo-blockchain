@@ -1555,6 +1555,11 @@ func (bc *BlockChain) BadBlocks() []*types.Block {
 	return blocks
 }
 
+// HasBadBlock returns whether the block with the hash is a bad block
+func (bc *BlockChain) HasBadBlock(hash common.Hash) bool {
+	return bc.badBlocks.Contains(hash)
+}
+
 // addBadBlock adds a bad block to the bad-block LRU cache
 func (bc *BlockChain) addBadBlock(block *types.Block) {
 	bc.badBlocks.Add(block.Hash(), block)

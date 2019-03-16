@@ -124,6 +124,7 @@ var (
 		utils.TestnetFlag,
 		utils.RinkebyFlag,
 		utils.GoerliFlag,
+		utils.OttomanFlag,
 		utils.VMEnableDebugFlag,
 		utils.NetworkIdFlag,
 		utils.ConstantinopleOverrideFlag,
@@ -138,6 +139,8 @@ var (
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,
 		configFileFlag,
+		utils.IstanbulRequestTimeoutFlag,
+		utils.IstanbulBlockPeriodFlag,
 	}
 
 	rpcFlags = []cli.Flag{
