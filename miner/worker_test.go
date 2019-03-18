@@ -336,6 +336,9 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 
+// For Ethhash and Clique, it is safe and even desired to start another seal process in the presence of new transactions
+// that potentially increase the fee revenue for the sealer. In Istanbul, that is not possible and even counter productive
+// as proposing another block after having already done so is clearly byzantine behavior.
 func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	chainConfig := istanbulChainConfig
 	engine := istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase())

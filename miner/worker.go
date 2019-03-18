@@ -221,7 +221,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	go worker.taskLoop()
 
 	// Submit first work to initialize pending state.
-
 	worker.startCh <- struct{}{}
 
 	return worker
