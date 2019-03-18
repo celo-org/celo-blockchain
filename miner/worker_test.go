@@ -201,7 +201,7 @@ func TestEmptyWorkClique(t *testing.T) {
 
 func TestEmptyWorkIstanbul(t *testing.T) {
 	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), false, true)
-	// testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), true, false)
+	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), true, false)
 }
 
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, expectEmptyBlock bool, shouldAddPendingTxs bool) {

@@ -112,7 +112,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
+	go func() { engine.Seal(chain, block, results, nil) }()
 	block = <-results
 	return block
 }
@@ -140,7 +140,7 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestSealStopChannel(t *testing.T) {
-	chain, engine := newBlockChain(4)
+	chain, engine := newBlockChain(1)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	stop := make(chan struct{}, 1)
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
@@ -155,18 +155,19 @@ func TestSealStopChannel(t *testing.T) {
 	}
 	go eventLoop()
 	results := make(chan *types.Block)
-	err := engine.Seal(chain, block, results, stop)
 
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-	select {
-	case finalBlock := <-results:
-		if finalBlock != nil {
-			t.Errorf("block mismatch: have %v, want nil", finalBlock)
+	go func() {
+		err := engine.Seal(chain, block, results, stop)
+
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
 		}
-	case <-time.After(1 * time.Second):
-		t.Errorf("Never sealed")
+	}()
+
+	select {
+	case <-results:
+		t.Errorf("Did not expect a block")
+	case <-time.After(time.Second):
 	}
 }
 
@@ -186,7 +187,8 @@ func TestSealCommittedOtherHash(t *testing.T) {
 	}
 	go eventLoop()
 	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
+
+	go func() { engine.Seal(chain, block, results, nil) }()
 	select {
 	case <-results:
 		t.Error("seal should not be completed")
@@ -200,10 +202,13 @@ func TestSealCommitted(t *testing.T) {
 	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 
 	results := make(chan *types.Block)
-	err := engine.Seal(chain, block, results, nil)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	go func() {
+		err := engine.Seal(chain, block, results, nil)
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
+		}
+	}()
+
 	finalBlock := <-results
 	if finalBlock.Hash() != expectedBlock.Hash() {
 		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
