@@ -9,6 +9,8 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 [![Travis](https://travis-ci.org/ethereum/go-ethereum.svg?branch=master)](https://travis-ci.org/ethereum/go-ethereum)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/nthXNEv)
 
+Celo specific README: [README.celo.md](README.celo.md)
+
 Celo geth fork: [![CircleCI](https://circleci.com/gh/celo-org/geth.svg?style=svg&circle-token=c0d6224076b9b9f7a6cf270c156d2e1d9f6e1263)](https://circleci.com/gh/celo-org/geth)
 
 Automated builds are available for stable releases and the unstable master branch.
@@ -20,7 +22,7 @@ For prerequisites and detailed build instructions please read the
 [Installation Instructions](https://github.com/ethereum/go-ethereum/wiki/Building-Ethereum)
 on the wiki.
 
-Building geth requires both a Go (version 1.7 or later) and a C compiler.
+Building geth requires both a Go (version 1.9 or later) and a C compiler.
 You can install them using your favourite package manager.
 Once the dependencies are installed, run
 
@@ -97,7 +99,7 @@ Specifying the `--testnet` flag however will reconfigure your Geth instance a bi
    `geth attach <datadir>/testnet/geth.ipc`. Windows users are not affected by this.
  * Instead of connecting the main Ethereum network, the client will connect to the test network,
    which uses different P2P bootnodes, different network IDs and genesis states.
-   
+
 *Note: Although there are some internal protective measures to prevent transactions from crossing
 over between the main network and test network, you should make sure to always use separate accounts
 for play-money and real-money. Unless you manually move accounts, Geth will by default correctly
@@ -170,7 +172,7 @@ HTTP based JSON-RPC API options:
   * `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
 
 You'll need to use your own programming environments' capabilities (libraries, tools, etc) to connect
-via HTTP, WS or IPC to a Geth node configured with the above flags and you'll need to speak [JSON-RPC](http://www.jsonrpc.org/specification)
+via HTTP, WS or IPC to a Geth node configured with the above flags and you'll need to speak [JSON-RPC](https://www.jsonrpc.org/specification)
 on all transports. You can reuse the same connection for multiple requests!
 
 **Note: Please understand the security implications of opening up an HTTP/WS based transport before

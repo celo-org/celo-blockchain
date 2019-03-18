@@ -134,18 +134,22 @@ type EVM struct {
 	// Maintains a queue of Celo Address Based Encryption verification requests
 	// TODO(asa): Save this in StateDB
 	VerificationRequests []types.VerificationRequest
+	// A map from Currency's Contract (or Contract Proxy) address which are acceptable this miner for mining
+	// A miner will not mine transactions with unknown currency addresses. It should still verify them.
+	CurrencyAddresses *[]common.Address
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
 	evm := &EVM{
-		Context:      ctx,
-		StateDB:      statedb,
-		vmConfig:     vmConfig,
-		chainConfig:  chainConfig,
-		chainRules:   chainConfig.Rules(ctx.BlockNumber),
-		interpreters: make([]Interpreter, 0, 1),
+		Context:           ctx,
+		StateDB:           statedb,
+		vmConfig:          vmConfig,
+		CurrencyAddresses: vmConfig.CurrencyAddresses,
+		chainConfig:       chainConfig,
+		chainRules:        chainConfig.Rules(ctx.BlockNumber),
+		interpreters:      make([]Interpreter, 0, 1),
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
@@ -347,6 +351,12 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// only.
 	contract := NewContract(caller, to, new(big.Int), gas)
 	contract.SetCallCode(&addr, evm.StateDB.GetCodeHash(addr), evm.StateDB.GetCode(addr))
+
+	// We do an AddBalance of zero here, just in order to trigger a touch.
+	// This doesn't matter on Mainnet, where all empties are gone at the time of Byzantium,
+	// but is the correct thing to do and matters on other networks, in tests, and potential
+	// future scenarios
+	evm.StateDB.AddBalance(addr, bigZero)
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally

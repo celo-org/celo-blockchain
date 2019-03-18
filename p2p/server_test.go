@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
+	"golang.org/x/crypto/sha3"
 )
 
 // func init() {
@@ -48,8 +48,8 @@ func newTestTransport(rpub *ecdsa.PublicKey, fd net.Conn) transport {
 	wrapped.rw = newRLPXFrameRW(fd, secrets{
 		MAC:        zero16,
 		AES:        zero16,
-		IngressMAC: sha3.NewKeccak256(),
-		EgressMAC:  sha3.NewKeccak256(),
+		IngressMAC: sha3.NewLegacyKeccak256(),
+		EgressMAC:  sha3.NewLegacyKeccak256(),
 	})
 	return &testTransport{rpub: rpub, rlpx: wrapped}
 }
@@ -225,12 +225,15 @@ func TestServerTaskScheduling(t *testing.T) {
 
 	// The Server in this test isn't actually running
 	// because we're only interested in what run does.
+	db, _ := enode.OpenDB("")
 	srv := &Server{
-		Config:  Config{MaxPeers: 10},
-		quit:    make(chan struct{}),
-		ntab:    fakeTable{},
-		running: true,
-		log:     log.New(),
+		Config:    Config{MaxPeers: 10},
+		localnode: enode.NewLocalNode(db, newkey()),
+		nodedb:    db,
+		quit:      make(chan struct{}),
+		ntab:      fakeTable{},
+		running:   true,
+		log:       log.New(),
 	}
 	srv.loopWG.Add(1)
 	go func() {
@@ -271,11 +274,14 @@ func TestServerManyTasks(t *testing.T) {
 	}
 
 	var (
-		srv = &Server{
-			quit:    make(chan struct{}),
-			ntab:    fakeTable{},
-			running: true,
-			log:     log.New(),
+		db, _ = enode.OpenDB("")
+		srv   = &Server{
+			quit:      make(chan struct{}),
+			localnode: enode.NewLocalNode(db, newkey()),
+			nodedb:    db,
+			ntab:      fakeTable{},
+			running:   true,
+			log:       log.New(),
 		}
 		done       = make(chan *testTask)
 		start, end = 0, 0

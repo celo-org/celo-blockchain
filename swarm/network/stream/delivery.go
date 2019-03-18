@@ -19,7 +19,6 @@ package stream
 import (
 	"context"
 	"errors"
-
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/metrics"
@@ -39,6 +38,7 @@ const (
 var (
 	processReceivedChunksCount    = metrics.NewRegisteredCounter("network.stream.received_chunks.count", nil)
 	handleRetrieveRequestMsgCount = metrics.NewRegisteredCounter("network.stream.handle_retrieve_request_msg.count", nil)
+	retrieveChunkFail             = metrics.NewRegisteredCounter("network.stream.retrieve_chunks_fail.count", nil)
 
 	requestFromPeersCount     = metrics.NewRegisteredCounter("network.stream.request_from_peers.count", nil)
 	requestFromPeersEachCount = metrics.NewRegisteredCounter("network.stream.request_from_peers_each.count", nil)
@@ -96,6 +96,11 @@ func (s *SwarmChunkServer) processDeliveries() {
 	}
 }
 
+// SessionIndex returns zero in all cases for SwarmChunkServer.
+func (s *SwarmChunkServer) SessionIndex() (uint64, error) {
+	return 0, nil
+}
+
 // SetNextBatch
 func (s *SwarmChunkServer) SetNextBatch(_, _ uint64) (hashes []byte, from uint64, to uint64, proof *HandoverProof, err error) {
 	select {
@@ -139,9 +144,8 @@ func (d *Delivery) handleRetrieveRequestMsg(ctx context.Context, sp *Peer, req *
 	ctx, osp = spancontext.StartSpan(
 		ctx,
 		"retrieve.request")
-	defer osp.Finish()
 
-	s, err := sp.getServer(NewStream(swarmChunkServerStreamName, "", false))
+	s, err := sp.getServer(NewStream(swarmChunkServerStreamName, "", true))
 	if err != nil {
 		return err
 	}
@@ -162,13 +166,16 @@ func (d *Delivery) handleRetrieveRequestMsg(ctx context.Context, sp *Peer, req *
 	}()
 
 	go func() {
+		defer osp.Finish()
 		chunk, err := d.chunkStore.Get(ctx, req.Addr)
 		if err != nil {
-			log.Warn("ChunkStore.Get can not retrieve chunk", "err", err)
+			retrieveChunkFail.Inc(1)
+			log.Debug("ChunkStore.Get can not retrieve chunk", "peer", sp.ID().String(), "addr", req.Addr, "hopcount", req.HopCount, "err", err)
 			return
 		}
 		if req.SkipCheck {
-			err = sp.Deliver(ctx, chunk, s.priority)
+			syncing := false
+			err = sp.Deliver(ctx, chunk, s.priority, syncing)
 			if err != nil {
 				log.Warn("ERROR in handleRetrieveRequestMsg", "err", err)
 			}
@@ -184,11 +191,21 @@ func (d *Delivery) handleRetrieveRequestMsg(ctx context.Context, sp *Peer, req *
 	return nil
 }
 
+//Chunk delivery always uses the same message type....
 type ChunkDeliveryMsg struct {
 	Addr  storage.Address
 	SData []byte // the stored chunk Data (incl size)
 	peer  *Peer  // set in handleChunkDeliveryMsg
 }
+
+//...but swap accounting needs to disambiguate if it is a delivery for syncing or for retrieval
+//as it decides based on message type if it needs to account for this message or not
+
+//defines a chunk delivery for retrieval (with accounting)
+type ChunkDeliveryMsgRetrieval ChunkDeliveryMsg
+
+//defines a chunk delivery for syncing (without accounting)
+type ChunkDeliveryMsgSyncing ChunkDeliveryMsg
 
 // TODO: Fix context SNAFU
 func (d *Delivery) handleChunkDeliveryMsg(ctx context.Context, sp *Peer, req *ChunkDeliveryMsg) error {
@@ -196,11 +213,12 @@ func (d *Delivery) handleChunkDeliveryMsg(ctx context.Context, sp *Peer, req *Ch
 	ctx, osp = spancontext.StartSpan(
 		ctx,
 		"chunk.delivery")
-	defer osp.Finish()
 
 	processReceivedChunksCount.Inc(1)
 
 	go func() {
+		defer osp.Finish()
+
 		req.peer = sp
 		err := d.chunkStore.Put(ctx, storage.NewChunk(req.Addr, req.SData))
 		if err != nil {
@@ -227,16 +245,19 @@ func (d *Delivery) RequestFromPeers(ctx context.Context, req *network.Request) (
 			return nil, nil, fmt.Errorf("source peer %v not found", spID.String())
 		}
 	} else {
-		d.kad.EachConn(req.Addr[:], 255, func(p *network.Peer, po int, nn bool) bool {
+		d.kad.EachConn(req.Addr[:], 255, func(p *network.Peer, po int) bool {
 			id := p.ID()
-			// TODO: skip light nodes that do not accept retrieve requests
+			if p.LightNode {
+				// skip light nodes
+				return true
+			}
 			if req.SkipPeer(id.String()) {
 				log.Trace("Delivery.RequestFromPeers: skip peer", "peer id", id)
 				return true
 			}
 			sp = d.getPeer(id)
+			// sp is nil, when we encounter a peer that is not registered for delivery, i.e. doesn't support the `stream` protocol
 			if sp == nil {
-				log.Warn("Delivery.RequestFromPeers: peer not found", "id", id)
 				return true
 			}
 			spID = &id
@@ -251,7 +272,7 @@ func (d *Delivery) RequestFromPeers(ctx context.Context, req *network.Request) (
 		Addr:      req.Addr,
 		SkipCheck: req.SkipCheck,
 		HopCount:  req.HopCount,
-	}, Top)
+	}, Top, "request.from.peers")
 	if err != nil {
 		return nil, nil, err
 	}

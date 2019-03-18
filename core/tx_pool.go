@@ -140,6 +140,8 @@ type TxPoolConfig struct {
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
+
+	CurrencyAddresses *[]common.Address // The addresses of all the currencies that are accepted by the node
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
@@ -174,6 +176,26 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 	if conf.PriceBump < 1 {
 		log.Warn("Sanitizing invalid txpool price bump", "provided", conf.PriceBump, "updated", DefaultTxPoolConfig.PriceBump)
 		conf.PriceBump = DefaultTxPoolConfig.PriceBump
+	}
+	if conf.AccountSlots < 1 {
+		log.Warn("Sanitizing invalid txpool account slots", "provided", conf.AccountSlots, "updated", DefaultTxPoolConfig.AccountSlots)
+		conf.AccountSlots = DefaultTxPoolConfig.AccountSlots
+	}
+	if conf.GlobalSlots < 1 {
+		log.Warn("Sanitizing invalid txpool global slots", "provided", conf.GlobalSlots, "updated", DefaultTxPoolConfig.GlobalSlots)
+		conf.GlobalSlots = DefaultTxPoolConfig.GlobalSlots
+	}
+	if conf.AccountQueue < 1 {
+		log.Warn("Sanitizing invalid txpool account queue", "provided", conf.AccountQueue, "updated", DefaultTxPoolConfig.AccountQueue)
+		conf.AccountQueue = DefaultTxPoolConfig.AccountQueue
+	}
+	if conf.GlobalQueue < 1 {
+		log.Warn("Sanitizing invalid txpool global queue", "provided", conf.GlobalQueue, "updated", DefaultTxPoolConfig.GlobalQueue)
+		conf.GlobalQueue = DefaultTxPoolConfig.GlobalQueue
+	}
+	if conf.Lifetime < 1 {
+		log.Warn("Sanitizing invalid txpool lifetime", "provided", conf.Lifetime, "updated", DefaultTxPoolConfig.Lifetime)
+		conf.Lifetime = DefaultTxPoolConfig.Lifetime
 	}
 	return conf
 }
@@ -213,7 +235,9 @@ type TxPool struct {
 	wg sync.WaitGroup // for shutdown sync
 
 	homestead bool
-	pc        *PriceComparator
+
+	pc                *PriceComparator
+	currencyAddresses *map[common.Address]bool
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
@@ -242,6 +266,13 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all, pool.pc)
+
+	if config.CurrencyAddresses != nil {
+		for _, address := range *config.CurrencyAddresses {
+			(*pool.currencyAddresses)[address] = true
+		}
+	}
+
 	pool.reset(nil, chain.CurrentBlock().Header())
 
 	// If local transactions and journaling is enabled, load from disk
@@ -582,6 +613,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Ensure the transaction doesn't exceed the current block limit gas.
 	if pool.currentMaxGas < tx.Gas() {
+		log.Debug("max gas limit exceeded", "pool.currentMaxGas", pool.currentMaxGas, "tx.Gas()", tx.Gas())
 		return ErrGasLimit
 	}
 	// Make sure the transaction is signed properly
@@ -590,13 +622,15 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	if tx.GasCurrency() != 0 && (pool.pc == nil || !pool.pc.HasCurrency(tx.GasCurrency())) {
+	if tx.GasCurrency() != nil && // Non native gas in the tx
+		pool.currencyAddresses != nil && // User specified set of currency addresses via cmd line
+		!(*pool.currencyAddresses)[*tx.GasCurrency()] { // The tx currency is not in the user specified list
 		return ErrUnregisteredGasCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.pc.Cmp(pool.gasPrice, 0, tx.GasPrice(), tx.GasCurrency()) > 0 {
+	if !local && pool.pc.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -606,6 +640,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
 	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(),
+			"txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
@@ -613,6 +649,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return err
 	}
 	if tx.Gas() < intrGas {
+		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
 	}
 	return nil
@@ -835,7 +872,7 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 // addTxsLocked attempts to queue a batch of transactions if they are valid,
 // whilst assuming the transaction pool lock is already held.
 func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
-	// Add the batch of transaction, tracking the accepted ones
+	// Add the batch of transactions, tracking the accepted ones
 	dirty := make(map[common.Address]struct{})
 	errs := make([]error, len(txs))
 
@@ -1221,7 +1258,7 @@ func (as *accountSet) flatten() []common.Address {
 // TxPool.mu mutex.
 type txLookup struct {
 	all         map[common.Hash]*types.Transaction
-	txCurrCount map[uint64]uint64
+	txCurrCount map[common.Address]uint64
 	lock        sync.RWMutex
 }
 
@@ -1265,7 +1302,7 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[tx.GasCurrency()]++
+	t.txCurrCount[*(tx.NonNilGasCurrency())]++
 	t.all[tx.Hash()] = tx
 }
 
@@ -1274,6 +1311,6 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[t.all[hash].GasCurrency()]--
+	t.txCurrCount[*(t.all[hash].NonNilGasCurrency())]--
 	delete(t.all, hash)
 }

@@ -397,29 +397,34 @@ func (h *priceHeap) Pop() interface{} {
 // txPricedList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way.
 type txPricedList struct {
-	all    *txLookup             // Pointer to the map of all transactions
-	items  map[uint64]*priceHeap // Heap of prices of all the stored transactions per currency
-	stales int                   // Number of stale price points to (re-heap trigger)
-	pc     *PriceComparator      // Comparator object used to compare prices that are using different currencies
+	all    *txLookup                     // Pointer to the map of all transactions
+	heaps  map[common.Address]*priceHeap // Heap of prices of all the stored transactions
+	stales int                           // Number of stale price points to (re-heap trigger)
+	pc     *PriceComparator              // Comparator object used to compare prices that are using different currencies
 }
 
 // newTxPricedList creates a new price-sorted transaction heap.
 func newTxPricedList(all *txLookup, pc *PriceComparator) *txPricedList {
 	return &txPricedList{
 		all:   all,
-		items: make(map[uint64]*priceHeap),
+		heaps: make(map[common.Address]*priceHeap),
 		pc:    pc,
 	}
 }
 
+// Get's the price heap for the given currency
+func (l *txPricedList) getPriceHeap(tx *types.Transaction) *priceHeap {
+	gasCurrency := *(tx.NonNilGasCurrency())
+	if _, ok := l.heaps[gasCurrency]; !ok {
+		l.heaps[gasCurrency] = new(priceHeap)
+	}
+	return l.heaps[gasCurrency]
+}
+
 // Put inserts a new transaction into the heap.
 func (l *txPricedList) Put(tx *types.Transaction) {
-	if pHeap, ok := l.items[tx.GasCurrency()]; !ok {
-		l.items[tx.GasCurrency()] = new(priceHeap)
-		heap.Push(l.items[tx.GasCurrency()], tx)
-	} else {
-		heap.Push(pHeap, tx)
-	}
+	pHeap := l.getPriceHeap(tx)
+	heap.Push(pHeap, tx)
 }
 
 // Removed notifies the prices transaction list that an old transaction dropped
@@ -432,20 +437,21 @@ func (l *txPricedList) Removed() {
 		return
 	}
 	// Seems we've reached a critical number of stale transactions, reheap
-	reheapMap := make(map[uint64]*priceHeap)
-	for gasCurrency, count := range l.all.currCount {
+	reheapMap := make(map[common.Address]*priceHeap)
+	for gasCurrency, count := range l.all.txCurrCount {
 		reheap := make(priceHeap, 0, count)
 		reheapMap[gasCurrency] = &reheap
 	}
 
-	l.stales, l.items = 0, reheapMap
+	l.stales, l.heaps = 0, reheapMap
 	l.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
-		*l.items[tx.GasCurrency()] = append(*l.items[tx.GasCurrency()], tx)
+		pHeap := l.getPriceHeap(tx)
+		*pHeap = append(*pHeap, tx)
 		return true
 	})
 
-	for _, items := range l.items {
-		heap.Init(items)
+	for _, h := range l.heaps {
+		heap.Init(h)
 	}
 }
 
@@ -463,7 +469,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 			continue
 		}
 
-		if l.pc.Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, 0) >= 0 {
+		if l.pc.Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, nil) >= 0 {
 			save = append(save, tx)
 			break
 		}
@@ -490,7 +496,7 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	}
 	// Discard stale price points if found at the heap start
 	for l.Len() > 0 {
-		head := l.getMinTx()
+		head := l.getMinPricedTx()
 		if l.all.Get(head.Hash()) == nil {
 			l.stales--
 			l.pop()
@@ -504,7 +510,7 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 		return false
 	}
 
-	cheapest := l.getMinTx()
+	cheapest := l.getMinPricedTx()
 	return l.pc.Cmp(cheapest.GasPrice(), cheapest.GasCurrency(), tx.GasPrice(), tx.GasCurrency()) >= 0
 }
 
@@ -539,7 +545,7 @@ func (l *txPricedList) Discard(count int, local *accountSet) types.Transactions 
 func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 	var cheapestHeap *priceHeap = nil
 	var cheapestTxn *types.Transaction = nil
-	for _, priceHeap := range l.items {
+	for _, priceHeap := range l.heaps {
 		if len(*priceHeap) > 0 {
 			if cheapestHeap == nil {
 				cheapestHeap = priceHeap
@@ -557,7 +563,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 }
 
 // Retrieves the tx with the lowest normalized price among all the heaps
-func (l *txPricedList) getMinTx() *types.Transaction {
+func (l *txPricedList) getMinPricedTx() *types.Transaction {
 	_, minTx := l.getHeapWithMinHead()
 
 	return minTx
@@ -566,8 +572,8 @@ func (l *txPricedList) getMinTx() *types.Transaction {
 // Retrieves the total number of txns within the priced list
 func (l *txPricedList) Len() int {
 	totalLen := 0
-	for _, items := range l.items {
-		totalLen += len(*items)
+	for _, h := range l.heaps {
+		totalLen += len(*h)
 	}
 
 	return totalLen

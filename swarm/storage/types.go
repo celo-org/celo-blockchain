@@ -23,63 +23,34 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"hash"
 	"io"
-	"io/ioutil"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/swarm/bmt"
 	ch "github.com/ethereum/go-ethereum/swarm/chunk"
+	"golang.org/x/crypto/sha3"
 )
 
 const MaxPO = 16
 const AddressLength = 32
 
-type Hasher func() hash.Hash
 type SwarmHasher func() SwarmHash
-
-// Peer is the recorded as Source on the chunk
-// should probably not be here? but network should wrap chunk object
-type Peer interface{}
 
 type Address []byte
 
-func (a Address) Size() uint {
-	return uint(len(a))
-}
-
-func (a Address) isEqual(y Address) bool {
-	return bytes.Equal(a, y)
-}
-
-func (a Address) bits(i, j uint) uint {
-	ii := i >> 3
-	jj := i & 7
-	if ii >= a.Size() {
-		return 0
-	}
-
-	if jj+j <= 8 {
-		return uint((a[ii] >> jj) & ((1 << j) - 1))
-	}
-
-	res := uint(a[ii] >> jj)
-	jj = 8 - jj
-	j -= jj
-	for j != 0 {
-		ii++
-		if j < 8 {
-			res += uint(a[ii]&((1<<j)-1)) << jj
-			return res
-		}
-		res += uint(a[ii]) << jj
-		jj += 8
-		j -= 8
-	}
-	return res
-}
-
+// Proximity(x, y) returns the proximity order of the MSB distance between x and y
+//
+// The distance metric MSB(x, y) of two equal length byte sequences x an y is the
+// value of the binary integer cast of the x^y, ie., x and y bitwise xor-ed.
+// the binary cast is big endian: most significant bit first (=MSB).
+//
+// Proximity(x, y) is a discrete logarithmic scaling of the MSB distance.
+// It is defined as the reverse rank of the integer part of the base 2
+// logarithm of the distance.
+// It is calculated by counting the number of common leading zeros in the (MSB)
+// binary representation of the x^y.
+//
+// (0 farthest, 255 closest, 256 self)
 func Proximity(one, other []byte) (ret int) {
 	b := (MaxPO-1)/8 + 1
 	if b > len(one) {
@@ -88,9 +59,6 @@ func Proximity(one, other []byte) (ret int) {
 	m := 8
 	for i := 0; i < b; i++ {
 		oxo := one[i] ^ other[i]
-		if i == b-1 {
-			m = MaxPO % 8
-		}
 		for j := 0; j < m; j++ {
 			if (oxo>>uint8(7-j))&0x01 != 0 {
 				return i*8 + j
@@ -100,10 +68,6 @@ func Proximity(one, other []byte) (ret int) {
 	return MaxPO
 }
 
-func IsZeroAddr(addr Address) bool {
-	return len(addr) == 0 || bytes.Equal(addr, ZeroAddr)
-}
-
 var ZeroAddr = Address(common.Hash{}.Bytes())
 
 func MakeHashFunc(hash string) SwarmHasher {
@@ -111,10 +75,10 @@ func MakeHashFunc(hash string) SwarmHasher {
 	case "SHA256":
 		return func() SwarmHash { return &HashWithLength{crypto.SHA256.New()} }
 	case "SHA3":
-		return func() SwarmHash { return &HashWithLength{sha3.NewKeccak256()} }
+		return func() SwarmHash { return &HashWithLength{sha3.NewLegacyKeccak256()} }
 	case "BMT":
 		return func() SwarmHash {
-			hasher := sha3.NewKeccak256
+			hasher := sha3.NewLegacyKeccak256
 			hasherSize := hasher().Size()
 			segmentCount := ch.DefaultSize / hasherSize
 			pool := bmt.NewTreePool(hasher, segmentCount, bmt.PoolSize)
@@ -172,9 +136,6 @@ func (c AddressCollection) Swap(i, j int) {
 // Chunk interface implemented by context.Contexts and data chunks
 type Chunk interface {
 	Address() Address
-	Payload() []byte
-	SpanBytes() []byte
-	Span() int64
 	Data() []byte
 }
 
@@ -196,23 +157,8 @@ func (c *chunk) Address() Address {
 	return c.addr
 }
 
-func (c *chunk) SpanBytes() []byte {
-	return c.sdata[:8]
-}
-
-func (c *chunk) Span() int64 {
-	if c.span == -1 {
-		c.span = int64(binary.LittleEndian.Uint64(c.sdata[:8]))
-	}
-	return c.span
-}
-
 func (c *chunk) Data() []byte {
 	return c.sdata
-}
-
-func (c *chunk) Payload() []byte {
-	return c.sdata[8:]
 }
 
 // String() for pretty printing
@@ -231,24 +177,11 @@ func GenerateRandomChunk(dataSize int64) Chunk {
 }
 
 func GenerateRandomChunks(dataSize int64, count int) (chunks []Chunk) {
-	if dataSize > ch.DefaultSize {
-		dataSize = ch.DefaultSize
-	}
 	for i := 0; i < count; i++ {
-		ch := GenerateRandomChunk(ch.DefaultSize)
+		ch := GenerateRandomChunk(dataSize)
 		chunks = append(chunks, ch)
 	}
 	return chunks
-}
-
-func GenerateRandomData(l int) (r io.Reader, slice []byte) {
-	slice, err := ioutil.ReadAll(io.LimitReader(rand.Reader, int64(l)))
-	if err != nil {
-		panic("rand error")
-	}
-	// log.Warn("generate random data", "len", len(slice), "data", common.Bytes2Hex(slice))
-	r = io.LimitReader(bytes.NewReader(slice), int64(l))
-	return r, slice
 }
 
 // Size, Seek, Read, ReadAt
@@ -323,12 +256,8 @@ func (c ChunkData) Size() uint64 {
 	return binary.LittleEndian.Uint64(c[:8])
 }
 
-func (c ChunkData) Data() []byte {
-	return c[8:]
-}
-
 type ChunkValidator interface {
-	Validate(addr Address, data []byte) bool
+	Validate(chunk Chunk) bool
 }
 
 // Provides method for validation of content address in chunks
@@ -345,7 +274,8 @@ func NewContentAddressValidator(hasher SwarmHasher) *ContentAddressValidator {
 }
 
 // Validate that the given key is a valid content address for the given data
-func (v *ContentAddressValidator) Validate(addr Address, data []byte) bool {
+func (v *ContentAddressValidator) Validate(chunk Chunk) bool {
+	data := chunk.Data()
 	if l := len(data); l < 9 || l > ch.DefaultSize+8 {
 		// log.Error("invalid chunk size", "chunk", addr.Hex(), "size", l)
 		return false
@@ -356,12 +286,13 @@ func (v *ContentAddressValidator) Validate(addr Address, data []byte) bool {
 	hasher.Write(data[8:])
 	hash := hasher.Sum(nil)
 
-	return bytes.Equal(hash, addr[:])
+	return bytes.Equal(hash, chunk.Address())
 }
 
 type ChunkStore interface {
 	Put(ctx context.Context, ch Chunk) (err error)
 	Get(rctx context.Context, ref Address) (ch Chunk, err error)
+	Has(rctx context.Context, ref Address) bool
 	Close()
 }
 
@@ -384,7 +315,12 @@ func (f *FakeChunkStore) Put(_ context.Context, ch Chunk) error {
 	return nil
 }
 
-// Gut doesn't store anything it is just here to implement ChunkStore
+// Has doesn't do anything it is just here to implement ChunkStore
+func (f *FakeChunkStore) Has(_ context.Context, ref Address) bool {
+	panic("FakeChunkStore doesn't support HasChunk")
+}
+
+// Get doesn't store anything it is just here to implement ChunkStore
 func (f *FakeChunkStore) Get(_ context.Context, ref Address) (Chunk, error) {
 	panic("FakeChunkStore doesn't support Get")
 }

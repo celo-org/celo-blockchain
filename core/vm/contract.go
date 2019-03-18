@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // ContractRef is a reference to the contract's backing object
@@ -151,6 +152,7 @@ func (c *Contract) Caller() common.Address {
 // UseGas attempts the use gas and subtracts it and returns true on success
 func (c *Contract) UseGas(gas uint64) (ok bool) {
 	if c.Gas < gas {
+		log.Debug("UseGas failed due to insufficient gas", "available gas", c.Gas, "gas required", gas)
 		return false
 	}
 	c.Gas -= gas

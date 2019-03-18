@@ -3,15 +3,14 @@ package log
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
-	"reflect"
-	"sync"
-
-	"io/ioutil"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/go-stack/stack"
 )
