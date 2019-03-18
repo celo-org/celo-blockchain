@@ -231,7 +231,7 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func newBackend() (b *backend) {
+func newBackend() (b *Backend) {
 	_, b = newBlockChain(4)
 	key, _ := generatePrivateKey()
 	b.privateKey = key

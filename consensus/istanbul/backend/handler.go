@@ -36,7 +36,7 @@ var (
 )
 
 // Protocol implements consensus.Engine.Protocol
-func (sb *backend) Protocol() consensus.Protocol {
+func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
@@ -45,7 +45,7 @@ func (sb *backend) Protocol() consensus.Protocol {
 }
 
 // HandleMsg implements consensus.Handler.HandleMsg
-func (sb *backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
+func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
@@ -88,11 +88,11 @@ func (sb *backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 }
 
 // SetBroadcaster implements consensus.Handler.SetBroadcaster
-func (sb *backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
+func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	sb.broadcaster = broadcaster
 }
 
-func (sb *backend) NewChainHead() error {
+func (sb *Backend) NewChainHead() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {

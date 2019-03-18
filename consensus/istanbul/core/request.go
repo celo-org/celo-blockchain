@@ -65,7 +65,7 @@ func (c *core) storeRequestMsg(request *istanbul.Request) {
 	c.pendingRequestsMu.Lock()
 	defer c.pendingRequestsMu.Unlock()
 
-	c.pendingRequests.Push(request, int64(-request.Proposal.Number().Int64()))
+	c.pendingRequests.Push(request, -request.Proposal.Number().Int64())
 }
 
 func (c *core) processPendingRequests() {
