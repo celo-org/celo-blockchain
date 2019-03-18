@@ -34,18 +34,17 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
 // block by one node. Otherwise, if n is larger than 1, we have to generate
 // other fake events to process Istanbul.
-func newBlockChain(n int) (*core.BlockChain, *backend) {
+func newBlockChain(n int) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n)
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
-	b, _ := New(config, nodeKeys[0], memDB).(*backend)
+	b, _ := New(config, nodeKeys[0], memDB).(*Backend)
 	genesis.MustCommit(memDB)
 
 	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil)
@@ -93,28 +92,8 @@ func getGenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 	genesis.Nonce = emptyNonce.Uint64()
 	genesis.Mixhash = types.IstanbulDigest
 
-	appendValidators(genesis, addrs)
+	AppendValidatorsToGenesisBlock(genesis, addrs)
 	return genesis, nodeKeys
-}
-
-func appendValidators(genesis *core.Genesis, addrs []common.Address) {
-
-	if len(genesis.ExtraData) < types.IstanbulExtraVanity {
-		genesis.ExtraData = append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...)
-	}
-	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
-
-	ist := &types.IstanbulExtra{
-		Validators:    addrs,
-		Seal:          []byte{},
-		CommittedSeal: [][]byte{},
-	}
-
-	istPayload, err := rlp.EncodeToBytes(&ist)
-	if err != nil {
-		panic("failed to encode istanbul extra")
-	}
-	genesis.ExtraData = append(genesis.ExtraData, istPayload...)
 }
 
 func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
@@ -130,15 +109,15 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	return header
 }
 
-func makeBlock(chain *core.BlockChain, engine *backend, parent *types.Block) *types.Block {
+func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
+	go func() { engine.Seal(chain, block, results, nil) }()
 	block = <-results
 	return block
 }
 
-func makeBlockWithoutSeal(chain *core.BlockChain, engine *backend, parent *types.Block) *types.Block {
+func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
 	state, _ := chain.StateAt(parent.Root())
@@ -161,7 +140,7 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestSealStopChannel(t *testing.T) {
-	chain, engine := newBlockChain(4)
+	chain, engine := newBlockChain(1)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	stop := make(chan struct{}, 1)
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
@@ -176,18 +155,19 @@ func TestSealStopChannel(t *testing.T) {
 	}
 	go eventLoop()
 	results := make(chan *types.Block)
-	err := engine.Seal(chain, block, results, stop)
 
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-	select {
-	case finalBlock := <-results:
-		if finalBlock != nil {
-			t.Errorf("block mismatch: have %v, want nil", finalBlock)
+	go func() {
+		err := engine.Seal(chain, block, results, stop)
+
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
 		}
-	case <-time.After(1 * time.Second):
-		t.Errorf("Never sealed")
+	}()
+
+	select {
+	case <-results:
+		t.Errorf("Did not expect a block")
+	case <-time.After(time.Second):
 	}
 }
 
@@ -207,7 +187,8 @@ func TestSealCommittedOtherHash(t *testing.T) {
 	}
 	go eventLoop()
 	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
+
+	go func() { engine.Seal(chain, block, results, nil) }()
 	select {
 	case <-results:
 		t.Error("seal should not be completed")
@@ -221,10 +202,13 @@ func TestSealCommitted(t *testing.T) {
 	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 
 	results := make(chan *types.Block)
-	err := engine.Seal(chain, block, results, nil)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	go func() {
+		err := engine.Seal(chain, block, results, nil)
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
+		}
+	}()
+
 	finalBlock := <-results
 	if finalBlock.Hash() != expectedBlock.Hash() {
 		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())

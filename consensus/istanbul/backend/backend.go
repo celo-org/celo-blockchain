@@ -47,7 +47,7 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
 	knownMessages, _ := lru.NewARC(inmemoryMessages)
-	backend := &backend{
+	backend := &Backend{
 		config:           config,
 		istanbulEventMux: new(event.TypeMux),
 		privateKey:       privateKey,
@@ -67,7 +67,7 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 
 // ----------------------------------------------------------------------------
 
-type backend struct {
+type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 	privateKey       *ecdsa.PrivateKey
@@ -101,21 +101,21 @@ type backend struct {
 }
 
 // Address implements istanbul.Backend.Address
-func (sb *backend) Address() common.Address {
+func (sb *Backend) Address() common.Address {
 	return sb.address
 }
 
-func (sb *backend) Close() error {
+func (sb *Backend) Close() error {
 	return nil
 }
 
 // Validators implements istanbul.Backend.Validators
-func (sb *backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
+func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
 	sb.Gossip(valSet, payload)
 	// send to self
@@ -127,7 +127,7 @@ func (sb *backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 	hash := istanbul.RLPHash(payload)
 	sb.knownMessages.Add(hash, true)
 
@@ -163,7 +163,7 @@ func (sb *backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *backend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -201,12 +201,12 @@ func (sb *backend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
 }
 
 // EventMux implements istanbul.Backend.EventMux
-func (sb *backend) EventMux() *event.TypeMux {
+func (sb *Backend) EventMux() *event.TypeMux {
 	return sb.istanbulEventMux
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -242,13 +242,13 @@ func (sb *backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 }
 
 // Sign implements istanbul.Backend.Sign
-func (sb *backend) Sign(data []byte) ([]byte, error) {
+func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	hashData := crypto.Keccak256(data)
 	return crypto.Sign(hashData, sb.privateKey)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
-func (sb *backend) CheckSignature(data []byte, address common.Address, sig []byte) error {
+func (sb *Backend) CheckSignature(data []byte, address common.Address, sig []byte) error {
 	signer, err := istanbul.GetSignatureAddress(data, sig)
 	if err != nil {
 		log.Error("Failed to get signer address", "err", err)
@@ -262,12 +262,12 @@ func (sb *backend) CheckSignature(data []byte, address common.Address, sig []byt
 }
 
 // HasProposal implements istanbul.Backend.HasProposal
-func (sb *backend) HasProposal(hash common.Hash, number *big.Int) bool {
+func (sb *Backend) HasProposal(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
 // GetProposer implements istanbul.Backend.GetProposer
-func (sb *backend) GetProposer(number uint64) common.Address {
+func (sb *Backend) GetProposer(number uint64) common.Address {
 	if h := sb.chain.GetHeaderByNumber(number); h != nil {
 		a, _ := sb.Author(h)
 		return a
@@ -276,14 +276,14 @@ func (sb *backend) GetProposer(number uint64) common.Address {
 }
 
 // ParentValidators implements istanbul.Backend.GetParentValidators
-func (sb *backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
+func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	if block, ok := proposal.(*types.Block); ok {
 		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
 	}
 	return validator.NewSet(nil, sb.config.ProposerPolicy)
 }
 
-func (sb *backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
+func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
@@ -291,7 +291,7 @@ func (sb *backend) getValidators(number uint64, hash common.Hash) istanbul.Valid
 	return snap.ValSet
 }
 
-func (sb *backend) LastProposal() (istanbul.Proposal, common.Address) {
+func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
 	block := sb.currentBlock()
 
 	var proposer common.Address
@@ -308,7 +308,7 @@ func (sb *backend) LastProposal() (istanbul.Proposal, common.Address) {
 	return block, proposer
 }
 
-func (sb *backend) HasBadProposal(hash common.Hash) bool {
+func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	if sb.hasBadBlock == nil {
 		return false
 	}
