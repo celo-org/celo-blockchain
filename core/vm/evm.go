@@ -17,6 +17,9 @@
 package vm
 
 import (
+	"encoding/binary"
+	"errors"
+	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -220,7 +223,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
+	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
+	if err != nil {
+		log.Debug("Call error", "err", err)
+		return nil, gas, err
+	}
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -403,7 +410,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.ChainConfig().IsEIP158(evm.BlockNumber) {
 		evm.StateDB.SetNonce(address, 1)
 	}
-	evm.Transfer(evm.StateDB, caller.Address(), address, value)
+	evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 
 	// initialise a new contract and set the code that is to be used by the
 	// EVM. The contract is a scoped environment for this execution context
@@ -475,3 +482,30 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+// TobinTransfer performs a transfer that takes a tax from the sent amount
+func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	if amount.Cmp(big.NewInt(0)) != 0 {
+		encodedAbi, err := hexutil.Decode("0x18ff9d23")
+		ret, gas, err := evm.Call(AccountRef(common.HexToAddress("0x0123456")), params.ReserveAddress, encodedAbi, gas, big.NewInt(0))
+
+		if binary.Size(ret) == 64 {
+			numerator := new(big.Int)
+			numerator.SetBytes(ret[0:32])
+
+			denominator := new(big.Int)
+			denominator.SetBytes(ret[32:64])
+
+			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+
+			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
+		} else {
+			retSize := binary.Size(ret)
+			errString := fmt.Sprintf("binary.Size(ret) = %d", retSize)
+			return gas, errors.New(errString)
+		}
+		return gas, err
+	}
+	return gas, nil
+}
