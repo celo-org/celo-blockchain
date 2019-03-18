@@ -222,10 +222,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 
 	// Submit first work to initialize pending state.
 
-	if istanbul, ok := worker.engine.(consensus.Istanbul); ok {
-		istanbul.Start(worker.chain, worker.chain.CurrentBlock, worker.chain.HasBadBlock)
-	}
-
 	worker.startCh <- struct{}{}
 
 	return worker
@@ -272,6 +268,9 @@ func (w *worker) pendingBlock() *types.Block {
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock)
+	}
 	w.startCh <- struct{}{}
 
 }
@@ -1003,6 +1002,5 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 }
 
 func (w *worker) isIstanbulEngine() bool {
-	_, isIstanbul := w.engine.(consensus.Istanbul)
-	return isIstanbul
+	return w.engine.Protocol().Name == "istanbul"
 }
