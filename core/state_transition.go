@@ -226,16 +226,16 @@ func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address
 		)
 }
 
-func (st *StateTransition) creditGas(amount *big.Int, gasCurrency *common.Address) (err error) {
+func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
 	// native currency
 	if gasCurrency == nil {
-		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+		st.state.AddBalance(to, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 		return nil
 	}
 
 	return st.debitOrCreditErc20Balance(
 		getCreditToFunctionSelector(),
-		st.evm.Coinbase,
+		to,
 		amount,
 		gasCurrency,
 		"creditGas")
@@ -335,8 +335,17 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
+	// Refund unused gas to sender
 	st.refundGas()
-	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+	// Pay gas fee to Coinbase chosen by the miner
+	if st.msg.GasCurrency() == nil {
+		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+	} else {
+		st.creditGas(
+			st.evm.Coinbase,
+			new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice),
+			st.msg.GasCurrency())
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }
@@ -351,8 +360,7 @@ func (st *StateTransition) refundGas() {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	st.creditGas(remaining, st.msg.GasCurrency())
-
+	st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
 	st.gp.AddGas(st.gas)
