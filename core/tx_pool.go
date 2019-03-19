@@ -1266,6 +1266,7 @@ type txLookup struct {
 func newTxLookup() *txLookup {
 	return &txLookup{
 		all: make(map[common.Hash]*types.Transaction),
+		txCurrCount: make(map[common.Address]uint64),
 	}
 }
 
