@@ -113,7 +113,6 @@ var (
 		utils.MinerNoVerfiyFlag,
 		utils.MinerVerificationServiceUrlFlag,
 		utils.MinerVerificationRewardsFlag,
-		utils.MinerGasCurrencyAddressesFlag,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,

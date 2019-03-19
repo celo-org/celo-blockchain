@@ -29,11 +29,6 @@ import (
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-	// We get this map from StateTransition and StateTransition is created from multiple sources, so, it is
-	// clumsy to always pass this map. Therefore, we preserve this map the first time we get it.
-	// It is possible that non-native currency transactions might get rejected in a case where this map has
-	// not been received. I have not seen that in practice and I don't see that as fatal either.
-	gasCurrencyAddresses *map[common.Address]bool = nil
 )
 
 /*
@@ -197,11 +192,6 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	// non-native currency
 	evm := st.evm
-	st.maybeInitGasCurrencyAddresses()
-	if !isValidGasCurrency(*gasCurrency) {
-		log.Debug(logTag + " invalid gas currency", "gas currency", gasCurrency)
-		return errors.New("Gas currency is invalid: " + gasCurrency.String())
-	}
 	transactionData := getEncodedAbi(functionSelector, addressToAbi(address), amountToAbi(amount))
 
 	rootCaller := ZeroAddress(0)
@@ -249,25 +239,6 @@ func (st *StateTransition) creditGas(amount *big.Int, gasCurrency *common.Addres
 		amount,
 		gasCurrency,
 		"creditGas")
-}
-
-func (st *StateTransition) maybeInitGasCurrencyAddresses() {
-	// Lookup the table and get the currency Contract address.
-	// GoldTokenProxy is always hard-coded to 0x000000000000000000000000000000000000ce10 but that's not even required.
-	// It seems StableTokenProxy is mapped to random addresses every time the contracts are compiled and
-	// therefore, its address has to be passed via command-line.
-	if gasCurrencyAddresses == nil && st.evm.GasCurrencyAddresses != nil {
-		tmp := make(map[common.Address]bool, 0)
-		gasCurrencyAddresses = &tmp
-		for _, address := range *st.evm.GasCurrencyAddresses {
-			(*gasCurrencyAddresses)[address] = true
-		}
-		log.Debug("Currency addresses", "addresses", gasCurrencyAddresses)
-	}
-}
-
-func isValidGasCurrency(gasCurrency common.Address) bool {
-	return gasCurrencyAddresses != nil && (*gasCurrencyAddresses)[gasCurrency]
 }
 
 func getDebitFromFunctionSelector() []byte {

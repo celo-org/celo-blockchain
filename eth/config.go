@@ -137,7 +137,6 @@ type Config struct {
 
 	// Constantinople block override (TODO: remove after the fork)
 	ConstantinopleOverride *big.Int
-	GasCurrencyAddresses *[]common.Address
 }
 
 type configMarshaling struct {
