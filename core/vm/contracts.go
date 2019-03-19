@@ -385,7 +385,7 @@ func (c *requestVerification) RequiredGas(input []byte) uint64 {
 // Ensures that the input is parsable as a VerificationRequest.
 func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
 	if caller != params.AuthorizedRequestVerificationAddress {
-		return nil, fmt.Errorf("Unable to call tranfer from unpermissioned address")
+		return nil, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	_, err := types.DecodeVerificationRequest(input)
 	if err != nil {
