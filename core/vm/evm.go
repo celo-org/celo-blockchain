@@ -18,8 +18,6 @@ package vm
 
 import (
 	"encoding/binary"
-	"errors"
-	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -415,7 +413,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 	if err != nil {
 		log.Debug("Failed to transfer with tobin tax", "err", err)
-		return nil, common.Address{}, gas, err
+		return nil, address, gas, err
 	}
 
 	// initialise a new contract and set the code that is to be used by the
@@ -520,11 +518,10 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 		} else {
 			// If getTobinTax() doesn't work as expected, still complete the transfer without a tax
 			evm.Context.Transfer(db, sender, recipient, amount)
-			retSize := binary.Size(ret)
-			errString := fmt.Sprintf("Expected value of call to getTobinTax to be 64, got %d", retSize)
-			return gas, errors.New(errString)
+			return gas, nil
 		}
 		return gas, err
 	}
+	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
 }
