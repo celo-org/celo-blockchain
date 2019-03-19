@@ -614,15 +614,19 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
+	// For transactions with gas currency in Celo Gold,
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
-	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+	// For transactions with gas currency in Celo Gold, we will skip this check for now.
+	// state_transition.go which executes the transaction will fail in case the gas is insufficient.
+	if tx.GasCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(),
 			"txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
 	if err != nil {
+		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
 	}
 	if tx.Gas() < intrGas {
