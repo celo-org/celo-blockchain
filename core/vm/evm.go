@@ -498,7 +498,7 @@ func getTobinTaxFunctionSelector() []byte {
 	return hexutil.MustDecode("0x18ff9d23")
 }
 
-// TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve\
+// TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	if amount.Cmp(big.NewInt(0)) != 0 {
 		caller := AccountRef(common.HexToAddress("0x0"))
@@ -518,6 +518,8 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
 		} else {
+			// If getTobinTax() doesn't work as expected, still complete the transfer without a tax
+			evm.Context.Transfer(db, sender, recipient, amount)
 			retSize := binary.Size(ret)
 			errString := fmt.Sprintf("Expected value of call to getTobinTax to be 64, got %d", retSize)
 			return gas, errors.New(errString)
