@@ -617,7 +617,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// For transactions with gas currency in Celo Gold,
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
-	// For transactions with gas currency in Celo Gold, we will skip this check for now.
+	// For transactions with gas currency not in Celo Gold, we will skip this check for now.
 	// state_transition.go which executes the transaction will fail in case the gas is insufficient.
 	if tx.GasCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(),

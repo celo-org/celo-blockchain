@@ -156,21 +156,36 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	if st.msg.GasCurrency() == nil && st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
+	hasSufficientGas, gasUsed := st.hasSufficientGas(st.msg.From(), mgval, st.msg.GasCurrency())
+	if !hasSufficientGas {
 		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
 	}
 	st.gas += st.msg.Gas()
-
 	st.initialGas = st.msg.Gas()
 	gasCurrency := st.msg.GasCurrency()
-	err := st.debitGas(mgval, gasCurrency)
+	// Charge use for the gas used to determine gas balance.
+	// It is 0 for native gas currency and 2195 for custom gas currency.
+	amount := new(big.Int).Add(mgval, new(big.Int).SetUint64(gasUsed))
+	err := st.debitGas(amount, gasCurrency)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (st *StateTransition) hasSufficientGas(
+	accountOwner common.Address,
+	gasNeeded *big.Int,
+	gasCurrency *common.Address) (hasSufficientGas bool, gasUsed uint64) {
+	if gasCurrency == nil {
+		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
+	}
+	balanceOf, gasUsed := st.getBalanceOf(accountOwner, gasCurrency)
+	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(), "gas used", gasUsed)
+	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
 }
 
 type ZeroAddress int64
@@ -180,6 +195,30 @@ func (ZeroAddress) Address() common.Address {
 	// Not required since address is, by default, initialized to 0
 	// copy(address[:], "0000000000000000000000000000000000000000")
 	return address
+}
+
+// contractAddress must have a function  with following signature
+// "function balanceOf(address _owner) public view returns (uint256)"
+func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAddress *common.Address) (
+	balance *big.Int, gasUsed uint64) {
+	evm := st.evm
+	functionSelector := getBalanceOfFunctionSelector()
+	transactionData := getEncodedAbiWithOneArg(functionSelector, addressToAbi(accountOwner))
+	anyCaller := ZeroAddress(0)  // any caller will work
+	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
+		*contractAddress, "gas", st.gas, "transactionData", hexutil.Encode(transactionData))
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, st.gas + st.msg.Gas())
+	gasUsed = st.gas + st.msg.Gas() - leftoverGas
+	if err != nil {
+		log.Debug("getBalanceOf error occurred", "Error", err)
+		result := big.NewInt(-1)
+		return result, gasUsed
+	}
+	result := big.NewInt(0)
+	result.SetBytes(ret)
+	log.Trace("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", result.String(),
+		"gas used", gasUsed)
+	return result, gasUsed
 }
 
 func (st *StateTransition) debitOrCreditErc20Balance(
@@ -192,7 +231,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	// non-native currency
 	evm := st.evm
-	transactionData := getEncodedAbi(functionSelector, addressToAbi(address), amountToAbi(amount))
+	transactionData := getEncodedAbiWithTwoArgs(functionSelector, addressToAbi(address), amountToAbi(amount))
 
 	rootCaller := ZeroAddress(0)
 	log.Trace(logTag, "rootCaller", rootCaller, "customTokenContractAddress",
@@ -211,7 +250,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 }
 
 
-func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) { // native currency
+func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) {
 	// native currency
 	if gasCurrency == nil {
 		st.state.SubBalance(st.msg.From(), amount)
@@ -259,6 +298,16 @@ func getCreditToFunctionSelector() []byte {
 	return hexutil.MustDecode("0x9951b90c")
 }
 
+func getBalanceOfFunctionSelector() []byte {
+	// Function is "balanceOf(address _owner)"
+	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
+	return hexutil.MustDecode("0x70a08231")
+}
+
+
 func addressToAbi(address common.Address) []byte {
 	// Now convert address and amount to 32 byte (256-bit) chunks.
 	return common.LeftPadBytes(address.Bytes(), 32)
@@ -269,8 +318,16 @@ func amountToAbi(amount *big.Int) []byte {
 	return common.LeftPadBytes(amount.Bytes(), 32)
 }
 
+// Generates ABI for a given method and its argument.
+func getEncodedAbiWithOneArg(methodSelector []byte, var1Abi []byte) []byte {
+	encodedAbi := make([]byte, len(methodSelector)+len(var1Abi))
+	copy(encodedAbi[0:len(methodSelector)], methodSelector[:])
+	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
+	return encodedAbi
+}
+
 // Generates ABI for a given method and its arguments.
-func getEncodedAbi(methodSelector []byte, var1Abi []byte, var2Abi []byte) []byte {
+func getEncodedAbiWithTwoArgs(methodSelector []byte, var1Abi []byte, var2Abi []byte) []byte {
 	encodedAbi := make([]byte, len(methodSelector)+len(var1Abi)+len(var2Abi))
 	copy(encodedAbi[0:len(methodSelector)], methodSelector[:])
 	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
@@ -338,14 +395,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	// Refund unused gas to sender
 	st.refundGas()
 	// Pay gas fee to Coinbase chosen by the miner
-	if st.msg.GasCurrency() == nil {
-		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
-	} else {
-		st.creditGas(
-			st.evm.Coinbase,
-			new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice),
-			st.msg.GasCurrency())
-	}
+	st.creditGas(
+		st.evm.Coinbase,
+		new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice),
+		st.msg.GasCurrency())
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }
