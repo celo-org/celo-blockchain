@@ -29,6 +29,11 @@ import (
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
+	// This is the amount of gas a single debitFrom or creditTo request can use.
+	// This prevents arbitrary computation to be performed in these functions.
+	// During testing, I noticed that a single invocation of debit gas consumes 7649 gas
+	// and a single invocation of creditGas consumes 7943 gas.
+	maxGasForDebitAndCreditTransactions uint64 = 10 * 1000
 )
 
 /*
@@ -166,8 +171,11 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 	st.initialGas = st.msg.Gas()
 	gasCurrency := st.msg.GasCurrency()
-	// Charge use for the gas used to determine gas balance.
-	// It is 0 for native gas currency and 2195 for custom gas currency.
+	// Charge user for the gas used to determine gas balance.
+	// It is 0 for native gas currency, and we charge maxGasForDebitAndCreditTransactions for safety and give
+	// that as the gas allowance for the debit and the credit transactions.
+	chargeForGasWithdrawal := new(big.Int).SetUint64(maxGasForDebitAndCreditTransactions)
+	mgval = new(big.Int).Add(mgval, chargeForGasWithdrawal.Mul(chargeForGasWithdrawal, st.gasPrice))
 	amount := new(big.Int).Add(mgval, new(big.Int).SetUint64(gasUsed))
 	err := st.debitGas(amount, gasCurrency)
 	if err != nil {
@@ -222,7 +230,8 @@ func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAdd
 }
 
 func (st *StateTransition) debitOrCreditErc20Balance(
-	functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address, logTag string) (err error) {
+	functionSelector []byte, address common.Address, amount *big.Int,
+	gasCurrency *common.Address, logTag string) (err error) {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		log.Trace(logTag + " successful: nothing to debit or credit")
 		return nil
@@ -234,18 +243,23 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	transactionData := getEncodedAbiWithTwoArgs(functionSelector, addressToAbi(address), amountToAbi(amount))
 
 	rootCaller := ZeroAddress(0)
+	maxGasForCall := st.gas
+	// Limit the gas used by these calls to prevent a gas stealing attack.
+	if maxGasForCall > maxGasForDebitAndCreditTransactions {
+		maxGasForCall = maxGasForDebitAndCreditTransactions
+	}
 	log.Trace(logTag, "rootCaller", rootCaller, "customTokenContractAddress",
-		*gasCurrency, "gas", st.gas, "value", 0, "transactionData", hexutil.Encode(transactionData))
+		*gasCurrency, "gas", maxGasForCall, "value", 0, "transactionData", hexutil.Encode(transactionData))
+	// We will not charge the user directly for this call. The caller should charge the payer, which might
+	// or might not be this user, for "maxGasForDebitAndCreditTransactions" amount of gas.
 	ret, leftoverGas, err := evm.Call(
-		rootCaller, *gasCurrency, transactionData, st.gas, big.NewInt(0))
+		rootCaller, *gasCurrency, transactionData, maxGasForCall, big.NewInt(0))
 	if err != nil {
 		log.Debug(logTag + " failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
 	}
 
 	log.Debug(logTag + " successful", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas)
-	// We will charge the user for this call as well.
-	st.gas = leftoverGas
 	return nil
 }
 
@@ -256,6 +270,7 @@ func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address
 		st.state.SubBalance(st.msg.From(), amount)
 		return nil
 	}
+
 	return st.debitOrCreditErc20Balance(
 		getDebitFromFunctionSelector(),
 		st.msg.From(),
@@ -409,6 +424,15 @@ func (st *StateTransition) refundGas() {
 	if refund > st.state.GetRefund() {
 		refund = st.state.GetRefund()
 	}
+	// We charge the user for cost associated with gas refund to their account as well as the
+	// cost associated with paying the mining fee to Coinbase account.
+	refund -= 2 * maxGasForDebitAndCreditTransactions
+	if refund < 0 {
+		log.Info("refundGas not possible since refund amount is too small",
+			"refund", refund, "maxGasForDebitAndCreditTransactions", maxGasForDebitAndCreditTransactions)
+		return
+	}
+
 	st.gas += refund
 
 	// Return ETH for remaining gas, exchanged at the original rate.
