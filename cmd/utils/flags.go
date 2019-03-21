@@ -300,8 +300,8 @@ var (
 		Value: eth.DefaultConfig.TxPool.Lifetime,
 	}
 	TxPoolCurrencyAddressesFlag = cli.StringFlag{
-		Name:  "txpool.currencyaddresses",
-		Usage: "Contract address of the currency accepted by the tx pool, 0x1234...,0xf4ee... etc. All addresses should start with 0x and followed by 40 hex character",
+		Name:  "txpool.gascurrencyaddresses",
+		Usage: "Comma separated list of contract addresses of the currency accepted by the tx pool, 0x1234...,0xf4ee... etc. All addresses should start with 0x and followed by 40 hex character",
 		Value: "",
 	}
 	// Performance tuning settings
