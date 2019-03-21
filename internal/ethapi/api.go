@@ -1192,12 +1192,13 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	From     common.Address  `json:"from"`
-	To       *common.Address `json:"to"`
-	Gas      *hexutil.Uint64 `json:"gas"`
-	GasPrice *hexutil.Big    `json:"gasPrice"`
-	Value    *hexutil.Big    `json:"value"`
-	Nonce    *hexutil.Uint64 `json:"nonce"`
+	From        common.Address  `json:"from"`
+	To          *common.Address `json:"to"`
+	Gas         *hexutil.Uint64 `json:"gas"`
+	GasPrice    *hexutil.Big    `json:"gasPrice"`
+	GasCurrency *common.Address `json:"gasCurrency"`
+	Value       *hexutil.Big    `json:"value"`
+	Nonce       *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1253,9 +1254,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.
