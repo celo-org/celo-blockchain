@@ -421,18 +421,20 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 }
 
 func (st *StateTransition) refundGas() {
-	// Apply refund counter, capped to half of the used gas.
-	refund := st.gasUsed() / 2
-	if refund > st.state.GetRefund() {
-		refund = st.state.GetRefund()
-	}
+	refund := st.state.GetRefund()
 	// We charge the user for cost associated with gas refund to their account as well as the
 	// cost associated with paying the mining fee to Coinbase account.
-	refund -= 2 * maxGasForDebitAndCreditTransactions
-	if refund < 0 {
+	if refund >= 2 * maxGasForDebitAndCreditTransactions {
+		refund -= 2 * maxGasForDebitAndCreditTransactions
+	} else {
 		log.Info("refundGas not possible since refund amount is too small",
 			"refund", refund, "maxGasForDebitAndCreditTransactions", maxGasForDebitAndCreditTransactions)
 		return
+	}
+
+	// Apply refund counter, capped to half of the used gas.
+	if refund > st.gasUsed() / 2 {
+		refund = st.gasUsed() / 2
 	}
 
 	st.gas += refund
