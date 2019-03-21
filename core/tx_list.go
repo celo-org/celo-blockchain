@@ -298,12 +298,12 @@ func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions
 	// Filter out all the transactions above the account's funds
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
 		if tx.GasCurrency() == nil {
-			log.Trace("Transaction Filter", "hash", tx.Hash(), "Gas currency", tx.GasCurrency(), "Cost",  tx.Cost(), "Cost Limit", costLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
+			log.Trace("Transaction Filter", "hash", tx.Hash(), "Gas currency", tx.GasCurrency(), "Cost", tx.Cost(), "Cost Limit", costLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
 			return tx.Cost().Cmp(costLimit) > 0 || tx.Gas() > gasLimit
 		} else {
 			// If the gas is being paid in the non-native currency, ensure that the `tx.Value` is less than costLimit
 			// as the gas price will be dedudcted in the non-native currency.
-			log.Trace("Transaction Filter", "hash", tx.Hash(), "Gas currency", tx.GasCurrency(), "Value",  tx.Value(), "Cost Limit", costLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
+			log.Trace("Transaction Filter", "hash", tx.Hash(), "Gas currency", tx.GasCurrency(), "Value", tx.Value(), "Cost Limit", costLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
 			return tx.Value().Cmp(costLimit) > 0 || tx.Gas() > gasLimit
 		}
 	})

@@ -140,12 +140,12 @@ type EVM struct {
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
 	evm := &EVM{
-		Context:           ctx,
-		StateDB:           statedb,
-		vmConfig:          vmConfig,
-		chainConfig:       chainConfig,
-		chainRules:        chainConfig.Rules(ctx.BlockNumber),
-		interpreters:      make([]Interpreter, 0, 1),
+		Context:      ctx,
+		StateDB:      statedb,
+		vmConfig:     vmConfig,
+		chainConfig:  chainConfig,
+		chainRules:   chainConfig.Rules(ctx.BlockNumber),
+		interpreters: make([]Interpreter, 0, 1),
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {

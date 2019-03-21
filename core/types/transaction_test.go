@@ -49,7 +49,7 @@ var (
 		common.FromHex("5544"),
 	).WithSignature(
 		HomesteadSigner{},
-		common.Hex2Bytes("693987a6a1238f28b63fd27c43b7e96bc2611ade7ef18d5ddaab55fc9eca0d3d1c740fb1a05c5fbccc00e7b0116b5b7e69a93e435c5c4f3bbe96c5909f910e1e00"),		
+		common.Hex2Bytes("693987a6a1238f28b63fd27c43b7e96bc2611ade7ef18d5ddaab55fc9eca0d3d1c740fb1a05c5fbccc00e7b0116b5b7e69a93e435c5c4f3bbe96c5909f910e1e00"),
 	)
 )
 
@@ -108,7 +108,7 @@ func TestRecipientEmpty(t *testing.T) {
 func TestRecipientNormal(t *testing.T) {
 	_, addr := defaultTestKey()
 
-	tx, err := decodeTx(common.Hex2Bytes("f85e8080808094000000000000000000000000000000000000000080801ba0dc4775639bca4ed4aa25213c714adcc19991bd61bc2d21faf2a8a0cb0f49c4e9a018dd6b4071524f2a8551f8e352ea760ea018c84d3e0a36df53a2dd4106bf78fe"))	
+	tx, err := decodeTx(common.Hex2Bytes("f85e8080808094000000000000000000000000000000000000000080801ba0dc4775639bca4ed4aa25213c714adcc19991bd61bc2d21faf2a8a0cb0f49c4e9a018dd6b4071524f2a8551f8e352ea760ea018c84d3e0a36df53a2dd4106bf78fe"))
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

@@ -18,13 +18,14 @@ package core
 
 import (
 	"errors"
+	"math"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"math"
-	"math/big"
 )
 
 var (
@@ -178,10 +179,7 @@ func (st *StateTransition) buyGas() error {
 	mgval = new(big.Int).Add(mgval, chargeForGasWithdrawal.Mul(chargeForGasWithdrawal, st.gasPrice))
 	amount := new(big.Int).Add(mgval, new(big.Int).SetUint64(gasUsed))
 	err := st.debitGas(amount, gasCurrency)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (st *StateTransition) canBuyGas(
@@ -216,10 +214,10 @@ func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAdd
 	evm := st.evm
 	functionSelector := getBalanceOfFunctionSelector()
 	transactionData := getEncodedAbiWithOneArg(functionSelector, addressToAbi(accountOwner))
-	anyCaller := ZeroAddress(0)  // any caller will work
+	anyCaller := ZeroAddress(0) // any caller will work
 	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
 		*contractAddress, "gas", st.gas, "transactionData", hexutil.Encode(transactionData))
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, st.gas + st.msg.Gas())
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, st.gas+st.msg.Gas())
 	gasUsed = st.gas + st.msg.Gas() - leftoverGas
 	if err != nil {
 		log.Debug("getBalanceOf error occurred", "Error", err)
@@ -257,14 +255,13 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	ret, leftoverGas, err := evm.Call(
 		rootCaller, *gasCurrency, transactionData, maxGasForCall, big.NewInt(0))
 	if err != nil {
-		log.Debug(logTag + " failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
+		log.Debug(logTag+" failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
 	}
 
-	log.Debug(logTag + " successful", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas)
+	log.Debug(logTag+" successful", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas)
 	return nil
 }
-
 
 func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) {
 	// native currency
@@ -279,7 +276,7 @@ func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address
 		amount,
 		gasCurrency,
 		"debitGas",
-		)
+	)
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
@@ -323,7 +320,6 @@ func getBalanceOfFunctionSelector() []byte {
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
 	return hexutil.MustDecode("0x70a08231")
 }
-
 
 func addressToAbi(address common.Address) []byte {
 	// Now convert address and amount to 32 byte (256-bit) chunks.
@@ -424,7 +420,7 @@ func (st *StateTransition) refundGas() {
 	refund := st.state.GetRefund()
 	// We charge the user for cost associated with gas refund to their account as well as the
 	// cost associated with paying the mining fee to Coinbase account.
-	if refund >= 2 * maxGasForDebitAndCreditTransactions {
+	if refund >= 2*maxGasForDebitAndCreditTransactions {
 		refund -= 2 * maxGasForDebitAndCreditTransactions
 	} else {
 		log.Info("refundGas not possible since refund amount is too small",
@@ -433,7 +429,7 @@ func (st *StateTransition) refundGas() {
 	}
 
 	// Apply refund counter, capped to half of the used gas.
-	if refund > st.gasUsed() / 2 {
+	if refund > st.gasUsed()/2 {
 		refund = st.gasUsed() / 2
 	}
 
