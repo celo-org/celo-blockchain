@@ -84,10 +84,7 @@ func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contr
 }
 
 func hasEnoughGas(gas uint64, requiredGas uint64) bool {
-	if gas < requiredGas {
-		return false
-	}
-	return true
+	return requiredGas <= gas
 }
 
 // ECRECOVER implemented as a native contract.
