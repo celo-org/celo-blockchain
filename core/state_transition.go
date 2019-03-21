@@ -161,7 +161,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	hasSufficientGas, gasUsed := st.hasSufficientGas(st.msg.From(), mgval, st.msg.GasCurrency())
+	hasSufficientGas, gasUsed := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
 	if !hasSufficientGas {
 		return errInsufficientBalanceForGas
 	}
@@ -184,15 +184,19 @@ func (st *StateTransition) buyGas() error {
 	return nil
 }
 
-func (st *StateTransition) hasSufficientGas(
+func (st *StateTransition) canBuyGas(
 	accountOwner common.Address,
 	gasNeeded *big.Int,
 	gasCurrency *common.Address) (hasSufficientGas bool, gasUsed uint64) {
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
 	}
-	balanceOf, gasUsed := st.getBalanceOf(accountOwner, gasCurrency)
-	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(), "gas used", gasUsed)
+	balanceOf, gasUsed, err := st.getBalanceOf(accountOwner, gasCurrency)
+	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(),
+		"gas used", gasUsed, "error", err)
+	if err != nil {
+		return false, gasUsed
+	}
 	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
 }
 
@@ -208,7 +212,7 @@ func (ZeroAddress) Address() common.Address {
 // contractAddress must have a function  with following signature
 // "function balanceOf(address _owner) public view returns (uint256)"
 func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAddress *common.Address) (
-	balance *big.Int, gasUsed uint64) {
+	balance *big.Int, gasUsed uint64, err error) {
 	evm := st.evm
 	functionSelector := getBalanceOfFunctionSelector()
 	transactionData := getEncodedAbiWithOneArg(functionSelector, addressToAbi(accountOwner))
@@ -219,14 +223,13 @@ func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAdd
 	gasUsed = st.gas + st.msg.Gas() - leftoverGas
 	if err != nil {
 		log.Debug("getBalanceOf error occurred", "Error", err)
-		result := big.NewInt(-1)
-		return result, gasUsed
+		return nil, gasUsed, err
 	}
 	result := big.NewInt(0)
 	result.SetBytes(ret)
 	log.Trace("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", result.String(),
 		"gas used", gasUsed)
-	return result, gasUsed
+	return result, gasUsed, nil
 }
 
 func (st *StateTransition) debitOrCreditErc20Balance(
@@ -238,7 +241,6 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	}
 
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
-	// non-native currency
 	evm := st.evm
 	transactionData := getEncodedAbiWithTwoArgs(functionSelector, addressToAbi(address), amountToAbi(amount))
 
