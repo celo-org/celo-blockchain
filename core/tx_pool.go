@@ -140,6 +140,8 @@ type TxPoolConfig struct {
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
+
+	CurrencyAddresses *[]common.Address // The addresses of all the currencies that are accepted by the node
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
@@ -233,7 +235,9 @@ type TxPool struct {
 	wg sync.WaitGroup // for shutdown sync
 
 	homestead bool
-	pc        *PriceComparator
+
+	pc                *PriceComparator
+	currencyAddresses *map[common.Address]bool
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
@@ -262,6 +266,13 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all, pool.pc)
+
+	if config.CurrencyAddresses != nil {
+		for _, address := range *config.CurrencyAddresses {
+			(*pool.currencyAddresses)[address] = true
+		}
+	}
+
 	pool.reset(nil, chain.CurrentBlock().Header())
 
 	// If local transactions and journaling is enabled, load from disk
@@ -611,13 +622,15 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	if tx.GasCurrency() != 0 && (pool.pc == nil || !pool.pc.HasCurrency(tx.GasCurrency())) {
+	if tx.GasCurrency() != nil && // Non native gas in the tx
+		pool.currencyAddresses != nil && // User specified set of currency addresses via cmd line
+		!(*pool.currencyAddresses)[*tx.GasCurrency()] { // The tx currency is not in the user specified list
 		return ErrUnregisteredGasCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.pc.Cmp(pool.gasPrice, 0, tx.GasPrice(), tx.GasCurrency()) > 0 {
+	if !local && pool.pc.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -1249,7 +1262,7 @@ func (as *accountSet) flatten() []common.Address {
 // TxPool.mu mutex.
 type txLookup struct {
 	all         map[common.Hash]*types.Transaction
-	txCurrCount map[uint64]uint64
+	txCurrCount map[common.Address]uint64
 	lock        sync.RWMutex
 }
 
@@ -1294,7 +1307,7 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[tx.GasCurrency()]++
+	t.txCurrCount[*(tx.NonNilGasCurrency())]++
 	t.all[tx.Hash()] = tx
 }
 
@@ -1303,6 +1316,7 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[t.all[hash].GasCurrency()]--
+	t.txCurrCount[*(t.all[hash].NonNilGasCurrency())]--
+
 	delete(t.all, hash)
 }

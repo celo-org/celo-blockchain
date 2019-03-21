@@ -22,28 +22,46 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var (
+	cgExchangeRateNum = big.NewInt(1)
+	cgExchangeRateDen = big.NewInt(1)
+)
+
 type exchangeRate struct {
 	Numerator   *big.Int
 	Denominator *big.Int
 }
 
 type PriceComparator struct {
-	exchangeRates map[uint64]*exchangeRate  // indexedCurrency:CeloGold exchange rate
-	currencies    map[uint64]common.Address // mapping from currency id to currency address
+	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
 }
 
-func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 uint64, val2 *big.Int, currency2 uint64) int {
+func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	if currency1 == currency2 {
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1 := pc.exchangeRates[currency1]
-	exchangeRate1Num := exchangeRate1.Numerator
-	exchangeRate1Den := exchangeRate1.Denominator
+	var exchangeRate1Num *big.Int
+	var exchangeRate1Den *big.Int
+	if currency1 == nil {
+		exchangeRate1Num = cgExchangeRateNum
+		exchangeRate1Den = cgExchangeRateDen
+	} else {
+		exchangeRate1 := pc.exchangeRates[*currency1]
+		exchangeRate1Num = exchangeRate1.Numerator
+		exchangeRate1Den = exchangeRate1.Denominator
+	}
 
-	exchangeRate2 := pc.exchangeRates[currency2]
-	exchangeRate2Num := exchangeRate2.Numerator
-	exchangeRate2Den := exchangeRate2.Denominator
+	var exchangeRate2Num *big.Int
+	var exchangeRate2Den *big.Int
+	if currency2 == nil {
+		exchangeRate2Num = cgExchangeRateNum
+		exchangeRate2Den = cgExchangeRateDen
+	} else {
+		exchangeRate2 := pc.exchangeRates[*currency2]
+		exchangeRate2Num = exchangeRate2.Numerator
+		exchangeRate2Den = exchangeRate2.Denominator
+	}
 
 	// Below code block is basically evaluating this comparison:
 	// val1 * exchangeRate1Num/exchangeRate1Den < val2 * exchangeRate2Num/exchangeRate2Den
@@ -54,21 +72,14 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 uint64, val2 *big.Int, c
 	return leftSide.Cmp(rightSide)
 }
 
-func (pc *PriceComparator) HasCurrency(currencyId uint64) bool {
-	_, ok := pc.currencies[currencyId]
-	return ok
-}
-
 func NewPriceComparator() *PriceComparator {
         // TODO(kevjue): Integrate implementation of issue https://github.com/celo-org/celo-monorepo/issues/2706, so that the
 	// exchange rate is retrieved from the smart contract.
 	// For now, hard coding in some exchange rates.  Will modify this to retrieve the
 	// exchange rates from the Celo's exchange smart contract.
-	// CG will have currencyID of 0, and obviously a 1:1 exchange rate with CG
-	// C% will have currencyID of 1, and have a 2:1 exchange rate with CG
-	exchangeRates := make(map[uint64]*exchangeRate)
-	exchangeRates[0] = &exchangeRate{Numerator: big.NewInt(1), Denominator: big.NewInt(1)}
-	exchangeRates[1] = &exchangeRate{Numerator: big.NewInt(2), Denominator: big.NewInt(1)}
+	// C$ will have a 2:1 exchange rate with CG
+	exchangeRates := make(map[common.Address]*exchangeRate)
+	exchangeRates[common.HexToAddress("0x0000000000000000000000000000000ce10d011a")] = &exchangeRate{Numerator: big.NewInt(2), Denominator: big.NewInt(1)}
 
 	return &PriceComparator{
 		exchangeRates: exchangeRates,

@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -175,15 +176,15 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
-func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
-func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
-func (tx *Transaction) GasCurrency() *common.Address {
+func (tx *Transaction) Data() []byte                 { return common.CopyBytes(tx.data.Payload) }
+func (tx *Transaction) Gas() uint64                  { return tx.data.GasLimit }
+func (tx *Transaction) GasPrice() *big.Int           { return new(big.Int).Set(tx.data.Price) }
+func (tx *Transaction) GasCurrency() *common.Address { return tx.data.GasCurrency }
+func (tx *Transaction) NonNilGasCurrency() *common.Address {
 	if tx.data.GasCurrency == nil {
-		return nil
+		return &params.AuthorizedTransferAddress
 	} else {
-		address := common.BytesToAddress(tx.data.GasCurrency.Bytes())
-		return &address
+		return tx.data.GasCurrency
 	}
 }
 func (tx *Transaction) Value() *big.Int  { return new(big.Int).Set(tx.data.Amount) }

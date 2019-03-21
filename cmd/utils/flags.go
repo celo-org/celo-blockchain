@@ -1110,6 +1110,33 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	if ctx.GlobalIsSet(TxPoolLifetimeFlag.Name) {
 		cfg.Lifetime = ctx.GlobalDuration(TxPoolLifetimeFlag.Name)
 	}
+	if ctx.GlobalIsSet(TxPoolLifetimeFlag.Name) {
+		cfg.Lifetime = ctx.GlobalDuration(TxPoolLifetimeFlag.Name)
+	}
+	if ctx.GlobalIsSet(TxPoolCurrencyAddressesFlag.Name) {
+		currencyAddresses := make([]common.Address, 0)
+		// 0x1234,0x123443,...
+		currencies := ctx.GlobalString(TxPoolCurrencyAddressesFlag.Name)
+		currencyAddressesAsString := strings.Split(currencies, ",")
+		// Validation
+		for i := range currencyAddressesAsString {
+			currencyAddress := currencyAddressesAsString[i]
+			if !strings.HasPrefix(currencyAddress, "0x") {
+				panic(fmt.Sprintf("Incorrect currency code, it does not start with 0x: \"%s\"", currencyAddress))
+			}
+			// "0x" followed by 40 hex characters.
+			if len(currencyAddress[2:]) != common.AddressLength*2 {
+				panic(fmt.Sprintf("Incorrect currency code, it does not has 40 characters: \"%s\"", currencyAddress))
+			}
+			hexValue, err := hex.DecodeString(currencyAddress[2:])
+			if err != nil {
+				panic(fmt.Sprintf("Incorrect currency code, it is not a valid hex character set \"%s\"", currencyAddress))
+			}
+			currencyAddresses = append(currencyAddresses, common.BytesToAddress(hexValue))
+		}
+		cfg.CurrencyAddresses = &currencyAddresses
+		log.Debug("Currencies parsed", "currencyAddresses", currencyAddressesAsString)
+	}
 }
 
 func setEthash(ctx *cli.Context, cfg *eth.Config) {
