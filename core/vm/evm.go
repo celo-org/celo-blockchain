@@ -499,29 +499,28 @@ func getTobinTaxFunctionSelector() []byte {
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := AccountRef(common.HexToAddress("0x0"))
-		ret, gas, err := evm.Call(caller, params.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		ret, gas, err := evm.Call(AccountRef(sender), params.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		if err != nil {
+			return gas, err
+		}
 
 		// Expected size of ret is 64 bytes because getTobinTax() returns two uint256 values,
 		// each of which is equivalent to 32 bytes
 		if binary.Size(ret) == 64 {
-			numerator := new(big.Int)
-			numerator.SetBytes(ret[0:32])
-
-			denominator := new(big.Int)
-			denominator.SetBytes(ret[32:64])
-
+			numerator := new(big.Int).SetBytes(ret[0:32])
+			denominator := new(big.Int).SetBytes(ret[32:64])
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
 		} else {
-			// If getTobinTax() doesn't work as expected, still complete the transfer without a tax
+			// If the return value of getTobinTax cannot be parsed, complete the transfer without the tax
 			evm.Context.Transfer(db, sender, recipient, amount)
 			return gas, nil
 		}
 		return gas, err
+	} else {
+		evm.Context.Transfer(db, sender, recipient, amount)
+		return gas, nil
 	}
-	evm.Context.Transfer(db, sender, recipient, amount)
-	return gas, nil
 }
