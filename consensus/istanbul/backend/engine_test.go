@@ -139,6 +139,27 @@ func TestPrepare(t *testing.T) {
 	}
 }
 
+func TestSealReturns(t *testing.T) {
+	chain, engine := newBlockChain(2)
+	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	stop := make(chan struct{}, 1)
+	results := make(chan *types.Block)
+	returns := make(chan struct{}, 1)
+	go func() {
+		err := engine.Seal(chain, block, results, stop)
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
+		}
+		returns <- struct{}{}
+	}()
+
+	select {
+	case <-results:
+	case <-time.After(time.Second):
+		t.Errorf("Never returned from seal")
+	}
+
+}
 func TestSealStopChannel(t *testing.T) {
 	chain, engine := newBlockChain(1)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -156,13 +177,10 @@ func TestSealStopChannel(t *testing.T) {
 	go eventLoop()
 	results := make(chan *types.Block)
 
-	go func() {
-		err := engine.Seal(chain, block, results, stop)
-
-		if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}()
+	err := engine.Seal(chain, block, results, stop)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
 
 	select {
 	case <-results:

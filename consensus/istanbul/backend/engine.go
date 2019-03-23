@@ -420,26 +420,29 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		sb.proposedBlockHash = common.Hash{}
 		sb.sealMu.Unlock()
 	}
-	defer clear()
 
 	// post block into Istanbul engine
 	go sb.EventMux().Post(istanbul.RequestEvent{
 		Proposal: block,
 	})
 
-	for {
-		select {
-		case result := <-sb.commitCh:
-			// if the block hash and the hash from channel are the same,
-			// return the result. Otherwise, keep waiting the next hash.
-			if block.Hash() == result.Hash() {
-				results <- result
-				return nil
+	go func() {
+		defer clear()
+		for {
+			select {
+			case result := <-sb.commitCh:
+				// if the block hash and the hash from channel are the same,
+				// return the result. Otherwise, keep waiting the next hash.
+				if block.Hash() == result.Hash() {
+					results <- result
+					return
+				}
+			case <-stop:
+				return
 			}
-		case <-stop:
-			return nil
 		}
-	}
+	}()
+	return nil
 }
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
