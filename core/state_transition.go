@@ -334,6 +334,15 @@ func getBalanceOfFunctionSelector() []byte {
 	return hexutil.MustDecode("0x70a08231")
 }
 
+func getExchangeRateFunctionSelector() []byte {
+	// Function is "function getExchangeRate(address makerToken, address takerToken)"
+	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
+	return hexutil.MustDecode("0xbaaa61be")
+}
+
 func addressToAbi(address common.Address) []byte {
 	// Now convert address and amount to 32 byte (256-bit) chunks.
 	return common.LeftPadBytes(address.Bytes(), 32)
@@ -359,6 +368,40 @@ func getEncodedAbiWithTwoArgs(methodSelector []byte, var1Abi []byte, var2Abi []b
 	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
 	copy(encodedAbi[len(methodSelector)+len(var1Abi):], var2Abi[:])
 	return encodedAbi
+}
+
+// Medianator contractAddress must have a function  with following signature
+// "function getExchangeRate(address makerToken, address takerToken)"
+// Note that if the Medianator is not initialized with a relevant Oracle then this
+// function will fail with a generic "execution reverted" error.
+func getExchangeRate(evm *vm.EVM, medianatorContractAddress common.Address, baseToken common.Address, counterToken common.Address) (
+	baseAmount *big.Int, counterAmount *big.Int, err error) {
+	log.Trace("getExchangeRate",
+		"medianatorContractAddress", medianatorContractAddress,
+		"baseToken", baseToken,
+		"counterToken", counterToken)
+	functionSelector := getExchangeRateFunctionSelector()
+	transactionData := getEncodedAbiWithTwoArgs(
+		functionSelector, addressToAbi(baseToken), addressToAbi(counterToken))
+	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
+	gas := uint64(10 * 1000)
+	log.Trace("getExchangeRate", "caller", anyCaller, "customTokenContractAddress",
+		medianatorContractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, medianatorContractAddress, transactionData, gas)
+	if err != nil {
+		log.Debug("getExchangeRate error occurred", "Error", err, "leftoverGas", leftoverGas)
+		return nil, nil, err
+	}
+	if len(ret) != 2*32 {
+		log.Debug("getExchangeRate error occurred: unexpected return value", "ret", hexutil.Encode(ret))
+		return nil, nil, errors.New("unexpected return value")
+	}
+	log.Trace("getExchangeRate", "ret", ret, "leftoverGas", leftoverGas, "err", err)
+	baseAmount = new(big.Int).SetBytes(ret[0:32])
+	counterAmount = new(big.Int).SetBytes(ret[32:64])
+	log.Trace("getExchangeRate", "baseAmount", baseAmount, "counterAmount", counterAmount)
+	return baseAmount, counterAmount, nil
 }
 
 func (st *StateTransition) preCheck() error {
