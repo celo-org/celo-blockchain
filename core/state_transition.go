@@ -173,19 +173,27 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 	gasCurrency := st.msg.GasCurrency()
 
+	// Users are not charged an extra fee for transactions where gas is paid in native currency.
+	// Users are charged an extra fee for non-native gas currency transactions for the overhead
+	// of the EVM transactions.
 	if gasCurrency != nil {
 		// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
-		// non-native currency and one `creditTo` transaction to pay miner fee in non-native currency
-		// at the end. We do not charge the gas refund fee upfront, that's deducted only if if there is
-		// sufficient gas to refunded. These transactions are not made for the native currency and hence,
-		// these charges are not applicable in those cases either.
-		gasToMakeOneDebitAndOneCreditTransaction := 2 * maxGasForDebitAndCreditTransactions
-		upfrontGasCharges := gasConsumedToDetermineBalance + gasToMakeOneDebitAndOneCreditTransaction
+		// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
+		// non-native currency at the end and the other covers for the user refund at the end.
+		// A user might or might not have a gas refund at the end and even if they do the gas refund might
+		// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
+		// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
+		// have to expect the user to estimate the mining fee right or else end up losing
+		// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
+		// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
+		// keeping it consistent.
+		gasToDebitAndCreditGas := 3 * maxGasForDebitAndCreditTransactions
+		upfrontGasCharges := gasConsumedToDetermineBalance + gasToDebitAndCreditGas
 		if st.gas < upfrontGasCharges {
 			log.Debug("Gas too low during buy gas",
 				"gas left", st.gas,
 				"gasConsumedToDetermineBalance", gasConsumedToDetermineBalance,
-				"maxGasForDebitAndCreditTransactions", gasToMakeOneDebitAndOneCreditTransaction)
+				"maxGasForDebitAndCreditTransactions", gasToDebitAndCreditGas)
 			return errInsufficientBalanceForGas
 		}
 		st.gas -= upfrontGasCharges
@@ -410,13 +418,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	// Refund unused gas to sender. If the refund gas is lower than the transaction cost to refund it
-	// then don't refund the gas to the user, send it to the miner instead.
-	unrefundedGas := st.refundGas()
-	gasFeesForMiner := st.gasUsed() + unrefundedGas
+	st.refundGas()
+	gasFeesForMiner := st.gasUsed()
 	// Pay gas fee to Coinbase chosen by the miner
 	minerFee := new(big.Int).Mul(new(big.Int).SetUint64(gasFeesForMiner), st.gasPrice)
-	log.Trace("Paying gas fees to miner", "unrefundedGas", unrefundedGas,
+	log.Trace("Paying gas fees to miner",
 		"gas used", st.gasUsed(), "gasFeesForMiner", gasFeesForMiner,
 		"miner Fee", minerFee)
 	log.Trace("Paying gas fees to miner", "miner", st.evm.Coinbase,
@@ -429,7 +435,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
-func (st *StateTransition) refundGas() (unrefundedGas uint64) {
+func (st *StateTransition) refundGas() {
 	refund := st.state.GetRefund()
 	// Apply refund counter, capped to half of the used gas.
 	if refund > st.gasUsed()/2 {
@@ -437,21 +443,6 @@ func (st *StateTransition) refundGas() (unrefundedGas uint64) {
 	}
 
 	st.gas += refund
-
-	// We charge the user for cost associated with non-native currency gas refund to their account.
-	// We have already charged user for crediting the miner's account in buyGas()
-	if st.msg.GasCurrency() != nil {
-		if st.gas > maxGasForDebitAndCreditTransactions {
-			st.gas -= maxGasForDebitAndCreditTransactions
-		} else {
-			log.Info(
-				"Refunding gas to sender not possible since refund amount is less than gas required to process refund",
-				"remaining", st.gas,
-				"gasFees", maxGasForDebitAndCreditTransactions)
-			return st.gas
-		}
-	}
-
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 
@@ -461,7 +452,6 @@ func (st *StateTransition) refundGas() (unrefundedGas uint64) {
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
 	st.gp.AddGas(st.gas)
-	return 0
 }
 
 // gasUsed returns the amount of gas used up by the state transition.
