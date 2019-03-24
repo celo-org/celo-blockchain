@@ -164,15 +164,19 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-		return consensus.ErrUnknownAncestor
-	}
-	if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
-		return errInvalidTimestamp
-	}
-	// Verify validators in extraData. Validators in snapshot and extraData should be the same.
-	if err := sb.verifySigner(chain, header, parents); err != nil {
-		return err
+	if chain.Config().FullHeaderChainAvailable {
+
+		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+			log.Error("[nam] I should not be here")
+			return consensus.ErrUnknownAncestor
+		}
+		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
+			return errInvalidTimestamp
+		}
+		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
+		if err := sb.verifySigner(chain, header, parents); err != nil {
+			return err
+		}
 	}
 
 	return sb.verifyCommittedSeals(chain, header, parents)
@@ -575,18 +579,22 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if header == nil {
+			if chain.Config().FullHeaderChainAvailable && header == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
+		if header != nil {
+			headers = append(headers, header)
+			number, hash = number-1, header.ParentHash
+		} else if !chain.Config().FullHeaderChainAvailable {
+			number = number - 1
+		}
 	}
 	// Previous snapshot found, apply any pending headers on top of it
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers)
+	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
 	if err != nil {
 		return nil, err
 	}
