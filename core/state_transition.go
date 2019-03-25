@@ -161,7 +161,8 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	hasSufficientGas, gasUsed := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
+	// gasConsumedToDetermineBalance = Charge to determine user's balance in native or non-native currency
+	hasSufficientGas, gasConsumedToDetermineBalance := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
 	if !hasSufficientGas {
 		return errInsufficientBalanceForGas
 	}
@@ -169,15 +170,36 @@ func (st *StateTransition) buyGas() error {
 		return err
 	}
 	st.gas += st.msg.Gas()
-	st.initialGas = st.msg.Gas()
 	gasCurrency := st.msg.GasCurrency()
-	// Charge user for the gas used to determine gas balance.
-	// It is 0 for native gas currency, and we charge maxGasForDebitAndCreditTransactions for safety and give
-	// that as the gas allowance for the debit and the credit transactions.
-	chargeForGasWithdrawal := new(big.Int).SetUint64(maxGasForDebitAndCreditTransactions)
-	mgval = new(big.Int).Add(mgval, chargeForGasWithdrawal.Mul(chargeForGasWithdrawal, st.gasPrice))
-	amount := new(big.Int).Add(mgval, new(big.Int).SetUint64(gasUsed))
-	err := st.debitGas(amount, gasCurrency)
+
+	// Users are not charged an extra fee for transactions where gas is paid in native currency.
+	// Users are charged an extra fee for non-native gas currency transactions for the overhead
+	// of the EVM transactions.
+	if gasCurrency != nil {
+		// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
+		// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
+		// non-native currency at the end and the other covers for the user refund at the end.
+		// A user might or might not have a gas refund at the end and even if they do the gas refund might
+		// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
+		// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
+		// have to expect the user to estimate the mining fee right or else end up losing
+		// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
+		// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
+		// keeping it consistent.
+		gasToDebitAndCreditGas := 3 * maxGasForDebitAndCreditTransactions
+		upfrontGasCharges := gasConsumedToDetermineBalance + gasToDebitAndCreditGas
+		if st.gas < upfrontGasCharges {
+			log.Debug("Gas too low during buy gas",
+				"gas left", st.gas,
+				"gasConsumedToDetermineBalance", gasConsumedToDetermineBalance,
+				"maxGasForDebitAndCreditTransactions", gasToDebitAndCreditGas)
+			return errInsufficientBalanceForGas
+		}
+		st.gas -= upfrontGasCharges
+		log.Trace("buyGas before debitGas", "upfrontGasCharges", upfrontGasCharges, "available gas", st.gas, "initial gas", st.initialGas, "gasCurrency", gasCurrency)
+	}
+	st.initialGas = st.msg.Gas()
+	err := st.debitGas(mgval, gasCurrency)
 	return err
 }
 
@@ -197,15 +219,6 @@ func (st *StateTransition) canBuyGas(
 	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
 }
 
-type ZeroAddress int64
-
-func (ZeroAddress) Address() common.Address {
-	var address common.Address
-	// Not required since address is, by default, initialized to 0
-	// copy(address[:], "0000000000000000000000000000000000000000")
-	return address
-}
-
 // contractAddress must have a function  with following signature
 // "function balanceOf(address _owner) public view returns (uint256)"
 func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAddress *common.Address) (
@@ -213,7 +226,7 @@ func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAdd
 	evm := st.evm
 	functionSelector := getBalanceOfFunctionSelector()
 	transactionData := getEncodedAbiWithOneArg(functionSelector, addressToAbi(accountOwner))
-	anyCaller := ZeroAddress(0) // any caller will work
+	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
 	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
 		*contractAddress, "gas", st.gas, "transactionData", hexutil.Encode(transactionData))
 	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, st.gas+st.msg.Gas())
@@ -241,7 +254,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 	evm := st.evm
 	transactionData := getEncodedAbiWithTwoArgs(functionSelector, addressToAbi(address), amountToAbi(amount))
 
-	rootCaller := ZeroAddress(0)
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	maxGasForCall := st.gas
 	// Limit the gas used by these calls to prevent a gas stealing attack.
 	if maxGasForCall > maxGasForDebitAndCreditTransactions {
@@ -281,7 +294,7 @@ func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
 	// native currency
 	if gasCurrency == nil {
-		st.state.AddBalance(to, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+		st.state.AddBalance(to, amount)
 		return nil
 	}
 
@@ -320,6 +333,15 @@ func getBalanceOfFunctionSelector() []byte {
 	return hexutil.MustDecode("0x70a08231")
 }
 
+func getExchangeRateFunctionSelector() []byte {
+	// Function is "function getExchangeRate(address makerToken, address takerToken)"
+	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
+	return hexutil.MustDecode("0xbaaa61be")
+}
+
 func addressToAbi(address common.Address) []byte {
 	// Now convert address and amount to 32 byte (256-bit) chunks.
 	return common.LeftPadBytes(address.Bytes(), 32)
@@ -345,6 +367,40 @@ func getEncodedAbiWithTwoArgs(methodSelector []byte, var1Abi []byte, var2Abi []b
 	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
 	copy(encodedAbi[len(methodSelector)+len(var1Abi):], var2Abi[:])
 	return encodedAbi
+}
+
+// Medianator contractAddress must have a function  with following signature
+// "function getExchangeRate(address makerToken, address takerToken)"
+// Note that if the Medianator is not initialized with a relevant Oracle then this
+// function will fail with a generic "execution reverted" error.
+func getExchangeRate(evm *vm.EVM, medianatorContractAddress common.Address, baseToken common.Address, counterToken common.Address) (
+	baseAmount *big.Int, counterAmount *big.Int, err error) {
+	log.Trace("getExchangeRate",
+		"medianatorContractAddress", medianatorContractAddress,
+		"baseToken", baseToken,
+		"counterToken", counterToken)
+	functionSelector := getExchangeRateFunctionSelector()
+	transactionData := getEncodedAbiWithTwoArgs(
+		functionSelector, addressToAbi(baseToken), addressToAbi(counterToken))
+	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
+	gas := uint64(10 * 1000)
+	log.Trace("getExchangeRate", "caller", anyCaller, "customTokenContractAddress",
+		medianatorContractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, medianatorContractAddress, transactionData, gas)
+	if err != nil {
+		log.Debug("getExchangeRate error occurred", "Error", err, "leftoverGas", leftoverGas)
+		return nil, nil, err
+	}
+	if len(ret) != 2*32 {
+		log.Debug("getExchangeRate error occurred: unexpected return value", "ret", hexutil.Encode(ret))
+		return nil, nil, errors.New("unexpected return value")
+	}
+	log.Trace("getExchangeRate", "ret", ret, "leftoverGas", leftoverGas, "err", err)
+	baseAmount = new(big.Int).SetBytes(ret[0:32])
+	counterAmount = new(big.Int).SetBytes(ret[32:64])
+	log.Trace("getExchangeRate", "baseAmount", baseAmount, "counterAmount", counterAmount)
+	return baseAmount, counterAmount, nil
 }
 
 func (st *StateTransition) preCheck() error {
@@ -404,12 +460,18 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	// Refund unused gas to sender
 	st.refundGas()
+	gasFeesForMiner := st.gasUsed()
 	// Pay gas fee to Coinbase chosen by the miner
+	minerFee := new(big.Int).Mul(new(big.Int).SetUint64(gasFeesForMiner), st.gasPrice)
+	log.Trace("Paying gas fees to miner",
+		"gas used", st.gasUsed(), "gasFeesForMiner", gasFeesForMiner,
+		"miner Fee", minerFee)
+	log.Trace("Paying gas fees to miner", "miner", st.evm.Coinbase,
+		"minerFee", minerFee, "gas Currency", st.msg.GasCurrency())
 	st.creditGas(
 		st.evm.Coinbase,
-		new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice),
+		minerFee,
 		st.msg.GasCurrency())
 
 	return ret, st.gasUsed(), vmerr != nil, err
@@ -417,25 +479,17 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 func (st *StateTransition) refundGas() {
 	refund := st.state.GetRefund()
-	// We charge the user for cost associated with gas refund to their account as well as the
-	// cost associated with paying the mining fee to Coinbase account.
-	if refund >= 2*maxGasForDebitAndCreditTransactions {
-		refund -= 2 * maxGasForDebitAndCreditTransactions
-	} else {
-		log.Info("refundGas not possible since refund amount is too small",
-			"refund", refund, "maxGasForDebitAndCreditTransactions", maxGasForDebitAndCreditTransactions)
-		return
-	}
-
 	// Apply refund counter, capped to half of the used gas.
 	if refund > st.gasUsed()/2 {
 		refund = st.gasUsed() / 2
 	}
 
 	st.gas += refund
-
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
+
+	log.Trace("Refunding gas to sender", "sender", st.msg.From(),
+		"refundAmount", remaining, "gas Currency", st.msg.GasCurrency())
 	st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
