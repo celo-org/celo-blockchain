@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -49,7 +50,7 @@ var DefaultConfig = Config{
 	TrieTimeout:                 60 * time.Minute,
 	MinerGasFloor:               8000000,
 	MinerGasCeil:                8000000,
-	MinerGasPrice:               big.NewInt(0), // Always free gas
+	MinerGasPrice:               big.NewInt(params.GWei),
 	MinerRecommit:               3 * time.Second,
 	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
 
@@ -57,7 +58,7 @@ var DefaultConfig = Config{
 	GPO: gasprice.Config{
 		Blocks:     20,
 		Percentile: 60,
-		AlwaysZero: true, // Always free gas
+		AlwaysZero: false,
 	},
 
 	Istanbul: *istanbul.DefaultConfig,
