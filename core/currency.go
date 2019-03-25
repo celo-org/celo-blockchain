@@ -73,7 +73,7 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 }
 
 func NewPriceComparator() *PriceComparator {
-        // TODO(kevjue): Integrate implementation of issue https://github.com/celo-org/celo-monorepo/issues/2706, so that the
+	// TODO(kevjue): Integrate implementation of issue https://github.com/celo-org/celo-monorepo/issues/2706, so that the
 	// exchange rate is retrieved from the smart contract.
 	// For now, hard coding in some exchange rates.  Will modify this to retrieve the
 	// exchange rates from the Celo's exchange smart contract.

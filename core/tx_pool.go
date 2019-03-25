@@ -1269,7 +1269,7 @@ type txLookup struct {
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-		all: make(map[common.Hash]*types.Transaction),
+		all:         make(map[common.Hash]*types.Transaction),
 		txCurrCount: make(map[common.Address]uint64),
 	}
 }

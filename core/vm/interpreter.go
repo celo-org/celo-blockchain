@@ -46,7 +46,7 @@ type Config struct {
 	// Type of the EWASM interpreter
 	EWASMInterpreter string
 	// Type of the EVM interpreter
-	EVMInterpreter  string
+	EVMInterpreter    string
 	CurrencyAddresses *[]common.Address
 }
 

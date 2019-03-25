@@ -297,7 +297,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-        return w.pc.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return w.pc.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.

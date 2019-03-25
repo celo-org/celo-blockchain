@@ -1340,7 +1340,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 				panic(fmt.Sprintf("Incorrect currency code, it does not start with 0x: \"%s\"", currencyAddress))
 			}
 			// "0x" followed by 40 hex characters.
-			if len(currencyAddress[2:]) != common.AddressLength * 2 {
+			if len(currencyAddress[2:]) != common.AddressLength*2 {
 				panic(fmt.Sprintf("Incorrect currency code, it does not has 40 characters: \"%s\"", currencyAddress))
 			}
 			hexValue, err := hex.DecodeString(currencyAddress[2:])
