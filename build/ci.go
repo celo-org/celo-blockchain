@@ -361,7 +361,9 @@ func doLint(cmdline []string) {
 		"--tests",
 		"--deadline=2m",
 		"--disable-all",
-		"--enable=goimports",
+		// TODO (kevjue) - The goimports lint check is disabled since it was raising false errors.  Changes should be made
+		//                 so that this check can be re-enabled without raising false errors.
+		// "--enable=goimports",
 		"--enable=varcheck",
 		"--enable=vet",
 		"--enable=gofmt",
