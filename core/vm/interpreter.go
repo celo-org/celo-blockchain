@@ -46,8 +46,7 @@ type Config struct {
 	// Type of the EWASM interpreter
 	EWASMInterpreter string
 	// Type of the EVM interpreter
-	EVMInterpreter    string
-	CurrencyAddresses *[]common.Address
+	EVMInterpreter string
 }
 
 // Interpreter is used to run Ethereum based contracts and will utilise the

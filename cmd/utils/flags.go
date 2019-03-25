@@ -412,11 +412,6 @@ var (
 		// TODO(sklanje): Update this to Celo verification pool address.
 		Value: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 	}
-	MinerCurrencyAddressesFlag = cli.StringFlag{
-		Name:  "miner.currencyaddresses",
-		Usage: "Contract address of the currency accepted by the miner, 0x1234...,0xf4ee... etc. All addresses should start with 0x and followed by 40 hex character",
-		Value: "",
-	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -1110,9 +1105,6 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	if ctx.GlobalIsSet(TxPoolLifetimeFlag.Name) {
 		cfg.Lifetime = ctx.GlobalDuration(TxPoolLifetimeFlag.Name)
 	}
-	if ctx.GlobalIsSet(TxPoolLifetimeFlag.Name) {
-		cfg.Lifetime = ctx.GlobalDuration(TxPoolLifetimeFlag.Name)
-	}
 	if ctx.GlobalIsSet(TxPoolCurrencyAddressesFlag.Name) {
 		currencyAddresses := make([]common.Address, 0)
 		// 0x1234,0x123443,...
@@ -1327,31 +1319,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
 	}
-
-	currencyAddresses := make([]common.Address, 0)
-	if ctx.GlobalIsSet(MinerCurrencyAddressesFlag.Name) {
-		// 0x1234,0x123443,...
-		currencies := ctx.GlobalString(MinerCurrencyAddressesFlag.Name)
-		currencyAddressesAsString := strings.Split(currencies, ",")
-		// Validation
-		for i := range currencyAddressesAsString {
-			currencyAddress := currencyAddressesAsString[i]
-			if !strings.HasPrefix(currencyAddress, "0x") {
-				panic(fmt.Sprintf("Incorrect currency code, it does not start with 0x: \"%s\"", currencyAddress))
-			}
-			// "0x" followed by 40 hex characters.
-			if len(currencyAddress[2:]) != common.AddressLength*2 {
-				panic(fmt.Sprintf("Incorrect currency code, it does not has 40 characters: \"%s\"", currencyAddress))
-			}
-			hexValue, err := hex.DecodeString(currencyAddress[2:])
-			if err != nil {
-				panic(fmt.Sprintf("Incorrect currency code, it is not a valid hex character set \"%s\"", currencyAddress))
-			}
-			currencyAddresses = append(currencyAddresses, common.BytesToAddress(hexValue))
-		}
-		log.Debug("Currencies parsed", "currencyAddresses", currencyAddressesAsString)
-	}
-	cfg.CurrencyAddresses = &currencyAddresses
 
 	// Override any default configs for hard coded networks.
 	switch {

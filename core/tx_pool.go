@@ -237,7 +237,7 @@ type TxPool struct {
 	homestead bool
 
 	pc                *PriceComparator
-	currencyAddresses *map[common.Address]bool
+	currencyAddresses map[common.Address]bool
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
@@ -248,17 +248,18 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 
 	// Create the transaction pool with its initial settings
 	pool := &TxPool{
-		config:      config,
-		chainconfig: chainconfig,
-		chain:       chain,
-		signer:      types.NewEIP155Signer(chainconfig.ChainID),
-		pending:     make(map[common.Address]*txList),
-		queue:       make(map[common.Address]*txList),
-		beats:       make(map[common.Address]time.Time),
-		all:         newTxLookup(),
-		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
-		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
-		pc:          pc,
+		config:            config,
+		chainconfig:       chainconfig,
+		chain:             chain,
+		signer:            types.NewEIP155Signer(chainconfig.ChainID),
+		pending:           make(map[common.Address]*txList),
+		queue:             make(map[common.Address]*txList),
+		beats:             make(map[common.Address]time.Time),
+		all:               newTxLookup(),
+		chainHeadCh:       make(chan ChainHeadEvent, chainHeadChanSize),
+		gasPrice:          new(big.Int).SetUint64(config.PriceLimit),
+		pc:                pc,
+		currencyAddresses: make(map[common.Address]bool),
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -269,7 +270,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 
 	if config.CurrencyAddresses != nil {
 		for _, address := range *config.CurrencyAddresses {
-			(*pool.currencyAddresses)[address] = true
+			pool.currencyAddresses[address] = true
 		}
 	}
 
@@ -623,8 +624,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasCurrency() != nil && // Non native gas in the tx
-		pool.currencyAddresses != nil && // User specified set of currency addresses via cmd line
-		!(*pool.currencyAddresses)[*tx.GasCurrency()] { // The tx currency is not in the user specified list
+		!pool.currencyAddresses[*tx.GasCurrency()] { // The tx currency is not in the user specified list
 		return ErrUnregisteredGasCurrency
 	}
 

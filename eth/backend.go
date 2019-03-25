@@ -155,7 +155,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			EnablePreimageRecording: config.EnablePreimageRecording,
 			EWASMInterpreter:        config.EWASMInterpreter,
 			EVMInterpreter:          config.EVMInterpreter,
-			CurrencyAddresses:       config.CurrencyAddresses,
 		}
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieCleanLimit: config.TrieCleanCache, TrieDirtyLimit: config.TrieDirtyCache, TrieTimeLimit: config.TrieTimeout}
 	)

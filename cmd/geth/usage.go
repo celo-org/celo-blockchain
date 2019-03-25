@@ -126,6 +126,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.TxPoolAccountQueueFlag,
 			utils.TxPoolGlobalQueueFlag,
 			utils.TxPoolLifetimeFlag,
+			utils.TxPoolCurrencyAddressesFlag,
 		},
 	},
 	{
@@ -198,7 +199,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerNoVerfiyFlag,
 			utils.MinerVerificationServiceUrlFlag,
 			utils.MinerVerificationRewardsFlag,
-			utils.MinerCurrencyAddressesFlag,
 		},
 	},
 	{
