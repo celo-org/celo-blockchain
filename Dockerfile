@@ -26,12 +26,5 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 
-# For google-cloud-sdk
-RUN apk add --no-cache bash curl python
-RUN curl -sSL https://sdk.cloud.google.com | bash
-# For snapshot API
-RUN /root/google-cloud-sdk/bin/gcloud components install beta
-RUN /root/google-cloud-sdk/bin/gcloud components install kubectl
-
 EXPOSE 8545 8546 30303 30303/udp
 ENTRYPOINT ["geth"]
