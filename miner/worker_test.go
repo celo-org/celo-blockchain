@@ -104,7 +104,8 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
+	pc := core.NewPriceComparator()
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc)
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -144,7 +145,8 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
 	backend.txPool.AddLocals(pendingTxs)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress)
+	pc := core.NewPriceComparator()
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, pc)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
