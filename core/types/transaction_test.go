@@ -49,7 +49,7 @@ var (
 		common.FromHex("5544"),
 	).WithSignature(
 		HomesteadSigner{},
-		common.Hex2Bytes("693987a6a1238f28b63fd27c43b7e96bc2611ade7ef18d5ddaab55fc9eca0d3d1c740fb1a05c5fbccc00e7b0116b5b7e69a93e435c5c4f3bbe96c5909f910e1e00"),
+		common.Hex2Bytes("98ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4a8887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a301"),
 	)
 )
 
@@ -68,7 +68,7 @@ func TestTransactionEncode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}
-	should := common.FromHex("f86203018207d08094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ba0693987a6a1238f28b63fd27c43b7e96bc2611ade7ef18d5ddaab55fc9eca0d3da01c740fb1a05c5fbccc00e7b0116b5b7e69a93e435c5c4f3bbe96c5909f910e1e")
+	should := common.FromHex("f86203018207d08094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a3")
 	if !bytes.Equal(txb, should) {
 		t.Errorf("encoded RLP mismatch, got %x", txb)
 	}
@@ -146,7 +146,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 		}
 	}
 	// Sort the transactions and cross check the nonce ordering
-	txset := NewTransactionsByPriceAndNonce(signer, groups)
+	txset := NewTransactionsByPriceAndNonce(signer, groups, func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) })
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
