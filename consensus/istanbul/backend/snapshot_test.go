@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type testerVote struct {
@@ -334,6 +335,7 @@ func TestVoting(t *testing.T) {
 		genesis := &core.Genesis{
 			Difficulty: defaultDifficulty,
 			Mixhash:    types.IstanbulDigest,
+			Config:     params.TestChainConfig,
 		}
 		b := genesis.ToBlock(nil)
 		extra, _ := prepareExtra(b.Header(), validators)
