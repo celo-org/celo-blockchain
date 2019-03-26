@@ -278,11 +278,19 @@ func (w *worker) pendingBlock() *types.Block {
 func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
+
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock)
+	}
 }
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
+
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		istanbul.Stop()
+	}
 }
 
 // isRunning returns an indicator whether worker is running or not.
@@ -368,7 +376,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
-			if w.isRunning() && (w.config.Clique == nil || w.config.Clique.Period > 0) {
+			if w.isRunning() && (w.config.Clique == nil || w.config.Clique.Period > 0) && !w.isIstanbulEngine() {
 				// Short circuit if no new transaction arrives.
 				if atomic.LoadInt32(&w.newTxs) == 0 {
 					timer.Reset(recommit)
@@ -421,6 +429,9 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
+			if h, ok := w.engine.(consensus.Handler); ok {
+				h.NewChainHead()
+			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
 		case ev := <-w.chainSideCh:
@@ -929,21 +940,30 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	commitUncles(w.localUncles)
 	commitUncles(w.remoteUncles)
 
-	if !noempty {
+	if !noempty && !w.isIstanbulEngine() {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
 		w.commit(uncles, nil, false, tstart)
 	}
 
+	istanbulEmptyBlockCommit := func() {
+		if !noempty && w.isIstanbulEngine() {
+			w.commit(uncles, nil, false, tstart)
+		}
+	}
+
+	w.updateSnapshot()
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
+		istanbulEmptyBlockCommit()
 		return
 	}
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
-		w.updateSnapshot()
+		istanbulEmptyBlockCommit()
 		return
 	}
 	// Split the pending transactions into locals and remotes
@@ -1009,4 +1029,8 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		w.updateSnapshot()
 	}
 	return nil
+}
+
+func (w *worker) isIstanbulEngine() bool {
+	return w.engine.Protocol().Name == "istanbul"
 }
