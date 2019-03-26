@@ -154,7 +154,7 @@ func TestSealReturns(t *testing.T) {
 	}()
 
 	select {
-	case <-results:
+	case <-returns:
 	case <-time.After(time.Second):
 		t.Errorf("Never returned from seal")
 	}
