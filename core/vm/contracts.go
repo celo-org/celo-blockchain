@@ -76,9 +76,6 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
-	if err == ErrOutOfGas {
-		return ret, err
-	}
 	contract.UseGas(contract.Gas - gas)
 	return ret, err
 }
@@ -439,7 +436,7 @@ func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM,
 	}
 
 	if caller != params.AuthorizedRequestVerificationAddress {
-		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
+		return nil, gas, fmt.Errorf("Unable to call requestVerification from unpermissioned address")
 	}
 	_, err = types.DecodeVerificationRequest(input)
 	if err != nil {
@@ -481,7 +478,7 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	if caller != params.AuthorizedTransferAddress {
-		return nil, gas, fmt.Errorf("Unable to call tranfer from unpermissioned address")
+		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	from := common.BytesToAddress(input[0:32])
 	to := common.BytesToAddress(input[32:64])

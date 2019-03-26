@@ -513,17 +513,11 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
-		} else {
-			// If the return value of getTobinTax cannot be parsed, complete the transfer without the tax
-			log.Debug("getTobinTax value cannot be parsed, complete transfer without Tobin tax")
-			evm.Context.Transfer(db, sender, recipient, amount)
 			return gas, nil
 		}
-		return gas, err
-	} else {
-		// If the amount is 0, complete the transfer because state trie clearing [EIP161] is necessary at the end of a transaction
-		log.Debug("amount == 0, complete transfer without Tobin tax")
-		evm.Context.Transfer(db, sender, recipient, amount)
-		return gas, nil
 	}
+	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+	evm.Context.Transfer(db, sender, recipient, amount)
+	return gas, nil
 }
