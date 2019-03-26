@@ -36,36 +36,26 @@ type PriceComparator struct {
 	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
 }
 
+func (pc *PriceComparator) getNumDenom(currency *common.Address) (*big.Int, *big.Int) {
+	if currency == nil {
+		return cgExchangeRateNum, cgExchangeRateDen
+	} else {
+		exchangeRate := pc.exchangeRates[*currency]
+		return exchangeRate.Numerator, exchangeRate.Denominator
+	}
+}
+
 func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	if currency1 == currency2 {
 		return val1.Cmp(val2)
 	}
 
-	var exchangeRate1Num *big.Int
-	var exchangeRate1Den *big.Int
-	if currency1 == nil {
-		exchangeRate1Num = cgExchangeRateNum
-		exchangeRate1Den = cgExchangeRateDen
-	} else {
-		exchangeRate1 := pc.exchangeRates[*currency1]
-		exchangeRate1Num = exchangeRate1.Numerator
-		exchangeRate1Den = exchangeRate1.Denominator
-	}
-
-	var exchangeRate2Num *big.Int
-	var exchangeRate2Den *big.Int
-	if currency2 == nil {
-		exchangeRate2Num = cgExchangeRateNum
-		exchangeRate2Den = cgExchangeRateDen
-	} else {
-		exchangeRate2 := pc.exchangeRates[*currency2]
-		exchangeRate2Num = exchangeRate2.Numerator
-		exchangeRate2Den = exchangeRate2.Denominator
-	}
+	exchangeRate1Num, exchangeRate1Den := pc.getNumDenom(currency1)
+	exchangeRate2Num, exchangeRate2Den := pc.getNumDenom(currency2)
 
 	// Below code block is basically evaluating this comparison:
 	// val1 * exchangeRate1Num/exchangeRate1Den < val2 * exchangeRate2Num/exchangeRate2Den
-	// It Will transform that comparison to this, to remove having to deal with fractional values.
+	// It will transform that comparison to this, to remove having to deal with fractional values.
 	// val1 * exchangeRate1Num * exchangeRate2Den < val2 * exchangeRate2Num * exchangeRate1Den
 	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1Num, exchangeRate2Den))
 	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2Num, exchangeRate1Den))

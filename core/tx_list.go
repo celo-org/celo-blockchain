@@ -422,7 +422,7 @@ func newTxPricedList(all *txLookup, pc *PriceComparator) *txPricedList {
 	}
 }
 
-// Get's the price heap for the given currency
+// Gets the price heap for the given currency
 func (l *txPricedList) getPriceHeap(tx *types.Transaction) *priceHeap {
 	gasCurrency := *(tx.NonNilGasCurrency())
 	if _, ok := l.heaps[gasCurrency]; !ok {

@@ -19,7 +19,6 @@ package utils
 
 import (
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -33,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -1113,18 +1113,16 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 		// Validation
 		for i := range currencyAddressesAsString {
 			currencyAddress := currencyAddressesAsString[i]
-			if !strings.HasPrefix(currencyAddress, "0x") {
-				panic(fmt.Sprintf("Incorrect currency code, it does not start with 0x: \"%s\"", currencyAddress))
-			}
+
+			// MustDecode will check for a "0x" prefix and all the remaining characters are valid for an address
+			addressBytes := hexutil.MustDecode(currencyAddress)
+
 			// "0x" followed by 40 hex characters.
 			if len(currencyAddress[2:]) != common.AddressLength*2 {
 				panic(fmt.Sprintf("Incorrect currency code, it does not has 40 characters: \"%s\"", currencyAddress))
 			}
-			hexValue, err := hex.DecodeString(currencyAddress[2:])
-			if err != nil {
-				panic(fmt.Sprintf("Incorrect currency code, it is not a valid hex character set \"%s\"", currencyAddress))
-			}
-			currencyAddresses = append(currencyAddresses, common.BytesToAddress(hexValue))
+
+			currencyAddresses = append(currencyAddresses, common.BytesToAddress(addressBytes))
 		}
 		cfg.CurrencyAddresses = &currencyAddresses
 		log.Debug("Currencies parsed", "currencyAddresses", currencyAddressesAsString)
