@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
@@ -122,10 +121,6 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	// TODO(yasmeen): Read the tobin tax amount from the reserve smart contract
-	tobinTax := big.NewInt(0)
-
 	db.SubBalance(sender, amount)
-	db.AddBalance(recipient, new(big.Int).Sub(amount, tobinTax))
-	db.AddBalance(params.ReserveAddress, tobinTax)
+	db.AddBalance(recipient, amount)
 }

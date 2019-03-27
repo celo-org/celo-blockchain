@@ -17,13 +17,16 @@
 package vm
 
 import (
+	"encoding/binary"
 	"math/big"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -220,7 +223,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
+	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
+	if err != nil {
+		log.Debug("Failed to transfer with tobin tax", "err", err)
+		return nil, gas, err
+	}
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -403,7 +410,11 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.ChainConfig().IsEIP158(evm.BlockNumber) {
 		evm.StateDB.SetNonce(address, 1)
 	}
-	evm.Transfer(evm.StateDB, caller.Address(), address, value)
+	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
+	if err != nil {
+		log.Error("TobinTransfer failed", "error", err)
+		return nil, address, gas, err
+	}
 
 	// initialise a new contract and set the code that is to be used by the
 	// EVM. The contract is a scoped environment for this execution context
@@ -475,3 +486,38 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func getTobinTaxFunctionSelector() []byte {
+	// Function is "getTobinTax()"
+	// selector is first 4 bytes of keccak256 of "getTobinTax()"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getTobinTax()")[0:4].hex())'
+	return hexutil.MustDecode("0x18ff9d23")
+}
+
+// TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
+func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	if amount.Cmp(big.NewInt(0)) != 0 {
+		ret, gas, err := evm.Call(AccountRef(sender), params.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		if err != nil {
+			return gas, err
+		}
+
+		// Expected size of ret is 64 bytes because getTobinTax() returns two uint256 values,
+		// each of which is equivalent to 32 bytes
+		if binary.Size(ret) == 64 {
+			numerator := new(big.Int).SetBytes(ret[0:32])
+			denominator := new(big.Int).SetBytes(ret[32:64])
+			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+
+			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
+			return gas, nil
+		}
+	}
+	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+	evm.Context.Transfer(db, sender, recipient, amount)
+	return gas, nil
+}
