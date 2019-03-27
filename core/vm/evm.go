@@ -412,7 +412,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 	if err != nil {
-		log.Debug("Failed to transfer with tobin tax", "err", err)
+		log.Error("TobinTransfer failed", "error", err)
 		return nil, address, gas, err
 	}
 
