@@ -17,8 +17,8 @@
 package faulty
 
 import (
+	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"gopkg.in/karalabe/cookiejar.v2/collections/prque"
 )
 
 var (
@@ -90,7 +90,7 @@ func (c *core) storeBacklog(msg *message, src istanbul.Validator) {
 
 	backlog := c.backlogs[src]
 	if backlog == nil {
-		backlog = prque.New()
+		backlog = prque.New(nil)
 	}
 	switch msg.Code {
 	case msgPreprepare:
@@ -170,13 +170,13 @@ func (c *core) processBacklog() {
 	}
 }
 
-func toPriority(msgCode uint64, view *istanbul.View) float32 {
+func toPriority(msgCode uint64, view *istanbul.View) int64 {
 	if msgCode == msgRoundChange {
 		// For msgRoundChange, set the message priority based on its sequence
-		return -float32(view.Sequence.Uint64() * 1000)
+		return -int64(view.Sequence.Uint64() * 1000)
 	}
 	// FIXME: round will be reset as 0 while new sequence
 	// 10 * Round limits the range of message code is from 0 to 9
 	// 1000 * Sequence limits the range of round is from 0 to 99
-	return -float32(view.Sequence.Uint64()*1000 + view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
+	return -int64(view.Sequence.Uint64()*1000 + view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }

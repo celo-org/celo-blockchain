@@ -411,7 +411,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 
 	if sb.badBlock() {
 		// Generate bad transactions
-		tx := types.NewTransaction(100, common.Address{}, big.NewInt(10), big.NewInt(10), big.NewInt(10), nil)
+		tx := types.NewTransaction(100, common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, nil)
 		block.WithBody([]*types.Transaction{tx}, nil)
 	}
 
@@ -728,7 +728,7 @@ func writeCommittedSeals(h *types.Header, committedSeals [][]byte) error {
 	return nil
 }
 
-func (sb *backend) badBlock() bool {
+func (sb *Backend) badBlock() bool {
 	return sb.config.FaultyMode == istanbul.BadBlock.Uint64() ||
 		(sb.config.FaultyMode == istanbul.Random.Uint64() && rand.Intn(2) == 1)
 }

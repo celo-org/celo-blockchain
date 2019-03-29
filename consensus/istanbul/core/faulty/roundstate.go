@@ -155,7 +155,7 @@ func (s *roundState) IsHashLocked() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if common.EmptyHash(s.lockedHash) {
+	if (s.lockedHash == common.Hash{}) {
 		return false
 	}
 	return !s.hasBadProposal(s.GetLockedHash())

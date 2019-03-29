@@ -142,11 +142,8 @@ var (
 		configFileFlag,
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
-<<<<<<< HEAD
-=======
 		utils.IstanbulBlockPauseTimeFlag,
 		utils.IstanbulFaultyModeFlag,
->>>>>>> 420b72ddc... cmd, consensus: add faulty node configs
 	}
 
 	rpcFlags = []cli.Flag{

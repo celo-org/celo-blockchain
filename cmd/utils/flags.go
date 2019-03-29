@@ -671,8 +671,6 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
-<<<<<<< HEAD
-=======
 	IstanbulBlockPauseTimeFlag = cli.Uint64Flag{
 		Name:  "istanbul.blockpausetime",
 		Usage: "Pause time when zero tx in previous block, values should be larger than istanbul.blockperiod",
@@ -683,7 +681,6 @@ var (
 		Usage: "The faulty node indicates the faulty node's behavior",
 		Value: eth.DefaultConfig.Istanbul.FaultyMode,
 	}
->>>>>>> 420b72ddc... cmd, consensus: add faulty node configs
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1216,15 +1213,12 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
-<<<<<<< HEAD
-=======
 	if ctx.GlobalIsSet(IstanbulBlockPauseTimeFlag.Name) {
 		cfg.Istanbul.BlockPauseTime = ctx.GlobalUint64(IstanbulBlockPauseTimeFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulFaultyModeFlag.Name) {
 		cfg.Istanbul.FaultyMode = ctx.GlobalUint64(IstanbulFaultyModeFlag.Name)
 	}
->>>>>>> 420b72ddc... cmd, consensus: add faulty node configs
 }
 
 // checkExclusive verifies that only a single isntance of the provided flags was
