@@ -211,36 +211,13 @@ func (st *StateTransition) canBuyGas(
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
 	}
-	balanceOf, gasUsed, err := st.getBalanceOf(accountOwner, gasCurrency)
+	balanceOf, gasUsed, err := GetBalanceOf(accountOwner, gasCurrency, st.evm, st.gas+st.msg.Gas())
 	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(),
 		"gas used", gasUsed, "error", err)
 	if err != nil {
 		return false, gasUsed
 	}
 	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
-}
-
-// contractAddress must have a function  with following signature
-// "function balanceOf(address _owner) public view returns (uint256)"
-func (st *StateTransition) getBalanceOf(accountOwner common.Address, contractAddress *common.Address) (
-	balance *big.Int, gasUsed uint64, err error) {
-	evm := st.evm
-	functionSelector := getBalanceOfFunctionSelector()
-	transactionData := getEncodedAbiWithOneArg(functionSelector, addressToAbi(accountOwner))
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
-	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
-		*contractAddress, "gas", st.gas, "transactionData", hexutil.Encode(transactionData))
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, st.gas+st.msg.Gas())
-	gasUsed = st.gas + st.msg.Gas() - leftoverGas
-	if err != nil {
-		log.Debug("getBalanceOf error occurred", "Error", err)
-		return nil, gasUsed, err
-	}
-	result := big.NewInt(0)
-	result.SetBytes(ret)
-	log.Trace("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", result.String(),
-		"gas used", gasUsed)
-	return result, gasUsed, nil
 }
 
 func (st *StateTransition) debitOrCreditErc20Balance(
@@ -253,7 +230,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	evm := st.evm
-	transactionData := getEncodedAbiWithTwoArgs(functionSelector, addressToAbi(address), amountToAbi(amount))
+	transactionData := common.GetEncodedAbiWithTwoArgs(functionSelector, common.AddressToAbi(address), common.AmountToAbi(amount))
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	maxGasForCall := st.gas
@@ -323,85 +300,6 @@ func getCreditToFunctionSelector() []byte {
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
 	return hexutil.MustDecode("0x9951b90c")
-}
-
-func getBalanceOfFunctionSelector() []byte {
-	// Function is "balanceOf(address _owner)"
-	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
-	return hexutil.MustDecode("0x70a08231")
-}
-
-func getExchangeRateFunctionSelector() []byte {
-	// Function is "function getExchangeRate(address makerToken, address takerToken)"
-	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
-	return hexutil.MustDecode("0xbaaa61be")
-}
-
-func addressToAbi(address common.Address) []byte {
-	// Now convert address and amount to 32 byte (256-bit) chunks.
-	return common.LeftPadBytes(address.Bytes(), 32)
-}
-
-func amountToAbi(amount *big.Int) []byte {
-	// Get amount as 32 bytes
-	return common.LeftPadBytes(amount.Bytes(), 32)
-}
-
-// Generates ABI for a given method and its argument.
-func getEncodedAbiWithOneArg(methodSelector []byte, var1Abi []byte) []byte {
-	encodedAbi := make([]byte, len(methodSelector)+len(var1Abi))
-	copy(encodedAbi[0:len(methodSelector)], methodSelector[:])
-	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
-	return encodedAbi
-}
-
-// Generates ABI for a given method and its arguments.
-func getEncodedAbiWithTwoArgs(methodSelector []byte, var1Abi []byte, var2Abi []byte) []byte {
-	encodedAbi := make([]byte, len(methodSelector)+len(var1Abi)+len(var2Abi))
-	copy(encodedAbi[0:len(methodSelector)], methodSelector[:])
-	copy(encodedAbi[len(methodSelector):len(methodSelector)+len(var1Abi)], var1Abi[:])
-	copy(encodedAbi[len(methodSelector)+len(var1Abi):], var2Abi[:])
-	return encodedAbi
-}
-
-// Medianator contractAddress must have a function  with following signature
-// "function getExchangeRate(address makerToken, address takerToken)"
-// Note that if the Medianator is not initialized with a relevant Oracle then this
-// function will fail with a generic "execution reverted" error.
-func getExchangeRate(evm *vm.EVM, medianatorContractAddress common.Address, baseToken common.Address, counterToken common.Address) (
-	baseAmount *big.Int, counterAmount *big.Int, err error) {
-	log.Trace("getExchangeRate",
-		"medianatorContractAddress", medianatorContractAddress,
-		"baseToken", baseToken,
-		"counterToken", counterToken)
-	functionSelector := getExchangeRateFunctionSelector()
-	transactionData := getEncodedAbiWithTwoArgs(
-		functionSelector, addressToAbi(baseToken), addressToAbi(counterToken))
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
-	// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
-	gas := uint64(10 * 1000)
-	log.Trace("getExchangeRate", "caller", anyCaller, "customTokenContractAddress",
-		medianatorContractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, medianatorContractAddress, transactionData, gas)
-	if err != nil {
-		log.Debug("getExchangeRate error occurred", "Error", err, "leftoverGas", leftoverGas)
-		return nil, nil, err
-	}
-	if len(ret) != 2*32 {
-		log.Debug("getExchangeRate error occurred: unexpected return value", "ret", hexutil.Encode(ret))
-		return nil, nil, errors.New("unexpected return value")
-	}
-	log.Trace("getExchangeRate", "ret", ret, "leftoverGas", leftoverGas, "err", err)
-	baseAmount = new(big.Int).SetBytes(ret[0:32])
-	counterAmount = new(big.Int).SetBytes(ret[32:64])
-	log.Trace("getExchangeRate", "baseAmount", baseAmount, "counterAmount", counterAmount)
-	return baseAmount, counterAmount, nil
 }
 
 func (st *StateTransition) preCheck() error {
