@@ -182,7 +182,11 @@ type worker struct {
 	// Verification Service
 	verificationService string
 	verificationRewards common.Address
-	pc                  *core.PriceComparator
+	verificationMu      sync.RWMutex
+	lastBlockVerified   uint64
+
+	// Transaction processing
+	pc *core.PriceComparator
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *worker {
@@ -369,13 +373,26 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			commit(false, commitInterruptNewHead)
 
 		case head := <-w.chainHeadCh:
-			clearPending(head.Block.NumberU64())
+			headNumber := head.Block.NumberU64()
+			clearPending(headNumber)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-			// Check to see if we have been requested to verify.
-			receipts := w.chain.GetReceiptsByHash(head.Block.Hash())
-			abe.SendVerificationMessages(receipts, head.Block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
+			processVerificationRequestsUpTo := func(number uint64) {
+				w.verificationMu.Lock()
+				defer w.verificationMu.Unlock()
+				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
+					block := w.chain.GetBlockByNumber(number)
+					if now := time.Now().Unix(); block.Time().Uint64()+params.MaxNumSecondsPerVerification >= uint64(now) {
+						receipts := w.chain.GetReceiptsByHash(block.Hash())
+						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
+					} else {
+						break
+					}
+				}
+				w.lastBlockVerified = number
+			}
+			go processVerificationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in

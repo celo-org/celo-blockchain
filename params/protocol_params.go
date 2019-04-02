@@ -108,3 +108,7 @@ var (
 	AuthorizedRequestVerificationAddress = common.HexToAddress("0x0000000000000000000000000000000000000ABE") // Address of the contract authorized to call the requestVerification precompiled contract.
 	ReserveAddress                       = common.HexToAddress("0x000000000000000000000000000000000000601d") // Address of the reserve proxy contract.
 )
+
+const (
+	MaxNumSecondsPerVerification uint64 = 86400 // One day. Verifications will expire well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+)
