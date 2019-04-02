@@ -21,6 +21,7 @@ import (
 )
 
 func AddressToAbi(address Address) []byte {
+	// Now convert address and amount to 32 byte (256-bit) chunks.
 	return LeftPadBytes(address.Bytes(), 32)
 }
 
