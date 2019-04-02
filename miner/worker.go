@@ -373,6 +373,10 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
+			// Check to see if we have been requested to verify.
+			receipts := w.chain.GetReceiptsByHash(head.Block.Hash())
+			abe.SendVerificationMessages(receipts, head.Block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
+
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
@@ -1019,8 +1023,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 				"uncles", len(uncles), "txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-			abe.SendVerificationMessages(w.current.receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
-
 		case <-w.exitCh:
 			log.Info("Worker has exited")
 		}
