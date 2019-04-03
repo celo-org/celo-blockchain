@@ -26,33 +26,30 @@ import (
 func (c *core) sendPreprepare(request *istanbul.Request) {
 	logger := c.logger.New("state", c.state)
 
-	// If I'm the proposer and I have the same sequence with the proposal
-	if c.current.Sequence().Cmp(request.Proposal.Number()) != 0 || c.isProposer() {
-		if !c.alwaysPropose() {
+	// If I'm the proposer and I have the same sequence with the proposal,
+	// OR I'm faulty and going to propose anyway
+	proposing := c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer()
+	if !proposing && c.alwaysPropose() {
+		logger.Info("Shouldn't be proposer, but proposing anyway", "request", request)
+		proposing = true
+	}
+
+	if proposing {
+		curView := c.currentView()
+		preprepare, err := Encode(&istanbul.Preprepare{
+			View:     curView,
+			Proposal: request.Proposal,
+		})
+		if err != nil {
+			logger.Error("Failed to encode", "view", curView)
 			return
 		}
-		logger.Info("Always propose a proposal", "request", request)
-	}
-	curView := c.currentView()
-	preprepare, err := Encode(&istanbul.Preprepare{
-		View:     curView,
-		Proposal: request.Proposal,
-	})
-	if err != nil {
-		logger.Error("Failed to encode", "view", curView)
-		return
-	}
 
-	c.broadcast(&message{
-		Code: msgPreprepare,
-		Msg:  preprepare,
-	})
-
-	logger.Trace("sendPreprepare")
-	c.broadcast(&message{
-		Code: msgPreprepare,
-		Msg:  preprepare,
-	})
+		c.broadcast(&message{
+			Code: msgPreprepare,
+			Msg:  preprepare,
+		})
+	}
 }
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
