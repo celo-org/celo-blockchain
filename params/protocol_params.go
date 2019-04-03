@@ -110,5 +110,5 @@ var (
 )
 
 const (
-	MaxNumSecondsPerVerification uint64 = 86400 // One day. Verifications will expire well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+	VerificationExpirySeconds uint64 = 86400 // One day. The AddressBasedEncryption contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
 )

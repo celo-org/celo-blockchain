@@ -383,7 +383,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 				defer w.verificationMu.Unlock()
 				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
 					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time().Uint64()+params.MaxNumSecondsPerVerification >= uint64(now) {
+					if now := time.Now().Unix(); block.Time().Uint64()+params.VerificationExpirySeconds >= uint64(now) {
 						receipts := w.chain.GetReceiptsByHash(block.Hash())
 						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
 					} else {
