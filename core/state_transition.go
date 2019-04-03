@@ -230,7 +230,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(
 
 	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	evm := st.evm
-	transactionData := common.GetEncodedAbiWithTwoArgs(functionSelector, common.AddressToAbi(address), common.AmountToAbi(amount))
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	maxGasForCall := st.gas
