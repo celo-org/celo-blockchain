@@ -477,7 +477,7 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	if caller != params.AuthorizedTransferAddress {
+	if caller != params.CeloGoldAddress {
 		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	from := common.BytesToAddress(input[0:32])

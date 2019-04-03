@@ -27,8 +27,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -68,6 +71,18 @@ func (bc *testBlockChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) even
 	return bc.chainHeadFeed.Subscribe(ch)
 }
 
+func (bc *testBlockChain) Engine() consensus.Engine {
+	return ethash.NewFaker()
+}
+
+func (bc *testBlockChain) GetHeader(common.Hash, uint64) *types.Header {
+	return nil
+}
+
+func (bc *testBlockChain) GetVMConfig() *vm.Config {
+	return nil
+}
+
 func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
 	return pricedTransaction(nonce, gaslimit, big.NewInt(1), key)
 }
@@ -82,7 +97,7 @@ func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
 	key, _ := crypto.GenerateKey()
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 
 	return pool, key
@@ -193,7 +208,7 @@ func TestStateChangeDuringTransactionPoolReset(t *testing.T) {
 	tx0 := transaction(0, 100000, key)
 	tx1 := transaction(1, 100000, key)
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -559,7 +574,7 @@ func TestTransactionPostponing(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -779,7 +794,7 @@ func testTransactionQueueGlobalLimiting(t *testing.T, nolocals bool) {
 	config.NoLocals = nolocals
 	config.GlobalQueue = config.AccountQueue*3 - 1 // reduce the queue limits to shorten test time (-1 to make it non divisible)
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -868,7 +883,7 @@ func testTransactionQueueTimeLimiting(t *testing.T, nolocals bool) {
 	config.Lifetime = time.Second
 	config.NoLocals = nolocals
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1022,7 +1037,7 @@ func TestTransactionPendingGlobalLimiting(t *testing.T) {
 	config := testTxPoolConfig
 	config.GlobalSlots = config.AccountSlots * 10
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1071,7 +1086,7 @@ func TestTransactionCapClearsFromAll(t *testing.T) {
 	config.AccountQueue = 2
 	config.GlobalSlots = 8
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1104,7 +1119,7 @@ func TestTransactionPendingMinimumAllowance(t *testing.T) {
 	config := testTxPoolConfig
 	config.GlobalSlots = 1
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1150,7 +1165,7 @@ func TestTransactionPoolRepricing(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1272,7 +1287,7 @@ func TestTransactionPoolRepricingKeepsLocals(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1339,7 +1354,7 @@ func TestTransactionPoolUnderpricing(t *testing.T) {
 	config.GlobalSlots = 2
 	config.GlobalQueue = 2
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1446,7 +1461,7 @@ func TestTransactionPoolStableUnderpricing(t *testing.T) {
 	config.GlobalSlots = 128
 	config.GlobalQueue = 0
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1509,7 +1524,7 @@ func TestTransactionReplacement(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
@@ -1609,7 +1624,7 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 	config.Journal = journal
 	config.Rejournal = time.Second
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc)
 
 	// Create two test accounts to ensure remotes expire but locals do not
@@ -1647,7 +1662,7 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
 	blockchain = &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc = NewPriceComparator()
+	pc = NewPriceComparator(nil, nil, nil)
 	pool = NewTxPool(config, params.TestChainConfig, blockchain, pc)
 
 	pending, queued = pool.Stats()
@@ -1674,7 +1689,7 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
 	blockchain = &testBlockChain{statedb, 1000000, new(event.Feed)}
-	pc = NewPriceComparator()
+	pc = NewPriceComparator(nil, nil, nil)
 	pool = NewTxPool(config, params.TestChainConfig, blockchain, pc)
 
 	pending, queued = pool.Stats()
@@ -1705,7 +1720,7 @@ func TestTransactionStatusCheck(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator()
+	pc := NewPriceComparator(nil, nil, nil)
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc)
 	defer pool.Stop()
 
