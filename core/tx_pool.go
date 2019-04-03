@@ -27,8 +27,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -122,6 +124,14 @@ type blockChain interface {
 	StateAt(root common.Hash) (*state.StateDB, error)
 
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
+
+	// Engine retrieves the chain's consensus engine.
+	Engine() consensus.Engine
+
+	// GetHeader returns the header corresponding to their hash.
+	GetHeader(common.Hash, uint64) *types.Header
+
+	GetVMConfig() *vm.Config
 }
 
 // TxPoolConfig are the configuration parameters of the transaction pool.
@@ -637,15 +647,34 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	// For transactions with gas currency in Celo Gold,
-	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-	// For transactions with gas currency not in Celo Gold, we will skip this check for now.
-	// state_transition.go which executes the transaction will fail in case the gas is insufficient.
 	if tx.GasCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(),
 			"txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
+	} else if tx.GasCurrency() != nil {
+		header := pool.chain.CurrentBlock().Header()
+		state, err := pool.chain.StateAt(header.Root)
+
+		msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
+		context := NewEVMContext(msg, header, pool.chain, nil)
+		evm := vm.NewEVM(context, state, pool.chainconfig, *pool.chain.GetVMConfig())
+
+		gasCurrencyBalance, _, err := GetBalanceOf(from, tx.GasCurrency(), evm, 10*1000)
+
+		if err != nil {
+			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
+			return err
+		}
+
+		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
+			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
+			return ErrInsufficientFunds
+		}
+
+		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String())
+			return ErrInsufficientFunds
+		}
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
 	if err != nil {
