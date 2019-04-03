@@ -182,7 +182,7 @@ func (tx *Transaction) GasPrice() *big.Int           { return new(big.Int).Set(t
 func (tx *Transaction) GasCurrency() *common.Address { return tx.data.GasCurrency }
 func (tx *Transaction) NonNilGasCurrency() *common.Address {
 	if tx.data.GasCurrency == nil {
-		return &params.AuthorizedTransferAddress
+		return &params.CeloGoldAddress
 	} else {
 		return tx.data.GasCurrency
 	}

@@ -34,14 +34,12 @@ var (
 	cgExchangeRateNum = big.NewInt(1)
 	cgExchangeRateDen = big.NewInt(1)
 
-	// Function is "function getExchangeRate(address makerToken, address takerToken)"
 	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
 	// Source:
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
 	getExchangeRateFuncABI = hexutil.MustDecode("0xbaaa61be")
 
-	// Function is "balanceOf(address _owner)"
 	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
 	// Source:
 	// pip3 install pyethereum
@@ -63,7 +61,7 @@ type PriceComparator struct {
 	chainConfig          *params.ChainConfig              // The config object of the eth object
 }
 
-func (pc *PriceComparator) getNumDenom(currency *common.Address) (*big.Int, *big.Int, error) {
+func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*big.Int, *big.Int, error) {
 	if currency == nil {
 		return cgExchangeRateNum, cgExchangeRateDen, nil
 	} else {
@@ -80,10 +78,10 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1Num, exchangeRate1Den, err1 := pc.getNumDenom(currency1)
-	exchangeRate2Num, exchangeRate2Den, err2 := pc.getNumDenom(currency2)
+	exchangeRate1Num, exchangeRate1Den, err1 := pc.getExchangeRate(currency1)
+	exchangeRate2Num, exchangeRate2Den, err2 := pc.getExchangeRate(currency2)
 
-	if err1 == nil || err2 == nil {
+	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
 		if currency1 != nil {
 			currency1Output = currency1.Hex()
@@ -105,9 +103,9 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	return leftSide.Cmp(rightSide)
 }
 
-// This function will retrieve the exchange rates from the Medianator contract, and cache them.
-// Medianator contractAddress must have a function with following signature:
-// "function getExchangeRate(address makerToken, address takerToken)"
+// This function will retrieve the exchange rates from the Medianator contract and cache them.
+// Medianator must have a function with the following signature:
+// "function getExchangeRate(address, address)"
 func (pc *PriceComparator) retrieveExchangeRates() {
 	log.Trace("retrieveExchangeRates",
 		"gasCurrencyAddresses", fmt.Sprintf("%v", *pc.gasCurrencyAddresses))
@@ -115,7 +113,7 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 	header := pc.blockchain.CurrentBlock().Header()
 	state, err := pc.blockchain.StateAt(header.Root)
 	if err != nil {
-		log.Error("PriceComparator.retrieveExchangeRates - Error it retrieving the state from the blockchain")
+		log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving the state from the blockchain")
 		return
 	}
 
@@ -126,8 +124,8 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 	evm := vm.NewEVM(context, state, pc.chainConfig, *pc.blockchain.GetVMConfig())
 
 	for _, gasCurrencyAddress := range *pc.gasCurrencyAddresses {
-		transactionData := common.GetEncodedAbiWithTwoArgs(
-			getExchangeRateFuncABI, common.AddressToAbi(params.AuthorizedTransferAddress), common.AddressToAbi(gasCurrencyAddress))
+		transactionData := common.GetEncodedAbi(
+			getExchangeRateFuncABI, [][]byte{common.AddressToAbi(params.CeloGoldAddress), common.AddressToAbi(gasCurrencyAddress)})
 		anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
 
 		// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
@@ -139,13 +137,13 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 
 		if err != nil {
 			log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving exchange rate",
-				"base", params.AuthorizedTransferAddress, "counter", gasCurrencyAddress, "err", err)
+				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "err", err)
 			continue
 		}
 
 		if len(ret) != 2*32 {
 			log.Error("PriceComparator.retrieveExchangeRates - Unexpected return value in retrieving exchange rate",
-				"base", params.AuthorizedTransferAddress, "counter", gasCurrencyAddress, "ret", hexutil.Encode(ret))
+				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "ret", hexutil.Encode(ret))
 			continue
 		}
 
@@ -195,7 +193,7 @@ func NewPriceComparator(gasCurrencyAddresses *[]common.Address, chainConfig *par
 func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, evm *vm.EVM, gas uint64) (
 	balance *big.Int, gasUsed uint64, err error) {
 
-	transactionData := common.GetEncodedAbiWithOneArg(getBalanceFuncABI, common.AddressToAbi(accountOwner))
+	transactionData := common.GetEncodedAbi(getBalanceFuncABI, [][]byte{common.AddressToAbi(accountOwner)})
 	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
 	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
 		*contractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
