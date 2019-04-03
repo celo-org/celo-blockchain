@@ -109,3 +109,7 @@ var (
 	ReserveAddress                       = common.HexToAddress("0x000000000000000000000000000000000000601d") // Address of the reserve proxy contract.
 	MedianatorAddress                    = common.HexToAddress("0x00000000000000000000000000000000044ed1a4") // Address of the medianator proxy contract.
 )
+
+const (
+	VerificationExpirySeconds uint64 = 86400 // One day. The AddressBasedEncryption contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+)
