@@ -142,7 +142,6 @@ var (
 		configFileFlag,
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
-		utils.IstanbulBlockPauseTimeFlag,
 		utils.IstanbulFaultyModeFlag,
 	}
 

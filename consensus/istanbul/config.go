@@ -28,7 +28,7 @@ type FaultyMode uint64
 const (
 	// Disabled disables the faulty mode
 	Disabled FaultyMode = iota
-	// Random attacks randomly
+	// Random will, at the time of any of the following actions, engage in faulty behavior with 50% probability
 	Random
 	// NotBroadcast doesn't broadcast any messages to other validators
 	NotBroadcast
@@ -77,7 +77,6 @@ type Config struct {
 	ProposerPolicy ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch          uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	FaultyMode     uint64         `toml:",omitempty"` // The faulty node indicates the faulty node's behavior
-	BlockPauseTime uint64         `toml:",omitempty"` // Time for a faulty node to pause between blocks
 }
 
 var DefaultConfig = &Config{
@@ -86,5 +85,4 @@ var DefaultConfig = &Config{
 	ProposerPolicy: RoundRobin,
 	Epoch:          30000,
 	FaultyMode:     Disabled.Uint64(),
-	BlockPauseTime: 5,
 }

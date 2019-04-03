@@ -258,7 +258,6 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.IstanbulRequestTimeoutFlag,
 			utils.IstanbulBlockPeriodFlag,
-			utils.IstanbulBlockPauseTimeFlag,
 			utils.IstanbulFaultyModeFlag,
 		},
 	},
