@@ -266,6 +266,9 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
 	// Ignore maxPeers if this is a trusted peer
+	log.Info("Handle new peer", "peers len", pm.peers.Len())
+	log.Info("Handle new peer", "peer id", p.id)
+	log.Info("Handle new peer", "max peers", pm.maxPeers)
 	if pm.peers.Len() >= pm.maxPeers && !p.Peer.Info().Network.Trusted {
 		return p2p.DiscTooManyPeers
 	}

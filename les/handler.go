@@ -165,7 +165,10 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 
 // removePeer initiates disconnection from a peer by removing it from the peer set
 func (pm *ProtocolManager) removePeer(id string) {
-	pm.peers.Unregister(id)
+	if err := pm.peers.Unregister(id); err != nil {
+		log.Error("WTF", "error in remove peer with id", id)
+		log.Error("WTF", "error", err)
+	}
 }
 
 func (pm *ProtocolManager) Start(maxPeers int) {
@@ -242,6 +245,9 @@ func (pm *ProtocolManager) newPeer(pv int, nv uint64, p *p2p.Peer, rw p2p.MsgRea
 func (pm *ProtocolManager) handle(p *peer) error {
 	// Ignore maxPeers if this is a trusted peer
 	// In server mode we try to check into the client pool after handshake
+	log.Info("Handle new peer light", "peers len", pm.peers.Len())
+	log.Info("Handle new peer light ", "peer id", p.id)
+	log.Info("Handle new peer light", "max peers", pm.maxPeers)
 	if pm.lightSync && pm.peers.Len() >= pm.maxPeers && !p.Peer.Info().Network.Trusted {
 		return p2p.DiscTooManyPeers
 	}

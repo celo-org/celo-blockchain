@@ -985,12 +985,18 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
 	lightPeers := ctx.GlobalInt(LightPeersFlag.Name)
 
+	log.Info("Custom Hello", "default light peers value received", lightPeers)
+	log.Info("Custom Hello", "light client", lightClient, "light server", lightServer)
+
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
+		log.Info("Custom Hello", "flagName", MaxPeersFlag.Name)
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
+		log.Info("Custom Hello", "extractValueInThatIf", cfg.MaxPeers)
 		if lightServer && !ctx.GlobalIsSet(LightPeersFlag.Name) {
 			cfg.MaxPeers += lightPeers
 		}
 	} else {
+		log.Info("Custom Hello", "what", "the flag is not set", "flagNameWhichIsNotSet", MaxPeersFlag.Name)
 		if lightServer {
 			cfg.MaxPeers += lightPeers
 		}
