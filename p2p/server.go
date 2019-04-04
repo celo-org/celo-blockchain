@@ -792,8 +792,10 @@ func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount i
 func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
 	switch {
 	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+		log.Error("SHIT", "maxPeers", srv.MaxPeers, "peers", len(peers))
 		return DiscTooManyPeers
 	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
+		log.Error("SHIT_DOUBLE", "maxPeers", srv.MaxPeers, "peers", len(peers), "inboundcount", inboundCount, "maxinbound", srv.maxInboundConns())
 		return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected

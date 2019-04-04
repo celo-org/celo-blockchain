@@ -99,9 +99,11 @@ func (f *freeClientPool) connect(address string, disconnectFn func()) bool {
 	e := f.addressMap[address]
 	now := f.clock.Now()
 	var recentUsage int64
+	isNew := false
 	if e == nil {
 		e = &freeClientPoolEntry{address: address, index: -1}
 		f.addressMap[address] = e
+		isNew = true
 	} else {
 		if e.connected {
 			log.Debug("Client already connected", "address", address)
@@ -109,6 +111,7 @@ func (f *freeClientPool) connect(address string, disconnectFn func()) bool {
 		}
 		recentUsage = int64(math.Exp(float64(e.logUsage-f.logOffset(now)) / fixedPointMultiplier))
 	}
+	log.Info("WOW", "isNew", isNew, "connPoolSize", f.connPool.Size(), "connectedLimit", f.connectedLimit)
 	e.linUsage = recentUsage - int64(now)
 	// check whether (linUsage+connectedBias) is smaller than the highest entry in the connected pool
 	if f.connPool.Size() == f.connectedLimit {
