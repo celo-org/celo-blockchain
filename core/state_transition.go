@@ -30,6 +30,9 @@ import (
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
+
+	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
+
 	// This is the amount of gas a single debitFrom or creditTo request can use.
 	// This prevents arbitrary computation to be performed in these functions.
 	// During testing, I noticed that a single invocation of debit gas consumes 7649 gas
@@ -64,6 +67,7 @@ type StateTransition struct {
 	data       []byte
 	state      vm.StateDB
 	evm        *vm.EVM
+	gcWl       *GasCurrencyWhitelist
 }
 
 // Message represents a message sent to a contract.
@@ -120,7 +124,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error)
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
 		evm:      evm,
@@ -129,6 +133,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 		value:    msg.Value(),
 		data:     msg.Data(),
 		state:    evm.StateDB,
+		gcWl:     gcWl,
 	}
 }
 
@@ -139,8 +144,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -162,6 +167,12 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+
+	if st.msg.GasCurrency() != nil && st.gcWl != nil && !st.gcWl.IsWhitelisted(*st.msg.GasCurrency()) {
+		log.Trace("Gas currency not whitelisted",
+			"gas currency address", st.msg.GasCurrency())
+		return errNonWhitelistedGasCurrency
+	}
 	// gasConsumedToDetermineBalance = Charge to determine user's balance in native or non-native currency
 	hasSufficientGas, gasConsumedToDetermineBalance := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
 	if !hasSufficientGas {
