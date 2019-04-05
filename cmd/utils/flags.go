@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -302,11 +301,6 @@ var (
 		Name:  "txpool.lifetime",
 		Usage: "Maximum amount of time non-executable transaction are queued",
 		Value: eth.DefaultConfig.TxPool.Lifetime,
-	}
-	TxPoolCurrencyAddressesFlag = cli.StringFlag{
-		Name:  "txpool.gascurrencyaddresses",
-		Usage: "Comma separated list of contract addresses of the currency accepted by the tx pool, 0x1234...,0xf4ee... etc. All addresses should start with 0x and followed by 40 hex character",
-		Value: "",
 	}
 	// Performance tuning settings
 	CacheFlag = cli.IntFlag{
@@ -1127,28 +1121,6 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 	if ctx.GlobalIsSet(TxPoolLifetimeFlag.Name) {
 		cfg.Lifetime = ctx.GlobalDuration(TxPoolLifetimeFlag.Name)
-	}
-	if ctx.GlobalIsSet(TxPoolCurrencyAddressesFlag.Name) {
-		currencyAddresses := make([]common.Address, 0)
-		// 0x1234,0x123443,...
-		currencies := ctx.GlobalString(TxPoolCurrencyAddressesFlag.Name)
-		currencyAddressesAsString := strings.Split(currencies, ",")
-		// Validation
-		for i := range currencyAddressesAsString {
-			currencyAddress := currencyAddressesAsString[i]
-
-			// MustDecode will check for a "0x" prefix and all the remaining characters are valid for an address
-			addressBytes := hexutil.MustDecode(currencyAddress)
-
-			// "0x" followed by 40 hex characters.
-			if len(currencyAddress[2:]) != common.AddressLength*2 {
-				panic(fmt.Sprintf("Incorrect currency code, it does not has 40 characters: \"%s\"", currencyAddress))
-			}
-
-			currencyAddresses = append(currencyAddresses, common.BytesToAddress(addressBytes))
-		}
-		cfg.CurrencyAddresses = &currencyAddresses
-		log.Debug("Currencies parsed", "currencyAddresses", currencyAddressesAsString)
 	}
 }
 
