@@ -240,7 +240,7 @@ func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 		log.Error("GasCurrencyWhitelist.retrieveWhitelist - Error in retrieving the state from the blockchain")
 
 		// If we can't retrieve the whitelist, be conservative and assume no currencies are whitelisted
-		return []common.Address{}
+		return returnList
 	}
 
 	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
