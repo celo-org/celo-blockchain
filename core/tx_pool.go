@@ -79,8 +79,8 @@ var (
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
 
-	// ErrUnregisteredGasCurrency is returned if the txn gas currency is not registered
-	ErrUnregisteredGasCurrency = errors.New("unregistered gas currency")
+	// ErrNonWhitelistedGasCurrency is returned if the txn gas currency is not white listed
+	ErrNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency")
 )
 
 var (
@@ -246,30 +246,30 @@ type TxPool struct {
 
 	homestead bool
 
-	pc                *PriceComparator
-	currencyAddresses map[common.Address]bool
+	pc   *PriceComparator
+	gcWl *GasCurrencyWhitelist
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, pc *PriceComparator) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, pc *PriceComparator, gcWl *GasCurrencyWhitelist) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
 	// Create the transaction pool with its initial settings
 	pool := &TxPool{
-		config:            config,
-		chainconfig:       chainconfig,
-		chain:             chain,
-		signer:            types.NewEIP155Signer(chainconfig.ChainID),
-		pending:           make(map[common.Address]*txList),
-		queue:             make(map[common.Address]*txList),
-		beats:             make(map[common.Address]time.Time),
-		all:               newTxLookup(),
-		chainHeadCh:       make(chan ChainHeadEvent, chainHeadChanSize),
-		gasPrice:          new(big.Int).SetUint64(config.PriceLimit),
-		pc:                pc,
-		currencyAddresses: make(map[common.Address]bool),
+		config:      config,
+		chainconfig: chainconfig,
+		chain:       chain,
+		signer:      types.NewEIP155Signer(chainconfig.ChainID),
+		pending:     make(map[common.Address]*txList),
+		queue:       make(map[common.Address]*txList),
+		beats:       make(map[common.Address]time.Time),
+		all:         newTxLookup(),
+		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
+		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
+		pc:          pc,
+		gcWl:        gcWl,
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -277,12 +277,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all, pool.pc)
-
-	if config.CurrencyAddresses != nil {
-		for _, address := range *config.CurrencyAddresses {
-			pool.currencyAddresses[address] = true
-		}
-	}
 
 	pool.reset(nil, chain.CurrentBlock().Header())
 
@@ -634,8 +628,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasCurrency() != nil && // Non native gas in the tx
-		!pool.currencyAddresses[*tx.GasCurrency()] { // The tx currency is not in the user specified list
-		return ErrUnregisteredGasCurrency
+		!pool.gcWl.IsWhitelisted(*tx.GasCurrency()) { // The tx currency is not white listed
+		return ErrNonWhitelistedGasCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price

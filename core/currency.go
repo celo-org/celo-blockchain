@@ -209,3 +209,80 @@ func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, 
 		"gas used", gasUsed)
 	return result, gasUsed, nil
 }
+
+type GasCurrencyWhitelist struct {
+	whitelistedAddresses map[common.Address]bool
+	blockchain           *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
+	chainConfig          *params.ChainConfig // The config object of the eth object
+}
+
+func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
+	log.Trace("retrieveWhitelist")
+
+	/* header := gcWlC.blockchain.CurrentBlock().Header()
+	state, err := gcWlC.blockchain.StateAt(header.Root)
+	if err != nil {
+		log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving the state from the blockchain")
+
+		// If we can't retrieve the whitelist, be conservative and assume no currencies are whitelisted
+		return []common.Address{}
+	}
+
+	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
+	// zero values.
+	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
+	context := NewEVMContext(msg, header, gcWlC.blockchain, nil)
+	evm := vm.NewEVM(context, state, gcWlC.chainConfig, *gcWlC.blockchain.GetVMConfig())
+
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, params.GasCurrencyWhitelistAddress, transactionData, gas)
+
+	if err != nil {
+	       log.Error("Error in retrieving the gas currency whitelist", "err", err)
+	}
+
+	if len(ret) % common.AddressLength != 0 {
+		log.Error("Unexpected return value in retrieving gas currency whitelist", "ret", hexutil.Encode(ret))
+	}
+
+	numAddresses := len(ret) / common.AddressLength
+	returnList := make([]common.Address, numAddresses, numAddresses)
+
+	for cursor := 0; cursor < len(ret); cursor += common.AddressLength {
+	    returnList = append(returnList, common.BytesToAddress(ret[cursor:cursor+common.AddressLength]))
+	}
+	*/
+
+	// TODO(kevjue) - Call smart contract
+	whitelist := []common.Address{params.CeloGoldAddress, common.HexToAddress("0x9451fe9302b8d11644c7c5bf0a6e3a913caa56f9")}
+
+	log.Trace("retrieveWhitelist", "whitelist", whitelist)
+	return whitelist
+}
+
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
+	addresses := gcWl.retrieveWhitelist()
+
+	for k := range gcWl.whitelistedAddresses {
+		delete(gcWl.whitelistedAddresses, k)
+	}
+
+	for _, address := range addresses {
+		gcWl.whitelistedAddresses[address] = true
+	}
+}
+
+func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
+	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
+
+	return ok
+}
+
+func NewGasCurrencyWhitelist(chainConfig *params.ChainConfig, blockchain *BlockChain) *GasCurrencyWhitelist {
+	gcWl := &GasCurrencyWhitelist{
+		whitelistedAddresses: make(map[common.Address]bool),
+		blockchain:           blockchain,
+		chainConfig:          chainConfig,
+	}
+
+	return gcWl
+}
