@@ -650,6 +650,8 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
+	connectedStaticNodes := 0
+
 running:
 	for {
 		scheduleTasks()
@@ -657,18 +659,23 @@ running:
 		select {
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
+			connectedStaticNodes = 0
 			break running
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
 			srv.log.Trace("Adding static node", "node", n)
+			connectedStaticNodes += 1
+			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "addNode")
 			dialstate.addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			srv.log.Trace("Removing static node", "node", n)
+			connectedStaticNodes -= 1
+			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "removeNode")
 			dialstate.removeStatic(n)
 			if p, ok := peers[n.ID()]; ok {
 				p.Disconnect(DiscRequested)
@@ -731,6 +738,7 @@ running:
 				}
 				name := truncateName(c.name)
 				srv.log.Debug("Adding p2p peer", "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
+				log.Info("ADD_PEER", "name", name, "peers", len(peers) + 1)
 				go srv.runPeer(p)
 				peers[c.node.ID()] = p
 				if p.Inbound() {
@@ -749,6 +757,7 @@ running:
 			// A peer disconnected.
 			d := common.PrettyDuration(mclock.Now() - pd.created)
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
+			log.Info("REMOVE_PEER", "name", pd.Name(), "peers", len(peers) + 1)
 			delete(peers, pd.ID())
 			if pd.Inbound() {
 				inboundCount--
@@ -792,10 +801,8 @@ func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount i
 func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
 	switch {
 	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
-		log.Error("SHIT", "maxPeers", srv.MaxPeers, "peers", len(peers))
 		return DiscTooManyPeers
 	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
-		log.Error("SHIT_DOUBLE", "maxPeers", srv.MaxPeers, "peers", len(peers), "inboundcount", inboundCount, "maxinbound", srv.maxInboundConns())
 		return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected
