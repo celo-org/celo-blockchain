@@ -667,7 +667,7 @@ running:
 			// it will keep the node connected.
 			srv.log.Trace("Adding static node", "node", n)
 			connectedStaticNodes += 1
-			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "addNode")
+			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "addNode", "peers_cnt", len(peers))
 			dialstate.addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
@@ -675,11 +675,11 @@ running:
 			// stop keeping the node connected.
 			srv.log.Trace("Removing static node", "node", n)
 			connectedStaticNodes -= 1
-			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "removeNode")
 			dialstate.removeStatic(n)
 			if p, ok := peers[n.ID()]; ok {
 				p.Disconnect(DiscRequested)
 			}
+			log.Info("FIND_COUNT", "connectedStaticNodes", connectedStaticNodes, "event", "removeNode", "peers_cnt", len(peers))
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
