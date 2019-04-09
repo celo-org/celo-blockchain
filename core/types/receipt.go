@@ -96,6 +96,9 @@ type receiptStorageRLP struct {
 	ContractAddress   common.Address
 	Logs              []*LogForStorage
 	GasUsed           uint64
+
+	// Celo fields
+	VerificationRequests []VerificationRequest
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -204,13 +207,14 @@ type ReceiptForStorage Receipt
 // into an RLP stream.
 func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 	enc := &receiptStorageRLP{
-		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
-		CumulativeGasUsed: r.CumulativeGasUsed,
-		Bloom:             r.Bloom,
-		TxHash:            r.TxHash,
-		ContractAddress:   r.ContractAddress,
-		Logs:              make([]*LogForStorage, len(r.Logs)),
-		GasUsed:           r.GasUsed,
+		PostStateOrStatus:    (*Receipt)(r).statusEncoding(),
+		CumulativeGasUsed:    r.CumulativeGasUsed,
+		Bloom:                r.Bloom,
+		TxHash:               r.TxHash,
+		ContractAddress:      r.ContractAddress,
+		Logs:                 make([]*LogForStorage, len(r.Logs)),
+		GasUsed:              r.GasUsed,
+		VerificationRequests: r.VerificationRequests,
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -234,8 +238,12 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	for i, log := range dec.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
+
 	// Assign the implementation fields
 	r.TxHash, r.ContractAddress, r.GasUsed = dec.TxHash, dec.ContractAddress, dec.GasUsed
+
+	// Assign the celo fields
+	r.VerificationRequests = dec.VerificationRequests
 	return nil
 }
 

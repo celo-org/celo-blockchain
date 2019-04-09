@@ -110,3 +110,7 @@ var (
 	MedianatorAddress                    = common.HexToAddress("0x00000000000000000000000000000000044ed1a4") // Address of the medianator proxy contract.
 	GasCurrencyWhitelistAddress          = common.HexToAddress("0x00000000000000000000000000000000000006a5") // Address of the gas currency whitelist proxy contract.
 )
+
+const (
+	VerificationExpirySeconds uint64 = 86400 // One day. The AddressBasedEncryption contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+)
