@@ -165,7 +165,16 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 
 // removePeer initiates disconnection from a peer by removing it from the peer set
 func (pm *ProtocolManager) removePeer(id string) {
-	pm.peers.Unregister(id)
+	log.Debug("Removing Ethereum Light peer", "peer", id)
+
+	if peer := pm.peers.Peer(id); peer == nil {
+		log.Debug("Attempt to remove light peer which has been already removed", "peer", id)
+		return
+	}
+
+	if err := pm.peers.Unregister(id); err != nil {
+		log.Error("Removing light peer failed", "peer", id, "err", err)
+	}
 }
 
 func (pm *ProtocolManager) Start(maxPeers int) {
