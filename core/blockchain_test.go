@@ -729,7 +729,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	defer archive.Stop()
 
 	assert(t, "archive", archive, height, height, height)
-	archive.Rollback(remove)
+	archive.Rollback(remove, true)
 	assert(t, "archive", archive, height/2, height/2, height/2)
 
 	// Import the chain as a non-archive node and ensure all pointers are updated
@@ -749,7 +749,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 		t.Fatalf("failed to insert receipt %d: %v", n, err)
 	}
 	assert(t, "fast", fast, height, height, 0)
-	fast.Rollback(remove)
+	fast.Rollback(remove, true)
 	assert(t, "fast", fast, height/2, height/2, 0)
 
 	// Import the chain as a light node and ensure all pointers are updated
@@ -763,7 +763,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	defer light.Stop()
 
 	assert(t, "light", light, height, 0, 0)
-	light.Rollback(remove)
+	light.Rollback(remove, true)
 	assert(t, "light", light, height/2, 0, 0)
 }
 

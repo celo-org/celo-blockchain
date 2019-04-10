@@ -315,7 +315,7 @@ func (bc *LightChain) Stop() {
 
 // Rollback is designed to remove a chain of links from the database that aren't
 // certain enough to be valid.
-func (self *LightChain) Rollback(chain []common.Hash) {
+func (self *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable bool) {
 	log.Warn(fmt.Sprintf("Rollback %v", chain))
 	self.mu.Lock()
 	defer self.mu.Unlock()
@@ -324,7 +324,14 @@ func (self *LightChain) Rollback(chain []common.Hash) {
 		hash := chain[i]
 
 		if head := self.hc.CurrentHeader(); head.Hash() == hash {
-			self.hc.SetCurrentHeader(self.GetHeader(head.ParentHash, head.Number.Uint64()-1))
+			parentHeader := self.GetHeader(head.ParentHash, head.Number.Uint64()-1)
+			// In all sync modes except CeloLatestSync, a complete header chain is available.
+			// Maintain the old behavior in those cases.
+			if fullHeaderChainAvailable || parentHeader != nil {
+				self.hc.SetCurrentHeader(parentHeader)
+			} else {
+				log.Warn(fmt.Sprintf("Cannot rollback current head %v, parent block is missing", head))
+			}
 		}
 	}
 }

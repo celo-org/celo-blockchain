@@ -729,7 +729,7 @@ const (
 
 // Rollback is designed to remove a chain of links from the database that aren't
 // certain enough to be valid.
-func (bc *BlockChain) Rollback(chain []common.Hash) {
+func (bc *BlockChain) Rollback(chain []common.Hash, fullHeaderChainAvailable bool) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
