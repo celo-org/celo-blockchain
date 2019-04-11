@@ -182,6 +182,8 @@ func main() {
 		doInstall(os.Args[2:])
 	case "test":
 		doTest(os.Args[2:])
+	case "celoTest":
+		doCeloTest(os.Args[2:])
 	case "lint":
 		doLint(os.Args[2:])
 	case "archive":
@@ -341,6 +343,16 @@ func doTest(cmdline []string) {
 
 	gotest.Args = append(gotest.Args, packages...)
 	build.MustRun(gotest)
+}
+
+func doCeloTest(cmdline []string) {
+	if _, err := os.Stat(filepath.Join(build.GOPATH(), "celo-monorepo")); os.IsNotExist(err) {
+		build.RunGit("clone", "git@github.com:celo-org/celo-monorepo.git", filepath.Join(build.GOPATH(), "celo-monorepo"))
+	} else {
+		build.RunGit("-C", filepath.Join(build.GOPATH(), "celo-monorepo"), "pull")
+	}
+
+	build.MustRunCommand("yarn", "--cwd=./build/_workspace/celo-monorepo/packages/celotool/")
 }
 
 // runs gometalinter on requested packages

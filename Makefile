@@ -37,6 +37,9 @@ ios:
 test: all
 	build/env.sh go run build/ci.go test
 
+celotest: all
+	build/env.sh go run build/ci.go celoTest
+
 lint: ## Run linters.
 	build/env.sh go run build/ci.go lint
 
