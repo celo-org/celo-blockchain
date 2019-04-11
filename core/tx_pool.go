@@ -628,7 +628,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasCurrency() != nil && // Non native gas in the tx
-		!pool.gcWl.IsWhitelisted(*tx.GasCurrency()) { // The tx currency is not white listed
+		(pool.gcWl == nil ||
+			!pool.gcWl.IsWhitelisted(*tx.GasCurrency())) { // The tx currency is not white listed
 		return ErrNonWhitelistedGasCurrency
 	}
 
@@ -649,7 +650,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		header := pool.chain.CurrentBlock().Header()
 		state, err := pool.chain.StateAt(header.Root)
 
-		msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
+		msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
 		context := NewEVMContext(msg, header, pool.chain, nil)
 		evm := vm.NewEVM(context, state, pool.chainconfig, *pool.chain.GetVMConfig())
 

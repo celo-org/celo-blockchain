@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -129,7 +130,7 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
 	// zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
+	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
 	context := NewEVMContext(msg, header, pc.blockchain, nil)
 	evm := vm.NewEVM(context, state, pc.chainConfig, *pc.blockchain.GetVMConfig())
 
@@ -221,21 +222,24 @@ func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, 
 }
 
 type GasCurrencyWhitelist struct {
-	whitelistedAddresses map[common.Address]bool
-	blockchain           *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
-	chainConfig          *params.ChainConfig // The config object of the eth object
+	whitelistedAddresses   map[common.Address]bool
+	whitelistedAddressesMu sync.RWMutex
+	blockchain             *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
+	chainConfig            *params.ChainConfig // The config object of the eth object
 }
 
-func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
+func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 	log.Trace("GasCurrencyWhitelist.retrieveWhitelist")
 
 	returnList := []common.Address{}
-	if gcWlC.blockchain == nil {
+
+	if gcWl.blockchain == nil {
+		log.Warn("GasCurrencyWhitelist.retrieveWhitelist - gcWl.blockchain is nil, returning empty whitelist")
 		return returnList
 	}
 
-	header := gcWlC.blockchain.CurrentBlock().Header()
-	state, err := gcWlC.blockchain.StateAt(header.Root)
+	header := gcWl.blockchain.CurrentBlock().Header()
+	state, err := gcWl.blockchain.StateAt(header.Root)
 	if err != nil {
 		log.Error("GasCurrencyWhitelist.retrieveWhitelist - Error in retrieving the state from the blockchain")
 
@@ -245,9 +249,9 @@ func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
 	// zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
-	context := NewEVMContext(msg, header, gcWlC.blockchain, nil)
-	evm := vm.NewEVM(context, state, gcWlC.chainConfig, *gcWlC.blockchain.GetVMConfig())
+	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
+	context := NewEVMContext(msg, header, gcWl.blockchain, nil)
+	evm := vm.NewEVM(context, state, gcWl.chainConfig, *gcWl.blockchain.GetVMConfig())
 
 	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
 	transactionData := common.GetEncodedAbi(getWhiteListFuncABI, [][]byte{})
@@ -262,7 +266,7 @@ func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 		return returnList
 	}
 
-	log.Trace("retrieveWhitelist", "ret", ret, "leftoverGas", leftoverGas, "err", err)
+	log.Trace("retrieveWhitelist", "ret", ret, "leftoverGas", leftoverGas)
 
 	if err := getWhiteListFuncReturnABI.Unpack(&returnList, "addressSliceSingle", ret); err != nil {
 		log.Trace("Error in unpacking gas currency whitelist", "err", err)
@@ -280,6 +284,8 @@ func (gcWlC *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 	addresses := gcWl.retrieveWhitelist()
 
+	gcWl.whitelistedAddressesMu.Lock()
+
 	for k := range gcWl.whitelistedAddresses {
 		delete(gcWl.whitelistedAddresses, k)
 	}
@@ -287,10 +293,16 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 	for _, address := range addresses {
 		gcWl.whitelistedAddresses[address] = true
 	}
+
+	gcWl.whitelistedAddressesMu.Unlock()
 }
 
 func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
+	gcWl.whitelistedAddressesMu.RLock()
+
 	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
+
+	gcWl.whitelistedAddressesMu.RUnlock()
 
 	return ok
 }
