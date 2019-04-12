@@ -108,6 +108,7 @@ var (
 	AuthorizedRequestVerificationAddress = common.HexToAddress("0x0000000000000000000000000000000000000ABE") // Address of the contract authorized to call the requestVerification precompiled contract.
 	ReserveAddress                       = common.HexToAddress("0x000000000000000000000000000000000000601d") // Address of the reserve proxy contract.
 	MedianatorAddress                    = common.HexToAddress("0x00000000000000000000000000000000044ed1a4") // Address of the medianator proxy contract.
+	GasCurrencyWhitelistAddress          = common.HexToAddress("0x00000000000000000000000000000000000006a5") // Address of the gas currency whitelist proxy contract.
 )
 
 const (
