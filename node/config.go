@@ -157,6 +157,8 @@ type Config struct {
 	staticNodesWarning     bool
 	trustedNodesWarning    bool
 	oldGethResourceWarning bool
+
+	SavePidFile bool
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

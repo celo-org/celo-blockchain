@@ -10,6 +10,9 @@ fi
 # Create fake Go workspace if it doesn't exist yet.
 workspace="$PWD/build/_workspace"
 root="$PWD"
+GETHROOT="$root"
+export GETHROOT
+
 ethdir="$workspace/src/github.com/ethereum"
 if [ ! -L "$ethdir/go-ethereum" ]; then
     mkdir -p "$ethdir"

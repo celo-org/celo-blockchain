@@ -36,20 +36,35 @@ var DryRunFlag = flag.Bool("n", false, "dry run, don't execute commands")
 
 // MustRun executes the given command and exits the host process for
 // any error.
-func MustRun(cmd *exec.Cmd) {
+func MustRun(cmd *exec.Cmd, runInBackground bool) {
 	fmt.Println(">>>", strings.Join(cmd.Args, " "))
 	if !*DryRunFlag {
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
-		if err := cmd.Run(); err != nil {
-			log.Printf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err)
-			log.Fatal(fmt.Sprintf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err))
+
+		if runInBackground {
+			if err := cmd.Start(); err != nil {
+				log.Printf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err)
+				log.Fatal(fmt.Sprintf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err))
+			}
+		} else {
+			if err := cmd.Run(); err != nil {
+				log.Printf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err)
+				log.Fatal(fmt.Sprintf("Command failed \"%s\", err: \"%v\"", strings.Join(cmd.Args, " "), err))
+			}
 		}
 	}
 }
 
 func MustRunCommand(cmd string, args ...string) {
-	MustRun(exec.Command(cmd, args...))
+	MustRun(exec.Command(cmd, args...), false)
+}
+
+// TODO (kevjue):  Support saving the command's stdout and stderr into a file defined by parameters.
+func MustRunCommandBackground(cmd string, args ...string) *exec.Cmd {
+	cmdObj := exec.Command(cmd, args...)
+	MustRun(cmdObj, true)
+	return cmdObj
 }
 
 // GOPATH returns the value that the GOPATH environment

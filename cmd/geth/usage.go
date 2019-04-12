@@ -83,6 +83,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightPeersFlag,
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
+			utils.SavePidFileFlag,
 		},
 	},
 	{

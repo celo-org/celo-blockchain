@@ -199,6 +199,10 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
+	SavePidFileFlag = cli.BoolFlag{
+		Name:  "savepidfile",
+		Usage: "Save the geth PID into the file <instancedir>/pid",
+	}
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
 		Name:  metrics.DashboardEnabledFlag,
@@ -1058,6 +1062,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(NoUSBFlag.Name) {
 		cfg.NoUSB = ctx.GlobalBool(NoUSBFlag.Name)
+	}
+	if ctx.GlobalIsSet(SavePidFileFlag.Name) {
+		cfg.SavePidFile = true
 	}
 }
 

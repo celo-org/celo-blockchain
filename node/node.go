@@ -147,6 +147,16 @@ func (n *Node) Start() error {
 		return err
 	}
 
+	if n.config.SavePidFile {
+		if pidFile, err := os.Create(filepath.Join(n.InstanceDir(), "PID")); err != nil {
+			return err
+		} else if _, err := pidFile.WriteString(fmt.Sprintf("%d", os.Getpid())); err != nil {
+			return err
+		} else {
+			pidFile.Close()
+		}
+	}
+
 	// Initialize the p2p server. This creates the node key and
 	// discovery databases.
 	n.serverConfig = n.config.P2P
@@ -423,6 +433,12 @@ func (n *Node) Stop() error {
 	n.server.Stop()
 	n.services = nil
 	n.server = nil
+
+	if n.config.SavePidFile {
+		if err := os.Remove(filepath.Join(n.InstanceDir(), "PID")); err != nil {
+			n.log.Error("Can't remove pid file", "err", err)
+		}
+	}
 
 	// Release instance directory lock.
 	if n.instanceDirLock != nil {

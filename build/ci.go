@@ -55,6 +55,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -240,7 +241,7 @@ func doInstall(cmdline []string) {
 		goinstall := goTool("install", buildFlags(env)...)
 		goinstall.Args = append(goinstall.Args, "-v")
 		goinstall.Args = append(goinstall.Args, packages...)
-		build.MustRun(goinstall)
+		build.MustRun(goinstall, false)
 		return
 	}
 	// If we are cross compiling to ARMv5 ARMv6 or ARMv7, clean any previous builds
@@ -255,7 +256,7 @@ func doInstall(cmdline []string) {
 	goinstall.Args = append(goinstall.Args, "-v")
 	goinstall.Args = append(goinstall.Args, []string{"-buildmode", "archive"}...)
 	goinstall.Args = append(goinstall.Args, packages...)
-	build.MustRun(goinstall)
+	build.MustRun(goinstall, false)
 
 	if cmds, err := ioutil.ReadDir("cmd"); err == nil {
 		for _, cmd := range cmds {
@@ -269,7 +270,7 @@ func doInstall(cmdline []string) {
 					gobuild.Args = append(gobuild.Args, "-v")
 					gobuild.Args = append(gobuild.Args, []string{"-o", executablePath(cmd.Name())}...)
 					gobuild.Args = append(gobuild.Args, "."+string(filepath.Separator)+filepath.Join("cmd", cmd.Name()))
-					build.MustRun(gobuild)
+					build.MustRun(gobuild, false)
 					break
 				}
 			}
@@ -342,17 +343,59 @@ func doTest(cmdline []string) {
 	}
 
 	gotest.Args = append(gotest.Args, packages...)
-	build.MustRun(gotest)
+	build.MustRun(gotest, false)
 }
 
 func doCeloTest(cmdline []string) {
-	if _, err := os.Stat(filepath.Join(build.GOPATH(), "celo-monorepo")); os.IsNotExist(err) {
-		build.RunGit("clone", "git@github.com:celo-org/celo-monorepo.git", filepath.Join(build.GOPATH(), "celo-monorepo"))
+	celoMonorepoDir := filepath.Join(build.GOPATH(), "celo-monorepo")
+	celoToolBin := filepath.Join(celoMonorepoDir, "packages/celotool/bin/celotooljs.sh")
+
+	if _, err := os.Stat(celoMonorepoDir); os.IsNotExist(err) {
+		build.RunGit("clone", "git@github.com:celo-org/celo-monorepo.git", celoMonorepoDir)
 	} else {
-		build.RunGit("-C", filepath.Join(build.GOPATH(), "celo-monorepo"), "pull")
+		build.RunGit("-C", celoMonorepoDir, "pull")
 	}
 
-	build.MustRunCommand("yarn", "--cwd=./build/_workspace/celo-monorepo/packages/celotool/")
+	build.MustRunCommand("yarn", "--cwd", celoMonorepoDir)
+
+	gethDataDir := filepath.Join(build.GOPATH(), "geth_datadir")
+	os.RemoveAll(gethDataDir)
+
+	build.MustRunCommand(celoToolBin, "--celo-env=gethcelotest", "--geth-dir", os.Getenv("GETHROOT"), "--data-dir", gethDataDir, "--genesis",
+		filepath.Join(celoMonorepoDir, "packages/celotool/src/genesis_poa_from_mobile_but_with_single_signer.json"), "geth", "init",
+		"--fetch-static-nodes-from-network=false")
+
+	build.CopyFile(filepath.Join(gethDataDir, "static-nodes.json"),
+		filepath.Join(celoMonorepoDir, "packages/celotool/src/useless_static-nodes.json"), 0444)
+	build.CopyFile(filepath.Join(gethDataDir, "keystore", "UTC--2019-02-22T01-43-31.741678000Z--fee1a22f43beecb912b5a4912ba87527682ef0fc"),
+		filepath.Join(celoMonorepoDir, "packages/celotool/src/UTC--2019-02-22T01-43-31.741678000Z--fee1a22f43beecb912b5a4912ba87527682ef0fc"), 0444)
+
+	gethCmd := build.MustRunCommandBackground(celoToolBin, "--celo-env=gethcelotest", "--geth-dir", os.Getenv("GETHROOT"),
+		"--data-dir", gethDataDir, "--sync-mode=full", "--mining=true", "--minerGasPrice=999",
+		"--miner-address=0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC", "--genesis",
+		filepath.Join(celoMonorepoDir, "packages/celotool/src/genesis_poa_from_mobile_but_with_single_signer.json"),
+		"geth", "run")
+
+	// Sleep for 10 seconds, to make sure geth has started
+	time.Sleep(10 * time.Second)
+
+	build.MustRunCommand("yarn", "--cwd", filepath.Join(celoMonorepoDir, "packages/protocol/"), "init-network", "-n", "gethcelotest", "-t", "15")
+
+	// Run the actual tests now
+	// build.MustRunCommand("command", "to", "run", "the", "tests")
+	time.Sleep(10 * time.Second)
+
+	gethPidFile := filepath.Join(gethDataDir, "geth", "PID")
+	if b, err := ioutil.ReadFile(gethPidFile); err != nil {
+		log.Printf("Error in opening geth pid file", "err", err)
+	} else if pid, err := strconv.Atoi(string(b)); err != nil {
+		log.Printf("Error in contents of geth pid file", "err", err)
+	} else if process, err := os.FindProcess(pid); err != nil {
+		log.Printf("Error in finding process", "err", err)
+	} else {
+		process.Signal(os.Interrupt)
+		gethCmd.Wait()
+	}
 }
 
 // runs gometalinter on requested packages
@@ -364,7 +407,7 @@ func doLint(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	// Get metalinter and install all supported linters
-	build.MustRun(goTool("get", "gopkg.in/alecthomas/gometalinter.v2"))
+	build.MustRun(goTool("get", "gopkg.in/alecthomas/gometalinter.v2"), false)
 	build.MustRunCommand(filepath.Join(GOBIN, "gometalinter.v2"), "--install")
 
 	// Run fast linters batched together
@@ -513,7 +556,7 @@ func doDebianSource(cmdline []string) {
 	if key := getenvBase64("PPA_SIGNING_KEY"); len(key) > 0 {
 		gpg := exec.Command("gpg", "--import")
 		gpg.Stdin = bytes.NewReader(key)
-		build.MustRun(gpg)
+		build.MustRun(gpg, false)
 	}
 
 	// Create Debian packages and upload them
@@ -523,7 +566,7 @@ func doDebianSource(cmdline []string) {
 			pkgdir := stageDebianSource(*workdir, meta)
 			debuild := exec.Command("debuild", "-S", "-sa", "-us", "-uc", "-d", "-Zxz")
 			debuild.Dir = pkgdir
-			build.MustRun(debuild)
+			build.MustRun(debuild, false)
 
 			var (
 				basename = fmt.Sprintf("%s_%s", meta.Name(), meta.VersionString())
@@ -818,9 +861,9 @@ func doAndroidArchive(cmdline []string) {
 		log.Fatal("Please ensure ANDROID_NDK points to your Android NDK")
 	}
 	// Build the Android archive and Maven resources
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("init"))
-	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"))
+	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"), false)
+	build.MustRun(gomobileTool("init"), false)
+	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"), false)
 
 	if *local {
 		// If we're building locally, copy bundle to build dir and skip Maven
@@ -847,7 +890,7 @@ func doAndroidArchive(cmdline []string) {
 		key := getenvBase64(*signer)
 		gpg := exec.Command("gpg", "--import")
 		gpg.Stdin = bytes.NewReader(key)
-		build.MustRun(gpg)
+		build.MustRun(gpg, false)
 		keyID, err := build.PGPKeyID(string(key))
 		if err != nil {
 			log.Fatal(err)
@@ -939,14 +982,14 @@ func doXCodeFramework(cmdline []string) {
 	env := build.Env()
 
 	// Build the iOS XCode framework
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("init"))
+	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"), false)
+	build.MustRun(gomobileTool("init"), false)
 	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "--tags", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards
 		bind.Dir, _ = filepath.Abs(GOBIN)
-		build.MustRun(bind)
+		build.MustRun(bind, false)
 		return
 	}
 	archive := "geth-" + archiveBasename("ios", params.ArchiveVersion(env.Commit))
@@ -954,7 +997,7 @@ func doXCodeFramework(cmdline []string) {
 		log.Fatal(err)
 	}
 	bind.Dir, _ = filepath.Abs(archive)
-	build.MustRun(bind)
+	build.MustRun(bind, false)
 	build.MustRunCommand("tar", "-zcvf", archive+".tar.gz", archive)
 
 	// Skip CocoaPods deploy and Azure upload for PR builds
@@ -1028,7 +1071,7 @@ func doXgo(cmdline []string) {
 
 	// Make sure xgo is available for cross compilation
 	gogetxgo := goTool("get", "github.com/karalabe/xgo")
-	build.MustRun(gogetxgo)
+	build.MustRun(gogetxgo, false)
 
 	// If all tools building is requested, build everything the builder wants
 	args := append(buildFlags(env), flag.Args()...)
@@ -1040,7 +1083,7 @@ func doXgo(cmdline []string) {
 				// Binary tool found, cross build it explicitly
 				args = append(args, "./"+filepath.Join("cmd", filepath.Base(res)))
 				xgo := xgoTool(args)
-				build.MustRun(xgo)
+				build.MustRun(xgo, false)
 				args = args[:len(args)-1]
 			}
 		}
@@ -1051,7 +1094,7 @@ func doXgo(cmdline []string) {
 	args = append(args[:len(args)-1], []string{"--dest", GOBIN, path}...)
 
 	xgo := xgoTool(args)
-	build.MustRun(xgo)
+	build.MustRun(xgo, false)
 }
 
 func xgoTool(args []string) *exec.Cmd {
