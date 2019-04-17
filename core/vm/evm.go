@@ -492,24 +492,24 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getTobinTaxFunctionSelector() []byte {
-	// Function is "getTobinTax()"
-	// selector is first 4 bytes of keccak256 of "getTobinTax()"
+func getOrComputeTobinTaxFunctionSelector() []byte {
+	// Function is "getOrComputeTobinTax()"
+	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
 	// Source:
 	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getTobinTax()")[0:4].hex())'
-	return hexutil.MustDecode("0x18ff9d23")
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
+	return hexutil.MustDecode("0x17f9a6f7")
 }
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	if amount.Cmp(big.NewInt(0)) != 0 && evm.Context.ReserveAddress != nil {
-		ret, gas, err := evm.Call(AccountRef(sender), *evm.Context.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		ret, gas, err := evm.Call(AccountRef(sender), *evm.Context.ReserveAddress, getOrComputeTobinTaxFunctionSelector, gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
 		}
 
-		// Expected size of ret is 64 bytes because getTobinTax() returns two uint256 values,
+		// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
 		// each of which is equivalent to 32 bytes
 		if binary.Size(ret) == 64 {
 			numerator := new(big.Int).SetBytes(ret[0:32])
