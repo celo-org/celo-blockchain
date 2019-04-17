@@ -194,6 +194,7 @@ func (d *requestDistributor) nextRequest() (distPeer, *distReq, time.Duration) {
 		req := elem.Value.(*distReq)
 		canSend := false
 		for peer := range d.peers {
+			log.Error("NEXT_REQUEST", "what", "peer from peers for", "can_queue", peer.canQueue(), "can_seed", req.canSend(peer))
 			if _, ok := checkedPeers[peer]; !ok && peer.canQueue() && req.canSend(peer) {
 				canSend = true
 				cost := req.getCost(peer)
@@ -215,6 +216,7 @@ func (d *requestDistributor) nextRequest() (distPeer, *distReq, time.Duration) {
 		}
 		next := elem.Next()
 		if !canSend && elem == d.reqQueue.Front() {
+			log.Error("NEXT_REQUEST", "what", "can not send", "elem", elem)
 			close(req.sentChn)
 			d.remove(req)
 		}
