@@ -105,7 +105,6 @@ var (
 
 var (
 	CeloGoldAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10") // Address of the celo gold proxy contract.
-	ReserveAddress  = common.HexToAddress("0x000000000000000000000000000000000000601d") // Address of the reserve proxy contract.
 )
 
 const (

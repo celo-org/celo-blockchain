@@ -18,6 +18,7 @@ package vm
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -100,6 +101,7 @@ type Context struct {
 
 	// Predeployed contract addresses
 	AddressBasedEncryptionAddress *common.Address
+	ReserveAddress                *common.Address
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -502,7 +504,11 @@ func getTobinTaxFunctionSelector() []byte {
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		ret, gas, err := evm.Call(AccountRef(sender), params.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		if evm.Context.ReserveAddress == nil {
+			return gas, fmt.Errorf("Reserve Address is not set in the Registry contract")
+		}
+
+		ret, gas, err := evm.Call(AccountRef(sender), *evm.Context.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
 		}
@@ -515,7 +521,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
+			evm.Context.Transfer(db, sender, *evm.Context.ReserveAddress, tobinTax)
 			return gas, nil
 		}
 	}

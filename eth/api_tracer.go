@@ -207,7 +207,8 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer)
 					vmctx := core.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, nil,
-						api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName))
+						api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
+						api.eth.preAdd.GetPredeployedAddress(core.ReserveName))
 
 					res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 					if err != nil {
@@ -482,7 +483,8 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer)
 				vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil,
-					api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName))
+					api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
+					api.eth.preAdd.GetPredeployedAddress(core.ReserveName))
 
 				res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 				if err != nil {
@@ -502,7 +504,8 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer)
 		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil,
-			api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName))
+			api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
+			api.eth.preAdd.GetPredeployedAddress(core.ReserveName))
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
 		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist()); err != nil {
@@ -578,7 +581,8 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		var (
 			msg, _ = tx.AsMessage(signer)
 			vmctx  = core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil,
-				api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName))
+				api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
+				api.eth.preAdd.GetPredeployedAddress(core.ReserveName))
 
 			vmConf vm.Config
 			dump   *os.File
@@ -797,7 +801,8 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := tx.AsMessage(signer)
 		context := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil,
-			api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName))
+			api.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
+			api.eth.preAdd.GetPredeployedAddress(core.ReserveName))
 		if idx == txIndex {
 			return msg, context, statedb, nil
 		}
