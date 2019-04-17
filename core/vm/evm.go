@@ -18,7 +18,6 @@ package vm
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -503,11 +502,7 @@ func getTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		if evm.Context.ReserveAddress == nil {
-			return gas, fmt.Errorf("Reserve Address is not set in the Registry contract")
-		}
-
+	if amount.Cmp(big.NewInt(0)) != 0 && evm.Context.ReserveAddress != nil {
 		ret, gas, err := evm.Call(AccountRef(sender), *evm.Context.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
