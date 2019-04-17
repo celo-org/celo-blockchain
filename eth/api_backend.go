@@ -227,3 +227,7 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return b.eth.gcWl
 }
+
+func (b *EthAPIBackend) PredeployedAddresses() *core.PredeployedAddresses {
+	return b.eth.preAdd
+}

@@ -94,7 +94,8 @@ type Ethereum struct {
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
 
-	gcWl *core.GasCurrencyWhitelist
+	gcWl   *core.GasCurrencyWhitelist
+	preAdd *core.PredeployedAddresses
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -183,10 +184,13 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
+	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
 	pc := core.NewPriceComparator(config.TxPool.CurrencyAddresses, eth.chainConfig, eth.blockchain)
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.chainConfig, eth.blockchain)
+	eth.preAdd = core.NewPredeployedAddresses(iEvmH)
+	eth.gcWl = core.NewGasCurrencyWhitelist(eth.preAdd, iEvmH)
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
+	eth.blockchain.Processor().SetPredeployedAddresses(eth.preAdd)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
 		return nil, err
@@ -494,6 +498,7 @@ func (s *Ethereum) EthVersion() int                                  { return in
 func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
+func (s *Ethereum) PredeployedAddresses() *core.PredeployedAddresses { return s.preAdd }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

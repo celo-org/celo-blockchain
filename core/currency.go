@@ -33,6 +33,23 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+const (
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GasCurrency.json
+	getWhitelistABI = `[{"constant": true,
+	                     "inputs": [],
+	                     "name": "getWhitelist",
+	                     "outputs": [
+			          {
+			              "name": "",
+				      "type": "address[]"
+				  }
+			     ],
+			     "payable": false,
+			     "stateMutability": "view",
+			     "type": "function"
+			    }]`
+)
+
 var (
 	cgExchangeRateNum = big.NewInt(1)
 	cgExchangeRateDen = big.NewInt(1)
@@ -49,15 +66,9 @@ var (
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
 	getBalanceFuncABI = hexutil.MustDecode("0x70a08231")
 
-	// selector is first 4 bytes of keccak256 of "getWhitelist()"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getWhitelist()")[0:4].hex())'
-	getWhiteListFuncABI = hexutil.MustDecode("0xd01f63f5")
-
-	getWhiteListFuncReturnABI, _ = abi.JSON(strings.NewReader(`[{ "name" : "addressSliceSingle", "constant" : false, "outputs": [ { "type" : "address[]" } ] }]`))
-
 	errExchangeRateCacheMiss = errors.New("exchange rate cache miss")
+
+	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
 )
 
 type exchangeRate struct {
@@ -224,60 +235,34 @@ func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, 
 type GasCurrencyWhitelist struct {
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
-	blockchain             *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
-	chainConfig            *params.ChainConfig // The config object of the eth object
+	preAdd                 *PredeployedAddresses
+	iEvmH                  *InternalEVMHandler
 }
 
 func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
-	log.Trace("GasCurrencyWhitelist.retrieveWhitelist")
+	log.Trace("GasCurrencyWhitelist.retrieveWhitelist called")
 
 	returnList := []common.Address{}
 
-	if gcWl.blockchain == nil {
-		log.Warn("GasCurrencyWhitelist.retrieveWhitelist - gcWl.blockchain is nil, returning empty whitelist")
+	gasCurrencyWhiteListAddress := gcWl.preAdd.GetPredeployedAddress(GasCurrencyWhitelistName)
+	if gasCurrencyWhiteListAddress == nil {
+		log.Error("Can't get the gas currency whitelist smart contract address from the registry")
 		return returnList
 	}
 
-	header := gcWl.blockchain.CurrentBlock().Header()
-	state, err := gcWl.blockchain.StateAt(header.Root)
-	if err != nil {
-		log.Error("GasCurrencyWhitelist.retrieveWhitelist - Error in retrieving the state from the blockchain")
+	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
 
-		// If we can't retrieve the whitelist, be conservative and assume no currencies are whitelisted
-		return returnList
-	}
-
-	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
-	// zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, gcWl.blockchain, nil)
-	evm := vm.NewEVM(context, state, gcWl.chainConfig, *gcWl.blockchain.GetVMConfig())
-
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
-	transactionData := common.GetEncodedAbi(getWhiteListFuncABI, [][]byte{})
-	gas := uint64(20 * 1000)
-	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "caller", anyCaller, "GasCurrencyWhiteList",
-		params.GasCurrencyWhitelistAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, params.GasCurrencyWhitelistAddress, transactionData, gas)
-
-	if err != nil {
-		log.Error("Error in retrieving the gas currency whitelist", "err", err)
-		return returnList
-	}
-
-	log.Trace("retrieveWhitelist", "ret", ret, "leftoverGas", leftoverGas)
-
-	if err := getWhiteListFuncReturnABI.Unpack(&returnList, "addressSliceSingle", ret); err != nil {
-		log.Trace("Error in unpacking gas currency whitelist", "err", err)
-		return returnList
+	if err := gcWl.iEvmH.makeCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList); err != nil {
+		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "err", err)
+		return []common.Address{}
 	}
 
 	outputWhiteList := make([]string, len(returnList))
 	for _, address := range returnList {
 		outputWhiteList = append(outputWhiteList, address.Hex())
 	}
-	log.Trace("retrieveWhitelist", "whitelist", outputWhiteList)
+
+	log.Trace("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation success", "whitelisted currencies", outputWhiteList)
 	return returnList
 }
 
@@ -307,11 +292,11 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 	return ok
 }
 
-func NewGasCurrencyWhitelist(chainConfig *params.ChainConfig, blockchain *BlockChain) *GasCurrencyWhitelist {
+func NewGasCurrencyWhitelist(preAdd *PredeployedAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
 	gcWl := &GasCurrencyWhitelist{
 		whitelistedAddresses: make(map[common.Address]bool),
-		blockchain:           blockchain,
-		chainConfig:          chainConfig,
+		preAdd:               preAdd,
+		iEvmH:                iEvmH,
 	}
 
 	return gcWl

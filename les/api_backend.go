@@ -204,3 +204,7 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return nil
 }
+
+func (b *LesApiBackend) PredeployedAddresses() *core.PredeployedAddresses {
+	return nil
+}

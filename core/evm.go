@@ -19,10 +19,14 @@ package core
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
@@ -123,4 +127,59 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
+}
+
+// An EVM handler to make calls to smart contracts from within geth
+type InternalEVMHandler struct {
+	blockchain  *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
+	chainConfig *params.ChainConfig // The config object of the eth object
+}
+
+func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}) error {
+	header := iEvmH.blockchain.CurrentBlock().Header()
+	state, err := iEvmH.blockchain.StateAt(header.Root)
+	if err != nil {
+		log.Error("Error in retrieving the state from the blockchain")
+		return err
+	}
+
+	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
+	// zero values.
+	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
+	context := NewEVMContext(msg, header, iEvmH.blockchain, nil)
+	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
+
+	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	transactionData, err := abi.Pack(funcName, args...)
+	if err != nil {
+		log.Error("Error is generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
+		return err
+	}
+	gas := uint64(20 * 1000)
+	log.Trace("Calling evm", "caller", anyCaller, "transactionData", hexutil.Encode(transactionData))
+
+	ret, leftoverGas, err := evm.StaticCall(anyCaller, scAddress, transactionData, gas)
+
+	if err != nil {
+		log.Error("Error in calling the EVM", "err", err)
+		return err
+	}
+
+	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
+
+	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
+		log.Error("Error in unpacking EVM call return bytes", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func NewInternalEVMHandler(chainConfig *params.ChainConfig, blockchain *BlockChain) *InternalEVMHandler {
+	iEvmH := InternalEVMHandler{
+		blockchain:  blockchain,
+		chainConfig: chainConfig,
+	}
+
+	return &iEvmH
 }

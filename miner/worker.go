@@ -511,6 +511,11 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
+				// Refresh the predeployed address cache before processing transaction batch
+				if preAdd := w.eth.PredeployedAddresses(); preAdd != nil {
+					preAdd.RefreshAddresses()
+				}
+
 				// Refresh the gas currency whitelist cache before processing transaction batch
 				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
 					wl.RefreshWhitelist()
@@ -981,13 +986,18 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
-	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
+	// Refresh the predeployed address cache before processing transaction batch
+	if preAdd := w.eth.PredeployedAddresses(); preAdd != nil {
+		preAdd.RefreshAddresses()
+	}
 
 	// Refresh the gas currency whitelist cache before processing the pending transactions
 	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
 		wl.RefreshWhitelist()
 	}
+
+	// Fill the block with all available pending transactions.
+	pending, err := w.eth.TxPool().Pending()
 
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)

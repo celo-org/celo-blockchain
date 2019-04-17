@@ -40,6 +40,7 @@ type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
+	PredeployedAddresses() *core.PredeployedAddresses
 }
 
 // Miner creates blocks and searches for proof-of-work values.

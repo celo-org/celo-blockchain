@@ -32,10 +32,13 @@ import (
 //
 // StateProcessor implements Processor.
 type StateProcessor struct {
-	config *params.ChainConfig   // Chain configuration options
-	bc     *BlockChain           // Canonical block chain
-	engine consensus.Engine      // Consensus engine used for block rewards
-	gcWl   *GasCurrencyWhitelist // The state processor will need to refresh the cache right before it processes a block
+	config *params.ChainConfig // Chain configuration options
+	bc     *BlockChain         // Canonical block chain
+	engine consensus.Engine    // Consensus engine used for block rewards
+
+	// The state processor will need to refresh the cache for the gas currency white list and registry predeployed addresses right before it processes a block
+	gcWl   *GasCurrencyWhitelist
+	preAdd *PredeployedAddresses
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -49,6 +52,10 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 
 func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
 	p.gcWl = gcWl
+}
+
+func (p *StateProcessor) SetPredeployedAddresses(preAdd *PredeployedAddresses) {
+	p.preAdd = preAdd
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -71,7 +78,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// Refresh the cache right before processing the block's transactions
+	// Refresh the predeployed addresses cache right before processing the block's transactions
+	if p.gcWl != nil {
+		p.preAdd.RefreshAddresses()
+	}
+
+	// Refresh the gas currency whitelist cache right before processing the block's transactions
 	if p.gcWl != nil {
 		p.gcWl.RefreshWhitelist()
 	}
