@@ -101,6 +101,7 @@ type Context struct {
 	// Predeployed contract addresses
 	AddressBasedEncryptionAddress *common.Address
 	ReserveAddress                *common.Address
+	CeloGoldAddress               *common.Address
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

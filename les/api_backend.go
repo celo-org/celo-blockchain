@@ -109,7 +109,8 @@ func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 	state.SetBalance(msg.From(), math.MaxBig256)
 
 	// TODO (kevjue): Need to figure out what needs to be done to support reading the predeployed addresses from the registry smart contract
-	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, nil, nil)
+	// See issue# 3250
+	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, nil, nil, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 

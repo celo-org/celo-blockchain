@@ -40,7 +40,7 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, abeAddress *common.Address, reserveAddress *common.Address) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, abeAddress *common.Address, reserveAddress *common.Address, celoGoldAddress *common.Address) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
@@ -62,6 +62,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		GasPrice:                      new(big.Int).Set(msg.GasPrice()),
 		AddressBasedEncryptionAddress: abeAddress,
 		ReserveAddress:                reserveAddress,
+		CeloGoldAddress:               celoGoldAddress,
 	}
 }
 
@@ -151,7 +152,8 @@ func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI,
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
 	context := NewEVMContext(msg, header, iEvmH.blockchain, nil,
 		iEvmH.preAdd.GetPredeployedAddress(AddressBasedEncryptionName),
-		iEvmH.preAdd.GetPredeployedAddress(ReserveName))
+		iEvmH.preAdd.GetPredeployedAddress(ReserveName),
+		iEvmH.preAdd.GetPredeployedAddress(GoldTokenName))
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
 	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work

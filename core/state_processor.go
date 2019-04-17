@@ -116,13 +116,15 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 
 	var abeAddress *common.Address
 	var reserveAddress *common.Address
+	var celoGoldAddress *common.Address
 	if preAdd != nil {
 		abeAddress = preAdd.GetPredeployedAddress(AddressBasedEncryptionName)
 		reserveAddress = preAdd.GetPredeployedAddress(ReserveName)
+		celoGoldAddress = preAdd.GetPredeployedAddress(GoldTokenName)
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := NewEVMContext(msg, header, bc, author, abeAddress, reserveAddress)
+	context := NewEVMContext(msg, header, bc, author, abeAddress, reserveAddress, celoGoldAddress)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)

@@ -131,7 +131,8 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 
 	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil,
 		b.eth.preAdd.GetPredeployedAddress(core.AddressBasedEncryptionName),
-		b.eth.preAdd.GetPredeployedAddress(core.ReserveName))
+		b.eth.preAdd.GetPredeployedAddress(core.ReserveName),
+		b.eth.preAdd.GetPredeployedAddress(core.GoldTokenName))
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
