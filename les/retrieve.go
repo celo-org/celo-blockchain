@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"sync"
 	"time"
 
@@ -208,6 +209,7 @@ func (r *sentReq) stateRequesting() reqStateFn {
 					return r.stateNoMorePeers
 				}
 				// nothing to wait for, no more peers to ask, return with error
+				log.Error("NO_PEERS_FOUND", "place", "stateRequesting", "r", r)
 				r.stop(light.ErrNoPeers)
 				// no need to go to stopped state because waiting() already returned false
 				return nil
@@ -252,6 +254,7 @@ func (r *sentReq) stateNoMorePeers() reqStateFn {
 		if r.waiting() {
 			return r.stateNoMorePeers
 		}
+		log.Error("NO_PEERS_FOUND", "place", "stateNoMorePeers", "r", r)
 		r.stop(light.ErrNoPeers)
 		return nil
 	case <-r.stopCh:
@@ -309,6 +312,8 @@ func (r *sentReq) tryRequest() {
 			p = <-sent
 		}
 	}
+
+	log.Error("WHAT_IS_P", "p", p)
 
 	r.eventsCh <- reqPeerEvent{rpSent, p}
 	if p == nil {

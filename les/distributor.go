@@ -20,6 +20,7 @@ package les
 
 import (
 	"container/list"
+	"github.com/ethereum/go-ethereum/log"
 	"sync"
 	"time"
 )
@@ -186,7 +187,10 @@ func (d *requestDistributor) nextRequest() (distPeer, *distReq, time.Duration) {
 	d.peerLock.RLock()
 	defer d.peerLock.RUnlock()
 
+	log.Error("NEXT_REQUEST", "d", d, "peers_len", len(d.peers), "peers", d.peers)
+
 	for (len(d.peers) > 0 || elem == d.reqQueue.Front()) && elem != nil {
+		log.Error("NEXT_REQUEST", "what", "got into for", "elem", elem)
 		req := elem.Value.(*distReq)
 		canSend := false
 		for peer := range d.peers {
@@ -217,10 +221,13 @@ func (d *requestDistributor) nextRequest() (distPeer, *distReq, time.Duration) {
 		elem = next
 	}
 
+	log.Error("NEXT_REQUEST", "sel", sel)
 	if sel != nil {
 		c := sel.choose().(selectPeerItem)
+		log.Error("NEXT_REQUEST", "what", "sel is not nil", "c", c, "c_peer", c.peer)
 		return c.peer, c.req, 0
 	}
+	log.Error("NEXT_REQUEST", "what", "just return", "best_peer", bestPeer, "best_req", bestReq, "best_wait", bestWait)
 	return bestPeer, bestReq, bestWait
 }
 
