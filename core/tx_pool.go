@@ -651,7 +651,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		state, err := pool.chain.StateAt(header.Root)
 
 		msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-		context := NewEVMContext(msg, header, pool.chain, nil)
+		context := NewEVMContext(msg, header, pool.chain, nil, nil)
 		evm := vm.NewEVM(context, state, pool.chainconfig, *pool.chain.GetVMConfig())
 
 		gasCurrencyBalance, _, err := GetBalanceOf(from, tx.GasCurrency(), evm, 10*1000)

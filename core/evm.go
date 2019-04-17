@@ -40,7 +40,7 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, abeAddress *common.Address) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
@@ -49,17 +49,18 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		beneficiary = *author
 	}
 	return vm.Context{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		GetCoinbase: GetCoinbaseFn(header, chain),
-		Origin:      msg.From(),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).Set(header.Time),
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		GasLimit:    header.GasLimit,
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
+		CanTransfer:                   CanTransfer,
+		Transfer:                      Transfer,
+		GetHash:                       GetHashFn(header, chain),
+		GetCoinbase:                   GetCoinbaseFn(header, chain),
+		Origin:                        msg.From(),
+		Coinbase:                      beneficiary,
+		BlockNumber:                   new(big.Int).Set(header.Number),
+		Time:                          new(big.Int).Set(header.Time),
+		Difficulty:                    new(big.Int).Set(header.Difficulty),
+		GasLimit:                      header.GasLimit,
+		GasPrice:                      new(big.Int).Set(msg.GasPrice()),
+		AddressBasedEncryptionAddress: abeAddress,
 	}
 }
 
@@ -133,6 +134,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 type InternalEVMHandler struct {
 	blockchain  *BlockChain         // Used to construct the EVM object needed to make the call the medianator contract
 	chainConfig *params.ChainConfig // The config object of the eth object
+	preAdd      *PredeployedAddresses
 }
 
 func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}) error {
@@ -146,7 +148,7 @@ func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI,
 	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
 	// zero values.
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.blockchain, nil)
+	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.preAdd.GetPredeployedAddress(AddressBasedEncryptionName))
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
 	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
@@ -173,6 +175,10 @@ func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI,
 	}
 
 	return nil
+}
+
+func (iEvmH *InternalEVMHandler) SetPredeployedAddresses(preAdd *PredeployedAddresses) {
+	iEvmH.preAdd = preAdd
 }
 
 func NewInternalEVMHandler(chainConfig *params.ChainConfig, blockchain *BlockChain) *InternalEVMHandler {

@@ -187,6 +187,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
 	eth.preAdd = core.NewPredeployedAddresses(iEvmH)
+	iEvmH.SetPredeployedAddresses(eth.preAdd)
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.preAdd, iEvmH)
 	pc := core.NewPriceComparator(eth.gcWl, eth.preAdd, iEvmH)
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl)

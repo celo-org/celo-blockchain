@@ -435,7 +435,11 @@ func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM,
 		return nil, gas, err
 	}
 
-	if caller != params.AuthorizedRequestVerificationAddress {
+	if evm.Context.AddressBasedEncryptionAddress == nil {
+		return nil, gas, fmt.Errorf("AddressBasedEncryption Address is not set in the Registry contract")
+	}
+
+	if caller != *evm.Context.AddressBasedEncryptionAddress {
 		return nil, gas, fmt.Errorf("Unable to call requestVerification from unpermissioned address")
 	}
 	_, err = types.DecodeVerificationRequest(input)
