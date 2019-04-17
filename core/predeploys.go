@@ -56,9 +56,8 @@ const (
 var (
 	// TODO(kevjue) - Replace with the actual predeployed address for the registry smart contract
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
-	//predeployedContractNames     = []string{GoldTokenName, AddressBasedEncryptionName, ReserveName, MedianatorName, GasCurrencyWhitelistName}
-	predeployedContractNames = []string{MedianatorName, GasCurrencyWhitelistName}
-	getAddressForFuncABI, _  = abi.JSON(strings.NewReader(getAddressForABI))
+	predeployedContractNames     = []string{GoldTokenName, AddressBasedEncryptionName, ReserveName, MedianatorName, GasCurrencyWhitelistName}
+	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
 )
 
 type PredeployedAddresses struct {

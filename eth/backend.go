@@ -184,10 +184,11 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
+
 	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
-	pc := core.NewPriceComparator(config.TxPool.CurrencyAddresses, eth.chainConfig, eth.blockchain)
 	eth.preAdd = core.NewPredeployedAddresses(iEvmH)
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.preAdd, iEvmH)
+	pc := core.NewPriceComparator(eth.gcWl, eth.preAdd, iEvmH)
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetPredeployedAddresses(eth.preAdd)

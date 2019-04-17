@@ -27,13 +27,39 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Medianator.json
+	getExchangeRateABI = `[{"constant": true,
+                                "inputs": [
+                                     {
+                                         "name": "base",
+                                         "type": "address"
+                                     },
+                                     {
+                                         "name": "counter",
+                                         "type": "address"
+                                     }
+                                ],
+                                "name": "getExchangeRate",
+                                "outputs": [
+                                     {
+                                         "name": "",
+                                         "type": "uint256"
+                                     },
+                                     {
+                                         "name": "",
+                                         "type": "uint256"
+                                     }
+                                ],
+                                "payable": false,
+                                "stateMutability": "view",
+                                "type": "function"
+                               }]`
+
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GasCurrency.json
 	getWhitelistABI = `[{"constant": true,
 	                     "inputs": [],
@@ -54,11 +80,7 @@ var (
 	cgExchangeRateNum = big.NewInt(1)
 	cgExchangeRateDen = big.NewInt(1)
 
-	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
-	getExchangeRateFuncABI = hexutil.MustDecode("0xbaaa61be")
+	getExchangeRateFuncABI, _ = abi.JSON(strings.NewReader(getExchangeRateABI))
 
 	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
 	// Source:
@@ -77,10 +99,10 @@ type exchangeRate struct {
 }
 
 type PriceComparator struct {
-	gasCurrencyAddresses *[]common.Address                // The set of currencies that will have their exchange rate monitored
-	exchangeRates        map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	blockchain           *BlockChain                      // Used to construct the EVM object needed to make the call the medianator contract
-	chainConfig          *params.ChainConfig              // The config object of the eth object
+	gcWl          *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
+	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
+	preAdd        *PredeployedAddresses
+	iEvmH         *InternalEVMHandler
 }
 
 func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*big.Int, *big.Int, error) {
@@ -129,57 +151,46 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 // Medianator must have a function with the following signature:
 // "function getExchangeRate(address, address)"
 func (pc *PriceComparator) retrieveExchangeRates() {
-	log.Trace("retrieveExchangeRates",
-		"gasCurrencyAddresses", fmt.Sprintf("%v", *pc.gasCurrencyAddresses))
+	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
+	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", fmt.Sprintf("%v", gasCurrencyAddresses))
 
-	header := pc.blockchain.CurrentBlock().Header()
-	state, err := pc.blockchain.StateAt(header.Root)
-	if err != nil {
-		log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving the state from the blockchain")
+	medianatorAddress := pc.preAdd.GetPredeployedAddress(MedianatorName)
+
+	if medianatorAddress == nil {
+		log.Error("Can't get the medianator smart contract address from the registry")
 		return
 	}
 
-	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
-	// zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, pc.blockchain, nil)
-	evm := vm.NewEVM(context, state, pc.chainConfig, *pc.blockchain.GetVMConfig())
+	celoGoldAddress := pc.preAdd.GetPredeployedAddress(GoldTokenName)
 
-	for _, gasCurrencyAddress := range *pc.gasCurrencyAddresses {
-		transactionData := common.GetEncodedAbi(
-			getExchangeRateFuncABI, [][]byte{common.AddressToAbi(params.CeloGoldAddress), common.AddressToAbi(gasCurrencyAddress)})
-		anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	if celoGoldAddress == nil {
+		log.Error("Can't get the celo gold smart contract address from the registry")
+		return
+	}
 
-		// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
-		gas := uint64(20 * 1000)
-		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "caller", anyCaller, "customTokenContractAddress",
-			params.MedianatorAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-
-		ret, leftoverGas, err := evm.StaticCall(anyCaller, params.MedianatorAddress, transactionData, gas)
-
-		if err != nil {
-			log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving exchange rate",
-				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "err", err)
+	for _, gasCurrencyAddress := range gasCurrencyAddresses {
+		if gasCurrencyAddress == *celoGoldAddress {
 			continue
 		}
 
-		if len(ret) != 2*32 {
-			log.Error("PriceComparator.retrieveExchangeRates - Unexpected return value in retrieving exchange rate",
-				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "ret", hexutil.Encode(ret))
+		var returnArray [2]*big.Int
+
+		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "medianatorAddress", medianatorAddress.Hex(),
+			"gas currency", gasCurrencyAddress.Hex())
+
+		if err := pc.iEvmH.makeCall(*medianatorAddress, getExchangeRateFuncABI, "getExchangeRate", []interface{}{celoGoldAddress, gasCurrencyAddress}, &returnArray); err != nil {
+			log.Error("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation error", "err", err)
 			continue
+		} else {
+			log.Trace("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation success", "returnArray", fmt.Sprintf("%v", returnArray))
+
+			if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
+				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
+			}
+
+			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
+			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
 		}
-
-		log.Trace("getExchangeRate", "ret", ret, "leftoverGas", leftoverGas, "err", err)
-		baseAmount := new(big.Int).SetBytes(ret[0:32])
-		counterAmount := new(big.Int).SetBytes(ret[32:64])
-		log.Trace("getExchangeRate", "baseAmount", baseAmount, "counterAmount", counterAmount)
-
-		if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
-			pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
-		}
-
-		pc.exchangeRates[gasCurrencyAddress].Numerator = baseAmount
-		pc.exchangeRates[gasCurrencyAddress].Denominator = counterAmount
 	}
 }
 
@@ -192,17 +203,17 @@ func (pc *PriceComparator) mainLoop() {
 	}
 }
 
-func NewPriceComparator(gasCurrencyAddresses *[]common.Address, chainConfig *params.ChainConfig, blockchain *BlockChain) *PriceComparator {
+func NewPriceComparator(gcWl *GasCurrencyWhitelist, preAdd *PredeployedAddresses, iEvmH *InternalEVMHandler) *PriceComparator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
 	pc := &PriceComparator{
-		gasCurrencyAddresses: gasCurrencyAddresses,
-		exchangeRates:        exchangeRates,
-		blockchain:           blockchain,
-		chainConfig:          chainConfig,
+		gcWl:          gcWl,
+		exchangeRates: exchangeRates,
+		preAdd:        preAdd,
+		iEvmH:         iEvmH,
 	}
 
-	if pc.gasCurrencyAddresses != nil && len(*pc.gasCurrencyAddresses) > 0 {
+	if pc.gcWl != nil {
 		go pc.mainLoop()
 	}
 
