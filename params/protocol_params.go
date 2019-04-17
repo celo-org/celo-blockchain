@@ -18,8 +18,6 @@ package params
 
 import (
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -101,10 +99,6 @@ var (
 	GenesisDifficulty      = big.NewInt(131072) // Difficulty of the Genesis block.
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
-)
-
-var (
-	CeloGoldAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10") // Address of the celo gold proxy contract.
 )
 
 const (

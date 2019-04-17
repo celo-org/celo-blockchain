@@ -1285,16 +1285,17 @@ func (as *accountSet) flatten() []common.Address {
 // peeking into the pool in TxPool.Get without having to acquire the widely scoped
 // TxPool.mu mutex.
 type txLookup struct {
-	all         map[common.Hash]*types.Transaction
-	txCurrCount map[common.Address]uint64
-	lock        sync.RWMutex
+	all                       map[common.Hash]*types.Transaction
+	nonNilCurrencyTxCurrCount map[common.Address]uint64
+	nilCurrencyTxCurrCount    uint64
+	lock                      sync.RWMutex
 }
 
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-		all:         make(map[common.Hash]*types.Transaction),
-		txCurrCount: make(map[common.Address]uint64),
+		all:                       make(map[common.Hash]*types.Transaction),
+		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
 	}
 }
 
@@ -1331,7 +1332,11 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[*(tx.NonNilGasCurrency())]++
+	if tx.GasCurrency() == nil {
+		t.nilCurrencyTxCurrCount++
+	} else {
+		t.nonNilCurrencyTxCurrCount[*tx.GasCurrency()]++
+	}
 	t.all[tx.Hash()] = tx
 }
 
@@ -1340,7 +1345,11 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[*(t.all[hash].NonNilGasCurrency())]--
+	if t.all[hash].GasCurrency() == nil {
+		t.nilCurrencyTxCurrCount--
+	} else {
+		t.nonNilCurrencyTxCurrCount[*t.all[hash].GasCurrency()]--
+	}
 
 	delete(t.all, hash)
 }

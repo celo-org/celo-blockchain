@@ -108,8 +108,6 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 
-	// TODO (kevjue): Need to figure out what needs to be done to support reading the predeployed addresses from the registry smart contract
-	// See issue# 3250
 	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, nil, nil, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }

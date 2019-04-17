@@ -481,8 +481,8 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-        if evm.Context.CeloGoldAddress == nil {
-	        return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")
+	if evm.Context.CeloGoldAddress == nil {
+		return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")
 	}
 
 	if caller != *evm.Context.CeloGoldAddress {
