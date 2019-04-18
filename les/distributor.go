@@ -189,7 +189,7 @@ func (d *requestDistributor) nextRequest() (distPeer, *distReq, time.Duration) {
 
 	log.Error("NEXT_REQUEST", "d", d, "peers_len", len(d.peers), "peers", d.peers)
 
-	for (len(d.peers) > 0 || elem == d.reqQueue.Front()) && elem != nil {
+	for (len(d.peers) - len(checkedPeers) > 0 || elem == d.reqQueue.Front()) && elem != nil {
 		log.Error("NEXT_REQUEST", "what", "got into for", "elem", elem)
 		req := elem.Value.(*distReq)
 		canSend := false
