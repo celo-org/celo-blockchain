@@ -58,3 +58,7 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 
 	return common.Address{}, ErrUnauthorizedAddress
 }
+
+func IsLastBlockOfEpoch(number uint64, epoch uint64) bool {
+        return number == 0 || (number % epoch) == (epoch - 1)
+}

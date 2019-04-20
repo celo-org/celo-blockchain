@@ -86,33 +86,3 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	}
 	return snap.validators(), nil
 }
-
-// Candidates returns the current candidates the node tries to uphold and vote on.
-func (api *API) Candidates() map[common.Address]bool {
-	api.istanbul.candidatesLock.RLock()
-	defer api.istanbul.candidatesLock.RUnlock()
-
-	proposals := make(map[common.Address]bool)
-	for address, auth := range api.istanbul.candidates {
-		proposals[address] = auth
-	}
-	return proposals
-}
-
-// Propose injects a new authorization candidate that the validator will attempt to
-// push through.
-func (api *API) Propose(address common.Address, auth bool) {
-	api.istanbul.candidatesLock.Lock()
-	defer api.istanbul.candidatesLock.Unlock()
-
-	api.istanbul.candidates[address] = auth
-}
-
-// Discard drops a currently running candidate, stopping the validator from casting
-// further votes (either for or against).
-func (api *API) Discard(address common.Address) {
-	api.istanbul.candidatesLock.Lock()
-	defer api.istanbul.candidatesLock.Unlock()
-
-	delete(api.istanbul.candidates, address)
-}

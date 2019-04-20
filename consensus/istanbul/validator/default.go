@@ -157,29 +157,42 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 	return valSet.GetByIndex(pick)
 }
 
-func (valSet *defaultSet) AddValidator(address common.Address) bool {
+func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
+        newValidators := make([]validator, len(addresses), len(addresses))
+        newAddressesMap = make(map[common.Address]bool)
+	for _, address := addresses {
+	    newAddressesMap[address] = bool
+	    newValidators = append(newValidators, New(address))
+	}
+
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 	for _, v := range valSet.validators {
-		if v.Address() == address {
+		if _, ok := newAddressesMap[v.Address()]; ok {
 			return false
 		}
 	}
-	valSet.validators = append(valSet.validators, New(address))
+	valSet.validators = append(valSet.validators, newValidators...)
 	// TODO: we may not need to re-sort it again
 	// sort validator
 	sort.Sort(valSet.validators)
 	return true
 }
 
-func (valSet *defaultSet) RemoveValidator(address common.Address) bool {
+func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
+	// The addresses parameter and valSet.validators list MUST BE sorted.
+	cursor := 0
 	for i, v := range valSet.validators {
-		if v.Address() == address {
+		if v.Address() == addresses[cursor] {
 			valSet.validators = append(valSet.validators[:i], valSet.validators[i+1:]...)
-			return true
+			cursor ++
+
+			if cursor == len(addresses) {
+			    return true
+			}
 		}
 	}
 	return false

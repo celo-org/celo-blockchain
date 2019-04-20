@@ -40,21 +40,12 @@ type Vote struct {
 	Authorize bool           `json:"authorize"` // Whether to authorize or deauthorize the voted account
 }
 
-// Tally is a simple vote tally to keep the current score of votes. Votes that
-// go against the proposal aren't counted since it's equivalent to not voting.
-type Tally struct {
-	Authorize bool `json:"authorize"` // Whether the vote it about authorizing or kicking someone
-	Votes     int  `json:"votes"`     // Number of votes until now wanting to pass the proposal
-}
-
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
 	Epoch uint64 // The number of blocks after which to checkpoint and reset the pending votes
 
 	Number uint64                   // Block number where the snapshot was created
 	Hash   common.Hash              // Block hash where the snapshot was created
-	Votes  []*Vote                  // List of votes cast in chronological order
-	Tally  map[common.Address]Tally // Current vote tally to avoid recalculating
 	ValSet istanbul.ValidatorSet    // Set of authorized validators at this moment
 }
 
@@ -67,7 +58,6 @@ func newSnapshot(epoch uint64, number uint64, hash common.Hash, valSet istanbul.
 		Number: number,
 		Hash:   hash,
 		ValSet: valSet,
-		Tally:  make(map[common.Address]Tally),
 	}
 	return snap
 }
@@ -103,59 +93,9 @@ func (s *Snapshot) copy() *Snapshot {
 		Number: s.Number,
 		Hash:   s.Hash,
 		ValSet: s.ValSet.Copy(),
-		Votes:  make([]*Vote, len(s.Votes)),
-		Tally:  make(map[common.Address]Tally),
 	}
-
-	for address, tally := range s.Tally {
-		cpy.Tally[address] = tally
-	}
-	copy(cpy.Votes, s.Votes)
 
 	return cpy
-}
-
-// checkVote return whether it's a valid vote
-func (s *Snapshot) checkVote(address common.Address, authorize bool) bool {
-	_, validator := s.ValSet.GetByAddress(address)
-	return (validator != nil && !authorize) || (validator == nil && authorize)
-}
-
-// cast adds a new vote into the tally.
-func (s *Snapshot) cast(address common.Address, authorize bool) bool {
-	// Ensure the vote is meaningful
-	if !s.checkVote(address, authorize) {
-		return false
-	}
-	// Cast the vote into an existing or new tally
-	if old, ok := s.Tally[address]; ok {
-		old.Votes++
-		s.Tally[address] = old
-	} else {
-		s.Tally[address] = Tally{Authorize: authorize, Votes: 1}
-	}
-	return true
-}
-
-// uncast removes a previously cast vote from the tally.
-func (s *Snapshot) uncast(address common.Address, authorize bool) bool {
-	// If there's no tally, it's a dangling vote, just drop
-	tally, ok := s.Tally[address]
-	if !ok {
-		return false
-	}
-	// Ensure we only revert counted votes
-	if tally.Authorize != authorize {
-		return false
-	}
-	// Otherwise revert the vote
-	if tally.Votes > 1 {
-		tally.Votes--
-		s.Tally[address] = tally
-	} else {
-		delete(s.Tally, address)
-	}
-	return true
 }
 
 // apply creates a new authorization snapshot by applying the given headers to
@@ -168,11 +108,11 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 	// Sanity check that the headers can be applied
 	if fullHeaderChainAvailable {
 		for i := 0; i < len(headers)-1; i++ {
-			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
+			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64() + s.Epoch {
 				return nil, errInvalidVotingChain
 			}
 		}
-		if headers[0].Number.Uint64() != s.Number+1 {
+		if headers[0].Number.Uint64() != s.Number + s.Epoch {
 			return nil, errInvalidVotingChain
 		}
 	}
@@ -181,12 +121,6 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 	snap := s.copy()
 
 	for _, header := range headers {
-		// Remove any votes on checkpoint blocks
-		number := header.Number.Uint64()
-		if number%s.Epoch == 0 {
-			snap.Votes = nil
-			snap.Tally = make(map[common.Address]Tally)
-		}
 		// Resolve the authorization key and check against validators
 		validator, err := ecrecover(header)
 		if err != nil {
@@ -196,66 +130,10 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 			return nil, errUnauthorized
 		}
 
-		// Header authorized, discard any previous votes from the validator
-		for i, vote := range snap.Votes {
-			if vote.Validator == validator && vote.Address == header.Coinbase {
-				// Uncast the vote from the cached tally
-				snap.uncast(vote.Address, vote.Authorize)
-
-				// Uncast the vote from the chronological list
-				snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-				break // only one vote allowed
-			}
-		}
-		// Tally up the new vote from the validator
-		var authorize bool
-		switch {
-		case bytes.Equal(header.Nonce[:], nonceAuthVote):
-			authorize = true
-		case bytes.Equal(header.Nonce[:], nonceDropVote):
-			authorize = false
-		default:
-			return nil, errInvalidVote
-		}
-		if snap.cast(header.Coinbase, authorize) {
-			snap.Votes = append(snap.Votes, &Vote{
-				Validator: validator,
-				Block:     number,
-				Address:   header.Coinbase,
-				Authorize: authorize,
-			})
-		}
-		// If the vote passed, update the list of validators
-		if tally := snap.Tally[header.Coinbase]; tally.Votes > snap.ValSet.Size()/2 {
-			if tally.Authorize {
-				snap.ValSet.AddValidator(header.Coinbase)
-			} else {
-				snap.ValSet.RemoveValidator(header.Coinbase)
-
-				// Discard any previous votes the deauthorized validator cast
-				for i := 0; i < len(snap.Votes); i++ {
-					if snap.Votes[i].Validator == header.Coinbase {
-						// Uncast the vote from the cached tally
-						snap.uncast(snap.Votes[i].Address, snap.Votes[i].Authorize)
-
-						// Uncast the vote from the chronological list
-						snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-
-						i--
-					}
-				}
-			}
-			// Discard any previous votes around the just changed account
-			for i := 0; i < len(snap.Votes); i++ {
-				if snap.Votes[i].Address == header.Coinbase {
-					snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-					i--
-				}
-			}
-			delete(snap.Tally, header.Coinbase)
-		}
+		snap.ValSet.AddValidators(header.AddedValidators)
+		snap.ValSet.RemoveValidtors(header.RemovedValidators)
 	}
-	snap.Number += uint64(len(headers))
+	snap.Number += uint64(len(headers) * s.Epoch)
 	snap.Hash = headers[len(headers)-1].Hash()
 
 	return snap, nil
@@ -281,8 +159,6 @@ type snapshotJSON struct {
 	Epoch  uint64                   `json:"epoch"`
 	Number uint64                   `json:"number"`
 	Hash   common.Hash              `json:"hash"`
-	Votes  []*Vote                  `json:"votes"`
-	Tally  map[common.Address]Tally `json:"tally"`
 
 	// for validator set
 	Validators []common.Address        `json:"validators"`
@@ -294,8 +170,6 @@ func (s *Snapshot) toJSONStruct() *snapshotJSON {
 		Epoch:      s.Epoch,
 		Number:     s.Number,
 		Hash:       s.Hash,
-		Votes:      s.Votes,
-		Tally:      s.Tally,
 		Validators: s.validators(),
 		Policy:     s.ValSet.Policy(),
 	}
@@ -311,8 +185,6 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.Votes = j.Votes
-	s.Tally = j.Tally
 	s.ValSet = validator.NewSet(j.Validators, j.Policy)
 	return nil
 }

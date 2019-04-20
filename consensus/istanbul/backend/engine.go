@@ -64,6 +64,8 @@ var (
 	errInvalidMixDigest = errors.New("invalid Istanbul mix digest")
 	// errInvalidNonce is returned if a block's nonce is invalid
 	errInvalidNonce = errors.New("invalid nonce")
+	// errCoinbase is returned if a block's coinbase is invalid
+	errInvalidCoinbase = errors.New("invalid coinbase")
 	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
 	errInvalidUncleHash = errors.New("non empty uncle hash")
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than the previous block's timestamp + the minimum block period.
@@ -80,15 +82,14 @@ var (
 	errEmptyCommittedSeals = errors.New("zero committed seals")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
+	// errInvalidAddedRemovedValidators is returned if the header contains validator set changes on the wrong block
+	errInvalidAddedRemovedValidators = errors.New("invalid added and/or removed validator changeset")
 )
 var (
 	defaultDifficulty = big.NewInt(1)
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
-
-	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new validator
-	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a validator.
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -123,14 +124,52 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	}
 
 	// Ensure that the extra data format is satisfied
-	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+	if istExtra, err := types.ExtractIstanbulExtra(header); err != nil {
 		return errInvalidExtraDataFormat
 	}
 
-	// Ensure that the coinbase is valid
-	if header.Nonce != (emptyNonce) && !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
+	// Ensure that only an epoch's last block has the validator changes set
+	if !IsLastBlockOfEpoch(header.Number, sb.config.Epoch) {
+	        if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) {
+		   return errInvalidAddedRemovedValidators
+		}
+	} else {
+	        // If we are the last block of epoch, do a few checks.
+		// 1) Verify that the add and remove validator sets are sorted and has no dups
+		// 2) Verify there is no overlap between the add and remove validator sets
+
+		addedValidatorsMap := make(map[common.Address]bool)
+		
+		for i, validator := range(istExtra.AddedValidators) {
+		    addedValidatorsMap[validator.Address()] = true
+
+		    if i > 0 && !istExtra.AddedValidators.Less(i-1, i) {
+		       return errInvalidAddedRemovedValidators
+		    }
+		}
+
+		for i, validator := range(istExtra.RemovedValidators) {
+		    if _, overlapFound := addedValidatorsMap[validator.Address()]; overlapFound {
+		       return errInvalidAddedRemovedValidators
+		    }
+
+		    if i > 0 && !istExtra.RemovedValidators.Less(i-1, i) {
+		       return errInvalidAddedRemovedValidators
+		    }
+		}
+
+	}
+
+	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
+	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
 	}
+
+	// Ensure that the coinbase is emtpy (Istanbul was originally using it for a candidate validator vote)
+	if header.Coinbase != common.Address{} {
+	        return errInvalidCoinbase
+	}
+
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
 		return errInvalidMixDigest
@@ -330,30 +369,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		return err
 	}
 
-	// get valid candidate list
-	sb.candidatesLock.RLock()
-	var addresses []common.Address
-	var authorizes []bool
-	for address, authorize := range sb.candidates {
-		if snap.checkVote(address, authorize) {
-			addresses = append(addresses, address)
-			authorizes = append(authorizes, authorize)
-		}
-	}
-	sb.candidatesLock.RUnlock()
-
-	// pick one of the candidates randomly
-	if len(addresses) > 0 {
-		index := rand.Intn(len(addresses))
-		// add validator voting in coinbase
-		header.Coinbase = addresses[index]
-		if authorizes[index] {
-			copy(header.Nonce[:], nonceAuthVote)
-		} else {
-			copy(header.Nonce[:], nonceDropVote)
-		}
-	}
-
 	// add validators in snapshot to extraData's validators section
 	extra, err := prepareExtra(header, snap.validators())
 	if err != nil {
@@ -537,6 +552,24 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		headers []*types.Header
 		snap    *Snapshot
 	)
+
+	// If the block number is not the last block of an epoch, then adjust it (and the parents array) to be so.
+	// Only those epochs' last block have any relevant information for the validator set.
+	if !IsLastBlockOfEpoch(number, sb.config.epoch) {
+	   numberInEpoch = number % sb.config.epoch
+
+	   // Adjust to last block of previous epoch
+	   adjustmustFactror := (numberInEpoch + 1)
+	   number -= adjustmustFactor
+	   if len(parents) > 0 {
+	      if len(parents) > adjustmentFactor {
+	      	 parents = parents[:len(parents) - adjustmentFactor]
+	      } else {
+	      	 parents = []
+	      }
+	   }
+	}
+
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := sb.recents.Get(hash); ok {
@@ -561,7 +594,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			if err != nil {
 				return nil, err
 			}
-			snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.Validators, sb.config.ProposerPolicy))
+			snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, sb.config.ProposerPolicy))
 			if err := snap.store(sb.db); err != nil {
 				return nil, err
 			}
@@ -576,7 +609,11 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			if header.Hash() != hash || header.Number.Uint64() != number {
 				return nil, consensus.ErrUnknownAncestor
 			}
-			parents = parents[:len(parents)-1]
+			if len(parents) > sb.config.epoch {
+			   parents = parents[:len(parents) - sb.config.epoch]
+			} else {
+			   parents = []
+			}
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
@@ -586,16 +623,20 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 		if header != nil {
 			headers = append(headers, header)
-			number, hash = number-1, header.ParentHash
+			number, hash = number - sb.config.epoch, header.ParentHash
 		} else if !chain.Config().FullHeaderChainAvailable {
-			number = number - 1
+			number = number - sb.config.epoch
+		}
+
+		if number < 0 {
+		   panic(Error("There is a bug in the code!  We are iterating too far back in the blockchain"))
 		}
 	}
-	// Previous snapshot found, apply any pending headers on top of it
+	// Previous snapshot found, apply any pending headers on top of it.  This loop is reversing the headers array.
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
+	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable, sb.config.epoch)
 	if err != nil {
 		return nil, err
 	}
