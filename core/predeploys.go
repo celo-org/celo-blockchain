@@ -23,15 +23,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
-	GoldTokenName              = "GoldToken"
-	AddressBasedEncryptionName = "AddressBasedEncryption"
-	ReserveName                = "Reserve"
-	MedianatorName             = "Medianator"
-	GasCurrencyWhitelistName   = "GasCurrencyWhitelist"
-
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
 	getAddressForABI = `[{"constant": true,
                               "inputs": [
@@ -55,9 +50,9 @@ const (
 
 var (
 	// TODO(kevjue) - Replace with the actual predeployed address for the registry smart contract
-	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
-	predeployedContractNames     = []string{GoldTokenName, AddressBasedEncryptionName, ReserveName, MedianatorName, GasCurrencyWhitelistName}
-	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
+	registrySmartContractAddress   = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
+	predeployedContractRegistryIds = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.MedianatorRegistryId, params.GasCurrencyWhitelistRegistryId}
+	getAddressForFuncABI, _        = abi.JSON(strings.NewReader(getAddressForABI))
 )
 
 type PredeployedAddresses struct {
@@ -71,15 +66,15 @@ func (pa *PredeployedAddresses) retrievePredeployedAddresses() map[string]common
 
 	returnMap := make(map[string]common.Address)
 
-	for _, contractName := range predeployedContractNames {
+	for _, contractRegistryId := range predeployedContractRegistryIds {
 		var contractAddress common.Address
-		log.Trace("PredeployedAddresses.retrievePredeployedAddresses - Calling Registry.getAddressFor", "contractName", contractName)
-		if err := pa.iEvmH.makeCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractName}, &contractAddress); err != nil {
-			log.Error("PredeployedAddresses.retrievePredeployedAddresses - Registry.getAddressFor invocation error", "err", err)
+		log.Trace("PredeployedAddresses.retrievePredeployedAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
+		if leftoverGas, err := pa.iEvmH.makeCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000); err != nil {
+			log.Error("PredeployedAddresses.retrievePredeployedAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("PredeployedAddresses.retrievePredeployedAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex())
-			returnMap[contractName] = contractAddress
+			log.Trace("PredeployedAddresses.retrievePredeployedAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
+			returnMap[contractRegistryId] = contractAddress
 		}
 	}
 
@@ -94,15 +89,32 @@ func (pa *PredeployedAddresses) RefreshAddresses() {
 	pa.predeployedAddressesMu.Unlock()
 }
 
-func (pa *PredeployedAddresses) GetPredeployedAddress(name string) *common.Address {
+func (pa *PredeployedAddresses) GetPredeployedAddress(registryId string) *common.Address {
 	pa.predeployedAddressesMu.RLock()
 	defer pa.predeployedAddressesMu.RUnlock()
 
-	if address, ok := pa.predeployedAddresses[name]; !ok {
+	if address, ok := pa.predeployedAddresses[registryId]; !ok {
 		return nil
 	} else {
 		return &address
 	}
+}
+
+func (pa *PredeployedAddresses) GetPredeployedAddressMap() map[string]*common.Address {
+	returnMap := make(map[string]*common.Address)
+
+	pa.predeployedAddressesMu.RLock()
+	defer pa.predeployedAddressesMu.RUnlock()
+
+	for _, registryId := range predeployedContractRegistryIds {
+		if address, ok := pa.predeployedAddresses[registryId]; !ok {
+			returnMap[registryId] = nil
+		} else {
+			returnMap[registryId] = &address
+		}
+	}
+
+	return returnMap
 }
 
 func NewPredeployedAddresses(iEvmH *InternalEVMHandler) *PredeployedAddresses {

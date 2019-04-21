@@ -18,7 +18,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -152,16 +152,16 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 // "function getExchangeRate(address, address)"
 func (pc *PriceComparator) retrieveExchangeRates() {
 	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
-	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", fmt.Sprintf("%v", gasCurrencyAddresses))
+	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	medianatorAddress := pc.preAdd.GetPredeployedAddress(MedianatorName)
+	medianatorAddress := pc.preAdd.GetPredeployedAddress(params.MedianatorRegistryId)
 
 	if medianatorAddress == nil {
 		log.Error("Can't get the medianator smart contract address from the registry")
 		return
 	}
 
-	celoGoldAddress := pc.preAdd.GetPredeployedAddress(GoldTokenName)
+	celoGoldAddress := pc.preAdd.GetPredeployedAddress(params.GoldTokenRegistryId)
 
 	if celoGoldAddress == nil {
 		log.Error("Can't get the celo gold smart contract address from the registry")
@@ -178,11 +178,11 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "medianatorAddress", medianatorAddress.Hex(),
 			"gas currency", gasCurrencyAddress.Hex())
 
-		if err := pc.iEvmH.makeCall(*medianatorAddress, getExchangeRateFuncABI, "getExchangeRate", []interface{}{celoGoldAddress, gasCurrencyAddress}, &returnArray); err != nil {
-			log.Error("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation error", "err", err)
+		if leftoverGas, err := pc.iEvmH.makeCall(*medianatorAddress, getExchangeRateFuncABI, "getExchangeRate", []interface{}{celoGoldAddress, gasCurrencyAddress}, &returnArray, 20000); err != nil {
+			log.Error("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation success", "returnArray", fmt.Sprintf("%v", returnArray))
+			log.Trace("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
 
 			if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
 				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
@@ -255,7 +255,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	returnList := []common.Address{}
 
-	gasCurrencyWhiteListAddress := gcWl.preAdd.GetPredeployedAddress(GasCurrencyWhitelistName)
+	gasCurrencyWhiteListAddress := gcWl.preAdd.GetPredeployedAddress(params.GasCurrencyWhitelistRegistryId)
 	if gasCurrencyWhiteListAddress == nil {
 		log.Error("Can't get the gas currency whitelist smart contract address from the registry")
 		return returnList
@@ -263,8 +263,8 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
 
-	if err := gcWl.iEvmH.makeCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList); err != nil {
-		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "err", err)
+	if leftoverGas, err := gcWl.iEvmH.makeCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000); err != nil {
+		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "leftoverGas", leftoverGas, "err", err)
 		return []common.Address{}
 	}
 

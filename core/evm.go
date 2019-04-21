@@ -40,7 +40,7 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, abeAddress *common.Address, reserveAddress *common.Address, celoGoldAddress *common.Address) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, predeployedAddresses *PredeployedAddresses) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
@@ -48,21 +48,25 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	} else {
 		beneficiary = *author
 	}
+
+	var predeployedAddressMap map[string]*common.Address
+	if predeployedAddresses != nil {
+		predeployedAddressMap = predeployedAddresses.GetPredeployedAddressMap()
+	}
+
 	return vm.Context{
-		CanTransfer:                   CanTransfer,
-		Transfer:                      Transfer,
-		GetHash:                       GetHashFn(header, chain),
-		GetCoinbase:                   GetCoinbaseFn(header, chain),
-		Origin:                        msg.From(),
-		Coinbase:                      beneficiary,
-		BlockNumber:                   new(big.Int).Set(header.Number),
-		Time:                          new(big.Int).Set(header.Time),
-		Difficulty:                    new(big.Int).Set(header.Difficulty),
-		GasLimit:                      header.GasLimit,
-		GasPrice:                      new(big.Int).Set(msg.GasPrice()),
-		AddressBasedEncryptionAddress: abeAddress,
-		ReserveAddress:                reserveAddress,
-		CeloGoldAddress:               celoGoldAddress,
+		CanTransfer:           CanTransfer,
+		Transfer:              Transfer,
+		GetHash:               GetHashFn(header, chain),
+		GetCoinbase:           GetCoinbaseFn(header, chain),
+		Origin:                msg.From(),
+		Coinbase:              beneficiary,
+		BlockNumber:           new(big.Int).Set(header.Number),
+		Time:                  new(big.Int).Set(header.Time),
+		Difficulty:            new(big.Int).Set(header.Difficulty),
+		GasLimit:              header.GasLimit,
+		GasPrice:              new(big.Int).Set(msg.GasPrice()),
+		PredeployedAddressMap: predeployedAddressMap,
 	}
 }
 
@@ -139,47 +143,43 @@ type InternalEVMHandler struct {
 	preAdd      *PredeployedAddresses
 }
 
-func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}) error {
+func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	header := iEvmH.blockchain.CurrentBlock().Header()
 	state, err := iEvmH.blockchain.StateAt(header.Root)
 	if err != nil {
 		log.Error("Error in retrieving the state from the blockchain")
-		return err
+		return 0, err
 	}
 
-	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
-	// zero values.
+	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
+	// Putting in zero values.
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.blockchain, nil,
-		iEvmH.preAdd.GetPredeployedAddress(AddressBasedEncryptionName),
-		iEvmH.preAdd.GetPredeployedAddress(ReserveName),
-		iEvmH.preAdd.GetPredeployedAddress(GoldTokenName))
+	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.preAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	anyCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
-		log.Error("Error is generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
-		return err
+		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
+		return 0, err
 	}
-	gas := uint64(20 * 1000)
 	log.Trace("Calling evm", "caller", anyCaller, "transactionData", hexutil.Encode(transactionData))
 
 	ret, leftoverGas, err := evm.StaticCall(anyCaller, scAddress, transactionData, gas)
 
 	if err != nil {
 		log.Error("Error in calling the EVM", "err", err)
-		return err
+		return leftoverGas, err
 	}
 
 	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
 
 	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
 		log.Error("Error in unpacking EVM call return bytes", "err", err)
-		return err
+		return leftoverGas, err
 	}
 
-	return nil
+	return leftoverGas, nil
 }
 
 func (iEvmH *InternalEVMHandler) SetPredeployedAddresses(preAdd *PredeployedAddresses) {

@@ -99,9 +99,19 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// Predeployed contract addresses
-	AddressBasedEncryptionAddress *common.Address
-	ReserveAddress                *common.Address
-	CeloGoldAddress               *common.Address
+	PredeployedAddressMap map[string]*common.Address
+}
+
+func (context *Context) getPredeployedAddress(registryId string) *common.Address {
+	if context.PredeployedAddressMap == nil {
+		return nil
+	} else {
+		if address, ok := context.PredeployedAddressMap[registryId]; ok {
+			return address
+		} else {
+			return nil
+		}
+	}
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -503,8 +513,10 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	if amount.Cmp(big.NewInt(0)) != 0 && evm.Context.ReserveAddress != nil {
-		ret, gas, err := evm.Call(AccountRef(sender), *evm.Context.ReserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
+	reserveAddress := evm.Context.getPredeployedAddress(params.ReserveRegistryId)
+
+	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
+		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
 		}
@@ -517,7 +529,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, *evm.Context.ReserveAddress, tobinTax)
+			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
 			return gas, nil
 		}
 	}

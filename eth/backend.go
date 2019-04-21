@@ -185,11 +185,20 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.  Note
+	// that this should NOT be used when executing smart contract calls done via end user transactions.
 	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
+
+	// Object used to retrieve and cache predeployed addresses from the Registry smart contract.
 	eth.preAdd = core.NewPredeployedAddresses(iEvmH)
 	iEvmH.SetPredeployedAddresses(eth.preAdd)
+
+	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.preAdd, iEvmH)
+
+	// Object used to compare two different prices using any of the whitelisted gas currencies.
 	pc := core.NewPriceComparator(eth.gcWl, eth.preAdd, iEvmH)
+
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetPredeployedAddresses(eth.preAdd)
