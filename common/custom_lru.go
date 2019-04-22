@@ -7,14 +7,14 @@ import (
 )
 
 type CustomLRU struct {
-	expirationTime int64 // in milliseconds
-	cache *hashmap.HashMap
+	expirationTime    int64 // in milliseconds
+	cache             *hashmap.HashMap
 	invalidationQueue *lfreequeue.Queue
 }
 
 type InvalidationQueueEntry struct {
 	expirationDate int64 // in milliseconds
-	keyToRemove interface{}
+	keyToRemove    interface{}
 }
 
 func currentTimeInMilliseconds() int64 {
@@ -23,8 +23,8 @@ func currentTimeInMilliseconds() int64 {
 
 func NewCustomLRU(expirationTime int64 /* in milliseconds */) *CustomLRU {
 	lru := &CustomLRU{
-		expirationTime: expirationTime,
-		cache: &hashmap.HashMap{},
+		expirationTime:    expirationTime,
+		cache:             &hashmap.HashMap{},
 		invalidationQueue: lfreequeue.NewQueue(),
 	}
 
