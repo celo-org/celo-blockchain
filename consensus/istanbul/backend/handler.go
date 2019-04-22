@@ -46,9 +46,6 @@ func (sb *Backend) Protocol() consensus.Protocol {
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-
 	if msg.Code == istanbulMsg {
 		if !sb.coreStarted {
 			return true, istanbul.ErrStoppedEngine

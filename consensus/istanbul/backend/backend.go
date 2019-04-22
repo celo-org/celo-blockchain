@@ -58,8 +58,8 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		recents:          recents,
 		candidates:       make(map[common.Address]bool),
 		coreStarted:      false,
-		recentMessages:   recentMessages,
-		knownMessages:    knownMessages,
+		recentMessages:   common.NewCustomLRU(int64(60 * 1000)),
+		knownMessages:    common.NewCustomLRU(int64(60 * 1000)),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -96,8 +96,8 @@ type Backend struct {
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
 
-	recentMessages *lru.ARCCache // the cache of peer's messages
-	knownMessages  *lru.ARCCache // the cache of self messages
+	recentMessages *common.CustomLRU // the cache of peer's messages
+	knownMessages  *common.CustomLRU // the cache of self messages
 }
 
 // Address implements istanbul.Backend.Address
