@@ -435,7 +435,7 @@ func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM,
 		return nil, gas, err
 	}
 
-	abeAddress := evm.Context.getPredeployedAddress(params.AddressBasedEncryptionRegistryId)
+	abeAddress := evm.Context.getRegisteredAddress(params.AddressBasedEncryptionRegistryId)
 
 	if abeAddress == nil {
 		return nil, gas, fmt.Errorf("AddressBasedEncryption Address is not set in the Registry contract")
@@ -483,7 +483,7 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	celoGoldAddress := evm.Context.getPredeployedAddress(params.GoldTokenRegistryId)
+	celoGoldAddress := evm.Context.getRegisteredAddress(params.GoldTokenRegistryId)
 
 	if celoGoldAddress == nil {
 		return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")

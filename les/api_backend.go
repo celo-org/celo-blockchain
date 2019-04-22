@@ -206,6 +206,6 @@ func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return nil
 }
 
-func (b *LesApiBackend) PredeployedAddresses() *core.PredeployedAddresses {
+func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
 	return nil
 }

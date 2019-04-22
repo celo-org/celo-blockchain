@@ -95,7 +95,7 @@ type Ethereum struct {
 	netRPCService *ethapi.PublicNetAPI
 
 	gcWl   *core.GasCurrencyWhitelist
-	preAdd *core.PredeployedAddresses
+	regAdd *core.RegisteredAddresses
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -189,19 +189,19 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// that this should NOT be used when executing smart contract calls done via end user transactions.
 	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
 
-	// Object used to retrieve and cache predeployed addresses from the Registry smart contract.
-	eth.preAdd = core.NewPredeployedAddresses(iEvmH)
-	iEvmH.SetPredeployedAddresses(eth.preAdd)
+	// Object used to retrieve and cache registered addresses from the Registry smart contract.
+	eth.regAdd = core.NewRegisteredAddresses(iEvmH)
+	iEvmH.SetRegisteredAddresses(eth.regAdd)
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.preAdd, iEvmH)
+	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, iEvmH)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	pc := core.NewPriceComparator(eth.gcWl, eth.preAdd, iEvmH)
+	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, iEvmH)
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
-	eth.blockchain.Processor().SetPredeployedAddresses(eth.preAdd)
+	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
 		return nil, err
@@ -509,7 +509,7 @@ func (s *Ethereum) EthVersion() int                                  { return in
 func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
-func (s *Ethereum) PredeployedAddresses() *core.PredeployedAddresses { return s.preAdd }
+func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

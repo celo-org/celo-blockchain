@@ -114,7 +114,7 @@ type exchangeRate struct {
 type PriceComparator struct {
 	gcWl          *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
 	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	preAdd        *PredeployedAddresses
+	regAdd        *RegisteredAddresses
 	iEvmH         *InternalEVMHandler
 }
 
@@ -167,14 +167,14 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
 	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	medianatorAddress := pc.preAdd.GetPredeployedAddress(params.MedianatorRegistryId)
+	medianatorAddress := pc.regAdd.GetRegisteredAddress(params.MedianatorRegistryId)
 
 	if medianatorAddress == nil {
 		log.Error("Can't get the medianator smart contract address from the registry")
 		return
 	}
 
-	celoGoldAddress := pc.preAdd.GetPredeployedAddress(params.GoldTokenRegistryId)
+	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 	if celoGoldAddress == nil {
 		log.Error("Can't get the celo gold smart contract address from the registry")
@@ -216,13 +216,13 @@ func (pc *PriceComparator) mainLoop() {
 	}
 }
 
-func NewPriceComparator(gcWl *GasCurrencyWhitelist, preAdd *PredeployedAddresses, iEvmH *InternalEVMHandler) *PriceComparator {
+func NewPriceComparator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *PriceComparator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
 	pc := &PriceComparator{
 		gcWl:          gcWl,
 		exchangeRates: exchangeRates,
-		preAdd:        preAdd,
+		regAdd:        regAdd,
 		iEvmH:         iEvmH,
 	}
 
@@ -265,7 +265,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 type GasCurrencyWhitelist struct {
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
-	preAdd                 *PredeployedAddresses
+	regAdd                 *RegisteredAddresses
 	iEvmH                  *InternalEVMHandler
 }
 
@@ -274,7 +274,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	returnList := []common.Address{}
 
-	gasCurrencyWhiteListAddress := gcWl.preAdd.GetPredeployedAddress(params.GasCurrencyWhitelistRegistryId)
+	gasCurrencyWhiteListAddress := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
 	if gasCurrencyWhiteListAddress == nil {
 		log.Error("Can't get the gas currency whitelist smart contract address from the registry")
 		return returnList
@@ -322,10 +322,10 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 	return ok
 }
 
-func NewGasCurrencyWhitelist(preAdd *PredeployedAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
+func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
 	gcWl := &GasCurrencyWhitelist{
 		whitelistedAddresses: make(map[common.Address]bool),
-		preAdd:               preAdd,
+		regAdd:               regAdd,
 		iEvmH:                iEvmH,
 	}
 

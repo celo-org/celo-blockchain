@@ -511,9 +511,9 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				// Refresh the predeployed address cache before processing transaction batch
-				if preAdd := w.eth.PredeployedAddresses(); preAdd != nil {
-					preAdd.RefreshAddresses()
+				// Refresh the registered address cache before processing transaction batch
+				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
+					regAdd.RefreshAddresses()
 				}
 
 				// Refresh the gas currency whitelist cache before processing transaction batch
@@ -748,7 +748,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.PredeployedAddresses())
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -986,9 +986,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
-	// Refresh the predeployed address cache before processing transaction batch
-	if preAdd := w.eth.PredeployedAddresses(); preAdd != nil {
-		preAdd.RefreshAddresses()
+	// Refresh the registered address cache before processing transaction batch
+	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
+		regAdd.RefreshAddresses()
 	}
 
 	// Refresh the gas currency whitelist cache before processing the pending transactions

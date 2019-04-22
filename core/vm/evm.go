@@ -99,15 +99,15 @@ type Context struct {
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
-	// Predeployed contract addresses
-	PredeployedAddressMap map[string]*common.Address
+	// Registered contract addresses
+	RegisteredAddressMap map[string]*common.Address
 }
 
-func (context *Context) getPredeployedAddress(registryId string) *common.Address {
-	if context.PredeployedAddressMap == nil {
+func (context *Context) getRegisteredAddress(registryId string) *common.Address {
+	if context.RegisteredAddressMap == nil {
 		return nil
 	} else {
-		if address, ok := context.PredeployedAddressMap[registryId]; ok {
+		if address, ok := context.RegisteredAddressMap[registryId]; ok {
 			return address
 		} else {
 			return nil
@@ -514,7 +514,7 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	reserveAddress := evm.Context.getPredeployedAddress(params.ReserveRegistryId)
+	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
 
 	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))

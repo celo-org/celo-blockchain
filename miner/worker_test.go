@@ -158,7 +158,7 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return nil }
-func (b *testWorkerBackend) PredeployedAddresses() *core.PredeployedAddresses { return nil }
+func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return nil }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)

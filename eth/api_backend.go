@@ -129,7 +129,7 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, b.eth.preAdd)
+	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, b.eth.regAdd)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
@@ -228,6 +228,6 @@ func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return b.eth.gcWl
 }
 
-func (b *EthAPIBackend) PredeployedAddresses() *core.PredeployedAddresses {
-	return b.eth.preAdd
+func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
+	return b.eth.regAdd
 }
