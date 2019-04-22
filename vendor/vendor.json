@@ -75,10 +75,22 @@
 			"revisionTime": "2016-10-10T02:54:55Z"
 		},
 		{
+			"checksumSHA1": "wKg20HdA7tvCmwfV1SoajxMXXNQ=",
+			"path": "github.com/cornelk/hashmap",
+			"revision": "33e58823eb9d4426a8d2b604cece33c3c15df8cc",
+			"revisionTime": "2019-01-21T14:01:11Z"
+		},
+		{
 			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
 			"path": "github.com/davecgh/go-spew/spew",
 			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
 			"revisionTime": "2016-10-29T20:57:26Z"
+		},
+		{
+			"checksumSHA1": "CCFJBDs3fGx3AIfbpCNTzNbw5P4=",
+			"path": "github.com/dchest/siphash",
+			"revision": "34f201214d993633bb24f418ba11736ab8b55aa7",
+			"revisionTime": "2018-08-18T19:55:58Z"
 		},
 		{
 			"checksumSHA1": "1xK7ycc1ICRInk/S9iiyB9Rpv50=",
@@ -441,6 +453,12 @@
 			"path": "github.com/rs/xhandler",
 			"revision": "ed27b6fd65218132ee50cd95f38474a3d8a2cd12",
 			"revisionTime": "2016-06-18T19:32:21Z"
+		},
+		{
+			"checksumSHA1": "IUGiFpVYZ6AG0MwUcYJKC9B7H9M=",
+			"path": "github.com/scryner/lfreequeue",
+			"revision": "473f33702129e490c250e0d603ed7659e6a83be6",
+			"revisionTime": "2012-12-12T07:48:22Z"
 		},
 		{
 			"checksumSHA1": "mGbTYZ8dHVTiPTTJu3ktp+84pPI=",
@@ -953,5 +971,5 @@
 			"revisionTime": "2017-08-11T01:42:03Z"
 		}
 	],
-	"rootPath": "github.com/celo-org/geth"
+	"rootPath": "github.com/ethereum/go-ethereum"
 }
