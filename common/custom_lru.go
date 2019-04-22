@@ -35,10 +35,9 @@ func NewCustomLRU(expirationTime int64 /* in milliseconds */) *CustomLRU {
 
 func (lru *CustomLRU) invalidationQueueLoop() {
 	for {
-		time.Sleep(100 * time.Millisecond)
-
 		value, ok := lru.invalidationQueue.Dequeue()
 		if !ok || value == nil {
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
@@ -58,11 +57,17 @@ func (lru *CustomLRU) Get(key interface{}) (interface{}, bool) {
 	return lru.cache.Get(key)
 }
 
+// Returns false if there is already some value assigned to the given key.
+// Returns true if the given value has been successfully assigned to the given key.
+// Also, if key-value pair has been successfully added, an invalidation is scheduled
+// to happen in lru.expirationTime milliseconds
 func (lru *CustomLRU) Add(key interface{}, value interface{}) bool {
-	result := lru.cache.Insert(key, value)
-	lru.invalidationQueue.Enqueue(&InvalidationQueueEntry{
-		expirationDate: currentTimeInMilliseconds() + lru.expirationTime,
-		keyToRemove: key,
-	})
-	return result
+	added := lru.cache.Insert(key, value)
+	if added {
+		lru.invalidationQueue.Enqueue(&InvalidationQueueEntry{
+			expirationDate: currentTimeInMilliseconds() + lru.expirationTime,
+			keyToRemove:    key,
+		})
+	}
+	return added
 }
