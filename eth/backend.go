@@ -199,7 +199,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
 	pc := core.NewPriceComparator(eth.gcWl, eth.preAdd, iEvmH)
 
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetPredeployedAddresses(eth.preAdd)
 

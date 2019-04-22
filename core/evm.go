@@ -21,7 +21,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -157,29 +156,8 @@ func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI,
 	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.preAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	transactionData, err := abi.Pack(funcName, args...)
-	if err != nil {
-		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
-		return 0, err
-	}
-	log.Trace("Calling evm", "caller", anyCaller, "transactionData", hexutil.Encode(transactionData))
-
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, scAddress, transactionData, gas)
-
-	if err != nil {
-		log.Error("Error in calling the EVM", "err", err)
-		return leftoverGas, err
-	}
-
-	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
-
-	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-		log.Error("Error in unpacking EVM call return bytes", "err", err)
-		return leftoverGas, err
-	}
-
-	return leftoverGas, nil
+	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
 }
 
 func (iEvmH *InternalEVMHandler) SetPredeployedAddresses(preAdd *PredeployedAddresses) {

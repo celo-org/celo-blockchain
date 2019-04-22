@@ -25,7 +25,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -60,6 +59,26 @@ const (
                                 "type": "function"
                                }]`
 
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/ERC20.json
+	balanceOfABI = `[{"constant": true,
+                          "inputs": [
+                               {
+                                   "name": "who",
+                                   "type": "address"
+                               }
+                          ],
+                          "name": "balanceOf",
+                          "outputs": [
+                               {
+                                   "name": "",
+                                   "type": "uint256"
+                               }
+                          ],
+                          "payable": false,
+                          "stateMutability": "view",
+                          "type": "function"
+                         }]`
+
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GasCurrency.json
 	getWhitelistABI = `[{"constant": true,
 	                     "inputs": [],
@@ -81,16 +100,10 @@ var (
 	cgExchangeRateDen = big.NewInt(1)
 
 	getExchangeRateFuncABI, _ = abi.JSON(strings.NewReader(getExchangeRateABI))
-
-	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
-	getBalanceFuncABI = hexutil.MustDecode("0x70a08231")
+	balanceOfFuncABI, _       = abi.JSON(strings.NewReader(balanceOfABI))
+	getWhitelistFuncABI, _    = abi.JSON(strings.NewReader(getWhitelistABI))
 
 	errExchangeRateCacheMiss = errors.New("exchange rate cache miss")
-
-	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
 )
 
 type exchangeRate struct {
@@ -223,24 +236,30 @@ func NewPriceComparator(gcWl *GasCurrencyWhitelist, preAdd *PredeployedAddresses
 // This function will retrieve the balance of an ERC20 token.  Specifically, the contract must have the
 // following function.
 // "function balanceOf(address _owner) public view returns (uint256)"
-func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, evm *vm.EVM, gas uint64) (
-	balance *big.Int, gasUsed uint64, err error) {
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, iEvmH *InternalEVMHandler, evm *vm.EVM, gas uint64) (*big.Int, uint64, error) {
 
-	transactionData := common.GetEncodedAbi(getBalanceFuncABI, [][]byte{common.AddressToAbi(accountOwner)})
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
-	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
-		*contractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, gas)
-	gasUsed = gas - leftoverGas
-	if err != nil {
-		log.Debug("getBalanceOf error occurred", "Error", err)
-		return nil, gasUsed, err
+	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
+
+	var result *big.Int
+	var leftoverGas uint64
+	var err error
+
+	if evm != nil {
+		leftoverGas, err = evm.ABIStaticCall(vm.AccountRef(common.HexToAddress("0x0")), contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
+	} else if iEvmH != nil {
+		leftoverGas, err = iEvmH.makeCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
+	} else {
+		return nil, 0, errors.New("Either iEvmH or evm must be non-nil")
 	}
-	result := big.NewInt(0)
-	result.SetBytes(ret)
-	log.Trace("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", result.String(),
-		"gas used", gasUsed)
-	return result, gasUsed, nil
+
+	if err != nil {
+		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
+		return nil, gas - leftoverGas, err
+	} else {
+		gasUsed := gas - leftoverGas
+		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "gas used", gasUsed)
+		return result, gasUsed, nil
+	}
 }
 
 type GasCurrencyWhitelist struct {

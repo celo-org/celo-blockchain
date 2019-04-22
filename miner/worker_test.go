@@ -121,7 +121,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 	pc := core.NewPriceComparator(nil, nil, nil)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc, nil, nil)
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {

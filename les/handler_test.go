@@ -499,7 +499,7 @@ func TestTransactionStatusLes2(t *testing.T) {
 	config := core.DefaultTxPoolConfig
 	config.Journal = ""
 	pc := core.NewPriceComparator(nil, nil, nil)
-	txpool := core.NewTxPool(config, params.TestChainConfig, chain, pc, nil)
+	txpool := core.NewTxPool(config, params.TestChainConfig, chain, pc, nil, nil)
 	pm.txpool = txpool
 	peer, _ := newTestPeer(t, "peer", 2, pm, true)
 	defer peer.close()

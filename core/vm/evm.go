@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -537,4 +538,29 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
 	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
+}
+
+func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	transactionData, err := abi.Pack(funcName, args...)
+	if err != nil {
+		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
+		return 0, err
+	}
+	log.Trace("Calling evm", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+
+	ret, leftoverGas, err := evm.StaticCall(caller, address, transactionData, gas)
+
+	if err != nil {
+		log.Error("Error in calling the EVM", "err", err)
+		return leftoverGas, err
+	}
+
+	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
+
+	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
+		log.Error("Error in unpacking EVM call return bytes", "err", err)
+		return leftoverGas, err
+	}
+
+	return leftoverGas, nil
 }
