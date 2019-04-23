@@ -435,7 +435,13 @@ func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM,
 		return nil, gas, err
 	}
 
-	if caller != params.AuthorizedRequestVerificationAddress {
+	abeAddress := evm.Context.getRegisteredAddress(params.AddressBasedEncryptionRegistryId)
+
+	if abeAddress == nil {
+		return nil, gas, fmt.Errorf("AddressBasedEncryption Address is not set in the Registry contract")
+	}
+
+	if caller != *abeAddress {
 		return nil, gas, fmt.Errorf("Unable to call requestVerification from unpermissioned address")
 	}
 	_, err = types.DecodeVerificationRequest(input)
@@ -477,7 +483,13 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	if caller != params.CeloGoldAddress {
+	celoGoldAddress := evm.Context.getRegisteredAddress(params.GoldTokenRegistryId)
+
+	if celoGoldAddress == nil {
+		return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")
+	}
+
+	if caller != *celoGoldAddress {
 		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	from := common.BytesToAddress(input[0:32])

@@ -246,13 +246,14 @@ type TxPool struct {
 
 	homestead bool
 
-	pc   *PriceComparator
-	gcWl *GasCurrencyWhitelist
+	pc    *PriceComparator
+	gcWl  *GasCurrencyWhitelist
+	iEvmH *InternalEVMHandler
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, pc *PriceComparator, gcWl *GasCurrencyWhitelist) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, pc *PriceComparator, gcWl *GasCurrencyWhitelist, iEvmH *InternalEVMHandler) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -270,6 +271,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
 		pc:          pc,
 		gcWl:        gcWl,
+		iEvmH:       iEvmH,
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -647,14 +649,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			"txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
 	} else if tx.GasCurrency() != nil {
-		header := pool.chain.CurrentBlock().Header()
-		state, err := pool.chain.StateAt(header.Root)
-
-		msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-		context := NewEVMContext(msg, header, pool.chain, nil)
-		evm := vm.NewEVM(context, state, pool.chainconfig, *pool.chain.GetVMConfig())
-
-		gasCurrencyBalance, _, err := GetBalanceOf(from, tx.GasCurrency(), evm, 10*1000)
+		gasCurrencyBalance, _, err := GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, 10*1000)
 
 		if err != nil {
 			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
@@ -1285,16 +1280,17 @@ func (as *accountSet) flatten() []common.Address {
 // peeking into the pool in TxPool.Get without having to acquire the widely scoped
 // TxPool.mu mutex.
 type txLookup struct {
-	all         map[common.Hash]*types.Transaction
-	txCurrCount map[common.Address]uint64
-	lock        sync.RWMutex
+	all                       map[common.Hash]*types.Transaction
+	nonNilCurrencyTxCurrCount map[common.Address]uint64
+	nilCurrencyTxCurrCount    uint64
+	lock                      sync.RWMutex
 }
 
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-		all:         make(map[common.Hash]*types.Transaction),
-		txCurrCount: make(map[common.Address]uint64),
+		all:                       make(map[common.Hash]*types.Transaction),
+		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
 	}
 }
 
@@ -1331,7 +1327,11 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[*(tx.NonNilGasCurrency())]++
+	if tx.GasCurrency() == nil {
+		t.nilCurrencyTxCurrCount++
+	} else {
+		t.nonNilCurrencyTxCurrCount[*tx.GasCurrency()]++
+	}
 	t.all[tx.Hash()] = tx
 }
 
@@ -1340,7 +1340,11 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	t.txCurrCount[*(t.all[hash].NonNilGasCurrency())]--
+	if t.all[hash].GasCurrency() == nil {
+		t.nilCurrencyTxCurrCount--
+	} else {
+		t.nonNilCurrencyTxCurrCount[*t.all[hash].GasCurrency()]--
+	}
 
 	delete(t.all, hash)
 }

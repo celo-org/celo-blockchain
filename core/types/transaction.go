@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -180,16 +179,9 @@ func (tx *Transaction) Data() []byte                 { return common.CopyBytes(t
 func (tx *Transaction) Gas() uint64                  { return tx.data.GasLimit }
 func (tx *Transaction) GasPrice() *big.Int           { return new(big.Int).Set(tx.data.Price) }
 func (tx *Transaction) GasCurrency() *common.Address { return tx.data.GasCurrency }
-func (tx *Transaction) NonNilGasCurrency() *common.Address {
-	if tx.data.GasCurrency == nil {
-		return &params.CeloGoldAddress
-	} else {
-		return tx.data.GasCurrency
-	}
-}
-func (tx *Transaction) Value() *big.Int  { return new(big.Int).Set(tx.data.Amount) }
-func (tx *Transaction) Nonce() uint64    { return tx.data.AccountNonce }
-func (tx *Transaction) CheckNonce() bool { return true }
+func (tx *Transaction) Value() *big.Int              { return new(big.Int).Set(tx.data.Amount) }
+func (tx *Transaction) Nonce() uint64                { return tx.data.AccountNonce }
+func (tx *Transaction) CheckNonce() bool             { return true }
 
 // To returns the recipient address of the transaction.
 // It returns nil if the transaction is a contract creation.

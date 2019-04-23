@@ -91,7 +91,6 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
-	gcWl           *core.GasCurrencyWhitelist
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -122,8 +121,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 	pc := core.NewPriceComparator(nil, nil, nil)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc, nil)
-	gcWl := core.NewGasCurrencyWhitelist(nil, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc, nil, nil)
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -150,7 +148,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		chain:          chain,
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
-		gcWl:           gcWl,
 	}
 }
 
@@ -160,7 +157,8 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
-func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
+func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return nil }
+func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return nil }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
