@@ -407,28 +407,34 @@ func (h *priceHeap) Pop() interface{} {
 // txPricedList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way.
 type txPricedList struct {
-	all    *txLookup                     // Pointer to the map of all transactions
-	heaps  map[common.Address]*priceHeap // Heap of prices of all the stored transactions
-	stales int                           // Number of stale price points to (re-heap trigger)
-	pc     *PriceComparator              // Comparator object used to compare prices that are using different currencies
+	all                 *txLookup                     // Pointer to the map of all transactions
+	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
+	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
+	stales              int                           // Number of stale price points to (re-heap trigger)
+	pc                  *PriceComparator              // Comparator object used to compare prices that are using different currencies
 }
 
 // newTxPricedList creates a new price-sorted transaction heap.
 func newTxPricedList(all *txLookup, pc *PriceComparator) *txPricedList {
 	return &txPricedList{
-		all:   all,
-		heaps: make(map[common.Address]*priceHeap),
-		pc:    pc,
+		all:                 all,
+		nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
+		nilCurrencyHeap:     new(priceHeap),
+		pc:                  pc,
 	}
 }
 
 // Gets the price heap for the given currency
 func (l *txPricedList) getPriceHeap(tx *types.Transaction) *priceHeap {
-	gasCurrency := *(tx.NonNilGasCurrency())
-	if _, ok := l.heaps[gasCurrency]; !ok {
-		l.heaps[gasCurrency] = new(priceHeap)
+	gasCurrency := tx.GasCurrency()
+	if gasCurrency == nil {
+		return l.nilCurrencyHeap
+	} else {
+		if _, ok := l.nonNilCurrencyHeaps[*gasCurrency]; !ok {
+			l.nonNilCurrencyHeaps[*gasCurrency] = new(priceHeap)
+		}
+		return l.nonNilCurrencyHeaps[*gasCurrency]
 	}
-	return l.heaps[gasCurrency]
 }
 
 // Put inserts a new transaction into the heap.
@@ -447,22 +453,26 @@ func (l *txPricedList) Removed() {
 		return
 	}
 	// Seems we've reached a critical number of stale transactions, reheap
-	reheapMap := make(map[common.Address]*priceHeap)
-	for gasCurrency, count := range l.all.txCurrCount {
-		reheap := make(priceHeap, 0, count)
-		reheapMap[gasCurrency] = &reheap
+	reheapNilCurrencyHeap := make(priceHeap, 0, l.all.nilCurrencyTxCurrCount)
+
+	reheapNonNilCurrencyMap := make(map[common.Address]*priceHeap)
+	for gasCurrency, count := range l.all.nonNilCurrencyTxCurrCount {
+		reheapNonNilCurrencyHeap := make(priceHeap, 0, count)
+		reheapNonNilCurrencyMap[gasCurrency] = &reheapNonNilCurrencyHeap
 	}
 
-	l.stales, l.heaps = 0, reheapMap
+	l.stales, l.nonNilCurrencyHeaps, l.nilCurrencyHeap = 0, reheapNonNilCurrencyMap, &reheapNilCurrencyHeap
 	l.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
 		pHeap := l.getPriceHeap(tx)
 		*pHeap = append(*pHeap, tx)
 		return true
 	})
 
-	for _, h := range l.heaps {
+	for _, h := range l.nonNilCurrencyHeaps {
 		heap.Init(h)
 	}
+
+	heap.Init(l.nilCurrencyHeap)
 }
 
 // Cap finds all the transactions below the given celo gold price threshold, drops them
@@ -553,9 +563,11 @@ func (l *txPricedList) Discard(count int, local *accountSet) types.Transactions 
 
 // Retrieves the heap with the lowest normalized price at it's head
 func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
-	var cheapestHeap *priceHeap = nil
-	var cheapestTxn *types.Transaction = nil
-	for _, priceHeap := range l.heaps {
+	// Initialize it to the nilCurrencyHeap
+	var cheapestHeap *priceHeap = l.nilCurrencyHeap
+	var cheapestTxn *types.Transaction = []*types.Transaction(*l.nilCurrencyHeap)[0]
+
+	for _, priceHeap := range l.nonNilCurrencyHeaps {
 		if len(*priceHeap) > 0 {
 			if cheapestHeap == nil {
 				cheapestHeap = priceHeap
@@ -581,8 +593,8 @@ func (l *txPricedList) getMinPricedTx() *types.Transaction {
 
 // Retrieves the total number of txns within the priced list
 func (l *txPricedList) Len() int {
-	totalLen := 0
-	for _, h := range l.heaps {
+	totalLen := len(*l.nilCurrencyHeap)
+	for _, h := range l.nonNilCurrencyHeaps {
 		totalLen += len(*h)
 	}
 

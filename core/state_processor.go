@@ -32,10 +32,13 @@ import (
 //
 // StateProcessor implements Processor.
 type StateProcessor struct {
-	config *params.ChainConfig   // Chain configuration options
-	bc     *BlockChain           // Canonical block chain
-	engine consensus.Engine      // Consensus engine used for block rewards
-	gcWl   *GasCurrencyWhitelist // The state processor will need to refresh the cache right before it processes a block
+	config *params.ChainConfig // Chain configuration options
+	bc     *BlockChain         // Canonical block chain
+	engine consensus.Engine    // Consensus engine used for block rewards
+
+	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
+	gcWl   *GasCurrencyWhitelist
+	regAdd *RegisteredAddresses
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -49,6 +52,10 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 
 func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
 	p.gcWl = gcWl
+}
+
+func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
+	p.regAdd = regAdd
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -71,7 +78,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// Refresh the cache right before processing the block's transactions
+	// Refresh the registered addresses cache right before processing the block's transactions
+	if p.gcWl != nil {
+		p.regAdd.RefreshAddresses()
+	}
+
+	// Refresh the gas currency whitelist cache right before processing the block's transactions
 	if p.gcWl != nil {
 		p.gcWl.RefreshWhitelist()
 	}
@@ -79,7 +91,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl)
+		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -96,13 +108,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses) (*types.Receipt, uint64, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
 	}
+
 	// Create a new context to be used in the EVM environment
-	context := NewEVMContext(msg, header, bc, author)
+	context := NewEVMContext(msg, header, bc, author, regAdd)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
