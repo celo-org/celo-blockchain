@@ -233,32 +233,31 @@ func NewPriceComparator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses,
 	return pc
 }
 
-// This function will retrieve the balance of an ERC20 token.  Specifically, the contract must have the
-// following function.
-// "function balanceOf(address _owner) public view returns (uint256)"
-func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, iEvmH *InternalEVMHandler, evm *vm.EVM, gas uint64) (*big.Int, uint64, error) {
+// This function will retrieve the balance of an ERC20 token.
+//
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, iEvmH *InternalEVMHandler, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
 
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
-	var result *big.Int
 	var leftoverGas uint64
-	var err error
 
 	if evm != nil {
 		leftoverGas, err = evm.ABIStaticCall(vm.AccountRef(common.HexToAddress("0x0")), contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else if iEvmH != nil {
 		leftoverGas, err = iEvmH.makeCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else {
-		return nil, 0, errors.New("Either iEvmH or evm must be non-nil")
+		err = errors.New("Either iEvmH or evm must be non-nil")
+		return
 	}
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
-		return nil, gas - leftoverGas, err
+		gasUsed = gas - leftoverGas
+		return
 	} else {
-		gasUsed := gas - leftoverGas
+		gasUsed = gas - leftoverGas
 		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "gas used", gasUsed)
-		return result, gasUsed, nil
+		return
 	}
 }
 
