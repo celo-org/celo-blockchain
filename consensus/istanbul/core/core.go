@@ -249,6 +249,11 @@ func (c *core) startNewRound(round *big.Int) {
 			c.sendPreprepare(r)
 		} else if c.current.pendingRequest != nil {
 			c.sendPreprepare(c.current.pendingRequest)
+		} else if c.current.Proposal() != nil {
+			r := &istanbul.Request{
+				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
+			}
+			c.sendPreprepare(r)
 		}
 	}
 	c.newRoundChangeTimer()
@@ -279,7 +284,7 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 		if c.current.IsHashLocked() {
 			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
 		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
+			c.current = newRoundState(view, validatorSet, common.Hash{}, c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
 		}
 	} else {
 		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)

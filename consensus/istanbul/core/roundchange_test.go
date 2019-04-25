@@ -19,6 +19,7 @@ package core
 import (
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -89,4 +90,90 @@ func TestRoundChangeSet(t *testing.T) {
 	if rc.roundChanges[view.Round.Uint64()] != nil {
 		t.Errorf("the change messages mismatch: have %v, want nil", rc.roundChanges[view.Round.Uint64()])
 	}
+}
+
+func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
+	for {
+		select {
+		case <-ts.quit:
+			return
+		case event := <-ts.queuedMessage:
+			msg := new(message)
+			if err := msg.FromPayload(event.Payload, nil); err != nil {
+				t.Errorf("Could not decode payload")
+			}
+
+			targets := istMsgDistribution[msg.Code]
+			for index, b := range sys.backends {
+				if targets[index] || msg.Address == b.address {
+					go b.EventMux().Post(event)
+				}
+			}
+		}
+	}
+}
+
+var gossip = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: true,
+}
+
+var noGossip = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: false,
+}
+
+func TestRoundChangeWithoutLock(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+
+	for _, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+	}
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	istMsgDistribution[msgPreprepare] = gossip
+	istMsgDistribution[msgPrepare] = gossip
+	istMsgDistribution[msgCommit] = gossip
+	istMsgDistribution[msgRoundChange] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	// Start the first preprepare
+	sys.backends[0].NewRequest(makeBlock(1))
+
+	// Received the first block which will setup the round change timeout
+	<-newBlocks.Chan()
+	// Do not propagate any prepares
+	// Shame be upon me for modifying shared memory between two goroutines
+	// but this seemed much easier than to setup channels
+	istMsgDistribution[msgPrepare] = noGossip
+	sys.backends[0].NewRequest(makeBlock(2))
+
+	// By now we should have sent prepares
+	<-time.After(2 * time.Second)
+	istMsgDistribution[msgPrepare] = gossip
+
+	// Eventually we should get a block again
+	select {
+	case <-time.After(time.Duration(istanbul.DefaultConfig.RequestTimeout) * time.Millisecond):
+		t.Error("Never finalized block")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+	}
+
+	newBlocks.Unsubscribe()
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // start Istanbul core
+	}
+	close(sys.quit)
 }
