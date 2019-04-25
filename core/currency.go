@@ -118,16 +118,46 @@ type PriceComparator struct {
 	iEvmH         *InternalEVMHandler
 }
 
-func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*big.Int, *big.Int, error) {
+func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
 	if currency == nil {
 		return cgExchangeRateNum, cgExchangeRateDen, nil
 	} else {
 		if exchangeRate, ok := pc.exchangeRates[*currency]; !ok {
-			return nil, nil, errExchangeRateCacheMiss
+			return nil, errExchangeRateCacheMiss
 		} else {
-			return exchangeRate.Numerator, exchangeRate.Denominator, nil
+			return exchangeRate, nil
 		}
 	}
+}
+
+// TODO (jarmg 4/24): Not dealing with rounding error
+// Example:  If cG : cD = 2:1
+// then if we convert 3 wei of gold to dollars this will result in 1.5 dollars, which will be rounded to
+// 1 dollar. This is only an issue if there is a very large value disparity between the two currencies
+// i.e. exchange rate is either extremely large of extremely small
+func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
+	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
+	exchangeRateTo, err2 := pc.getExchangeRate(currencyTo)
+
+	if err1 != nil || err2 != nil {
+		log.Error("PriceComparator.Convert - Error in retreiving currency exchange rates")
+		if err1 != nil {
+			log.Error(err2)
+			return nil, err1
+		}
+		if err2 != nil {
+			log.Error(err2)
+			return nil, err2
+		}
+	}
+	return convert(val, exchangeRateFrom, exchangeRateTo)
+}
+
+// Question: How do we deal with input validation for here (and in general?)
+func convert(val *big.Int, from *exchangeRate, to *exchangeRate) (*big.Int, error) {
+	numerator := new(big.Int).Mul(val, new(big.Int).Mul(from.Numerator, to.Denominator))
+	denominator := new(big.Int).Mul(from.Denominator, to.Numerator)
+	return new(big.Int).Div(numerator, denominator), nil
 }
 
 func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
@@ -135,8 +165,8 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1Num, exchangeRate1Den, err1 := pc.getExchangeRate(currency1)
-	exchangeRate2Num, exchangeRate2Den, err2 := pc.getExchangeRate(currency2)
+	exchangeRate1, err1 := pc.getExchangeRate(currency1)
+	exchangeRate2, err2 := pc.getExchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -155,8 +185,8 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	// val1 * exchangeRate1Num/exchangeRate1Den < val2 * exchangeRate2Num/exchangeRate2Den
 	// It will transform that comparison to this, to remove having to deal with fractional values.
 	// val1 * exchangeRate1Num * exchangeRate2Den < val2 * exchangeRate2Num * exchangeRate1Den
-	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1Num, exchangeRate2Den))
-	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2Num, exchangeRate1Den))
+	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Numerator, exchangeRate2.Denominator))
+	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Numerator, exchangeRate1.Denominator))
 	return leftSide.Cmp(rightSide)
 }
 
