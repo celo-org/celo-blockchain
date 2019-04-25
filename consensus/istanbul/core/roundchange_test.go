@@ -127,6 +127,57 @@ var noGossip = map[int]bool{
 	3: false,
 }
 
+func TestRoundChangeWithLock(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+
+	for _, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+	}
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	istMsgDistribution[msgPreprepare] = gossip
+	istMsgDistribution[msgPrepare] = gossip
+	istMsgDistribution[msgCommit] = gossip
+	istMsgDistribution[msgRoundChange] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	// Start the first preprepare
+	sys.backends[0].NewRequest(makeBlock(1))
+
+	// Received the first block which will setup the round change timeout
+	<-newBlocks.Chan()
+	// Do not propagate any prepares
+	// Shame be upon me for modifying shared memory between two goroutines
+	// but this seemed much easier than to setup channels
+	istMsgDistribution[msgCommit] = noGossip
+	sys.backends[0].NewRequest(makeBlock(2))
+
+	// By now we should have sent prepares
+	<-time.After(2 * time.Second)
+	istMsgDistribution[msgCommit] = gossip
+
+	// Eventually we should get a block again
+	select {
+	case <-time.After(time.Duration(istanbul.DefaultConfig.RequestTimeout) * time.Millisecond):
+		t.Error("Never finalized block")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // start Istanbul core
+	}
+	close(sys.quit)
+}
+
 func TestRoundChangeWithoutLock(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
@@ -135,6 +186,7 @@ func TestRoundChangeWithoutLock(t *testing.T) {
 	}
 
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}
 
@@ -170,7 +222,6 @@ func TestRoundChangeWithoutLock(t *testing.T) {
 		}
 	}
 
-	newBlocks.Unsubscribe()
 	// Manually open and close b/c hijacking sys.listen
 	for _, b := range sys.backends {
 		b.engine.Stop() // start Istanbul core
