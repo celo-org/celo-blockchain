@@ -17,21 +17,16 @@
 package backend
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"math/big"
 	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 type testerVote struct {
@@ -74,8 +69,9 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
 }
 
+// TODO(kevjue) replace TestVoting function with reading validator set diff from the headers
 // Tests that voting is evaluated correctly for various simple and complex scenarios.
-func TestVoting(t *testing.T) {
+/* func TestVoting(t *testing.T) {
 	// Define the various voting scenarios to test
 	tests := []struct {
 		epoch      uint64
@@ -338,7 +334,7 @@ func TestVoting(t *testing.T) {
 			Config:     params.TestChainConfig,
 		}
 		b := genesis.ToBlock(nil)
-		extra, _ := prepareExtra(b.Header(), validators)
+		extra, _ := assembleExtra(b.Header(), validators)
 		genesis.ExtraData = extra
 		// Create a pristine blockchain with the genesis injected
 		db := ethdb.NewMemDatabase()
@@ -361,7 +357,7 @@ func TestVoting(t *testing.T) {
 				Difficulty: defaultDifficulty,
 				MixDigest:  types.IstanbulDigest,
 			}
-			extra, _ := prepareExtra(headers[j], validators)
+			extra, _ := assembleExtra(headers[j], validators)
 			headers[j].Extra = extra
 			if j > 0 {
 				headers[j].ParentHash = headers[j-1].Hash()
@@ -403,27 +399,13 @@ func TestVoting(t *testing.T) {
 			}
 		}
 	}
-}
+} */
 
 func TestSaveAndLoad(t *testing.T) {
 	snap := &Snapshot{
 		Epoch:  5,
 		Number: 10,
 		Hash:   common.HexToHash("1234567890"),
-		Votes: []*Vote{
-			{
-				Validator: common.BytesToAddress([]byte("1234567891")),
-				Block:     15,
-				Address:   common.BytesToAddress([]byte("1234567892")),
-				Authorize: false,
-			},
-		},
-		Tally: map[common.Address]Tally{
-			common.BytesToAddress([]byte("1234567893")): {
-				Authorize: false,
-				Votes:     20,
-			},
-		},
 		ValSet: validator.NewSet([]common.Address{
 			common.BytesToAddress([]byte("1234567894")),
 			common.BytesToAddress([]byte("1234567895")),
@@ -444,12 +426,6 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if snap.Hash != snap1.Hash {
 		t.Errorf("hash mismatch: have %v, want %v", snap1.Number, snap.Number)
-	}
-	if !reflect.DeepEqual(snap.Votes, snap.Votes) {
-		t.Errorf("votes mismatch: have %v, want %v", snap1.Votes, snap.Votes)
-	}
-	if !reflect.DeepEqual(snap.Tally, snap.Tally) {
-		t.Errorf("tally mismatch: have %v, want %v", snap1.Tally, snap.Tally)
 	}
 	if !reflect.DeepEqual(snap.ValSet, snap.ValSet) {
 		t.Errorf("validator set mismatch: have %v, want %v", snap1.ValSet, snap.ValSet)

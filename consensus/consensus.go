@@ -80,6 +80,11 @@ type Engine interface {
 	// rules of a particular engine. The changes are executed inline.
 	Prepare(chain ChainReader, header *types.Header) error
 
+	// This is only implemented for Istanbul.
+	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
+	// The changes are executed inline.
+	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
+
 	// Finalize runs any post-transaction state modifications (e.g. block rewards)
 	// and assembles the final block.
 	// Note: The block header and state database might be updated to reflect any
@@ -135,7 +140,7 @@ type Istanbul interface {
 	Engine
 
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(hash common.Hash) bool) error
+	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool, stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)) error
 
 	// Stop stops the engine
 	Stop() error

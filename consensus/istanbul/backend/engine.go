@@ -19,12 +19,13 @@ package backend
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
-	"math/rand"
+	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
@@ -73,26 +75,41 @@ var (
 	// errInvalidVotingChain is returned if an authorization list is attempted to
 	// be modified via out-of-range or non-contiguous headers.
 	errInvalidVotingChain = errors.New("invalid voting chain")
-	// errInvalidVote is returned if a nonce value is something else that the two
-	// allowed constants of 0x00..0 or 0xff..f.
-	errInvalidVote = errors.New("vote nonce not 0x00..0 or 0xff..f")
 	// errInvalidCommittedSeals is returned if the committed seal is not signed by any of parent validators.
 	errInvalidCommittedSeals = errors.New("invalid committed seals")
 	// errEmptyCommittedSeals is returned if the field of committed seals is zero.
 	errEmptyCommittedSeals = errors.New("zero committed seals")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
-	// errInvalidAddedRemovedValidators is returned if the header contains validator set changes on the wrong block
-	errInvalidAddedRemovedValidators = errors.New("invalid added and/or removed validator changeset")
+	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
+	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
+	getValidatorsABI = `[{"constant": true,
+		              "inputs": [],
+			      "name": "getValidators",
+			      "outputs": [
+				   {
+				        "name": "",
+					"type": "address[]"
+				   }
+			      ],
+			      "payable": false,
+			      "stateMutability": "view",
+			      "type": "function"
+			     }]`
 )
 var (
 	defaultDifficulty = big.NewInt(1)
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
+	emptyAddress      = common.Address{}
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
+
+	getValidatorsFuncABI, _ = abi.JSON(strings.NewReader(getValidatorsABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -123,51 +140,14 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return consensus.ErrFutureBlock
 	}
 
-	// Ensure that the extra data format is satisfied
-	if istExtra, err := types.ExtractIstanbulExtra(header); err != nil {
-		return errInvalidExtraDataFormat
-	}
-
-	// Ensure that only an epoch's last block has the validator changes set
-	if !IsLastBlockOfEpoch(header.Number, sb.config.Epoch) {
-	        if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) {
-		   return errInvalidAddedRemovedValidators
-		}
-	} else {
-	        // If we are the last block of epoch, do a few checks.
-		// 1) Verify that the add and remove validator sets are sorted and has no dups
-		// 2) Verify there is no overlap between the add and remove validator sets
-
-		addedValidatorsMap := make(map[common.Address]bool)
-		
-		for i, validator := range(istExtra.AddedValidators) {
-		    addedValidatorsMap[validator.Address()] = true
-
-		    if i > 0 && !istExtra.AddedValidators.Less(i-1, i) {
-		       return errInvalidAddedRemovedValidators
-		    }
-		}
-
-		for i, validator := range(istExtra.RemovedValidators) {
-		    if _, overlapFound := addedValidatorsMap[validator.Address()]; overlapFound {
-		       return errInvalidAddedRemovedValidators
-		    }
-
-		    if i > 0 && !istExtra.RemovedValidators.Less(i-1, i) {
-		       return errInvalidAddedRemovedValidators
-		    }
-		}
-
-	}
-
 	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
 	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
 	}
 
-	// Ensure that the coinbase is emtpy (Istanbul was originally using it for a candidate validator vote)
-	if header.Coinbase != common.Address{} {
-	        return errInvalidCoinbase
+	// Ensure that the coinbase is empty (Istanbul was originally using it for a candidate validator vote)
+	if header.Coinbase != emptyAddress {
+		return errInvalidCoinbase
 	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
@@ -315,7 +295,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		}
 		// Every validator can have only one seal. If more than one seals are signed by a
 		// validator, the validator cannot be found and errInvalidCommittedSeals is returned.
-		if validators.RemoveValidator(addr) {
+		if validators.RemoveValidators([]common.Address{addr}) {
 			validSeal += 1
 		} else {
 			return errInvalidCommittedSeals
@@ -350,7 +330,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = common.Address{}
+	header.Coinbase = emptyAddress
 	header.Nonce = emptyNonce
 	header.MixDigest = types.IstanbulDigest
 
@@ -363,24 +343,46 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// use the same difficulty for all blocks
 	header.Difficulty = defaultDifficulty
 
-	// Assemble the voting snapshot
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-
-	// add validators in snapshot to extraData's validators section
-	extra, err := prepareExtra(header, snap.validators())
-	if err != nil {
-		return err
-	}
-	header.Extra = extra
-
 	// set header's timestamp
 	header.Time = new(big.Int).Add(parent.Time, new(big.Int).SetUint64(sb.config.BlockPeriod))
 	if header.Time.Int64() < time.Now().Unix() {
 		header.Time = big.NewInt(time.Now().Unix())
 	}
+
+	return nil
+}
+
+// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
+func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
+	// If this is the last block of the epoch, then get the validator set diff, to save into the header
+	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+		if validatorAddress != nil {
+			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
+		} else {
+			// Get the last epoch's validator set
+			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+			if err != nil {
+				return err
+			}
+
+			// Get the new epoch's validator set
+			var newValSet []common.Address
+			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
+			if err != nil {
+				log.Error("Istanbul.Finalize - Error in retrieving the validator set", "leftoverGas", leftoverGas, "err", err)
+				return err
+			}
+
+			// add validators in snapshot to extraData's validators section
+			extra, err := assembleExtra(header, snap.validators(), newValSet)
+			if err != nil {
+				return err
+			}
+			header.Extra = extra
+		}
+	}
+
 	return nil
 }
 
@@ -505,7 +507,7 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 }
 
 // Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(hash common.Hash) bool) error {
+func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool, stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -522,6 +524,8 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.hasBadBlock = hasBadBlock
+	sb.stateAt = stateAt
+	sb.processBlock = processBlock
 
 	if err := sb.core.Start(); err != nil {
 		return err
@@ -553,21 +557,22 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		snap    *Snapshot
 	)
 
+	initialNumber := number
+
 	// If the block number is not the last block of an epoch, then adjust it (and the parents array) to be so.
 	// Only those epochs' last block have any relevant information for the validator set.
-	if !IsLastBlockOfEpoch(number, sb.config.epoch) {
-	   numberInEpoch = number % sb.config.epoch
+	if !istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) {
+		numberInEpoch := number % sb.config.Epoch
 
-	   // Adjust to last block of previous epoch
-	   adjustmustFactror := (numberInEpoch + 1)
-	   number -= adjustmustFactor
-	   if len(parents) > 0 {
-	      if len(parents) > adjustmentFactor {
-	      	 parents = parents[:len(parents) - adjustmentFactor]
-	      } else {
-	      	 parents = []
-	      }
-	   }
+		// Adjust to first block of the epoch
+		number -= numberInEpoch
+		if len(parents) > 0 {
+			if len(parents) > int(numberInEpoch) {
+				parents = parents[:len(parents)-int(numberInEpoch)]
+			} else {
+				parents = []*types.Header{}
+			}
+		}
 	}
 
 	for snap == nil {
@@ -609,10 +614,10 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			if header.Hash() != hash || header.Number.Uint64() != number {
 				return nil, consensus.ErrUnknownAncestor
 			}
-			if len(parents) > sb.config.epoch {
-			   parents = parents[:len(parents) - sb.config.epoch]
+			if len(parents) > int(sb.config.Epoch) {
+				parents = parents[:len(parents)-int(sb.config.Epoch)]
 			} else {
-			   parents = []
+				parents = []*types.Header{}
 			}
 		} else {
 			// No explicit parents (or no more left), reach out to the database
@@ -623,20 +628,21 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 		if header != nil {
 			headers = append(headers, header)
-			number, hash = number - sb.config.epoch, header.ParentHash
+			number, hash = number-sb.config.Epoch, header.ParentHash
 		} else if !chain.Config().FullHeaderChainAvailable {
-			number = number - sb.config.epoch
+			number = number - sb.config.Epoch
 		}
 
-		if number < 0 {
-		   panic(Error("There is a bug in the code!  We are iterating too far back in the blockchain"))
+		// Check to see if we "underflowed".  We should never go blow zero.
+		if number > initialNumber {
+			panic(fmt.Sprintf("There is a bug in the code!  We have iterated too far back.  Number: %d", number))
 		}
 	}
 	// Previous snapshot found, apply any pending headers on top of it.  This loop is reversing the headers array.
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable, sb.config.epoch)
+	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
 	if err != nil {
 		return nil, err
 	}
@@ -690,8 +696,8 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	return addr, nil
 }
 
-// prepareExtra returns a extra-data of the given header and validators
-func prepareExtra(header *types.Header, vals []common.Address) ([]byte, error) {
+// assembleExtra returns a extra-data of the given header and validators
+func assembleExtra(header *types.Header, oldValSet []common.Address, newValSet []common.Address) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
@@ -700,10 +706,13 @@ func prepareExtra(header *types.Header, vals []common.Address) ([]byte, error) {
 	}
 	buf.Write(header.Extra[:types.IstanbulExtraVanity])
 
+	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
+
 	ist := &types.IstanbulExtra{
-		Validators:    vals,
-		Seal:          []byte{},
-		CommittedSeal: [][]byte{},
+		AddedValidators:   addedValidators,
+		RemovedValidators: removedValidators,
+		Seal:              []byte{},
+		CommittedSeal:     [][]byte{},
 	}
 
 	payload, err := rlp.EncodeToBytes(&ist)

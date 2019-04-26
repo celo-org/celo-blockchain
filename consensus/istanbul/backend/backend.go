@@ -28,11 +28,13 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -77,6 +79,8 @@ type Backend struct {
 	chain            consensus.ChainReader
 	currentBlock     func() *types.Block
 	hasBadBlock      func(hash common.Hash) bool
+	stateAt          func(hash common.Hash) (*state.StateDB, error)
+	processBlock     func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -93,6 +97,9 @@ type Backend struct {
 
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
+
+	iEvmH  *core.InternalEVMHandler
+	regAdd *core.RegisteredAddresses
 }
 
 // Address implements istanbul.Backend.Address
@@ -227,13 +234,80 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 	// verify the header of proposed block
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
+
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
 	if err == nil || err == errEmptyCommittedSeals {
 		return 0, nil
 	} else if err == consensus.ErrFutureBlock {
 		return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 	}
+
+	// verify the validator set diff if this is the last block of the epoch
+	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
+		if err := sb.VerifyValSetDiff(proposal, block); err != nil {
+			return 0, err
+		}
+	}
+
 	return 0, err
+}
+
+func (sb *Backend) VerifyValSetDiff(proposal istanbul.Proposal, block *types.Block) error {
+	header := block.Header()
+
+	// Ensure that the extra data format is satisfied
+	istExtra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return err
+	}
+
+	validatorsAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+
+	if validatorsAddress != nil {
+		// Get the state from this block's parent.
+		state, err := sb.stateAt(block.Header().ParentHash)
+		if err != nil {
+			log.Error("VerifyValSetDiff - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
+			return err
+		}
+
+		// Make a copy of the state
+		state = state.Copy()
+
+		// Apply this block's transactions to update the state
+		if _, _, _, err := sb.processBlock(block, state); err != nil {
+			log.Error("VerifyValSetDiff - Error in processing the block")
+			return err
+		}
+
+		var newValSet []common.Address
+		if _, err := sb.iEvmH.MakeCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
+			log.Error("VerifyValSetDiff - Error in getting the validator set from the validators smart contract")
+			return err
+		}
+
+		parentValidators := sb.ParentValidators(proposal)
+		oldValSet := make([]common.Address, parentValidators.Size())
+
+		for _, val := range parentValidators.List() {
+			oldValSet = append(oldValSet, val.Address())
+		}
+
+		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
+
+		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
+			return errInvalidValidatorSetDiff
+		}
+	} else {
+		// The validator election smart contract is not registered yet, so the validator set diff should be empty
+
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+			log.Warn("VerifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
+			return errInvalidValidatorSetDiff
+		}
+	}
+
+	return nil
 }
 
 // Sign implements istanbul.Backend.Sign

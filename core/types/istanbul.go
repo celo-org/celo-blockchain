@@ -56,10 +56,10 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the istanbul fields from a RLP stream.
 func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 	var istanbulExtra struct {
-		AddedValidators    []common.Address
-		RemovedValidators  []common.Address
-		Seal          []byte
-		CommittedSeal [][]byte
+		AddedValidators   []common.Address
+		RemovedValidators []common.Address
+		Seal              []byte
+		CommittedSeal     [][]byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err

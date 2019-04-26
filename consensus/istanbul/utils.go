@@ -17,6 +17,9 @@
 package istanbul
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -60,5 +63,53 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 }
 
 func IsLastBlockOfEpoch(number uint64, epoch uint64) bool {
-        return number == 0 || (number % epoch) == (epoch - 1)
+	return number == 0 || (number%epoch) == (epoch-1)
+}
+
+func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([]common.Address, []common.Address) {
+	valSetMap := make(map[common.Address]bool)
+
+	for _, oldVal := range oldValSet {
+		valSetMap[oldVal] = true
+	}
+
+	var addedValidators []common.Address
+	for _, newVal := range newValSet {
+		if _, ok := valSetMap[newVal]; ok {
+			// We found a common validator.  Pop from the map
+			delete(valSetMap, newVal)
+		} else {
+			// We found a new validator that is not in the old validator set
+			addedValidators = append(addedValidators, newVal)
+		}
+	}
+	sort.Slice(addedValidators, func(i, j int) bool {
+		return strings.Compare(addedValidators[i].String(), addedValidators[j].String()) < 0
+	})
+
+	// Any remaining validators in the map are the removed validators
+	removedValidators := make([]common.Address, len(valSetMap))
+	for rmVal := range valSetMap {
+		removedValidators = append(removedValidators, rmVal)
+	}
+
+	sort.Slice(removedValidators, func(i, j int) bool {
+		return strings.Compare(removedValidators[i].String(), removedValidators[j].String()) < 0
+	})
+
+	return addedValidators, removedValidators
+}
+
+func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
+	if len(valSet1) != len(valSet2) {
+		return false
+	}
+
+	for i := 0; i < len(valSet1); i++ {
+		if valSet1[i] != valSet2[i] {
+			return false
+		}
+	}
+
+	return true
 }

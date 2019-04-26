@@ -158,11 +158,11 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 }
 
 func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
-        newValidators := make([]validator, len(addresses), len(addresses))
-        newAddressesMap = make(map[common.Address]bool)
-	for _, address := addresses {
-	    newAddressesMap[address] = bool
-	    newValidators = append(newValidators, New(address))
+	newValidators := make([]istanbul.Validator, len(addresses))
+	newAddressesMap := make(map[common.Address]bool)
+	for _, address := range addresses {
+		newAddressesMap[address] = true
+		newValidators = append(newValidators, New(address))
 	}
 
 	valSet.validatorMu.Lock()
@@ -188,10 +188,10 @@ func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
 	for i, v := range valSet.validators {
 		if v.Address() == addresses[cursor] {
 			valSet.validators = append(valSet.validators[:i], valSet.validators[i+1:]...)
-			cursor ++
+			cursor++
 
 			if cursor == len(addresses) {
-			    return true
+				return true
 			}
 		}
 	}

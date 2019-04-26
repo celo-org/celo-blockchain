@@ -51,7 +51,7 @@ func newBlockChain(n int) (*core.BlockChain, *Backend) {
 	if err != nil {
 		panic(err)
 	}
-	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock)
+	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil)
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
@@ -443,11 +443,12 @@ OUT3:
 }
 
 func TestPrepareExtra(t *testing.T) {
-	validators := make([]common.Address, 4)
-	validators[0] = common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a"))
-	validators[1] = common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212"))
-	validators[2] = common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"))
-	validators[3] = common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440"))
+	addedValidators := make([]common.Address, 2)
+	addedValidators[0] = common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a"))
+	addedValidators[1] = common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212"))
+	removedValidators := make([]common.Address, 2)
+	removedValidators[2] = common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"))
+	removedValidators[3] = common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440"))
 
 	vanity := make([]byte, types.IstanbulExtraVanity)
 	expectedResult := append(vanity, hexutil.MustDecode("0xf858f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b44080c0")...)
@@ -456,7 +457,7 @@ func TestPrepareExtra(t *testing.T) {
 		Extra: vanity,
 	}
 
-	payload, err := prepareExtra(h, validators)
+	payload, err := assembleExtra(h, addedValidators, removedValidators)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
@@ -467,7 +468,7 @@ func TestPrepareExtra(t *testing.T) {
 	// append useless information to extra-data
 	h.Extra = append(vanity, make([]byte, 15)...)
 
-	payload, err = prepareExtra(h, validators)
+	payload, err = assembleExtra(h, addedValidators, removedValidators)
 	if !reflect.DeepEqual(payload, expectedResult) {
 		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
 	}
@@ -478,9 +479,11 @@ func TestWriteSeal(t *testing.T) {
 	istRawData := hexutil.MustDecode("0xf858f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b44080c0")
 	expectedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
 	expectedIstExtra := &types.IstanbulExtra{
-		Validators: []common.Address{
+		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+		},
+		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
@@ -521,9 +524,11 @@ func TestWriteCommittedSeals(t *testing.T) {
 	istRawData := hexutil.MustDecode("0xf858f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b44080c0")
 	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
 	expectedIstExtra := &types.IstanbulExtra{
-		Validators: []common.Address{
+		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+		},
+		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},

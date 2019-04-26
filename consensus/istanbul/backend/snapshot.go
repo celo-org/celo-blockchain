@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -44,9 +45,9 @@ type Vote struct {
 type Snapshot struct {
 	Epoch uint64 // The number of blocks after which to checkpoint and reset the pending votes
 
-	Number uint64                   // Block number where the snapshot was created
-	Hash   common.Hash              // Block hash where the snapshot was created
-	ValSet istanbul.ValidatorSet    // Set of authorized validators at this moment
+	Number uint64                // Block number where the snapshot was created
+	Hash   common.Hash           // Block hash where the snapshot was created
+	ValSet istanbul.ValidatorSet // Set of authorized validators at this moment
 }
 
 // newSnapshot create a new snapshot with the specified startup parameters. This
@@ -108,11 +109,11 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 	// Sanity check that the headers can be applied
 	if fullHeaderChainAvailable {
 		for i := 0; i < len(headers)-1; i++ {
-			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64() + s.Epoch {
+			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+s.Epoch {
 				return nil, errInvalidVotingChain
 			}
 		}
-		if headers[0].Number.Uint64() != s.Number + s.Epoch {
+		if headers[0].Number.Uint64() != s.Number+s.Epoch {
 			return nil, errInvalidVotingChain
 		}
 	}
@@ -130,10 +131,17 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 			return nil, errUnauthorized
 		}
 
-		snap.ValSet.AddValidators(header.AddedValidators)
-		snap.ValSet.RemoveValidtors(header.RemovedValidators)
+		// Ensure that the extra data format is satisfied
+		istExtra, err := types.ExtractIstanbulExtra(header)
+		if err != nil {
+			log.Error("Unable to extract the istanbul extra field from the header", "header", header)
+			return nil, err
+		}
+
+		snap.ValSet.AddValidators(istExtra.AddedValidators)
+		snap.ValSet.RemoveValidators(istExtra.RemovedValidators)
 	}
-	snap.Number += uint64(len(headers) * s.Epoch)
+	snap.Number += uint64(len(headers)) * s.Epoch
 	snap.Hash = headers[len(headers)-1].Hash()
 
 	return snap, nil
@@ -156,9 +164,9 @@ func (s *Snapshot) validators() []common.Address {
 }
 
 type snapshotJSON struct {
-	Epoch  uint64                   `json:"epoch"`
-	Number uint64                   `json:"number"`
-	Hash   common.Hash              `json:"hash"`
+	Epoch  uint64      `json:"epoch"`
+	Number uint64      `json:"number"`
+	Hash   common.Hash `json:"hash"`
 
 	// for validator set
 	Validators []common.Address        `json:"validators"`

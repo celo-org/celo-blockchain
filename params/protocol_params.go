@@ -100,6 +100,7 @@ const (
 	ReserveRegistryId                = "Reserve"
 	MedianatorRegistryId             = "Medianator"
 	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
+	ValidatorsRegistryId             = "Validators"
 )
 
 var (
