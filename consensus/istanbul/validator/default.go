@@ -69,6 +69,8 @@ func newDefaultSet(addrs []common.Address, policy istanbul.ProposerPolicy) *defa
 		valSet.selector = stickyProposer
 	}
 
+	fmt.Printf("num validators after newdefaultset is %d\n", len(valSet.validators))
+
 	return valSet
 }
 
@@ -158,7 +160,7 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 }
 
 func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
-	newValidators := make([]istanbul.Validator, len(addresses))
+	newValidators := make([]istanbul.Validator, 0, len(addresses))
 	newAddressesMap := make(map[common.Address]bool)
 	for _, address := range addresses {
 		newAddressesMap[address] = true
@@ -167,11 +169,14 @@ func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
 
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
+
+	// Verify that the validators to add is not already in the valset
 	for _, v := range valSet.validators {
 		if _, ok := newAddressesMap[v.Address()]; ok {
 			return false
 		}
 	}
+
 	valSet.validators = append(valSet.validators, newValidators...)
 	// TODO: we may not need to re-sort it again
 	// sort validator

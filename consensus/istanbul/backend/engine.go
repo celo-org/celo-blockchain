@@ -140,6 +140,11 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return consensus.ErrFutureBlock
 	}
 
+	// Ensure that the extra data format is satisfied
+	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+		return errInvalidExtraDataFormat
+	}
+
 	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
 	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
