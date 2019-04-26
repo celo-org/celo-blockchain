@@ -69,8 +69,6 @@ func newDefaultSet(addrs []common.Address, policy istanbul.ProposerPolicy) *defa
 		valSet.selector = stickyProposer
 	}
 
-	fmt.Printf("num validators after newdefaultset is %d\n", len(valSet.validators))
-
 	return valSet
 }
 
