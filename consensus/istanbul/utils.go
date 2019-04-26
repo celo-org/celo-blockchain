@@ -88,7 +88,7 @@ func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([
 	})
 
 	// Any remaining validators in the map are the removed validators
-	removedValidators := make([]common.Address, len(valSetMap))
+	removedValidators := make([]common.Address, 0, len(valSetMap))
 	for rmVal := range valSetMap {
 		removedValidators = append(removedValidators, rmVal)
 	}

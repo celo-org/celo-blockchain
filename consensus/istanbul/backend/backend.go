@@ -287,7 +287,7 @@ func (sb *Backend) VerifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		}
 
 		parentValidators := sb.ParentValidators(proposal)
-		oldValSet := make([]common.Address, parentValidators.Size())
+		oldValSet := make([]common.Address, 0, parentValidators.Size())
 
 		for _, val := range parentValidators.List() {
 			oldValSet = append(oldValSet, val.Address())
