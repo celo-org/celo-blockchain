@@ -17,11 +17,10 @@
 package core
 
 import (
-	"math/big"
-	"sync"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"math/big"
+	"sync"
 )
 
 // sendNextRoundChange sends the ROUND CHANGE message with current round + 1
@@ -84,7 +83,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg)
+	num, err := c.roundChangeSet.Add(roundView.Round, msg, src)
 	if err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
@@ -100,10 +99,12 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		return nil
 	} else if num == 2*c.valSet.F()+1 && (c.waitingForRoundChange || cv.Round.Cmp(roundView.Round) < 0) {
 		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
+		// should also call rcs.Clear()
 		c.startNewRound(roundView.Round)
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {
 		// Only gossip the message with current round to other validators.
+		// TODONEXT also gossips newer!
 		return errIgnored
 	}
 	return nil
@@ -113,32 +114,52 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
-		validatorSet: valSet,
-		roundChanges: make(map[uint64]*messageSet),
-		mu:           new(sync.Mutex),
+		validatorSet:      valSet,
+		msgsForRound:      make(map[uint64]*messageSet),
+		latestRoundForVal: make(map[common.Address]uint64),
+		mu:                new(sync.Mutex),
 	}
 }
 
 type roundChangeSet struct {
-	validatorSet istanbul.ValidatorSet
-	roundChanges map[uint64]*messageSet
-	mu           *sync.Mutex
+	validatorSet      istanbul.ValidatorSet
+	msgsForRound      map[uint64]*messageSet
+	latestRoundForVal map[common.Address]uint64
+	mu                *sync.Mutex
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *message) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator) (int, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
-	if rcs.roundChanges[round] == nil {
-		rcs.roundChanges[round] = newMessageSet(rcs.validatorSet)
+
+	if prevLatestRound, ok := rcs.latestRoundForVal[src.Address()]; ok {
+		if prevLatestRound > round {
+			// Reject as we have an RC for a later round from this validator.
+			return 0, errOldMessage
+		} else if prevLatestRound < round {
+			// Already got an RC for an earlier round from this validator.
+			// Forget that and remember this.
+			if rcs.msgsForRound[prevLatestRound] != nil {
+				rcs.msgsForRound[prevLatestRound].Remove(src.Address())
+			}
+		}
+		// TODONEXT for the same round, we update in place
+		// so we'll be able to update the RC certificate
 	}
-	err := rcs.roundChanges[round].Add(msg)
+
+	rcs.latestRoundForVal[src.Address()] = round
+
+	if rcs.msgsForRound[round] == nil {
+		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
+	}
+	err := rcs.msgsForRound[round].Add(msg)
 	if err != nil {
 		return 0, err
 	}
-	return rcs.roundChanges[round].Size(), nil
+	return rcs.msgsForRound[round].Size(), nil
 }
 
 // Clear deletes the messages with smaller round
@@ -146,9 +167,16 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	for k, rms := range rcs.roundChanges {
+	for k, rms := range rcs.msgsForRound {
 		if len(rms.Values()) == 0 || k < round.Uint64() {
-			delete(rcs.roundChanges, k)
+			if rms != nil {
+				for _, msg := range rms.Values() {
+					if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok && k == latestRound {
+						delete(rcs.latestRoundForVal, msg.Address)
+					}
+				}
+			}
+			delete(rcs.msgsForRound, k)
 		}
 	}
 }
@@ -159,7 +187,7 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	defer rcs.mu.Unlock()
 
 	var maxRound *big.Int
-	for k, rms := range rcs.roundChanges {
+	for k, rms := range rcs.msgsForRound {
 		if rms.Size() < num {
 			continue
 		}

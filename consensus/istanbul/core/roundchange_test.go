@@ -47,9 +47,9 @@ func TestRoundChangeSet(t *testing.T) {
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg)
-		if rc.roundChanges[view.Round.Uint64()].Size() != i+1 {
-			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), i+1)
+		rc.Add(view.Round, msg, v)
+		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
+			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
 		}
 	}
 
@@ -60,9 +60,9 @@ func TestRoundChangeSet(t *testing.T) {
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg)
-		if rc.roundChanges[view.Round.Uint64()].Size() != vset.Size() {
-			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), vset.Size())
+		rc.Add(view.Round, msg, v)
+		if rc.msgsForRound[view.Round.Uint64()].Size() != vset.Size() {
+			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), vset.Size())
 		}
 	}
 
@@ -81,12 +81,67 @@ func TestRoundChangeSet(t *testing.T) {
 	// Test Clear()
 	for i := int64(0); i < 2; i++ {
 		rc.Clear(big.NewInt(i))
-		if rc.roundChanges[view.Round.Uint64()].Size() != vset.Size() {
-			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), vset.Size())
+		if rc.msgsForRound[view.Round.Uint64()].Size() != vset.Size() {
+			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), vset.Size())
 		}
 	}
 	rc.Clear(big.NewInt(2))
-	if rc.roundChanges[view.Round.Uint64()] != nil {
-		t.Errorf("the change messages mismatch: have %v, want nil", rc.roundChanges[view.Round.Uint64()])
+	if rc.msgsForRound[view.Round.Uint64()] != nil {
+		t.Errorf("the change messages mismatch: have %v, want nil", rc.msgsForRound[view.Round.Uint64()])
+	}
+
+	// Test Add()
+	// Add message from all validators
+	for i, v := range vset.List() {
+		msg := &message{
+			Code:    msgRoundChange,
+			Msg:     m,
+			Address: v.Address(),
+		}
+		rc.Add(view.Round, msg, v)
+		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
+			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
+		}
+	}
+
+	rc.Clear(big.NewInt(2))
+	if rc.msgsForRound[view.Round.Uint64()] != nil {
+		t.Errorf("the change messages mismatch: have %v, want nil", rc.msgsForRound[view.Round.Uint64()])
+	}
+
+	// Test that we only store the msg with the highest round for each validator
+	roundMultiplier := 1
+	for j := 1; j <= roundMultiplier; j++ {
+		for i, v := range vset.List() {
+			view := &istanbul.View{
+				Sequence: big.NewInt(1),
+				Round:    big.NewInt(int64(i * j)),
+			}
+			r := &istanbul.Subject{
+				View:   view,
+				Digest: common.Hash{},
+			}
+			m, _ := Encode(r)
+			msg := &message{
+				Code:    msgRoundChange,
+				Msg:     m,
+				Address: v.Address(),
+			}
+			_, err := rc.Add(view.Round, msg, v)
+			if err != nil {
+				t.Errorf("Round change message: unexpected error %v", err)
+			}
+		}
+	}
+
+	for i, v := range vset.List() {
+		lookingForValAtRound := uint64(roundMultiplier * i)
+		if rc.msgsForRound[lookingForValAtRound].Size() != 1 {
+			t.Errorf("Round change messages at unexpected rounds: %v", rc.msgsForRound)
+		}
+		if rc.latestRoundForVal[v.Address()] != lookingForValAtRound {
+			t.Errorf("Round change messages at unexpected rounds: for %v want %v have %v",
+				i, rc.latestRoundForVal[v.Address()], lookingForValAtRound)
+		}
 	}
 }
