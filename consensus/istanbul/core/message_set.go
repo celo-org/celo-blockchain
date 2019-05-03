@@ -63,6 +63,13 @@ func (ms *messageSet) Add(msg *message) error {
 	return ms.addVerifiedMessage(msg)
 }
 
+func (ms *messageSet) Remove(address common.Address) {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
+	delete(ms.messages, address)
+}
+
 func (ms *messageSet) Values() (result []*message) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()

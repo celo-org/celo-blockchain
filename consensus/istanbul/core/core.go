@@ -41,7 +41,8 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		handlerWg:          new(sync.WaitGroup),
 		logger:             log.New("address", backend.Address()),
 		backend:            backend,
-		backlogs:           make(map[istanbul.Validator]*prque.Prque),
+		backlogBySeq:       make(map[uint64]*prque.Prque),
+		backlogCountByVal:  make(map[common.Address]int),
 		backlogsMu:         new(sync.Mutex),
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
@@ -72,8 +73,10 @@ type core struct {
 	waitingForRoundChange bool
 	validateFn            func([]byte, []byte) (common.Address, error)
 
-	backlogs   map[istanbul.Validator]*prque.Prque
-	backlogsMu *sync.Mutex
+	backlogBySeq      map[uint64]*prque.Prque
+	backlogCountByVal map[common.Address]int
+	backlogTotal      int
+	backlogsMu        *sync.Mutex
 
 	current   *roundState
 	handlerWg *sync.WaitGroup
