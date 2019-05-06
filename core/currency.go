@@ -18,33 +18,90 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+const (
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Medianator.json
+	getExchangeRateABI = `[{"constant": true,
+                                "inputs": [
+                                     {
+                                         "name": "base",
+                                         "type": "address"
+                                     },
+                                     {
+                                         "name": "counter",
+                                         "type": "address"
+                                     }
+                                ],
+                                "name": "getExchangeRate",
+                                "outputs": [
+                                     {
+                                         "name": "",
+                                         "type": "uint256"
+                                     },
+                                     {
+                                         "name": "",
+                                         "type": "uint256"
+                                     }
+                                ],
+                                "payable": false,
+                                "stateMutability": "view",
+                                "type": "function"
+                               }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/ERC20.json
+	balanceOfABI = `[{"constant": true,
+                          "inputs": [
+                               {
+                                   "name": "who",
+                                   "type": "address"
+                               }
+                          ],
+                          "name": "balanceOf",
+                          "outputs": [
+                               {
+                                   "name": "",
+                                   "type": "uint256"
+                               }
+                          ],
+                          "payable": false,
+                          "stateMutability": "view",
+                          "type": "function"
+                         }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GasCurrency.json
+	getWhitelistABI = `[{"constant": true,
+	                     "inputs": [],
+	                     "name": "getWhitelist",
+	                     "outputs": [
+			          {
+			              "name": "",
+				      "type": "address[]"
+				  }
+			     ],
+			     "payable": false,
+			     "stateMutability": "view",
+			     "type": "function"
+			    }]`
 )
 
 var (
 	cgExchangeRateNum = big.NewInt(1)
 	cgExchangeRateDen = big.NewInt(1)
 
-	// selector is first 4 bytes of keccak256 of "getExchangeRate(address,address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getExchangeRate(address,address)")[0:4].hex())'
-	getExchangeRateFuncABI = hexutil.MustDecode("0xbaaa61be")
-
-	// selector is first 4 bytes of keccak256 of "balanceOf(address)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("balanceOf(address)")[0:4].hex())'
-	getBalanceFuncABI = hexutil.MustDecode("0x70a08231")
+	getExchangeRateFuncABI, _ = abi.JSON(strings.NewReader(getExchangeRateABI))
+	balanceOfFuncABI, _       = abi.JSON(strings.NewReader(balanceOfABI))
+	getWhitelistFuncABI, _    = abi.JSON(strings.NewReader(getWhitelistABI))
 
 	errExchangeRateCacheMiss = errors.New("exchange rate cache miss")
 )
@@ -55,10 +112,10 @@ type exchangeRate struct {
 }
 
 type PriceComparator struct {
-	gasCurrencyAddresses *[]common.Address                // The set of currencies that will have their exchange rate monitored
-	exchangeRates        map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	blockchain           *BlockChain                      // Used to construct the EVM object needed to make the call the medianator contract
-	chainConfig          *params.ChainConfig              // The config object of the eth object
+	gcWl          *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
+	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
+	regAdd        *RegisteredAddresses
+	iEvmH         *InternalEVMHandler
 }
 
 func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*big.Int, *big.Int, error) {
@@ -107,57 +164,46 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 // Medianator must have a function with the following signature:
 // "function getExchangeRate(address, address)"
 func (pc *PriceComparator) retrieveExchangeRates() {
-	log.Trace("retrieveExchangeRates",
-		"gasCurrencyAddresses", fmt.Sprintf("%v", *pc.gasCurrencyAddresses))
+	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
+	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	header := pc.blockchain.CurrentBlock().Header()
-	state, err := pc.blockchain.StateAt(header.Root)
-	if err != nil {
-		log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving the state from the blockchain")
+	medianatorAddress := pc.regAdd.GetRegisteredAddress(params.MedianatorRegistryId)
+
+	if medianatorAddress == nil {
+		log.Error("Can't get the medianator smart contract address from the registry")
 		return
 	}
 
-	// The EVM Context requires a msg, but the actual field values don't really matter.  Putting in
-	// zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, []byte{}, false)
-	context := NewEVMContext(msg, header, pc.blockchain, nil)
-	evm := vm.NewEVM(context, state, pc.chainConfig, *pc.blockchain.GetVMConfig())
+	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
-	for _, gasCurrencyAddress := range *pc.gasCurrencyAddresses {
-		transactionData := common.GetEncodedAbi(
-			getExchangeRateFuncABI, [][]byte{common.AddressToAbi(params.CeloGoldAddress), common.AddressToAbi(gasCurrencyAddress)})
-		anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
+	if celoGoldAddress == nil {
+		log.Error("Can't get the celo gold smart contract address from the registry")
+		return
+	}
 
-		// Some reasonable gas limit to avoid a potentially bad Oracle from running expensive computations.
-		gas := uint64(20 * 1000)
-		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "caller", anyCaller, "customTokenContractAddress",
-			params.MedianatorAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-
-		ret, leftoverGas, err := evm.StaticCall(anyCaller, params.MedianatorAddress, transactionData, gas)
-
-		if err != nil {
-			log.Error("PriceComparator.retrieveExchangeRates - Error in retrieving exchange rate",
-				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "err", err)
+	for _, gasCurrencyAddress := range gasCurrencyAddresses {
+		if gasCurrencyAddress == *celoGoldAddress {
 			continue
 		}
 
-		if len(ret) != 2*32 {
-			log.Error("PriceComparator.retrieveExchangeRates - Unexpected return value in retrieving exchange rate",
-				"base", params.CeloGoldAddress, "counter", gasCurrencyAddress, "ret", hexutil.Encode(ret))
+		var returnArray [2]*big.Int
+
+		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "medianatorAddress", medianatorAddress.Hex(),
+			"gas currency", gasCurrencyAddress.Hex())
+
+		if leftoverGas, err := pc.iEvmH.makeCall(*medianatorAddress, getExchangeRateFuncABI, "getExchangeRate", []interface{}{celoGoldAddress, gasCurrencyAddress}, &returnArray, 20000); err != nil {
+			log.Error("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
+		} else {
+			log.Trace("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+
+			if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
+				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
+			}
+
+			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
+			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
 		}
-
-		log.Trace("getExchangeRate", "ret", ret, "leftoverGas", leftoverGas, "err", err)
-		baseAmount := new(big.Int).SetBytes(ret[0:32])
-		counterAmount := new(big.Int).SetBytes(ret[32:64])
-		log.Trace("getExchangeRate", "baseAmount", baseAmount, "counterAmount", counterAmount)
-
-		if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
-			pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
-		}
-
-		pc.exchangeRates[gasCurrencyAddress].Numerator = baseAmount
-		pc.exchangeRates[gasCurrencyAddress].Denominator = counterAmount
 	}
 }
 
@@ -170,42 +216,117 @@ func (pc *PriceComparator) mainLoop() {
 	}
 }
 
-func NewPriceComparator(gasCurrencyAddresses *[]common.Address, chainConfig *params.ChainConfig, blockchain *BlockChain) *PriceComparator {
+func NewPriceComparator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *PriceComparator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
 	pc := &PriceComparator{
-		gasCurrencyAddresses: gasCurrencyAddresses,
-		exchangeRates:        exchangeRates,
-		blockchain:           blockchain,
-		chainConfig:          chainConfig,
+		gcWl:          gcWl,
+		exchangeRates: exchangeRates,
+		regAdd:        regAdd,
+		iEvmH:         iEvmH,
 	}
 
-	if pc.gasCurrencyAddresses != nil && len(*pc.gasCurrencyAddresses) > 0 {
+	if pc.gcWl != nil {
 		go pc.mainLoop()
 	}
 
 	return pc
 }
 
-// This function will retrieve the balance of an ERC20 token.  Specifically, the contract must have the
-// following function.
-// "function balanceOf(address _owner) public view returns (uint256)"
-func GetBalanceOf(accountOwner common.Address, contractAddress *common.Address, evm *vm.EVM, gas uint64) (
-	balance *big.Int, gasUsed uint64, err error) {
+// This function will retrieve the balance of an ERC20 token.
+//
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, iEvmH *InternalEVMHandler, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
 
-	transactionData := common.GetEncodedAbi(getBalanceFuncABI, [][]byte{common.AddressToAbi(accountOwner)})
-	anyCaller := vm.AccountRef(common.HexToAddress("0x0")) // any caller will work
-	log.Trace("getBalanceOf", "caller", anyCaller, "customTokenContractAddress",
-		*contractAddress, "gas", gas, "transactionData", hexutil.Encode(transactionData))
-	ret, leftoverGas, err := evm.StaticCall(anyCaller, *contractAddress, transactionData, gas)
-	gasUsed = gas - leftoverGas
-	if err != nil {
-		log.Debug("getBalanceOf error occurred", "Error", err)
-		return nil, gasUsed, err
+	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
+
+	var leftoverGas uint64
+
+	if evm != nil {
+		leftoverGas, err = evm.ABIStaticCall(vm.AccountRef(common.HexToAddress("0x0")), contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
+	} else if iEvmH != nil {
+		leftoverGas, err = iEvmH.makeCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
+	} else {
+		err = errors.New("Either iEvmH or evm must be non-nil")
+		return
 	}
-	result := big.NewInt(0)
-	result.SetBytes(ret)
-	log.Trace("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", result.String(),
-		"gas used", gasUsed)
-	return result, gasUsed, nil
+
+	if err != nil {
+		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
+		gasUsed = gas - leftoverGas
+		return
+	} else {
+		gasUsed = gas - leftoverGas
+		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "gas used", gasUsed)
+		return
+	}
+}
+
+type GasCurrencyWhitelist struct {
+	whitelistedAddresses   map[common.Address]bool
+	whitelistedAddressesMu sync.RWMutex
+	regAdd                 *RegisteredAddresses
+	iEvmH                  *InternalEVMHandler
+}
+
+func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
+	log.Trace("GasCurrencyWhitelist.retrieveWhitelist called")
+
+	returnList := []common.Address{}
+
+	gasCurrencyWhiteListAddress := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
+	if gasCurrencyWhiteListAddress == nil {
+		log.Error("Can't get the gas currency whitelist smart contract address from the registry")
+		return returnList
+	}
+
+	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
+
+	if leftoverGas, err := gcWl.iEvmH.makeCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000); err != nil {
+		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "leftoverGas", leftoverGas, "err", err)
+		return []common.Address{}
+	}
+
+	outputWhiteList := make([]string, len(returnList))
+	for _, address := range returnList {
+		outputWhiteList = append(outputWhiteList, address.Hex())
+	}
+
+	log.Trace("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation success", "whitelisted currencies", outputWhiteList)
+	return returnList
+}
+
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
+	addresses := gcWl.retrieveWhitelist()
+
+	gcWl.whitelistedAddressesMu.Lock()
+
+	for k := range gcWl.whitelistedAddresses {
+		delete(gcWl.whitelistedAddresses, k)
+	}
+
+	for _, address := range addresses {
+		gcWl.whitelistedAddresses[address] = true
+	}
+
+	gcWl.whitelistedAddressesMu.Unlock()
+}
+
+func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
+	gcWl.whitelistedAddressesMu.RLock()
+
+	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
+
+	gcWl.whitelistedAddressesMu.RUnlock()
+
+	return ok
+}
+
+func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
+	gcWl := &GasCurrencyWhitelist{
+		whitelistedAddresses: make(map[common.Address]bool),
+		regAdd:               regAdd,
+		iEvmH:                iEvmH,
+	}
+
+	return gcWl
 }
