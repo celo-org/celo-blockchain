@@ -485,7 +485,7 @@ func TestWriteSeal(t *testing.T) {
 		},
 		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),		
+			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 		},
 		Seal:          expectedSeal,
 		CommittedSeal: [][]byte{},
@@ -526,11 +526,11 @@ func TestWriteCommittedSeals(t *testing.T) {
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),		
+			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
 		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),		
+			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 		},
 		Seal:          []byte{},
 		CommittedSeal: [][]byte{expectedCommittedSeal},
