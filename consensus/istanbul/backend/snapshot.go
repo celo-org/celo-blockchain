@@ -32,15 +32,6 @@ const (
 	dbKeySnapshotPrefix = "istanbul-snapshot"
 )
 
-// Vote represents a single vote that an authorized validator made to modify the
-// list of authorizations.
-type Vote struct {
-	Validator common.Address `json:"validator"` // Authorized validator that cast this vote
-	Block     uint64         `json:"block"`     // Block number the vote was cast in (expire old votes)
-	Address   common.Address `json:"address"`   // Account being voted on to change its authorization
-	Authorize bool           `json:"authorize"` // Whether to authorize or deauthorize the voted account
-}
-
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
 	Epoch uint64 // The number of blocks after which to checkpoint and reset the pending votes
@@ -138,8 +129,14 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 			return nil, err
 		}
 
-		snap.ValSet.AddValidators(istExtra.AddedValidators)
-		snap.ValSet.RemoveValidators(istExtra.RemovedValidators)
+		if !snap.ValSet.AddValidators(istExtra.AddedValidators) {
+			log.Error("Error in adding the header's AddedValidators")
+			return nil, errInvalidValidatorSetDiff
+		}
+		if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
+			log.Error("Error in removing the header's RemovedValidators")
+			return nil, errInvalidValidatorSetDiff
+		}
 	}
 	snap.Number += uint64(len(headers)) * s.Epoch
 	snap.Hash = headers[len(headers)-1].Hash()

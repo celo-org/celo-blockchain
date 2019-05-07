@@ -638,7 +638,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			number = number - sb.config.Epoch
 		}
 
-		// Check to see if we "underflowed".  We should never go blow zero.
+		// Check to see if we "underflowed".  We should never go below zero.
 		if number > initialNumber {
 			panic(fmt.Sprintf("There is a bug in the code!  We have iterated too far back.  Number: %d", number))
 		}

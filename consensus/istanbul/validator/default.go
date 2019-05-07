@@ -183,22 +183,38 @@ func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
 }
 
 func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
+	if len(addresses) == 0 {
+		return true
+	}
+
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
-	// The addresses parameter and valSet.validators list MUST BE sorted.
-	cursor := 0
-	for i, v := range valSet.validators {
-		if v.Address() == addresses[cursor] {
-			valSet.validators = append(valSet.validators[:i], valSet.validators[i+1:]...)
-			cursor++
+	removeAddressesMap := make(map[common.Address]bool)
+	for _, address := range addresses {
+		removeAddressesMap[address] = true
+	}
 
-			if cursor == len(addresses) {
-				return true
-			}
+	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
+	// new memory will be allocated
+	tempList := valSet.validators[:0]
+	defer func() {
+		valSet.validators = tempList
+	}()
+
+	for _, v := range valSet.validators {
+		if _, ok := removeAddressesMap[v.Address()]; !ok {
+			tempList = append(tempList, v)
+		} else {
+			delete(removeAddressesMap, v.Address())
 		}
 	}
-	return false
+
+	if len(removeAddressesMap) > 0 {
+		return false
+	} else {
+		return true
+	}
 }
 
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
