@@ -50,7 +50,7 @@ const (
 
 var (
 	// TODO(kevjue) - Replace with the actual registered address for the registry smart contract
-	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
+	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.MedianatorRegistryId, params.GasCurrencyWhitelistRegistryId}
 	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
 )
