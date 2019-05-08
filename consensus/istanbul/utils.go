@@ -100,6 +100,7 @@ func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([
 	return addedValidators, removedValidators
 }
 
+// This function assumes that valSet1 and valSet2 are sorted
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
