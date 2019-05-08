@@ -199,7 +199,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.MinerGasPrice
 	}
-	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
+	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams, pc)
 
 	return eth, nil
 }
