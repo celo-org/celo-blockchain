@@ -143,6 +143,15 @@ func TestValSetChange(t *testing.T) {
 				{proposer: "E", addedValidators: []string{"F"}, removedValidators: []string{"A", "D"}}},
 			results: []string{"E", "F"},
 			err:     nil,
+		}, {
+			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.  The first header will
+			// be ignored, since it's no the last header of an epoch
+			epoch:      2,
+			validators: []string{"A", "B", "C"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
+				{proposer: "A", addedValidators: []string{"F"}, removedValidators: []string{"A", "B"}}},
+			results: []string{"C", "F"},
+			err:     nil,
 		},
 	}
 	// Run through the scenarios and test them
