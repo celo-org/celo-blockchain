@@ -120,7 +120,7 @@ type PriceComparator struct {
 
 func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
 	if currency == nil {
-		return cgExchangeRateNum, cgExchangeRateDen, nil
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
 		if exchangeRate, ok := pc.exchangeRates[*currency]; !ok {
 			return nil, errExchangeRateCacheMiss
@@ -130,11 +130,9 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 	}
 }
 
-// TODO (jarmg 4/24): Not dealing with rounding error
-// Example:  If cG : cD = 2:1
-// then if we convert 3 wei of gold to dollars this will result in 1.5 dollars, which will be rounded to
-// 1 dollar. This is only an issue if there is a very large value disparity between the two currencies
-// i.e. exchange rate is either extremely large of extremely small
+
+// NOTE (jarmg 4/24): values are rounded down which can cause under priced
+// suggestions, particularly with extreme exchange rates
 func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
 	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
 	exchangeRateTo, err2 := pc.getExchangeRate(currencyTo)
@@ -142,18 +140,22 @@ func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, c
 	if err1 != nil || err2 != nil {
 		log.Error("PriceComparator.Convert - Error in retreiving currency exchange rates")
 		if err1 != nil {
-			log.Error(err2)
 			return nil, err1
 		}
 		if err2 != nil {
-			log.Error(err2)
 			return nil, err2
 		}
 	}
 	return convert(val, exchangeRateFrom, exchangeRateTo)
 }
 
+func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
+  return pc.Convert(val, currencyFrom, &params.CeloGoldAddress)
+}
+
 // Question: How do we deal with input validation for here (and in general?)
+// Given value of val and rates n1/d1 and n2/d2 the function below does
+// (val) * (n1/d1) * (d2/n2) 
 func convert(val *big.Int, from *exchangeRate, to *exchangeRate) (*big.Int, error) {
 	numerator := new(big.Int).Mul(val, new(big.Int).Mul(from.Numerator, to.Denominator))
 	denominator := new(big.Int).Mul(from.Denominator, to.Numerator)
