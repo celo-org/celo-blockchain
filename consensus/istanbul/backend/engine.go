@@ -92,6 +92,8 @@ var (
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
+
+	allowedFutureBlockTime = 5 * time.Second // Max time from current time allowed for blocks, before they're considered future blocks
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -118,7 +120,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	}
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(big.NewInt(now().Unix())) > 0 {
+	if header.Time.Cmp(big.NewInt(time.Now().Add(allowedFutureBlockTime).Unix())) > 0 {
 		return consensus.ErrFutureBlock
 	}
 
