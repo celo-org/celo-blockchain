@@ -104,7 +104,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {
 		// Only gossip the message with current round to other validators.
-		// TODONEXT also gossips newer!
+		// TODO(tim) This in fact also gossips newer messages -- remove comment when gossip disabled
 		return errIgnored
 	}
 	return nil
@@ -146,8 +146,6 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator)
 				rcs.msgsForRound[prevLatestRound].Remove(src.Address())
 			}
 		}
-		// TODONEXT for the same round, we update in place
-		// so we'll be able to update the RC certificate
 	}
 
 	rcs.latestRoundForVal[src.Address()] = round
