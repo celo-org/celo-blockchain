@@ -47,11 +47,12 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) error {
+func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) PreparedCertificate, error {
 	if (len(roundChangeCertificate) > c.valSet.Size() || len(roundChangeCertificate) < 2 * c.valSet.F() + 1) {
 		return errInvalidRoundChangeCertificate
 	}
 
+	var preparedCertificate PreparedCertificate
 	seen := make(map[common.Address]bool)
 	for k, message := range rc.RoundChangeCertificate {
 		// Verify message signed by a validator
@@ -89,9 +90,10 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) 
 			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return errInvalidRoundChangeCertificate
 			}
+			preparedCertificate = roundChange.PreparedCertificate
 		}
 	}
-	return nil
+	return preparedCertificate, nil
 }
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
@@ -128,13 +130,16 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		if preprepare.RoundChangeCertificate == nil {
 			return errMissingRoundChangeCertificate
 		}
-		if err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate); err != nil {
+		if preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate); err != nil {
 			return err
 		}
 
-		// If there is a PREPARED certificate in at least one of the ROUND CHANGE messages, verify that
-		// a PREPARED certificate for the proposal exists.
-		// TODO(asa)
+		// If the ROUND CHANGE certificate includes a PREPARED certificate, the proposal must match.
+		if preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
+			// Send round change
+			c.sendNextRoundChange()
+			return errInvalidProposedBlock
+	  }
 	}
 
 	// Check if the message comes from current proposer
@@ -161,28 +166,11 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
-	// TODO(asa): Not sure what to do here
-	// Here is about to accept the PRE-PREPARE
+	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
-		// Send ROUND CHANGE if the locked proposal and the received proposal are different
-		if c.current.IsHashLocked() {
-			if preprepare.Proposal.Hash() == c.current.GetLockedHash() {
-				// Broadcast COMMIT and enters Prepared state directly
-				c.acceptPreprepare(preprepare)
-				c.setState(StatePrepared)
-				c.sendCommit()
-			} else {
-				// Send round change
-				c.sendNextRoundChange()
-			}
-		} else {
-			// Either
-			//   1. the locked proposal and the received proposal match
-			//   2. we have no locked proposal
-			c.acceptPreprepare(preprepare)
-			c.setState(StatePreprepared)
-			c.sendPrepare()
-		}
+		c.acceptPreprepare(preprepare)
+		c.setState(StatePrepared)
+		c.sendPrepare()
 	}
 
 	return nil
