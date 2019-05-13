@@ -27,16 +27,13 @@ import (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-// lockedHash and preprepare are for round change when lock exists,
-// we need to keep a reference of preprepare in order to propose locked proposal when there is a lock and itself is the proposer
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, lockedHash common.Hash, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
 		round:          view.Round,
 		sequence:       view.Sequence,
 		Preprepare:     preprepare,
 		Prepares:       newMessageSet(validatorSet),
 		Commits:        newMessageSet(validatorSet),
-		lockedHash:     lockedHash,
 		mu:             new(sync.RWMutex),
 		pendingRequest: pendingRequest,
 		hasBadProposal: hasBadProposal,
@@ -50,7 +47,6 @@ type roundState struct {
 	Preprepare     *istanbul.Preprepare
 	Prepares       *messageSet
 	Commits        *messageSet
-	lockedHash     common.Hash
 	pendingRequest *istanbul.Request
 
 	mu             *sync.RWMutex
@@ -135,37 +131,18 @@ func (s *roundState) Sequence() *big.Int {
 	return s.sequence
 }
 
-func (s *roundState) LockHash() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.Preprepare != nil {
-		s.lockedHash = s.Preprepare.Proposal.Hash()
-	}
-}
-
-func (s *roundState) UnlockHash() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.lockedHash = common.Hash{}
-}
-
-func (s *roundState) IsHashLocked() bool {
+func (s *roundState) GetPreparedCertificate(f int) istanbul.PreparedCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if (s.lockedHash == common.Hash{}) {
-		return false
+	if s.Prepares.Size() > 2*f {
+		return istanbul.PreparedCertificate{
+			Proposal:        s.Preprepare.Proposal,
+			PrepareMessages: s.Prepares.Values(),
+		}
+	} else {
+		return nil
 	}
-	return !s.hasBadProposal(s.GetLockedHash())
-}
-
-func (s *roundState) GetLockedHash() common.Hash {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.lockedHash
 }
 
 // The DecodeRLP method should read one value from the given

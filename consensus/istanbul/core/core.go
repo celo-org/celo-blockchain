@@ -209,18 +209,26 @@ func (c *core) startNewRound(round *big.Int) {
 			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
 			return
 		}
+		// else: Must be changing to round > 0, should extract PREPARE cert.
 		roundChange = true
 	} else {
 		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastProposal.Number().Int64())
 		return
 	}
 
+	var roundChangeCertificate []message
 	var newView *istanbul.View
+	var proposal *istanbul.Proposal
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
+		roundChangeCertificate = c.roundChangeSet.GetCertificate(round, c.valSet.F())
+		if roundChangeCertificate == nil {
+			// TODO(asa): Fail.
+		}
+		proposal = c.roundChangeSet.GetPreparedProposal(round)
 	} else {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
@@ -240,15 +248,15 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
-		// If it is locked, propose the old proposal
-		// If we have pending request, propose pending request
-		if c.current.IsHashLocked() {
+		if proposal != nil {
+			// If the round change contained a PREPARED certificate, we need to propose the proposal from
+			// that certificate.
 			r := &istanbul.Request{
-				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
+				Proposal: proposal,
 			}
-			c.sendPreprepare(r)
+			c.sendPreprepare(r, roundChangeCertificate)
 		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest)
+			c.sendPreprepare(c.current.pendingRequest, roundChangeCertificate)
 		}
 	}
 	c.newRoundChangeTimer()
@@ -272,17 +280,15 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
 }
 
-// updateRoundState updates round state by checking if locking block is necessary
+// updateRoundState updates round state.
+// set the preprepare in the new round state accordingly.
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
-	// Lock only if both roundChange is true and it is locked
+	// I think I can delete everything but the statement in the last "else", but I'm not sure why this
+	// is called the second time.
 	if roundChange && c.current != nil {
-		if c.current.IsHashLocked() {
-			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
-		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
-		}
+		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.backend.HasBadProposal)
 	} else {
-		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)
+		c.current = newRoundState(view, validatorSet, nil, nil, c.backend.HasBadProposal)
 	}
 }
 

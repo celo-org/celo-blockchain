@@ -23,15 +23,17 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) sendPreprepare(request *istanbul.Request) {
+// What happens with multiple round changes?
+func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate []message) {
 	logger := c.logger.New("state", c.state)
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
 		curView := c.currentView()
 		preprepare, err := Encode(&istanbul.Preprepare{
-			View:     curView,
-			Proposal: request.Proposal,
+			View:                   curView,
+			Proposal:               request.Proposal,
+			RoundChangeCertificate: roundChangeCertificate,
 		})
 		if err != nil {
 			logger.Error("Failed to encode", "view", curView)
@@ -43,6 +45,53 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 			Msg:  preprepare,
 		})
 	}
+}
+
+func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) error {
+	if (len(roundChangeCertificate) > c.valSet.Size() || len(roundChangeCertificate) < 2 * c.valSet.F() + 1) {
+		return errInvalidRoundChangeCertificate
+	}
+
+	seen := make(map[common.Address]bool)
+	for k, message := range rc.RoundChangeCertificate {
+		// Verify message signed by a validator
+		if signer, err := CheckValidatorSignature(c.valSet, message.Msg, message.Signature); err != nil {
+			return errInvalidRoundChangeCertificate
+		}
+
+		if signer != message.Address {
+			return errInvalidRoundChangeCertificate
+		}
+
+		// Check for duplicate messages
+		if seen[signer] {
+			return errInvalidRoundChangeCertificate
+		}
+		seen[signer] = true
+
+		// Check that the message is a Prepare message
+		if msgRoundChange != message.Code {
+			return errInvalidRoundChangeCertificate
+		}
+
+		var roundChange *istanbul.RoundChange
+		if err := msg.Decode(&roundChange); err != nil {
+			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
+			return errInvalidRoundChangeCertificate
+		}
+
+		// Verify prepare certificate for the proper view
+		if err := c.checkMessage(msgRoundChange, roundChange.View; err != nil {
+			return errInvalidRoundChangeCertificate
+		}
+
+		if roundChange.PreparedCertificate != nil {
+			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
+				return errInvalidRoundChangeCertificate
+			}
+		}
+	}
+	return nil
 }
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
@@ -74,6 +123,20 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
+	// If round > 0, validate the existence of a valid ROUND CHANGE certificate.
+	if preprepare.View.Round.Cmp(common.Big0) > 0 {
+		if preprepare.RoundChangeCertificate == nil {
+			return errMissingRoundChangeCertificate
+		}
+		if err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate); err != nil {
+			return err
+		}
+
+		// If there is a PREPARED certificate in at least one of the ROUND CHANGE messages, verify that
+		// a PREPARED certificate for the proposal exists.
+		// TODO(asa)
+	}
+
 	// Check if the message comes from current proposer
 	if !c.valSet.IsProposer(src.Address()) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
@@ -98,6 +161,7 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
+	// TODO(asa): Not sure what to do here
 	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {
 		// Send ROUND CHANGE if the locked proposal and the received proposal are different

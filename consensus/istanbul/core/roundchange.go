@@ -48,9 +48,9 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 	// Now we have the new round number and sequence number
 	cv = c.currentView()
-	rc := &istanbul.Subject{
-		View:   cv,
-		Digest: common.Hash{},
+	rc := &istanbul.RoundChange{
+		View: cv,
+		PreparedCertificate: c.roundState.GetPreparedCertificate(c.valSet.F())
 	}
 
 	payload, err := Encode(rc)
@@ -65,15 +65,76 @@ func (c *core) sendRoundChange(round *big.Int) {
 	})
 }
 
+func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	// Validate the attached proposal
+	if duration, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+		return errInvalidPreparedCertificate
+	}
+
+	if (len(preparedCertificate.PrepareMessages) > c.valSet.Size() || len(preparedCertificate.PrepareMessages) < 2 * c.valSet.F() + 1) {
+		return errInvalidPreparedCertificate
+	}
+
+	seen := make(map[common.Address]bool)
+	for k, message := range rc.PreparedCertificate.PrepareMessages {
+		// Verify message signed by a validator
+		if signer, err := CheckValidatorSignature(c.valSet, message.Msg, message.Signature); err != nil {
+			return errInvalidPreparedCertificate
+		}
+
+		if signer != message.Address {
+			return errInvalidPreparedCertificate
+		}
+
+		// Check for duplicate messages
+		if seen[signer] {
+			return errInvalidPreparedCertificate
+		}
+		seen[signer] = true
+
+		// Check that the message is a Prepare message
+		if msgPrepare != message.Code {
+			return errInvalidPreparedCertificate
+		}
+
+		var prepare *istanbul.Subject
+		if err := msg.Decode(&prepare); err != nil {
+			logger.Error("Failed to decode PREPARE in ROUND CHANGE", "err", err)
+			return errInvalidPreparedCertificate
+		}
+
+		// Verify prepare certificate for the proper view
+		if err := c.checkMessage(msgPrepare, prepare.View; err != nil {
+			return errInvalidPreparedCertificate
+		}
+
+		if prepare.Digest != rc.PreparedCertificate.Proposal.Hash() {
+			return errInvalidPreparedCertificate
+		}
+	}
+	return nil
+}
+
 func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 	logger := c.logger.New("state", c.state, "from", src.Address().Hex())
 
 	// Decode ROUND CHANGE message
-	var rc *istanbul.Subject
+	var rc *istanbul.RoundChange
 	if err := msg.Decode(&rc); err != nil {
 		logger.Error("Failed to decode ROUND CHANGE", "err", err)
 		return errInvalidMessage
 	}
+
+	// Iterate through the prepare certificate and check each message.
+	hasPreparedCertificate := false
+	if (rc.PreparedCertificate != nil) {
+		if err := VerifyPreparedCertificate(rc.PreparedCertificate); err != nil {
+			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
+			return err
+	  }
+		hasPreparedCertificate = true
+  }
+
 
 	if err := c.checkMessage(msgRoundChange, rc.View); err != nil {
 		return err
@@ -84,7 +145,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg)
+	num, err := c.roundChangeSet.Add(roundView.Round, msg, rc.PreparedCertificate.Proposal)
 	if err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
@@ -95,6 +156,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 	// try to catch up the round number.
 	if c.waitingForRoundChange && num == c.valSet.F()+1 {
 		if cv.Round.Cmp(roundView.Round) < 0 {
+			// TODO(asa): If we saw a prepare certificate, do we include one in our round change message?
 			c.sendRoundChange(roundView.Round)
 		}
 		return nil
@@ -114,6 +176,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
 		validatorSet: valSet,
+		preparedProposal: make(map[uint64]*istanbul.Proposal)
 		roundChanges: make(map[uint64]*messageSet),
 		mu:           new(sync.Mutex),
 	}
@@ -121,12 +184,13 @@ func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 
 type roundChangeSet struct {
 	validatorSet istanbul.ValidatorSet
+	preparedProposal map[uint64]*istanbul.Proposal
 	roundChanges map[uint64]*messageSet
 	mu           *sync.Mutex
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *message) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *message, proposal istanbul.Proposal) (int, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
@@ -138,6 +202,7 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	rcs.preparedProposal[round] = proposal
 	return rcs.roundChanges[round].Size(), nil
 }
 
@@ -150,6 +215,12 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 		if len(rms.Values()) == 0 || k < round.Uint64() {
 			delete(rcs.roundChanges, k)
 		}
+	}
+
+	for k, preparedProposal := range rcs.preparedProposal {
+		if preparedProposal != nil || k < round.Uint64() {
+			delete(rcs.preparedProposal, k)
+	  }
 	}
 }
 
@@ -169,4 +240,22 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 		}
 	}
 	return maxRound
+}
+
+func (rcs *roundChangeSet) GetCertificate(round int, f int) []message {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	if rcs.roundChanges[round].Size() > 2*f {
+		return rcs.roundChanges[round].Values()
+	} else {
+		return nil
+	}
+}
+
+func (rcs *roundChangeSet) GetPreparedProposal(round int) istanbul.Proposal {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	return rcs.preparedProposal[round]
 }
