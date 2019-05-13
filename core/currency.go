@@ -31,33 +31,32 @@ import (
 )
 
 const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Medianator.json
-	getExchangeRateABI = `[{"constant": true,
-                                "inputs": [
-                                     {
-                                         "name": "base",
-                                         "type": "address"
-                                     },
-                                     {
-                                         "name": "counter",
-                                         "type": "address"
-                                     }
-                                ],
-                                "name": "getExchangeRate",
-                                "outputs": [
-                                     {
-                                         "name": "",
-                                         "type": "uint256"
-                                     },
-                                     {
-                                         "name": "",
-                                         "type": "uint256"
-                                     }
-                                ],
-                                "payable": false,
-                                "stateMutability": "view",
-                                "type": "function"
-                               }]`
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/SortedOracles.json
+
+	medianRateABI = `[
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "medianRate",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint128"
+        },
+        {
+          "name": "",
+          "type": "uint128"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/ERC20.json
 	balanceOfABI = `[{"constant": true,
@@ -99,9 +98,9 @@ var (
 	cgExchangeRateNum = big.NewInt(1)
 	cgExchangeRateDen = big.NewInt(1)
 
-	getExchangeRateFuncABI, _ = abi.JSON(strings.NewReader(getExchangeRateABI))
-	balanceOfFuncABI, _       = abi.JSON(strings.NewReader(balanceOfABI))
-	getWhitelistFuncABI, _    = abi.JSON(strings.NewReader(getWhitelistABI))
+	medianRateFuncABI, _   = abi.JSON(strings.NewReader(medianRateABI))
+	balanceOfFuncABI, _    = abi.JSON(strings.NewReader(balanceOfABI))
+	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
 
 	errExchangeRateCacheMiss = errors.New("exchange rate cache miss")
 )
@@ -160,17 +159,17 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	return leftSide.Cmp(rightSide)
 }
 
-// This function will retrieve the exchange rates from the Medianator contract and cache them.
-// Medianator must have a function with the following signature:
-// "function getExchangeRate(address, address)"
+// This function will retrieve the exchange rates from the SortedOracles contract and cache them.
+// SortedOracles must have a function with the following signature:
+// "function medianRate(address)"
 func (pc *PriceComparator) retrieveExchangeRates() {
 	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
 	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	medianatorAddress := pc.regAdd.GetRegisteredAddress(params.MedianatorRegistryId)
+	sortedOraclesAddress := pc.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
-	if medianatorAddress == nil {
-		log.Error("Can't get the medianator smart contract address from the registry")
+	if sortedOraclesAddress == nil {
+		log.Error("Can't get the sortedOracles smart contract address from the registry")
 		return
 	}
 
@@ -188,21 +187,23 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 
 		var returnArray [2]*big.Int
 
-		log.Trace("PriceComparator.retrieveExchangeRates - Calling getExchangeRate", "medianatorAddress", medianatorAddress.Hex(),
+		log.Trace("PriceComparator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
 			"gas currency", gasCurrencyAddress.Hex())
 
-		if leftoverGas, err := pc.iEvmH.makeCall(*medianatorAddress, getExchangeRateFuncABI, "getExchangeRate", []interface{}{celoGoldAddress, gasCurrencyAddress}, &returnArray, 20000); err != nil {
-			log.Error("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation error", "leftoverGas", leftoverGas, "err", err)
+		if leftoverGas, err := pc.iEvmH.makeCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000); err != nil {
+			log.Error("PriceComparator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("PriceComparator.retrieveExchangeRates - Medianator.getExchangeRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+			log.Trace("PriceComparator.retrieveExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
 
 			if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
 				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
 			}
 
-			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
-			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
+			// Price comparator stores the amount of Gold as the numerator, and the amount of
+			// gasCurrencyAddress as the denominator, whereas SortedOracles does the opposite.
+			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[1]
+			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[0]
 		}
 	}
 }
