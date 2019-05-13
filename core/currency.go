@@ -32,7 +32,6 @@ import (
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/SortedOracles.json
-
 	medianRateABI = `[
     {
       "constant": true,
@@ -117,6 +116,7 @@ type PriceComparator struct {
 	iEvmH         *InternalEVMHandler
 }
 
+// Returns the price of gold in the provided currency.
 func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*big.Int, *big.Int, error) {
 	if currency == nil {
 		return cgExchangeRateNum, cgExchangeRateDen, nil
@@ -151,11 +151,11 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	}
 
 	// Below code block is basically evaluating this comparison:
-	// val1 * exchangeRate1Num/exchangeRate1Den < val2 * exchangeRate2Num/exchangeRate2Den
+	// val1 / exchangeRate1Num/exchangeRate1Den < val2 / exchangeRate2Num/exchangeRate2Den
 	// It will transform that comparison to this, to remove having to deal with fractional values.
-	// val1 * exchangeRate1Num * exchangeRate2Den < val2 * exchangeRate2Num * exchangeRate1Den
-	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1Num, exchangeRate2Den))
-	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2Num, exchangeRate1Den))
+	// val1 * exchangeRate2Num * exchangeRate1Den < val2 * exchangeRate1Num * exchangeRate2Den
+	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate2Num, exchangeRate1Den))
+	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate1Num, exchangeRate2Den))
 	return leftSide.Cmp(rightSide)
 }
 
@@ -200,10 +200,8 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
 			}
 
-			// Price comparator stores the amount of Gold as the numerator, and the amount of
-			// gasCurrencyAddress as the denominator, whereas SortedOracles does the opposite.
-			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[1]
-			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[0]
+			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
+			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
 		}
 	}
 }
