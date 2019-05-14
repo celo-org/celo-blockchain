@@ -57,17 +57,9 @@ func (c *core) handlePrepare(msg *message, src istanbul.Validator) error {
 
 	c.acceptPrepare(msg, src)
 
-	// TODO(asa): This is tricky. The second expression (if received > 2*f messages, send commit) is clear,
-	// but the first isn't. What it's saying is that if it locked on a block in the past, it should be ready
-	// to broadcast commits for it. This makes me wonder what we should do in the case of round changes
-	// with prepare certs. Can we just insert all the prepares from the get-go?
-	// Because the prepare certs include the round, we can't just use them directly.
-
-	// Change to Prepared state if we've received enough PREPARE messages or it is locked
-	// and we are in earlier state before Prepared state.
-	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() > 2*c.valSet.F()) &&
-		c.state.Cmp(StatePrepared) < 0 {
-		c.current.LockHash()
+	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
+	// before Prepared state.
+	if (c.current.GetPrepareOrCommitSize() > 2*c.valSet.F()) && c.state.Cmp(StatePrepared) < 0 {
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}

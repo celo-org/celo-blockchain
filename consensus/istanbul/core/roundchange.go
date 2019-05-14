@@ -92,7 +92,7 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 		}
 		seen[signer] = true
 
-		// Check that the message is a Prepare message
+		// Check that the message is a PREPARE message
 		if msgPrepare != message.Code {
 			return errInvalidPreparedCertificate
 		}
@@ -103,7 +103,7 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 			return errInvalidPreparedCertificate
 		}
 
-		// Verify prepare certificate for the proper view
+		// Verify PREPARE message for the proper view
 		if err := c.checkMessage(msgPrepare, prepare.View; err != nil {
 			return errInvalidPreparedCertificate
 		}
@@ -125,14 +125,12 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		return errInvalidMessage
 	}
 
-	// Iterate through the prepare certificate and check each message.
-	hasPreparedCertificate := false
+	// Validate the PREPARED certificate if present.
 	if (rc.PreparedCertificate != nil) {
 		if err := VerifyPreparedCertificate(rc.PreparedCertificate); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 			return err
 	  }
-		hasPreparedCertificate = true
   }
 
 
@@ -156,7 +154,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 	// try to catch up the round number.
 	if c.waitingForRoundChange && num == c.valSet.F()+1 {
 		if cv.Round.Cmp(roundView.Round) < 0 {
-			// TODO(asa): If we saw a prepare certificate, do we include one in our round change message?
+			// TODO(asa): If we saw a PREPARED certificate, do we include one in our round change message?
 			c.sendRoundChange(roundView.Round)
 		}
 		return nil

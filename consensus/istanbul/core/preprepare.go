@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-// What happens with multiple round changes?
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate []message) {
 	logger := c.logger.New("state", c.state)
 
@@ -64,13 +63,13 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) 
 			return errInvalidRoundChangeCertificate
 		}
 
-		// Check for duplicate messages
+		// Check for duplicate ROUND CHANGE messages
 		if seen[signer] {
 			return errInvalidRoundChangeCertificate
 		}
 		seen[signer] = true
 
-		// Check that the message is a Prepare message
+		// Check that the message is a ROUND CHANGE message
 		if msgRoundChange != message.Code {
 			return errInvalidRoundChangeCertificate
 		}
@@ -81,11 +80,12 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) 
 			return errInvalidRoundChangeCertificate
 		}
 
-		// Verify prepare certificate for the proper view
+		// Verify ROUND CHANGE message is for the proper view
 		if err := c.checkMessage(msgRoundChange, roundChange.View; err != nil {
 			return errInvalidRoundChangeCertificate
 		}
 
+		// Check the PREPARED certificate if present
 		if roundChange.PreparedCertificate != nil {
 			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return errInvalidRoundChangeCertificate
