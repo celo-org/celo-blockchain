@@ -224,18 +224,18 @@ func (c *core) startNewRound(round *big.Int) {
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
+		c.roundChangeSet.Clear(round)
 	} else {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+		c.roundChangeSet = newRoundChangeSet(c.valSet)
 	}
 
 	// Update logger
 	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// Clear invalid ROUND CHANGE messages
-	c.roundChangeSet = newRoundChangeSet(c.valSet)
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
@@ -256,7 +256,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcs", c.roundChangeSet)
 }
 
 func (c *core) catchUpRound(view *istanbul.View) {
