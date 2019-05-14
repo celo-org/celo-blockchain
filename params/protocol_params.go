@@ -18,8 +18,6 @@ package params
 
 import (
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -94,6 +92,14 @@ const (
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
 	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	GetCoinbaseGas         uint64 = 20   // Equivalent to the cost of the BLOCKHASH op
+
+	// Celo registered contracts names.
+	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
+	GoldTokenRegistryId              = "GoldToken"
+	AddressBasedEncryptionRegistryId = "AddressBasedEncryption"
+	ReserveRegistryId                = "Reserve"
+	MedianatorRegistryId             = "Medianator"
+	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
 )
 
 var (
@@ -101,14 +107,6 @@ var (
 	GenesisDifficulty      = big.NewInt(131072) // Difficulty of the Genesis block.
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
-)
-
-var (
-	CeloGoldAddress                      = common.HexToAddress("0x000000000000000000000000000000000000ce10") // Address of the celo gold proxy contract.
-	AuthorizedRequestVerificationAddress = common.HexToAddress("0x0000000000000000000000000000000000000ABE") // Address of the contract authorized to call the requestVerification precompiled contract.
-	ReserveAddress                       = common.HexToAddress("0x000000000000000000000000000000000000601d") // Address of the reserve proxy contract.
-	MedianatorAddress                    = common.HexToAddress("0x00000000000000000000000000000000044ed1a4") // Address of the medianator proxy contract.
-	GasCurrencyWhitelistAddress          = common.HexToAddress("0x00000000000000000000000000000000000006a5") // Address of the gas currency whitelist proxy contract.
 )
 
 const (

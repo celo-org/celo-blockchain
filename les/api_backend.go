@@ -107,7 +107,8 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 
 func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
-	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
+
+	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 
@@ -202,5 +203,9 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 }
 
 func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
+	return nil
+}
+
+func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
 	return nil
 }

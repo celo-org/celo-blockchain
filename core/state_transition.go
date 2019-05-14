@@ -222,7 +222,7 @@ func (st *StateTransition) canBuyGas(
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
 	}
-	balanceOf, gasUsed, err := GetBalanceOf(accountOwner, gasCurrency, st.evm, st.gas+st.msg.Gas())
+	balanceOf, gasUsed, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
 	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(),
 		"gas used", gasUsed, "error", err)
 	if err != nil {
