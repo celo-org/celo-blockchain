@@ -80,7 +80,9 @@ type Backend struct {
 	currentBlock     func() *types.Block
 	hasBadBlock      func(hash common.Hash) bool
 	stateAt          func(hash common.Hash) (*state.StateDB, error)
-	processBlock     func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+
+	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -89,7 +91,7 @@ type Backend struct {
 	coreStarted       bool
 	coreMu            sync.RWMutex
 
-	// Snapshots for recent block to speed up reorgs
+	// Snapshots for recent blocks to speed up reorgs
 	recents *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
@@ -242,9 +244,33 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 	}
 
+	// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
+	// Get the state from this block's parent.
+	state, err := sb.stateAt(block.Header().ParentHash)
+	if err != nil {
+		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
+		return 0, err
+	}
+
+	// Make a copy of the state
+	state = state.Copy()
+
+	// Apply this block's transactions to update the state
+	receipts, _, usedGas, err := sb.processBlock(block, state)
+	if err != nil {
+		log.Error("verify - Error in processing the block")
+		return 0, err
+	}
+
+	// Validate the block
+	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
+		log.Error("verify - Error in validating the block")
+		return 0, err
+	}
+
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
-		if err := sb.VerifyValSetDiff(proposal, block); err != nil {
+		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
 			return 0, err
 		}
 	}
@@ -252,7 +278,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, err
 }
 
-func (sb *Backend) VerifyValSetDiff(proposal istanbul.Proposal, block *types.Block) error {
+func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
 	header := block.Header()
 
 	// Ensure that the extra data format is satisfied
@@ -261,28 +287,12 @@ func (sb *Backend) VerifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	validatorsAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorElectionAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
 
-	if validatorsAddress != nil {
-		// Get the state from this block's parent.
-		state, err := sb.stateAt(block.Header().ParentHash)
-		if err != nil {
-			log.Error("VerifyValSetDiff - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
-			return err
-		}
-
-		// Make a copy of the state
-		state = state.Copy()
-
-		// Apply this block's transactions to update the state
-		if _, _, _, err := sb.processBlock(block, state); err != nil {
-			log.Error("VerifyValSetDiff - Error in processing the block")
-			return err
-		}
-
+	if validatorElectionAddress != nil {
 		var newValSet []common.Address
-		if _, err := sb.iEvmH.MakeCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
-			log.Error("VerifyValSetDiff - Error in getting the validator set from the validators smart contract")
+		if _, err := sb.iEvmH.MakeCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
+			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
 			return err
 		}
 
@@ -302,7 +312,7 @@ func (sb *Backend) VerifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		// The validator election smart contract is not registered yet, so the validator set diff should be empty
 
 		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("VerifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
 		}
 	}

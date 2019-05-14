@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -62,8 +63,46 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	return common.Address{}, ErrUnauthorizedAddress
 }
 
-func IsLastBlockOfEpoch(number uint64, epoch uint64) bool {
-	return number == 0 || (number%epoch) == (epoch-1)
+// Retrieves the block number within an epoch.  The return value will be 0-based.
+// There is a special case if the number == 0.  It is basically the last block of the 0th epoch.
+func getNumberWithinEpoch(number uint64, epochSize uint64) uint64 {
+	if number == 0 {
+		return epochSize - 1
+	} else {
+		return (number % epochSize) - 1
+	}
+}
+
+func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
+	return getNumberWithinEpoch(number, epochSize) == (epochSize - 1)
+}
+
+// Retrieves the epoch number given the block number.
+// There is a special case if the number == 0 (the genesis block).  That block will be in the
+// 1st epoch.
+func GetEpochNumber(number uint64, epochSize uint64) uint64 {
+	if number == 0 {
+		return 1
+	} else {
+		return (number / epochSize) + 1
+	}
+}
+
+func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, error) {
+	if epochNumber == 0 {
+		return 0, errors.New("No first block for epoch 0")
+	}
+
+	return ((epochNumber - 1) * epochSize) + 1, nil
+}
+
+func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
+	if epochNumber == 0 {
+		return 0
+	}
+
+	firstBlockNum, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
+	return firstBlockNum + (epochSize - 1)
 }
 
 func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([]common.Address, []common.Address) {

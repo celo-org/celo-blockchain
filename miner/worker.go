@@ -288,6 +288,9 @@ func (w *worker) start() {
 			func(parentHash common.Hash) (*state.StateDB, error) { return w.chain.StateAt(parentHash) },
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
 			})
 	}
 }

@@ -140,7 +140,9 @@ type Istanbul interface {
 	Engine
 
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool, stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)) error
+	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error

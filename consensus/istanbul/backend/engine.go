@@ -19,7 +19,6 @@ package backend
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -41,10 +40,9 @@ import (
 )
 
 const (
-	checkpointInterval = 1024 // Number of blocks after which to save the vote snapshot to the database
-	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
-	inmemoryPeers      = 40
-	inmemoryMessages   = 1024
+	inmemorySnapshots = 128 // Number of recent vote snapshots to keep in memory
+	inmemoryPeers     = 40
+	inmemoryMessages  = 1024
 )
 
 var (
@@ -512,7 +510,9 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 }
 
 // Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool, stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error)) error {
+func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -531,6 +531,7 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	sb.hasBadBlock = hasBadBlock
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock
+	sb.validateState = validateState
 
 	if err := sb.core.Start(); err != nil {
 		return err
@@ -554,113 +555,117 @@ func (sb *Backend) Stop() error {
 	return nil
 }
 
-// snapshot retrieves the authorization snapshot at a given point in time.
+// snapshot retrieves the validator set needed to sign off on a given block number
+// hash - The requested snapshot's block's hash
+// number - The requested snapshot's block number
+// parents - Optional argument:  An array of headers from directly previous blocks.
 func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
-	// Search for a snapshot in memory or on disk for checkpoints
+	// Search for a snapshot in memory or on disk
 	var (
-		headers []*types.Header
-		snap    *Snapshot
+		headers   []*types.Header
+		header    *types.Header
+		snap      *Snapshot
+		epochIter uint64
+		blockHash common.Hash
 	)
 
-	initialNumber := number
+	numberIter := number
 
-	// If the block number is not the last block of an epoch, then adjust it (and the parents array) to be so.
-	// Only those epochs' last block have any relevant information for the validator set.
-	if !istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) {
-		numberInEpoch := number % sb.config.Epoch
-
-		// Adjust to first block of the epoch
-		number -= numberInEpoch
-		if len(parents) > 0 {
-			if len(parents) > int(numberInEpoch) {
-				parents = parents[:len(parents)-int(numberInEpoch)]
-			} else {
-				parents = []*types.Header{}
-			}
-		}
+	// If numberIter is not the last block of an epoch, then adjust it to be the last block of the previous epoch
+	if !istanbul.IsLastBlockOfEpoch(numberIter, sb.config.Epoch) {
+		epochNum := istanbul.GetEpochNumber(numberIter, sb.config.Epoch)
+		numberIter = istanbul.GetEpochLastBlockNumber(epochNum-1, sb.config.Epoch)
 	}
 
-	for snap == nil {
+	// Retrieve the most recent cached or on disk snapshot.
+	for ; ; numberIter = numberIter - sb.config.Epoch {
 		// If an in-memory snapshot was found, use that
-		if s, ok := sb.recents.Get(hash); ok {
+		if s, ok := sb.recents.Get(numberIter); ok {
 			snap = s.(*Snapshot)
 			break
 		}
-		// If an on-disk checkpoint snapshot can be found, use that
-		if number%checkpointInterval == 0 {
-			if s, err := loadSnapshot(sb.config.Epoch, sb.db, hash); err == nil {
-				log.Trace("Loaded voting snapshot form disk", "number", number, "hash", hash)
-				snap = s
-				break
-			}
+
+		if numberIter == number {
+			blockHash = hash
+		} else {
+			blockHash = chain.GetHeaderByNumber(numberIter).Hash()
 		}
-		// If we're at block zero, make a snapshot
-		if number == 0 {
-			genesis := chain.GetHeaderByNumber(0)
-			if err := sb.VerifyHeader(chain, genesis, false); err != nil {
-				return nil, err
-			}
-			istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
-			if err != nil {
-				return nil, err
-			}
-			snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, sb.config.ProposerPolicy))
-			if err := snap.store(sb.db); err != nil {
-				return nil, err
-			}
-			log.Trace("Stored genesis voting snapshot to disk")
+
+		if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
+			log.Trace("Loaded voting snapshot form disk", "number", numberIter, "hash", blockHash)
+			snap = s
 			break
 		}
-		// No snapshot for this header, gather the header and move backward
-		var header *types.Header
-		if len(parents) > 0 {
-			// If we have explicit parents, pick from there (enforced)
-			header = parents[len(parents)-1]
-			if header.Hash() != hash || header.Number.Uint64() != number {
-				return nil, consensus.ErrUnknownAncestor
-			}
-			if len(parents) > int(sb.config.Epoch) {
-				parents = parents[:len(parents)-int(sb.config.Epoch)]
-			} else {
-				parents = []*types.Header{}
-			}
-		} else {
-			// No explicit parents (or no more left), reach out to the database
-			header = chain.GetHeader(hash, number)
-			if chain.Config().FullHeaderChainAvailable && header == nil {
-				return nil, consensus.ErrUnknownAncestor
-			}
-		}
-		if header != nil {
-			headers = append(headers, header)
-			number, hash = number-sb.config.Epoch, header.ParentHash
-		} else if !chain.Config().FullHeaderChainAvailable {
-			number = number - sb.config.Epoch
-		}
 
-		// Check to see if we "underflowed".  We should never go below zero.
-		if number > initialNumber {
-			panic(fmt.Sprintf("There is a bug in the code!  We have iterated too far back.  Number: %d", number))
+		if numberIter == 0 {
+			break
 		}
 	}
-	// Previous snapshot found, apply any pending headers on top of it.  This loop is reversing the headers array.
-	for i := 0; i < len(headers)/2; i++ {
-		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
-	}
-	snap, err := snap.apply(headers, chain.Config().FullHeaderChainAvailable)
-	if err != nil {
-		return nil, err
-	}
-	sb.recents.Add(snap.Hash, snap)
 
-	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
-		if err = snap.store(sb.db); err != nil {
+	// If snapshot is still nil, then create a snapshot from genesis block
+	if snap == nil {
+		genesis := chain.GetHeaderByNumber(0)
+
+		if err := sb.VerifyHeader(chain, genesis, false); err != nil {
 			return nil, err
 		}
-		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
+
+		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
+		if err != nil {
+			return nil, err
+		}
+
+		// The genesis block should have an empty RemovedValidators set.  If not, throw an error
+		if len(istanbulExtra.RemovedValidators) > 0 {
+			log.Trace("Genesis block has a non empty RemovedValidators set")
+			return nil, errInvalidValidatorSetDiff
+		}
+
+		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, sb.config.ProposerPolicy))
+
+		if err := snap.store(sb.db); err != nil {
+			return nil, err
+		}
+
+		log.Trace("Stored genesis voting snapshot to disk")
 	}
-	return snap, err
+
+	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
+	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
+	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
+	minParentsBlockNumber := number - uint64(len(parents)) + 1
+	for numberIter+sb.config.Epoch <= number {
+		numberIter += sb.config.Epoch
+
+		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
+			header = parents[numberIter-minParentsBlockNumber]
+		} else {
+			header = chain.GetHeaderByNumber(numberIter)
+		}
+
+		headers = append(headers, header)
+	}
+
+	if len(headers) > 0 {
+	        var err error
+		snap, err = snap.apply(headers, sb.db)
+		if err != nil {
+			return nil, err
+		}
+
+		sb.recents.Add(numberIter, snap)
+		log.Trace("Stored voting snapshot to cache", "number", numberIter, "hash", snap.Hash)
+	}
+
+	// Make a copy of the snapshot to return, since a few fields will be modified.
+	// The original snap is probably stored within the LRU cache, so we don't want to
+	// modify that one.
+	returnSnap := snap.copy()
+
+	returnSnap.Number = number
+	returnSnap.Hash = hash
+
+	return returnSnap, nil
 }
 
 // FIXME: Need to update this for Istanbul

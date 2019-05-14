@@ -34,7 +34,7 @@ const (
 
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
-	Epoch uint64 // The number of blocks after which to checkpoint and reset the pending votes
+	Epoch uint64 // The number of blocks for each epoch
 
 	Number uint64                // Block number where the snapshot was created
 	Hash   common.Hash           // Block hash where the snapshot was created
@@ -92,21 +92,20 @@ func (s *Snapshot) copy() *Snapshot {
 
 // apply creates a new authorization snapshot by applying the given headers to
 // the original one.
-func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool) (*Snapshot, error) {
+func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
 		return s, nil
 	}
+
 	// Sanity check that the headers can be applied
-	if fullHeaderChainAvailable {
-		for i := 0; i < len(headers)-1; i++ {
-			if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+s.Epoch {
-				return nil, errInvalidVotingChain
-			}
-		}
-		if headers[0].Number.Uint64() != s.Number+s.Epoch {
+	for i := 0; i < len(headers)-1; i++ {
+		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+s.Epoch {
 			return nil, errInvalidVotingChain
 		}
+	}
+	if headers[0].Number.Uint64() != s.Number+s.Epoch {
+		return nil, errInvalidVotingChain
 	}
 
 	// Iterate through the headers and create a new snapshot
@@ -137,9 +136,13 @@ func (s *Snapshot) apply(headers []*types.Header, fullHeaderChainAvailable bool)
 			log.Error("Error in removing the header's RemovedValidators")
 			return nil, errInvalidValidatorSetDiff
 		}
+
+		snap.Epoch = s.Epoch
+		snap.Number += s.Epoch
+		snap.Hash = header.Hash()
+		snap.store(db)
+		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
-	snap.Number += uint64(len(headers)) * s.Epoch
-	snap.Hash = headers[len(headers)-1].Hash()
 
 	return snap, nil
 }
