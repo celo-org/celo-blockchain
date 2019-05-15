@@ -215,7 +215,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 
 	var newView *istanbul.View
-	var roundChangeCertificate []istanbul.Message
+	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var preparedProposal istanbul.Proposal
 	if roundChange {
 		newView = &istanbul.View{
@@ -223,9 +223,10 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int).Set(round),
 		}
 
-		roundChangeCertificate = c.roundChangeSet.GetCertificate(round, c.valSet.F())
-		if roundChangeCertificate == nil {
-			logger.Error("Unable to produce round change certificate", "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
+		var err error
+		roundChangeCertificate, err = c.roundChangeSet.GetCertificate(round, c.valSet.F())
+		if err != nil {
+			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
 			return
 		}
 		preparedProposal = c.roundChangeSet.GetPreparedProposal(round)

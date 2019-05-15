@@ -92,10 +92,18 @@ func (v *View) Cmp(y *View) int {
 	return 0
 }
 
+type RoundChangeCertificate struct {
+	RoundChangeMessages []Message
+}
+
 type Preprepare struct {
 	View                   *View
 	Proposal               Proposal
-	RoundChangeCertificate []Message
+	RoundChangeCertificate RoundChangeCertificate
+}
+
+func (b *Preprepare) HasRoundChangeCertificate() bool {
+	return len(b.RoundChangeCertificate.RoundChangeMessages) > 0
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
@@ -108,7 +116,7 @@ func (b *Preprepare) DecodeRLP(s *rlp.Stream) error {
 	var preprepare struct {
 		View                   *View
 		Proposal               *types.Block
-		RoundChangeCertificate []Message
+		RoundChangeCertificate RoundChangeCertificate
 	}
 
 	if err := s.Decode(&preprepare); err != nil {
@@ -146,6 +154,10 @@ func (b *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 type RoundChange struct {
 	View                *View
 	PreparedCertificate PreparedCertificate
+}
+
+func (b *RoundChange) HasPreparedCertificate() bool {
+	return len(b.PreparedCertificate.PrepareMessages) > 0
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.

@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate []istanbul.Message) {
+func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
 	logger := c.logger.New("state", c.state)
 
 	// If I'm the proposer and I have the same sequence with the proposal
@@ -47,16 +47,16 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []istanbul.Message) (istanbul.PreparedCertificate, error) {
+func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (*istanbul.PreparedCertificate, error) {
 	logger := c.logger.New("state", c.state)
 
-	if len(roundChangeCertificate) > c.valSet.Size() || len(roundChangeCertificate) < 2*c.valSet.F()+1 {
+	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
 		return nil, errInvalidRoundChangeCertificate
 	}
 
-	var preparedCertificate istanbul.PreparedCertificate
+	var preparedCertificate *istanbul.PreparedCertificate
 	seen := make(map[common.Address]bool)
-	for k, message := range roundChangeCertificate {
+	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		// Verify message signed by a validator
 		signer, err := istanbul.CheckValidatorSignature(c.valSet, message.Msg, message.Signature)
 		if err != nil {
@@ -90,11 +90,11 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []istanbul.
 		}
 
 		// Check the PREPARED certificate if present
-		if roundChange.PreparedCertificate != nil {
+		if roundChange.HasPreparedCertificate() {
 			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return nil, errInvalidRoundChangeCertificate
 			}
-			preparedCertificate = roundChange.PreparedCertificate
+			preparedCertificate = &roundChange.PreparedCertificate
 		}
 	}
 	return preparedCertificate, nil
@@ -131,7 +131,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// If round > 0, validate the existence of a valid ROUND CHANGE certificate.
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		if preprepare.RoundChangeCertificate == nil {
+		if preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
 		preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate)

@@ -136,12 +136,16 @@ func (s *roundState) GetPreparedCertificate(f int) istanbul.PreparedCertificate 
 	defer s.mu.RUnlock()
 
 	if s.Prepares.Size() > 2*f {
+		messages := make([]istanbul.Message, s.Prepares.Size())
+		for i, message := range s.Prepares.Values() {
+			messages[i] = *message
+		}
 		return istanbul.PreparedCertificate{
 			Proposal:        s.Preprepare.Proposal,
-			PrepareMessages: s.Prepares.Values(),
+			PrepareMessages: messages,
 		}
 	} else {
-		return nil
+		return istanbul.PreparedCertificate{}
 	}
 }
 
@@ -155,7 +159,6 @@ func (s *roundState) DecodeRLP(stream *rlp.Stream) error {
 		Preprepare     *istanbul.Preprepare
 		Prepares       *messageSet
 		Commits        *messageSet
-		lockedHash     common.Hash
 		pendingRequest *istanbul.Request
 	}
 
@@ -167,7 +170,6 @@ func (s *roundState) DecodeRLP(stream *rlp.Stream) error {
 	s.Preprepare = ss.Preprepare
 	s.Prepares = ss.Prepares
 	s.Commits = ss.Commits
-	s.lockedHash = ss.lockedHash
 	s.pendingRequest = ss.pendingRequest
 	s.mu = new(sync.RWMutex)
 
@@ -192,7 +194,6 @@ func (s *roundState) EncodeRLP(w io.Writer) error {
 		s.Preprepare,
 		s.Prepares,
 		s.Commits,
-		s.lockedHash,
 		s.pendingRequest,
 	})
 }

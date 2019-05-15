@@ -16,6 +16,10 @@
 
 package core
 
+import (
+	"github.com/ethereum/go-ethereum/rlp"
+)
+
 type Engine interface {
 	Start() error
 	Stop() error

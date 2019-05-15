@@ -69,7 +69,7 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 	logger := c.logger.New("state", c.state)
 
 	// Validate the attached proposal
-	if duration, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
 		return errInvalidPreparedCertificate
 	}
 
@@ -78,7 +78,7 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 	}
 
 	seen := make(map[common.Address]bool)
-	for k, message := range preparedCertificate.PrepareMessages {
+	for _, message := range preparedCertificate.PrepareMessages {
 		// Verify message signed by a validator
 		signer, err := istanbul.CheckValidatorSignature(c.valSet, message.Msg, message.Signature)
 		if err != nil {
@@ -129,7 +129,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	}
 
 	// Validate the PREPARED certificate if present.
-	if rc.PreparedCertificate != nil {
+	if rc.HasPreparedCertificate() {
 		if err := c.ValidatePreparedCertificate(rc.PreparedCertificate); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 			return err
@@ -242,19 +242,21 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	return maxRound
 }
 
-func (rcs *roundChangeSet) GetCertificate(r *big.Int, f int) []istanbul.Message {
+func (rcs *roundChangeSet) GetCertificate(r *big.Int, f int) (istanbul.RoundChangeCertificate, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
 	if rcs.roundChanges[round].Size() > 2*f {
-		certificate := make([]istanbul.Message, rcs.roundChanges[round].Size())
+		messages := make([]istanbul.Message, rcs.roundChanges[round].Size())
 		for i, message := range rcs.roundChanges[round].Values() {
-			certificate[i] = *message
+			messages[i] = *message
 		}
-		return certificate
+		return istanbul.RoundChangeCertificate{
+			RoundChangeMessages: messages,
+		}, nil
 	} else {
-		return nil
+		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 	}
 }
 
