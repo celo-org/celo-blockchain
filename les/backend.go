@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/light"
@@ -151,12 +150,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg); err != nil {
 		return nil, err
 	}
-	leth.ApiBackend = &LesApiBackend{leth, nil}
-	gpoParams := config.GPO
-	if gpoParams.Default == nil {
-		gpoParams.Default = config.MinerGasPrice
-	}
-	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
+	leth.ApiBackend = &LesApiBackend{leth}
 	return leth, nil
 }
 

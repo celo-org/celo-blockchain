@@ -150,7 +150,8 @@ func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, c
 }
 
 func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-  return pc.Convert(val, currencyFrom, &params.CeloGoldAddress)
+  celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+  return pc.Convert(val, currencyFrom, celoGoldAddress)
 }
 
 // Question: How do we deal with input validation for here (and in general?)

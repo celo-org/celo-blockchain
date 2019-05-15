@@ -19,6 +19,7 @@ package les
 import (
 	"context"
 	"math/big"
+  "errors"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/light"
@@ -40,7 +40,6 @@ import (
 
 type LesApiBackend struct {
 	eth *LightEthereum
-	gpo *gasprice.Oracle
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {
@@ -173,7 +172,7 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestPrice(ctx)
+  return nil, errors.New("Not Implemented Error: Light Celo Subprotocol does not implement Gas Price Suggestion. Use the GasPriceOracle insteal") 
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
