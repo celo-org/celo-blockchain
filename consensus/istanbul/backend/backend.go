@@ -84,7 +84,6 @@ type Backend struct {
 
 	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
-	iEvmH            *core.InternalEVMHandler // Evm for calling smart contracts during consensus operations
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -102,7 +101,7 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	iEvmH  *core.InternalEVMHandler
+	iEvmH  *core.InternalEVMHandler // Evm for calling smart contracts during consensus operations
 	regAdd *core.RegisteredAddresses
 }
 
