@@ -565,7 +565,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		headers   []*types.Header
 		header    *types.Header
 		snap      *Snapshot
-		epochIter uint64
 		blockHash common.Hash
 	)
 
@@ -647,7 +646,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	}
 
 	if len(headers) > 0 {
-	        var err error
+		var err error
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
 			return nil, err
