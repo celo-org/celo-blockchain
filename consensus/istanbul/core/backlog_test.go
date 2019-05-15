@@ -41,13 +41,13 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 	// invalid view format
-	err := c.checkMessage(msgPreprepare, nil)
+	err := c.checkMessage(istanbul.MsgPreprepare, nil)
 	if err != errInvalidMessage {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
 	}
 
 	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted}
-	testCode := []uint64{msgPreprepare, msgPrepare, msgCommit, msgRoundChange}
+	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
 	// future sequence
 	v := &istanbul.View{
@@ -73,7 +73,7 @@ func TestCheckMessage(t *testing.T) {
 		c.state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == msgRoundChange {
+			if testCode[j] == istanbul.MsgRoundChange {
 				if err != nil {
 					t.Errorf("error mismatch: have %v, want nil", err)
 				}
@@ -93,7 +93,7 @@ func TestCheckMessage(t *testing.T) {
 		c.state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == msgRoundChange {
+			if testCode[j] == istanbul.MsgRoundChange {
 				if err != nil {
 					t.Errorf("error mismatch: have %v, want nil", err)
 				}
@@ -109,11 +109,11 @@ func TestCheckMessage(t *testing.T) {
 	c.state = StateAcceptRequest
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == msgRoundChange {
+		if testCode[i] == istanbul.MsgRoundChange {
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
-		} else if testCode[i] == msgPreprepare {
+		} else if testCode[i] == istanbul.MsgPreprepare {
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
@@ -128,7 +128,7 @@ func TestCheckMessage(t *testing.T) {
 	c.state = StatePreprepared
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == msgRoundChange {
+		if testCode[i] == istanbul.MsgRoundChange {
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
@@ -141,7 +141,7 @@ func TestCheckMessage(t *testing.T) {
 	c.state = StatePrepared
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == msgRoundChange {
+		if testCode[i] == istanbul.MsgRoundChange {
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
@@ -154,7 +154,7 @@ func TestCheckMessage(t *testing.T) {
 	c.state = StateCommitted
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == msgRoundChange {
+		if testCode[i] == istanbul.MsgRoundChange {
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
@@ -183,7 +183,7 @@ func TestStoreBacklog(t *testing.T) {
 	}
 	prepreparePayload, _ := Encode(preprepare)
 	m := &message{
-		Code: msgPreprepare,
+		Code: istanbul.MsgPreprepare,
 		Msg:  prepreparePayload,
 	}
 	c.storeBacklog(m, p)
@@ -200,7 +200,7 @@ func TestStoreBacklog(t *testing.T) {
 	subjectPayload, _ := Encode(subject)
 
 	m = &message{
-		Code: msgPrepare,
+		Code: istanbul.MsgPrepare,
 		Msg:  subjectPayload,
 	}
 	c.storeBacklog(m, p)
@@ -211,7 +211,7 @@ func TestStoreBacklog(t *testing.T) {
 
 	// push commit msg
 	m = &message{
-		Code: msgCommit,
+		Code: istanbul.MsgCommit,
 		Msg:  subjectPayload,
 	}
 	c.storeBacklog(m, p)
@@ -222,7 +222,7 @@ func TestStoreBacklog(t *testing.T) {
 
 	// push roundChange msg
 	m = &message{
-		Code: msgRoundChange,
+		Code: istanbul.MsgRoundChange,
 		Msg:  subjectPayload,
 	}
 	c.storeBacklog(m, p)
@@ -262,7 +262,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 	m := &message{
-		Code: msgCommit,
+		Code: istanbul.MsgCommit,
 		Msg:  subjectPayload,
 	}
 	c.storeBacklog(m, p)
@@ -300,19 +300,19 @@ func TestProcessBacklog(t *testing.T) {
 
 	msgs := []*message{
 		{
-			Code: msgPreprepare,
+			Code: istanbul.MsgPreprepare,
 			Msg:  prepreparePayload,
 		},
 		{
-			Code: msgPrepare,
+			Code: istanbul.MsgPrepare,
 			Msg:  subjectPayload,
 		},
 		{
-			Code: msgCommit,
+			Code: istanbul.MsgCommit,
 			Msg:  subjectPayload,
 		},
 		{
-			Code: msgRoundChange,
+			Code: istanbul.MsgRoundChange,
 			Msg:  subjectPayload,
 		},
 	}

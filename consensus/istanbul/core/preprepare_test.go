@@ -158,7 +158,7 @@ OUTER:
 			_, val := r0.valSet.GetByAddress(v0.Address())
 			// run each backends and verify handlePreprepare function.
 			if err := c.handlePreprepare(&message{
-				Code:    msgPreprepare,
+				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
 				Address: v0.Address(),
 			}, val); err != nil {
@@ -183,9 +183,9 @@ OUTER:
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
 
-			expectedCode := msgPrepare
+			expectedCode := istanbul.MsgPrepare
 			if test.existingBlock {
-				expectedCode = msgCommit
+				expectedCode = istanbul.MsgCommit
 			}
 			if decodedMsg.Code != expectedCode {
 				t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, expectedCode)
@@ -266,7 +266,7 @@ func TestHandlePreprepareWithLock(t *testing.T) {
 			m, _ := Encode(preprepare)
 			_, val := r0.valSet.GetByAddress(v0.Address())
 			if err := c.handlePreprepare(&message{
-				Code:    msgPreprepare,
+				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
 				Address: v0.Address(),
 			}, val); err != nil {

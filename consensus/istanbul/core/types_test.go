@@ -36,7 +36,7 @@ func testPreprepare(t *testing.T) {
 	prepreparePayload, _ := Encode(pp)
 
 	m := &message{
-		Code:    msgPreprepare,
+		Code:    istanbul.MsgPreprepare,
 		Msg:     prepreparePayload,
 		Address: common.HexToAddress("0x1234567890"),
 	}
@@ -85,7 +85,7 @@ func testSubject(t *testing.T) {
 	subjectPayload, _ := Encode(s)
 
 	m := &message{
-		Code:    msgPreprepare,
+		Code:    istanbul.MsgPreprepare,
 		Msg:     subjectPayload,
 		Address: common.HexToAddress("0x1234567890"),
 	}
@@ -125,7 +125,7 @@ func testSubjectWithSignature(t *testing.T) {
 	subjectPayload, _ := Encode(s)
 	// 1. Encode test
 	m := &message{
-		Code:          msgPreprepare,
+		Code:          istanbul.MsgPreprepare,
 		Msg:           subjectPayload,
 		Address:       common.HexToAddress("0x1234567890"),
 		Signature:     expectedSig,

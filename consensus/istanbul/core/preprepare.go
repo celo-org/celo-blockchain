@@ -19,11 +19,12 @@ package core
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate []message) {
+func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate []istanbul.Message) {
 	logger := c.logger.New("state", c.state)
 
 	// If I'm the proposer and I have the same sequence with the proposal
@@ -39,56 +40,59 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			return
 		}
 
-		c.broadcast(&message{
-			Code: msgPreprepare,
+		c.broadcast(&istanbul.Message{
+			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		})
 	}
 }
 
-func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) PreparedCertificate, error {
-	if (len(roundChangeCertificate) > c.valSet.Size() || len(roundChangeCertificate) < 2 * c.valSet.F() + 1) {
-		return errInvalidRoundChangeCertificate
+func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []istanbul.Message) (istanbul.PreparedCertificate, error) {
+	logger := c.logger.New("state", c.state)
+
+	if len(roundChangeCertificate) > c.valSet.Size() || len(roundChangeCertificate) < 2*c.valSet.F()+1 {
+		return nil, errInvalidRoundChangeCertificate
 	}
 
-	var preparedCertificate PreparedCertificate
+	var preparedCertificate istanbul.PreparedCertificate
 	seen := make(map[common.Address]bool)
-	for k, message := range rc.RoundChangeCertificate {
+	for k, message := range roundChangeCertificate {
 		// Verify message signed by a validator
-		if signer, err := CheckValidatorSignature(c.valSet, message.Msg, message.Signature); err != nil {
-			return errInvalidRoundChangeCertificate
+		signer, err := istanbul.CheckValidatorSignature(c.valSet, message.Msg, message.Signature)
+		if err != nil {
+			return nil, errInvalidRoundChangeCertificate
 		}
 
 		if signer != message.Address {
-			return errInvalidRoundChangeCertificate
+			return nil, errInvalidRoundChangeCertificate
 		}
 
 		// Check for duplicate ROUND CHANGE messages
 		if seen[signer] {
-			return errInvalidRoundChangeCertificate
+			return nil, errInvalidRoundChangeCertificate
 		}
 		seen[signer] = true
 
 		// Check that the message is a ROUND CHANGE message
-		if msgRoundChange != message.Code {
-			return errInvalidRoundChangeCertificate
+		if istanbul.MsgRoundChange != message.Code {
+			return nil, errInvalidRoundChangeCertificate
 		}
 
 		var roundChange *istanbul.RoundChange
-		if err := msg.Decode(&roundChange); err != nil {
+		if err := message.Decode(&roundChange); err != nil {
 			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
-			return errInvalidRoundChangeCertificate
+			return nil, errInvalidRoundChangeCertificate
 		}
 
 		// Verify ROUND CHANGE message is for the proper view
-		if err := c.checkMessage(msgRoundChange, roundChange.View; err != nil {
-			return errInvalidRoundChangeCertificate
+		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
+			return nil, errInvalidRoundChangeCertificate
 		}
 
 		// Check the PREPARED certificate if present
 		if roundChange.PreparedCertificate != nil {
 			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
-				return errInvalidRoundChangeCertificate
+				return nil, errInvalidRoundChangeCertificate
 			}
 			preparedCertificate = roundChange.PreparedCertificate
 		}
@@ -96,7 +100,7 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate []message) 
 	return preparedCertificate, nil
 }
 
-func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
+func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
 	// Decode PRE-PREPARE
@@ -108,7 +112,7 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
-	if err := c.checkMessage(msgPreprepare, preprepare.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
 			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
@@ -130,7 +134,8 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		if preprepare.RoundChangeCertificate == nil {
 			return errMissingRoundChangeCertificate
 		}
-		if preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate); err != nil {
+		preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate)
+		if err != nil {
 			return err
 		}
 
@@ -138,8 +143,8 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		if preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
 			// Send round change
 			c.sendNextRoundChange()
-			return errInvalidProposedBlock
-	  }
+			return errInvalidProposal
+		}
 	}
 
 	// Check if the message comes from current proposer

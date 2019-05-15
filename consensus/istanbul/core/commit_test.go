@@ -169,7 +169,7 @@ OUTER:
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
 			if err := r0.handleCommit(&message{
-				Code:          msgCommit,
+				Code:          istanbul.MsgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},

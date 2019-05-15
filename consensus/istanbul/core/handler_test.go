@@ -43,9 +43,9 @@ func TestHandleMsg(t *testing.T) {
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
 	})
-	// with a matched payload. msgPreprepare should match with *istanbul.Preprepare in normal case.
+	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
 	msg := &message{
-		Code:          msgPreprepare,
+		Code:          istanbul.MsgPreprepare,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},
@@ -64,9 +64,9 @@ func TestHandleMsg(t *testing.T) {
 		},
 		Proposal: makeBlock(1),
 	})
-	// with a unmatched payload. msgPrepare should match with *istanbul.Subject in normal case.
+	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
 	msg = &message{
-		Code:          msgPrepare,
+		Code:          istanbul.MsgPrepare,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},
@@ -87,7 +87,7 @@ func TestHandleMsg(t *testing.T) {
 	})
 	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
 	msg = &message{
-		Code:          msgCommit,
+		Code:          istanbul.MsgCommit,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},

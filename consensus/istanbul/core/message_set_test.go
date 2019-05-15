@@ -44,7 +44,7 @@ func TestMessageSetWithPreprepare(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 	msg := &message{
-		Code:    msgPreprepare,
+		Code:    istanbul.MsgPreprepare,
 		Msg:     rawPP,
 		Address: valSet.GetProposer().Address(),
 	}
@@ -85,7 +85,7 @@ func TestMessageSetWithSubject(t *testing.T) {
 	}
 
 	msg := &message{
-		Code:    msgPrepare,
+		Code:    istanbul.MsgPrepare,
 		Msg:     rawSub,
 		Address: valSet.GetProposer().Address(),
 	}
