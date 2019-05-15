@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -397,11 +398,17 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
+	sb.updateGasPriceSuggestion(state)
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
+}
+
+func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *core.InternalEVMHandler {
+
+	return (sb.iEvmH)
 }
 
 // Seal generates a new block for the given input block with the local miner's

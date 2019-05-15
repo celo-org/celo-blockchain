@@ -44,7 +44,7 @@ const (
 )
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database, iEvmH *core.InternalEVMHandler) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -61,6 +61,7 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		coreStarted:      false,
 		recentMessages:   recentMessages,
 		knownMessages:    knownMessages,
+		iEvmH:            iEvmH,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -83,6 +84,7 @@ type Backend struct {
 
 	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	iEvmH            *core.InternalEVMHandler // Evm for calling smart contracts during consensus operations
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
