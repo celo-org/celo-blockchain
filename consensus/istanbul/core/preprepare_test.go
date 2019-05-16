@@ -48,13 +48,9 @@ func TestValidateRoundChangeCertificate(t *testing.T) {
 					Sequence: big.NewInt(1),
 				}
 				for _, backend := range sys.backends {
-					pc := &istanbul.PreparedCertificate{
-						Proposal:        newTestProposal(),
-						PrepareMessages: []istanbul.Message{},
-					}
 					rc := &istanbul.RoundChange{
 						View:                &view,
-						PreparedCertificate: *pc,
+						PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 					}
 
 					payload, err := Encode(rc)

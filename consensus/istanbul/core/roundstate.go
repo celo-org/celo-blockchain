@@ -145,7 +145,7 @@ func (s *roundState) GetPreparedCertificate(f int) istanbul.PreparedCertificate 
 			PrepareMessages: messages,
 		}
 	} else {
-		return istanbul.PreparedCertificate{}
+		return istanbul.EmptyPreparedCertificate()
 	}
 }
 

@@ -151,6 +151,22 @@ type PreparedCertificate struct {
 	PrepareMessages []Message
 }
 
+func EmptyPreparedCertificate() PreparedCertificate {
+	emptyHeader := &types.Header{
+		Difficulty: big.NewInt(0),
+		Number:     big.NewInt(0),
+		GasLimit:   0,
+		GasUsed:    0,
+		Time:       big.NewInt(0),
+	}
+	block := &types.Block{}
+
+	return PreparedCertificate{
+		Proposal:        block.WithSeal(emptyHeader),
+		PrepareMessages: []Message{},
+	}
+}
+
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *PreparedCertificate) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{b.Proposal, b.PrepareMessages})
@@ -177,8 +193,7 @@ type RoundChange struct {
 }
 
 func (b *RoundChange) HasPreparedCertificate() bool {
-	return false
-	// return len(b.PreparedCertificate.PrepareMessages) > 0
+	return len(b.PreparedCertificate.PrepareMessages) > 0
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
