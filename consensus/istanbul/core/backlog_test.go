@@ -37,7 +37,7 @@ func TestCheckMessage(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, nil),
 	}
 
 	// invalid view format
@@ -182,7 +182,7 @@ func TestStoreBacklog(t *testing.T) {
 		Proposal: makeBlock(1),
 	}
 	prepreparePayload, _ := Encode(preprepare)
-	m := &message{
+	m := &istanbul.Message{
 		Code: istanbul.MsgPreprepare,
 		Msg:  prepreparePayload,
 	}
@@ -199,7 +199,7 @@ func TestStoreBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
-	m = &message{
+	m = &istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  subjectPayload,
 	}
@@ -210,7 +210,7 @@ func TestStoreBacklog(t *testing.T) {
 	}
 
 	// push commit msg
-	m = &message{
+	m = &istanbul.Message{
 		Code: istanbul.MsgCommit,
 		Msg:  subjectPayload,
 	}
@@ -221,7 +221,7 @@ func TestStoreBacklog(t *testing.T) {
 	}
 
 	// push roundChange msg
-	m = &message{
+	m = &istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  subjectPayload,
 	}
@@ -244,7 +244,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, nil),
 		state: StateAcceptRequest,
 	}
 	c.subscribeEvents()
@@ -261,7 +261,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 	subjectPayload, _ := Encode(subject)
-	m := &message{
+	m := &istanbul.Message{
 		Code: istanbul.MsgCommit,
 		Msg:  subjectPayload,
 	}
@@ -298,7 +298,7 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
-	msgs := []*message{
+	msgs := []*istanbul.Message{
 		{
 			Code: istanbul.MsgPreprepare,
 			Msg:  prepreparePayload,
@@ -321,7 +321,7 @@ func TestProcessBacklog(t *testing.T) {
 	}
 }
 
-func testProcessBacklog(t *testing.T, msg *message) {
+func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 	vset := newTestValidatorSet(1)
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
@@ -336,7 +336,7 @@ func testProcessBacklog(t *testing.T, msg *message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()

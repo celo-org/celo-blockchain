@@ -26,7 +26,8 @@ import (
 )
 
 func TestRoundChangeSet(t *testing.T) {
-	vset := validator.NewSet(generateValidators(4), istanbul.RoundRobin)
+	addresses, _ := generateValidators(4)
+	vset := validator.NewSet(addresses, istanbul.RoundRobin)
 	rc := newRoundChangeSet(vset)
 
 	view := &istanbul.View{
@@ -42,12 +43,12 @@ func TestRoundChangeSet(t *testing.T) {
 	// Test Add()
 	// Add message from all validators
 	for i, v := range vset.List() {
-		msg := &message{
+		msg := &istanbul.Message{
 			Code:    istanbul.MsgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg)
+		rc.Add(view.Round, msg, nil)
 		if rc.roundChanges[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), i+1)
 		}
@@ -55,12 +56,12 @@ func TestRoundChangeSet(t *testing.T) {
 
 	// Add message again from all validators, but the size should be the same
 	for _, v := range vset.List() {
-		msg := &message{
+		msg := &istanbul.Message{
 			Code:    istanbul.MsgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg)
+		rc.Add(view.Round, msg, nil)
 		if rc.roundChanges[view.Round.Uint64()].Size() != vset.Size() {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), vset.Size())
 		}

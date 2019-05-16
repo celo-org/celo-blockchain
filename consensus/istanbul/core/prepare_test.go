@@ -193,16 +193,13 @@ OUTER:
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handlePrepare(&message{
+			if err := r0.handlePrepare(&istanbul.Message{
 				Code:    istanbul.MsgPrepare,
 				Msg:     m,
 				Address: validator.Address(),
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-				}
-				if r0.current.IsHashLocked() {
-					t.Errorf("block should not be locked")
 				}
 				continue OUTER
 			}
@@ -216,9 +213,6 @@ OUTER:
 			}
 			if r0.current.Prepares.Size() > 2*r0.valSet.F() {
 				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.F()+1)
-			}
-			if r0.current.IsHashLocked() {
-				t.Errorf("block should not be locked")
 			}
 
 			continue
@@ -235,7 +229,7 @@ OUTER:
 		}
 
 		// verify COMMIT messages
-		decodedMsg := new(message)
+		decodedMsg := new(istanbul.Message)
 		err := decodedMsg.FromPayload(v0.sentMsgs[0], nil)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
@@ -251,9 +245,6 @@ OUTER:
 		}
 		if !reflect.DeepEqual(m, expectedSubject) {
 			t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
-		}
-		if !r0.current.IsHashLocked() {
-			t.Errorf("block should be locked")
 		}
 	}
 }

@@ -31,6 +31,31 @@ func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
 	}
 }
 
+func TestValidateRoundChangeCertificate(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	sys := NewTestSystemWithBackend(N, F)
+	testCases := []struct {
+		certificate istanbul.RoundChangeCertificate
+		expectedErr error
+	}{
+		{
+			// Empty certificate
+			istanbul.RoundChangeCertificate{},
+			errInvalidRoundChangeCertificate,
+		},
+	}
+	for _, test := range testCases {
+		for _, backend := range sys.backends {
+			c := backend.engine.(*core)
+			_, err := c.ValidateRoundChangeCertificate(test.certificate)
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			}
+		}
+	}
+}
+
 func TestHandlePreprepare(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests
@@ -157,7 +182,7 @@ OUTER:
 			m, _ := Encode(preprepare)
 			_, val := r0.valSet.GetByAddress(v0.Address())
 			// run each backends and verify handlePreprepare function.
-			if err := c.handlePreprepare(&message{
+			if err := c.handlePreprepare(&istanbul.Message{
 				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
 				Address: v0.Address(),
@@ -177,7 +202,7 @@ OUTER:
 			}
 
 			// verify prepare messages
-			decodedMsg := new(message)
+			decodedMsg := new(istanbul.Message)
 			err := decodedMsg.FromPayload(v.sentMsgs[0], nil)
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
@@ -262,10 +287,9 @@ func TestHandlePreprepareWithLock(t *testing.T) {
 
 			c := v.engine.(*core)
 			c.current.SetPreprepare(lockPreprepare)
-			c.current.LockHash()
 			m, _ := Encode(preprepare)
 			_, val := r0.valSet.GetByAddress(v0.Address())
-			if err := c.handlePreprepare(&message{
+			if err := c.handlePreprepare(&istanbul.Message{
 				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
 				Address: v0.Address(),

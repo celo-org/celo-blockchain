@@ -44,6 +44,7 @@ type testSystemBackend struct {
 	sentMsgs      [][]byte // store the message when Send is called by core
 
 	address common.Address
+	key     ecdsa.PrivateKey
 	db      ethdb.Database
 }
 
@@ -177,39 +178,49 @@ func newTestSystem(n uint64) *testSystem {
 	}
 }
 
-func generateValidators(n int) []common.Address {
+func generateValidators(n int) ([]common.Address, []ecdsa.PrivateKey) {
 	vals := make([]common.Address, 0)
+	keys := make([]ecdsa.PrivateKey, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
+		keys = append(keys, *privateKey)
 	}
-	return vals
+	return vals, keys
 }
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
-	return validator.NewSet(generateValidators(n), istanbul.RoundRobin)
+	addresses, _ := generateValidators(n)
+	return validator.NewSet(addresses, istanbul.RoundRobin)
 }
 
 // FIXME: int64 is needed for N and F
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
-	addrs := generateValidators(int(n))
+	addrs, keys := generateValidators(int(n))
 	sys := newTestSystem(n)
 	config := istanbul.DefaultConfig
+	// Addresses are sorted in the validator set, we make a mapping here
+	// so we can fetch the private key for each validator.
+	keyMap := make(map[common.Address]ecdsa.PrivateKey)
+	for i := uint64(0); i < n; i++ {
+		keyMap[addrs[i]] = keys[i]
+	}
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(addrs, istanbul.RoundRobin)
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
+		backend.key = keyMap[backend.address]
 
 		core := New(backend, config).(*core)
 		core.state = StateAcceptRequest
 		core.current = newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, common.Hash{}, nil, nil, func(hash common.Hash) bool {
+		}, vset, nil, nil, func(hash common.Hash) bool {
 			return false
 		})
 		core.valSet = vset

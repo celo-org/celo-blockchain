@@ -168,7 +168,7 @@ OUTER:
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&message{
+			if err := r0.handleCommit(&istanbul.Message{
 				Code:          istanbul.MsgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
@@ -177,9 +177,6 @@ OUTER:
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-				}
-				if r0.current.IsHashLocked() {
-					t.Errorf("block should not be locked")
 				}
 				continue OUTER
 			}
@@ -193,9 +190,6 @@ OUTER:
 			}
 			if r0.current.Commits.Size() > 2*r0.valSet.F() {
 				t.Errorf("the size of commit messages should be less than %v", 2*r0.valSet.F()+1)
-			}
-			if r0.current.IsHashLocked() {
-				t.Errorf("block should not be locked")
 			}
 			continue
 		}
@@ -218,9 +212,6 @@ OUTER:
 		}
 		if signedCount <= 2*r0.valSet.F() {
 			t.Errorf("the expected signed count should be larger than %v, but got %v", 2*r0.valSet.F(), signedCount)
-		}
-		if !r0.current.IsHashLocked() {
-			t.Errorf("block should be locked")
 		}
 	}
 }
