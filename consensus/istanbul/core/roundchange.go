@@ -80,7 +80,7 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 	seen := make(map[common.Address]bool)
 	for _, message := range preparedCertificate.PrepareMessages {
 		// Verify message signed by a validator
-		signer, err := istanbul.CheckValidatorSignature(c.valSet, message.Msg, message.Signature)
+		signer, err := c.validateFn(message.Msg, message.Signature)
 		if err != nil {
 			return errInvalidPreparedCertificate
 		}

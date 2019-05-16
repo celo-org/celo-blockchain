@@ -43,8 +43,20 @@ var (
 	errFailedDecodeCommit = errors.New("failed to decode COMMIT")
 	// errInvalidPreparedCertificate is returned when the PREPARED certificate is invalid.
 	errInvalidPreparedCertificate = errors.New("failed to validate PREPARED certificate")
-	// errInvalidRoundChangeCertificate is returned when the ROUND CHANGE certificate is invalid.
-	errInvalidRoundChangeCertificate = errors.New("failed to validate ROUND CHANGE certificate")
+
+	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
+	errInvalidRoundChangeCertificateNumMsgs = errors.New("invalid number of ROUND CHANGE messages in certificate")
+	// errInvalidRoundChangeCertificateMsgSignature is returned when the ROUND CHANGE certificate has a ROUND CHANGE message with an invalid signature.
+	errInvalidRoundChangeCertificateMsgSignature = errors.New("invalid signature in ROUND CHANGE certificate")
+	// errInvalidRoundChangeCertificateDuplicate is returned when the ROUND CHANGE certificate has multiple ROUND CHANGE messages from the same validator.
+	errInvalidRoundChangeCertificateDuplicate = errors.New("duplicate message in ROUND CHANGE certificate")
+	// errInvalidRoundChangeCertificateMsgCode is returned when the ROUND CHANGE certificate contains a message with the wrong code.
+	errInvalidRoundChangeCertificateMsgCode = errors.New("non-ROUND CHANGE message in ROUND CHANGE certificate")
+	// errInvalidRoundChangeCertificateMsgDecode is returned when the ROUND CHANGE certificate contains a message that can't be decoded.
+	errInvalidRoundChangeCertificateMsgDecode = errors.New("failed to decode message in ROUND CHANGE certificate")
+	// errInvalidRoundChangeCertificateMsgView is returned when the ROUND CHANGE certificate contains a message for the wrong view
+	errInvalidRoundChangeCertificateMsgView = errors.New("message in ROUND CHANGE certificate for wrong view")
+
 	// errMissingRoundChangeCertificate is returned when ROUND CHANGE certificate is missing from a PREPREPARE for round > 0.
 	errMissingRoundChangeCertificate = errors.New("missing ROUND CHANGE certificate in PREPREPARE")
 	// errFailedCreateRoundChangeCertificate is returned when there aren't enough ROUND CHANGE messages to create a ROUND CHANGE certificate.

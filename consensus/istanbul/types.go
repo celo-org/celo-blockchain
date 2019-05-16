@@ -96,6 +96,25 @@ type RoundChangeCertificate struct {
 	RoundChangeMessages []Message
 }
 
+// EncodeRLP serializes b into the Ethereum RLP format.
+func (b *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{b.RoundChangeMessages})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (b *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
+	var roundChangeCertificate struct {
+		RoundChangeMessages []Message
+	}
+
+	if err := s.Decode(&roundChangeCertificate); err != nil {
+		return err
+	}
+	b.RoundChangeMessages = roundChangeCertificate.RoundChangeMessages
+
+	return nil
+}
+
 type Preprepare struct {
 	View                   *View
 	Proposal               Proposal
@@ -108,7 +127,7 @@ func (b *Preprepare) HasRoundChangeCertificate() bool {
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *Preprepare) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.View, b.Proposal, b.RoundChangeCertificate})
+	return rlp.Encode(w, []interface{}{b.View, b.Proposal, &b.RoundChangeCertificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
@@ -140,13 +159,14 @@ func (b *PreparedCertificate) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (b *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	var preparedCertificate struct {
-		Proposal        Proposal
+		Proposal        *types.Block
 		PrepareMessages []Message
 	}
 
 	if err := s.Decode(&preparedCertificate); err != nil {
 		return err
 	}
+
 	b.Proposal, b.PrepareMessages = preparedCertificate.Proposal, preparedCertificate.PrepareMessages
 	return nil
 }
@@ -157,12 +177,13 @@ type RoundChange struct {
 }
 
 func (b *RoundChange) HasPreparedCertificate() bool {
-	return len(b.PreparedCertificate.PrepareMessages) > 0
+	return false
+	// return len(b.PreparedCertificate.PrepareMessages) > 0
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *RoundChange) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.View, b.PreparedCertificate})
+	return rlp.Encode(w, []interface{}{b.View, &b.PreparedCertificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.

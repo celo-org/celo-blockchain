@@ -43,9 +43,9 @@ type testSystemBackend struct {
 	committedMsgs []testCommittedMsgs
 	sentMsgs      [][]byte // store the message when Send is called by core
 
-	address common.Address
-	key     ecdsa.PrivateKey
-	db      ethdb.Database
+	address    common.Address
+	privateKey ecdsa.PrivateKey
+	db         ethdb.Database
 }
 
 type testCommittedMsgs struct {
@@ -110,8 +110,8 @@ func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
-	testLogger.Warn("not sign any data")
-	return data, nil
+	hashData := crypto.Keccak256(data)
+	return crypto.Sign(hashData, &self.privateKey)
 }
 
 func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) error {
@@ -119,7 +119,7 @@ func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) er
 }
 
 func (self *testSystemBackend) CheckValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return common.Address{}, nil
+	return istanbul.CheckValidatorSignature(self.peers, data, sig)
 }
 
 func (self *testSystemBackend) Hash(b interface{}) common.Hash {
@@ -180,13 +180,13 @@ func newTestSystem(n uint64) *testSystem {
 
 func generateValidators(n int) ([]common.Address, []ecdsa.PrivateKey) {
 	vals := make([]common.Address, 0)
-	keys := make([]ecdsa.PrivateKey, 0)
+	privateKeys := make([]ecdsa.PrivateKey, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
-		keys = append(keys, *privateKey)
+		privateKeys = append(privateKeys, *privateKey)
 	}
-	return vals, keys
+	return vals, privateKeys
 }
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
@@ -198,14 +198,14 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
-	addrs, keys := generateValidators(int(n))
+	addrs, privateKeys := generateValidators(int(n))
 	sys := newTestSystem(n)
 	config := istanbul.DefaultConfig
 	// Addresses are sorted in the validator set, we make a mapping here
 	// so we can fetch the private key for each validator.
-	keyMap := make(map[common.Address]ecdsa.PrivateKey)
+	privateKeyMap := make(map[common.Address]ecdsa.PrivateKey)
 	for i := uint64(0); i < n; i++ {
-		keyMap[addrs[i]] = keys[i]
+		privateKeyMap[addrs[i]] = privateKeys[i]
 	}
 
 	for i := uint64(0); i < n; i++ {
@@ -213,7 +213,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
-		backend.key = keyMap[backend.address]
+		backend.privateKey = privateKeyMap[backend.address]
 
 		core := New(backend, config).(*core)
 		core.state = StateAcceptRequest

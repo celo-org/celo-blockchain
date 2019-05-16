@@ -40,9 +40,51 @@ func TestValidateRoundChangeCertificate(t *testing.T) {
 		expectedErr error
 	}{
 		{
+			// Valid round change certificate without PREPARED certificate
+			func() istanbul.RoundChangeCertificate {
+				var roundChangeCertificate istanbul.RoundChangeCertificate
+				view := istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(1),
+				}
+				for _, backend := range sys.backends {
+					pc := &istanbul.PreparedCertificate{
+						Proposal:        newTestProposal(),
+						PrepareMessages: []istanbul.Message{},
+					}
+					rc := &istanbul.RoundChange{
+						View:                &view,
+						PreparedCertificate: *pc,
+					}
+
+					payload, err := Encode(rc)
+					if err != nil {
+						t.Errorf("Failed to encode ROUND CHANGE: %v", err)
+					}
+
+					msg := istanbul.Message{
+						Code:          istanbul.MsgRoundChange,
+						Msg:           payload,
+						Address:       backend.address,
+						CommittedSeal: []byte{},
+					}
+
+					data, err := msg.PayloadNoSig()
+					if err != nil {
+						return istanbul.RoundChangeCertificate{}
+					}
+					msg.Signature, err = backend.Sign(data)
+					//t.Errorf("signature: signer: %v, address: %v, err: %v", signer, backend.address, err)
+					roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
+				}
+				return roundChangeCertificate
+			}(),
+			nil,
+		},
+		{
 			// Empty certificate
 			istanbul.RoundChangeCertificate{},
-			errInvalidRoundChangeCertificate,
+			errInvalidRoundChangeCertificateNumMsgs,
 		},
 	}
 	for _, test := range testCases {
