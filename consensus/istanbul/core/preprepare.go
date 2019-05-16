@@ -174,7 +174,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
 		c.acceptPreprepare(preprepare)
-		c.setState(StatePrepared)
+		c.setState(StatePreprepared)
 		c.sendPrepare()
 	}
 
