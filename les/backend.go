@@ -18,6 +18,7 @@
 package les
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -29,7 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
@@ -72,6 +75,9 @@ type LightEthereum struct {
 
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
+
+	regAdd *core.RegisteredAddresses
+	iEvmH  *core.InternalEVMHandler
 
 	wg sync.WaitGroup
 }
@@ -118,6 +124,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
+		iEvmH:          core.NewInternalEVMHandler(chainConfig, vm.Config{}),
 	}
 
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)
@@ -134,6 +141,23 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
 		return nil, err
 	}
+
+	// Set the fields of iEvmH that depend on eth
+	getState := func(header *types.Header) (*state.StateDB, error) {
+		return light.NewState(context.Background(), header, leth.odr), nil // TODO: Any issues with using context.Background() here?
+	}
+	getCurrentHeader := func() (*types.Header, error) {
+		return leth.blockchain.CurrentHeader(), nil
+	}
+
+	leth.iEvmH.SetStateAccessor(getState)
+	leth.iEvmH.SetCurrentHeaderAccessor(getCurrentHeader)
+	leth.iEvmH.SetChainContext(leth.blockchain)
+
+	// Object used to retrieve and cache registered addresses from the Registry smart contract.
+	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
+	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
+
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
 	leth.chtIndexer.Start(leth.blockchain)
