@@ -151,6 +151,7 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
+	log.Trace("InternalEVMHandler.MakeCall called")
 
 	if header == nil {
 		var err error
@@ -174,6 +175,7 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
 	context := NewEVMContext(msg, header, iEvmH.chainContext, nil, iEvmH.regAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, iEvmH.vmConfig)
+	log.Trace("InternalEVMHandler.MakeCall - successfully constructed EVM")
 
 	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
@@ -183,12 +185,22 @@ func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddres
 	iEvmH.regAdd = regAdd
 }
 
-func NewInternalEVMHandler(chainConfig *params.ChainConfig, chainContext ChainContext, vmConfig vm.Config, getState func(header *types.Header) (*state.StateDB, error)) *InternalEVMHandler {
+func (iEvmH *InternalEVMHandler) SetStateAccessor(getState func(header *types.Header) (*state.StateDB, error)) {
+	iEvmH.getState = getState
+}
+
+func (iEvmH *InternalEVMHandler) SetCurrentHeaderAccessor(getCurrentHeader func() (*types.Header, error)) {
+	iEvmH.getCurrentHeader = getCurrentHeader
+}
+
+func (iEvmH *InternalEVMHandler) SetChainContext(chainContext ChainContext) {
+	iEvmH.chainContext = chainContext
+}
+
+func NewInternalEVMHandler(chainConfig *params.ChainConfig, vmConfig vm.Config) *InternalEVMHandler {
 	iEvmH := InternalEVMHandler{
-		chainConfig:  chainConfig,
-		chainContext: chainContext,
-		vmConfig:     vmConfig,
-		getState:     getState,
+		chainConfig: chainConfig,
+		vmConfig:    vmConfig,
 	}
 	return &iEvmH
 }

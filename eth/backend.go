@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -98,6 +99,8 @@ type Ethereum struct {
 	regAdd *core.RegisteredAddresses
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+
+	iEvmH *core.InternalEVMHandler // Used to make smart contract calls from geth
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -130,6 +133,15 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
+	var (
+		vmConfig = vm.Config{
+			EnablePreimageRecording: config.EnablePreimageRecording,
+			EWASMInterpreter:        config.EWASMInterpreter,
+			EVMInterpreter:          config.EVMInterpreter,
+		}
+		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieCleanLimit: config.TrieCleanCache, TrieDirtyLimit: config.TrieDirtyCache, TrieTimeLimit: config.TrieTimeout}
+	)
+
 	eth := &Ethereum{
 		config:         config,
 		chainDb:        chainDb,
@@ -142,8 +154,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		etherbase:      config.Etherbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, config.SyncMode != downloader.CeloLatestSync),
+		iEvmH:          core.NewInternalEVMHandler(chainConfig, vmConfig), // InternalEVMHandler for calling smart contracts from geth
 	}
 
+	eth.engine = CreateConsensusEngine(ctx, chainConfig, config, config.MinerNotify, config.MinerNoverify, chainDb, eth.iEvmH)
 	// force to set the istanbul etherbase to node key address
 	if chainConfig.Istanbul != nil {
 		eth.etherbase = crypto.PubkeyToAddress(ctx.NodeKey().PublicKey)
@@ -160,18 +174,24 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		}
 		rawdb.WriteDatabaseVersion(chainDb, core.BlockChainVersion)
 	}
-	var (
-		vmConfig = vm.Config{
-			EnablePreimageRecording: config.EnablePreimageRecording,
-			EWASMInterpreter:        config.EWASMInterpreter,
-			EVMInterpreter:          config.EVMInterpreter,
-		}
-		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieCleanLimit: config.TrieCleanCache, TrieDirtyLimit: config.TrieDirtyCache, TrieTimeLimit: config.TrieTimeout}
-	)
+
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, eth.shouldPreserve)
 	if err != nil {
 		return nil, err
 	}
+
+	// Set the fields of iEvmH that depend on eth
+	getState := func(header *types.Header) (*state.StateDB, error) {
+		return eth.blockchain.StateAt(header.Root)
+	}
+	getCurrentHeader := func() (*types.Header, error) {
+		return eth.blockchain.CurrentBlock().Header(), nil
+	}
+
+	eth.iEvmH.SetStateAccessor(getState)
+	eth.iEvmH.SetCurrentHeaderAccessor(getCurrentHeader)
+	eth.iEvmH.SetChainContext(eth.blockchain)
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -184,24 +204,17 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.  Note
-	// that this should NOT be used when executing smart contract calls done via end user transactions.
-	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
-
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	eth.regAdd = core.NewRegisteredAddresses(iEvmH)
-	iEvmH.SetRegisteredAddresses(eth.regAdd)
+	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
+	eth.iEvmH.SetRegisteredAddresses(eth.regAdd)
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, iEvmH)
+	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, iEvmH)
+	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, eth.iEvmH)
 
-	// Construct the consensus engine and set in on the eth object
-	eth.engine = CreateConsensusEngine(ctx, chainConfig, config, config.MinerNotify, config.MinerNoverify, chainDb, iEvmH)
-
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, iEvmH)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, eth.iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 
