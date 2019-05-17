@@ -70,49 +70,54 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
-		return errInvalidPreparedCertificate
+		return errInvalidPreparedCertificateProposal
 	}
 
 	if len(preparedCertificate.PrepareMessages) > c.valSet.Size() || len(preparedCertificate.PrepareMessages) < 2*c.valSet.F()+1 {
-		return errInvalidPreparedCertificate
+		return errInvalidPreparedCertificateNumMsgs
 	}
 
 	seen := make(map[common.Address]bool)
 	for _, message := range preparedCertificate.PrepareMessages {
-		// Verify message signed by a validator
-		signer, err := c.validateFn(message.Msg, message.Signature)
+		data, err := message.PayloadNoSig()
 		if err != nil {
-			return errInvalidPreparedCertificate
+			return err
+		}
+
+		// Verify message signed by a validator
+		signer, err := c.validateFn(data, message.Signature)
+		if err != nil {
+			return errInvalidPreparedCertificateMsgSignature
 		}
 
 		if signer != message.Address {
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateMsgSignature
 		}
 
 		// Check for duplicate messages
 		if seen[signer] {
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateDuplicate
 		}
 		seen[signer] = true
 
 		// Check that the message is a PREPARE message
 		if istanbul.MsgPrepare != message.Code {
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateMsgCode
 		}
 
 		var prepare *istanbul.Subject
 		if err := message.Decode(&prepare); err != nil {
 			logger.Error("Failed to decode PREPARE in ROUND CHANGE", "err", err)
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateMsgDecode
 		}
 
 		// Verify PREPARE message for the proper view
 		if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateMsgView
 		}
 
 		if prepare.Digest != preparedCertificate.Proposal.Hash() {
-			return errInvalidPreparedCertificate
+			return errInvalidPreparedCertificateDigestMismatch
 		}
 	}
 	return nil

@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -29,6 +30,50 @@ func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
 		View:     v,
 		Proposal: newTestProposal(),
 	}
+}
+
+func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
+	prepare := &istanbul.Subject{
+		View:   &view,
+		Digest: digest,
+	}
+
+	payload, err := Encode(prepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := istanbul.Message{
+		Code:          istanbul.MsgPrepare,
+		Msg:           payload,
+		Address:       self.address,
+		CommittedSeal: []byte{},
+	}
+
+	data, err := msg.PayloadNoSig()
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+	msg.Signature, err = self.Sign(data)
+	return msg, err
+}
+
+func getPreparedCertificate(t *testing.T, sys *testSystem, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+	preparedCertificate := istanbul.PreparedCertificate{
+		Proposal:        proposal,
+		PrepareMessages: []istanbul.Message{},
+	}
+	for i, backend := range sys.backends {
+		if uint64(i) == 2*sys.F()+1 {
+			break
+		}
+		msg, err := backend.getPrepareMessage(view, proposal.Hash())
+		if err != nil {
+			t.Errorf("Failed to create PREPARE message: %v", err)
+		}
+		preparedCertificate.PrepareMessages = append(preparedCertificate.PrepareMessages, msg)
+	}
+	return preparedCertificate
 }
 
 func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
@@ -57,17 +102,13 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	return msg, err
 }
 
-func getRoundChangeCertificate(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
+func getRoundChangeCertificate(t *testing.T, sys *testSystem, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
-	view := istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(1),
-	}
 	for i, backend := range sys.backends {
 		if uint64(i) == 2*sys.F()+1 {
 			break
 		}
-		msg, err := backend.getRoundChangeMessage(view, istanbul.EmptyPreparedCertificate())
+		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
 		if err != nil {
 			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
 		}
@@ -76,23 +117,29 @@ func getRoundChangeCertificate(t *testing.T, sys *testSystem) istanbul.RoundChan
 	return roundChangeCertificate
 }
 
+// TODO(asa): Test with PREPARED certificate
 func TestValidateRoundChangeCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
+	view := istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+
 	testCases := []struct {
 		certificate istanbul.RoundChangeCertificate
 		expectedErr error
 	}{
 		{
 			// Valid round change certificate without PREPARED certificate
-			getRoundChangeCertificate(t, sys),
+			getRoundChangeCertificate(t, sys, view, istanbul.EmptyPreparedCertificate()),
 			nil,
 		},
 		{
 			// Invalid round change certificate, duplicate message
 			func() istanbul.RoundChangeCertificate {
-				roundChangeCertificate := getRoundChangeCertificate(t, sys)
+				roundChangeCertificate := getRoundChangeCertificate(t, sys, view, istanbul.EmptyPreparedCertificate())
 				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
 				return roundChangeCertificate
 			}(),
@@ -121,6 +168,7 @@ func TestHandlePreprepare(t *testing.T) {
 
 	testCases := []struct {
 		system          *testSystem
+		getCert         func(*testSystem) istanbul.RoundChangeCertificate
 		expectedRequest istanbul.Proposal
 		expectedErr     error
 		existingBlock   bool
@@ -139,6 +187,9 @@ func TestHandlePreprepare(t *testing.T) {
 				}
 				return sys
 			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
 			newTestProposal(),
 			nil,
 			false,
@@ -168,6 +219,9 @@ func TestHandlePreprepare(t *testing.T) {
 				}
 				return sys
 			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
 			makeBlock(1),
 			errFutureMessage,
 			false,
@@ -190,6 +244,9 @@ func TestHandlePreprepare(t *testing.T) {
 				}
 				return sys
 			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
 			makeBlock(1),
 			errNotFromProposer,
 			false,
@@ -210,6 +267,9 @@ func TestHandlePreprepare(t *testing.T) {
 				}
 				return sys
 			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
 			makeBlock(1),
 			errOldMessage,
 			false,
@@ -227,14 +287,63 @@ func TestHandlePreprepare(t *testing.T) {
 				}
 				return sys
 			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
 			makeBlock(1),
 			errMissingRoundChangeCertificate,
+			false,
+		},
+		{
+			// ROUND CHANGE certificate invalid
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for _, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.state = StatePreprepared
+					c.current.SetRound(big.NewInt(1))
+				}
+				return sys
+			}(),
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				// Duplicate messages
+				roundChangeCertificate := getRoundChangeCertificate(t, sys, *(sys.backends[0].engine.(*core).currentView()), istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
+				return roundChangeCertificate
+			},
+			makeBlock(1),
+			errInvalidRoundChangeCertificateDuplicate,
+			false,
+		},
+		{
+			// ROUND CHANGE certificate contains PREPARED certificate for a different block.
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for _, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.state = StatePreprepared
+					c.current.SetRound(big.NewInt(1))
+				}
+				return sys
+			}(),
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				preparedCertificate := getPreparedCertificate(t, sys, *(sys.backends[0].engine.(*core).currentView()), makeBlock(2))
+				roundChangeCertificate := getRoundChangeCertificate(t, sys, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				return roundChangeCertificate
+			},
+			makeBlock(1),
+			errInvalidProposal,
 			false,
 		},
 	}
 
 OUTER:
-	for _, test := range testCases {
+	for i, test := range testCases {
+		testLogger.Info("Running handle preprepare test case", "number", i)
 		test.system.Run(false)
 
 		v0 := test.system.backends[0]
@@ -243,8 +352,9 @@ OUTER:
 		curView := r0.currentView()
 
 		preprepare := &istanbul.Preprepare{
-			View:     curView,
-			Proposal: test.expectedRequest,
+			View:                   curView,
+			Proposal:               test.expectedRequest,
+			RoundChangeCertificate: test.getCert(test.system),
 		}
 
 		for i, v := range test.system.backends {

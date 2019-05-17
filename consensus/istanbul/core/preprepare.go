@@ -47,62 +47,62 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (*istanbul.PreparedCertificate, error) {
+func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (istanbul.PreparedCertificate, error) {
 	logger := c.logger.New("state", c.state)
 
+	preparedCertificate := istanbul.EmptyPreparedCertificate()
 	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
-		return nil, errInvalidRoundChangeCertificateNumMsgs
+		return preparedCertificate, errInvalidRoundChangeCertificateNumMsgs
 	}
 
-	preparedCertificate := istanbul.EmptyPreparedCertificate()
 	seen := make(map[common.Address]bool)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		// Verify message signed by a validator
 		data, err := message.PayloadNoSig()
 		if err != nil {
-			return nil, err
+			return preparedCertificate, err
 		}
 
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
-			return nil, err
+			return preparedCertificate, err
 		}
 
 		if signer != message.Address {
-			return nil, errInvalidRoundChangeCertificateMsgSignature
+			return preparedCertificate, errInvalidRoundChangeCertificateMsgSignature
 		}
 
 		// Check for duplicate ROUND CHANGE messages
 		if seen[signer] {
-			return nil, errInvalidRoundChangeCertificateDuplicate
+			return preparedCertificate, errInvalidRoundChangeCertificateDuplicate
 		}
 		seen[signer] = true
 
 		// Check that the message is a ROUND CHANGE message
 		if istanbul.MsgRoundChange != message.Code {
-			return nil, errInvalidRoundChangeCertificateMsgCode
+			return preparedCertificate, errInvalidRoundChangeCertificateMsgCode
 		}
 
 		var roundChange *istanbul.RoundChange
 		if err := message.Decode(&roundChange); err != nil {
 			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
-			return nil, err
+			return preparedCertificate, err
 		}
 
 		// Verify ROUND CHANGE message is for the proper view
 		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
-			return nil, errInvalidRoundChangeCertificateMsgView
+			return preparedCertificate, errInvalidRoundChangeCertificateMsgView
 		}
 
 		// Check the PREPARED certificate if present
 		if roundChange.HasPreparedCertificate() {
 			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
-				return nil, err
+				return preparedCertificate, err
 			}
 			preparedCertificate = roundChange.PreparedCertificate
 		}
 	}
-	return &preparedCertificate, nil
+	return preparedCertificate, nil
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {

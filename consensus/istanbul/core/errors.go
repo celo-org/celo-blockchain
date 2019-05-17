@@ -41,8 +41,23 @@ var (
 	errFailedDecodePrepare = errors.New("failed to decode PREPARE")
 	// errFailedDecodeCommit is returned when the COMMIT message is malformed.
 	errFailedDecodeCommit = errors.New("failed to decode COMMIT")
-	// errInvalidPreparedCertificate is returned when the PREPARED certificate is invalid.
-	errInvalidPreparedCertificate = errors.New("failed to validate PREPARED certificate")
+
+	// errInvalidPreparedCertificateProposal is returned when the PREPARED certificate has an invalid proposal.
+	errInvalidPreparedCertificateProposal = errors.New("invalid proposal in PREPARED certificate")
+	// errInvalidPreparedCertificateNumMsgs is returned when the PREPARED certificate has an incorrect number of PREPARE messages.
+	errInvalidPreparedCertificateNumMsgs = errors.New("invalid number of PREPARE messages in certificate")
+	// errInvalidPreparedCertificateMsgSignature is returned when the PREPARED certificate has a PREPARE message with an invalid signature.
+	errInvalidPreparedCertificateMsgSignature = errors.New("invalid signature in PREPARED certificate")
+	// errInvalidPreparedCertificateDuplicate is returned when the PREPARED certificate has multiple PREPARE messages from the same validator.
+	errInvalidPreparedCertificateDuplicate = errors.New("duplicate message in PREPARED certificate")
+	// errInvalidPreparedCertificateMsgCode is returned when the PREPARED certificate contains a message with the wrong code.
+	errInvalidPreparedCertificateMsgCode = errors.New("non-PREPARE message in PREPARED certificate")
+	// errInvalidPreparedCertificateMsgDecode is returned when the PREPARED certificate contains a message that can't be decoded.
+	errInvalidPreparedCertificateMsgDecode = errors.New("failed to decode message in PREPARED certificate")
+	// errInvalidPreparedCertificateMsgView is returned when the PREPARED certificate contains a message for the wrong view
+	errInvalidPreparedCertificateMsgView = errors.New("message in PREPARED certificate for wrong view")
+	// errInvalidPreparedCertificateDigestMismatch is returned when the PREPARED certificate proposal doesn't match one of the PREPARE messages.
+	errInvalidPreparedCertificateDigestMismatch = errors.New("message in PREPARED certificate for different digest than proposal")
 
 	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
 	errInvalidRoundChangeCertificateNumMsgs = errors.New("invalid number of ROUND CHANGE messages in certificate")

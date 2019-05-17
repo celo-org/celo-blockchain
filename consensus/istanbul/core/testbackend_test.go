@@ -225,6 +225,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		}, vset, nil, nil, func(hash common.Hash) bool {
 			return false
 		})
+		core.roundChangeSet = newRoundChangeSet(vset)
 		core.valSet = vset
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
