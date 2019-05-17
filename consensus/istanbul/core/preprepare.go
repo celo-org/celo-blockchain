@@ -90,9 +90,12 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.Ro
 		}
 
 		// Verify ROUND CHANGE message is for the proper view
-		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
-			return preparedCertificate, errInvalidRoundChangeCertificateMsgView
-		}
+		// TODO(asa): Figure this out.
+		/*
+			if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
+				return preparedCertificate, errInvalidRoundChangeCertificateMsgView
+			}
+		*/
 
 		// Check the PREPARED certificate if present
 		if roundChange.HasPreparedCertificate() {

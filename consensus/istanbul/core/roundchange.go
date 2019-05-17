@@ -112,9 +112,12 @@ func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.Prepared
 		}
 
 		// Verify PREPARE message for the proper view
-		if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
-			return errInvalidPreparedCertificateMsgView
-		}
+		// TODO(asa): Figure this out.
+		/*
+			if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
+				return err
+			}
+		*/
 
 		if prepare.Digest != preparedCertificate.Proposal.Hash() {
 			return errInvalidPreparedCertificateDigestMismatch
