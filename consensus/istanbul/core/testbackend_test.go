@@ -19,6 +19,7 @@ package core
 import (
 	"crypto/ecdsa"
 	"math/big"
+	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -157,6 +158,58 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 	return self.peers
 }
 
+func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
+	prepare := &istanbul.Subject{
+		View:   &view,
+		Digest: digest,
+	}
+
+	payload, err := Encode(prepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := istanbul.Message{
+		Code:          istanbul.MsgPrepare,
+		Msg:           payload,
+		Address:       self.address,
+		CommittedSeal: []byte{},
+	}
+
+	data, err := msg.PayloadNoSig()
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+	msg.Signature, err = self.Sign(data)
+	return msg, err
+}
+
+func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
+	rc := &istanbul.RoundChange{
+		View:                &view,
+		PreparedCertificate: preparedCert,
+	}
+
+	payload, err := Encode(rc)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := istanbul.Message{
+		Code:          istanbul.MsgRoundChange,
+		Msg:           payload,
+		Address:       self.address,
+		CommittedSeal: []byte{},
+	}
+
+	data, err := msg.PayloadNoSig()
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+	msg.Signature, err = self.Sign(data)
+	return msg, err
+}
+
 // ==============================================
 //
 // define the struct that need to be provided for integration tests.
@@ -293,6 +346,39 @@ func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 
 func (t *testSystem) F() uint64 {
 	return t.f
+}
+
+func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+	preparedCertificate := istanbul.PreparedCertificate{
+		Proposal:        proposal,
+		PrepareMessages: []istanbul.Message{},
+	}
+	for i, backend := range sys.backends {
+		if uint64(i) == 2*sys.F()+1 {
+			break
+		}
+		msg, err := backend.getPrepareMessage(view, proposal.Hash())
+		if err != nil {
+			t.Errorf("Failed to create PREPARE message: %v", err)
+		}
+		preparedCertificate.PrepareMessages = append(preparedCertificate.PrepareMessages, msg)
+	}
+	return preparedCertificate
+}
+
+func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	for i, backend := range sys.backends {
+		if uint64(i) == 2*sys.F()+1 {
+			break
+		}
+		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
+		if err != nil {
+			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
+		}
+		roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
+	}
+	return roundChangeCertificate
 }
 
 // ==============================================
