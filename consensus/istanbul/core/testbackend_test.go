@@ -163,15 +163,17 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 
 type testSystem struct {
 	backends []*testSystemBackend
+	f        uint64
 
 	queuedMessage chan istanbul.MessageEvent
 	quit          chan struct{}
 }
 
-func newTestSystem(n uint64) *testSystem {
+func newTestSystem(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
 		backends: make([]*testSystemBackend, n),
+		f:        f,
 
 		queuedMessage: make(chan istanbul.MessageEvent),
 		quit:          make(chan struct{}),
@@ -199,7 +201,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	addrs, privateKeys := generateValidators(int(n))
-	sys := newTestSystem(n)
+	sys := newTestSystem(n, f)
 	config := istanbul.DefaultConfig
 	// Addresses are sorted in the validator set, we make a mapping here
 	// so we can fetch the private key for each validator.
@@ -286,6 +288,10 @@ func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 
 	t.backends[id] = backend
 	return backend
+}
+
+func (t *testSystem) F() uint64 {
+	return t.f
 }
 
 // ==============================================

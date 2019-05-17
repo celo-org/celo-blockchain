@@ -54,7 +54,7 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.Ro
 		return nil, errInvalidRoundChangeCertificateNumMsgs
 	}
 
-	var preparedCertificate *istanbul.PreparedCertificate
+	preparedCertificate := istanbul.EmptyPreparedCertificate()
 	seen := make(map[common.Address]bool)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		// Verify message signed by a validator
@@ -62,6 +62,7 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.Ro
 		if err != nil {
 			return nil, err
 		}
+
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
 			return nil, err
@@ -88,22 +89,20 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.Ro
 			return nil, err
 		}
 
-		/*
-			// Verify ROUND CHANGE message is for the proper view
-			if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
-				return nil, errInvalidRoundChangeCertificateMsgView
-			}
+		// Verify ROUND CHANGE message is for the proper view
+		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
+			return nil, errInvalidRoundChangeCertificateMsgView
+		}
 
-			// Check the PREPARED certificate if present
-			if roundChange.HasPreparedCertificate() {
-				if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
-					return nil, err
-				}
-				preparedCertificate = &roundChange.PreparedCertificate
+		// Check the PREPARED certificate if present
+		if roundChange.HasPreparedCertificate() {
+			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
+				return nil, err
 			}
-		*/
+			preparedCertificate = roundChange.PreparedCertificate
+		}
 	}
-	return preparedCertificate, nil
+	return &preparedCertificate, nil
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
@@ -137,7 +136,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// If round > 0, validate the existence of a valid ROUND CHANGE certificate.
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		if preprepare.HasRoundChangeCertificate() {
+		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
 		preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate)
