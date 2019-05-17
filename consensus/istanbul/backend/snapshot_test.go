@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
@@ -90,6 +89,39 @@ func convertValNames(accounts *testerAccountPool, valNames []string) []common.Ad
 	return returnArray
 }
 
+// Define a mock blockchain
+type mockBlockchain struct {
+	headers map[uint64]*types.Header
+}
+
+func (bc *mockBlockchain) AddHeader(number uint64, header *types.Header) {
+	bc.headers[number] = header
+}
+
+func (bc *mockBlockchain) GetHeaderByNumber(number uint64) *types.Header {
+	return bc.headers[number]
+}
+
+func (bc *mockBlockchain) Config() *params.ChainConfig {
+	return nil
+}
+
+func (bc *mockBlockchain) CurrentHeader() *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetHeader(hash common.Hash, number uint64) *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetHeaderByHash(hash common.Hash) *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetBlock(hash common.Hash, number uint64) *types.Block {
+	return nil
+}
+
 // Tests that validator set changes are evaluated correctly for various simple and complex scenarios.
 func TestValSetChange(t *testing.T) {
 	// Define the various voting scenarios to test
@@ -136,9 +168,7 @@ func TestValSetChange(t *testing.T) {
 			results:     []string{"A", "D", "E"},
 			err:         errUnauthorized,
 		},
-		// Comment out the remaining two test cases for now.  They are good test cases, but we need to figure out how to mock blocks for the
-		// fake headers
-		/* {
+		{
 			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.
 			epoch:      1,
 			validators: []string{"A", "B", "C"},
@@ -155,7 +185,7 @@ func TestValSetChange(t *testing.T) {
 				{proposer: "A", addedValidators: []string{"F"}, removedValidators: []string{"A", "B"}}},
 			results: []string{"C", "F"},
 			err:     nil,
-		}, */
+		},
 	}
 	// Run through the scenarios and test them
 	for i, tt := range tests {
@@ -185,21 +215,24 @@ func TestValSetChange(t *testing.T) {
 		b := genesis.ToBlock(nil)
 		extra, _ := assembleExtra(b.Header(), []common.Address{}, validators)
 		genesis.ExtraData = extra
-		// Create a pristine blockchain with the genesis injected
 		db := ethdb.NewMemDatabase()
-		genesis.Commit(db)
 
 		config := istanbul.DefaultConfig
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
-		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
-		chain, err := core.NewBlockChain(db, nil, genesis.Config, engine, vm.Config{}, nil)
 
-		// Assemble a chain of headers from the cast votes
-		headers := make([]*types.Header, len(tt.valsetdiffs))
+		chain := &mockBlockchain{
+			headers: make(map[uint64]*types.Header),
+		}
+		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
+
+		chain.AddHeader(0, genesis.ToBlock(nil).Header())
+
+		// Assemble a chain of headers from header validator set diffs
+		var prevHeader *types.Header
 		for j, valsetdiff := range tt.valsetdiffs {
-			headers[j] = &types.Header{
+			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
 				Time:       big.NewInt(int64(j) * int64(config.BlockPeriod)),
 				Difficulty: defaultDifficulty,
@@ -221,18 +254,19 @@ func TestValSetChange(t *testing.T) {
 			if err != nil {
 				t.Errorf("test %d, valsetdiff %d: error in encoding extra header info", i, j)
 			}
-			headers[j].Extra = append(buf.Bytes(), payload...)
+			header.Extra = append(buf.Bytes(), payload...)
 
 			if j > 0 {
-				headers[j].ParentHash = headers[j-1].Hash()
+				header.ParentHash = prevHeader.Hash()
 			}
 
-			accounts.sign(headers[j], valsetdiff.proposer)
-		}
-		// Pass all the headers through clique and ensure tallying succeeds
-		head := headers[len(headers)-1]
+			accounts.sign(header, valsetdiff.proposer)
 
-		snap, err := engine.snapshot(chain, head.Number.Uint64(), head.Hash(), headers)
+			chain.AddHeader(uint64(j+1), header)
+
+			prevHeader = header
+		}
+		snap, err := engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash())
 		if err != tt.err {
 			t.Errorf("test %d: error mismatch:  have %v, want %v", i, err, tt.err)
 			continue

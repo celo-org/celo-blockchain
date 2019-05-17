@@ -1050,10 +1050,12 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 	s := w.current.state.Copy()
 
-	// Set the validator set diff in the new header if we're using Istanbul
-	if w.isIstanbulEngine() {
-		if err := w.engine.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
-			return err
+	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		if istanbul.IsLastBlockOfEpoch(w.current.header) {
+			if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+				return err
+			}
 		}
 	}
 
