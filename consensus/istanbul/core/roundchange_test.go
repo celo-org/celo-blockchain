@@ -158,167 +158,69 @@ func TestHandleRoundChange(t *testing.T) {
 	}{
 		{
 			// normal case
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for _, backend := range sys.backends {
-					c := backend.engine.(*core)
-					c.valSet = backend.peers
-				}
-				return sys
-			}(),
+			NewTestSystemWithBackend(N, F),
 			func(_ *testSystem) istanbul.PreparedCertificate {
 				return istanbul.EmptyPreparedCertificate()
 			},
 			nil,
 		},
+		{
+			// normal case with valid prepared certificate
+			NewTestSystemWithBackend(N, F),
+			func(sys *testSystem) istanbul.PreparedCertificate {
+				return sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+			},
+			nil,
+		},
+		{
+			// normal case with invalid prepared certificate
+			NewTestSystemWithBackend(N, F),
+			func(sys *testSystem) istanbul.PreparedCertificate {
+				preparedCert := sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+				preparedCert.PrepareMessages[0] = preparedCert.PrepareMessages[1]
+				return preparedCert
+			},
+			errInvalidPreparedCertificateDuplicate,
+		},
 		/*
 			{
-				// future message
+				// valid message for future round
 				func() *testSystem {
 					sys := NewTestSystemWithBackend(N, F)
-
-					for i, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						if i != 0 {
-							c.state = StateAcceptRequest
-							// hack: force set subject that future message can be simulated
-							c.current = newTestRoundState(
-								&istanbul.View{
-									Round:    big.NewInt(0),
-									Sequence: big.NewInt(0),
-								},
-								c.valSet,
-							)
-
-						} else {
-							c.current.SetSequence(big.NewInt(10))
-						}
-					}
+					sys.backends[0].engine.(*core).current.SetRound(big.NewInt(10))
 					return sys
 				}(),
 				func(_ *testSystem) istanbul.PreparedCertificate {
-					return istanbul.PreparedCertificate{}
+					return istanbul.EmptyPreparedCertificate()
 				},
-				makeBlock(1),
-				errFutureMessage,
-				false,
-			},
-			{
-				// non-proposer
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-
-					// force remove replica 0, let replica 1 be the proposer
-					sys.backends = sys.backends[1:]
-
-					for i, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						if i != 0 {
-							// replica 0 is the proposer
-							c.state = StatePreprepared
-						}
-					}
-					return sys
-				}(),
-				func(_ *testSystem) istanbul.PreparedCertificate {
-					return istanbul.PreparedCertificate{}
-				},
-				makeBlock(1),
-				errNotFromProposer,
-				false,
-			},
-			{
-				// errOldMessage
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-
-					for i, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						if i != 0 {
-							c.state = StatePreprepared
-							c.current.SetSequence(big.NewInt(10))
-							c.current.SetRound(big.NewInt(10))
-						}
-					}
-					return sys
-				}(),
-				func(_ *testSystem) istanbul.PreparedCertificate {
-					return istanbul.PreparedCertificate{}
-				},
-				makeBlock(1),
-				errOldMessage,
-				false,
-			},
-			{
-				// ROUND CHANGE certificate missing
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-
-					for _, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						c.state = StatePreprepared
-						c.current.SetRound(big.NewInt(1))
-					}
-					return sys
-				}(),
-				func(_ *testSystem) istanbul.PreparedCertificate {
-					return istanbul.PreparedCertificate{}
-				},
-				makeBlock(1),
-				errMissingPreparedCertificate,
-				false,
-			},
-			{
-				// ROUND CHANGE certificate invalid
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-
-					for _, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						c.state = StatePreprepared
-						c.current.SetRound(big.NewInt(1))
-					}
-					return sys
-				}(),
-				func(sys *testSystem) istanbul.PreparedCertificate {
-					// Duplicate messages
-					preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), istanbul.EmptyPreparedCertificate())
-					preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
-					return preparedCertificate
-				},
-				makeBlock(1),
-				errInvalidPreparedCertificateDuplicate,
-				false,
-			},
-			{
-				// ROUND CHANGE certificate contains PREPARED certificate for a different block.
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-
-					for _, backend := range sys.backends {
-						c := backend.engine.(*core)
-						c.valSet = backend.peers
-						c.state = StatePreprepared
-						c.current.SetRound(big.NewInt(1))
-					}
-					return sys
-				}(),
-				func(sys *testSystem) istanbul.PreparedCertificate {
-					preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), makeBlock(2))
-					preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
-					return preparedCertificate
-				},
-				makeBlock(1),
-				errInvalidProposal,
-				false,
+				// TODO(asa): For some reason we ignore messages for future rounds and not messages for previous rounds.
+				nil,
 			},
 		*/
+		{
+			// invalid message for future sequence
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetSequence(big.NewInt(10))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			errFutureMessage,
+		},
+		{
+			// invalid message for previous round
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(0))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			errIgnored,
+		},
 	}
 
 OUTER:
