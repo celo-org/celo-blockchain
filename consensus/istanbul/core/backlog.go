@@ -252,7 +252,6 @@ func toPriority(msgCode uint64, view *istanbul.View) int64 {
 		// msgRoundChange comes first
 		return 0
 	}
-	// FIXME: round will be reset as 0 while new sequence
 	// 10 * Round limits the range of message code is from 0 to 9
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }

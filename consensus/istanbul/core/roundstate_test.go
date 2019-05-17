@@ -30,8 +30,8 @@ func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) 
 		round:      view.Round,
 		sequence:   view.Sequence,
 		Preprepare: newTestPreprepare(view),
-		Prepares:   newMessageSet(validatorSet),
-		Commits:    newMessageSet(validatorSet),
+		Prepares:   newMessageSet(validatorSet, view),
+		Commits:    newMessageSet(validatorSet, view),
 		mu:         new(sync.RWMutex),
 		hasBadProposal: func(hash common.Hash) bool {
 			return false

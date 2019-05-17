@@ -28,12 +28,13 @@ import (
 func TestMessageSetWithPreprepare(t *testing.T) {
 	valSet := newTestValidatorSet(4)
 
-	ms := newMessageSet(valSet)
-
 	view := &istanbul.View{
 		Round:    new(big.Int),
 		Sequence: new(big.Int),
 	}
+
+	ms := newMessageSet(valSet, view)
+
 	pp := &istanbul.Preprepare{
 		View:     view,
 		Proposal: makeBlock(1),
@@ -67,12 +68,12 @@ func TestMessageSetWithPreprepare(t *testing.T) {
 func TestMessageSetWithSubject(t *testing.T) {
 	valSet := newTestValidatorSet(4)
 
-	ms := newMessageSet(valSet)
-
 	view := &istanbul.View{
 		Round:    new(big.Int),
 		Sequence: new(big.Int),
 	}
+
+	ms := newMessageSet(valSet, view)
 
 	sub := &istanbul.Subject{
 		View:   view,

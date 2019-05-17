@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -40,41 +41,41 @@ func TestRoundChangeSet(t *testing.T) {
 	m, _ := Encode(r)
 
 	// Test Add()
-	// Add message from all validators
+	// Add messages from each validators at round 1
 	for i, v := range vset.List() {
 		msg := &message{
 			Code:    msgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg, v)
+		rc.Add(view, msg, v)
 		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
 		}
 	}
 
-	// Add message again from all validators, but the size should be the same
+	// Add message again from each validator. Number of stored messages shouldn't change
 	for _, v := range vset.List() {
 		msg := &message{
 			Code:    msgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg, v)
+		rc.Add(view, msg, v)
 		if rc.msgsForRound[view.Round.Uint64()].Size() != vset.Size() {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), vset.Size())
 		}
 	}
 
-	// Test MaxRound()
+	// Test GreatestRoundForThreshold()
 	for i := 0; i < 10; i++ {
-		maxRound := rc.MaxRound(i)
+		maxRound := rc.GreatestRoundForThreshold(i)
 		if i <= vset.Size() {
 			if maxRound == nil || maxRound.Cmp(view.Round) != 0 {
-				t.Errorf("max round mismatch: have %v, want %v", maxRound, view.Round)
+				t.Errorf("GreatestRoundForThreshold mismatch: have %v, want %v", maxRound, view.Round)
 			}
 		} else if maxRound != nil {
-			t.Errorf("max round mismatch: have %v, want nil", maxRound)
+			t.Errorf("GreatestRoundForThreshold mismatch: have %v, want nil", maxRound)
 		}
 	}
 
@@ -98,7 +99,7 @@ func TestRoundChangeSet(t *testing.T) {
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg, v)
+		rc.Add(view, msg, v)
 		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
 		}
@@ -110,7 +111,7 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 
 	// Test that we only store the msg with the highest round for each validator
-	roundMultiplier := 1
+	roundMultiplier := 2
 	for j := 1; j <= roundMultiplier; j++ {
 		for i, v := range vset.List() {
 			view := &istanbul.View{
@@ -127,7 +128,7 @@ func TestRoundChangeSet(t *testing.T) {
 				Msg:     m,
 				Address: v.Address(),
 			}
-			_, err := rc.Add(view.Round, msg, v)
+			err := rc.Add(view, msg, v)
 			if err != nil {
 				t.Errorf("Round change message: unexpected error %v", err)
 			}
@@ -144,4 +145,34 @@ func TestRoundChangeSet(t *testing.T) {
 				i, rc.latestRoundForVal[v.Address()], lookingForValAtRound)
 		}
 	}
+
+	// Check tail + prev pointers
+	for threshold := 1; threshold < vset.Size(); threshold++ {
+		r := rc.GreatestRoundForThreshold(threshold).Uint64()
+		expectedR := uint64((vset.Size() - threshold) * roundMultiplier)
+		if r != expectedR {
+			t.Errorf("GreatestRoundForThreshold: %v want %v have %v", rc.String(), expectedR, r)
+		}
+	}
+
+	// Check head + next pointers
+	rms := rc.least
+	var prevRms *messageSet
+	expectedR := 0
+	for rms != nil {
+		if rms.View().Round.Uint64() != uint64(expectedR) {
+			t.Errorf("Round change links invalid: %v want %v have %v", rc.String(), expectedR, rms.View().Round)
+		}
+		expectedR += roundMultiplier
+		prevRms = rms
+		rms = rms.next
+		if rms != nil && rms.prev != prevRms {
+			t.Errorf("Round change links invalid: %v at %v", rc.String(), rms)
+		}
+	}
+	if prevRms.next != nil || rc.greatest != prevRms {
+		t.Errorf("Round change links invalid at tail: %v at %v", rc.String(), prevRms)
+
+	}
+
 }

@@ -17,9 +17,11 @@
 package core
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
+	"strings"
 	"sync"
 )
 
@@ -69,6 +71,8 @@ func (c *core) sendRoundChange(round *big.Int) {
 func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 	logger := c.logger.New("state", c.state, "from", src.Address().Hex())
 
+	//logger.Info("RC", "msg", msg)
+
 	// Decode ROUND CHANGE message
 	var rc *istanbul.Subject
 	if err := msg.Decode(&rc); err != nil {
@@ -76,38 +80,40 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		return errInvalidMessage
 	}
 
+	// checkMessage ensures that message is for a current or future round.
 	if err := c.checkMessage(msgRoundChange, rc.View); err != nil {
+		logger.Info("RC checkMessage", "err", err, "msg_view", rc.View, "current_view", c.currentView())
 		return err
 	}
 
-	cv := c.currentView()
-	roundView := rc.View
-
-	// Add the ROUND CHANGE message to its message set and return how many
-	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg, src)
-	if err != nil {
+	// Add the ROUND CHANGE message to its message set.
+	if err := c.roundChangeSet.Add(rc.View, msg, src); err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
 	}
 
-	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
-	// If our round number is smaller than the certificate's round number, we would
-	// try to catch up the round number.
-	if c.waitingForRoundChange && num == c.valSet.F()+1 {
-		if cv.Round.Cmp(roundView.Round) < 0 {
-			c.sendRoundChange(roundView.Round)
-		}
+	cv := c.currentView()
+
+	// TODO - including ourselves?
+
+	//logger.Info("RC2", "rcs", c.roundChangeSet.String(), "qR", c.roundChangeSet.GreatestRoundForThreshold(2*c.valSet.F()+1), "ffR", c.roundChangeSet.GreatestRoundForThreshold(c.valSet.F()+1))
+
+	// See if we now have quorum for a round change. Find the maximal round r (where r > current, or = current if we are already in a round change state)
+	// if one exists, s.t we have seen ROUND CHANGE messages from 2f+1 unique other nodes for any round r'>=r,  move to r, and start round immediately.
+	if quorumRound := c.roundChangeSet.GreatestRoundForThreshold(2*c.valSet.F() + 1); quorumRound != nil && (c.waitingForRoundChange || quorumRound.Cmp(cv.Round) > 0) {
+		c.startNewRound(quorumRound)
 		return nil
-	} else if num == 2*c.valSet.F()+1 && (c.waitingForRoundChange || cv.Round.Cmp(roundView.Round) < 0) {
-		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
-		c.startNewRound(roundView.Round)
-		return nil
-	} else if cv.Round.Cmp(roundView.Round) < 0 {
-		// Only gossip the message with current round to other validators.
-		// TODO(tim) This in fact also gossips newer messages -- remove comment when gossip disabled
-		return errIgnored
 	}
+
+	if c.waitingForRoundChange {
+		// No quoroum yet, but we are already waiting for a new round, so see if we should fast-forward. Find the maximal
+		// round r > current, if one exists, s.t we have seen ROUND CHANGE messages from f+1 unique other nodes for any
+		// round r'>=r, and send a ROUND CHANGE message for r.
+		if ffRound := c.roundChangeSet.GreatestRoundForThreshold(c.valSet.F() + 1); ffRound != nil && ffRound.Cmp(cv.Round) > 0 {
+			c.sendRoundChange(ffRound)
+		}
+	}
+
 	return nil
 }
 
@@ -119,6 +125,8 @@ func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 		msgsForRound:      make(map[uint64]*messageSet),
 		latestRoundForVal: make(map[common.Address]uint64),
 		mu:                new(sync.Mutex),
+		least:             nil,
+		greatest:          nil,
 	}
 }
 
@@ -126,25 +134,32 @@ type roundChangeSet struct {
 	validatorSet      istanbul.ValidatorSet
 	msgsForRound      map[uint64]*messageSet
 	latestRoundForVal map[common.Address]uint64
+	least             *messageSet
+	greatest          *messageSet
 	mu                *sync.Mutex
 }
 
-// Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator) (int, error) {
+// Add adds the ROUND CHANGE message into the set, and returns the total number now
+// received from unique validators for that round
+func (rcs *roundChangeSet) Add(view *istanbul.View, msg *message, src istanbul.Validator) error {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	round := r.Uint64()
+	round := view.Round.Uint64()
 
 	if prevLatestRound, ok := rcs.latestRoundForVal[src.Address()]; ok {
 		if prevLatestRound > round {
 			// Reject as we have an RC for a later round from this validator.
-			return 0, errOldMessage
+			return errOldMessage
 		} else if prevLatestRound < round {
 			// Already got an RC for an earlier round from this validator.
 			// Forget that and remember this.
 			if rcs.msgsForRound[prevLatestRound] != nil {
 				rcs.msgsForRound[prevLatestRound].Remove(src.Address())
+				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
+					rcs.Unlink(rcs.msgsForRound[prevLatestRound])
+					delete(rcs.msgsForRound, prevLatestRound)
+				}
 			}
 		}
 	}
@@ -152,13 +167,12 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator)
 	rcs.latestRoundForVal[src.Address()] = round
 
 	if rcs.msgsForRound[round] == nil {
-		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
+		// First time we've seen this round -> new MessageSet.
+		rms := newMessageSet(rcs.validatorSet, view)
+		rcs.msgsForRound[round] = rms
+		rcs.Link(rms)
 	}
-	err := rcs.msgsForRound[round].Add(msg)
-	if err != nil {
-		return 0, err
-	}
-	return rcs.msgsForRound[round].Size(), nil
+	return rcs.msgsForRound[round].Add(msg)
 }
 
 // Clear deletes the messages with smaller round
@@ -175,25 +189,91 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 					}
 				}
 			}
+			rcs.Unlink(rms)
 			delete(rcs.msgsForRound, k)
 		}
 	}
 }
 
-// MaxRound returns the max round which the number of messages is equal or larger than num
-func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
+func (rcs *roundChangeSet) Link(rms *messageSet) {
+	if rcs.least == nil {
+		rcs.least = rms
+		rcs.greatest = rms
+		return
+	}
+	r := rms.View().Round
+	rmsAfter := rcs.least
+	for rmsAfter != nil {
+		if rmsAfter.View().Round.Cmp(r) > 0 {
+			if rmsAfter == rcs.least {
+				rcs.least = rms
+			} else {
+				rmsAfter.prev = rms
+			}
+			rms.next = rmsAfter
+		}
+		rmsAfter = rmsAfter.next
+	}
+	if rmsAfter == nil {
+		rms.prev = rcs.greatest
+		rms.prev.next = rms
+		rcs.greatest = rms
+	}
+}
+
+func (rcs *roundChangeSet) Unlink(rms *messageSet) {
+	if rcs.least == rms {
+		rcs.least = rms.next
+	} else {
+		rms.prev.next = rms.next
+	}
+	if rcs.greatest == rms {
+		rcs.greatest = rms.prev
+	} else {
+		rms.next.prev = rms.prev
+	}
+}
+
+// GreatestRoundForThreshold returns the greatest round for which the cumulative messages
+// in that and subsequent rounds from unique validators exceeds the parameter
+func (rcs *roundChangeSet) GreatestRoundForThreshold(threshold int) *big.Int {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	var maxRound *big.Int
-	for k, rms := range rcs.msgsForRound {
-		if rms.Size() < num {
-			continue
+	acc := 0
+	rms := rcs.greatest
+	//	fmt.Println("start")
+	for rms != nil {
+		//		fmt.Printf("r=%v acc=%v rms=%v\n", rms.View().Round, acc, rms.String())
+		acc += rms.Size()
+		if acc >= threshold {
+			//			fmt.Printf("found r=%v acc=%v\n", rms.View().Round, acc)
+			return rms.View().Round
 		}
-		r := big.NewInt(int64(k))
-		if maxRound == nil || maxRound.Cmp(r) < 0 {
-			maxRound = r
-		}
+		rms = rms.prev
 	}
-	return maxRound
+	return nil
+}
+
+func (rcs *roundChangeSet) String() string {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
+	rms := rcs.least
+	for rms != nil {
+		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", rms.View().Round, rms.String()))
+		rms = rms.next
+	}
+
+	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
+	for addr, r := range rcs.latestRoundForVal {
+		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
+	}
+
+	return fmt.Sprintf("RCS by round: {<%v> %v} by val: {<%v> %v}",
+		len(rcs.msgsForRound),
+		strings.Join(msgsForRoundStr, ", "),
+		len(rcs.latestRoundForVal),
+		strings.Join(latestRoundForValStr, ", "))
 }

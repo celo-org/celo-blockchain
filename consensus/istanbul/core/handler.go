@@ -189,8 +189,8 @@ func (c *core) handleTimeoutMsg() {
 	// the max round with F+1 round change message. We only need to catch up
 	// if the max round is larger than current round.
 	if !c.waitingForRoundChange {
-		maxRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-		logger.Trace("round change timeout", "round", c.current.Round(), "maxRound", maxRound)
+		maxRound := c.roundChangeSet.GreatestRoundForThreshold(c.valSet.F() + 1)
+		logger.Trace("round change timeout", "round", c.current.Round(), "maxRound", maxRound, "rcs", c.roundChangeSet.String())
 		if maxRound != nil && maxRound.Cmp(c.current.Round()) > 0 {
 			c.sendRoundChange(maxRound)
 			return
