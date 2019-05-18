@@ -112,12 +112,11 @@ func (c *core) validatePreparedCertificate(preparedCertificate istanbul.Prepared
 		}
 
 		// Verify PREPARE message for the proper view
-		// TODO(asa): Figure this out.
-		/*
-			if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
-				return err
-			}
-		*/
+		// We can't use "checkMessage" on the PREPARE message here since we are in StateAcceptRequest.
+		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 || prepare.View.Round.Cmp(c.currentView().Round) != 0 {
+			return errInvalidPreparedCertificateMsgView
+			return err
+		}
 
 		if prepare.Digest != preparedCertificate.Proposal.Hash() {
 			return errInvalidPreparedCertificateDigestMismatch
