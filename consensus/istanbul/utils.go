@@ -17,6 +17,10 @@
 package istanbul
 
 import (
+	"errors"
+	"sort"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -57,4 +61,95 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	}
 
 	return common.Address{}, ErrUnauthorizedAddress
+}
+
+// Retrieves the block number within an epoch.  The return value will be 1-based.
+// There is a special case if the number == 0.  It is basically the last block of the 0th epoch, and should have a value of epochSize
+func getNumberWithinEpoch(number uint64, epochSize uint64) uint64 {
+	if number == 0 {
+		return epochSize
+	} else {
+		return (number % epochSize)
+	}
+}
+
+func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
+	return getNumberWithinEpoch(number, epochSize) == epochSize
+}
+
+// Retrieves the epoch number given the block number.
+// There is a special case if the number == 0 (the genesis block).  That block will be in the
+// 1st epoch.
+func GetEpochNumber(number uint64, epochSize uint64) uint64 {
+	if number == 0 {
+		return 0
+	} else {
+		return (number / epochSize) + 1
+	}
+}
+
+func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, error) {
+	if epochNumber == 0 {
+		return 0, errors.New("No first block for epoch 0")
+	}
+
+	return ((epochNumber - 1) * epochSize) + 1, nil
+}
+
+func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
+	if epochNumber == 0 {
+		return 0
+	}
+
+	firstBlockNum, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
+	return firstBlockNum + (epochSize - 1)
+}
+
+func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([]common.Address, []common.Address) {
+	valSetMap := make(map[common.Address]bool)
+
+	for _, oldVal := range oldValSet {
+		valSetMap[oldVal] = true
+	}
+
+	var addedValidators []common.Address
+	for _, newVal := range newValSet {
+		if _, ok := valSetMap[newVal]; ok {
+			// We found a common validator.  Pop from the map
+			delete(valSetMap, newVal)
+		} else {
+			// We found a new validator that is not in the old validator set
+			addedValidators = append(addedValidators, newVal)
+		}
+	}
+	sort.Slice(addedValidators, func(i, j int) bool {
+		return strings.Compare(addedValidators[i].String(), addedValidators[j].String()) < 0
+	})
+
+	// Any remaining validators in the map are the removed validators
+	removedValidators := make([]common.Address, 0, len(valSetMap))
+	for rmVal := range valSetMap {
+		removedValidators = append(removedValidators, rmVal)
+	}
+
+	sort.Slice(removedValidators, func(i, j int) bool {
+		return strings.Compare(removedValidators[i].String(), removedValidators[j].String()) < 0
+	})
+
+	return addedValidators, removedValidators
+}
+
+// This function assumes that valSet1 and valSet2 are sorted
+func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
+	if len(valSet1) != len(valSet2) {
+		return false
+	}
+
+	for i := 0; i < len(valSet1); i++ {
+		if valSet1[i] != valSet2[i] {
+			return false
+		}
+	}
+
+	return true
 }

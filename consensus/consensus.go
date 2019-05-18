@@ -135,8 +135,19 @@ type Istanbul interface {
 	Engine
 
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(hash common.Hash) bool) error
+	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error
+
+	// This is only implemented for Istanbul.
+	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
+	// The changes are executed inline.
+	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
+
+	// This is only implemented for Istanbul.
+	// It will check to see if the header is from the last block of an epoch
+	IsLastBlockOfEpoch(header *types.Header) bool
 }
