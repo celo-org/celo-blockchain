@@ -19,6 +19,7 @@ package core
 import (
 	"math/big"
 	"testing"
+	//"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -92,8 +93,7 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 }
 
-// TODO(asa): Test with PREPARED certificate
-func TestValidatePreparedCertificate(t *testing.T) {
+func TestvalidatePreparedCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
@@ -139,7 +139,7 @@ func TestValidatePreparedCertificate(t *testing.T) {
 	for _, test := range testCases {
 		for _, backend := range sys.backends {
 			c := backend.engine.(*core)
-			err := c.ValidatePreparedCertificate(test.certificate)
+			err := c.validatePreparedCertificate(test.certificate)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -224,8 +224,7 @@ func TestHandleRoundChange(t *testing.T) {
 	}
 
 OUTER:
-	for i, test := range testCases {
-		testLogger.Info("Running handle round change test case", "number", i)
+	for _, test := range testCases {
 		test.system.Run(false)
 
 		v0 := test.system.backends[0]
@@ -259,41 +258,126 @@ OUTER:
 				}
 				continue OUTER
 			}
-
-			/*
-				if c.state != StatePreprepared {
-					t.Errorf("state mismatch: have %v, want %v", c.state, StatePreprepared)
-				}
-
-				if !test.existingBlock && !reflect.DeepEqual(c.current.Subject().View, curView) {
-					t.Errorf("view mismatch: have %v, want %v", c.current.Subject().View, curView)
-				}
-
-				// verify prepare messages
-				decodedMsg := new(istanbul.Message)
-				err := decodedMsg.FromPayload(v.sentMsgs[0], nil)
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want nil", err)
-				}
-
-				expectedCode := istanbul.MsgPrepare
-				if test.existingBlock {
-					expectedCode = istanbul.MsgCommit
-				}
-				if decodedMsg.Code != expectedCode {
-					t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, expectedCode)
-				}
-
-				var subject *istanbul.Subject
-				err = decodedMsg.Decode(&subject)
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want nil", err)
-				}
-				if !test.existingBlock && !reflect.DeepEqual(subject, c.current.Subject()) {
-					t.Errorf("subject mismatch: have %v, want %v", subject, c.current.Subject())
-				}
-			*/
-
 		}
 	}
 }
+
+/*
+func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
+	for {
+		select {
+		case <-ts.quit:
+			return
+		case event := <-ts.queuedMessage:
+			msg := new(istanbul.Message)
+			if err := msg.FromPayload(event.Payload, nil); err != nil {
+				t.Errorf("Could not decode payload")
+			}
+
+			targets := istMsgDistribution[msg.Code]
+			for index, b := range sys.backends {
+				if targets[index] || msg.Address == b.address {
+					go b.EventMux().Post(event)
+				}
+			}
+		}
+	}
+}
+
+var gossip = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: true,
+}
+
+var sendTo2FPlus1 = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: false,
+}
+
+var sendToF = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: true,
+}
+
+var noGossip = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: false,
+}
+
+// This tests the liveness issue present in the initial implementation of Istanbul, descibed in
+// more detail here: https://arxiv.org/pdf/1901.07160.pdf
+// To test this, a block is proposed, for which 2F + 1 PREPARE messages are sent to F nodes.
+// In the original implementation, these F nodes would lock onto that block, and eventually everyone would
+// round change. If the next proposer was byzantine, they could send a PRE-PREPARED with a different block,
+// get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
+// In the new implementation, the PRE-PREPARE will include a ROUND CHANGE certificate,
+// and the original F nodes will accept the newly proposed block.
+func TestGeneratesRoundChangeCertificate(t *testing.T) {
+	// Issue was that we weren't timing out because startNewRound was thinking we were on the same round.
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+
+	for _, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+	}
+
+	sys.backends[0].NewRequest(makeBlockWithDifficulty(1, 0))
+	sys.backends[1].NewRequest(makeBlockWithDifficulty(1, 1))
+	sys.backends[2].NewRequest(makeBlockWithDifficulty(1, 2))
+	sys.backends[3].NewRequest(makeBlockWithDifficulty(1, 3))
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	// Allow everyone to see the initial proposal
+	// Send all PREPARE messages to F nodes.
+	// Do not send COMMIT messages (we don't expect these to be sent anyway).
+	// Send ROUND CHANGE messages to the remaining 2F + 1 nodes.
+	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = sendToF
+	istMsgDistribution[istanbul.MsgCommit] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	// Start the first preprepare
+
+	// Send a different request to the next proposer.
+	// sys.backends[1].NewRequest(makeBlockWithDifficulty(1, 1))
+
+	// Received the first block which will setup the round change timeout
+	for _, b := range sys.backends {
+		<-b.EventMux().Subscribe(istanbul.FinalCommittedEvent{}).Chan()
+	}
+
+	// By now we should have sent prepares
+	<-time.After(2 * time.Second)
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+
+	// Eventually we should get a block again
+	select {
+	case <-time.After(time.Duration(istanbul.DefaultConfig.RequestTimeout) * time.Millisecond):
+		t.Error("Never finalized block")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // start Istanbul core
+	}
+	close(sys.quit)
+}
+*/

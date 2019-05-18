@@ -39,6 +39,18 @@ func makeBlock(number int64) *types.Block {
 	return block.WithSeal(header)
 }
 
+func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
+	header := &types.Header{
+		Difficulty: big.NewInt(difficulty),
+		Number:     big.NewInt(number),
+		GasLimit:   0,
+		GasUsed:    0,
+		Time:       big.NewInt(0),
+	}
+	block := &types.Block{}
+	return block.WithSeal(header)
+}
+
 func newTestProposal() istanbul.Proposal {
 	return makeBlock(1)
 }

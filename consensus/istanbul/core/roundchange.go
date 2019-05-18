@@ -33,6 +33,7 @@ func (c *core) sendNextRoundChange() {
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
 	logger := c.logger.New("state", c.state)
+	testLogger.Info("send round change for round", "round", round)
 
 	cv := c.currentView()
 	if cv.Round.Cmp(round) >= 0 {
@@ -59,13 +60,14 @@ func (c *core) sendRoundChange(round *big.Int) {
 		return
 	}
 
+	testLogger.Info("broadcasting round change for round", "round", round)
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
 	})
 }
 
-func (c *core) ValidatePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+func (c *core) validatePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
 	logger := c.logger.New("state", c.state)
 
 	// Validate the attached proposal
@@ -136,14 +138,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 		return errInvalidMessage
 	}
 
-	// Validate the PREPARED certificate if present.
-	if rc.HasPreparedCertificate() {
-		if err := c.ValidatePreparedCertificate(rc.PreparedCertificate); err != nil {
-			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
-			return err
-		}
-	}
-
 	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
 		return err
 	}
@@ -151,9 +145,21 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	cv := c.currentView()
 	roundView := rc.View
 
+	// Validate the PREPARED certificate if present.
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg, rc.PreparedCertificate.Proposal)
+	var num int
+	var err error
+	if rc.HasPreparedCertificate() {
+		if err = c.validatePreparedCertificate(rc.PreparedCertificate); err != nil {
+			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
+			return err
+		}
+		num, err = c.roundChangeSet.Add(roundView.Round, msg, rc.PreparedCertificate.Proposal)
+	} else {
+		num, err = c.roundChangeSet.Add(roundView.Round, msg, nil)
+	}
+
 	if err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
@@ -250,7 +256,7 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	return maxRound
 }
 
-func (rcs *roundChangeSet) GetCertificate(r *big.Int, f int) (istanbul.RoundChangeCertificate, error) {
+func (rcs *roundChangeSet) getCertificate(r *big.Int, f int) (istanbul.RoundChangeCertificate, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
@@ -268,7 +274,7 @@ func (rcs *roundChangeSet) GetCertificate(r *big.Int, f int) (istanbul.RoundChan
 	}
 }
 
-func (rcs *roundChangeSet) GetPreparedProposal(r *big.Int) istanbul.Proposal {
+func (rcs *roundChangeSet) getPreparedProposal(r *big.Int) istanbul.Proposal {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 

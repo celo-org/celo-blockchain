@@ -96,6 +96,10 @@ type RoundChangeCertificate struct {
 	RoundChangeMessages []Message
 }
 
+func (b *RoundChangeCertificate) IsEmpty() bool {
+	return len(b.RoundChangeMessages) > 0
+}
+
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{b.RoundChangeMessages})
@@ -122,7 +126,7 @@ type Preprepare struct {
 }
 
 func (b *Preprepare) HasRoundChangeCertificate() bool {
-	return len(b.RoundChangeCertificate.RoundChangeMessages) > 0
+	return b.RoundChangeCertificate.IsEmpty()
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
@@ -167,6 +171,10 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 }
 
+func (b *PreparedCertificate) IsEmpty() bool {
+	return len(b.PrepareMessages) > 0
+}
+
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *PreparedCertificate) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{b.Proposal, b.PrepareMessages})
@@ -193,7 +201,7 @@ type RoundChange struct {
 }
 
 func (b *RoundChange) HasPreparedCertificate() bool {
-	return len(b.PreparedCertificate.PrepareMessages) > 0
+	return b.PreparedCertificate.IsEmpty()
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.

@@ -224,12 +224,12 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 
 		var err error
-		roundChangeCertificate, err = c.roundChangeSet.GetCertificate(round, c.valSet.F())
+		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.F())
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
 			return
 		}
-		preparedProposal = c.roundChangeSet.GetPreparedProposal(round)
+		preparedProposal = c.roundChangeSet.getPreparedProposal(round)
 	} else {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),

@@ -99,7 +99,7 @@ func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.Ro
 
 		// Check the PREPARED certificate if present
 		if roundChange.HasPreparedCertificate() {
-			if err := c.ValidatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
+			if err := c.validatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return preparedCertificate, err
 			}
 			preparedCertificate = roundChange.PreparedCertificate
