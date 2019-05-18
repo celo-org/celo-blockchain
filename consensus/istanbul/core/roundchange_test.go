@@ -19,7 +19,7 @@ package core
 import (
 	"math/big"
 	"testing"
-	//"time"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -93,7 +93,7 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 }
 
-func TestvalidatePreparedCertificate(t *testing.T) {
+func TestValidatePreparedCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
@@ -262,7 +262,6 @@ OUTER:
 	}
 }
 
-/*
 func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
 	for {
 		select {
@@ -278,6 +277,8 @@ func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDis
 			for index, b := range sys.backends {
 				if targets[index] || msg.Address == b.address {
 					go b.EventMux().Post(event)
+				} else {
+					testLogger.Info("ignoring message with code", "code", msg.Code)
 				}
 			}
 		}
@@ -320,18 +321,15 @@ var noGossip = map[int]bool{
 // get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
 // In the new implementation, the PRE-PREPARE will include a ROUND CHANGE certificate,
 // and the original F nodes will accept the newly proposed block.
-func TestGeneratesRoundChangeCertificate(t *testing.T) {
+func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	// Issue was that we weren't timing out because startNewRound was thinking we were on the same round.
 	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
 
-	for _, b := range sys.backends {
+	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
+		block := makeBlockWithDifficulty(1, int64(i))
+		sys.backends[i].NewRequest(block)
 	}
-
-	sys.backends[0].NewRequest(makeBlockWithDifficulty(1, 0))
-	sys.backends[1].NewRequest(makeBlockWithDifficulty(1, 1))
-	sys.backends[2].NewRequest(makeBlockWithDifficulty(1, 2))
-	sys.backends[3].NewRequest(makeBlockWithDifficulty(1, 3))
 
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
 	defer newBlocks.Unsubscribe()
@@ -349,20 +347,9 @@ func TestGeneratesRoundChangeCertificate(t *testing.T) {
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
-	// Start the first preprepare
-
-	// Send a different request to the next proposer.
-	// sys.backends[1].NewRequest(makeBlockWithDifficulty(1, 1))
-
-	// Received the first block which will setup the round change timeout
-	for _, b := range sys.backends {
-		<-b.EventMux().Subscribe(istanbul.FinalCommittedEvent{}).Chan()
-	}
-
 	// By now we should have sent prepares
-	<-time.After(2 * time.Second)
+	<-time.After(1 * time.Second)
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
 
 	// Eventually we should get a block again
 	select {
@@ -380,4 +367,3 @@ func TestGeneratesRoundChangeCertificate(t *testing.T) {
 	}
 	close(sys.quit)
 }
-*/

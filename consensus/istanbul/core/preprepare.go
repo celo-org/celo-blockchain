@@ -148,7 +148,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 		}
 
 		// If the ROUND CHANGE certificate includes a PREPARED certificate, the proposal must match.
-		if preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
+		if !preparedCertificate.IsEmpty() && preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
 			// Send round change
 			c.sendNextRoundChange()
 			return errInvalidProposal

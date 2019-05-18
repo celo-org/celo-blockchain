@@ -33,7 +33,6 @@ func (c *core) sendNextRoundChange() {
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
 	logger := c.logger.New("state", c.state)
-	testLogger.Info("send round change for round", "round", round)
 
 	cv := c.currentView()
 	if cv.Round.Cmp(round) >= 0 {
@@ -60,7 +59,6 @@ func (c *core) sendRoundChange(round *big.Int) {
 		return
 	}
 
-	testLogger.Info("broadcasting round change for round", "round", round)
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,

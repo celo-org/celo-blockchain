@@ -249,8 +249,19 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(addresses, istanbul.RoundRobin)
 }
 
-// FIXME: int64 is needed for N and F
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
+	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) *roundState {
+		return newRoundState(&istanbul.View{
+			Round:    big.NewInt(0),
+			Sequence: big.NewInt(1),
+		}, vset, nil, nil, func(hash common.Hash) bool {
+			return false
+		})
+	})
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) *roundState) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	addrs, privateKeys := generateValidators(int(n))
@@ -272,12 +283,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 
 		core := New(backend, config).(*core)
 		core.state = StateAcceptRequest
-		core.current = newRoundState(&istanbul.View{
-			Round:    big.NewInt(0),
-			Sequence: big.NewInt(1),
-		}, vset, nil, nil, func(hash common.Hash) bool {
-			return false
-		})
+		core.current = getRoundState(vset)
 		core.roundChangeSet = newRoundChangeSet(vset)
 		core.valSet = vset
 		core.logger = testLogger
