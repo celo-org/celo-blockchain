@@ -166,6 +166,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
+		testLogger.Info("storing backlogged preprepare")
 		return testBacklog(c.handlePreprepare(msg, src))
 	case istanbul.MsgPrepare:
 		return testBacklog(c.handlePrepare(msg, src))

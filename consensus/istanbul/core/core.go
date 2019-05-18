@@ -216,7 +216,7 @@ func (c *core) startNewRound(round *big.Int) {
 
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var preparedProposal istanbul.Proposal
+	var preparedCertificateProposal istanbul.Proposal
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -229,7 +229,7 @@ func (c *core) startNewRound(round *big.Int) {
 			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
 			return
 		}
-		preparedProposal = c.roundChangeSet.getPreparedProposal(round)
+		preparedCertificateProposal = c.roundChangeSet.getPreparedCertificateProposal(round)
 	} else {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
@@ -249,11 +249,11 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
-		if preparedProposal != nil {
+		if preparedCertificateProposal != nil {
 			// If the round change contained a PREPARED certificate, we need to propose the proposal from
 			// that certificate.
 			r := &istanbul.Request{
-				Proposal: preparedProposal,
+				Proposal: preparedCertificateProposal,
 			}
 			c.sendPreprepare(r, roundChangeCertificate)
 		} else if c.current.pendingRequest != nil {
@@ -273,7 +273,6 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	}
 	c.waitingForRoundChange = true
 
-	// Need to keep block locked for round catching up
 	c.updateRoundState(view, c.valSet, true)
 	c.roundChangeSet.Clear(view.Round)
 	c.newRoundChangeTimer()

@@ -49,7 +49,11 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return nil
 	}
 
-	if view.Cmp(c.currentView()) > 0 {
+	// We allow PREPREPAREs for future rounds as they will need to provide a ROUND CHANGE certificate.
+	if msgCode != istanbul.MsgPreprepare && view.Cmp(c.currentView()) > 0 {
+		return errFutureMessage
+	}
+	if msgCode == istanbul.MsgPreprepare && view.Sequence.Cmp(c.currentView().Sequence) > 0 {
 		return errFutureMessage
 	}
 
@@ -57,7 +61,9 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errOldMessage
 	}
 
-	if c.waitingForRoundChange {
+	// When waiting for a round change, ROUND CHANGE and PREPREPARE messages should be processed
+	// as the latter may have a ROUND CHANGE certificate.
+	if msgCode != istanbul.MsgPreprepare && c.waitingForRoundChange {
 		return errFutureMessage
 	}
 
@@ -65,7 +71,6 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	// other messages are future messages
 	if c.state == StateAcceptRequest {
 		if msgCode > istanbul.MsgPreprepare {
-			testLogger.Info("Checking msg code > preprepare")
 			return errFutureMessage
 		}
 		return nil

@@ -139,7 +139,52 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	for _, test := range testCases {
 		for _, backend := range sys.backends {
 			c := backend.engine.(*core)
-			err := c.validatePreparedCertificate(test.certificate)
+			err := c.verifyPreparedCertificate(test.certificate)
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			}
+		}
+	}
+}
+
+// TODO(asa): Test with PREPARED certificate
+func TestVerifyAndHandleRoundChangeCertificate(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	sys := NewTestSystemWithBackend(N, F)
+	view := istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+
+	testCases := []struct {
+		certificate istanbul.RoundChangeCertificate
+		expectedErr error
+	}{
+		{
+			// Valid round change certificate without PREPARED certificate
+			sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate()),
+			nil,
+		},
+		{
+			// Invalid round change certificate, duplicate message
+			func() istanbul.RoundChangeCertificate {
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
+				return roundChangeCertificate
+			}(),
+			errInvalidRoundChangeCertificateDuplicate,
+		},
+		{
+			// Empty certificate
+			istanbul.RoundChangeCertificate{},
+			errInvalidRoundChangeCertificateNumMsgs,
+		},
+	}
+	for _, test := range testCases {
+		for _, backend := range sys.backends {
+			c := backend.engine.(*core)
+			err := c.verifyAndHandleRoundChangeCertificate(test.certificate)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -340,7 +385,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	istMsgDistribution[istanbul.MsgPreprepare] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = sendToF
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = sendTo2FPlus1
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 

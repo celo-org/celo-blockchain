@@ -31,51 +31,6 @@ func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
 	}
 }
 
-// TODO(asa): Test with PREPARED certificate
-func TestVerifyRoundChangeCertificate(t *testing.T) {
-	N := uint64(4) // replica 0 is the proposer, it will send messages to others
-	F := uint64(1)
-	sys := NewTestSystemWithBackend(N, F)
-	view := istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(1),
-	}
-
-	testCases := []struct {
-		certificate istanbul.RoundChangeCertificate
-		expectedErr error
-	}{
-		{
-			// Valid round change certificate without PREPARED certificate
-			sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate()),
-			nil,
-		},
-		{
-			// Invalid round change certificate, duplicate message
-			func() istanbul.RoundChangeCertificate {
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
-				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
-				return roundChangeCertificate
-			}(),
-			errInvalidRoundChangeCertificateDuplicate,
-		},
-		{
-			// Empty certificate
-			istanbul.RoundChangeCertificate{},
-			errInvalidRoundChangeCertificateNumMsgs,
-		},
-	}
-	for _, test := range testCases {
-		for _, backend := range sys.backends {
-			c := backend.engine.(*core)
-			_, err := c.verifyRoundChangeCertificate(test.certificate)
-			if err != test.expectedErr {
-				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-			}
-		}
-	}
-}
-
 func TestHandlePreprepare(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests
@@ -106,38 +61,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			newTestProposal(),
 			nil,
-			false,
-		},
-		{
-			// future message
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-					c.valSet = backend.peers
-					if i != 0 {
-						c.state = StateAcceptRequest
-						// hack: force set subject that future message can be simulated
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round:    big.NewInt(0),
-								Sequence: big.NewInt(0),
-							},
-							c.valSet,
-						)
-
-					} else {
-						c.current.SetSequence(big.NewInt(10))
-					}
-				}
-				return sys
-			}(),
-			func(_ *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
-			},
-			makeBlock(1),
-			errFutureMessage,
 			false,
 		},
 		{

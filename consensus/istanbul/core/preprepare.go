@@ -47,65 +47,8 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) verifyRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (istanbul.PreparedCertificate, error) {
-	logger := c.logger.New("state", c.state)
-
-	preparedCertificate := istanbul.EmptyPreparedCertificate()
-	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
-		return preparedCertificate, errInvalidRoundChangeCertificateNumMsgs
-	}
-
-	seen := make(map[common.Address]bool)
-	for _, message := range roundChangeCertificate.RoundChangeMessages {
-		// Verify message signed by a validator
-		data, err := message.PayloadNoSig()
-		if err != nil {
-			return preparedCertificate, err
-		}
-
-		signer, err := c.validateFn(data, message.Signature)
-		if err != nil {
-			return preparedCertificate, err
-		}
-
-		if signer != message.Address {
-			return preparedCertificate, errInvalidRoundChangeCertificateMsgSignature
-		}
-
-		// Check for duplicate ROUND CHANGE messages
-		if seen[signer] {
-			return preparedCertificate, errInvalidRoundChangeCertificateDuplicate
-		}
-		seen[signer] = true
-
-		// Check that the message is a ROUND CHANGE message
-		if istanbul.MsgRoundChange != message.Code {
-			return preparedCertificate, errInvalidRoundChangeCertificateMsgCode
-		}
-
-		var roundChange *istanbul.RoundChange
-		if err := message.Decode(&roundChange); err != nil {
-			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
-			return preparedCertificate, err
-		}
-
-		// Verify ROUND CHANGE message is for the proper view
-		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
-			return preparedCertificate, errInvalidRoundChangeCertificateMsgView
-		}
-
-		// Check the PREPARED certificate if present
-		if roundChange.HasPreparedCertificate() {
-			if err := c.validatePreparedCertificate(roundChange.PreparedCertificate); err != nil {
-				return preparedCertificate, err
-			}
-			preparedCertificate = roundChange.PreparedCertificate
-		}
-	}
-	return preparedCertificate, nil
-}
-
 func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
+	testLogger.Info("received preprepare")
 	logger := c.logger.New("from", src, "state", c.state)
 
 	// Decode PRE-PREPARE
@@ -117,7 +60,9 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
+	// If it is a new message with a valid ROUND CHANGE certificate, catch up to that round.
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
+		testLogger.Info("error checking preprepare message", "err", err)
 		if err == errOldMessage {
 			// Get validator set for the given proposal
 			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
@@ -136,20 +81,23 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// If round > 0, validate the existence of a valid ROUND CHANGE certificate.
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
+		testLogger.Info("received preprepare for round > 0")
 		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
-		preparedCertificate, err := c.verifyRoundChangeCertificate(preprepare.RoundChangeCertificate)
+		err := c.verifyAndHandleRoundChangeCertificate(preprepare.RoundChangeCertificate)
 		if err != nil {
 			return err
 		}
 
-		// If the ROUND CHANGE certificate includes a PREPARED certificate, the proposal must match.
-		if !preparedCertificate.IsEmpty() && preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
+		// If we saw a PREPARED certificate, the proposal must match.
+		preparedCertificateProposal := c.roundChangeSet.getPreparedCertificateProposal(preprepare.View.Round)
+		if preparedCertificateProposal != nil && preparedCertificateProposal.Hash() != preprepare.Proposal.Hash() {
 			// Send round change
 			c.sendNextRoundChange()
 			return errInvalidProposal
 		}
+		testLogger.Info("successfully received preprepare for round > 0")
 	}
 
 	// Check if the message comes from current proposer
