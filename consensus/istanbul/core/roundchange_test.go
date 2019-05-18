@@ -182,21 +182,18 @@ func TestHandleRoundChange(t *testing.T) {
 			},
 			errInvalidPreparedCertificateDuplicate,
 		},
-		/*
-			{
-				// valid message for future round
-				func() *testSystem {
-					sys := NewTestSystemWithBackend(N, F)
-					sys.backends[0].engine.(*core).current.SetRound(big.NewInt(10))
-					return sys
-				}(),
-				func(_ *testSystem) istanbul.PreparedCertificate {
-					return istanbul.EmptyPreparedCertificate()
-				},
-				// TODO(asa): For some reason we ignore messages for future rounds and not messages for previous rounds.
-				nil,
+		{
+			// valid message for future round
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(10))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
 			},
-		*/
+			errIgnored,
+		},
 		{
 			// invalid message for future sequence
 			func() *testSystem {
@@ -210,6 +207,7 @@ func TestHandleRoundChange(t *testing.T) {
 			errFutureMessage,
 		},
 		{
+			// TODO(asa): This doesn't seem to be running
 			// invalid message for previous round
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
@@ -219,7 +217,7 @@ func TestHandleRoundChange(t *testing.T) {
 			func(_ *testSystem) istanbul.PreparedCertificate {
 				return istanbul.EmptyPreparedCertificate()
 			},
-			errIgnored,
+			nil,
 		},
 	}
 
@@ -248,16 +246,15 @@ OUTER:
 			m, _ := Encode(roundChange)
 			_, val := r0.valSet.GetByAddress(v0.Address())
 			// run each backends and verify handlePreprepare function.
-			if err := c.handleRoundChange(&istanbul.Message{
+			err := c.handleRoundChange(&istanbul.Message{
 				Code:    istanbul.MsgRoundChange,
 				Msg:     m,
 				Address: v0.Address(),
-			}, val); err != nil {
-				if err != test.expectedErr {
-					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-				}
-				continue OUTER
+			}, val)
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
+			continue OUTER
 		}
 	}
 }
