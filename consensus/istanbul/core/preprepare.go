@@ -47,7 +47,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) ValidateRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (istanbul.PreparedCertificate, error) {
+func (c *core) verifyRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) (istanbul.PreparedCertificate, error) {
 	logger := c.logger.New("state", c.state)
 
 	preparedCertificate := istanbul.EmptyPreparedCertificate()
@@ -142,7 +142,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
-		preparedCertificate, err := c.ValidateRoundChangeCertificate(preprepare.RoundChangeCertificate)
+		preparedCertificate, err := c.verifyRoundChangeCertificate(preprepare.RoundChangeCertificate)
 		if err != nil {
 			return err
 		}

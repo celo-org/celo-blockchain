@@ -32,7 +32,7 @@ func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
 }
 
 // TODO(asa): Test with PREPARED certificate
-func TestValidateRoundChangeCertificate(t *testing.T) {
+func TestVerifyRoundChangeCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
@@ -68,7 +68,7 @@ func TestValidateRoundChangeCertificate(t *testing.T) {
 	for _, test := range testCases {
 		for _, backend := range sys.backends {
 			c := backend.engine.(*core)
-			_, err := c.ValidateRoundChangeCertificate(test.certificate)
+			_, err := c.verifyRoundChangeCertificate(test.certificate)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

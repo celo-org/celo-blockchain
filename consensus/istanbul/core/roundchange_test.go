@@ -93,7 +93,7 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 }
 
-func TestValidatePreparedCertificate(t *testing.T) {
+func TestVerifyPreparedCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
