@@ -48,7 +48,6 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
-	testLogger.Info("received preprepare")
 	logger := c.logger.New("from", src, "state", c.state)
 
 	// Decode PRE-PREPARE
@@ -56,6 +55,26 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 	err := msg.Decode(&preprepare)
 	if err != nil {
 		return errFailedDecodePreprepare
+	}
+	testLogger.Info("received preprepare for round", "round", preprepare.View.Round)
+
+	// If round > 0, handle the ROUND CHANGE certificate.
+	if preprepare.View.Round.Cmp(common.Big0) > 0 {
+		if !preprepare.HasRoundChangeCertificate() {
+			return errMissingRoundChangeCertificate
+		}
+		err := c.handleRoundChangeCertificate(preprepare.RoundChangeCertificate)
+		if err != nil {
+			return err
+		}
+
+		// If we saw a PREPARED certificate, the proposal must match.
+		preparedCertificateProposal := c.roundChangeSet.getPreparedCertificateProposal(preprepare.View.Round)
+		if preparedCertificateProposal != nil && preparedCertificateProposal.Hash() != preprepare.Proposal.Hash() {
+			// Send round change
+			c.sendNextRoundChange()
+			return errInvalidProposal
+		}
 	}
 
 	// Ensure we have the same view with the PRE-PREPARE message
@@ -77,27 +96,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 			}
 		}
 		return err
-	}
-
-	// If round > 0, validate the existence of a valid ROUND CHANGE certificate.
-	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		testLogger.Info("received preprepare for round > 0")
-		if !preprepare.HasRoundChangeCertificate() {
-			return errMissingRoundChangeCertificate
-		}
-		err := c.verifyAndHandleRoundChangeCertificate(preprepare.RoundChangeCertificate)
-		if err != nil {
-			return err
-		}
-
-		// If we saw a PREPARED certificate, the proposal must match.
-		preparedCertificateProposal := c.roundChangeSet.getPreparedCertificateProposal(preprepare.View.Round)
-		if preparedCertificateProposal != nil && preparedCertificateProposal.Hash() != preprepare.Proposal.Hash() {
-			// Send round change
-			c.sendNextRoundChange()
-			return errInvalidProposal
-		}
-		testLogger.Info("successfully received preprepare for round > 0")
 	}
 
 	// Check if the message comes from current proposer
@@ -126,6 +124,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
+		testLogger.Info("accepted preprepare for round", "round", preprepare.View.Round)
 		c.acceptPreprepare(preprepare)
 		c.setState(StatePreprepared)
 		c.sendPrepare()

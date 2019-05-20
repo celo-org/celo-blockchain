@@ -65,7 +65,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	})
 }
 
-func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
 	logger := c.logger.New("state", c.state)
 
 	// Validate the attached proposal
@@ -113,7 +113,9 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 		// Verify PREPARE message for the proper view
 		// We can't use "checkMessage" on the PREPARE message here since we are in StateAcceptRequest.
-		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 || prepare.View.Round.Cmp(c.currentView().Round) != 0 {
+		// TODO(asa): What round should these messages be for?
+		// TODO(asa): We need to store the PREPARED certificate so that we can have it for future rounds
+		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
 			return errInvalidPreparedCertificateMsgView
 			return err
 		}
@@ -126,7 +128,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	return nil
 }
 
-func (c *core) verifyAndHandleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {
+func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.logger.New("state", c.state)
 
 	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
@@ -167,22 +169,18 @@ func (c *core) verifyAndHandleRoundChangeCertificate(roundChangeCertificate ista
 			return err
 		}
 
-		// Verify ROUND CHANGE message is for the proper view
+		// Verify ROUND CHANGE message is for a proper view
 		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
 			return errInvalidRoundChangeCertificateMsgView
-		}
-
-		// Check the PREPARED certificate if present
-		if roundChange.HasPreparedCertificate() {
-			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
-				return err
-			}
 		}
 	}
 
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		_, val := c.valSet.GetByAddress(message.Address)
-		if err := c.handleRoundChange(&message, val); err != nil {
+		err := c.handleRoundChange(&message, val)
+		// We want to continue to process ROUND CHANGE messages if they're for future rounds.
+		// TODO(asa): Should we just process every message regardless of if there's an error?
+		if err != nil && err != errIgnored {
 			return err
 		}
 	}
@@ -207,13 +205,14 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	cv := c.currentView()
 	roundView := rc.View
 
-	// Validate the PREPARED certificate if present.
+	// Handle the PREPARED certificate if present.
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
 	var num int
 	var err error
 	if rc.HasPreparedCertificate() {
-		if err = c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
+		// TODO(asa): We can't directly add the PREPARE messages here because we won't be at the proper "ROUND STATE"
+		if err = c.handlePreparedCertificate(rc.PreparedCertificate); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 			return err
 		}
