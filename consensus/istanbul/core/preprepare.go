@@ -68,9 +68,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 			return err
 		}
 
-		// If we saw a PREPARED certificate, the proposal must match.
-		preparedCertificateProposal := c.roundChangeSet.getPreparedCertificateProposal(preprepare.View.Round)
-		if preparedCertificateProposal != nil && preparedCertificateProposal.Hash() != preprepare.Proposal.Hash() {
+		// If we have a PREPARED certificate after handling the ROUND CHANGE, the proposal must match.
+		if !c.current.preparedCertificate.IsEmpty() && c.current.preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
 			// Send round change
 			c.sendNextRoundChange()
 			return errInvalidProposal

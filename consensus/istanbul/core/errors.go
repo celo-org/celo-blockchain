@@ -74,6 +74,8 @@ var (
 
 	// errMissingRoundChangeCertificate is returned when ROUND CHANGE certificate is missing from a PREPREPARE for round > 0.
 	errMissingRoundChangeCertificate = errors.New("missing ROUND CHANGE certificate in PREPREPARE")
+	// errFailedCreatePreparedCertificate is returned when there aren't enough PREPARE messages to create a PREPARED certificate.
+	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 	// errFailedCreateRoundChangeCertificate is returned when there aren't enough ROUND CHANGE messages to create a ROUND CHANGE certificate.
 	errFailedCreateRoundChangeCertificate = errors.New("failed to create ROUND CHANGE certficate")
 	// errInvalidProposal is returned when a PREPARED certificate exists for proposal A in the ROUND CHANGE certificate for a PREPREPARE with proposal B.

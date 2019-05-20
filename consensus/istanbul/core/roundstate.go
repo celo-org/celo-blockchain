@@ -27,27 +27,29 @@ import (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
-		round:          view.Round,
-		sequence:       view.Sequence,
-		Preprepare:     preprepare,
-		Prepares:       newMessageSet(validatorSet),
-		Commits:        newMessageSet(validatorSet),
-		mu:             new(sync.RWMutex),
-		pendingRequest: pendingRequest,
-		hasBadProposal: hasBadProposal,
+		round:               view.Round,
+		sequence:            view.Sequence,
+		Preprepare:          preprepare,
+		Prepares:            newMessageSet(validatorSet),
+		Commits:             newMessageSet(validatorSet),
+		mu:                  new(sync.RWMutex),
+		pendingRequest:      pendingRequest,
+		preparedCertificate: preparedCertificate,
+		hasBadProposal:      hasBadProposal,
 	}
 }
 
 // roundState stores the consensus state
 type roundState struct {
-	round          *big.Int
-	sequence       *big.Int
-	Preprepare     *istanbul.Preprepare
-	Prepares       *messageSet
-	Commits        *messageSet
-	pendingRequest *istanbul.Request
+	round               *big.Int
+	sequence            *big.Int
+	Preprepare          *istanbul.Preprepare
+	Prepares            *messageSet
+	Commits             *messageSet
+	pendingRequest      *istanbul.Request
+	preparedCertificate istanbul.PreparedCertificate
 
 	mu             *sync.RWMutex
 	hasBadProposal func(hash common.Hash) bool
@@ -131,7 +133,24 @@ func (s *roundState) Sequence() *big.Int {
 	return s.sequence
 }
 
-func (s *roundState) GetPreparedCertificate(f int) istanbul.PreparedCertificate {
+// How should this work? I guess on handlePrepare we should check to see if we have
+// 2F+1 messages, if we do, we should set roundchangeset.PreparedCertificate[round].
+// In handleRoundChange, when we see a valid message with a valid PREPARED certificate,
+// we should store it.
+// TODO(asa): Should we use COMMITs as well in the prepared certificate if they're available?
+func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	s.preparedCertificate = preparedCertificate
+}
+
+// How should this work? I guess on handlePrepare we should check to see if we have
+// 2F+1 messages, if we do, we should set roundchangeset.PreparedCertificate[round].
+// In handleRoundChange, when we see a valid message with a valid PREPARED certificate,
+// we should store it.
+// TODO(asa): Should we use COMMITs as well in the prepared certificate if they're available?
+func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -140,14 +159,24 @@ func (s *roundState) GetPreparedCertificate(f int) istanbul.PreparedCertificate 
 		for i, message := range s.Prepares.Values() {
 			messages[i] = *message
 		}
-		return istanbul.PreparedCertificate{
+		s.preparedCertificate = istanbul.PreparedCertificate{
 			Proposal:        s.Preprepare.Proposal,
 			PrepareMessages: messages,
 		}
+		return nil
 	} else {
-		return istanbul.EmptyPreparedCertificate()
+		return errFailedCreatePreparedCertificate
 	}
 }
+
+/*
+func (s *roundState) GetPreparedCertificate() istanbul.PreparedCertificate {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.preparedCertificate
+}
+*/
 
 // The DecodeRLP method should read one value from the given
 // Stream. It is not forbidden to read less or more, but it might

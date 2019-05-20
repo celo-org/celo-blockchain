@@ -256,7 +256,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, nil, func(hash common.Hash) bool {
+		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), func(hash common.Hash) bool {
 			return false
 		})
 	})

@@ -282,9 +282,9 @@ func (c *core) catchUpRound(view *istanbul.View) {
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	if roundChange && c.current != nil {
-		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.backend.HasBadProposal)
+		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.backend.HasBadProposal)
 	} else {
-		c.current = newRoundState(view, validatorSet, nil, nil, c.backend.HasBadProposal)
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.backend.HasBadProposal)
 	}
 }
 

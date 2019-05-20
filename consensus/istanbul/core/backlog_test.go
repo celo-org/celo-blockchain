@@ -31,14 +31,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-/*
 func TestCheckMessage(t *testing.T) {
 	c := &core{
 		state: StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 
 	// invalid view format
@@ -165,7 +164,6 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 }
-*/
 
 func TestStoreBacklog(t *testing.T) {
 	c := &core{
@@ -246,7 +244,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 		state: StateAcceptRequest,
 	}
 	c.subscribeEvents()
@@ -338,7 +336,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()

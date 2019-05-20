@@ -50,7 +50,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	cv = c.currentView()
 	rc := &istanbul.RoundChange{
 		View:                cv,
-		PreparedCertificate: c.current.GetPreparedCertificate(c.valSet.F()),
+		PreparedCertificate: c.current.preparedCertificate,
 	}
 
 	payload, err := Encode(rc)
@@ -63,69 +63,6 @@ func (c *core) sendRoundChange(round *big.Int) {
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
 	})
-}
-
-func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
-	logger := c.logger.New("state", c.state)
-
-	// Validate the attached proposal
-	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
-		return errInvalidPreparedCertificateProposal
-	}
-
-	if len(preparedCertificate.PrepareMessages) > c.valSet.Size() || len(preparedCertificate.PrepareMessages) < 2*c.valSet.F()+1 {
-		return errInvalidPreparedCertificateNumMsgs
-	}
-
-	seen := make(map[common.Address]bool)
-	for _, message := range preparedCertificate.PrepareMessages {
-		data, err := message.PayloadNoSig()
-		if err != nil {
-			return err
-		}
-
-		// Verify message signed by a validator
-		signer, err := c.validateFn(data, message.Signature)
-		if err != nil {
-			return errInvalidPreparedCertificateMsgSignature
-		}
-
-		if signer != message.Address {
-			return errInvalidPreparedCertificateMsgSignature
-		}
-
-		// Check for duplicate messages
-		if seen[signer] {
-			return errInvalidPreparedCertificateDuplicate
-		}
-		seen[signer] = true
-
-		// Check that the message is a PREPARE message
-		if istanbul.MsgPrepare != message.Code {
-			return errInvalidPreparedCertificateMsgCode
-		}
-
-		var prepare *istanbul.Subject
-		if err := message.Decode(&prepare); err != nil {
-			logger.Error("Failed to decode PREPARE in ROUND CHANGE", "err", err)
-			return errInvalidPreparedCertificateMsgDecode
-		}
-
-		// Verify PREPARE message for the proper view
-		// We can't use "checkMessage" on the PREPARE message here since we are in StateAcceptRequest.
-		// TODO(asa): What round should these messages be for?
-		// TODO(asa): We need to store the PREPARED certificate so that we can have it for future rounds
-		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
-			return errInvalidPreparedCertificateMsgView
-			return err
-		}
-
-		if prepare.Digest != preparedCertificate.Proposal.Hash() {
-			return errInvalidPreparedCertificateDigestMismatch
-		}
-	}
-
-	return nil
 }
 
 func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {

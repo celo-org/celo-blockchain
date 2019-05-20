@@ -376,9 +376,8 @@ var noGossip = map[int]bool{
 // get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
 // In the new implementation, the PRE-PREPARE will include a ROUND CHANGE certificate,
 // and all nodes will accept the newly proposed block.
-/*
 func TestCommitsBlocksAfterRoundChange(t *testing.T) {
-	// Issue was that we weren't timing out because startNewRound was thinking we were on the same round.
+	// Initialize the system with a nil round state so that we properly start round 0.
 	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
 
 	for i, b := range sys.backends {
@@ -389,6 +388,9 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
 	defer newBlocks.Unsubscribe()
+
+	timeout := sys.backends[3].EventMux().Subscribe(timeoutEvent{})
+	defer timeout.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}
 
@@ -403,22 +405,27 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
-	// By now we should have sent prepares
+	// Turn PREPAREs back on for round 1.
 	<-time.After(1 * time.Second)
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
 
+	// Wait for round 1 to start.
+	<-timeout.Chan()
+
 	// Eventually we should get a block again
 	select {
-	case <-time.After(time.Duration(istanbul.DefaultConfig.RequestTimeout) * time.Millisecond):
-		t.Error("Never finalized block")
+	case <-timeout.Chan():
+		t.Error("Did not finalize a block in round 1")
 	case _, ok := <-newBlocks.Chan():
 		if !ok {
 			t.Error("Error reading block")
 		}
+		// Wait for all backends to finalize the block.
+		<-time.After(1 * time.Second)
 		for i, b := range sys.backends {
 			committed, _ := b.LastProposal()
-			// We expect to commit the block proposed by the second proposer.
-			expectedCommitted := makeBlockWithDifficulty(1, 1)
+			// We expect to commit the block proposed by the first proposer.
+			expectedCommitted := makeBlockWithDifficulty(1, 0)
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
 			}
@@ -431,16 +438,11 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	}
 	close(sys.quit)
 }
-*/
 
-// This tests that
-//  2F + 1 nodes receive 2F + 1 PREPAREs
-//  Round change (with PREPARED certificate)
-//  Prepares no longer gossipped, round change should still have PREPARED certificate
-//  Prepares turned back on, round change, block get produced this time
-//  ^^ Currently this wouldn't happen, since the PREPARE messages would have been cleared
+// This tests that when F+1 nodes receive 2F+1 PREPARE messages for a particular proposal, the
+// system enforces that as the only valid proposal for this sequence.
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
-	// Issue was that we weren't timing out because startNewRound was thinking we were on the same round.
+	// Initialize the system with a nil round state so that we properly start round 0.
 	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
 
 	for i, b := range sys.backends {
@@ -465,34 +467,26 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
-	// 0: Round 0 start
-	// 0: Prepare certificate made
-	// 1: Prepare gossip off
-	//10: Round 1 start
-	//11: Prepare gossip on
-	//20: Round 2 start
-	//20: Block finalized
 	// Turn PREPARE messages off for round 1 to force reuse of the PREPARED certificate.
 	<-time.After(1 * time.Second)
-	// 1
-	testLogger.Info("turning prepare gossips off")
 	istMsgDistribution[istanbul.MsgPrepare] = noGossip
 
 	// Wait for round 1 to start.
 	<-timeout.Chan()
 	// Turn PREPARE messages back on in time for round 2.
 	<-time.After(1 * time.Second)
-	testLogger.Info("turning prepare gossips on")
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
 
 	// Wait for round 2 to start.
 	<-timeout.Chan()
 
-	// Eventually we should get a block again
 	select {
 	case <-timeout.Chan():
 		t.Error("Did not finalize a block in round 2.")
 	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
 		// Wait for all backends to finalize the block.
 		<-time.After(1 * time.Second)
 		for i, b := range sys.backends {
@@ -503,9 +497,6 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
 			}
-		}
-		if !ok {
-			t.Error("Error reading block")
 		}
 	}
 

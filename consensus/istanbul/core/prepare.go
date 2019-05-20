@@ -19,6 +19,7 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -37,6 +38,67 @@ func (c *core) sendPrepare() {
 	})
 }
 
+func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	logger := c.logger.New("state", c.state)
+
+	// Validate the attached proposal
+	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+		return errInvalidPreparedCertificateProposal
+	}
+
+	if len(preparedCertificate.PrepareMessages) > c.valSet.Size() || len(preparedCertificate.PrepareMessages) < 2*c.valSet.F()+1 {
+		return errInvalidPreparedCertificateNumMsgs
+	}
+
+	seen := make(map[common.Address]bool)
+	for _, message := range preparedCertificate.PrepareMessages {
+		data, err := message.PayloadNoSig()
+		if err != nil {
+			return err
+		}
+
+		// Verify message signed by a validator
+		signer, err := c.validateFn(data, message.Signature)
+		if err != nil {
+			return errInvalidPreparedCertificateMsgSignature
+		}
+
+		if signer != message.Address {
+			return errInvalidPreparedCertificateMsgSignature
+		}
+
+		// Check for duplicate messages
+		if seen[signer] {
+			return errInvalidPreparedCertificateDuplicate
+		}
+		seen[signer] = true
+
+		// Check that the message is a PREPARE message
+		if istanbul.MsgPrepare != message.Code {
+			return errInvalidPreparedCertificateMsgCode
+		}
+
+		var prepare *istanbul.Subject
+		if err := message.Decode(&prepare); err != nil {
+			logger.Error("Failed to decode PREPARE message in PREPARED certificate", "err", err)
+			return errInvalidPreparedCertificateMsgDecode
+		}
+
+		// Verify PREPARE message for the proper sequence.
+		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+			return errInvalidPreparedCertificateMsgView
+		}
+
+		// Verify PREPARE message for the proper proposal.
+		if prepare.Digest != preparedCertificate.Proposal.Hash() {
+			return errInvalidPreparedCertificateDigestMismatch
+		}
+	}
+
+	c.current.SetPreparedCertificate(preparedCertificate)
+	return nil
+}
+
 func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) error {
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
@@ -49,8 +111,6 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 		return err
 	}
 
-	// If it is locked, it can only process on the locked block.
-	// Passing verifyPrepare and checkMessage implies it is processing on the locked block since it was verified in the Preprepared state.
 	if err := c.verifyPrepare(prepare, src); err != nil {
 		return err
 	}
@@ -62,6 +122,9 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 	if (c.current.GetPrepareOrCommitSize() > 2*c.valSet.F()) && c.state.Cmp(StatePrepared) < 0 {
 		c.setState(StatePrepared)
 		c.sendCommit()
+		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
+			return err
+		}
 	}
 
 	return nil
