@@ -51,7 +51,7 @@ const (
 var (
 	// TODO(kevjue) - Replace with the actual registered address for the registry smart contract
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId}
+	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.GasPriceOracleRegistryId}
 	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
 )
 
@@ -92,8 +92,12 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
+  log.Trace("Getting address for ","registry ID", registryId)
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
+    log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
+    log.Trace("Found Address ","Address", address)
+    log.Error("Error","return error", ok)
 		return nil
 	} else {
 		return &address
