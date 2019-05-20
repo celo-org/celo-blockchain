@@ -31,51 +31,11 @@ var (
 	}
 )
 
-func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
-	if view == nil || view.Sequence == nil || view.Round == nil {
-		return errInvalidMessage
-	}
-
-	if msgCode == istanbul.MsgRoundChange {
-		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
-			return errFutureMessage
-		} else if view.Cmp(c.currentView()) < 0 {
-			return errOldMessage
-		}
-		return nil
-	}
-
-	if view.Cmp(c.currentView()) > 0 {
-		return errFutureMessage
-	}
-
-	if view.Cmp(c.currentView()) < 0 {
-		return errOldMessage
-	}
-
-	if c.waitingForRoundChange {
-		return errFutureMessage
-	}
-
-	// StateAcceptRequest only accepts istanbul.MsgPreprepare
-	// other messages are future messages
-	if c.state == StateAcceptRequest {
-		if msgCode > istanbul.MsgPreprepare {
-			return errFutureMessage
-		}
-		return nil
-	}
-
-	// For states(StatePreprepared, StatePrepared, StateCommitted),
-	// can accept all message types if processing with same view
-	return nil
-}
-
 // checkMessage checks the message state
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the message view is larger than current view
 // return errOldMessage if the message view is smaller than current view
-func (c *core) checkCertificateMessage(msgCode uint64, view *istanbul.View) error {
+func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	if view == nil || view.Sequence == nil || view.Round == nil {
 		return errInvalidMessage
 	}

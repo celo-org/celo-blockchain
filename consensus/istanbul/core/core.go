@@ -216,7 +216,6 @@ func (c *core) startNewRound(round *big.Int) {
 
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var preparedCertificateProposal istanbul.Proposal
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -229,7 +228,6 @@ func (c *core) startNewRound(round *big.Int) {
 			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
 			return
 		}
-		preparedCertificateProposal = c.roundChangeSet.getPreparedCertificateProposal(round)
 	} else {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
@@ -249,11 +247,10 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
-		if preparedCertificateProposal != nil {
-			// If the round change contained a PREPARED certificate, we need to propose the proposal from
-			// that certificate.
+		if !c.current.preparedCertificate.IsEmpty() {
+			// If we've seen a PREPARED certificate for a proposal, we need to propose that proposal.
 			r := &istanbul.Request{
-				Proposal: preparedCertificateProposal,
+				Proposal: c.current.preparedCertificate.Proposal,
 			}
 			c.sendPreprepare(r, roundChangeCertificate)
 		} else if c.current.pendingRequest != nil {

@@ -132,7 +132,7 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			// ROUND CHANGE certificate invalid
+			// ROUND CHANGE certificate invalid, duplicate messages.
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 

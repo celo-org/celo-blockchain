@@ -60,7 +60,7 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 		// Verify message signed by a validator
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
-			return errInvalidPreparedCertificateMsgSignature
+			return err
 		}
 
 		if signer != message.Address {
@@ -81,7 +81,7 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 		var prepare *istanbul.Subject
 		if err := message.Decode(&prepare); err != nil {
 			logger.Error("Failed to decode PREPARE message in PREPARED certificate", "err", err)
-			return errInvalidPreparedCertificateMsgDecode
+			return err
 		}
 
 		// Verify PREPARE message for the proper sequence.

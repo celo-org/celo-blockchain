@@ -27,6 +27,61 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+func TestHandlePreparedCertificate(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	sys := NewTestSystemWithBackend(N, F)
+	view := istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+
+	testCases := []struct {
+		certificate istanbul.PreparedCertificate
+		expectedErr error
+	}{
+		{
+			// Valid PREPARED certificate
+			sys.getPreparedCertificate(t, view, makeBlock(0)),
+			nil,
+		},
+		{
+			// Invalid PREPARED certificate, duplicate message
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
+				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateDuplicate,
+		},
+		{
+			// Invalid PREPARED certificate, hash mismatch
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
+				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
+				preparedCertificate.Proposal = makeBlock(1)
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateDigestMismatch,
+		},
+		{
+			// Empty certificate
+			istanbul.EmptyPreparedCertificate(),
+			errInvalidPreparedCertificateNumMsgs,
+		},
+	}
+	for _, test := range testCases {
+		for _, backend := range sys.backends {
+			c := backend.engine.(*core)
+			err := c.handlePreparedCertificate(test.certificate)
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			}
+		}
+	}
+}
+
+// TODO(asa): Test with PREPARED certificate
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)

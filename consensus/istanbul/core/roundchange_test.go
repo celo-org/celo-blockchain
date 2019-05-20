@@ -49,7 +49,7 @@ func TestRoundChangeSet(t *testing.T) {
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg, nil)
+		rc.Add(view.Round, msg)
 		if rc.roundChanges[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), i+1)
 		}
@@ -62,7 +62,7 @@ func TestRoundChangeSet(t *testing.T) {
 			Msg:     m,
 			Address: v.Address(),
 		}
-		rc.Add(view.Round, msg, nil)
+		rc.Add(view.Round, msg)
 		if rc.roundChanges[view.Round.Uint64()].Size() != vset.Size() {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.roundChanges[view.Round.Uint64()].Size(), vset.Size())
 		}
@@ -93,61 +93,6 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 }
 
-func TestHandlePreparedCertificate(t *testing.T) {
-	N := uint64(4) // replica 0 is the proposer, it will send messages to others
-	F := uint64(1)
-	sys := NewTestSystemWithBackend(N, F)
-	view := istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(1),
-	}
-
-	testCases := []struct {
-		certificate istanbul.PreparedCertificate
-		expectedErr error
-	}{
-		{
-			// Valid PREPARED certificate
-			sys.getPreparedCertificate(t, view, makeBlock(0)),
-			nil,
-		},
-		{
-			// Invalid PREPARED certificate, duplicate message
-			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
-				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
-				return preparedCertificate
-			}(),
-			errInvalidPreparedCertificateDuplicate,
-		},
-		{
-			// Invalid PREPARED certificate, hash mismatch
-			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
-				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
-				preparedCertificate.Proposal = makeBlock(1)
-				return preparedCertificate
-			}(),
-			errInvalidPreparedCertificateDigestMismatch,
-		},
-		{
-			// Empty certificate
-			istanbul.EmptyPreparedCertificate(),
-			errInvalidPreparedCertificateNumMsgs,
-		},
-	}
-	for _, test := range testCases {
-		for _, backend := range sys.backends {
-			c := backend.engine.(*core)
-			err := c.handlePreparedCertificate(test.certificate)
-			if err != test.expectedErr {
-				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-			}
-		}
-	}
-}
-
-// TODO(asa): Test with PREPARED certificate
 func TestHandleRoundChangeCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
@@ -164,6 +109,13 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 			// Valid round change certificate without PREPARED certificate
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
 				return sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+			},
+			nil,
+		},
+		{
+			// Valid round change certificate with PREPARED certificate
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				return sys.getRoundChangeCertificate(t, view, sys.getPreparedCertificate(t, view, makeBlock(0)))
 			},
 			nil,
 		},
@@ -188,7 +140,8 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 		sys := NewTestSystemWithBackend(N, F)
 		for i, backend := range sys.backends {
 			c := backend.engine.(*core)
-			err := c.handleRoundChangeCertificate(test.getCertificate(sys))
+			certificate := test.getCertificate(sys)
+			err := c.handleRoundChangeCertificate(certificate)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
 			}
@@ -259,7 +212,6 @@ func TestHandleRoundChange(t *testing.T) {
 			errFutureMessage,
 		},
 		{
-			// TODO(asa): This doesn't seem to be running
 			// invalid message for previous round
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)

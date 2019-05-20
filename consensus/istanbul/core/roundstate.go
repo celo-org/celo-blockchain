@@ -133,11 +133,6 @@ func (s *roundState) Sequence() *big.Int {
 	return s.sequence
 }
 
-// How should this work? I guess on handlePrepare we should check to see if we have
-// 2F+1 messages, if we do, we should set roundchangeset.PreparedCertificate[round].
-// In handleRoundChange, when we see a valid message with a valid PREPARED certificate,
-// we should store it.
-// TODO(asa): Should we use COMMITs as well in the prepared certificate if they're available?
 func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -145,10 +140,6 @@ func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.Prepare
 	s.preparedCertificate = preparedCertificate
 }
 
-// How should this work? I guess on handlePrepare we should check to see if we have
-// 2F+1 messages, if we do, we should set roundchangeset.PreparedCertificate[round].
-// In handleRoundChange, when we see a valid message with a valid PREPARED certificate,
-// we should store it.
 // TODO(asa): Should we use COMMITs as well in the prepared certificate if they're available?
 func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
 	s.mu.RLock()
@@ -168,15 +159,6 @@ func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
 		return errFailedCreatePreparedCertificate
 	}
 }
-
-/*
-func (s *roundState) GetPreparedCertificate() istanbul.PreparedCertificate {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.preparedCertificate
-}
-*/
 
 // The DecodeRLP method should read one value from the given
 // Stream. It is not forbidden to read less or more, but it might

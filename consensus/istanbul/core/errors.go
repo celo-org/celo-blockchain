@@ -52,8 +52,6 @@ var (
 	errInvalidPreparedCertificateDuplicate = errors.New("duplicate message in PREPARED certificate")
 	// errInvalidPreparedCertificateMsgCode is returned when the PREPARED certificate contains a message with the wrong code.
 	errInvalidPreparedCertificateMsgCode = errors.New("non-PREPARE message in PREPARED certificate")
-	// errInvalidPreparedCertificateMsgDecode is returned when the PREPARED certificate contains a message that can't be decoded.
-	errInvalidPreparedCertificateMsgDecode = errors.New("failed to decode message in PREPARED certificate")
 	// errInvalidPreparedCertificateMsgView is returned when the PREPARED certificate contains a message for the wrong view
 	errInvalidPreparedCertificateMsgView = errors.New("message in PREPARED certificate for wrong view")
 	// errInvalidPreparedCertificateDigestMismatch is returned when the PREPARED certificate proposal doesn't match one of the PREPARE messages.
@@ -67,8 +65,6 @@ var (
 	errInvalidRoundChangeCertificateDuplicate = errors.New("duplicate message in ROUND CHANGE certificate")
 	// errInvalidRoundChangeCertificateMsgCode is returned when the ROUND CHANGE certificate contains a message with the wrong code.
 	errInvalidRoundChangeCertificateMsgCode = errors.New("non-ROUND CHANGE message in ROUND CHANGE certificate")
-	// errInvalidRoundChangeCertificateMsgDecode is returned when the ROUND CHANGE certificate contains a message that can't be decoded.
-	errInvalidRoundChangeCertificateMsgDecode = errors.New("failed to decode message in ROUND CHANGE certificate")
 	// errInvalidRoundChangeCertificateMsgView is returned when the ROUND CHANGE certificate contains a message for the wrong view
 	errInvalidRoundChangeCertificateMsgView = errors.New("message in ROUND CHANGE certificate for wrong view")
 

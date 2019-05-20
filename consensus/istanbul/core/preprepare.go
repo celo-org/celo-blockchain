@@ -56,7 +56,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 	if err != nil {
 		return errFailedDecodePreprepare
 	}
-	testLogger.Info("received preprepare for round", "round", preprepare.View.Round)
 
 	// If round > 0, handle the ROUND CHANGE certificate.
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
@@ -78,9 +77,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
-	// If it is a new message with a valid ROUND CHANGE certificate, catch up to that round.
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
-		testLogger.Info("error checking preprepare message", "err", err)
 		if err == errOldMessage {
 			// Get validator set for the given proposal
 			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
@@ -123,7 +120,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
-		testLogger.Info("accepted preprepare for round", "round", preprepare.View.Round)
 		c.acceptPreprepare(preprepare)
 		c.setState(StatePreprepared)
 		c.sendPrepare()

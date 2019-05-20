@@ -146,18 +146,14 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
 	var num int
-	var err error
 	if rc.HasPreparedCertificate() {
-		// TODO(asa): We can't directly add the PREPARE messages here because we won't be at the proper "ROUND STATE"
-		if err = c.handlePreparedCertificate(rc.PreparedCertificate); err != nil {
+		if err := c.handlePreparedCertificate(rc.PreparedCertificate); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 			return err
 		}
-		num, err = c.roundChangeSet.Add(roundView.Round, msg, rc.PreparedCertificate.Proposal)
-	} else {
-		num, err = c.roundChangeSet.Add(roundView.Round, msg, nil)
 	}
 
+	num, err := c.roundChangeSet.Add(roundView.Round, msg)
 	if err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
@@ -187,22 +183,20 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
-		validatorSet:                valSet,
-		preparedCertificateProposal: make(map[uint64]istanbul.Proposal),
-		roundChanges:                make(map[uint64]*messageSet),
-		mu:                          new(sync.Mutex),
+		validatorSet: valSet,
+		roundChanges: make(map[uint64]*messageSet),
+		mu:           new(sync.Mutex),
 	}
 }
 
 type roundChangeSet struct {
-	validatorSet                istanbul.ValidatorSet
-	preparedCertificateProposal map[uint64]istanbul.Proposal
-	roundChanges                map[uint64]*messageSet
-	mu                          *sync.Mutex
+	validatorSet istanbul.ValidatorSet
+	roundChanges map[uint64]*messageSet
+	mu           *sync.Mutex
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message, proposal istanbul.Proposal) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) (int, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
@@ -214,7 +208,6 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message, proposal istan
 	if err != nil {
 		return 0, err
 	}
-	rcs.preparedCertificateProposal[round] = proposal
 	return rcs.roundChanges[round].Size(), nil
 }
 
@@ -226,12 +219,6 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	for k, rms := range rcs.roundChanges {
 		if len(rms.Values()) == 0 || k < round.Uint64() {
 			delete(rcs.roundChanges, k)
-		}
-	}
-
-	for k, preparedCertificateProposal := range rcs.preparedCertificateProposal {
-		if preparedCertificateProposal != nil || k < round.Uint64() {
-			delete(rcs.preparedCertificateProposal, k)
 		}
 	}
 }
@@ -270,12 +257,4 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, f int) (istanbul.RoundChan
 	} else {
 		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 	}
-}
-
-func (rcs *roundChangeSet) getPreparedCertificateProposal(r *big.Int) istanbul.Proposal {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	round := r.Uint64()
-	return rcs.preparedCertificateProposal[round]
 }
