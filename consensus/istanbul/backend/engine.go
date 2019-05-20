@@ -388,6 +388,13 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 			header.Extra = extra
 		}
+	} else {
+	        // If it's not the last block, then the validator set diff should be empty
+		extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
+		if err != nil {
+			return err
+		}
+		header.Extra = extra
 	}
 
 	return nil
