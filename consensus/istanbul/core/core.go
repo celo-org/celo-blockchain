@@ -319,6 +319,8 @@ func (c *core) stopTimer() {
 func (c *core) newRoundChangeTimer() {
 	c.stopTimer()
 
+	// TODO(tim) limit this
+
 	// set timeout based on the round number
 	timeout := time.Duration(float64(c.config.RequestTimeout)*math.Sqrt(float64(c.current.Round().Uint64()+1))) * time.Millisecond
 

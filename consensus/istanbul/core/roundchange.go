@@ -94,9 +94,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 
 	cv := c.currentView()
 
-	// TODO - including ourselves?
-
-	//logger.Info("RC2", "rcs", c.roundChangeSet.String(), "qR", c.roundChangeSet.GreatestRoundForThreshold(2*c.valSet.F()+1), "ffR", c.roundChangeSet.GreatestRoundForThreshold(c.valSet.F()+1))
+	logger.Info("handleRoundChange", "rcs", c.roundChangeSet.String(), "qR", c.roundChangeSet.GreatestRoundForThreshold(2*c.valSet.F()+1), "ffR", c.roundChangeSet.GreatestRoundForThreshold(c.valSet.F()+1))
 
 	// See if we now have quorum for a round change. Find the maximal round r (where r > current, or = current if we are already in a round change state)
 	// if one exists, s.t we have seen ROUND CHANGE messages from 2f+1 unique other nodes for any round r'>=r,  move to r, and start round immediately.
@@ -188,9 +186,9 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 						delete(rcs.latestRoundForVal, msg.Address)
 					}
 				}
+				rcs.Unlink(rms)
+				delete(rcs.msgsForRound, k)
 			}
-			rcs.Unlink(rms)
-			delete(rcs.msgsForRound, k)
 		}
 	}
 }
