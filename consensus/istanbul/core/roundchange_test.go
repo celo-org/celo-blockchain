@@ -320,7 +320,7 @@ var noGossip = map[int]bool{
 	3: false,
 }
 
-// This tests the liveness issue present in the initial implementation of Istanbul, descibed in
+// This tests the liveness issue present in the initial implementation of Istanbul, described in
 // more detail here: https://arxiv.org/pdf/1901.07160.pdf
 // To test this, a block is proposed, for which 2F + 1 PREPARE messages are sent to F nodes.
 // In the original implementation, these F nodes would lock onto that block, and eventually everyone would
