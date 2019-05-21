@@ -397,6 +397,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	log.Trace("FINALIZING RIGHT HERE")
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	sb.updateGasPriceSuggestion(state)
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -407,6 +408,14 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 }
 
 func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *core.InternalEVMHandler {
+	log.Trace("UPDATING GAS PRICE RIGHT NOW CHECK IT OUT")
+	// 1) Get contract address and abi | Check registeredAddresses.go
+	// 2) Construct a call which mutates state in the evm handler in evm.go
+	// 3) Pass this state to the to the evm when setting gold, this should mutate the state in the statedb
+	// 4) Make sure the smart contract getting mutated correctly
+	// 5) Pass multiple currencies to the SC and implement conversion in the SC
+	// 6) Tests & Docs
+	// 7) Clean up
 
 	return (sb.iEvmH)
 }
@@ -415,6 +424,7 @@ func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *core.Internal
 // seal place on top.
 func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	// update the block header timestamp and signature and propose the block to core engine
+	log.Trace("SEALING RIGHT HERE")
 	header := block.Header()
 	number := header.Number.Uint64()
 
