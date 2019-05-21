@@ -319,7 +319,11 @@ func (sb *Backend) IsKnownMessage(msg istanbul.Message) bool {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	hash := istanbul.RLPHash(msg.Payload())
-	_, ok := c.backend.knownMessages.Get(hash)
+	data, err := msg.Payload()
+	if err != nil {
+		return false
+	}
+	hash := istanbul.RLPHash(data)
+	_, ok := sb.knownMessages.Get(hash)
 	return ok
 }
