@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -97,6 +98,21 @@ type Context struct {
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
+
+	// Registered contract addresses
+	RegisteredAddressMap map[string]*common.Address
+}
+
+func (context *Context) getRegisteredAddress(registryId string) *common.Address {
+	if context.RegisteredAddressMap == nil {
+		return nil
+	} else {
+		if address, ok := context.RegisteredAddressMap[registryId]; ok {
+			return address
+		} else {
+			return nil
+		}
+	}
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -487,24 +503,26 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getTobinTaxFunctionSelector() []byte {
-	// Function is "getTobinTax()"
-	// selector is first 4 bytes of keccak256 of "getTobinTax()"
+func getOrComputeTobinTaxFunctionSelector() []byte {
+	// Function is "getOrComputeTobinTax()"
+	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
 	// Source:
 	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getTobinTax()")[0:4].hex())'
-	return hexutil.MustDecode("0x18ff9d23")
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
+	return hexutil.MustDecode("0x17f9a6f7")
 }
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		ret, gas, err := evm.Call(AccountRef(sender), params.ReserveAddress, getTobinTaxFunctionSelector(), gas, big.NewInt(0))
+	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
+
+	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
+		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
 		}
 
-		// Expected size of ret is 64 bytes because getTobinTax() returns two uint256 values,
+		// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
 		// each of which is equivalent to 32 bytes
 		if binary.Size(ret) == 64 {
 			numerator := new(big.Int).SetBytes(ret[0:32])
@@ -512,7 +530,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, params.ReserveAddress, tobinTax)
+			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
 			return gas, nil
 		}
 	}
@@ -520,4 +538,29 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
 	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
+}
+
+func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	transactionData, err := abi.Pack(funcName, args...)
+	if err != nil {
+		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
+		return 0, err
+	}
+	log.Trace("Calling evm", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+
+	ret, leftoverGas, err := evm.StaticCall(caller, address, transactionData, gas)
+
+	if err != nil {
+		log.Error("Error in calling the EVM", "err", err)
+		return leftoverGas, err
+	}
+
+	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
+
+	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
+		log.Error("Error in unpacking EVM call return bytes", "err", err)
+		return leftoverGas, err
+	}
+
+	return leftoverGas, nil
 }

@@ -39,6 +39,8 @@ type Backend interface {
 	AccountManager() *accounts.Manager
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
+	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
+	RegisteredAddresses() *core.RegisteredAddresses
 }
 
 // Miner creates blocks and searches for proof-of-work values.

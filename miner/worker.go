@@ -284,7 +284,14 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock)
+		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
+			func(parentHash common.Hash) (*state.StateDB, error) { return w.chain.StateAt(parentHash) },
+			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+			})
 	}
 }
 
@@ -510,6 +517,17 @@ func (w *worker) mainLoop() {
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], tx)
 				}
+
+				// Refresh the registered address cache before processing transaction batch
+				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
+					regAdd.RefreshAddresses()
+				}
+
+				// Refresh the gas currency whitelist cache before processing transaction batch
+				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
+					wl.RefreshWhitelist()
+				}
+
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				w.commitTransactions(txset, coinbase, nil)
 				w.updateSnapshot()
@@ -737,7 +755,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -975,8 +993,19 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
+	// Refresh the registered address cache before processing transaction batch
+	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
+		regAdd.RefreshAddresses()
+	}
+
+	// Refresh the gas currency whitelist cache before processing the pending transactions
+	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
+		wl.RefreshWhitelist()
+	}
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
+
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		istanbulEmptyBlockCommit()
@@ -1020,6 +1049,16 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		*receipts[i] = *l
 	}
 	s := w.current.state.Copy()
+
+	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		if istanbul.IsLastBlockOfEpoch(w.current.header) {
+			if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+				return err
+			}
+		}
+	}
+
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
 	if err != nil {
 		return err
