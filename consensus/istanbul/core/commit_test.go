@@ -17,7 +17,6 @@
 package core
 
 import (
-	"bytes"
 	"math/big"
 	"testing"
 
@@ -167,14 +166,11 @@ OUTER:
 
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
-			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&istanbul.Message{
-				Code:          istanbul.MsgCommit,
-				Msg:           m,
-				Address:       validator.Address(),
-				Signature:     []byte{},
-				CommittedSeal: validator.Address().Bytes(), // small hack
-			}, validator); err != nil {
+			commitMessage, err := v.getCommitMessage(*v.engine.(*core).current.Subject().View, v.engine.(*core).current.Proposal())
+			if err != nil {
+				t.Errorf("unable to create commit message for handleCommit")
+			}
+			if err := r0.handleCommit(&commitMessage, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -202,9 +198,12 @@ OUTER:
 		// check signatures large than 2F+1
 		signedCount := 0
 		committedSeals := v0.committedMsgs[0].committedSeals
+		committedProposal := v0.committedMsgs[0].commitProposal
 		for _, validator := range r0.valSet.List() {
 			for _, seal := range committedSeals {
-				if bytes.Equal(validator.Address().Bytes(), seal[:common.AddressLength]) {
+				expectedSeal := PrepareCommittedSeal(committedProposal.Hash())
+				signer, err := r0.validateFn(expectedSeal, seal)
+				if err == nil && signer == validator.Address() {
 					signedCount++
 					break
 				}

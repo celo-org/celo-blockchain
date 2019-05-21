@@ -182,7 +182,7 @@ func TestHandleRoundChange(t *testing.T) {
 			NewTestSystemWithBackend(N, F),
 			func(sys *testSystem) istanbul.PreparedCertificate {
 				preparedCert := sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
-				preparedCert.PrepareMessages[0] = preparedCert.PrepareMessages[1]
+				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
 				return preparedCert
 			},
 			errInvalidPreparedCertificateDuplicate,
@@ -440,7 +440,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			t.Error("Error reading block")
 		}
 		// Wait for all backends to finalize the block.
-		<-time.After(1 * time.Second)
+		<-time.After(2 * time.Second)
 		for i, b := range sys.backends {
 			// TODO(asa): Do something with proposer here
 			committed, _ := b.LastProposal()

@@ -150,8 +150,8 @@ func (b *Preprepare) DecodeRLP(s *rlp.Stream) error {
 }
 
 type PreparedCertificate struct {
-	Proposal        Proposal
-	PrepareMessages []Message
+	Proposal                Proposal
+	PrepareOrCommitMessages []Message
 }
 
 func EmptyPreparedCertificate() PreparedCertificate {
@@ -165,32 +165,32 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	block := types.Block{}
 
 	return PreparedCertificate{
-		Proposal:        block.WithSeal(emptyHeader),
-		PrepareMessages: []Message{},
+		Proposal:                block.WithSeal(emptyHeader),
+		PrepareOrCommitMessages: []Message{},
 	}
 }
 
 func (b *PreparedCertificate) IsEmpty() bool {
-	return len(b.PrepareMessages) == 0
+	return len(b.PrepareOrCommitMessages) == 0
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *PreparedCertificate) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.Proposal, b.PrepareMessages})
+	return rlp.Encode(w, []interface{}{b.Proposal, b.PrepareOrCommitMessages})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (b *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	var preparedCertificate struct {
-		Proposal        *types.Block
-		PrepareMessages []Message
+		Proposal                *types.Block
+		PrepareOrCommitMessages []Message
 	}
 
 	if err := s.Decode(&preparedCertificate); err != nil {
 		return err
 	}
 
-	b.Proposal, b.PrepareMessages = preparedCertificate.Proposal, preparedCertificate.PrepareMessages
+	b.Proposal, b.PrepareOrCommitMessages = preparedCertificate.Proposal, preparedCertificate.PrepareOrCommitMessages
 	return nil
 }
 

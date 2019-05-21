@@ -66,6 +66,10 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return err
 	}
 
+	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, src); err != nil {
+		return err
+	}
+
 	c.acceptCommit(msg, src)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
@@ -89,6 +93,19 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 		return errInconsistentSubject
 	}
 
+	return nil
+}
+
+// verifyCommittedSeal verifies the commit seal in the received COMMIT message
+func (c *core) verifyCommittedSeal(commit *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
+	subjectSeal := PrepareCommittedSeal(commit.Digest)
+	signer, err := c.validateFn(subjectSeal, committedSeal)
+	if err != nil {
+		return err
+	}
+	if signer != src.Address() {
+		return errInvalidCommittedSeal
+	}
 	return nil
 }
 

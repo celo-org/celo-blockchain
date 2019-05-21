@@ -35,6 +35,7 @@ func TestHandlePreparedCertificate(t *testing.T) {
 		Round:    big.NewInt(0),
 		Sequence: big.NewInt(1),
 	}
+	proposal := makeBlock(0)
 
 	testCases := []struct {
 		certificate istanbul.PreparedCertificate
@@ -42,14 +43,14 @@ func TestHandlePreparedCertificate(t *testing.T) {
 	}{
 		{
 			// Valid PREPARED certificate
-			sys.getPreparedCertificate(t, view, makeBlock(0)),
+			sys.getPreparedCertificate(t, view, proposal),
 			nil,
 		},
 		{
 			// Invalid PREPARED certificate, duplicate message
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
-				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDuplicate,
@@ -57,8 +58,8 @@ func TestHandlePreparedCertificate(t *testing.T) {
 		{
 			// Invalid PREPARED certificate, hash mismatch
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, makeBlock(0))
-				preparedCertificate.PrepareMessages[1] = preparedCertificate.PrepareMessages[0]
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				preparedCertificate.Proposal = makeBlock(1)
 				return preparedCertificate
 			}(),

@@ -314,3 +314,12 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	}
 	return sb.hasBadBlock(hash)
 }
+
+func (sb *Backend) IsKnownMessage(msg istanbul.Message) bool {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+
+	hash := istanbul.RLPHash(msg.Payload())
+	_, ok := c.backend.knownMessages.Get(hash)
+	return ok
+}

@@ -140,19 +140,24 @@ func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.Prepare
 	s.preparedCertificate = preparedCertificate
 }
 
-// TODO(asa): Should we use COMMITs as well in the prepared certificate if they're available?
 func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.Prepares.Size() > 2*f {
-		messages := make([]istanbul.Message, s.Prepares.Size())
+	prepareOrCommitSize := s.GetPrepareOrCommitSize()
+	if prepareOrCommitSize > 2*f {
+		messages := make([]istanbul.Message, prepareOrCommitSize)
 		for i, message := range s.Prepares.Values() {
 			messages[i] = *message
 		}
+		for i, message := range s.Commits.Values() {
+			if s.Prepares.Get(message.Address) == nil {
+				messages[i+s.Prepares.Size()] = *message
+			}
+		}
 		s.preparedCertificate = istanbul.PreparedCertificate{
-			Proposal:        s.Preprepare.Proposal,
-			PrepareMessages: messages,
+			Proposal:                s.Preprepare.Proposal,
+			PrepareOrCommitMessages: messages,
 		}
 		return nil
 	} else {

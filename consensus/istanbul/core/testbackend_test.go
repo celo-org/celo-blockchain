@@ -137,6 +137,10 @@ func (self *testSystemBackend) HasBadProposal(hash common.Hash) bool {
 	return false
 }
 
+func (self *testSystemBackend) IsKnownMessage(message istanbul.Message) bool {
+	return false
+}
+
 func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
@@ -160,6 +164,16 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 	return self.peers
 }
 
+func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
+	message := new(istanbul.Message)
+	data, err := self.engine.(*core).finalizeMessage(msg)
+	if err != nil {
+		return *message, err
+	}
+	err = message.FromPayload(data, self.engine.(*core).validateFn)
+	return *message, err
+}
+
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
 	prepare := &istanbul.Subject{
 		View:   &view,
@@ -171,19 +185,40 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 		return istanbul.Message{}, err
 	}
 
-	msg := istanbul.Message{
-		Code:          istanbul.MsgPrepare,
-		Msg:           payload,
-		Address:       self.address,
-		CommittedSeal: []byte{},
+	msg := &istanbul.Message{
+		Code: istanbul.MsgPrepare,
+		Msg:  payload,
 	}
 
-	data, err := msg.PayloadNoSig()
+	return self.finalizeAndReturnMessage(msg)
+}
+
+func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
+	commit := &istanbul.Subject{
+		View:   &view,
+		Digest: proposal.Hash(),
+	}
+
+	payload, err := Encode(commit)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
-	msg.Signature, err = self.Sign(data)
-	return msg, err
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgCommit,
+		Msg:  payload,
+	}
+
+	// We swap in the provided proposal so that the message is finalized for the provided proposal
+	// and not for the current preprepare.
+	cachePreprepare := self.engine.(*core).current.Preprepare
+	self.engine.(*core).current.Preprepare = &istanbul.Preprepare{
+		View:     &view,
+		Proposal: proposal,
+	}
+	message, err := self.finalizeAndReturnMessage(msg)
+	self.engine.(*core).current.Preprepare = cachePreprepare
+	return message, err
 }
 
 func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
@@ -197,19 +232,12 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 		return istanbul.Message{}, err
 	}
 
-	msg := istanbul.Message{
-		Code:          istanbul.MsgRoundChange,
-		Msg:           payload,
-		Address:       self.address,
-		CommittedSeal: []byte{},
+	msg := &istanbul.Message{
+		Code: istanbul.MsgRoundChange,
+		Msg:  payload,
 	}
 
-	data, err := msg.PayloadNoSig()
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-	msg.Signature, err = self.Sign(data)
-	return msg, err
+	return self.finalizeAndReturnMessage(msg)
 }
 
 // ==============================================
@@ -358,18 +386,24 @@ func (t *testSystem) F() uint64 {
 
 func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
-		Proposal:        proposal,
-		PrepareMessages: []istanbul.Message{},
+		Proposal:                proposal,
+		PrepareOrCommitMessages: []istanbul.Message{},
 	}
 	for i, backend := range sys.backends {
 		if uint64(i) == 2*sys.F()+1 {
 			break
 		}
-		msg, err := backend.getPrepareMessage(view, proposal.Hash())
-		if err != nil {
-			t.Errorf("Failed to create PREPARE message: %v", err)
+		var err error
+		var msg istanbul.Message
+		if i%2 == 0 {
+			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+		} else {
+			msg, err = backend.getCommitMessage(view, proposal)
 		}
-		preparedCertificate.PrepareMessages = append(preparedCertificate.PrepareMessages, msg)
+		if err != nil {
+			t.Errorf("Failed to create message %v: %v", i, err)
+		}
+		preparedCertificate.PrepareOrCommitMessages = append(preparedCertificate.PrepareOrCommitMessages, msg)
 	}
 	return preparedCertificate
 }

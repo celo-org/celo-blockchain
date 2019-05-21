@@ -46,12 +46,12 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 		return errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareMessages) > c.valSet.Size() || len(preparedCertificate.PrepareMessages) < 2*c.valSet.F()+1 {
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < 2*c.valSet.F()+1 {
 		return errInvalidPreparedCertificateNumMsgs
 	}
 
 	seen := make(map[common.Address]bool)
-	for _, message := range preparedCertificate.PrepareMessages {
+	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
 		if err != nil {
 			return err
@@ -73,25 +73,34 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 		seen[signer] = true
 
-		// Check that the message is a PREPARE message
-		if istanbul.MsgPrepare != message.Code {
+		// Check that the message is a PREPARE or COMMIT message
+		if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
 			return errInvalidPreparedCertificateMsgCode
 		}
 
-		var prepare *istanbul.Subject
-		if err := message.Decode(&prepare); err != nil {
-			logger.Error("Failed to decode PREPARE message in PREPARED certificate", "err", err)
+		var subject *istanbul.Subject
+		if err := message.Decode(&subject); err != nil {
+			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
 			return err
 		}
 
-		// Verify PREPARE message for the proper sequence.
-		if prepare.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+		// Verify message for the proper sequence.
+		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
 			return errInvalidPreparedCertificateMsgView
 		}
 
-		// Verify PREPARE message for the proper proposal.
-		if prepare.Digest != preparedCertificate.Proposal.Hash() {
+		// Verify message for the proper proposal.
+		if subject.Digest != preparedCertificate.Proposal.Hash() {
 			return errInvalidPreparedCertificateDigestMismatch
+		}
+
+		// If COMMIT message, verify valid committed seal.
+		if message.Code == istanbul.MsgCommit {
+			_, src := c.valSet.GetByAddress(signer)
+			err := c.verifyCommittedSeal(subject, message.CommittedSeal, src)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -120,11 +129,11 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
 	if (c.current.GetPrepareOrCommitSize() > 2*c.valSet.F()) && c.state.Cmp(StatePrepared) < 0 {
-		c.setState(StatePrepared)
-		c.sendCommit()
 		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
 			return err
 		}
+		c.setState(StatePrepared)
+		c.sendCommit()
 	}
 
 	return nil

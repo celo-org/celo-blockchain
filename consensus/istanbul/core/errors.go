@@ -44,17 +44,17 @@ var (
 
 	// errInvalidPreparedCertificateProposal is returned when the PREPARED certificate has an invalid proposal.
 	errInvalidPreparedCertificateProposal = errors.New("invalid proposal in PREPARED certificate")
-	// errInvalidPreparedCertificateNumMsgs is returned when the PREPARED certificate has an incorrect number of PREPARE messages.
+	// errInvalidPreparedCertificateNumMsgs is returned when the PREPARED certificate has an incorrect number of messages.
 	errInvalidPreparedCertificateNumMsgs = errors.New("invalid number of PREPARE messages in certificate")
-	// errInvalidPreparedCertificateMsgSignature is returned when the PREPARED certificate has a PREPARE message with an invalid signature.
+	// errInvalidPreparedCertificateMsgSignature is returned when the PREPARED certificate has a message with an invalid signature.
 	errInvalidPreparedCertificateMsgSignature = errors.New("invalid signature in PREPARED certificate")
-	// errInvalidPreparedCertificateDuplicate is returned when the PREPARED certificate has multiple PREPARE messages from the same validator.
+	// errInvalidPreparedCertificateDuplicate is returned when the PREPARED certificate has multiple messages from the same validator.
 	errInvalidPreparedCertificateDuplicate = errors.New("duplicate message in PREPARED certificate")
-	// errInvalidPreparedCertificateMsgCode is returned when the PREPARED certificate contains a message with the wrong code.
+	// errInvalidPreparedCertificateMsgCode is returned when the PREPARED certificate contains a non-PREPARE/COMMIT message.
 	errInvalidPreparedCertificateMsgCode = errors.New("non-PREPARE message in PREPARED certificate")
 	// errInvalidPreparedCertificateMsgView is returned when the PREPARED certificate contains a message for the wrong view
 	errInvalidPreparedCertificateMsgView = errors.New("message in PREPARED certificate for wrong view")
-	// errInvalidPreparedCertificateDigestMismatch is returned when the PREPARED certificate proposal doesn't match one of the PREPARE messages.
+	// errInvalidPreparedCertificateDigestMismatch is returned when the PREPARED certificate proposal doesn't match one of the messages.
 	errInvalidPreparedCertificateDigestMismatch = errors.New("message in PREPARED certificate for different digest than proposal")
 
 	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
@@ -68,6 +68,8 @@ var (
 	// errInvalidRoundChangeCertificateMsgView is returned when the ROUND CHANGE certificate contains a message for the wrong view
 	errInvalidRoundChangeCertificateMsgView = errors.New("message in ROUND CHANGE certificate for wrong view")
 
+	// errInvalidCommittedSeal is returned when a COMMIT message has an invalid committed seal.
+	errInvalidCommittedSeal = errors.New("invalid committed seal in COMMIT message")
 	// errMissingRoundChangeCertificate is returned when ROUND CHANGE certificate is missing from a PREPREPARE for round > 0.
 	errMissingRoundChangeCertificate = errors.New("missing ROUND CHANGE certificate in PREPREPARE")
 	// errFailedCreatePreparedCertificate is returned when there aren't enough PREPARE messages to create a PREPARED certificate.
