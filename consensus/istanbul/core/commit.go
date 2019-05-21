@@ -78,6 +78,10 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 	// by committing the proposal without PREPARE messages.
 	if c.current.Commits.Size() > 2*c.valSet.F() && c.state.Cmp(StateCommitted) < 0 {
 		c.commit()
+	} else if c.current.GetPrepareOrCommitSize() > 2*c.valSet.F() && c.state.Cmp(StatePrepared) < 0 {
+		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
+			return err
+		}
 	}
 
 	return nil
