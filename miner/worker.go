@@ -291,7 +291,8 @@ func (w *worker) start() {
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
-			})
+			},
+			w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 	}
 }
 
