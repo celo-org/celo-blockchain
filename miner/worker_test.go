@@ -53,9 +53,7 @@ var (
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
 
-	testVerificationService        = ""
-	testVerificationRewardsKey, _  = crypto.GenerateKey()
-	testVerificationRewardsAddress = crypto.PubkeyToAddress(testVerificationRewardsKey.PublicKey)
+	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -166,7 +164,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	pc := core.NewPriceComparator(nil, nil, nil)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, pc)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, pc)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }

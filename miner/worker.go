@@ -181,7 +181,6 @@ type worker struct {
 
 	// Verification Service
 	verificationService string
-	verificationRewards common.Address
 	verificationMu      sync.RWMutex
 	lastBlockVerified   uint64
 
@@ -189,7 +188,7 @@ type worker struct {
 	pc *core.PriceComparator
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, pc *core.PriceComparator) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -200,7 +199,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		gasCeil:             gasCeil,
 		isLocalBlock:        isLocalBlock,
 		verificationService: verificationService,
-		verificationRewards: verificationRewards,
 		localUncles:         make(map[common.Hash]*types.Block),
 		remoteUncles:        make(map[common.Hash]*types.Block),
 		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
@@ -385,7 +383,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					block := w.chain.GetBlockByNumber(number)
 					if now := time.Now().Unix(); block.Time().Uint64()+params.VerificationExpirySeconds >= uint64(now) {
 						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
+						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
 					} else {
 						break
 					}

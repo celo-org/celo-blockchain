@@ -198,7 +198,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerRecommitIntervalFlag,
 			utils.MinerNoVerfiyFlag,
 			utils.MinerVerificationServiceUrlFlag,
-			utils.MinerVerificationRewardsFlag,
 		},
 	},
 	{

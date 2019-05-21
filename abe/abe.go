@@ -48,17 +48,16 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 	return string(phoneNumber), nil
 }
 
-func createVerificationMessage(request types.VerificationRequest, verificationRewardsAddress common.Address, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	unsignedMessage := crypto.Keccak256(append(request.CodeHash.Bytes(), verificationRewardsAddress.Bytes()...))
-	signature, err := wallet.SignHash(account, unsignedMessage)
+func createVerificationMessage(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	signature, err := wallet.SignHash(account, request.CodeHash.Bytes())
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
+	return fmt.Sprintf("%s:%s", base64.URLEncoding.EncodeToString(signature), base64.URLEncoding.EncodeToString(account.Address.Bytes())), nil
 }
 
-func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
-	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes())}
+func sendSms(phoneNumber string, message string, account common.Address, issuer common.Address, verificationServiceURL string) error {
+	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes()), "issuer": base64.URLEncoding.EncodeToString(issuer.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
 
@@ -73,7 +72,7 @@ func sendSms(phoneNumber string, message string, account common.Address, verific
 	return err
 }
 
-func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string, verificationRewardsAddress common.Address) {
+func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
 	if err != nil {
@@ -92,14 +91,14 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 				continue
 			}
 
-			message, err := createVerificationMessage(request, verificationRewardsAddress, account, wallet)
+			message, err := createVerificationMessage(request, account, wallet)
 			if err != nil {
 				log.Error("[Celo] Failed to create verification message", "err", err)
 				continue
 			}
 
 			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
-			err = sendSms(phoneNumber, message, request.Account, verificationServiceURL)
+			err = sendSms(phoneNumber, message, request.Account, account.Address, verificationServiceURL)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
 			}
