@@ -81,9 +81,12 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 		return
 	}
 
+	log.Error("SendVerificationMessages")
+
 	for _, receipt := range receipts {
 		for _, request := range receipt.VerificationRequests {
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
+				log.Error("Not me")
 				continue
 			}
 			phoneNumber, err := decryptPhoneNumber(request, account, wallet)
