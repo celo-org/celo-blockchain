@@ -19,9 +19,10 @@ package les
 import (
 	"context"
 	"math/big"
-  "errors"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
@@ -172,7 +173,31 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-  return nil, errors.New("Not Implemented Error: Light Celo Subprotocol does not implement Gas Price Suggestion. Use the GasPriceOracle insteal") 
+	var gasPrice *big.Int
+
+	// TODO (jarmg 5/22/18): Store contract function ABIs in a central location
+	getGasPriceABIString := `[{
+		"constant": true,
+		"inputs": [],
+		"name": "getGasPriceSuggestion",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
+
+	gasPriceOracleAddress := b.eth.regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+	var (
+		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
+		_, err               = b.eth.iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
+	)
+
+	return gasPrice, err
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
