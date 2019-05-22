@@ -57,6 +57,7 @@ func createVerificationMessage(request types.VerificationRequest, account accoun
 }
 
 func sendSms(phoneNumber string, message string, account common.Address, issuer common.Address, verificationServiceURL string) error {
+	log.Error("[Celo] sendSms", "phoneNumber", phoneNumber, "message", message)
 	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes()), "issuer": base64.URLEncoding.EncodeToString(issuer.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
