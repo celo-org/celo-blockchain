@@ -86,7 +86,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 			log.Error("SendVerificationMessages")
 
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
-				log.Error("Not me")
+				log.Error("Not me", "coinbase", coinbase, "verifier", request.Verifier)
 				continue
 			}
 			phoneNumber, err := decryptPhoneNumber(request, account, wallet)
