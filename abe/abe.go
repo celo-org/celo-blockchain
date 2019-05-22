@@ -76,7 +76,7 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
 	if err != nil {
-		log.Error("[Celo] Failed to get account for sms verification", "err", err)
+		log.Warn("[Celo] Failed to get account for sms verification", "err", err)
 		return
 	}
 
