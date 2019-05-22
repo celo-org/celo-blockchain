@@ -291,7 +291,8 @@ func (w *worker) start() {
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
-			})
+			},
+			w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 	}
 }
 
@@ -1050,9 +1051,9 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 	s := w.current.state.Copy()
 
-	// Set the validator set diff in the new header if we're using Istanbul
-	if w.isIstanbulEngine() {
-		if err := w.engine.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
 			return err
 		}
 	}

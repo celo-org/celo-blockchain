@@ -63,18 +63,19 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	return common.Address{}, ErrUnauthorizedAddress
 }
 
-// Retrieves the block number within an epoch.  The return value will be 0-based.
-// There is a special case if the number == 0.  It is basically the last block of the 0th epoch.
+// Retrieves the block number within an epoch.  The return value will be 1-based.
+// There is a special case if the number == 0.  It is basically the last block of the 0th epoch, and should have a value of epochSize
 func getNumberWithinEpoch(number uint64, epochSize uint64) uint64 {
+	number = number % epochSize
 	if number == 0 {
-		return epochSize - 1
+		return epochSize
 	} else {
-		return (number % epochSize) - 1
+		return number
 	}
 }
 
 func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
-	return getNumberWithinEpoch(number, epochSize) == (epochSize - 1)
+	return getNumberWithinEpoch(number, epochSize) == epochSize
 }
 
 // Retrieves the epoch number given the block number.
@@ -82,7 +83,7 @@ func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
 // 1st epoch.
 func GetEpochNumber(number uint64, epochSize uint64) uint64 {
 	if number == 0 {
-		return 1
+		return 0
 	} else {
 		return (number / epochSize) + 1
 	}

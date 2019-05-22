@@ -101,8 +101,8 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	iEvmH  *core.InternalEVMHandler // Evm for calling smart contracts during consensus operations
-	regAdd *core.RegisteredAddresses
+	iEvmH  consensus.ConsensusIEvmH
+	regAdd consensus.ConsensusRegAdd
 }
 
 // Address implements istanbul.Backend.Address
@@ -364,7 +364,7 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
-	snap, err := sb.snapshot(sb.chain, number, hash, nil)
+	snap, err := sb.snapshot(sb.chain, number, hash)
 	if err != nil {
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}

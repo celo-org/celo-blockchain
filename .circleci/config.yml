@@ -10,3 +10,12 @@ jobs:
       - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
+
+  end-to-end-test:
+    docker:
+      - image: circleci/golang:1.11
+
+    working_directory: /go/src/github.com/celo-org/geth
+    steps:
+      - checkout
+      - run: ./geth_end_to_end_test.sh checkout a2b5418ebf8f3eefea24323fadf0b9c3e47e3230 ${PWD}

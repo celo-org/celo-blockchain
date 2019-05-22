@@ -97,10 +97,9 @@ type Ethereum struct {
 
 	gcWl   *core.GasCurrencyWhitelist
 	regAdd *core.RegisteredAddresses
+	iEvmH  *core.InternalEVMHandler
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
-
-	iEvmH *core.InternalEVMHandler // Used to make smart contract calls from geth
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -525,6 +524,7 @@ func (s *Ethereum) NetVersion() uint64                               { return s.
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
+func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
