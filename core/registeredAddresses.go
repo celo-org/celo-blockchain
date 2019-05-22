@@ -49,10 +49,10 @@ const (
 )
 
 var (
-	// TODO(kevjue) - Replace with the actual registered address for the registry smart contract
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId}
+	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId}
 	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
+	zeroAddress                  = common.Address{}
 )
 
 type RegisteredAddresses struct {
@@ -74,7 +74,10 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 			continue
 		} else {
 			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
-			returnMap[contractRegistryId] = contractAddress
+
+			if contractAddress != zeroAddress {
+				returnMap[contractRegistryId] = contractAddress
+			}
 		}
 	}
 

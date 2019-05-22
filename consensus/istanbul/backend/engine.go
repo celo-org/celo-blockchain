@@ -360,10 +360,18 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
+	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-		if validatorAddress != nil {
+		if validatorAddress == nil {
 			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
+
+			extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
+			if err != nil {
+				return err
+			}
+			header.Extra = extra
+
 		} else {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash)
@@ -388,6 +396,13 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 			header.Extra = extra
 		}
+	} else {
+		// If it's not the last block, then the validator set diff should be empty
+		extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
+		if err != nil {
+			return err
+		}
+		header.Extra = extra
 	}
 
 	return nil
@@ -521,7 +536,8 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 // Start implements consensus.Istanbul.Start
 func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
 	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	iEvmH consensus.ConsensusIEvmH, regAdd consensus.ConsensusRegAdd) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -541,6 +557,8 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock
 	sb.validateState = validateState
+	sb.iEvmH = iEvmH
+	sb.regAdd = regAdd
 
 	if err := sb.core.Start(); err != nil {
 		return err
@@ -731,6 +749,9 @@ func assembleExtra(header *types.Header, oldValSet []common.Address, newValSet [
 	buf.Write(header.Extra[:types.IstanbulExtraVanity])
 
 	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
+
+	log.Trace("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
+		"addedValidators", common.ConvertToStringSlice(addedValidators), "removedValidators", common.ConvertToStringSlice(removedValidators))
 
 	ist := &types.IstanbulExtra{
 		AddedValidators:   addedValidators,

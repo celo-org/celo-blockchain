@@ -100,8 +100,8 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	iEvmH  *core.InternalEVMHandler
-	regAdd *core.RegisteredAddresses
+	iEvmH  consensus.ConsensusIEvmH
+	regAdd consensus.ConsensusRegAdd
 }
 
 // Address implements istanbul.Backend.Address
