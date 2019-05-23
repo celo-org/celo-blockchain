@@ -437,6 +437,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	return types.NewBlock(header, txs, nil, receipts), nil
 }
 
+// TODO (jarmg 5/23/18): Implement this
 func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *state.StateDB {
 	return (state)
 }

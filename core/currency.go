@@ -129,7 +129,7 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 }
 
 
-// NOTE (jarmg 4/24): values are rounded down which can cause under priced
+// NOTE (jarmg 4/24/18): values are rounded down which can cause under priced
 // suggestions, particularly with extreme exchange rates
 func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
 	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
@@ -183,9 +183,9 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	}
 
 	// Below code block is basically evaluating this comparison:
-	// val1 / exchangeRate1Num/exchangeRate1Den < val2 / exchangeRate2Num/exchangeRate2Den
+	// val1 / exchangeRate1.Numerator/exchangeRate1.Denominator < val2 / exchangeRate2.Numerator/exchangeRate2.Denominator
 	// It will transform that comparison to this, to remove having to deal with fractional values.
-	// val1 * exchangeRate1Num * exchangeRate2Den < val2 * exchangeRate2Num * exchangeRate1Den
+	// val1 * exchangeRate1.Numerator * exchangeRate2.Denominator < val2 * exchangeRate2.Numerator * exchangeRate1.Denominator
 	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Numerator, exchangeRate2.Denominator))
 	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Numerator, exchangeRate1.Denominator))
 	return leftSide.Cmp(rightSide)
