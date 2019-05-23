@@ -148,7 +148,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	}
 
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
-	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg); err != nil {
+	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg, config.Etherbase); err != nil {
 		return nil, err
 	}
 	leth.ApiBackend = &LesApiBackend{leth, nil}
@@ -250,6 +250,15 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 	protocolVersion := AdvertiseProtocolVersions[0]
 	s.serverPool.start(srvr, lesTopic(s.blockchain.Genesis().Hash(), protocolVersion))
 	s.protocolManager.Start(s.config.LightPeers)
+	return nil
+}
+
+func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
+	// TODO(asa): How do we distinguish between nodes that haven't returned an etherbase yet and those that
+	// have explicitly set their etherbase to nil?
+	for _, etherbase := range peers.etherbases {
+		return p.etherbase
+	}
 	return nil
 }
 

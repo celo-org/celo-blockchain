@@ -58,7 +58,8 @@ type peer struct {
 
 	announceType, requestAnnounceType uint64
 
-	id string
+	id        string
+	etherbase common.Address
 
 	headInfo *announceData
 	lock     sync.RWMutex
@@ -195,6 +196,10 @@ func (p *peer) SendBlockBodiesRLP(reqID, bv uint64, bodies []rlp.RawValue) error
 	return sendResponse(p.rw, BlockBodiesMsg, reqID, bv, bodies)
 }
 
+func (p *peer) SendEtherbaseRLP(reqID, bv uint64, etherbase common.Address) error {
+	return sendResponse(p.rw, EtherbaseMsg, reqID, bv, etherbase)
+}
+
 // SendCodeRLP sends a batch of arbitrary internal data, corresponding to the
 // hashes requested.
 func (p *peer) SendCode(reqID, bv uint64, data [][]byte) error {
@@ -305,6 +310,16 @@ func (p *peer) RequestHelperTrieProofs(reqID, cost uint64, data interface{}) err
 func (p *peer) RequestTxStatus(reqID, cost uint64, txHashes []common.Hash) error {
 	p.Log().Debug("Requesting transaction status", "count", len(txHashes))
 	return sendRequest(p.rw, GetTxStatusMsg, reqID, cost, txHashes)
+}
+
+// RequestEtherbase fetches the etherbase of a remote node.
+func (p *peer) RequestEtherbase(reqID, cost uint64) error {
+	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
+	type req struct {
+		ReqID uint64
+		Data  interface{}
+	}
+	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID, nil})
 }
 
 // SendTxStatus sends a batch of transactions to be added to the remote transaction pool.
@@ -509,6 +524,7 @@ type peerSetNotify interface {
 // the Light Ethereum sub-protocol.
 type peerSet struct {
 	peers      map[string]*peer
+	etherbases map[common.Address]string
 	lock       sync.RWMutex
 	notifyList []peerSetNotify
 	closed     bool
@@ -517,7 +533,8 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers: make(map[string]*peer),
+		peers:      make(map[string]*peer),
+		etherbases: make(map[common.Address]string),
 	}
 }
 
@@ -557,7 +574,17 @@ func (ps *peerSet) Register(p *peer) error {
 	for _, n := range peers {
 		n.registerPeer(p)
 	}
+
 	return nil
+}
+
+func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) error {
+	p.lock.Lock()
+	p.etherbase = resp.Etherbase
+	id := p.id
+	ps.lock.Lock()
+	ps.etherbases[etherbase] = id
+	ps.lock.Unlock()
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
@@ -568,6 +595,8 @@ func (ps *peerSet) Unregister(id string) error {
 		ps.lock.Unlock()
 		return errNotRegistered
 	} else {
+
+		delete(ps.etherbases, ps.peers[id].etherbase)
 		delete(ps.peers, id)
 		peers := make([]peerSetNotify, len(ps.notifyList))
 		copy(peers, ps.notifyList)

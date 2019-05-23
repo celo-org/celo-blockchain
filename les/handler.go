@@ -103,6 +103,7 @@ type ProtocolManager struct {
 	lesTopic    discv5.Topic
 	reqDist     *requestDistributor
 	retriever   *retrieveManager
+	etherbase   *common.Address
 
 	downloader *downloader.Downloader
 	fetcher    *lightFetcher
@@ -123,7 +124,7 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
-func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup) (*ProtocolManager, error) {
+func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup, etherbase *common.Address) (*ProtocolManager, error) {
 	lightSync := syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -143,6 +144,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 		quitSync:    quitSync,
 		wg:          wg,
 		noMorePeers: make(chan struct{}),
+		etherbase:   etherbase,
 	}
 	if odr != nil {
 		manager.retriever = odr.retriever
@@ -307,6 +309,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if p.poolEntry != nil {
 			pm.serverPool.registered(p.poolEntry)
 		}
+
+		// If we're a strictly light node, fetch the etherbase of our peer.
+		p.Log().Info("Requesting etherbase from new peer")
+		reqID := genReqID()
+		cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
+		p.RequestEtherbase(reqID, cost)
 	}
 
 	stop := make(chan struct{})
@@ -332,7 +340,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 }
 
-var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg}
+var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg, GetEtherbaseMsg}
 
 // handleMsg is invoked whenever an inbound message is received from a remote
 // peer. The remote connection is torn down upon returning any error.
@@ -1107,6 +1115,27 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 		p.fcServer.GotReply(resp.ReqID, resp.BV)
+
+	case GetEtherbaseMsg:
+		p.Log().Info("Received etherbase request")
+		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + costs.reqCost)
+		return p.SendEtherbaseRLP(req.ReqID, bv, pm.etherbase)
+
+	case EtherbaseMsg:
+		if pm.odr == nil {
+			return errResp(ErrUnexpectedResponse, "")
+		}
+		p.Log().Info("Received etherbase response")
+		// TODO(asa): do we need to do anything with flow control here?
+		var resp struct {
+			ReqID, BV uint64
+			Etherbase common.Address
+		}
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		pm.peers.setEtherbase(p, resp.Etherbase)
 
 	default:
 		p.Log().Trace("Received unknown message", "code", msg.Code)

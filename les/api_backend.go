@@ -206,6 +206,10 @@ func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return nil
 }
 
+func (b *LesApiBackend) GasFeeRecipient() *common.Address {
+	return b.eth.GetRandomPeerEtherbase()
+}
+
 func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
 	return nil
 }

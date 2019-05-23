@@ -373,6 +373,11 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args SendTxArgs
 		s.nonceLock.LockAddr(args.From)
 		defer s.nonceLock.UnlockAddr(args.From)
 	}
+
+	if args.GasFeeRecipient() == nil {
+		args.GasFeeRecipient = s.b.GasFeeRecipient()
+	}
+
 	signed, err := s.signTransaction(ctx, &args, passwd)
 	if err != nil {
 		log.Warn("Failed transaction send attempt", "from", args.From, "to", args.To, "value", args.Value.ToInt(), "err", err)
@@ -1305,6 +1310,10 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 	}
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
+	// TODO(asa): Need to have added GasFeeRecipient by now
+	if tx.GasFeeRecipient == nil {
+		tx.GasFeeRecipient = s.b.GasFeeRecipient()
+	}
 
 	var chainID *big.Int
 	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {
