@@ -81,7 +81,6 @@ func NewOracle(backend ethapi.Backend, params Config, pc *core.PriceComparator) 
 	}
 }
 
-
 // SuggestPrice returns the recommended gas price.
 func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 
