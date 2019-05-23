@@ -128,6 +128,10 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 	}
 }
 
+func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
+  celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+  return pc.Convert(val, currencyFrom, celoGoldAddress)
+}
 
 // NOTE (jarmg 4/24/18): values are rounded down which can cause under priced
 // suggestions, particularly with extreme exchange rates
@@ -147,14 +151,8 @@ func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, c
 	return convert(val, exchangeRateFrom, exchangeRateTo)
 }
 
-func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-  celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-  return pc.Convert(val, currencyFrom, celoGoldAddress)
-}
-
-// Question: How do we deal with input validation for here (and in general?)
 // Given value of val and rates n1/d1 and n2/d2 the function below does
-// (val) * (n1/d1) * (d2/n2) 
+// (val * n1 * d2) / (d1 * n2) 
 func convert(val *big.Int, from *exchangeRate, to *exchangeRate) (*big.Int, error) {
 	numerator := new(big.Int).Mul(val, new(big.Int).Mul(from.Numerator, to.Denominator))
 	denominator := new(big.Int).Mul(from.Denominator, to.Numerator)
