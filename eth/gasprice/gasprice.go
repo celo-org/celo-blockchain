@@ -81,21 +81,6 @@ func NewOracle(backend ethapi.Backend, params Config, pc *core.PriceComparator) 
 	}
 }
 
-// getCachedPrice is a private function which checks if the last gasPrice
-// suggestion was pulled from the current block and, if so, returns it
-func getCachedPrice(gpo *Oracle, ctx context.Context) *big.Int {
-	gpo.cacheLock.RLock()
-	lastHead := gpo.lastHead
-	lastPrice := gpo.lastPrice
-	gpo.cacheLock.RUnlock()
-
-	head, _ := gpo.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
-	headHash := head.Hash()
-	if headHash == lastHead {
-		return lastPrice
-	}
-	return nil
-}
 
 // SuggestPrice returns the recommended gas price.
 func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
@@ -174,6 +159,22 @@ func calculateGasSuggestion(gpo *Oracle, ctx context.Context) (*big.Int, error) 
 	return price, nil
 }
 
+// getCachedPrice is a private function which checks if the last gasPrice
+// suggestion was pulled from the current block and, if so, returns it
+func getCachedPrice(gpo *Oracle, ctx context.Context) *big.Int {
+	gpo.cacheLock.RLock()
+	lastHead := gpo.lastHead
+	lastPrice := gpo.lastPrice
+	gpo.cacheLock.RUnlock()
+
+	head, _ := gpo.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	headHash := head.Hash()
+	if headHash == lastHead {
+		return lastPrice
+	}
+	return nil
+}
+
 type getBlockPricesResult struct {
 	price *big.Int
 	err   error
@@ -195,7 +196,7 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 		sender, err := types.Sender(signer, tx)
 		if err == nil && sender != block.Coinbase() {
       gpInGold, err := gpo.pc.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
-      // TODO: Handle gold converting error here
+      // TODO (jarmg 5/23/18): Handle gold converting error here
       if err != nil {
         prices = append(prices, gpInGold)
       }

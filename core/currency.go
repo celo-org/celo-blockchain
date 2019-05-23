@@ -129,7 +129,7 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 }
 
 
-// NOTE (jarmg 4/24): values are rounded down which can cause under priced
+// NOTE (jarmg 4/24/18): values are rounded down which can cause under priced
 // suggestions, particularly with extreme exchange rates
 func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
 	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
