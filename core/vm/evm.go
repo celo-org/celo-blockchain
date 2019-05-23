@@ -564,3 +564,28 @@ func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi ab
 
 	return leftoverGas, nil
 }
+
+func (evm *EVM) ABICall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	transactionData, err := abi.Pack(funcName, args...)
+	if err != nil {
+		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
+		return 0, err
+	}
+	log.Trace("Calling evm non-statically", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+
+	ret, leftoverGas, err := evm.Call(caller, address, transactionData, gas, value)
+
+	if err != nil {
+		log.Error("Error in calling the EVM", "err", err)
+		return leftoverGas, err
+	}
+
+	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
+
+	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
+		log.Error("Error in unpacking EVM call return bytes", "err", err)
+		return leftoverGas, err
+	}
+
+	return leftoverGas, nil
+}

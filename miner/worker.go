@@ -449,6 +449,7 @@ func (w *worker) mainLoop() {
 
 	for {
 		select {
+		// Is this when we start working on a new block?
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewChainHead()
@@ -927,6 +928,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	if randomAddress != nil && *randomAddress != nullAddress {
 		log.Debug("!!!!! Random exists !!!!!!!!")
+		w.eth.Random().DoThing(*randomAddress)
 	}
 
 	if err := w.engine.Prepare(w.chain, header); err != nil {

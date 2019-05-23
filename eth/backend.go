@@ -96,6 +96,7 @@ type Ethereum struct {
 
 	gcWl   *core.GasCurrencyWhitelist
 	regAdd *core.RegisteredAddresses
+	random *core.Random
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -198,6 +199,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
 	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, iEvmH)
+
+	eth.random = core.NewRandom(iEvmH)
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
@@ -510,6 +513,7 @@ func (s *Ethereum) NetVersion() uint64                               { return s.
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
+func (s *Ethereum) Random() *core.Random                             { return s.random }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

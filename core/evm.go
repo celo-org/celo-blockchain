@@ -160,6 +160,24 @@ func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI,
 	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
 }
 
+func (iEvmH *InternalEVMHandler) makeSend(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	header := iEvmH.blockchain.CurrentBlock().Header()
+	state, err := iEvmH.blockchain.StateAt(header.Root)
+	if err != nil {
+		log.Error("Error in retrieving the state from the blockchain")
+		return 0, err
+	}
+
+	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
+	// Putting in zero values.
+	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
+	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.regAdd)
+	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
+
+	zeroCaller := vm.AccountRef(common.HexToAddress("0x47e172F6CfB6c7D01C1574fa3E2Be7CC73269D95"))
+	return evm.ABICall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas, value)
+}
+
 func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	iEvmH.regAdd = regAdd
 }

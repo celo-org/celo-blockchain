@@ -1206,6 +1206,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		// Process block using the parent state as reference point.
 		t0 := time.Now()
 		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+		log.Debug("!!!!!!!!!!!!!!!!!Logs:", logs)
 		t1 := time.Now()
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
