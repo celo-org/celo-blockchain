@@ -137,15 +137,13 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew
-	var fullChainAvailable = chain.Config().FullHeaderChainAvailable
-	var allowedFutureBlockTime uint64
-	if fullChainAvailable != true {
-		allowedFutureBlockTime = mobileAllowedClockSkew
+	var allowedFutureBlockTime = big.NewInt(now().Unix())
+	if chain.Config().FullHeaderChainAvailable != true {
+		allowedFutureBlockTime = new(big.Int).Add(allowedFutureBlockTime, new(big.Int).SetUint64(mobileAllowedClockSkew))
 	}
-	var allowedTime = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(allowedFutureBlockTime))
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(allowedTime) > 0 {
+	if header.Time.Cmp(allowedFutureBlockTime) > 0 {
 		return consensus.ErrFutureBlock
 	}
 
