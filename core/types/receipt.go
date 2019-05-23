@@ -20,12 +20,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/big"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -46,13 +44,11 @@ const (
 
 // VerificationRequest represents a request for verification in the Celo ABE protocol.
 type VerificationRequest struct {
-	PhoneHash         common.Hash
-	CodeHash          common.Hash
-	Account           common.Address
-	RequestIndex      *big.Int
-	VerificationIndex *big.Int
-	Verifier          common.Address
-	EncryptedPhone    hexutil.Bytes
+	PhoneHash      common.Hash
+	CodeHash       common.Hash
+	Account        common.Address
+	Verifier       common.Address
+	EncryptedPhone hexutil.Bytes
 }
 
 // Receipt represents the results of a transaction.
@@ -117,29 +113,17 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // input[0:32]:  bytes32 phoneHash
 // input[32:64]: bytes32 codeHash
 // input[64:96]: address account
-// input[96:128]: bytes32 requestIndex
-// input[128:160]: bytes32 verificationIndex
-// input[160:192]: address verifier
-// input[192:]:    bytes encryptedPhone
+// input[96:128]: address verifier
+// input[128:]:    bytes encryptedPhone
 func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
 	var v VerificationRequest
 	v.PhoneHash = common.BytesToHash(input[0:32])
 	v.Account = common.BytesToAddress(input[64:96])
-	var parsed bool
-	v.RequestIndex, parsed = math.ParseBig256(hexutil.Encode(input[96:128]))
-	if !parsed {
-		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse RequestIndex from " + hexutil.Encode(input[96:128]))
-	}
-	v.VerificationIndex, parsed = math.ParseBig256(hexutil.Encode(input[128:160]))
-	if !parsed {
-		return v, fmt.Errorf("Error parsing VerificationRequest: unable to parse VerificationIndex from " + hexutil.Encode(input[128:160]))
-	}
-
 	v.CodeHash = common.BytesToHash(input[32:64])
-	v.Verifier = common.BytesToAddress(input[160:192])
+	v.Verifier = common.BytesToAddress(input[96:128])
 
 	// TODO(asa): Consider validating the length of EncryptedPhone
-	v.EncryptedPhone = input[192:]
+	v.EncryptedPhone = input[128:]
 	return v, nil
 }
 
