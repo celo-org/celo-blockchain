@@ -49,10 +49,10 @@ const (
 )
 
 var (
-	// TODO(kevjue) - Replace with the actual registered address for the registry smart contract
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.RandomRegistryId}
+	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.RandomRegistryId, params.ValidatorsRegistryId}
 	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
+	zeroAddress                  = common.Address{}
 )
 
 type RegisteredAddresses struct {
@@ -69,12 +69,15 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 	for _, contractRegistryId := range registeredContractIds {
 		var contractAddress common.Address
 		log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
-		if leftoverGas, err := ra.iEvmH.makeCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000); err != nil {
+		if leftoverGas, err := ra.iEvmH.MakeCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
 			log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
 			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
-			returnMap[contractRegistryId] = contractAddress
+
+			if contractAddress != zeroAddress {
+				returnMap[contractRegistryId] = contractAddress
+			}
 		}
 	}
 

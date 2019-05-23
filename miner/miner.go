@@ -42,6 +42,7 @@ type Backend interface {
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
 	Random() *core.Random
+	InternalEVMHandler() *core.InternalEVMHandler
 }
 
 // Miner creates blocks and searches for proof-of-work values.

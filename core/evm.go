@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
@@ -142,12 +143,23 @@ type InternalEVMHandler struct {
 	regAdd      *RegisteredAddresses
 }
 
-func (iEvmH *InternalEVMHandler) makeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	header := iEvmH.blockchain.CurrentBlock().Header()
-	state, err := iEvmH.blockchain.StateAt(header.Root)
-	if err != nil {
-		log.Error("Error in retrieving the state from the blockchain")
-		return 0, err
+func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+	// Normally, when making an evm call, we should use the current block's state.  However,
+	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
+	// to call the evm using the currently mined block.  In that case, the header and state params
+	// will be non nil.
+
+	if header == nil {
+		header = iEvmH.blockchain.CurrentBlock().Header()
+	}
+
+	if state == nil {
+		var err error
+		state, err = iEvmH.blockchain.StateAt(header.Root)
+		if err != nil {
+			log.Error("Error in retrieving the state from the blockchain")
+			return 0, err
+		}
 	}
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.

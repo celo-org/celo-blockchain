@@ -97,6 +97,7 @@ type Ethereum struct {
 	gcWl   *core.GasCurrencyWhitelist
 	regAdd *core.RegisteredAddresses
 	random *core.Random
+	iEvmH  *core.InternalEVMHandler
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -188,21 +189,20 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.  Note
 	// that this should NOT be used when executing smart contract calls done via end user transactions.
-	iEvmH := core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
+	eth.iEvmH = core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	eth.regAdd = core.NewRegisteredAddresses(iEvmH)
-	iEvmH.SetRegisteredAddresses(eth.regAdd)
+	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
+	eth.iEvmH.SetRegisteredAddresses(eth.regAdd)
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, iEvmH)
+	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, iEvmH)
+	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, eth.iEvmH)
 
-	eth.random = core.NewRandom(iEvmH)
-
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, iEvmH)
+	eth.random = core.NewRandom(eth.iEvmH)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, eth.iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 
@@ -514,6 +514,7 @@ func (s *Ethereum) Downloader() *downloader.Downloader               { return s.
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 func (s *Ethereum) Random() *core.Random                             { return s.random }
+func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
