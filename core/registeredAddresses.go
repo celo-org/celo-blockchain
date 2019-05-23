@@ -93,14 +93,18 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
+	if len(ra.registeredAddresses) == 0 {
+		ra.RefreshAddresses()
+	}
+
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
-  log.Trace("Getting address for ","registry ID", registryId)
+	log.Trace("Getting address for ", "registry ID", registryId)
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
-    log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
-    log.Trace("Found Address ","Address", address)
-    log.Error("Error","return error", ok)
+		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
+		log.Trace("Found Address ", "Address", address)
+		log.Error("Error", "return error", ok)
 		return nil
 	} else {
 		return &address

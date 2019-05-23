@@ -173,8 +173,6 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	var gasPrice *big.Int
-
 	// TODO (jarmg 5/22/18): Store contract function ABIs in a central location
 	getGasPriceABIString := `[{
 		"constant": true,
@@ -191,6 +189,7 @@ func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 		"type": "function"
 	  }]`
 
+	var gasPrice *big.Int
 	gasPriceOracleAddress := b.eth.regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 	var (
 		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
