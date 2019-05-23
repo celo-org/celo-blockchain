@@ -383,7 +383,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			var newValSet []common.Address
 
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
+			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
 			if err != nil {
 				log.Error("Istanbul.Finalize - Error in retrieving the validator set", "leftoverGas", leftoverGas, "err", err)
 				return err

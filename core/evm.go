@@ -29,6 +29,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+var (
+	zeroCaller   = vm.AccountRef(common.HexToAddress("0x0"))
+	emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
+)
+
 // ChainContext supports retrieving headers and consensus parameters from the
 // current blockchain to be used during transaction processing.
 type ChainContext interface {
@@ -143,14 +148,34 @@ type InternalEVMHandler struct {
 	regAdd      *RegisteredAddresses
 }
 
-func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+func (iEvmH *InternalEVMHandler) MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+	abiStaticCall := func(evm *vm.EVM) (uint64, error) {
+		return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
+	}
+
+	return iEvmH.makeCall(abiStaticCall, header, state)
+}
+
+func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
+	abiCall := func(evm *vm.EVM) (uint64, error) {
+		gasLeft, err := evm.ABICall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas, value)
+		state.Finalise(true)
+
+		return gasLeft, err
+	}
+
+	return iEvmH.makeCall(abiCall, header, state)
+}
+
+func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB) (uint64, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-
 	if header == nil {
 		header = iEvmH.blockchain.CurrentBlock().Header()
+	} else {
+		log.Debug("Using provided header")
 	}
 
 	if state == nil {
@@ -160,34 +185,14 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 			log.Error("Error in retrieving the state from the blockchain")
 			return 0, err
 		}
+	} else {
+		log.Debug("Using provided state")
 	}
 
-	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-	// Putting in zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.regAdd)
+	context := NewEVMContext(emptyMessage, header, iEvmH.blockchain, nil, iEvmH.regAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
-	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
-}
-
-func (iEvmH *InternalEVMHandler) makeSend(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	header := iEvmH.blockchain.CurrentBlock().Header()
-	state, err := iEvmH.blockchain.StateAt(header.Root)
-	if err != nil {
-		log.Error("Error in retrieving the state from the blockchain")
-		return 0, err
-	}
-
-	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-	// Putting in zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.regAdd)
-	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
-
-	zeroCaller := vm.AccountRef(common.HexToAddress("0x47e172F6CfB6c7D01C1574fa3E2Be7CC73269D95"))
-	return evm.ABICall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas, value)
+	return call(evm)
 }
 
 func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
