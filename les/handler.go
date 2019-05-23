@@ -314,7 +314,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Requesting etherbase from new peer")
 		reqID := genReqID()
 		cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
-		p.RequestEtherbase(reqID, cost)
+		err := p.RequestEtherbase(reqID, cost)
+		if err != nil {
+			p.Log().Warn("Unable to request etherbase from peer", "err", err)
+		}
 	}
 
 	stop := make(chan struct{})
@@ -348,6 +351,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
+		p.Log().Info("Error receiving msg")
 		return err
 	}
 	p.Log().Trace("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
@@ -1133,7 +1137,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if pm.odr == nil {
 			return errResp(ErrUnexpectedResponse, "")
 		}
-		p.Log().Info("Received etherbase response")
 		// TODO(asa): do we need to do anything with flow control here?
 		var resp struct {
 			ReqID, BV uint64
@@ -1142,6 +1145,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		p.Log().Info("Received etherbase response", "etherbase", resp.Etherbase.String())
 
 		pm.peers.setEtherbase(p, resp.Etherbase)
 

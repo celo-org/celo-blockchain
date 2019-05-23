@@ -317,9 +317,8 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
 	type req struct {
 		ReqID uint64
-		Data  interface{}
 	}
-	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID, nil})
+	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
 }
 
 // SendTxStatus sends a batch of transactions to be added to the remote transaction pool.
@@ -582,6 +581,7 @@ func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) error {
 	p.lock.Lock()
 	p.etherbase = etherbase
 	id := p.id
+	p.lock.Unlock()
 	ps.lock.Lock()
 	ps.etherbases[etherbase] = id
 	ps.lock.Unlock()
