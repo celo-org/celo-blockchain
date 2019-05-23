@@ -103,7 +103,7 @@ type ProtocolManager struct {
 	lesTopic    discv5.Topic
 	reqDist     *requestDistributor
 	retriever   *retrieveManager
-	etherbase   *common.Address
+	etherbase   common.Address
 
 	downloader *downloader.Downloader
 	fetcher    *lightFetcher
@@ -124,7 +124,7 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
-func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup, etherbase *common.Address) (*ProtocolManager, error) {
+func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
 	lightSync := syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -1118,7 +1118,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 	case GetEtherbaseMsg:
 		p.Log().Info("Received etherbase request")
+		// Transactions arrived, parse all of them and deliver to the pool
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + costs.reqCost)
+		pm.server.fcCostStats.update(msg.Code, 1, rcost)
 		return p.SendEtherbaseRLP(req.ReqID, bv, pm.etherbase)
 
 	case EtherbaseMsg:

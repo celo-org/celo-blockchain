@@ -79,6 +79,8 @@ const (
 	SendTxV2Msg            = 0x13
 	GetTxStatusMsg         = 0x14
 	TxStatusMsg            = 0x15
+	GetEtherbaseMsg        = 0x16
+	EtherbaseMsg           = 0x17
 )
 
 type errCode int

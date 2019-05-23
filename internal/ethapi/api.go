@@ -374,10 +374,6 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args SendTxArgs
 		defer s.nonceLock.UnlockAddr(args.From)
 	}
 
-	if args.GasFeeRecipient() == nil {
-		args.GasFeeRecipient = s.b.GasFeeRecipient()
-	}
-
 	signed, err := s.signTransaction(ctx, &args, passwd)
 	if err != nil {
 		log.Warn("Failed transaction send attempt", "from", args.From, "to", args.To, "value", args.Value.ToInt(), "err", err)
@@ -1205,7 +1201,7 @@ type SendTxArgs struct {
 	Gas             *hexutil.Uint64 `json:"gas"`
 	GasPrice        *hexutil.Big    `json:"gasPrice"`
 	GasCurrency     *common.Address `json:"gasCurrency"`
-	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
+	GasFeeRecipient *common.Address `json:"GasFeeRecipient"`
 	Value           *hexutil.Big    `json:"value"`
 	Nonce           *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
@@ -1250,6 +1246,13 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 		if len(input) == 0 {
 			return errors.New(`contract creation without any data provided`)
+		}
+	}
+
+	if args.GasFeeRecipient == nil {
+		recipient := b.GasFeeRecipient()
+		if (recipient != common.Address{}) {
+			args.GasFeeRecipient = &recipient
 		}
 	}
 	return nil
@@ -1312,10 +1315,6 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 	}
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
-	// TODO(asa): Need to have added GasFeeRecipient by now
-	if tx.GasFeeRecipient == nil {
-		tx.GasFeeRecipient = s.b.GasFeeRecipient()
-	}
 
 	var chainID *big.Int
 	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {

@@ -580,11 +580,12 @@ func (ps *peerSet) Register(p *peer) error {
 
 func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) error {
 	p.lock.Lock()
-	p.etherbase = resp.Etherbase
+	p.etherbase = etherbase
 	id := p.id
 	ps.lock.Lock()
 	ps.etherbases[etherbase] = id
 	ps.lock.Unlock()
+	return nil
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
