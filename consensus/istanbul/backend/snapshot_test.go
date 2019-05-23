@@ -103,7 +103,7 @@ func (bc *mockBlockchain) GetHeaderByNumber(number uint64) *types.Header {
 }
 
 func (bc *mockBlockchain) Config() *params.ChainConfig {
-	return nil
+	return &params.ChainConfig{FullHeaderChainAvailable: true}
 }
 
 func (bc *mockBlockchain) CurrentHeader() *types.Header {
