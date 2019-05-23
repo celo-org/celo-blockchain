@@ -41,9 +41,9 @@ import (
 )
 
 const (
-	inmemorySnapshots = 128 // Number of recent vote snapshots to keep in memory
-	inmemoryPeers     = 40
-	inmemoryMessages  = 1024
+	inmemorySnapshots      = 128 // Number of recent vote snapshots to keep in memory
+	inmemoryPeers          = 40
+	inmemoryMessages       = 1024
 	mobileAllowedClockSkew = 5 * time.Second
 )
 
@@ -137,8 +137,8 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew
-	var fullChainAvailable = chain.Config().FullHeaderChainAvailable 
-	var allowedFutureBlockTime := 0
+	var fullChainAvailable = chain.Config().FullHeaderChainAvailable
+	var allowedFutureBlockTime = 0 * time.Second
 	if !fullChainAvailable {
 		allowedFutureBlockTime = mobileAllowedClockSkew
 	}
