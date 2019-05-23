@@ -140,6 +140,9 @@ type Body struct {
 type Block struct {
 	header       *Header
 	uncles       []*Header
+
+	randomness []byte
+
 	transactions Transactions
 
 	// caches
@@ -172,6 +175,7 @@ type StorageBlock Block
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
 	Header *Header
+	Randomness []byte
 	Txs    []*Transaction
 	Uncles []*Header
 }
@@ -192,8 +196,8 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int)}
+func NewBlock(header *Header, randomness []byte, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
+	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -258,7 +262,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions = eb.Header, eb.Uncles, eb.Txs
+	b.header, b.uncles, b.randomness, b.transactions = eb.Header, eb.Uncles, eb.Randomness, eb.Txs
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -267,6 +271,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header: b.header,
+		Randomness: b.randomness,
 		Txs:    b.transactions,
 		Uncles: b.uncles,
 	})
@@ -284,6 +289,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 
 // TODO: copies
 
+func (b *Block) Randomness() []byte          { return b.randomness }
 func (b *Block) Uncles() []*Header          { return b.uncles }
 func (b *Block) Transactions() Transactions { return b.transactions }
 
