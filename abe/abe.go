@@ -53,7 +53,7 @@ func createVerificationMessage(request types.VerificationRequest, account accoun
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s:%s", base64.URLEncoding.EncodeToString(signature), base64.URLEncoding.EncodeToString(account.Address.Bytes())), nil
+	return base64.URLEncoding.EncodeToString(signature), nil
 }
 
 func sendSms(phoneNumber string, message string, account common.Address, issuer common.Address, verificationServiceURL string) error {
