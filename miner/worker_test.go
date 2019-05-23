@@ -159,6 +159,7 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 }
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return nil }
 func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return nil }
+func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return nil }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)

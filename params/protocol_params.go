@@ -98,8 +98,9 @@ const (
 	GoldTokenRegistryId              = "GoldToken"
 	AddressBasedEncryptionRegistryId = "AddressBasedEncryption"
 	ReserveRegistryId                = "Reserve"
-	MedianatorRegistryId             = "Medianator"
+	SortedOraclesRegistryId          = "SortedOracles"
 	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
+	ValidatorsRegistryId             = "Validators"
 )
 
 var (
