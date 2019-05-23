@@ -57,7 +57,6 @@ func createVerificationMessage(request types.VerificationRequest, account accoun
 }
 
 func sendSms(phoneNumber string, message string, account common.Address, issuer common.Address, verificationServiceURL string) error {
-	log.Error("[Celo] sendSms", "phoneNumber", phoneNumber, "message", message)
 	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes()), "issuer": base64.URLEncoding.EncodeToString(issuer.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
@@ -83,10 +82,8 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 
 	for _, receipt := range receipts {
 		for _, request := range receipt.VerificationRequests {
-			log.Error("SendVerificationMessages")
 
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
-				log.Error("Not me", "coinbase", coinbase, "verifier", request.Verifier)
 				continue
 			}
 			phoneNumber, err := decryptPhoneNumber(request, account, wallet)
