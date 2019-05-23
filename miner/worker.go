@@ -920,6 +920,15 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 	}
+
+	nullAddress := common.BigToAddress(big.NewInt(0))
+	w.eth.RegisteredAddresses().RefreshAddresses()
+	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
+
+	if randomAddress != nil && *randomAddress != nullAddress {
+		log.Debug("!!!!! Random exists !!!!!!!!")
+	}
+
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
