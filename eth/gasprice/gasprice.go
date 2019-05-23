@@ -23,11 +23,11 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-  "github.com/ethereum/go-ethereum/core"
 )
 
 var maxPrice = big.NewInt(500 * params.GWei)
@@ -52,7 +52,7 @@ type Oracle struct {
 	percentile                       int
 	defaultPrice                     *big.Int
 	alwaysZero                       bool
-  pc                               *core.PriceComparator
+	pc                               *core.PriceComparator
 }
 
 // NewOracle returns a new oracle.
@@ -67,7 +67,7 @@ func NewOracle(backend ethapi.Backend, params Config, pc *core.PriceComparator) 
 	}
 	if percent > 100 {
 		percent = 100
-  }
+	}
 	return &Oracle{
 		backend:      backend,
 		lastPrice:    params.Default,
@@ -189,25 +189,25 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 	}
 
 	blockTxs := block.Transactions()
-  prices   := make([]*big.Int, len(blockTxs))
+	prices := make([]*big.Int, len(blockTxs))
 
-  for _, tx := range blockTxs {
+	for _, tx := range blockTxs {
 		sender, err := types.Sender(signer, tx)
 		if err == nil && sender != block.Coinbase() {
-      gpInGold, err := gpo.pc.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
-      // TODO (jarmg 5/23/18): Handle gold converting error here
-      if err != nil {
-        prices = append(prices, gpInGold)
-      }
-    }
-  }
-  if len(prices) == 0 {
-    ch <- getBlockPricesResult{nil, nil}
-  } else {
-    sort.Sort(bigIntArray(prices))
-    ch <- getBlockPricesResult{prices[0], nil}
+			gpInGold, err := gpo.pc.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
+			// TODO (jarmg 5/23/18): Handle gold converting error here
+			if err != nil {
+				prices = append(prices, gpInGold)
+			}
+		}
 	}
-  return
+	if len(prices) == 0 {
+		ch <- getBlockPricesResult{nil, nil}
+	} else {
+		sort.Sort(bigIntArray(prices))
+		ch <- getBlockPricesResult{prices[0], nil}
+	}
+	return
 }
 
 type bigIntArray []*big.Int
