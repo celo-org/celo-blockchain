@@ -126,7 +126,7 @@ func TestCommit(t *testing.T) {
 			nil,
 			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
 			func() *types.Block {
-				chain, engine := newBlockChain(1)
+				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 				expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 				return expectedBlock
@@ -137,7 +137,7 @@ func TestCommit(t *testing.T) {
 			errInvalidCommittedSeals,
 			nil,
 			func() *types.Block {
-				chain, engine := newBlockChain(1)
+				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 				expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 				return expectedBlock
@@ -174,7 +174,7 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)
@@ -232,7 +232,7 @@ func (slice Keys) Swap(i, j int) {
 }
 
 func newBackend() (b *Backend) {
-	_, b = newBlockChain(4)
+	_, b = newBlockChain(4, true)
 	key, _ := generatePrivateKey()
 	b.privateKey = key
 	return
