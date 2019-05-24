@@ -225,7 +225,7 @@ func TestValSetChange(t *testing.T) {
 		chain := &mockBlockchain{
 			headers: make(map[uint64]*types.Header),
 		}
-		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
+		engine := New(config, accounts.accounts[tt.validators[0]], db, nil).(*Backend)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 
