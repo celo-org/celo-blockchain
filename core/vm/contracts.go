@@ -52,7 +52,6 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
-var getCoinbaseAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -69,7 +68,6 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 	// Celo Precompiled Contracts
 	requestVerificationAddress: &requestVerification{},
-	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
 }
 
@@ -451,28 +449,6 @@ func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM,
 	} else {
 		return input, gas, nil
 	}
-}
-
-type getCoinbase struct{}
-
-func (c *getCoinbase) RequiredGas(input []byte) uint64 {
-	return params.GetCoinbaseGas
-}
-
-func (c *getCoinbase) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-
-	var blockNumber, parsingSuccess = math.ParseBig256(hexutil.Encode(input[0:32]))
-
-	if !parsingSuccess {
-		return input, gas, fmt.Errorf("Error parsing block number:" + hexutil.Encode(input[0:32]))
-	}
-
-	var coinbase = evm.Context.GetCoinbase(blockNumber.Uint64())
-	return coinbase.Bytes(), gas, nil
 }
 
 // Native transfer contract to make Celo Gold ERC20 compatible.
