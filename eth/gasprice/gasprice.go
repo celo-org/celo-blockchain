@@ -207,7 +207,6 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 		sort.Sort(bigIntArray(prices))
 		ch <- getBlockPricesResult{prices[0], nil}
 	}
-	return
 }
 
 type bigIntArray []*big.Int
