@@ -17,4 +17,4 @@ _Describe any minor or "drive-by" changes here._
 
 ### Backwards compatibility
 
-_Brief explanation of why these changes are/are not backwards compatible._
+_Brief explanation of why these changes are/are not backwards compatible. Feel free to remove for trivial, backwards compatible changes._
