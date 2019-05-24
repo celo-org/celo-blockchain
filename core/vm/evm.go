@@ -542,7 +542,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 
 func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		log.Trace("Calling evm", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+		log.Trace("Performing static call in the EVM", "caller", caller, "transactionData", hexutil.Encode(transactionData))
 
 		return evm.StaticCall(caller, address, transactionData, gas)
 	}
@@ -552,7 +552,7 @@ func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi ab
 
 func (evm *EVM) ABICall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		log.Trace("Calling evm non-statically", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+		log.Trace("Performing call in the EVM", "caller", caller, "transactionData", hexutil.Encode(transactionData))
 
 		return evm.Call(caller, address, transactionData, gas, value)
 	}
