@@ -311,7 +311,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 
 		// If we're a strictly light node, fetch the etherbase of our peer.
-		p.Log().Info("Requesting etherbase from new peer")
+		p.Log().Trace("Requesting etherbase from new peer")
 		reqID := genReqID()
 		cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
 		err := p.RequestEtherbase(reqID, cost)
@@ -351,7 +351,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
-		p.Log().Info("Error receiving msg")
 		return err
 	}
 	p.Log().Trace("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
@@ -1121,7 +1120,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.fcServer.GotReply(resp.ReqID, resp.BV)
 
 	case GetEtherbaseMsg:
-		p.Log().Info("Received etherbase request")
+		p.Log().Trace("Received etherbase request")
 		// Transactions arrived, parse all of them and deliver to the pool
 		var req struct {
 			ReqID uint64
@@ -1134,9 +1133,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return p.SendEtherbaseRLP(req.ReqID, bv, pm.etherbase)
 
 	case EtherbaseMsg:
-		if pm.odr == nil {
-			return errResp(ErrUnexpectedResponse, "")
-		}
+		p.Log().Trace("Received etherbase response", "id", p.id, "etherbase", resp.Etherbase.String())
 		// TODO(asa): do we need to do anything with flow control here?
 		var resp struct {
 			ReqID, BV uint64
@@ -1145,8 +1142,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		p.Log().Info("Received etherbase response", "etherbase", resp.Etherbase.String())
-
 		pm.peers.setEtherbase(p, resp.Etherbase)
 
 	default:

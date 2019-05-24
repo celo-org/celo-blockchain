@@ -352,7 +352,7 @@ func (p *Peer) handleIncoming(handle func(ctx context.Context, msg interface{}) 
 
 	val, ok := p.spec.NewMsg(msg.Code)
 	if !ok {
-		return errorf(ErrInvalidMsgCode, "CELO %v", msg.Code)
+		return errorf(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	if err := rlp.DecodeBytes(wmsg.Payload, val); err != nil {
 		return errorf(ErrDecode, "<= %v: %v", msg, err)
