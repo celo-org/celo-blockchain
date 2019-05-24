@@ -39,8 +39,8 @@ import (
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
 // block by one node. Otherwise, if n is larger than 1, we have to generate
 // other fake events to process Istanbul.
-func newBlockChain(n int) (*core.BlockChain, *Backend) {
-	genesis, nodeKeys := getGenesisAndKeys(n)
+func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
+	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
@@ -51,7 +51,7 @@ func newBlockChain(n int) (*core.BlockChain, *Backend) {
 	if err != nil {
 		panic(err)
 	}
-	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil, nil)
+	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil, nil, nil, nil)
 	snap, err := b.snapshot(blockchain, 0, common.Hash{})
 	if err != nil {
 		panic(err)
@@ -73,7 +73,7 @@ func newBlockChain(n int) (*core.BlockChain, *Backend) {
 	return blockchain, b
 }
 
-func getGenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
+func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	var addrs = make([]common.Address, n)
@@ -85,6 +85,9 @@ func getGenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
 	genesis.Config = params.TestChainConfig
+	if !isFullChain {
+		genesis.Config.FullHeaderChainAvailable = false
+	}
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{}
 	genesis.Config.Ethash = nil
@@ -126,7 +129,7 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 }
 
 func TestPrepare(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	header := makeHeader(chain.Genesis(), engine.config)
 	err := engine.Prepare(chain, header)
 	if err != nil {
@@ -140,7 +143,7 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestSealReturns(t *testing.T) {
-	chain, engine := newBlockChain(2)
+	chain, engine := newBlockChain(2, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	stop := make(chan struct{}, 1)
 	results := make(chan *types.Block)
@@ -161,7 +164,7 @@ func TestSealReturns(t *testing.T) {
 
 }
 func TestSealStopChannel(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	stop := make(chan struct{}, 1)
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
@@ -190,7 +193,7 @@ func TestSealStopChannel(t *testing.T) {
 }
 
 func TestSealCommittedOtherHash(t *testing.T) {
-	chain, engine := newBlockChain(4)
+	chain, engine := newBlockChain(4, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	otherBlock := makeBlockWithoutSeal(chain, engine, block)
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
@@ -215,7 +218,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 }
 
 func TestSealCommitted(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 
@@ -234,7 +237,7 @@ func TestSealCommitted(t *testing.T) {
 }
 
 func TestVerifyHeader(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 
 	// errEmptyCommittedSeals case
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -315,7 +318,7 @@ func TestVerifyHeader(t *testing.T) {
 }
 
 func TestVerifySeal(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	genesis := chain.Genesis()
 	// cannot verify genesis
 	err := engine.VerifySeal(chain, genesis.Header())
@@ -342,7 +345,7 @@ func TestVerifySeal(t *testing.T) {
 }
 
 func TestVerifyHeaders(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine := newBlockChain(1, true)
 	genesis := chain.Genesis()
 
 	// success case
@@ -439,6 +442,28 @@ OUT3:
 		case <-timeout.C:
 			break OUT3
 		}
+	}
+}
+
+func TestVerifyHeaderWithoutFullChain(t *testing.T) {
+	chain, engine := newBlockChain(1, false)
+
+	// allow future block without full chain available
+	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	header := block.Header()
+	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(3))
+	err := engine.VerifyHeader(chain, header, false)
+	if err != errEmptyCommittedSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, errEmptyCommittedSeals)
+	}
+
+	// reject future block without full chain available
+	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	header = block.Header()
+	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(10))
+	err = engine.VerifyHeader(chain, header, false)
+	if err != consensus.ErrFutureBlock {
+		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
 	}
 }
 
