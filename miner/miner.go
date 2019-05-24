@@ -41,6 +41,7 @@ type Backend interface {
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
+	InternalEVMHandler() *core.InternalEVMHandler
 }
 
 // Miner creates blocks and searches for proof-of-work values.
