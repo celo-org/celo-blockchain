@@ -80,6 +80,8 @@ func (self *LesTxRelay) send(txs types.Transactions) {
 		if !ok {
 			p, err := self.ps.getPeerWithEtherbase(*tx.GasFeeRecipient())
 			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
+			// We rely on transactions to be rejected in light/txpool validateTx to prevent transactions
+			// with GasFeeRecipient != one of our peers from making it to the relayer.
 			if err != nil {
 				log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gasFeeRecipient", tx.GasFeeRecipient())
 				continue

@@ -590,7 +590,8 @@ func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	var r common.Address
+	r := common.Address{}
+	// Rely on golang's random map iteration order.
 	for _, etherbase := range ps.etherbases {
 		r = etherbase
 		break

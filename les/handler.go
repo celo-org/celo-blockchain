@@ -345,6 +345,17 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg, GetEtherbaseMsg}
 
+func (pm *ProtocolManager) verifyGasFeeRecipient(gasFeeRecipient *common.Address) bool {
+	// If this node does not specify an etherbase, accept any GasFeeRecipient. Otherwise,
+	// reject transactions that don't pay gas fees to this node.
+	if (pm.etherbase != common.Address{}) {
+		if gasFeeRecipient == nil || *gasFeeRecipient != pm.etherbase {
+			return false
+		}
+	}
+	return true
+}
+
 // handleMsg is invoked whenever an inbound message is received from a remote
 // peer. The remote connection is torn down upon returning any error.
 func (pm *ProtocolManager) handleMsg(p *peer) error {
@@ -1041,12 +1052,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrRequestRejected, "")
 		}
 		for _, tx := range txs {
-			// If this node did not specify an etherbase, accept any GasFeeRecipient. Otherwise,
-			// reject transactions that don't pay gas fees to this node.
-			if (pm.etherbase != common.Address{}) {
-				if tx.GasFeeRecipient() == nil || *tx.GasFeeRecipient() != pm.etherbase {
-					return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
-				}
+			if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
+				return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
 			}
 		}
 		pm.txpool.AddRemotes(txs)
@@ -1079,8 +1086,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for i, stat := range stats {
 			if stat.Status == core.TxStatusUnknown {
 				tx := req.Txs[i]
-				// Reject transactions that don't specify this node as the etherbase.
-				if (pm.etherbase != common.Address{}) && *tx.GasFeeRecipient() != pm.etherbase {
+				if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
 					stats[i].Error = fmt.Sprintf("Invalid GasFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GasFeeRecipient())
 					continue
 				}
@@ -1131,9 +1137,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		for _, s := range resp.Status {
-			p.Log().Info("Received tx status response", "error", s.Error)
 		}
 
 		p.fcServer.GotReply(resp.ReqID, resp.BV)
