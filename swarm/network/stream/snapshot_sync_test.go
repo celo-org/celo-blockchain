@@ -20,8 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
