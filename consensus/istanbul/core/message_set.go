@@ -118,5 +118,5 @@ func (ms *messageSet) String() string {
 	for _, v := range ms.messages {
 		addresses = append(addresses, v.Address.String())
 	}
-	return fmt.Sprintf("[%v]", strings.Join(addresses, ", "))
+	return fmt.Sprintf("[<%v> %v]", len(ms.messages), strings.Join(addresses, ", "))
 }

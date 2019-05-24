@@ -17,9 +17,11 @@
 package core
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
+	"strings"
 	"sync"
 )
 
@@ -90,6 +92,8 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
 	}
+
+	logger.Info("handleRoundChange", "curr_round", cv.Round, "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "num", num)
 
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
@@ -196,4 +200,26 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 		}
 	}
 	return maxRound
+}
+
+func (rcs *roundChangeSet) String() string {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
+	for _, rms := range rcs.msgsForRound {
+		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", rms.View().Round, rms.String()))
+	}
+
+	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
+	for addr, r := range rcs.latestRoundForVal {
+		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
+	}
+
+	return fmt.Sprintf("RCS len=%v  By round: {<%v> %v}  By val: {<%v> %v}",
+		len(rcs.latestRoundForVal),
+		len(rcs.msgsForRound),
+		strings.Join(msgsForRoundStr, ", "),
+		len(rcs.latestRoundForVal),
+		strings.Join(latestRoundForValStr, ", "))
 }
