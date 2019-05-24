@@ -1133,7 +1133,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return p.SendEtherbaseRLP(req.ReqID, bv, pm.etherbase)
 
 	case EtherbaseMsg:
-		p.Log().Trace("Received etherbase response", "id", p.id, "etherbase", resp.Etherbase.String())
+		p.Log().Trace("Received etherbase response")
 		// TODO(asa): do we need to do anything with flow control here?
 		var resp struct {
 			ReqID, BV uint64
