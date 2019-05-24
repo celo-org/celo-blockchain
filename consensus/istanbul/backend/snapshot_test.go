@@ -21,6 +21,8 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,16 +30,16 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
-type testerVote struct {
-	validator string
-	voted     string
-	auth      bool
+type testerValSetDiff struct {
+	proposer          string
+	addedValidators   []string
+	removedValidators []string
 }
 
 // testerAccountPool is a pool to maintain currently active tester accounts,
@@ -74,245 +76,115 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
 }
 
-// Tests that voting is evaluated correctly for various simple and complex scenarios.
-func TestVoting(t *testing.T) {
+func convertValNames(accounts *testerAccountPool, valNames []string) []common.Address {
+	returnArray := make([]common.Address, len(valNames))
+
+	for i, valName := range valNames {
+		returnArray[i] = accounts.address(valName)
+	}
+
+	sort.Slice(returnArray, func(i, j int) bool {
+		return strings.Compare(returnArray[i].String(), returnArray[j].String()) < 0
+	})
+	return returnArray
+}
+
+// Define a mock blockchain
+type mockBlockchain struct {
+	headers map[uint64]*types.Header
+}
+
+func (bc *mockBlockchain) AddHeader(number uint64, header *types.Header) {
+	bc.headers[number] = header
+}
+
+func (bc *mockBlockchain) GetHeaderByNumber(number uint64) *types.Header {
+	return bc.headers[number]
+}
+
+func (bc *mockBlockchain) Config() *params.ChainConfig {
+	return &params.ChainConfig{FullHeaderChainAvailable: true}
+}
+
+func (bc *mockBlockchain) CurrentHeader() *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetHeader(hash common.Hash, number uint64) *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetHeaderByHash(hash common.Hash) *types.Header {
+	return nil
+}
+
+func (bc *mockBlockchain) GetBlock(hash common.Hash, number uint64) *types.Block {
+	return nil
+}
+
+// Tests that validator set changes are evaluated correctly for various simple and complex scenarios.
+func TestValSetChange(t *testing.T) {
 	// Define the various voting scenarios to test
 	tests := []struct {
-		epoch      uint64
-		validators []string
-		votes      []testerVote
-		results    []string
+		epoch       uint64
+		validators  []string
+		valsetdiffs []testerValSetDiff
+		results     []string
+		err         error
 	}{
 		{
-			// Single validator, no votes cast
-			validators: []string{"A"},
-			votes:      []testerVote{{validator: "A"}},
-			results:    []string{"A"},
+			// Single validator, empty val set diff
+			epoch:       1,
+			validators:  []string{"A"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{}, removedValidators: []string{}}},
+			results:     []string{"A"},
+			err:         nil,
 		}, {
-			// Single validator, voting to add two others (only accept first, second needs 2 votes)
-			validators: []string{"A"},
-			votes: []testerVote{
-				{validator: "A", voted: "B", auth: true},
-				{validator: "B"},
-				{validator: "A", voted: "C", auth: true},
-			},
-			results: []string{"A", "B"},
+			// Single validator, add two new validators
+			epoch:       1,
+			validators:  []string{"A"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"B", "C"}, removedValidators: []string{}}},
+			results:     []string{"A", "B", "C"},
+			err:         nil,
 		}, {
-			// Two validators, voting to add three others (only accept first two, third needs 3 votes already)
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: true},
-				{validator: "B", voted: "C", auth: true},
-				{validator: "A", voted: "D", auth: true},
-				{validator: "B", voted: "D", auth: true},
-				{validator: "C"},
-				{validator: "A", voted: "E", auth: true},
-				{validator: "B", voted: "E", auth: true},
-			},
-			results: []string{"A", "B", "C", "D"},
+			// Two validator, remove two validators
+			epoch:       1,
+			validators:  []string{"A", "B"},
+			valsetdiffs: []testerValSetDiff{{proposer: "B", addedValidators: []string{}, removedValidators: []string{"A", "B"}}},
+			results:     []string{},
+			err:         nil,
 		}, {
-			// Single validator, dropping itself (weird, but one less cornercase by explicitly allowing this)
-			validators: []string{"A"},
-			votes: []testerVote{
-				{validator: "A", voted: "A", auth: false},
-			},
-			results: []string{},
+			// Three validator, add two validators and remove two validators
+			epoch:       1,
+			validators:  []string{"A", "B", "C"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}}},
+			results:     []string{"A", "D", "E"},
+			err:         nil,
 		}, {
-			// Two validators, actually needing mutual consent to drop either of them (not fulfilled)
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "B", auth: false},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Two validators, actually needing mutual consent to drop either of them (fulfilled)
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "B", auth: false},
-				{validator: "B", voted: "B", auth: false},
-			},
-			results: []string{"A"},
-		}, {
-			// Three validators, two of them deciding to drop the third
+			// Three validator, add two validators and remove two validators with an unauthorized proposer
+			epoch:       1,
+			validators:  []string{"A", "B", "C"},
+			valsetdiffs: []testerValSetDiff{{proposer: "D", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}}},
+			results:     []string{"A", "D", "E"},
+			err:         errUnauthorized,
+		},
+		{
+			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.
+			epoch:      1,
 			validators: []string{"A", "B", "C"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B", voted: "C", auth: false},
-			},
-			results: []string{"A", "B"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
+				{proposer: "E", addedValidators: []string{"F"}, removedValidators: []string{"A", "D"}}},
+			results: []string{"E", "F"},
+			err:     nil,
 		}, {
-			// Four validators, consensus of two not being enough to drop anyone
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B", voted: "C", auth: false},
-			},
-			results: []string{"A", "B", "C", "D"},
-		}, {
-			// Four validators, consensus of three already being enough to drop someone
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "D", auth: false},
-				{validator: "B", voted: "D", auth: false},
-				{validator: "C", voted: "D", auth: false},
-			},
-			results: []string{"A", "B", "C"},
-		}, {
-			// Authorizations are counted once per validator per target
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: true},
-				{validator: "B"},
-				{validator: "A", voted: "C", auth: true},
-				{validator: "B"},
-				{validator: "A", voted: "C", auth: true},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Authorizing multiple accounts concurrently is permitted
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: true},
-				{validator: "B"},
-				{validator: "A", voted: "D", auth: true},
-				{validator: "B"},
-				{validator: "A"},
-				{validator: "B", voted: "D", auth: true},
-				{validator: "A"},
-				{validator: "B", voted: "C", auth: true},
-			},
-			results: []string{"A", "B", "C", "D"},
-		}, {
-			// Deauthorizations are counted once per validator per target
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "B", auth: false},
-				{validator: "B"},
-				{validator: "A", voted: "B", auth: false},
-				{validator: "B"},
-				{validator: "A", voted: "B", auth: false},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Deauthorizing multiple accounts concurrently is permitted
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B"},
-				{validator: "C"},
-				{validator: "A", voted: "D", auth: false},
-				{validator: "B"},
-				{validator: "C"},
-				{validator: "A"},
-				{validator: "B", voted: "D", auth: false},
-				{validator: "C", voted: "D", auth: false},
-				{validator: "A"},
-				{validator: "B", voted: "C", auth: false},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Votes from deauthorized validators are discarded immediately (deauth votes)
+			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.  The first header will
+			// be ignored, since it's no the last header of an epoch
+			epoch:      2,
 			validators: []string{"A", "B", "C"},
-			votes: []testerVote{
-				{validator: "C", voted: "B", auth: false},
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B", voted: "C", auth: false},
-				{validator: "A", voted: "B", auth: false},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Votes from deauthorized validators are discarded immediately (auth votes)
-			validators: []string{"A", "B", "C"},
-			votes: []testerVote{
-				{validator: "C", voted: "B", auth: false},
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B", voted: "C", auth: false},
-				{validator: "A", voted: "B", auth: false},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Cascading changes are not allowed, only the the account being voted on may change
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B"},
-				{validator: "C"},
-				{validator: "A", voted: "D", auth: false},
-				{validator: "B", voted: "C", auth: false},
-				{validator: "C"},
-				{validator: "A"},
-				{validator: "B", voted: "D", auth: false},
-				{validator: "C", voted: "D", auth: false},
-			},
-			results: []string{"A", "B", "C"},
-		}, {
-			// Changes reaching consensus out of bounds (via a deauth) execute on touch
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B"},
-				{validator: "C"},
-				{validator: "A", voted: "D", auth: false},
-				{validator: "B", voted: "C", auth: false},
-				{validator: "C"},
-				{validator: "A"},
-				{validator: "B", voted: "D", auth: false},
-				{validator: "C", voted: "D", auth: false},
-				{validator: "A"},
-				{validator: "C", voted: "C", auth: true},
-			},
-			results: []string{"A", "B"},
-		}, {
-			// Changes reaching consensus out of bounds (via a deauth) may go out of consensus on first touch
-			validators: []string{"A", "B", "C", "D"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: false},
-				{validator: "B"},
-				{validator: "C"},
-				{validator: "A", voted: "D", auth: false},
-				{validator: "B", voted: "C", auth: false},
-				{validator: "C"},
-				{validator: "A"},
-				{validator: "B", voted: "D", auth: false},
-				{validator: "C", voted: "D", auth: false},
-				{validator: "A"},
-				{validator: "B", voted: "C", auth: true},
-			},
-			results: []string{"A", "B", "C"},
-		}, {
-			// Ensure that pending votes don't survive authorization status changes. This
-			// corner case can only appear if a validator is quickly added, remove and then
-			// readded (or the inverse), while one of the original voters dropped. If a
-			// past vote is left cached in the system somewhere, this will interfere with
-			// the final validator outcome.
-			validators: []string{"A", "B", "C", "D", "E"},
-			votes: []testerVote{
-				{validator: "A", voted: "F", auth: true}, // Authorize F, 3 votes needed
-				{validator: "B", voted: "F", auth: true},
-				{validator: "C", voted: "F", auth: true},
-				{validator: "D", voted: "F", auth: false}, // Deauthorize F, 4 votes needed (leave A's previous vote "unchanged")
-				{validator: "E", voted: "F", auth: false},
-				{validator: "B", voted: "F", auth: false},
-				{validator: "C", voted: "F", auth: false},
-				{validator: "D", voted: "F", auth: true}, // Almost authorize F, 2/3 votes needed
-				{validator: "E", voted: "F", auth: true},
-				{validator: "B", voted: "A", auth: false}, // Deauthorize A, 3 votes needed
-				{validator: "C", voted: "A", auth: false},
-				{validator: "D", voted: "A", auth: false},
-				{validator: "B", voted: "F", auth: true}, // Finish authorizing F, 3/3 votes needed
-			},
-			results: []string{"B", "C", "D", "E", "F"},
-		}, {
-			// Epoch transitions reset all votes to allow chain checkpointing
-			epoch:      3,
-			validators: []string{"A", "B"},
-			votes: []testerVote{
-				{validator: "A", voted: "C", auth: true},
-				{validator: "B"},
-				{validator: "A"}, // Checkpoint block, (don't vote here, it's validated outside of snapshots)
-				{validator: "B", voted: "C", auth: true},
-			},
-			results: []string{"A", "B"},
+			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
+				{proposer: "A", addedValidators: []string{"F"}, removedValidators: []string{"A", "B"}}},
+			results: []string{"C", "F"},
+			err:     nil,
 		},
 	}
 	// Run through the scenarios and test them
@@ -324,6 +196,8 @@ func TestVoting(t *testing.T) {
 		for j, validator := range tt.validators {
 			validators[j] = accounts.address(validator)
 		}
+
+		// Sort the validators
 		for j := 0; j < len(validators); j++ {
 			for k := j + 1; k < len(validators); k++ {
 				if bytes.Compare(validators[j][:], validators[k][:]) > 0 {
@@ -331,6 +205,7 @@ func TestVoting(t *testing.T) {
 				}
 			}
 		}
+
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
 			Difficulty: defaultDifficulty,
@@ -338,48 +213,69 @@ func TestVoting(t *testing.T) {
 			Config:     params.TestChainConfig,
 		}
 		b := genesis.ToBlock(nil)
-		extra, _ := prepareExtra(b.Header(), validators)
+		extra, _ := assembleExtra(b.Header(), []common.Address{}, validators)
 		genesis.ExtraData = extra
-		// Create a pristine blockchain with the genesis injected
 		db := ethdb.NewMemDatabase()
-		genesis.Commit(db)
 
 		config := istanbul.DefaultConfig
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
-		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
-		chain, err := core.NewBlockChain(db, nil, genesis.Config, engine, vm.Config{}, nil)
 
-		// Assemble a chain of headers from the cast votes
-		headers := make([]*types.Header, len(tt.votes))
-		for j, vote := range tt.votes {
-			headers[j] = &types.Header{
+		chain := &mockBlockchain{
+			headers: make(map[uint64]*types.Header),
+		}
+		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
+
+		chain.AddHeader(0, genesis.ToBlock(nil).Header())
+
+		// Assemble a chain of headers from header validator set diffs
+		var prevHeader *types.Header
+		for j, valsetdiff := range tt.valsetdiffs {
+			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
 				Time:       big.NewInt(int64(j) * int64(config.BlockPeriod)),
-				Coinbase:   accounts.address(vote.voted),
 				Difficulty: defaultDifficulty,
 				MixDigest:  types.IstanbulDigest,
 			}
-			extra, _ := prepareExtra(headers[j], validators)
-			headers[j].Extra = extra
-			if j > 0 {
-				headers[j].ParentHash = headers[j-1].Hash()
-			}
-			if vote.auth {
-				copy(headers[j].Nonce[:], nonceAuthVote)
-			}
-			copy(headers[j].Extra, genesis.ExtraData)
-			accounts.sign(headers[j], vote.validator)
-		}
-		// Pass all the headers through clique and ensure tallying succeeds
-		head := headers[len(headers)-1]
 
-		snap, err := engine.snapshot(chain, head.Number.Uint64(), head.Hash(), headers)
-		if err != nil {
-			t.Errorf("test %d: failed to create voting snapshot: %v", i, err)
+			var buf bytes.Buffer
+
+			buf.Write(bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity))
+
+			ist := &types.IstanbulExtra{
+				AddedValidators:   convertValNames(accounts, valsetdiff.addedValidators),
+				RemovedValidators: convertValNames(accounts, valsetdiff.removedValidators),
+				Seal:              []byte{},
+				CommittedSeal:     [][]byte{},
+			}
+
+			payload, err := rlp.EncodeToBytes(&ist)
+			if err != nil {
+				t.Errorf("test %d, valsetdiff %d: error in encoding extra header info", i, j)
+			}
+			header.Extra = append(buf.Bytes(), payload...)
+
+			if j > 0 {
+				header.ParentHash = prevHeader.Hash()
+			}
+
+			accounts.sign(header, valsetdiff.proposer)
+
+			chain.AddHeader(uint64(j+1), header)
+
+			prevHeader = header
+		}
+		snap, err := engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash())
+		if err != tt.err {
+			t.Errorf("test %d: error mismatch:  have %v, want %v", i, err, tt.err)
 			continue
 		}
+
+		if tt.err != nil {
+			continue
+		}
+
 		// Verify the final list of validators against the expected ones
 		validators = make([]common.Address, len(tt.results))
 		for j, validator := range tt.results {
@@ -410,20 +306,6 @@ func TestSaveAndLoad(t *testing.T) {
 		Epoch:  5,
 		Number: 10,
 		Hash:   common.HexToHash("1234567890"),
-		Votes: []*Vote{
-			{
-				Validator: common.BytesToAddress([]byte("1234567891")),
-				Block:     15,
-				Address:   common.BytesToAddress([]byte("1234567892")),
-				Authorize: false,
-			},
-		},
-		Tally: map[common.Address]Tally{
-			common.BytesToAddress([]byte("1234567893")): {
-				Authorize: false,
-				Votes:     20,
-			},
-		},
 		ValSet: validator.NewSet([]common.Address{
 			common.BytesToAddress([]byte("1234567894")),
 			common.BytesToAddress([]byte("1234567895")),
@@ -444,12 +326,6 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if snap.Hash != snap1.Hash {
 		t.Errorf("hash mismatch: have %v, want %v", snap1.Number, snap.Number)
-	}
-	if !reflect.DeepEqual(snap.Votes, snap.Votes) {
-		t.Errorf("votes mismatch: have %v, want %v", snap1.Votes, snap.Votes)
-	}
-	if !reflect.DeepEqual(snap.Tally, snap.Tally) {
-		t.Errorf("tally mismatch: have %v, want %v", snap1.Tally, snap.Tally)
 	}
 	if !reflect.DeepEqual(snap.ValSet, snap.ValSet) {
 		t.Errorf("validator set mismatch: have %v, want %v", snap1.ValSet, snap.ValSet)

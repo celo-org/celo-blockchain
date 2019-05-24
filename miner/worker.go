@@ -284,7 +284,15 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock)
+		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
+			func(parentHash common.Hash) (*state.StateDB, error) { return w.chain.StateAt(parentHash) },
+			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+			},
+			w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 	}
 }
 
@@ -1042,6 +1050,14 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		*receipts[i] = *l
 	}
 	s := w.current.state.Copy()
+
+	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+			return err
+		}
+	}
+
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
 	if err != nil {
 		return err
