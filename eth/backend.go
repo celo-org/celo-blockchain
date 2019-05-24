@@ -146,6 +146,11 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, config.SyncMode != downloader.CeloLatestSync),
 	}
 
+	// force to set the istanbul etherbase to node key address
+	if chainConfig.Istanbul != nil {
+		eth.etherbase = crypto.PubkeyToAddress(ctx.NodeKey().PublicKey)
+	}
+
 	log.Info("Initialising Ethereum protocol", "versions", eth.engine.Protocol().Versions, "network", config.NetworkId)
 
 	if !config.SkipBcVersionCheck {
@@ -349,11 +354,6 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	s.lock.RLock()
 	etherbase := s.etherbase
 	s.lock.RUnlock()
-
-	// Always return the node key address for istanbul
-	if s.chainConfig.Istanbul != nil {
-		etherbase = crypto.PubkeyToAddress(ctx.NodeKey().PublicKey)
-	}
 
 	if etherbase != (common.Address{}) {
 		return etherbase, nil
