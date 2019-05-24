@@ -27,7 +27,7 @@ import (
 )
 
 func TestIstanbulMessage(t *testing.T) {
-	_, backend := newBlockChain(1)
+	_, backend := newBlockChain(1, true)
 
 	// generate one msg
 	data := []byte("data1")
