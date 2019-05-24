@@ -387,9 +387,12 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return core.ErrIntrinsicGas
 	}
 
-	// Should have a peer that we can send the transaction to
-	// TODO(asa): is nill pointer dereference an issue?
-	err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
+	// Should have a peer that will accept and broadcast our transaction
+	if tx.GasFeeRecipient() == nil {
+		err = pool.relay.HasPeerWithEtherbase(common.Address{})
+	} else {
+		err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
+	}
 	if err != nil {
 		return err
 	}

@@ -1041,9 +1041,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrRequestRejected, "")
 		}
 		for _, tx := range txs {
-			// Reject transactions that don't specify this node as the etherbase.
-			if (pm.etherbase != common.Address{}) && *tx.GasFeeRecipient() != pm.etherbase {
-				return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
+			// If this node did not specify an etherbase, accept any GasFeeRecipient. Otherwise,
+			// reject transactions that don't pay gas fees to this node.
+			if (pm.etherbase != common.Address{}) {
+				if tx.GasFeeRecipient() == nil || *tx.GasFeeRecipient() != pm.etherbase {
+					return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
+				}
 			}
 		}
 		pm.txpool.AddRemotes(txs)
