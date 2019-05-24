@@ -28,11 +28,13 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -56,7 +58,6 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		db:               db,
 		commitCh:         make(chan *types.Block, 1),
 		recents:          recents,
-		candidates:       make(map[common.Address]bool),
 		coreStarted:      false,
 		recentMessages:   recentMessages,
 		knownMessages:    knownMessages,
@@ -78,6 +79,10 @@ type Backend struct {
 	chain            consensus.ChainReader
 	currentBlock     func() *types.Block
 	hasBadBlock      func(hash common.Hash) bool
+	stateAt          func(hash common.Hash) (*state.StateDB, error)
+
+	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -86,11 +91,7 @@ type Backend struct {
 	coreStarted       bool
 	coreMu            sync.RWMutex
 
-	// Current list of candidates we are pushing
-	candidates map[common.Address]bool
-	// Protects the signer fields
-	candidatesLock sync.RWMutex
-	// Snapshots for recent block to speed up reorgs
+	// Snapshots for recent blocks to speed up reorgs
 	recents *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
@@ -98,6 +99,9 @@ type Backend struct {
 
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
+
+	iEvmH  consensus.ConsensusIEvmH
+	regAdd consensus.ConsensusRegAdd
 }
 
 // Address implements istanbul.Backend.Address
@@ -232,13 +236,88 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 	// verify the header of proposed block
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
+
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
 	if err == nil || err == errEmptyCommittedSeals {
 		return 0, nil
 	} else if err == consensus.ErrFutureBlock {
 		return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 	}
+
+	// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
+	// Get the state from this block's parent.
+	state, err := sb.stateAt(block.Header().ParentHash)
+	if err != nil {
+		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
+		return 0, err
+	}
+
+	// Make a copy of the state
+	state = state.Copy()
+
+	// Apply this block's transactions to update the state
+	receipts, _, usedGas, err := sb.processBlock(block, state)
+	if err != nil {
+		log.Error("verify - Error in processing the block")
+		return 0, err
+	}
+
+	// Validate the block
+	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
+		log.Error("verify - Error in validating the block")
+		return 0, err
+	}
+
+	// verify the validator set diff if this is the last block of the epoch
+	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
+		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
+			return 0, err
+		}
+	}
+
 	return 0, err
+}
+
+func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
+	header := block.Header()
+
+	// Ensure that the extra data format is satisfied
+	istExtra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return err
+	}
+
+	validatorElectionAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+
+	if validatorElectionAddress != nil {
+		var newValSet []common.Address
+		if _, err := sb.iEvmH.MakeCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
+			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
+			return err
+		}
+
+		parentValidators := sb.ParentValidators(proposal)
+		oldValSet := make([]common.Address, 0, parentValidators.Size())
+
+		for _, val := range parentValidators.List() {
+			oldValSet = append(oldValSet, val.Address())
+		}
+
+		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
+
+		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
+			return errInvalidValidatorSetDiff
+		}
+	} else {
+		// The validator election smart contract is not registered yet, so the validator set diff should be empty
+
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
+			return errInvalidValidatorSetDiff
+		}
+	}
+
+	return nil
 }
 
 // Sign implements istanbul.Backend.Sign
@@ -284,7 +363,7 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
-	snap, err := sb.snapshot(sb.chain, number, hash, nil)
+	snap, err := sb.snapshot(sb.chain, number, hash)
 	if err != nil {
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}

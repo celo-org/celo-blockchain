@@ -268,6 +268,17 @@ func (a Address) Value() (driver.Value, error) {
 	return a[:], nil
 }
 
+// Converts an array of addresses to an array of their hex strings.  Used for printing out an array of addresses
+func ConvertToStringSlice(addresses []Address) []string {
+	returnList := make([]string, len(addresses))
+
+	for i, address := range addresses {
+		returnList[i] = address.Hex()
+	}
+
+	return returnList
+}
+
 // UnprefixedAddress allows marshaling an Address without 0x prefix.
 type UnprefixedAddress Address
 
