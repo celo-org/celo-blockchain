@@ -97,7 +97,7 @@ func signAndEncodeTx(tx *Transaction) []byte {
 
 	buf := bytes.NewBuffer([]byte{})
 	tx.EncodeRLP(buf)
-	byteArray := make([]byte, buf.Len(), buf.Len())
+	byteArray := make([]byte, buf.Len())
 	buf.Read(byteArray)
 	return byteArray
 }
