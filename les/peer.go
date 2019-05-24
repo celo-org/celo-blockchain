@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	errClosed             = errors.New("peer set is closed")
-	errAlreadyRegistered  = errors.New("peer is already registered")
-	errNotRegistered      = errors.New("peer is not registered")
-	errInvalidHelpTrieReq = errors.New("invalid help trie request")
+	errClosed                   = errors.New("peer set is closed")
+	errAlreadyRegistered        = errors.New("peer is already registered")
+	errNotRegistered            = errors.New("peer is not registered")
+	errInvalidHelpTrieReq       = errors.New("invalid help trie request")
+	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
 )
 
 const maxResponseErrors = 50 // number of invalid responses tolerated (makes the protocol less brittle but still avoids spam)
@@ -523,7 +524,7 @@ type peerSetNotify interface {
 // the Light Ethereum sub-protocol.
 type peerSet struct {
 	peers      map[string]*peer
-	etherbases map[common.Address]string
+	etherbases map[string]common.Address
 	lock       sync.RWMutex
 	notifyList []peerSetNotify
 	closed     bool
@@ -533,7 +534,7 @@ type peerSet struct {
 func newPeerSet() *peerSet {
 	return &peerSet{
 		peers:      make(map[string]*peer),
-		etherbases: make(map[common.Address]string),
+		etherbases: make(map[string]common.Address),
 	}
 }
 
@@ -577,15 +578,40 @@ func (ps *peerSet) Register(p *peer) error {
 	return nil
 }
 
-func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) error {
-	p.lock.Lock()
-	p.etherbase = etherbase
-	id := p.id
-	p.lock.Unlock()
+func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 	ps.lock.Lock()
-	ps.etherbases[etherbase] = id
-	ps.lock.Unlock()
-	return nil
+	defer ps.lock.Unlock()
+	ps.etherbases[p.id] = etherbase
+}
+
+func (ps *peerSet) randomPeerEtherbase() common.Address {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	var r common.Address
+	for _, etherbase := range ps.etherbases {
+		r = etherbase
+		break
+	}
+	return r
+}
+
+func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error) {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+	var pid string
+	for id, petherbase := range ps.etherbases {
+		if etherbase == petherbase {
+			pid = id
+		}
+	}
+	if pid == "" {
+		return nil, errNoPeerWithEtherbaseFound
+	}
+	peer := ps.peers[pid]
+	return peer, nil
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
@@ -596,9 +622,8 @@ func (ps *peerSet) Unregister(id string) error {
 		ps.lock.Unlock()
 		return errNotRegistered
 	} else {
-
-		delete(ps.etherbases, ps.peers[id].etherbase)
 		delete(ps.peers, id)
+		delete(ps.etherbases, id)
 		peers := make([]peerSetNotify, len(ps.notifyList))
 		copy(peers, ps.notifyList)
 		ps.lock.Unlock()

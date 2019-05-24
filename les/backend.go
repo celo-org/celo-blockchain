@@ -254,13 +254,7 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 }
 
 func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
-	// TODO(asa): How do we distinguish between nodes that haven't returned an etherbase yet and those that
-	// have explicitly set their etherbase to nil?
-	// Is there a difference between never having set a key/value pair and setting that key to map to nil?
-	for etherbase, _ := range s.peers.etherbases {
-		return etherbase
-	}
-	return common.Address{}
+	return s.peers.randomPeerEtherbase()
 }
 
 // Stop implements node.Service, terminating all internal goroutines used by the

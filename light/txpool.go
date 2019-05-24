@@ -83,6 +83,7 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
+	HasPeerWithEtherbase(etherbase common.Address) error
 }
 
 // NewTxPool creates a new light transaction pool
@@ -385,6 +386,14 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
 	}
+
+	// Should have a peer that we can send the transaction to
+	// TODO(asa): is nill pointer dereference an issue?
+	err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
+	if err != nil {
+		return err
+	}
+
 	return currentState.Error()
 }
 
@@ -436,7 +445,7 @@ func (self *TxPool) Add(ctx context.Context, tx *types.Transaction) error {
 	if err := self.add(ctx, tx); err != nil {
 		return err
 	}
-	//fmt.Println("Send", tx.Hash())
+
 	self.relay.Send(types.Transactions{tx})
 
 	self.chainDb.Put(tx.Hash().Bytes(), data)

@@ -1040,6 +1040,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if reject(uint64(reqCnt), MaxTxSend) {
 			return errResp(ErrRequestRejected, "")
 		}
+		for _, tx := range txs {
+			// Reject transactions that don't specify this node as the etherbase.
+			if (pm.etherbase != common.Address{}) && *tx.GasFeeRecipient() != pm.etherbase {
+				return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
+			}
+		}
 		pm.txpool.AddRemotes(txs)
 
 		_, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
@@ -1069,7 +1075,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		stats := pm.txStatus(hashes)
 		for i, stat := range stats {
 			if stat.Status == core.TxStatusUnknown {
-				if errs := pm.txpool.AddRemotes([]*types.Transaction{req.Txs[i]}); errs[0] != nil {
+				tx := req.Txs[i]
+				// Reject transactions that don't specify this node as the etherbase.
+				if (pm.etherbase != common.Address{}) && *tx.GasFeeRecipient() != pm.etherbase {
+					stats[i].Error = fmt.Sprintf("Invalid GasFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GasFeeRecipient())
+					continue
+				}
+
+				if errs := pm.txpool.AddRemotes([]*types.Transaction{tx}); errs[0] != nil {
 					stats[i].Error = errs[0].Error()
 					continue
 				}
@@ -1115,6 +1128,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		for _, s := range resp.Status {
+			p.Log().Info("Received tx status response", "error", s.Error)
 		}
 
 		p.fcServer.GotReply(resp.ReqID, resp.BV)
