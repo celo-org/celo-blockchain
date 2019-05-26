@@ -18,7 +18,6 @@ package core
 
 import (
 	"fmt"
-	"math/big"
 	"strings"
 	"sync"
 
@@ -29,10 +28,6 @@ import (
 // Construct a new message set to accumulate messages for given sequence/view number.
 func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
 	return &messageSet{
-		view: &istanbul.View{
-			Round:    new(big.Int),
-			Sequence: new(big.Int),
-		},
 		messagesMu: new(sync.Mutex),
 		messages:   make(map[common.Address]*message),
 		valSet:     valSet,
@@ -42,14 +37,9 @@ func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
 // ----------------------------------------------------------------------------
 
 type messageSet struct {
-	view       *istanbul.View
 	valSet     istanbul.ValidatorSet
 	messagesMu *sync.Mutex
 	messages   map[common.Address]*message
-}
-
-func (ms *messageSet) View() *istanbul.View {
-	return ms.view
 }
 
 func (ms *messageSet) Add(msg *message) error {
