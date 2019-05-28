@@ -175,7 +175,6 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
 	context := NewEVMContext(msg, header, iEvmH.chainContext, nil, iEvmH.regAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, iEvmH.vmConfig)
-	log.Trace("InternalEVMHandler.MakeCall - successfully constructed EVM")
 
 	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)

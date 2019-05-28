@@ -130,11 +130,17 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 
 func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+  if currencyFrom == nil {
+    return nil, errors.New("Can not convert to gold from nil currency")
+  }
+  if currencyFrom == celoGoldAddress {
+    return val, nil
+  }
 	return pc.Convert(val, currencyFrom, celoGoldAddress)
 }
 
-// NOTE (jarmg 4/24/18): values are rounded down which can cause under priced
-// suggestions, particularly with extreme exchange rates
+// NOTE (jarmg 4/24/18): values are rounded down which can cause
+// an estimate to be off by 1 (at most)
 func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
 	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
 	exchangeRateTo, err2 := pc.getExchangeRate(currencyTo)

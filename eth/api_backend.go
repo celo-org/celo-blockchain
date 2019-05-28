@@ -219,6 +219,9 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	  }]`
 
 	gasPriceOracleAddress := b.eth.regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+  if gasPriceOracleAddress == nil {
+    return nil, errors.New("GasPriceOracle Address is nil")
+  }
 	var (
 		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
 		_, err               = b.eth.iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)

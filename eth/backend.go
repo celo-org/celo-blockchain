@@ -141,7 +141,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieCleanLimit: config.TrieCleanCache, TrieDirtyLimit: config.TrieDirtyCache, TrieTimeLimit: config.TrieTimeout}
 	)
 
-	iEvmH := core.NewInternalEVMHandler(chainConfig, vmConfig) // InternalEVMHandler for calling smart contracts from geth
+	iEvmH := core.NewInternalEVMHandler(chainConfig, vmConfig) // InternalEVMHandler for EVM calls outside the context of transaction processing 
 
 	eth := &Ethereum{
 		config:         config,

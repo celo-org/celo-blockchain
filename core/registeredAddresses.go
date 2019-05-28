@@ -99,7 +99,6 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.A
 
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
-	log.Trace("Getting address for ", "registry ID", registryId)
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
 		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
