@@ -63,6 +63,7 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		knownMessages:    knownMessages,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
+
 	return backend
 }
 
