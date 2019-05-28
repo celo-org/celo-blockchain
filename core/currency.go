@@ -130,12 +130,12 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 
 func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-  if currencyFrom == nil {
-    return nil, errors.New("Can not convert to gold from nil currency")
-  }
-  if currencyFrom == celoGoldAddress {
-    return val, nil
-  }
+	if currencyFrom == nil {
+		return nil, errors.New("Cannot convert to gold from nil currency")
+	}
+	if currencyFrom == celoGoldAddress {
+		return val, nil
+	}
 	return pc.Convert(val, currencyFrom, celoGoldAddress)
 }
 
