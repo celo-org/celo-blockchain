@@ -61,6 +61,8 @@ type ValidatorSet interface {
 	GetByAddress(addr common.Address) (int, Validator)
 	// Get current proposer
 	GetProposer() Validator
+	GetProposerIndex() int
+
 	// Check whether the validator with given address is a proposer
 	IsProposer(address common.Address) bool
 	// Add validators

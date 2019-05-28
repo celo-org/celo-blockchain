@@ -235,7 +235,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 
 	// Update logger
-	logger = logger.New("old_proposer", c.valSet.GetProposer())
+	logger = logger.New("old_proposer", c.valSet.GetProposer(), "old_proposer_id", c.valSet.GetProposerIndex())
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
@@ -256,11 +256,11 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet, "rcs", c.roundChangeSet.String())
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "new_proposer_id", c.valSet.GetProposerIndex(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet, "rcs", c.roundChangeSet.String())
 }
 
 func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer())
+	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer(), "old_proposer_id", c.valSet.GetProposerIndex())
 
 	if view.Round.Cmp(c.current.Round()) > 0 {
 		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
@@ -272,7 +272,7 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	c.roundChangeSet.Clear(view.Round)
 	c.newRoundChangeTimer()
 
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
+	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet.GetProposer(), "new_proposer_id", c.valSet.GetProposerIndex())
 }
 
 // updateRoundState updates round state by checking if locking block is necessary

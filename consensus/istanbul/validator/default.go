@@ -106,6 +106,11 @@ func (valSet *defaultSet) GetProposer() istanbul.Validator {
 	return valSet.proposer
 }
 
+func (valSet *defaultSet) GetProposerIndex() int {
+	i, _ := valSet.GetByAddress(valSet.proposer.Address())
+	return i
+}
+
 func (valSet *defaultSet) IsProposer(address common.Address) bool {
 	_, val := valSet.GetByAddress(address)
 	return reflect.DeepEqual(valSet.GetProposer(), val)
