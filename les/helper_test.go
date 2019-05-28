@@ -164,7 +164,7 @@ func newTestProtocolManager(syncmode downloader.SyncMode, blocks int, generator 
 
 	lightSync := syncmode == downloader.LightSync || syncmode == downloader.CeloLatestSync
 	if lightSync {
-		chain, _ = light.NewLightChain(odr, gspec.Config, engine)
+		chain, _ = light.NewLightChain(odr, gspec.Config, engine, vm.Config{})
 	} else {
 		blockchain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 		gchain, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, blocks, generator)
