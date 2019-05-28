@@ -199,7 +199,6 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if chain.Config().FullHeaderChainAvailable {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-			log.Error("[nam] I should not be here")
 			return consensus.ErrUnknownAncestor
 		}
 		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
