@@ -37,6 +37,16 @@ type ChainContext interface {
 
 	// GetHeader returns the hash corresponding to their hash.
 	GetHeader(common.Hash, uint64) *types.Header
+
+	// GetVMConfig returns the node's vm configuration
+	GetVMConfig() *vm.Config
+
+	CurrentHeader() *types.Header
+
+	State() (*state.StateDB, error)
+
+	// Config returns the blockchain's chain configuration
+	Config() *params.ChainConfig
 }
 
 // NewEVMContext creates a new context for use in the EVM.
@@ -138,12 +148,9 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 
 // An EVM handler to make calls to smart contracts from within geth
 type InternalEVMHandler struct {
-	chainConfig      *params.ChainConfig // The config object of the eth object
-	chainContext     ChainContext
-	regAdd           *RegisteredAddresses
-	vmConfig         vm.Config
-	getState         func(header *types.Header) (*state.StateDB, error)
-	getCurrentHeader func() (*types.Header, error)
+	chainConfig *params.ChainConfig // The config object of the eth object
+	blockchain  ChainContext
+	regAdd      *RegisteredAddresses
 }
 
 func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
@@ -154,16 +161,12 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	log.Trace("InternalEVMHandler.MakeCall called")
 
 	if header == nil {
-		var err error
-		header, err = iEvmH.getCurrentHeader()
-		if err != nil {
-			return 0, err
-		}
+		header = iEvmH.blockchain.CurrentHeader()
 	}
 
 	if state == nil {
 		var err error
-		state, err = iEvmH.getState(header)
+		state, err = iEvmH.blockchain.State()
 		if err != nil {
 			log.Error("Error in retrieving the state from the blockchain")
 			return 0, err
@@ -173,8 +176,8 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.chainContext, nil, iEvmH.regAdd)
-	evm := vm.NewEVM(context, state, iEvmH.chainConfig, iEvmH.vmConfig)
+	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.regAdd)
+	evm := vm.NewEVM(context, state, iEvmH.blockchain.Config(), *iEvmH.blockchain.GetVMConfig())
 
 	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
@@ -184,22 +187,11 @@ func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddres
 	iEvmH.regAdd = regAdd
 }
 
-func (iEvmH *InternalEVMHandler) SetStateAccessor(getState func(header *types.Header) (*state.StateDB, error)) {
-	iEvmH.getState = getState
+func (iEvmH *InternalEVMHandler) SetChain(chain ChainContext) {
+	iEvmH.blockchain = chain
 }
 
-func (iEvmH *InternalEVMHandler) SetCurrentHeaderAccessor(getCurrentHeader func() (*types.Header, error)) {
-	iEvmH.getCurrentHeader = getCurrentHeader
-}
-
-func (iEvmH *InternalEVMHandler) SetChainContext(chainContext ChainContext) {
-	iEvmH.chainContext = chainContext
-}
-
-func NewInternalEVMHandler(chainConfig *params.ChainConfig, vmConfig vm.Config) *InternalEVMHandler {
-	iEvmH := InternalEVMHandler{
-		chainConfig: chainConfig,
-		vmConfig:    vmConfig,
-	}
+func NewInternalEVMHandler() *InternalEVMHandler {
+	iEvmH := InternalEVMHandler{}
 	return &iEvmH
 }

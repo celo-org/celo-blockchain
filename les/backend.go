@@ -18,7 +18,6 @@
 package les
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth"
@@ -124,7 +122,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
-		iEvmH:          core.NewInternalEVMHandler(chainConfig, vm.Config{}),
+		iEvmH:          core.NewInternalEVMHandler(),
 	}
 
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)
@@ -138,21 +136,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Note: NewLightChain adds the trusted checkpoint so it needs an ODR with
 	// indexers already set but not started yet
-	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
+	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine, vm.Config{}); err != nil {
 		return nil, err
 	}
 
-	// Set the fields of iEvmH that depend on eth
-	getState := func(header *types.Header) (*state.StateDB, error) {
-		return light.NewState(context.Background(), header, leth.odr), nil // TODO: Any issues with using context.Background() here?
-	}
-	getCurrentHeader := func() (*types.Header, error) {
-		return leth.blockchain.CurrentHeader(), nil
-	}
-
-	leth.iEvmH.SetStateAccessor(getState)
-	leth.iEvmH.SetCurrentHeaderAccessor(getCurrentHeader)
-	leth.iEvmH.SetChainContext(leth.blockchain)
+	leth.iEvmH.SetChain(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)

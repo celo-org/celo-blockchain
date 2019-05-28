@@ -31,12 +31,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/hashicorp/golang-lru"
+  "github.com/hashicorp/golang-lru"
 )
 
 var (
@@ -71,13 +72,14 @@ type LightChain struct {
 	procInterrupt int32 // interrupt signaler for block processing
 	wg            sync.WaitGroup
 
-	engine consensus.Engine
+	engine   consensus.Engine
+	vmConfig vm.Config
 }
 
 // NewLightChain returns a fully initialised light chain using information
 // available in the database. It initialises the default Ethereum header
 // validator.
-func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine) (*LightChain, error) {
+func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config) (*LightChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
@@ -91,6 +93,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		bodyRLPCache:  bodyRLPCache,
 		blockCache:    blockCache,
 		engine:        engine,
+		vmConfig:      vmConfig,
 	}
 	var err error
 	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt)
@@ -213,7 +216,7 @@ func (bc *LightChain) Genesis() *types.Block {
 
 // State returns a new mutable state based on the current HEAD block.
 func (bc *LightChain) State() (*state.StateDB, error) {
-	return nil, errors.New("not implemented, needs client/server interface split")
+	return NewState(context.Background(), bc.CurrentHeader(), bc.odr), nil // TODO: Any issues with using context.Background() here?
 }
 
 // GetBody retrieves a block body (transactions and uncles) from the database
@@ -473,6 +476,10 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 		return header, nil
 	}
 	return GetHeaderByNumber(ctx, self.odr, number)
+}
+
+func (self *LightChain) GetVMConfig() *vm.Config {
+	return &self.vmConfig
 }
 
 // Config retrieves the header chain's chain configuration.

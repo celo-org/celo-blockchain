@@ -36,7 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -141,7 +140,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieCleanLimit: config.TrieCleanCache, TrieDirtyLimit: config.TrieDirtyCache, TrieTimeLimit: config.TrieTimeout}
 	)
 
-	iEvmH := core.NewInternalEVMHandler(chainConfig, vmConfig) // InternalEVMHandler for EVM calls outside the context of transaction processing 
+  iEvmH := core.NewInternalEVMHandler() // InternalEVMHandler for EVM calls outside the context of transaction processing
 
 	eth := &Ethereum{
 		config:         config,
@@ -181,17 +180,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, err
 	}
 
-	// Set the fields of iEvmH that depend on eth
-	getState := func(header *types.Header) (*state.StateDB, error) {
-		return eth.blockchain.StateAt(header.Root)
-	}
-	getCurrentHeader := func() (*types.Header, error) {
-		return eth.blockchain.CurrentBlock().Header(), nil
-	}
-
-	eth.iEvmH.SetStateAccessor(getState)
-	eth.iEvmH.SetCurrentHeaderAccessor(getCurrentHeader)
-	eth.iEvmH.SetChainContext(eth.blockchain)
+	eth.iEvmH.SetChain(eth.blockchain)
 
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
