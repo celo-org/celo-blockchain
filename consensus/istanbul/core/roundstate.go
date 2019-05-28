@@ -147,12 +147,15 @@ func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
 	prepareOrCommitSize := s.GetPrepareOrCommitSize()
 	if prepareOrCommitSize > 2*f {
 		messages := make([]istanbul.Message, prepareOrCommitSize)
-		for i, message := range s.Prepares.Values() {
+		i := 0
+		for _, message := range s.Prepares.Values() {
 			messages[i] = *message
+			i++
 		}
-		for i, message := range s.Commits.Values() {
+		for _, message := range s.Commits.Values() {
 			if s.Prepares.Get(message.Address) == nil {
-				messages[i+s.Prepares.Size()] = *message
+				messages[i] = *message
+				i++
 			}
 		}
 		s.preparedCertificate = istanbul.PreparedCertificate{
