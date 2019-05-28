@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -310,14 +311,25 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			pm.serverPool.registered(p.poolEntry)
 		}
 
-		// If we're a strictly light node, fetch the etherbase of our peer.
-		p.Log().Trace("Requesting etherbase from new peer")
-		reqID := genReqID()
-		cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
-		err := p.RequestEtherbase(reqID, cost)
-		if err != nil {
-			p.Log().Warn("Unable to request etherbase from peer", "err", err)
-		}
+		// If we're strictly a light node, loop until we receive a RequestEtherbase response or timeout.
+		go func() {
+			maxRequests := 10
+			requests := 0
+			for {
+				p.Log().Trace("Requesting etherbase from new peer")
+				reqID := genReqID()
+				cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
+				err := p.RequestEtherbase(reqID, cost)
+				requests++
+				if err != nil {
+					p.Log().Warn("Unable to request etherbase from peer", "err", err)
+				}
+				time.Sleep(time.Duration(math.Pow(2, float64(requests))/2) * time.Second)
+				if pm.peers.isEtherbaseSet(p) || requests == maxRequests {
+					return
+				}
+			}
+		}()
 	}
 
 	stop := make(chan struct{})

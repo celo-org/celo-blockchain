@@ -59,8 +59,7 @@ type peer struct {
 
 	announceType, requestAnnounceType uint64
 
-	id        string
-	etherbase common.Address
+	id string
 
 	headInfo *announceData
 	lock     sync.RWMutex
@@ -579,16 +578,23 @@ func (ps *peerSet) Register(p *peer) error {
 }
 
 func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 	ps.etherbases[p.id] = etherbase
 }
 
+func (ps *peerSet) isEtherbaseSet(p *peer) bool {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+	if _, ok := ps.etherbases[p.id]; ok {
+		return true
+	}
+	return false
+}
+
 func (ps *peerSet) randomPeerEtherbase() common.Address {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
 
 	r := common.Address{}
 	// Rely on golang's random map iteration order.
@@ -600,8 +606,8 @@ func (ps *peerSet) randomPeerEtherbase() common.Address {
 }
 
 func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error) {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
 	var pid string
 	for id, petherbase := range ps.etherbases {
 		if etherbase == petherbase {

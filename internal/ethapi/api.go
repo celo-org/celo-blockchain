@@ -1204,7 +1204,7 @@ type SendTxArgs struct {
 	Gas             *hexutil.Uint64 `json:"gas"`
 	GasPrice        *hexutil.Big    `json:"gasPrice"`
 	GasCurrency     *common.Address `json:"gasCurrency"`
-	GasFeeRecipient *common.Address `json:"GasFeeRecipient"`
+	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
 	Value           *hexutil.Big    `json:"value"`
 	Nonce           *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
