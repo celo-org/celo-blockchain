@@ -18,12 +18,9 @@ package eth
 
 import (
 	"context"
-	"errors"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
@@ -201,34 +198,7 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	var gasPrice *big.Int
-
-	// TODO (jarmg 5/22/18): Store contract function ABIs in a central location
-	getGasPriceABIString := `[{
-		"constant": true,
-		"inputs": [],
-		"name": "getGasPriceSuggestion",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
-
-	gasPriceOracleAddress := b.eth.regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
-	if gasPriceOracleAddress == nil {
-		return nil, errors.New("GasPriceOracle Address is nil")
-	}
-	var (
-		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
-		_, err               = b.eth.iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
-	)
-
-	return gasPrice, err
+  return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

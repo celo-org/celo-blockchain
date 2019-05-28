@@ -19,13 +19,12 @@ package les
 import (
 	"context"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -173,30 +172,7 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	// TODO (jarmg 5/22/18): Store contract function ABIs in a central location
-	getGasPriceABIString := `[{
-		"constant": true,
-		"inputs": [],
-		"name": "getGasPriceSuggestion",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
-
-	var gasPrice *big.Int
-	gasPriceOracleAddress := b.eth.regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
-	var (
-		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
-		_, err               = b.eth.iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
-	)
-
-	return gasPrice, err
+  return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
