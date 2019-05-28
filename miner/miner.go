@@ -68,7 +68,6 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 	}
 
 	go miner.update()
-
 	return miner
 }
 
