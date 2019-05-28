@@ -1,25 +1,18 @@
-
-
-
-
-
-
 package gasprice
 
-
 import (
-  "strings"
-  "context"
-  "math/big"
+	"context"
+	"math/big"
+	"strings"
 
-  "github.com/ethereum/go-ethereum/params"
-  "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // TODO (jarmg 5/22/18): Store contract function ABIs in a central location
 var (
-  getGasPriceABIString = `[{
+	getGasPriceABIString = `[{
     "constant": true,
     "inputs": [],
     "name": "getGasPriceSuggestion",
@@ -33,7 +26,7 @@ var (
     "stateMutability": "view",
     "type": "function"
     }]`
-  )
+)
 
 func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
 
@@ -46,4 +39,3 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 
 	return gasPrice, err
 }
-
