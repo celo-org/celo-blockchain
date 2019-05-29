@@ -51,6 +51,10 @@ func (self *testTxRelay) Discard(hashes []common.Hash) {
 	self.discard <- len(hashes)
 }
 
+func (self *testTxRelay) HasPeerWithEtherbase(common.Address) error {
+	return nil
+}
+
 const poolTestTxs = 1000
 const poolTestBlocks = 100
 
