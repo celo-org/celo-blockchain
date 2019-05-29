@@ -18,6 +18,7 @@ package gasprice
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 
@@ -48,10 +49,13 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
-	var (
-		gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
-		_, err               = iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
-	)
+
+	if gasPriceOracleAddress == nil {
+		return errors.New("no gasprice oracle contract address found")
+	}
+
+	gasPriceOracleABI, _ := abi.JSON(strings.NewReader(getGasPriceABIString))
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
 
 	return gasPrice, err
 }
