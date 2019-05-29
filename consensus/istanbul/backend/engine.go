@@ -601,6 +601,7 @@ func (sb *Backend) Stop() error {
 //
 // hash - The requested snapshot's block's hash
 // number - The requested snapshot's block number
+// parents - (Optional argument) An array of headers from directly previous blocks.
 func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk
 	var (
