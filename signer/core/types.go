@@ -92,13 +92,14 @@ func (v *ValidationMessages) getWarnings() error {
 
 // SendTxArgs represents the arguments to submit a transaction
 type SendTxArgs struct {
-	From        common.MixedcaseAddress  `json:"from"`
-	To          *common.MixedcaseAddress `json:"to"`
-	Gas         hexutil.Uint64           `json:"gas"`
-	GasPrice    hexutil.Big              `json:"gasPrice"`
-	GasCurrency *common.MixedcaseAddress `json:"gasCurrency"`
-	Value       hexutil.Big              `json:"value"`
-	Nonce       hexutil.Uint64           `json:"nonce"`
+	From            common.MixedcaseAddress  `json:"from"`
+	To              *common.MixedcaseAddress `json:"to"`
+	Gas             hexutil.Uint64           `json:"gas"`
+	GasPrice        hexutil.Big              `json:"gasPrice"`
+	GasCurrency     *common.MixedcaseAddress `json:"gasCurrency"`
+	GasFeeRecipient *common.MixedcaseAddress `json:"gasFeeRecipient"`
+	Value           hexutil.Big              `json:"value"`
+	Nonce           hexutil.Uint64           `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	Data  *hexutil.Bytes `json:"data"`
 	Input *hexutil.Bytes `json:"input"`
@@ -124,8 +125,13 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		tmp := args.GasCurrency.Address()
 		gasCurrency = &tmp
 	}
-	if args.To == nil {
-		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, input)
+	var gasFeeRecipient *common.Address = nil
+	if args.GasFeeRecipient != nil {
+		tmp := args.GasFeeRecipient.Address()
+		gasFeeRecipient = &tmp
 	}
-	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, input)
+	if args.To == nil {
+		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, gasFeeRecipient, input)
+	}
+	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, gasFeeRecipient, input)
 }
