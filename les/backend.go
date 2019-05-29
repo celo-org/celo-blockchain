@@ -139,8 +139,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		return nil, err
 	}
 
-  // Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
-  // Note: that this should NOT be used when executing smart contract calls done via end user transactions.
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Note: that this should NOT be used when executing smart contract calls done via end user transactions.
 	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.

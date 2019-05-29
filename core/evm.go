@@ -149,7 +149,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 // An EVM handler to make calls to smart contracts from within geth
 type InternalEVMHandler struct {
 	chain  ChainContext
-	regAdd      *RegisteredAddresses
+	regAdd *RegisteredAddresses
 }
 
 func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
@@ -188,7 +188,7 @@ func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddres
 
 func NewInternalEVMHandler(chain ChainContext) *InternalEVMHandler {
 	iEvmH := InternalEVMHandler{
-    chain: chain,
-  }
+		chain: chain,
+	}
 	return &iEvmH
 }

@@ -429,10 +429,10 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 
-  // Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-  sb.updateGasPriceSuggestion(state)
+	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
+	sb.updateGasPriceSuggestion(state)
 
-  // No block rewards in Istanbul, so the state remains as is and uncles are dropped
+	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 

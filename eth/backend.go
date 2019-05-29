@@ -131,8 +131,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
-
-
 	eth := &Ethereum{
 		config:         config,
 		chainDb:        chainDb,
@@ -189,8 +187,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-  // Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
-  // Note that this should NOT be used when executing smart contract calls done via end user transactions.
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
 	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
