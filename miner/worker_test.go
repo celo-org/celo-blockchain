@@ -208,6 +208,8 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
+	// TODO(asaj): Fix this
+	t.Skip("Disabled due to flakiness")
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
 }

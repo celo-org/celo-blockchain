@@ -940,6 +940,8 @@ type RPCTransaction struct {
 	From             common.Address  `json:"from"`
 	Gas              hexutil.Uint64  `json:"gas"`
 	GasPrice         *hexutil.Big    `json:"gasPrice"`
+	GasCurrency      *common.Address `json:"gasCurrency"`
+	GasFeeRecipient  *common.Address `json:"gasFeeRecipient"`
 	Hash             common.Hash     `json:"hash"`
 	Input            hexutil.Bytes   `json:"input"`
 	Nonce            hexutil.Uint64  `json:"nonce"`
@@ -962,17 +964,19 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	v, r, s := tx.RawSignatureValues()
 
 	result := &RPCTransaction{
-		From:     from,
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: (*hexutil.Big)(tx.GasPrice()),
-		Hash:     tx.Hash(),
-		Input:    hexutil.Bytes(tx.Data()),
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		To:       tx.To(),
-		Value:    (*hexutil.Big)(tx.Value()),
-		V:        (*hexutil.Big)(v),
-		R:        (*hexutil.Big)(r),
-		S:        (*hexutil.Big)(s),
+		From:            from,
+		Gas:             hexutil.Uint64(tx.Gas()),
+		GasPrice:        (*hexutil.Big)(tx.GasPrice()),
+		GasCurrency:     tx.GasCurrency(),
+		GasFeeRecipient: tx.GasFeeRecipient(),
+		Hash:            tx.Hash(),
+		Input:           hexutil.Bytes(tx.Data()),
+		Nonce:           hexutil.Uint64(tx.Nonce()),
+		To:              tx.To(),
+		Value:           (*hexutil.Big)(tx.Value()),
+		V:               (*hexutil.Big)(v),
+		R:               (*hexutil.Big)(r),
+		S:               (*hexutil.Big)(s),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -1245,6 +1249,13 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 		if len(input) == 0 {
 			return errors.New(`contract creation without any data provided`)
+		}
+	}
+
+	if args.GasFeeRecipient == nil {
+		recipient := b.GasFeeRecipient()
+		if (recipient != common.Address{}) {
+			args.GasFeeRecipient = &recipient
 		}
 	}
 	return nil
