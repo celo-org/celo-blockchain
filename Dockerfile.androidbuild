@@ -3,9 +3,9 @@
 FROM node:latest
 
 ARG commit_sha
-ARG npm_token
+ARG NPM_TOKEN
 
 COPY . /go-ethereum
 WORKDIR /go-ethereum
 
-RUN bash npm-android.sh $commit_sha $npm_token
+RUN bash npm-android.sh $commit_sha $NPM_TOKEN
