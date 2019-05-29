@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// ChainContext supports retrieving chain data and consensus parameters 
+// ChainContext supports retrieving chain data and consensus parameters
 // from the to be used during transaction processing.
 type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
