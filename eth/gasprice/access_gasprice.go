@@ -51,7 +51,7 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		return errors.New("no gasprice oracle contract address found")
+		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
 	gasPriceOracleABI, _ := abi.JSON(strings.NewReader(getGasPriceABIString))

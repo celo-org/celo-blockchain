@@ -30,9 +30,9 @@ import (
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
-// current blockchain to be used during transaction processing.
+// current chain to be used during transaction processing.
 type ChainContext interface {
-	// Engine retrieves the chain's consensus engine.
+	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
 	// GetHeader returns the hash corresponding to their hash.
@@ -148,7 +148,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 
 // An EVM handler to make calls to smart contracts from within geth
 type InternalEVMHandler struct {
-	blockchain  ChainContext
+	chain  ChainContext
 	regAdd      *RegisteredAddresses
 }
 
@@ -160,12 +160,12 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	log.Trace("InternalEVMHandler.MakeCall called")
 
 	if header == nil {
-		header = iEvmH.blockchain.CurrentHeader()
+		header = iEvmH.chain.CurrentHeader()
 	}
 
 	if state == nil {
 		var err error
-		state, err = iEvmH.blockchain.State()
+		state, err = iEvmH.chain.State()
 		if err != nil {
 			log.Error("Error in retrieving the state from the blockchain")
 			return 0, err
@@ -175,8 +175,8 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
-	context := NewEVMContext(msg, header, iEvmH.blockchain, nil, iEvmH.regAdd)
-	evm := vm.NewEVM(context, state, iEvmH.blockchain.Config(), *iEvmH.blockchain.GetVMConfig())
+	context := NewEVMContext(msg, header, iEvmH.chain, nil, iEvmH.regAdd)
+	evm := vm.NewEVM(context, state, iEvmH.chain.Config(), *iEvmH.chain.GetVMConfig())
 
 	zeroCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
@@ -186,11 +186,9 @@ func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddres
 	iEvmH.regAdd = regAdd
 }
 
-func (iEvmH *InternalEVMHandler) SetChain(chain ChainContext) {
-	iEvmH.blockchain = chain
-}
-
-func NewInternalEVMHandler() *InternalEVMHandler {
-	iEvmH := InternalEVMHandler{}
+func NewInternalEVMHandler(chain ChainContext) *InternalEVMHandler {
+	iEvmH := InternalEVMHandler{
+    chain: chain,
+  }
 	return &iEvmH
 }

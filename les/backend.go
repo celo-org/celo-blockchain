@@ -117,12 +117,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		peers:          peers,
 		reqDist:        newRequestDistributor(peers, quitSync),
 		accountManager: ctx.AccountManager,
-		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb, nil),
+		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb),
 		shutdownChan:   make(chan bool),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
-		iEvmH:          core.NewInternalEVMHandler(),
 	}
 
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)
@@ -140,7 +139,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		return nil, err
 	}
 
-	leth.iEvmH.SetChain(leth.blockchain)
+  // Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+  // Note: that this should NOT be used when executing smart contract calls done via end user transactions.
+	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)

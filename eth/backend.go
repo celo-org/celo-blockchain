@@ -132,7 +132,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 
-	iEvmH := core.NewInternalEVMHandler() // InternalEVMHandler for EVM calls outside the context of transaction processing
 
 	eth := &Ethereum{
 		config:         config,
@@ -140,14 +139,13 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		chainConfig:    chainConfig,
 		eventMux:       ctx.EventMux,
 		accountManager: ctx.AccountManager,
-		engine:         CreateConsensusEngine(ctx, chainConfig, config, config.MinerNotify, config.MinerNoverify, chainDb, iEvmH),
+		engine:         CreateConsensusEngine(ctx, chainConfig, config, config.MinerNotify, config.MinerNoverify, chainDb),
 		shutdownChan:   make(chan bool),
 		networkID:      config.NetworkId,
 		gasPrice:       config.MinerGasPrice,
 		etherbase:      config.Etherbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, config.SyncMode != downloader.CeloLatestSync),
-		iEvmH:          iEvmH,
 	}
 
 	// force to set the istanbul etherbase to node key address
@@ -179,8 +177,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, err
 	}
 
-	eth.iEvmH.SetChain(eth.blockchain)
-
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -192,6 +188,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
+
+  // Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+  // Note that this should NOT be used when executing smart contract calls done via end user transactions.
+	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
@@ -253,7 +253,7 @@ func CreateDB(ctx *node.ServiceContext, config *Config, name string) (ethdb.Data
 }
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
-func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database, iEvmH *core.InternalEVMHandler) consensus.Engine {
+func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
@@ -264,7 +264,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
-		return istanbulBackend.New(&config.Istanbul, ctx.NodeKey(), db, iEvmH)
+		return istanbulBackend.New(&config.Istanbul, ctx.NodeKey(), db)
 	}
 
 	// Otherwise assume proof-of-work
