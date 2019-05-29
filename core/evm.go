@@ -29,8 +29,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// ChainContext supports retrieving headers and consensus parameters from the
-// current chain to be used during transaction processing.
+// ChainContext supports retrieving chain data and consensus parameters 
+// from the to be used during transaction processing.
 type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
