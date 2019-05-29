@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var maxPrice = big.NewInt(500 * params.GWei)
@@ -195,8 +196,9 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 		sender, err := types.Sender(signer, tx)
 		if err == nil && sender != block.Coinbase() {
 			gpInGold, err := gpo.pc.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
-			// TODO (jarmg 5/23/18): Handle gold converting error here
-			if err != nil {
+      if err != nil {
+        log.Error("Error converting gas to gold", "error", err)
+      } else {
 				prices = append(prices, gpInGold)
 			}
 		}
