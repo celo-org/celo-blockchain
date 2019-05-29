@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type ltrInfo struct {
@@ -29,12 +30,11 @@ type ltrInfo struct {
 }
 
 type LesTxRelay struct {
-	txSent       map[common.Hash]*ltrInfo
-	txPending    map[common.Hash]struct{}
-	ps           *peerSet
-	peerList     []*peer
-	peerStartPos int
-	lock         sync.RWMutex
+	txSent    map[common.Hash]*ltrInfo
+	txPending map[common.Hash]struct{}
+	ps        *peerSet
+	peerList  []*peer
+	lock      sync.RWMutex
 
 	reqDist *requestDistributor
 }
@@ -64,49 +64,35 @@ func (self *LesTxRelay) unregisterPeer(p *peer) {
 	self.peerList = self.ps.AllPeers()
 }
 
+func (self *LesTxRelay) HasPeerWithEtherbase(etherbase common.Address) error {
+	_, err := self.ps.getPeerWithEtherbase(etherbase)
+	return err
+}
+
 // send sends a list of transactions to at most a given number of peers at
 // once, never resending any particular transaction to the same peer twice
-func (self *LesTxRelay) send(txs types.Transactions, count int) {
+func (self *LesTxRelay) send(txs types.Transactions) {
 	sendTo := make(map[*peer]types.Transactions)
-
-	self.peerStartPos++ // rotate the starting position of the peer list
-	if self.peerStartPos >= len(self.peerList) {
-		self.peerStartPos = 0
-	}
 
 	for _, tx := range txs {
 		hash := tx.Hash()
 		ltr, ok := self.txSent[hash]
 		if !ok {
+			p, err := self.ps.getPeerWithEtherbase(*tx.GasFeeRecipient())
+			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
+			// We rely on transactions to be rejected in light/txpool validateTx to prevent transactions
+			// with GasFeeRecipient != one of our peers from making it to the relayer.
+			if err != nil {
+				log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gasFeeRecipient", tx.GasFeeRecipient())
+				continue
+			}
+			sendTo[p] = append(sendTo[p], tx)
 			ltr = &ltrInfo{
 				tx:     tx,
 				sentTo: make(map[*peer]struct{}),
 			}
 			self.txSent[hash] = ltr
 			self.txPending[hash] = struct{}{}
-		}
-
-		if len(self.peerList) > 0 {
-			cnt := count
-			pos := self.peerStartPos
-			for {
-				peer := self.peerList[pos]
-				if _, ok := ltr.sentTo[peer]; !ok {
-					sendTo[peer] = append(sendTo[peer], tx)
-					ltr.sentTo[peer] = struct{}{}
-					cnt--
-				}
-				if cnt == 0 {
-					break // sent it to the desired number of peers
-				}
-				pos++
-				if pos == len(self.peerList) {
-					pos = 0
-				}
-				if pos == self.peerStartPos {
-					break // tried all available peers
-				}
-			}
 		}
 	}
 
@@ -138,7 +124,7 @@ func (self *LesTxRelay) Send(txs types.Transactions) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	self.send(txs, 3)
+	self.send(txs)
 }
 
 func (self *LesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash) {
@@ -160,7 +146,7 @@ func (self *LesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback 
 			txs[i] = self.txSent[hash].tx
 			i++
 		}
-		self.send(txs, 1)
+		self.send(txs)
 	}
 }
 

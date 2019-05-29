@@ -37,6 +37,7 @@ var (
 		big.NewInt(0), 0, big.NewInt(0),
 		nil,
 		nil,
+		nil,
 	)
 
 	rightvrsTx, _ = NewTransaction(
@@ -45,6 +46,7 @@ var (
 		big.NewInt(10),
 		2000,
 		big.NewInt(1),
+		nil,
 		nil,
 		common.FromHex("5544"),
 	).WithSignature(
@@ -68,7 +70,7 @@ func TestTransactionEncode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}
-	should := common.FromHex("f86203018207d08094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a3")
+	should := common.FromHex("f86303018207d0808094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a3")
 	if !bytes.Equal(txb, should) {
 		t.Errorf("encoded RLP mismatch, got %x", txb)
 	}
@@ -87,9 +89,24 @@ func defaultTestKey() (*ecdsa.PrivateKey, common.Address) {
 	return key, addr
 }
 
+func signAndEncodeTx(tx *Transaction) []byte {
+	key, _ := defaultTestKey()
+
+	signer := HomesteadSigner{}
+	tx, _ = SignTx(tx, signer, key)
+
+	buf := bytes.NewBuffer([]byte{})
+	tx.EncodeRLP(buf)
+	byteArray := make([]byte, buf.Len())
+	buf.Read(byteArray)
+	return byteArray
+}
+
 func TestRecipientEmpty(t *testing.T) {
 	_, addr := defaultTestKey()
-	tx, err := decodeTx(common.Hex2Bytes("f84a808080808080801ba0723dcc501934c9c2da4d096fcab28619cef37ca3bbdb0b0b740fbffee42ff358a009f8b9cc09fecb10543e0eb1c4f739c17dc34bad8aea0f7316cdaae2c8ed355f"))
+	tx := emptyTx
+	tx.data.Recipient = nil
+	tx, err := decodeTx(signAndEncodeTx(tx))
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -108,7 +125,7 @@ func TestRecipientEmpty(t *testing.T) {
 func TestRecipientNormal(t *testing.T) {
 	_, addr := defaultTestKey()
 
-	tx, err := decodeTx(common.Hex2Bytes("f85e8080808094000000000000000000000000000000000000000080801ba0dc4775639bca4ed4aa25213c714adcc19991bd61bc2d21faf2a8a0cb0f49c4e9a018dd6b4071524f2a8551f8e352ea760ea018c84d3e0a36df53a2dd4106bf78fe"))
+	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -141,7 +158,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 	for start, key := range keys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		for i := 0; i < 25; i++ {
-			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil, nil), signer, key)
+			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil, nil, nil), signer, key)
 			groups[addr] = append(groups[addr], tx)
 		}
 	}
@@ -192,9 +209,9 @@ func TestTransactionJSON(t *testing.T) {
 		var tx *Transaction
 		switch i % 2 {
 		case 0:
-			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, nil, []byte("abcdef"))
+			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, nil, nil, []byte("abcdef"))
 		case 1:
-			tx = NewContractCreation(i, common.Big0, 1, common.Big2, nil, []byte("abcdef"))
+			tx = NewContractCreation(i, common.Big0, 1, common.Big2, nil, nil, []byte("abcdef"))
 		}
 		transactions = append(transactions, tx)
 

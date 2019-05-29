@@ -81,6 +81,7 @@ type Message interface {
 	// nil correspond to Celo Gold (native currency).
 	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	GasCurrency() *common.Address
+	GasFeeRecipient() *common.Address
 	Value() *big.Int
 
 	Nonce() uint64
@@ -371,18 +372,18 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 	st.refundGas()
-	gasFeesForMiner := st.gasUsed()
+	gasUsed := st.gasUsed()
 	// Pay gas fee to Coinbase chosen by the miner
-	minerFee := new(big.Int).Mul(new(big.Int).SetUint64(gasFeesForMiner), st.gasPrice)
-	log.Trace("Paying gas fees to miner",
-		"gas used", st.gasUsed(), "gasFeesForMiner", gasFeesForMiner,
-		"miner Fee", minerFee)
-	log.Trace("Paying gas fees to miner", "miner", st.evm.Coinbase,
-		"minerFee", minerFee, "gas Currency", st.msg.GasCurrency())
-	st.creditGas(
-		st.evm.Coinbase,
-		minerFee,
-		st.msg.GasCurrency())
+	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
+	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", gasFee)
+	log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", gasFee, "gas Currency", msg.GasCurrency())
+
+	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
+	if msg.GasFeeRecipient() == nil {
+		st.creditGas(msg.From(), gasFee, msg.GasCurrency())
+	} else {
+		st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }
