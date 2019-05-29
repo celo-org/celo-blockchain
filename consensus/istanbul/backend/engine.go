@@ -459,9 +459,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	bondedDepositsAddress := sb.iEvmH.GetRegisteredAddress(params.BondedDepositsRegistryId)
 	if bondedDepositsAddress != nil {
 		// TODO(asa): Call into bonded deposits to set the block reward
-		leftoverGas, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", ???[]interface{}{}, &newValSet, 50000, header, state)
+		leftoverGas, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 50000, stakerBlockReward, header, state)
 		if err != nil {
-			state.AddBalance(bondedDepositsAddress, stakerBlockReward)
+			log.Error("Unable to send block rewards to bonded deposits")
 		}
 	}
 
