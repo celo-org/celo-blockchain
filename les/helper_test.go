@@ -178,7 +178,7 @@ func newTestProtocolManager(syncmode downloader.SyncMode, blocks int, generator 
 	if lightSync {
 		indexConfig = light.TestClientIndexerConfig
 	}
-	pm, err := NewProtocolManager(gspec.Config, indexConfig, syncmode, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup))
+	pm, err := NewProtocolManager(gspec.Config, indexConfig, syncmode, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup), common.Address{})
 	if err != nil {
 		return nil, err
 	}
