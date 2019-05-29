@@ -148,7 +148,6 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 
 // An EVM handler to make calls to smart contracts from within geth
 type InternalEVMHandler struct {
-	chainConfig *params.ChainConfig // The config object of the eth object
 	blockchain  ChainContext
 	regAdd      *RegisteredAddresses
 }

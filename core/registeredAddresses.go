@@ -102,8 +102,6 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.A
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
 		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
-		log.Trace("Found Address ", "Address", address)
-		log.Error("Error", "return error", ok)
 		return nil
 	} else {
 		return &address
