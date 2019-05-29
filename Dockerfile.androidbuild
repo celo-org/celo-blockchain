@@ -1,5 +1,6 @@
 # This builds the android version and pushes it to NPM
-FROM celohq/android-client
+# FROM celohq/android-client
+FROM node:latest
 
 ARG commit_sha
 ARG npm_token
