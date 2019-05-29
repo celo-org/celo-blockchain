@@ -691,7 +691,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
 	minParentsBlockNumber := number - uint64(len(parents))
 	for numberIter+sb.config.Epoch <= number {
-	        log.Trace("Retrieving ancestor header", "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
+		log.Trace("Retrieving ancestor header", "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
 		numberIter += sb.config.Epoch
 
 		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
