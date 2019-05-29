@@ -179,7 +179,7 @@ func TestPendingStateAndBlockClique(t *testing.T) {
 	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
 func TestPendingStateAndBlockIstanbul(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase(), nil))
+	testPendingStateAndBlock(t, cliqueChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()))
 }
 
 func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
@@ -221,8 +221,8 @@ func TestEmptyWorkClique(t *testing.T) {
 func TestEmptyWorkIstanbul(t *testing.T) {
 	// TODO(nambrot): Fix this
 	t.Skip("Disabled due to flakiness")
-	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase(), nil), false, true)
-	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase(), nil), true, false)
+	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), false, true)
+	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), true, false)
 }
 
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, expectEmptyBlock bool, shouldAddPendingTxs bool) {
@@ -362,7 +362,7 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 // as proposing another block after having already done so is clearly byzantine behavior.
 func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	chainConfig := istanbulChainConfig
-	engine := istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase(), nil)
+	engine := istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase())
 
 	defer engine.Close()
 
