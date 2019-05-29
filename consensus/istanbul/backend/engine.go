@@ -689,10 +689,11 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
-	minParentsBlockNumber := number - uint64(len(parents))
+	minParentsBlockNumber := number - uint64(len(parents)) + 1
 	for numberIter+sb.config.Epoch <= number {
-		log.Trace("Retrieving ancestor header", "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
 		numberIter += sb.config.Epoch
+
+		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
 
 		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
 			header = parents[numberIter-minParentsBlockNumber]
