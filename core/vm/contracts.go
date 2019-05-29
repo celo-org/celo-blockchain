@@ -54,6 +54,7 @@ var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var getCoinbaseAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
+var fractionMulExp = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -71,6 +72,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestVerificationAddress: &requestVerification{},
 	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
+	fractionMulExp:   			&fractionMulExp{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -508,3 +510,38 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 
 	return input, gas, err
 }
+
+type fractionMulExp struct{}
+
+func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
+	return params.FractionMulExpGas
+}
+
+// computes a*b^x for fractions a and b
+func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	var aNumerator, aNumeratorParsed := float64(hexutil.Encode(input[0:32]))
+	var aDenominator, aDenominatorParsed := float64(hexutil.Encode(input[32:64]))
+	var bNumerator, bNumeratorParsed := float64(hexutil.Encode(input[64:96]))
+	var bDenominator, bDenominatorParsed := float64(hexutil.Encode(input[96:128]))
+	var exponent, exponentParsed := float64(hexutil.Encode(input[128:160]))
+	
+	var a = aNumerator.Div(aDenominator)
+	var b = bNumerator.Div(bDenominator)
+
+	// handle parsing errors
+
+	// Handle passing of zero denominators
+	if aDenominator == 0 || bDenominator == 0 {
+		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
+	}
+
+
+
+	return common.LeftPadBytes(base.Exp(base, exp, mod).Bytes(), int(modLen)), gas, nil
+}
+
