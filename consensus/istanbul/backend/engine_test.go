@@ -52,7 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil, nil, nil, nil)
-	snap, err := b.snapshot(blockchain, 0, common.Hash{})
+	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
 	}
