@@ -2,8 +2,9 @@
 FROM celohq/android-client
 
 ARG commit_sha
+ARG npm_token
 
 COPY . /go-ethereum
 WORKDIR /go-ethereum
 
-RUN bash npm-android.sh $commit_sha
+RUN bash npm-android.sh $commit_sha $npm_token

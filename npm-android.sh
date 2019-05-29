@@ -7,6 +7,7 @@ VERSION=$(npm show @celo/client version)
 a=( ${VERSION//./ } )
 ((a[2]++))
 
+export NPM_TOKEN=$2
 npm -f --no-git-tag-version version "${a[0]}.${a[1]}.${a[2]}"
 PACKAGE=$(npm pack)
 npm publish $PACKAGE --tag $1
