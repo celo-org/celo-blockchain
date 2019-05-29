@@ -1,3 +1,5 @@
+# celohq/android-client
+
 FROM circleci/android:api-28-alpha
 
 USER root
@@ -88,5 +90,3 @@ RUN set -ex \
 
 # Basic smoke test
 RUN node --version
-
-ADD . /go-ethereum

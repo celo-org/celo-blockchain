@@ -1,0 +1,8 @@
+# This builds the android version and pushes it to NPM
+
+FROM celohq/android-client
+
+COPY . /go-ethereum
+WORKDIR /go-ethereum
+
+RUN bash npm-android.sh
