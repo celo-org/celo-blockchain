@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make android
+make android
 
 rm README.md
 rm README.celo.md
