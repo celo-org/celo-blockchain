@@ -98,6 +98,22 @@ var (
 			      "stateMutability": "view",
 			      "type": "function"
 			     }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
+	setCumulativeRewardWeightABI = `[{
+      "constant": false,
+      "inputs": [
+        {
+          "name": "blockReward",
+          "type": "uint128"
+        }
+      ],
+      "name": "setCumulativeRewardWeight",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }]`
 )
 var (
 	defaultDifficulty = big.NewInt(1)
@@ -109,7 +125,8 @@ var (
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
-	getValidatorsFuncABI, _ = abi.JSON(strings.NewReader(getValidatorsABI))
+	getValidatorsFuncABI, _             = abi.JSON(strings.NewReader(getValidatorsABI))
+	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -431,6 +448,22 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+
+	infrastructureBlockReward := big.NewInt(2e+18)
+	governanceAddress := sb.iEvmH.GetRegisteredAddress(params.GovernanceRegistryId)
+	if governanceAddress != nil {
+		state.AddBalance(governanceAddress, infrastructureBlockRewards)
+	}
+
+	stakerBlockReward := big.NewInt(2e+18)
+	bondedDepositsAddress := sb.iEvmH.GetRegisteredAddress(params.BondedDepositsRegistryId)
+	if bondedDepositsAddress != nil {
+		// TODO(asa): Call into bonded deposits to set the block reward
+		leftoverGas, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", ???[]interface{}{}, &newValSet, 50000, header, state)
+		if err != nil {
+			state.AddBalance(bondedDepositsAddress, stakerBlockReward)
+		}
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
