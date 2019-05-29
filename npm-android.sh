@@ -9,4 +9,4 @@ a=( ${VERSION//./ } )
 
 npm -f --no-git-tag-version version "${a[0]}.${a[1]}.${a[2]}"
 PACKAGE=$(npm pack)
-npm publish $PACKAGE --tag $COMMIT_SHA
+npm publish $PACKAGE --tag $1

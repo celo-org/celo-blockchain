@@ -4,8 +4,7 @@ secrets:
     NPM_TOKEN: CiQAW8Jnkt+36pMkdh5OQyeaAyAzhGv/3DR5x5boNb9hagV5FboSTQAZggEuJi27vYGa0qAPwxnFRLXK0KlNv9uA9k54oTETN7VeGX8v02YxhzFwJ8ZIqpOe4FOhAfvSTqO0qCsAqtKy/cVXinNkS5wUpNxN
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: [ 'build', '-f', 'Dockerfile.androidbuild', '.' ]
-  env: ['COMMIT_SHA=$COMMIT_SHA']
+  args: [ 'build', '--build-arg', 'commit_sha=$SHORT_SHA', '-f', 'Dockerfile.androidbuild', '.' ]
   secretEnv: ['NPM_TOKEN']
   waitFor: ["-"]
 timeout: 900s
