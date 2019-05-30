@@ -675,13 +675,14 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
-	From        common.Address  `json:"from"`
-	To          *common.Address `json:"to"`
-	Gas         hexutil.Uint64  `json:"gas"`
-	GasPrice    hexutil.Big     `json:"gasPrice"`
-	GasCurrency *common.Address `json:"gasCurrency"`
-	Value       hexutil.Big     `json:"value"`
-	Data        hexutil.Bytes   `json:"data"`
+	From            common.Address  `json:"from"`
+	To              *common.Address `json:"to"`
+	Gas             hexutil.Uint64  `json:"gas"`
+	GasPrice        hexutil.Big     `json:"gasPrice"`
+	GasCurrency     *common.Address `json:"gasCurrency"`
+	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
+	Value           hexutil.Big     `json:"value"`
+	Data            hexutil.Bytes   `json:"data"`
 }
 
 func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration) ([]byte, uint64, bool, error) {
@@ -710,7 +711,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.GasCurrency, args.Data, false)
+	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.GasCurrency, args.GasFeeRecipient, args.Data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -939,6 +940,8 @@ type RPCTransaction struct {
 	From             common.Address  `json:"from"`
 	Gas              hexutil.Uint64  `json:"gas"`
 	GasPrice         *hexutil.Big    `json:"gasPrice"`
+	GasCurrency      *common.Address `json:"gasCurrency"`
+	GasFeeRecipient  *common.Address `json:"gasFeeRecipient"`
 	Hash             common.Hash     `json:"hash"`
 	Input            hexutil.Bytes   `json:"input"`
 	Nonce            hexutil.Uint64  `json:"nonce"`
@@ -961,17 +964,19 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	v, r, s := tx.RawSignatureValues()
 
 	result := &RPCTransaction{
-		From:     from,
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: (*hexutil.Big)(tx.GasPrice()),
-		Hash:     tx.Hash(),
-		Input:    hexutil.Bytes(tx.Data()),
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		To:       tx.To(),
-		Value:    (*hexutil.Big)(tx.Value()),
-		V:        (*hexutil.Big)(v),
-		R:        (*hexutil.Big)(r),
-		S:        (*hexutil.Big)(s),
+		From:            from,
+		Gas:             hexutil.Uint64(tx.Gas()),
+		GasPrice:        (*hexutil.Big)(tx.GasPrice()),
+		GasCurrency:     tx.GasCurrency(),
+		GasFeeRecipient: tx.GasFeeRecipient(),
+		Hash:            tx.Hash(),
+		Input:           hexutil.Bytes(tx.Data()),
+		Nonce:           hexutil.Uint64(tx.Nonce()),
+		To:              tx.To(),
+		Value:           (*hexutil.Big)(tx.Value()),
+		V:               (*hexutil.Big)(v),
+		R:               (*hexutil.Big)(r),
+		S:               (*hexutil.Big)(s),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -1194,13 +1199,14 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	From        common.Address  `json:"from"`
-	To          *common.Address `json:"to"`
-	Gas         *hexutil.Uint64 `json:"gas"`
-	GasPrice    *hexutil.Big    `json:"gasPrice"`
-	GasCurrency *common.Address `json:"gasCurrency"`
-	Value       *hexutil.Big    `json:"value"`
-	Nonce       *hexutil.Uint64 `json:"nonce"`
+	From            common.Address  `json:"from"`
+	To              *common.Address `json:"to"`
+	Gas             *hexutil.Uint64 `json:"gas"`
+	GasPrice        *hexutil.Big    `json:"gasPrice"`
+	GasCurrency     *common.Address `json:"gasCurrency"`
+	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
+	Value           *hexutil.Big    `json:"value"`
+	Nonce           *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1245,6 +1251,13 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			return errors.New(`contract creation without any data provided`)
 		}
 	}
+
+	if args.GasFeeRecipient == nil {
+		recipient := b.GasFeeRecipient()
+		if (recipient != common.Address{}) {
+			args.GasFeeRecipient = &recipient
+		}
+	}
 	return nil
 }
 
@@ -1256,9 +1269,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.

@@ -51,6 +51,10 @@ func (self *testTxRelay) Discard(hashes []common.Hash) {
 	self.discard <- len(hashes)
 }
 
+func (self *testTxRelay) HasPeerWithEtherbase(common.Address) error {
+	return nil
+}
+
 const poolTestTxs = 1000
 const poolTestBlocks = 100
 
@@ -77,7 +81,7 @@ func txPoolTestChainGen(i int, block *core.BlockGen) {
 
 func TestTxPool(t *testing.T) {
 	for i := range testTx {
-		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	}
 
 	var (

@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	errClosed             = errors.New("peer set is closed")
-	errAlreadyRegistered  = errors.New("peer is already registered")
-	errNotRegistered      = errors.New("peer is not registered")
-	errInvalidHelpTrieReq = errors.New("invalid help trie request")
+	errClosed                   = errors.New("peer set is closed")
+	errAlreadyRegistered        = errors.New("peer is already registered")
+	errNotRegistered            = errors.New("peer is not registered")
+	errInvalidHelpTrieReq       = errors.New("invalid help trie request")
+	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
 )
 
 const maxResponseErrors = 50 // number of invalid responses tolerated (makes the protocol less brittle but still avoids spam)
@@ -195,6 +196,10 @@ func (p *peer) SendBlockBodiesRLP(reqID, bv uint64, bodies []rlp.RawValue) error
 	return sendResponse(p.rw, BlockBodiesMsg, reqID, bv, bodies)
 }
 
+func (p *peer) SendEtherbaseRLP(reqID, bv uint64, etherbase common.Address) error {
+	return sendResponse(p.rw, EtherbaseMsg, reqID, bv, etherbase)
+}
+
 // SendCodeRLP sends a batch of arbitrary internal data, corresponding to the
 // hashes requested.
 func (p *peer) SendCode(reqID, bv uint64, data [][]byte) error {
@@ -305,6 +310,15 @@ func (p *peer) RequestHelperTrieProofs(reqID, cost uint64, data interface{}) err
 func (p *peer) RequestTxStatus(reqID, cost uint64, txHashes []common.Hash) error {
 	p.Log().Debug("Requesting transaction status", "count", len(txHashes))
 	return sendRequest(p.rw, GetTxStatusMsg, reqID, cost, txHashes)
+}
+
+// RequestEtherbase fetches the etherbase of a remote node.
+func (p *peer) RequestEtherbase(reqID, cost uint64) error {
+	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
+	type req struct {
+		ReqID uint64
+	}
+	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
 }
 
 // SendTxStatus sends a batch of transactions to be added to the remote transaction pool.
@@ -509,6 +523,7 @@ type peerSetNotify interface {
 // the Light Ethereum sub-protocol.
 type peerSet struct {
 	peers      map[string]*peer
+	etherbases map[string]common.Address
 	lock       sync.RWMutex
 	notifyList []peerSetNotify
 	closed     bool
@@ -517,7 +532,8 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers: make(map[string]*peer),
+		peers:      make(map[string]*peer),
+		etherbases: make(map[string]common.Address),
 	}
 }
 
@@ -557,7 +573,52 @@ func (ps *peerSet) Register(p *peer) error {
 	for _, n := range peers {
 		n.registerPeer(p)
 	}
+
 	return nil
+}
+
+func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+	ps.etherbases[p.id] = etherbase
+}
+
+func (ps *peerSet) isEtherbaseSet(p *peer) bool {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+	if _, ok := ps.etherbases[p.id]; ok {
+		return true
+	}
+	return false
+}
+
+func (ps *peerSet) randomPeerEtherbase() common.Address {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	r := common.Address{}
+	// Rely on golang's random map iteration order.
+	for _, etherbase := range ps.etherbases {
+		r = etherbase
+		break
+	}
+	return r
+}
+
+func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error) {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+	var pid string
+	for id, petherbase := range ps.etherbases {
+		if etherbase == petherbase {
+			pid = id
+		}
+	}
+	if pid == "" {
+		return nil, errNoPeerWithEtherbaseFound
+	}
+	peer := ps.peers[pid]
+	return peer, nil
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
@@ -569,6 +630,7 @@ func (ps *peerSet) Unregister(id string) error {
 		return errNotRegistered
 	} else {
 		delete(ps.peers, id)
+		delete(ps.etherbases, id)
 		peers := make([]peerSetNotify, len(ps.notifyList))
 		copy(peers, ps.notifyList)
 		ps.lock.Unlock()
