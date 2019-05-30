@@ -54,7 +54,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 
 func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCommit")
-	
+
 	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
@@ -99,26 +99,8 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 	return nil
 }
 
-<<<<<<< HEAD
 func (c *core) acceptCommit(msg *message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
-=======
-// verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(commit *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
-	subjectSeal := PrepareCommittedSeal(commit.Digest)
-	signer, err := c.validateFn(subjectSeal, committedSeal)
-	if err != nil {
-		return err
-	}
-	if signer != src.Address() {
-		return errInvalidCommittedSeal
-	}
-	return nil
-}
-
-func (c *core) acceptCommit(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptCommit")
->>>>>>> cb5143416... Beef up logging
 
 	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {

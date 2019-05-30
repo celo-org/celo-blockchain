@@ -128,7 +128,7 @@ func TestRoundChangeSet(t *testing.T) {
 				Msg:     m,
 				Address: v.Address(),
 			}
-			_, err := rc.Add(view.Round, msg, v)
+			err := rc.Add(view.Round, msg, v)
 			if err != nil {
 				t.Errorf("Round change message: unexpected error %v", err)
 			}

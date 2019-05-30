@@ -87,33 +87,39 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 	cv := c.currentView()
 	roundView := rc.View
 
-	// Add the ROUND CHANGE message to its message set and return how many
-	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg, src)
-	if err != nil {
+	// Add the ROUND CHANGE message to its message set.
+	if err := c.roundChangeSet.Add(roundView.Round, msg, src); err != nil {
 		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
 		return err
 	}
 
-	logger.Info("handleRoundChange", "curr_round", cv.Round, "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "num", num)
+	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
+	quorumRound := c.roundChangeSet.MaxRound(2*c.valSet.F() + 1)
+
+	logger.Info("handleRoundChange", "curr_round", cv.Round, "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "wfRC", c.waitingForRoundChange, "ffRound", ffRound, "quorumRound", quorumRound)
+
+	if quorumRound != nil && (c.waitingForRoundChange || cv.Round.Cmp(quorumRound) < 0) {
+		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
+		c.startNewRound(quorumRound)
+		return nil
+	}
 
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
 	// try to catch up the round number.
-	if c.waitingForRoundChange && num == c.valSet.F()+1 {
-		if cv.Round.Cmp(roundView.Round) < 0 {
-			c.sendRoundChange(roundView.Round)
+	if c.waitingForRoundChange && ffRound != nil {
+		if cv.Round.Cmp(ffRound) < 0 {
+			c.sendRoundChange(ffRound)
 		}
 		return nil
-	} else if num == 2*c.valSet.F()+1 && (c.waitingForRoundChange || cv.Round.Cmp(roundView.Round) < 0) {
-		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
-		c.startNewRound(roundView.Round)
-		return nil
-	} else if cv.Round.Cmp(roundView.Round) < 0 {
+	}
+
+	if cv.Round.Cmp(roundView.Round) < 0 {
 		// Only gossip the message with current round to other validators.
 		// TODO(tim) This in fact also gossips newer messages -- remove comment when gossip disabled
 		return errIgnored
 	}
+
 	return nil
 }
 
@@ -136,7 +142,11 @@ type roundChangeSet struct {
 }
 
 // Add adds the round and message into round change set
+<<<<<<< HEAD
 func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator) (int, error) {
+=======
+func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message, src istanbul.Validator) error {
+>>>>>>> a59f2dfb2... Cumulatively count RCs pt 2
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
@@ -145,12 +155,15 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator)
 	if prevLatestRound, ok := rcs.latestRoundForVal[src.Address()]; ok {
 		if prevLatestRound > round {
 			// Reject as we have an RC for a later round from this validator.
-			return 0, errOldMessage
+			return errOldMessage
 		} else if prevLatestRound < round {
 			// Already got an RC for an earlier round from this validator.
 			// Forget that and remember this.
 			if rcs.msgsForRound[prevLatestRound] != nil {
 				rcs.msgsForRound[prevLatestRound].Remove(src.Address())
+				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
+					delete(rcs.msgsForRound, prevLatestRound)
+				}
 			}
 		}
 	}
@@ -160,6 +173,7 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator)
 	if rcs.msgsForRound[round] == nil {
 		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
 	}
+<<<<<<< HEAD
 	err := rcs.msgsForRound[round].Add(msg)
 	if err != nil {
 		return 0, err
@@ -172,6 +186,9 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator)
 		}
 	}
 	return num, nil
+=======
+	return rcs.msgsForRound[round].Add(msg)
+>>>>>>> a59f2dfb2... Cumulatively count RCs pt 2
 }
 
 // Clear deletes the messages with smaller round
