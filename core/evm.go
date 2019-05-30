@@ -31,7 +31,7 @@ import (
 
 var (
 	zeroCaller   = vm.AccountRef(common.HexToAddress("0x0"))
-	emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, []byte{}, false)
+	emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
@@ -187,7 +187,6 @@ func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error)
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	msg := types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
 	context := NewEVMContext(emptyMessage, header, iEvmH.blockchain, nil, iEvmH.regAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chainConfig, *iEvmH.blockchain.GetVMConfig())
 
