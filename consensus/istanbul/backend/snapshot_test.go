@@ -266,7 +266,7 @@ func TestValSetChange(t *testing.T) {
 
 			prevHeader = header
 		}
-		snap, err := engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash())
+		snap, err := engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash(), nil)
 		if err != tt.err {
 			t.Errorf("test %d: error mismatch:  have %v, want %v", i, err, tt.err)
 			continue
