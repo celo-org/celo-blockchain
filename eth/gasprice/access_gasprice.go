@@ -28,7 +28,7 @@ import (
 )
 
 // TODO (jarmg 5/22/18): Store contract function ABIs in a central location
-var (
+const (
 	getGasPriceABIString = `[{
     "constant": true,
     "inputs": [],
@@ -45,7 +45,9 @@ var (
     }]`
 )
 
-gasPriceOracleABI, _ := abi.JSON(strings.NewReader(getGasPriceABIString))
+var (
+	gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
+)
 
 func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
 

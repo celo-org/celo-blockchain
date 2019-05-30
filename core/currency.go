@@ -110,16 +110,19 @@ type exchangeRate struct {
 }
 
 type CurrencyOperator struct {
-	gcWl          *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
-	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	regAdd        *RegisteredAddresses
-	iEvmH         *InternalEVMHandler
+	gcWl               *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
+	exchangeRates      map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
+	regAdd             *RegisteredAddresses
+	iEvmH              *InternalEVMHandler
+	currencyOperatorMu sync.RWMutex
 }
 
 func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
 	if currency == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
+		co.currencyOperatorMu.RLock()
+		defer co.currencyOperatorMu.RUnlock()
 		if exchangeRate, ok := co.exchangeRates[*currency]; !ok {
 			return nil, errExchangeRateCacheMiss
 		} else {
@@ -210,6 +213,8 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 		return
 	}
 
+	co.currencyOperatorMu.Lock()
+
 	for _, gasCurrencyAddress := range gasCurrencyAddresses {
 		if gasCurrencyAddress == *celoGoldAddress {
 			continue
@@ -234,8 +239,11 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 			co.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
 		}
 	}
+
+	co.currencyOperatorMu.Unlock()
 }
 
+// TODO (jarmg 5/30/18): Change this to cache based on block number
 func (co *CurrencyOperator) mainLoop() {
 	co.retrieveExchangeRates()
 	ticker := time.NewTicker(10 * time.Second)
