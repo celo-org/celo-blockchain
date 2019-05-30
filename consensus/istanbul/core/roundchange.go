@@ -89,14 +89,14 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 
 	// Add the ROUND CHANGE message to its message set.
 	if err := c.roundChangeSet.Add(roundView.Round, msg, src); err != nil {
-		logger.Warn("Failed to add round change message", "from", src, "msg", msg, "err", err)
+		logger.Warn("Failed to add round change message", "from", src, "roundView", roundView, "err", err)
 		return err
 	}
 
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxRound(2*c.valSet.F() + 1)
 
-	logger.Info("handleRoundChange", "curr_round", cv.Round, "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "wfRC", c.waitingForRoundChange, "ffRound", ffRound, "quorumRound", quorumRound)
+	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "wfRC", c.waitingForRoundChange, "ffRound", ffRound, "quorumRound", quorumRound)
 
 	if quorumRound != nil && (c.waitingForRoundChange || cv.Round.Cmp(quorumRound) < 0) {
 		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
