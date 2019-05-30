@@ -151,14 +151,11 @@ func (co *CurrencyOperator) Convert(val *big.Int, currencyFrom *common.Address, 
 			return nil, err2
 		}
 	}
-	return convert(val, exchangeRateFrom, exchangeRateTo)
-}
 
-// Given value of val and rates n1/d1 and n2/d2 the function below does
-// (val * n1 * d2) / (d1 * n2)
-func convert(val *big.Int, from *exchangeRate, to *exchangeRate) (*big.Int, error) {
-	numerator := new(big.Int).Mul(val, new(big.Int).Mul(from.Numerator, to.Denominator))
-	denominator := new(big.Int).Mul(from.Denominator, to.Numerator)
+	// Given value of val and rates n1/d1 and n2/d2 the function below does
+	// (val * n1 * d2) / (d1 * n2)
+	numerator := new(big.Int).Mul(val, new(big.Int).Mul(exchangeRateFrom.Numerator, exchangeRateTo.Denominator))
+	denominator := new(big.Int).Mul(exchangeRateFrom.Denominator, exchangeRateTo.Numerator)
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
@@ -184,7 +181,7 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 	}
 
 	// Below code block is basically evaluating this comparison:
-	// val1 / exchangeRate1.Numerator/exchangeRate1.Denominator < val2 / exchangeRate2.Numerator/exchangeRate2.Denominator
+	// val1 * exchangeRate1.Numerator/exchangeRate1.Denominator < val2 * exchangeRate2.Numerator/exchangeRate2.Denominator
 	// It will transform that comparison to this, to remove having to deal with fractional values.
 	// val1 * exchangeRate1.Numerator * exchangeRate2.Denominator < val2 * exchangeRate2.Numerator * exchangeRate1.Denominator
 	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Numerator, exchangeRate2.Denominator))
