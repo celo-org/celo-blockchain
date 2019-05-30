@@ -109,18 +109,18 @@ type exchangeRate struct {
 	Denominator *big.Int
 }
 
-type PriceComparator struct {
+type CurrencyOperator struct {
 	gcWl          *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
 	exchangeRates map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
 	regAdd        *RegisteredAddresses
 	iEvmH         *InternalEVMHandler
 }
 
-func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
+func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
 	if currency == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		if exchangeRate, ok := pc.exchangeRates[*currency]; !ok {
+		if exchangeRate, ok := co.exchangeRates[*currency]; !ok {
 			return nil, errExchangeRateCacheMiss
 		} else {
 			return exchangeRate, nil
@@ -128,22 +128,22 @@ func (pc *PriceComparator) getExchangeRate(currency *common.Address) (*exchangeR
 	}
 }
 
-func (pc *PriceComparator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
+	celoGoldAddress := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 	if currencyFrom == nil || currencyFrom == celoGoldAddress {
 		return val, nil
 	}
-	return pc.Convert(val, currencyFrom, celoGoldAddress)
+	return co.Convert(val, currencyFrom, celoGoldAddress)
 }
 
 // NOTE (jarmg 4/24/18): values are rounded down which can cause
 // an estimate to be off by 1 (at most)
-func (pc *PriceComparator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
-	exchangeRateFrom, err1 := pc.getExchangeRate(currencyFrom)
-	exchangeRateTo, err2 := pc.getExchangeRate(currencyTo)
+func (co *CurrencyOperator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
+	exchangeRateFrom, err1 := co.getExchangeRate(currencyFrom)
+	exchangeRateTo, err2 := co.getExchangeRate(currencyTo)
 
 	if err1 != nil || err2 != nil {
-		log.Error("PriceComparator.Convert - Error in retreiving currency exchange rates")
+		log.Error("CurrencyOperator.Convert - Error in retreiving currency exchange rates")
 		if err1 != nil {
 			return nil, err1
 		}
@@ -162,13 +162,13 @@ func convert(val *big.Int, from *exchangeRate, to *exchangeRate) (*big.Int, erro
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
-func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	if currency1 == currency2 {
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := pc.getExchangeRate(currency1)
-	exchangeRate2, err2 := pc.getExchangeRate(currency2)
+	exchangeRate1, err1 := co.getExchangeRate(currency1)
+	exchangeRate2, err2 := co.getExchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -195,18 +195,18 @@ func (pc *PriceComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 // This function will retrieve the exchange rates from the SortedOracles contract and cache them.
 // SortedOracles must have a function with the following signature:
 // "function medianRate(address)"
-func (pc *PriceComparator) retrieveExchangeRates() {
-	gasCurrencyAddresses := pc.gcWl.retrieveWhitelist()
-	log.Trace("PriceComparator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
+func (co *CurrencyOperator) retrieveExchangeRates() {
+	gasCurrencyAddresses := co.gcWl.retrieveWhitelist()
+	log.Trace("CurrencyOperator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	sortedOraclesAddress := pc.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
+	sortedOraclesAddress := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
 	if sortedOraclesAddress == nil {
 		log.Error("Can't get the sortedOracles smart contract address from the registry")
 		return
 	}
 
-	celoGoldAddress := pc.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 	if celoGoldAddress == nil {
 		log.Error("Can't get the celo gold smart contract address from the registry")
@@ -220,49 +220,49 @@ func (pc *PriceComparator) retrieveExchangeRates() {
 
 		var returnArray [2]*big.Int
 
-		log.Trace("PriceComparator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
+		log.Trace("CurrencyOperator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
 			"gas currency", gasCurrencyAddress.Hex())
 
-		if leftoverGas, err := pc.iEvmH.MakeCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			log.Error("PriceComparator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
+		if leftoverGas, err := co.iEvmH.MakeCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+			log.Error("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("PriceComparator.retrieveExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+			log.Trace("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
 
-			if _, ok := pc.exchangeRates[gasCurrencyAddress]; !ok {
-				pc.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
+			if _, ok := co.exchangeRates[gasCurrencyAddress]; !ok {
+				co.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
 			}
 
-			pc.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
-			pc.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
+			co.exchangeRates[gasCurrencyAddress].Numerator = returnArray[0]
+			co.exchangeRates[gasCurrencyAddress].Denominator = returnArray[1]
 		}
 	}
 }
 
-func (pc *PriceComparator) mainLoop() {
-	pc.retrieveExchangeRates()
+func (co *CurrencyOperator) mainLoop() {
+	co.retrieveExchangeRates()
 	ticker := time.NewTicker(10 * time.Second)
 
 	for range ticker.C {
-		pc.retrieveExchangeRates()
+		co.retrieveExchangeRates()
 	}
 }
 
-func NewPriceComparator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *PriceComparator {
+func NewCurrencyOperator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *CurrencyOperator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
-	pc := &PriceComparator{
+	co := &CurrencyOperator{
 		gcWl:          gcWl,
 		exchangeRates: exchangeRates,
 		regAdd:        regAdd,
 		iEvmH:         iEvmH,
 	}
 
-	if pc.gcWl != nil {
-		go pc.mainLoop()
+	if co.gcWl != nil {
+		go co.mainLoop()
 	}
 
-	return pc
+	return co
 }
 
 // This function will retrieve the balance of an ERC20 token.

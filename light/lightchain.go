@@ -72,14 +72,13 @@ type LightChain struct {
 	procInterrupt int32 // interrupt signaler for block processing
 	wg            sync.WaitGroup
 
-	engine   consensus.Engine
-	vmConfig vm.Config
+	engine consensus.Engine
 }
 
 // NewLightChain returns a fully initialised light chain using information
 // available in the database. It initialises the default Ethereum header
 // validator.
-func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config) (*LightChain, error) {
+func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine) (*LightChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
@@ -93,7 +92,6 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		bodyRLPCache:  bodyRLPCache,
 		blockCache:    blockCache,
 		engine:        engine,
-		vmConfig:      vmConfig,
 	}
 	var err error
 	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt)
@@ -479,7 +477,7 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 }
 
 func (self *LightChain) GetVMConfig() *vm.Config {
-	return &self.vmConfig
+	return &vm.Config{}
 }
 
 // Config retrieves the header chain's chain configuration.

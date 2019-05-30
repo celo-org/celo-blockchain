@@ -53,11 +53,11 @@ type Oracle struct {
 	percentile                       int
 	defaultPrice                     *big.Int
 	alwaysZero                       bool
-	pc                               *core.PriceComparator
+	co                               *core.CurrencyOperator
 }
 
 // NewOracle returns a new oracle.
-func NewOracle(backend ethapi.Backend, params Config, pc *core.PriceComparator) *Oracle {
+func NewOracle(backend ethapi.Backend, params Config, co *core.CurrencyOperator) *Oracle {
 	blocks := params.Blocks
 	if blocks < 1 {
 		blocks = 1
@@ -78,7 +78,7 @@ func NewOracle(backend ethapi.Backend, params Config, pc *core.PriceComparator) 
 		percentile:   percent,
 		defaultPrice: params.Default,
 		alwaysZero:   params.AlwaysZero,
-		pc:           pc,
+		co:           co,
 	}
 }
 
@@ -195,7 +195,7 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 	for _, tx := range blockTxs {
 		sender, err := types.Sender(signer, tx)
 		if err == nil && sender != block.Coinbase() {
-			gpInGold, err := gpo.pc.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
+			gpInGold, err := gpo.co.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
 			if err != nil {
 				log.Error("Error converting gas to gold", "error", err)
 			} else {
