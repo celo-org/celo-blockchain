@@ -541,11 +541,19 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
+// Setter functions
+func (sb *Backend) SetInternalEVMHandler(iEvmH consensus.ConsensusIEvmH) {
+	sb.iEvmH = iEvmH
+}
+
+func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
+	sb.regAdd = regAdd
+}
+
 // Start implements consensus.Istanbul.Start
 func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
 	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-	iEvmH consensus.ConsensusIEvmH, regAdd consensus.ConsensusRegAdd) error {
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -565,8 +573,6 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock
 	sb.validateState = validateState
-	sb.iEvmH = iEvmH
-	sb.regAdd = regAdd
 
 	if err := sb.core.Start(); err != nil {
 		return err

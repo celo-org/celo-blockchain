@@ -143,12 +143,15 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// Setter functions
+	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
+
+	SetRegisteredAddresses(regAdd ConsensusRegAdd)
+
 	// Start starts the engine
 	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
 		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-		iEvmH ConsensusIEvmH,
-		regAdd ConsensusRegAdd) error
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error
