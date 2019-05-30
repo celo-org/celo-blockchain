@@ -24,7 +24,7 @@ import (
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
@@ -37,6 +37,7 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 			logger.Error("Failed to encode", "view", curView)
 			return
 		}
+		logger.Trace("Sending preprepare")
 
 		c.broadcast(&message{
 			Code: msgPreprepare,
@@ -46,7 +47,7 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 }
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+	logger := c.logger.New("from", src, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare")
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare
@@ -100,6 +101,8 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 
 	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {
+		logger.Trace("Accepted preprepare")
+
 		// Send ROUND CHANGE if the locked proposal and the received proposal are different
 		if c.current.IsHashLocked() {
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() {
