@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -187,9 +189,12 @@ type worker struct {
 
 	// Transaction processing
 	pc *core.PriceComparator
+
+	// Needed for randomness
+	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -216,6 +221,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		pc:                  pc,
+		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -930,19 +936,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 
-	nullAddress := common.BigToAddress(big.NewInt(0))
-	w.eth.RegisteredAddresses().RefreshAddresses()
-	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
-
-	if randomAddress != nil && *randomAddress != nullAddress {
-		log.Debug("!!!!! Random exists !!!!!!!!")
-		w.eth.Random().DoThing(*randomAddress)
-	}
-
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
+
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.config.DAOForkBlock; daoBlock != nil {
 		// Check whether the block is among the fork extra-override range
@@ -1014,6 +1012,38 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Refresh the gas currency whitelist cache before processing the pending transactions
 	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
 		wl.RefreshWhitelist()
+	}
+
+	nullAddress := common.BigToAddress(big.NewInt(0))
+	w.eth.RegisteredAddresses().RefreshAddresses()
+	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
+
+	if randomAddress != nil && *randomAddress != nullAddress {
+		dbPrefix := []byte{0x12, 0x34, 0x56, 0x78, 0x90}
+		previousNumberBytes := new(big.Int).Sub(w.current.header.Number, big.NewInt(1)).Bytes()
+		dbLocation := append(dbPrefix, previousNumberBytes...)
+		randomness := [32]byte{}
+		randomnessSlice, err := (*w.db).Get(dbLocation)
+		if err != nil {
+			log.Debug("Failed to get stuff from database")
+		} else {
+			log.Debug("Got randomness from db", "randomnessSlice", randomnessSlice)
+			copy(randomness[:], randomnessSlice)
+		}
+
+		newRandomness := [32]byte{}
+		_, err = rand.Read(newRandomness[0:32])
+		if err != nil {
+			log.Error("Failed to generate randomness")
+		}
+		log.Debug("Submitting new randomness", "newRandomness", newRandomness)
+		err = w.eth.Random().RevealAndCommit(randomness, newRandomness, w.coinbase, *randomAddress, w.current.header, w.current.state)
+		numberBytes := w.current.header.Number.Bytes()
+		dbLocation = append(dbPrefix, numberBytes...)
+		(*w.db).Put(dbLocation, newRandomness[:])
+		if err != nil {
+			log.Error("Failed to reveal and commit", "err", err)
+		}
 	}
 
 	// Fill the block with all available pending transactions.

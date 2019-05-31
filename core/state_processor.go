@@ -88,8 +88,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.gcWl.RefreshWhitelist()
 	}
 
-    // randomAddress := p.regAdd.GetRegisteredAddress("Random")
-
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -101,7 +99,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs = append(allLogs, receipt.Logs...)
 	}
 
-    allLogs = append(allLogs, &types.Log{Data: []byte{42, 84,}})
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
 
