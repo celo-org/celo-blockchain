@@ -145,7 +145,7 @@ func (b *Subject) String() string {
 }
 
 type Announce struct {
-        BlockNum *big.Int
+	BlockNum *big.Int
 	EnodeURL string
 }
 
@@ -157,7 +157,7 @@ func (a *Announce) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (a *Announce) DecodeRLP(s *rlp.Stream) error {
 	var announce struct {
-	        BlockNum *big.Int
+		BlockNum *big.Int
 		EnodeURL string
 	}
 

@@ -859,5 +859,5 @@ func (self *ProtocolManager) FindPeers(targets map[common.Address]bool, getAllPe
 }
 
 func (srv *ProtocolManager) GetLocalNode() *enode.Node {
-     return srv.getLocalNode()
+	return srv.getLocalNode()
 }

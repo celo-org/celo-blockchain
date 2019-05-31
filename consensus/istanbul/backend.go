@@ -22,7 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/p2p/enode"	
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // Backend provides application specific functions for Istanbul core

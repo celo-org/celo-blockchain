@@ -52,7 +52,7 @@ func (c *core) subscribeEvents() {
 		// external events
 		istanbul.RequestEvent{},
 		istanbul.MessageEvent{},
-		istanbul.AnnounceEvent{},		
+		istanbul.AnnounceEvent{},
 		// internal events
 		backlogEvent{},
 	)
@@ -111,7 +111,7 @@ func (c *core) handleEvents() {
 					c.backend.Gossip(c.valSet, p, broadcastToAllPeers)
 				}
 			case istanbul.AnnounceEvent:
-			     c.sendAnnounce()
+				c.sendAnnounce()
 			}
 		case _, ok := <-c.timeoutSub.Chan():
 			if !ok {
@@ -147,12 +147,12 @@ func (c *core) handleMsg(payload []byte) (error, bool) {
 
 	var src istanbul.Validator = nil
 	if msg.Code != msgAnnounce {
-	   // Only accept message if the address is valid
-	   _, src := c.valSet.GetByAddress(msg.Address)
-	   if src == nil {
-		logger.Error("Invalid address in message", "msg", msg)
-		return istanbul.ErrUnauthorizedAddress, false
-	   }
+		// Only accept message if the address is valid
+		_, src := c.valSet.GetByAddress(msg.Address)
+		if src == nil {
+			logger.Error("Invalid address in message", "msg", msg)
+			return istanbul.ErrUnauthorizedAddress, false
+		}
 	}
 
 	return c.handleCheckedMsg(msg, src)
@@ -180,7 +180,7 @@ func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) (error, bo
 	case msgRoundChange:
 		return testBacklog(c.handleRoundChange(msg, src)), false
 	case msgAnnounce:
-	        return c.handleAnnounce(msg), true
+		return c.handleAnnounce(msg), true
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}

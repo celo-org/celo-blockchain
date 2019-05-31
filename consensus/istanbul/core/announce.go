@@ -17,19 +17,19 @@
 package core
 
 import (
-       "github.com/ethereum/go-ethereum/common"
-       "github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 func (c *core) sendAnnounce() {
 	logger := c.logger.New()
-	
+
 	block, _ := c.backend.LastProposal()
 	enodeUrl := c.backend.Enode().String()
 
 	announce, err := Encode(&istanbul.Announce{BlockNum: block.Number(),
-		      EnodeURL: enodeUrl})
-	
+		EnodeURL: enodeUrl})
+
 	if err != nil {
 		logger.Error("Failed to encode", "err", err)
 		return
@@ -41,7 +41,7 @@ func (c *core) sendAnnounce() {
 		Code: msgAnnounce,
 		Msg:  announce,
 	},
-	true)
+		true)
 }
 
 func (c *core) handleAnnounce(msg *message) error {
@@ -59,11 +59,11 @@ func (c *core) handleAnnounce(msg *message) error {
 	fromAddress := msg.Address
 	blockNumOfLastMsg := common.Big0
 	if val, ok := c.lastestAnnounceMessages[fromAddress]; ok {
-	   blockNumOfLastMsg = val
+		blockNumOfLastMsg = val
 	}
 
 	if announce.BlockNum.Cmp(blockNumOfLastMsg) <= 0 {
-	   return errOldMessage
+		return errOldMessage
 	}
 
 	logger.Trace("Received an announce message", "from", msg.Address.Hex(), "blockNum", announce.BlockNum, "enode", announce.EnodeURL)
@@ -71,5 +71,3 @@ func (c *core) handleAnnounce(msg *message) error {
 
 	return nil
 }
-
-

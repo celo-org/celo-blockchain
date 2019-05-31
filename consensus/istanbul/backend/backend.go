@@ -34,8 +34,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/p2p/enode"	
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -169,7 +169,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, broadcas
 }
 
 func (sb *Backend) Enode() *enode.Node {
-     return sb.broadcaster.GetLocalNode()
+	return sb.broadcaster.GetLocalNode()
 }
 
 // Commit implements istanbul.Backend.Commit
