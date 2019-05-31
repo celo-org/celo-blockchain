@@ -148,12 +148,10 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else {
-			// Ancestors would be missing if the full header chain is not available.
-			// Therefore, we cannot calculate the difficulty level, assume the difficulty of
-			// a block to be its block number for now. Later on, we will add some verification,
-			// so that, malicious blocks cannot be inserted.
-			totalDifficulty := big.NewInt(int64(number))
-			log.Debug(fmt.Sprintf("Previous header difficulty is not available, setting it to %v", totalDifficulty))
+			// In IBFT, it seems that the announced td (total difficulty) is 1 + block number.
+			totalDifficulty := big.NewInt(int64(number + 1))
+			log.Debug(fmt.Sprintf("Previous header for %d difficulty is not available, setting its difficulty to %v",
+				number, totalDifficulty))
 			localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
 			externTd = externTd.Add(externTd, totalDifficulty)
 		}

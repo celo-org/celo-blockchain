@@ -434,6 +434,8 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 	}
 	if bestTd == f.maxConfirmedTd {
 		return nil, 0, false
+	} else {
+		log.Trace("nextRequest", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 	}
 
 	var rq *distReq
@@ -551,12 +553,15 @@ func (f *lightFetcher) newHeaders(headers []*types.Header, tds []*big.Int) {
 			p.Log().Debug("Inconsistent announcement")
 			go f.pm.removePeer(p.id)
 		}
+		log.Trace("newHeaders", "fp.confirmedTd", fp.confirmedTd, "maxTd", maxTd)
 		if fp.confirmedTd != nil && (maxTd == nil || maxTd.Cmp(fp.confirmedTd) > 0) {
 			maxTd = fp.confirmedTd
 		}
 	}
 	if maxTd != nil {
 		f.updateMaxConfirmedTd(maxTd)
+	} else {
+		log.Trace("newHeaders maxTd is nil")
 	}
 }
 
@@ -574,7 +579,8 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 	)
 
 	for i := len(headers) - 1; ; i-- {
-		// In latest block only mode, we only have the latest header
+		// In celo latest sync mode, we don't have all the headers.
+		// Do not enable this for ultralight sync mode, it handles this behavior properly.
 		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
 			return true
 		}
@@ -613,12 +619,15 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 				} else {
 					n.hash = hash
 					n.td = td
+					log.Trace("checkAnnouncedHeaders setting n.td", "n.td", n.td)
 					fp.nodeByHash[hash] = n
 				}
 			}
 			// check if it matches the header
-			if n.hash != hash || n.number != number || n.td.Cmp(td) != 0 {
+			if n.hash != hash || n.number != number || (n.td.Cmp(td) != 0) {
 				// peer has previously made an invalid announcement
+				log.Trace("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td)
+				log.Trace("checkAnnouncedHeaders", "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
 				return false
 			}
 			if n.known {
@@ -652,7 +661,8 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
 	// Disable this in Latest block only mode since we are not fetching the full chain
-	// now n is the latest downloaded header after syncing
+	// now n is the latest downloaded header after syncing.
+	// Ultralightsync mode handles this behavior properly.
 	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {
