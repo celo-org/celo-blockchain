@@ -41,7 +41,7 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 		c.broadcast(&message{
 			Code: msgPreprepare,
 			Msg:  preprepare,
-		})
+		}, false)
 	}
 }
 

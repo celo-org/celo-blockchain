@@ -91,6 +91,10 @@ type core struct {
 	sequenceMeter metrics.Meter
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	// Keep the sequence number of the most recent Announce message received from each address.
+	// This map is pruned at the start of every new epoch
+	lastestAnnounceMessages map[common.Address]*big.Int
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
@@ -128,7 +132,7 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	return payload, nil
 }
 
-func (c *core) broadcast(msg *message) {
+func (c *core) broadcast(msg *message, broadcastToAllPeers bool) {
 	logger := c.logger.New("state", c.state)
 
 	payload, err := c.finalizeMessage(msg)
@@ -138,7 +142,7 @@ func (c *core) broadcast(msg *message) {
 	}
 
 	// Broadcast payload
-	if err = c.backend.Broadcast(c.valSet, payload); err != nil {
+	if err = c.backend.Broadcast(c.valSet, payload, broadcastToAllPeers); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}

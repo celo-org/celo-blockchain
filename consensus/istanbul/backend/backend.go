@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/p2p/enode"	
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -119,9 +120,9 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte, broadcastToAllPeers bool) error {
 	// send to others
-	sb.Gossip(valSet, payload)
+	sb.Gossip(valSet, payload, broadcastToAllPeers)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -131,7 +132,7 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, broadcastToAllPeers bool) error {
 	hash := istanbul.RLPHash(payload)
 	sb.knownMessages.Add(hash, true)
 
@@ -142,8 +143,9 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 		}
 	}
 
-	if sb.broadcaster != nil && len(targets) > 0 {
-		ps := sb.broadcaster.FindPeers(targets)
+	if sb.broadcaster != nil && (len(targets) > 0 || broadcastToAllPeers) {
+		ps := sb.broadcaster.FindPeers(targets, broadcastToAllPeers)
+
 		for addr, p := range ps {
 			ms, ok := sb.recentMessages.Get(addr)
 			var m *lru.ARCCache
@@ -164,6 +166,10 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 		}
 	}
 	return nil
+}
+
+func (sb *Backend) Enode() *enode.Node {
+     return sb.broadcaster.GetLocalNode()
 }
 
 // Commit implements istanbul.Backend.Commit

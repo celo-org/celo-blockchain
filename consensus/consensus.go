@@ -129,6 +129,10 @@ type Handler interface {
 
 	// SetBroadcaster sets the broadcaster to send message to peers
 	SetBroadcaster(Broadcaster)
+
+	// TODO(kevjue) - Reconsider if this should go to the Istanbul interface
+	// It will check to see if it needs to send an istanbul announce message to all the other full nodes.
+	GossipAnnounce() error
 }
 
 // PoW is a consensus engine based on proof-of-work.

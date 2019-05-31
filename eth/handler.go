@@ -102,6 +102,8 @@ type ProtocolManager struct {
 	wg sync.WaitGroup
 
 	engine consensus.Engine
+
+	getLocalNode func() *enode.Node
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -218,8 +220,9 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int) {
+func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node) {
 	pm.maxPeers = maxPeers
+	pm.getLocalNode = getLocalNode
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -843,14 +846,18 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (self *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
+func (self *ProtocolManager) FindPeers(targets map[common.Address]bool, getAllPeers bool) map[common.Address]consensus.Peer {
 	m := make(map[common.Address]consensus.Peer)
 	for _, p := range self.peers.Peers() {
 		pubKey := p.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
-		if targets[addr] {
+		if getAllPeers || targets[addr] {
 			m[addr] = p
 		}
 	}
 	return m
+}
+
+func (srv *ProtocolManager) GetLocalNode() *enode.Node {
+     return srv.getLocalNode()
 }

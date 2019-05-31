@@ -52,6 +52,7 @@ func (c *core) subscribeEvents() {
 		// external events
 		istanbul.RequestEvent{},
 		istanbul.MessageEvent{},
+		istanbul.AnnounceEvent{},		
 		// internal events
 		backlogEvent{},
 	)
@@ -96,19 +97,21 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
-				if err := c.handleMsg(ev.Payload); err == nil {
-					c.backend.Gossip(c.valSet, ev.Payload)
+				if err, broadcastToAllPeers := c.handleMsg(ev.Payload); err == nil {
+					c.backend.Gossip(c.valSet, ev.Payload, broadcastToAllPeers)
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
-				if err := c.handleCheckedMsg(ev.msg, ev.src); err == nil {
+				if err, broadcastToAllPeers := c.handleCheckedMsg(ev.msg, ev.src); err == nil {
 					p, err := ev.msg.Payload()
 					if err != nil {
 						c.logger.Warn("Get message payload failed", "err", err)
 						continue
 					}
-					c.backend.Gossip(c.valSet, p)
+					c.backend.Gossip(c.valSet, p, broadcastToAllPeers)
 				}
+			case istanbul.AnnounceEvent:
+			     c.sendAnnounce()
 			}
 		case _, ok := <-c.timeoutSub.Chan():
 			if !ok {
@@ -132,27 +135,30 @@ func (c *core) sendEvent(ev interface{}) {
 	c.backend.EventMux().Post(ev)
 }
 
-func (c *core) handleMsg(payload []byte) error {
+func (c *core) handleMsg(payload []byte) (error, bool) {
 	logger := c.logger.New()
 
 	// Decode message and check its signature
 	msg := new(message)
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Error("Failed to decode message from payload", "err", err)
-		return err
+		return err, false
 	}
 
-	// Only accept message if the address is valid
-	_, src := c.valSet.GetByAddress(msg.Address)
-	if src == nil {
+	var src istanbul.Validator = nil
+	if msg.Code != msgAnnounce {
+	   // Only accept message if the address is valid
+	   _, src := c.valSet.GetByAddress(msg.Address)
+	   if src == nil {
 		logger.Error("Invalid address in message", "msg", msg)
-		return istanbul.ErrUnauthorizedAddress
+		return istanbul.ErrUnauthorizedAddress, false
+	   }
 	}
 
 	return c.handleCheckedMsg(msg, src)
 }
 
-func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
+func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) (error, bool) {
 	logger := c.logger.New("address", c.address, "from", src)
 
 	// Store the message if it's a future message
@@ -166,18 +172,20 @@ func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
 
 	switch msg.Code {
 	case msgPreprepare:
-		return testBacklog(c.handlePreprepare(msg, src))
+		return testBacklog(c.handlePreprepare(msg, src)), false
 	case msgPrepare:
-		return testBacklog(c.handlePrepare(msg, src))
+		return testBacklog(c.handlePrepare(msg, src)), false
 	case msgCommit:
-		return testBacklog(c.handleCommit(msg, src))
+		return testBacklog(c.handleCommit(msg, src)), false
 	case msgRoundChange:
-		return testBacklog(c.handleRoundChange(msg, src))
+		return testBacklog(c.handleRoundChange(msg, src)), false
+	case msgAnnounce:
+	        return c.handleAnnounce(msg), true
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}
 
-	return errInvalidMessage
+	return errInvalidMessage, false
 }
 
 func (c *core) handleTimeoutMsg() {

@@ -143,3 +143,31 @@ func (b *Subject) DecodeRLP(s *rlp.Stream) error {
 func (b *Subject) String() string {
 	return fmt.Sprintf("{View: %v, Digest: %v}", b.View, b.Digest.String())
 }
+
+type Announce struct {
+        BlockNum *big.Int
+	EnodeURL string
+}
+
+// EncodeRLP serializes b into the Ethereum RLP format.
+func (a *Announce) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{a.BlockNum, a.EnodeURL})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (a *Announce) DecodeRLP(s *rlp.Stream) error {
+	var announce struct {
+	        BlockNum *big.Int
+		EnodeURL string
+	}
+
+	if err := s.Decode(&announce); err != nil {
+		return err
+	}
+	a.BlockNum, a.EnodeURL = announce.BlockNum, announce.EnodeURL
+	return nil
+}
+
+func (a *Announce) String() string {
+	return fmt.Sprintf("{BlockNum: %v, EnodeURL: %v}", a.BlockNum, a.EnodeURL)
+}

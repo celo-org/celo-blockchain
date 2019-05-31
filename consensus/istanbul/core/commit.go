@@ -47,7 +47,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	c.broadcast(&message{
 		Code: msgCommit,
 		Msg:  encodedSubject,
-	})
+	}, false)
 }
 
 func (c *core) handleCommit(msg *message, src istanbul.Validator) error {

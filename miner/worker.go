@@ -465,6 +465,7 @@ func (w *worker) mainLoop() {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewChainHead()
+				//h.GossipAnnounce()
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 

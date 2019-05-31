@@ -71,6 +71,7 @@ const (
 	msgPrepare
 	msgCommit
 	msgRoundChange
+	msgAnnounce
 )
 
 type message struct {

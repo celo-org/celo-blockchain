@@ -22,12 +22,16 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p/enode"	
 )
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
+
+	// Enode returns the owner's enode
+	Enode() *enode.Node
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
@@ -36,10 +40,10 @@ type Backend interface {
 	EventMux() *event.TypeMux
 
 	// Broadcast sends a message to all validators (include self)
-	Broadcast(valSet ValidatorSet, payload []byte) error
+	Broadcast(valSet ValidatorSet, payload []byte, broadcastToAllPeers bool) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte) error
+	Gossip(valSet ValidatorSet, payload []byte, broadcastToAllPeers bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.

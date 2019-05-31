@@ -101,3 +101,13 @@ func (sb *Backend) NewChainHead() error {
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }
+
+func (sb *Backend) GossipAnnounce() error {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+	if !sb.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
+	go sb.EventMux().Post(istanbul.AnnounceEvent{})
+	return nil
+}

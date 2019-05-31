@@ -29,3 +29,7 @@ type MessageEvent struct {
 // FinalCommittedEvent is posted when a proposal is committed
 type FinalCommittedEvent struct {
 }
+
+// AnnounceEvent is posted when a potential validator is most likely going to be elected for a new epoch
+type AnnounceEvent struct {
+}
