@@ -652,11 +652,9 @@ func TestFastVsFullChains(t *testing.T) {
 		headers[i] = block.Header()
 	}
 	if n, err := fast.InsertHeaderChain(headers, 1); err != nil {
-		t.Logf("failed to insert header %d: %v", n, err)
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := fast.InsertReceiptChain(blocks, receipts); err != nil {
-		t.Logf("failed to insert receipt %d: %v", n, err)
 		t.Fatalf("failed to insert receipt %d: %v", n, err)
 	}
 	// Iterate over all chain data components, and cross reference
@@ -664,25 +662,19 @@ func TestFastVsFullChains(t *testing.T) {
 		num, hash := blocks[i].NumberU64(), blocks[i].Hash()
 
 		if ftd, atd := fast.GetTdByHash(hash), archive.GetTdByHash(hash); ftd.Cmp(atd) != 0 {
-			t.Logf("block #%d [%x]: td mismatch: have %v, want %v", num, hash, ftd, atd)
 			t.Errorf("block #%d [%x]: td mismatch: have %v, want %v", num, hash, ftd, atd)
 		}
 		if fheader, aheader := fast.GetHeaderByHash(hash), archive.GetHeaderByHash(hash); fheader.Hash() != aheader.Hash() {
-			t.Logf("block #%d [%x]: header mismatch: have %v, want %v", num, hash, fheader, aheader)
 			t.Errorf("block #%d [%x]: header mismatch: have %v, want %v", num, hash, fheader, aheader)
 		}
 		if fblock, ablock := fast.GetBlockByHash(hash), archive.GetBlockByHash(hash); fblock.Hash() != ablock.Hash() {
-			t.Logf("block #%d [%x]: block mismatch: have %v, want %v", num, hash, fblock, ablock)
 			t.Errorf("block #%d [%x]: block mismatch: have %v, want %v", num, hash, fblock, ablock)
 		} else if types.DeriveSha(fblock.Transactions()) != types.DeriveSha(ablock.Transactions()) {
-			t.Logf("block #%d [%x]: transactions mismatch: have %v, want %v", num, hash, fblock.Transactions(), ablock.Transactions())
 			t.Errorf("block #%d [%x]: transactions mismatch: have %v, want %v", num, hash, fblock.Transactions(), ablock.Transactions())
 		} else if types.CalcUncleHash(fblock.Uncles()) != types.CalcUncleHash(ablock.Uncles()) {
-			t.Logf("block #%d [%x]: uncles mismatch: have %v, want %v", num, hash, fblock.Uncles(), ablock.Uncles())
 			t.Errorf("block #%d [%x]: uncles mismatch: have %v, want %v", num, hash, fblock.Uncles(), ablock.Uncles())
 		}
 		if freceipts, areceipts := rawdb.ReadReceipts(fastDb, hash, *rawdb.ReadHeaderNumber(fastDb, hash)), rawdb.ReadReceipts(archiveDb, hash, *rawdb.ReadHeaderNumber(archiveDb, hash)); types.DeriveSha(freceipts) != types.DeriveSha(areceipts) {
-			t.Logf("block #%d [%x]: receipts mismatch: have %v, want %v", num, hash, freceipts, areceipts)
 			t.Errorf("block #%d [%x]: receipts mismatch: have %v, want %v", num, hash, freceipts, areceipts)
 		}
 	}
