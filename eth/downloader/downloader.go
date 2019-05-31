@@ -882,19 +882,35 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 
 	var ttl time.Duration
 	getHeaders := func(from uint64) {
+		// ;tTODO(ashishb): testing only
+		if from % 300 == 0 {
+			log.Warn("Changing from to not fetch epoch block", "from", from)
+			from += 1
+		}
 		request = time.Now()
 
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
+		count := MaxHeaderFetch
+		if (from + uint64(count)) % 300 < from % 300 {
+			count = 300 - int(from % 300) - 1
+			if count != 0 {
+				log.Warn("Changing count to not fetch epoch block", "from", from, "count", count)
+			} else {
+				count = MaxHeaderFetch
+				from = from + 2
+			}
+		}
 		if skeleton {
-			p.log.Trace("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false)
+			p.log.Trace("Fetching skeleton headers", "count", count, "from", from)
+			go p.peer.RequestHeadersByNumber(from+uint64(count)-1, MaxSkeletonSize, count-1, false)
 		} else {
-			p.log.Trace("Fetching full headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false)
+			p.log.Trace("Fetching full headers", "count", count, "from", from)
+			go p.peer.RequestHeadersByNumber(from, count, 0, false)
 		}
 	}
+	skeleton = false  // TODO(ashishb): testing only
 	// Start pulling the header chain skeleton until all is done
 	getHeaders(from)
 
