@@ -208,14 +208,15 @@ func (c *core) startNewRound(round *big.Int) {
 	} else if lastProposal.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		if round.Cmp(common.Big0) == 0 {
 			// same seq and round, don't need to start new round
+			logger.Trace("same seq and round, don't need to start new round", "cur_seq", lastProposal.Number().Int64())
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
+			logger.Warn("New round should not be smaller than current round", "cur_seq", lastProposal.Number().Int64(), "new_round", round, "cur_round", c.current.Round())
 			return
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastProposal.Number().Int64())
+		logger.Warn("New sequence should be larger than current sequence", "cur_seq", lastProposal.Number().Int64())
 		return
 	}
 
@@ -257,7 +258,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "new_proposer_id", c.valSet.GetProposerIndex(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet, "rcs", c.roundChangeSet.String())
+	logger.Debug("New round", "cur_round", newView.Round, "cur_seq", newView.Sequence, "cur_proposer", c.valSet.GetProposer(), "cur_proposer_id", c.valSet.GetProposerIndex(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet, "rcs", c.roundChangeSet.String())
 }
 
 func (c *core) catchUpRound(view *istanbul.View) {
@@ -273,7 +274,7 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	c.roundChangeSet.Clear(view.Round)
 	c.newRoundChangeTimer()
 
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet.GetProposer(), "new_proposer_id", c.valSet.GetProposerIndex())
+	logger.Trace("Catch up round", "cur_round", view.Round, "cur_seq", view.Sequence, "cur_proposer", c.valSet.GetProposer(), "cur_proposer_id", c.valSet.GetProposerIndex())
 }
 
 // updateRoundState updates round state by checking if locking block is necessary

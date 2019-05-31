@@ -142,11 +142,7 @@ type roundChangeSet struct {
 }
 
 // Add adds the round and message into round change set
-<<<<<<< HEAD
-func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator) (int, error) {
-=======
-func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message, src istanbul.Validator) error {
->>>>>>> a59f2dfb2... Cumulatively count RCs pt 2
+func (rcs *roundChangeSet) Add(r *big.Int, msg *message, src istanbul.Validator) error {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
@@ -173,22 +169,7 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message, src istanbul.V
 	if rcs.msgsForRound[round] == nil {
 		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
 	}
-<<<<<<< HEAD
-	err := rcs.msgsForRound[round].Add(msg)
-	if err != nil {
-		return 0, err
-	}
-
-	num := 0
-	for k, rms := range rcs.msgsForRound {
-		if k >= round {
-			num += rms.Size()
-		}
-	}
-	return num, nil
-=======
 	return rcs.msgsForRound[round].Add(msg)
->>>>>>> a59f2dfb2... Cumulatively count RCs pt 2
 }
 
 // Clear deletes the messages with smaller round
