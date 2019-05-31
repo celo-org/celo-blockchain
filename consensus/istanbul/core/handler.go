@@ -148,7 +148,7 @@ func (c *core) handleMsg(payload []byte) (error, bool) {
 	var src istanbul.Validator = nil
 	if msg.Code != msgAnnounce {
 		// Only accept message if the address is valid
-		_, src := c.valSet.GetByAddress(msg.Address)
+		_, src = c.valSet.GetByAddress(msg.Address)
 		if src == nil {
 			logger.Error("Invalid address in message", "msg", msg)
 			return istanbul.ErrUnauthorizedAddress, false

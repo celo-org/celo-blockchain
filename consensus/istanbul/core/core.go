@@ -49,6 +49,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		lastestAnnounceMessages: make(map[common.Address]*big.Int),
 	}
 	c.validateFn = c.checkValidatorSignature
 	return c
