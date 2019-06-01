@@ -583,11 +583,17 @@ func (srv *Server) setupListening() error {
 	addrs, err := net.InterfaceAddrs()
 
 	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				srv.log.Trace("setupListening", "addr", ipnet.IP.String())
-			}
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
 		}
+		// process IP address
+		srv.log.Info("setupListening", "addr", ip.To4())
 	}
 
 	srv.loopWG.Add(1)
