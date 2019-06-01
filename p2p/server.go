@@ -580,6 +580,16 @@ func (srv *Server) setupListening() error {
 	srv.listener = listener
 	srv.localnode.Set(enr.TCP(laddr.Port))
 
+	addrs, err := net.InterfaceAddrs()
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				srv.log.Trace("setupListening", "addr", ipnet.IP.String())
+			}
+		}
+	}
+
 	srv.loopWG.Add(1)
 	go srv.listenLoop()
 
