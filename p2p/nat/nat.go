@@ -65,7 +65,6 @@ func Parse(spec string) (Interface, error) {
 		mech  = strings.ToLower(parts[0])
 		ip    net.IP
 	)
-	log.Info("nat.Parse", "spec", spec)
 	if len(parts) > 1 {
 		ip = net.ParseIP(parts[1])
 		if ip == nil {
