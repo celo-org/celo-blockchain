@@ -49,7 +49,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
-		lastestAnnounceMessages: make(map[common.Address]*big.Int),
+		valAddressToEnode:  make(map[common.Address]*ValidatorEnode),
 	}
 	c.validateFn = c.checkValidatorSignature
 	return c
@@ -95,7 +95,7 @@ type core struct {
 
 	// Keep the sequence number of the most recent Announce message received from each address.
 	// This map is pruned at the start of every new epoch
-	lastestAnnounceMessages map[common.Address]*big.Int
+	valAddressToEnode map[common.Address]*ValidatorEnode
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
@@ -232,6 +232,11 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+
+		if istanbul.IsLastBlockOfEpoch(c.backend.currentBlock().Number().Uint64(), c.backend.config.Epoch) {
+			// TODO (kevjue) - Connect/Disconnect from validators based on c.valset
+		}
+
 	}
 
 	// Update logger

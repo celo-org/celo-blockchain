@@ -108,6 +108,12 @@ func (sb *Backend) GossipAnnounce() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	go sb.EventMux().Post(istanbul.AnnounceEvent{})
+
+	// Gossip the announce message at every 10th block (for now).
+	// TODO (kevjue) - Read from the validator election smart contract to determine if
+	// the node needs to announce it's enode.
+	if sb.currentBlock().Number().Uint64()%10 == 0 {
+		go sb.EventMux().Post(istanbul.AnnounceEvent{})
+	}
 	return nil
 }

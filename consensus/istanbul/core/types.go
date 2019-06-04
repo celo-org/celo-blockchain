@@ -19,6 +19,7 @@ package core
 import (
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -161,4 +162,9 @@ func (m *message) String() string {
 
 func Encode(val interface{}) ([]byte, error) {
 	return rlp.EncodeToBytes(val)
+}
+
+type ValidatorEnode struct {
+	enodeURL string
+	blockNum *big.Int
 }

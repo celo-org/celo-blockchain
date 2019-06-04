@@ -488,10 +488,10 @@ func (srv *Server) setupLocalNode() error {
 	}
 	switch srv.NAT.(type) {
 	case nil:
-	        srv.log.Info("setupLocalNode", "NAT is nil")
+		srv.log.Info("setupLocalNode", "NAT is nil")
 		// No NAT interface, do nothing.
 	case nat.ExtIP:
-	     	srv.log.Info("setupLocalNode", "NAT is ExtIP")
+		srv.log.Info("setupLocalNode", "NAT is ExtIP")
 		// ExtIP doesn't block, set the IP right away.
 		ip, _ := srv.NAT.ExternalIP()
 		srv.localnode.SetStaticIP(ip)
@@ -500,10 +500,10 @@ func (srv *Server) setupLocalNode() error {
 		// do it in the background.
 		srv.loopWG.Add(1)
 		go func() {
-		        srv.log.Info("setupLocalNode", "NAT is going to ask the router")
+			srv.log.Info("setupLocalNode", "NAT is going to ask the router")
 			defer srv.loopWG.Done()
 			if ip, err := srv.NAT.ExternalIP(); err == nil {
-			       	srv.log.Info("setupLocalNode", "NAT is ExternalIP")
+				srv.log.Info("setupLocalNode", "NAT is ExternalIP")
 				srv.localnode.SetStaticIP(ip)
 			}
 		}()

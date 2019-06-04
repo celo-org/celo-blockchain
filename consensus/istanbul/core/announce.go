@@ -17,7 +17,6 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -55,19 +54,17 @@ func (c *core) handleAnnounce(msg *message) error {
 		return errFailedDecodeAnnounce
 	}
 
-	// If it is old message, ignore it.
 	fromAddress := msg.Address
-	blockNumOfLastMsg := common.Big0
-	if val, ok := c.lastestAnnounceMessages[fromAddress]; ok {
-		blockNumOfLastMsg = val
-	}
-
-	if announce.BlockNum.Cmp(blockNumOfLastMsg) <= 0 {
-		return errOldMessage
+	if val, ok := c.valAddressToEnode[fromAddress]; ok {
+		// If it is old message, ignore it.
+		if announce.BlockNum.Cmp(val.blockNum) <= 0 {
+			logger.Trace("Received an old announe message.  Ignoring it.", "from", msg.Address.Hex(), "blockNum", announce.BlockNum, "enode", announce.EnodeURL)
+			return errOldMessage
+		}
+	} else {
+		c.valAddressToEnode[fromAddress] = &ValidatorEnode{blockNum: announce.BlockNum, enodeURL: announce.EnodeURL}
 	}
 
 	logger.Trace("Received an announce message", "from", msg.Address.Hex(), "blockNum", announce.BlockNum, "enode", announce.EnodeURL)
-	c.lastestAnnounceMessages[fromAddress] = announce.BlockNum
-
 	return nil
 }
