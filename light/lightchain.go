@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -214,7 +213,7 @@ func (bc *LightChain) Genesis() *types.Block {
 
 // State returns a new mutable state based on the current HEAD block.
 func (bc *LightChain) State() (*state.StateDB, error) {
-	return NewState(context.Background(), bc.CurrentHeader(), bc.odr), nil // TODO: Any issues with using context.Background() here?
+	return nil, errors.New("not implemented, needs client/server interface split")
 }
 
 // GetBody retrieves a block body (transactions and uncles) from the database
@@ -474,10 +473,6 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 		return header, nil
 	}
 	return GetHeaderByNumber(ctx, self.odr, number)
-}
-
-func (self *LightChain) GetVMConfig() *vm.Config {
-	return &vm.Config{}
 }
 
 // Config retrieves the header chain's chain configuration.

@@ -120,8 +120,8 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
-	co := core.NewCurrencyOperator(nil, nil, nil)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
+	pc := core.NewPriceComparator(nil, nil, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, pc, nil, nil)
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -166,8 +166,8 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	co := core.NewCurrencyOperator(nil, nil, nil)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, co)
+	pc := core.NewPriceComparator(nil, nil, nil)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, pc)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
