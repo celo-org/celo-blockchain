@@ -525,29 +525,28 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 		return nil, gas, err
 	}
 
-	var aNumerator, aNumeratorParsed := float64(hexutil.Encode(input[0:32]))
-	var aDenominator, aDenominatorParsed := float64(hexutil.Encode(input[32:64]))
-	var bNumerator, bNumeratorParsed := float64(hexutil.Encode(input[64:96]))
-	var bDenominator, bDenominatorParsed := float64(hexutil.Encode(input[96:128]))
-	var exponent, exponentParsed := float64(hexutil.Encode(input[128:160]))
-	var decimals, decimalParsed := math.ParseBig256(hexutil.Encode(input[128:160]))
+	aNumerator, _ := math.ParseBig256(hexutil.Encode(input[0:32]))
+	aDenominator, _ := math.ParseBig256(hexutil.Encode(input[32:64]))
+	bNumerator, _ := math.ParseBig256(hexutil.Encode(input[64:96]))
+	bDenominator, _ := math.ParseBig256(hexutil.Encode(input[96:128]))
+	exponent, _ := math.ParseBig256(hexutil.Encode(input[128:160]))
+	decimals, _ := math.ParseBig256(hexutil.Encode(input[160:192]))
 	
 	// handle parsing errors
 
-	var a = aNumerator.Div(aDenominator)
-	var b = bNumerator.Div(bDenominator)
-
-	var intermediate = a.Mul(b.Exp(exponent))
+	numerator := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
+	denominator := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
 
 	// truncate at 10 digits
-	var numerator = int(intermediate.Mul(pow10(decimals))).Bytes()
-	var denominator = int(pow10(decimals)).Bytes()
+	numerator_ := new(big.Int).Div(new(big.Int).Mul(numerator, new(big.Int).Exp(big.NewInt(10),decimals,nil)),denominator).Bytes()
+	denominator_ := new(big.Int).Exp(big.NewInt(10),decimals,nil).Bytes()
 
 	// Handle passing of zero denominators
-	if aDenominator == 0 || bDenominator == 0 {
+	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
 		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
 	}
-	// how to return multiple bytes and parse out?
-	return common.LeftPadBytes(b.Exp(base, exp, mod).Bytes(), int(modLen)), gas, nil
+	numSlice := common.LeftPadBytes(numerator_, 32)
+	denSlice := common.LeftPadBytes(denominator_, 32)
+	return append(numSlice, denSlice...), gas, nil
 }
 
