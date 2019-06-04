@@ -53,7 +53,7 @@ var (
 	// errInvalidSignature is returned when given signature is not signed by given
 	// address.
 	errInvalidSignature = errors.New("invalid signature")
-	// errUnknownBlock is returned when the list of validators is requested for a block
+	// errUnknownBlock is returned when the list of validators or header is requested for a block
 	// that is not part of the local blockchain.
 	errUnknownBlock = errors.New("unknown block")
 	// errUnauthorized is returned if a header is signed by a non authorized entity.
@@ -253,7 +253,7 @@ func (sb *Backend) verifySigner(chain consensus.ChainReader, header *types.Heade
 	}
 
 	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash)
+	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	}
 
 	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash)
+	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
@@ -382,7 +382,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 
 		} else {
 			// Get the last epoch's validator set
-			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash)
+			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 			if err != nil {
 				return err
 			}
@@ -428,12 +428,21 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+
+	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
+	sb.updateGasPriceSuggestion(state)
+
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
+}
+
+// TODO (jarmg 5/23/18): Implement this
+func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *state.StateDB {
+	return (state)
 }
 
 // Seal generates a new block for the given input block with the local miner's
@@ -444,7 +453,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	number := header.Number.Uint64()
 
 	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash)
+	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
@@ -601,10 +610,12 @@ func (sb *Backend) Stop() error {
 //
 // hash - The requested snapshot's block's hash
 // number - The requested snapshot's block number
-func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash) (*Snapshot, error) {
+// parents - (Optional argument) An array of headers from directly previous blocks.
+func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk
 	var (
 		headers   []*types.Header
+		header    *types.Header
 		snap      *Snapshot
 		blockHash common.Hash
 	)
@@ -687,9 +698,25 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
+	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
+	minParentsBlockNumber := number - uint64(len(parents)) + 1
 	for numberIter+sb.config.Epoch <= number {
 		numberIter += sb.config.Epoch
-		headers = append(headers, chain.GetHeaderByNumber(numberIter))
+
+		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
+
+		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
+			header = parents[numberIter-minParentsBlockNumber]
+			log.Trace("Retrieved header from parents param", "header num", header.Number.Uint64())
+		} else {
+			header = chain.GetHeaderByNumber(numberIter)
+			if header == nil {
+				log.Error("The header retrieved from the chain is nil", "block num", numberIter)
+				return nil, errUnknownBlock
+			}
+		}
+
+		headers = append(headers, header)
 	}
 
 	if len(headers) > 0 {

@@ -411,16 +411,16 @@ type txPricedList struct {
 	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
 	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
 	stales              int                           // Number of stale price points to (re-heap trigger)
-	pc                  *PriceComparator              // Comparator object used to compare prices that are using different currencies
+	co                  *CurrencyOperator             // Comparator object used to compare prices that are using different currencies
 }
 
 // newTxPricedList creates a new price-sorted transaction heap.
-func newTxPricedList(all *txLookup, pc *PriceComparator) *txPricedList {
+func newTxPricedList(all *txLookup, co *CurrencyOperator) *txPricedList {
 	return &txPricedList{
 		all:                 all,
 		nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 		nilCurrencyHeap:     new(priceHeap),
-		pc:                  pc,
+		co:                  co,
 	}
 }
 
@@ -489,7 +489,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 			continue
 		}
 
-		if l.pc.Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, nil) >= 0 {
+		if l.co.Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, nil) >= 0 {
 			save = append(save, tx)
 			break
 		}
@@ -531,7 +531,7 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	}
 
 	cheapest := l.getMinPricedTx()
-	return l.pc.Cmp(cheapest.GasPrice(), cheapest.GasCurrency(), tx.GasPrice(), tx.GasCurrency()) >= 0
+	return l.co.Cmp(cheapest.GasPrice(), cheapest.GasCurrency(), tx.GasPrice(), tx.GasCurrency()) >= 0
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
@@ -574,7 +574,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
 			} else {
 				txn := []*types.Transaction(*priceHeap)[0]
-				if l.pc.Cmp(cheapestTxn.GasPrice(), cheapestTxn.GasCurrency(), txn.GasPrice(), txn.GasCurrency()) < 0 {
+				if l.co.Cmp(cheapestTxn.GasPrice(), cheapestTxn.GasCurrency(), txn.GasPrice(), txn.GasCurrency()) < 0 {
 					cheapestHeap = priceHeap
 				}
 			}
