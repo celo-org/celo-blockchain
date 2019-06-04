@@ -54,7 +54,7 @@ var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var getCoinbaseAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
-var fractionMulExp = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
+var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -72,7 +72,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestVerificationAddress: &requestVerification{},
 	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
-	fractionMulExp:   			&fractionMulExp{},
+	fractionMulExpAddress:   			&fractionMulExp{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -514,6 +514,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 type fractionMulExp struct{}
 
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
+	// should this be calculated? references?
 	return params.FractionMulExpGas
 }
 
@@ -529,19 +530,24 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	var bNumerator, bNumeratorParsed := float64(hexutil.Encode(input[64:96]))
 	var bDenominator, bDenominatorParsed := float64(hexutil.Encode(input[96:128]))
 	var exponent, exponentParsed := float64(hexutil.Encode(input[128:160]))
+	var decimals, decimalParsed := math.ParseBig256(hexutil.Encode(input[128:160]))
 	
+	// handle parsing errors
+
 	var a = aNumerator.Div(aDenominator)
 	var b = bNumerator.Div(bDenominator)
 
-	// handle parsing errors
+	var intermediate = a.Mul(b.Exp(exponent))
+
+	// truncate at 10 digits
+	var numerator = int(intermediate.Mul(pow10(decimals))).Bytes()
+	var denominator = int(pow10(decimals)).Bytes()
 
 	// Handle passing of zero denominators
 	if aDenominator == 0 || bDenominator == 0 {
 		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
 	}
-
-
-
-	return common.LeftPadBytes(base.Exp(base, exp, mod).Bytes(), int(modLen)), gas, nil
+	// how to return multiple bytes and parse out?
+	return common.LeftPadBytes(b.Exp(base, exp, mod).Bytes(), int(modLen)), gas, nil
 }
 
