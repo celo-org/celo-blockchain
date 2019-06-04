@@ -72,7 +72,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestVerificationAddress: &requestVerification{},
 	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
-	fractionMulExpAddress:   			&fractionMulExp{},
+	fractionMulExpAddress:   	&fractionMulExp{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -514,11 +514,10 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 type fractionMulExp struct{}
 
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
-	// should this be calculated? references?
 	return params.FractionMulExpGas
 }
 
-// computes a*b^x for fractions a and b
+// computes a * b^exponent for fractions a and b
 func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
@@ -531,22 +530,20 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	bDenominator, _ := math.ParseBig256(hexutil.Encode(input[96:128]))
 	exponent, _ := math.ParseBig256(hexutil.Encode(input[128:160]))
 	decimals, _ := math.ParseBig256(hexutil.Encode(input[160:192]))
-	
-	// handle parsing errors
 
-	numerator := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
-	denominator := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
+	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
+	denominatorExp := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
 
-	// truncate at 10 digits
-	numerator_ := new(big.Int).Div(new(big.Int).Mul(numerator, new(big.Int).Exp(big.NewInt(10),decimals,nil)),denominator).Bytes()
-	denominator_ := new(big.Int).Exp(big.NewInt(10),decimals,nil).Bytes()
+	numerator := new(big.Int).Div(new(big.Int).Mul(numeratorExp, new(big.Int).Exp(big.NewInt(10), decimals, nil)), denominatorExp).Bytes()
+	denominator := new(big.Int).Exp(big.NewInt(10), decimals, nil).Bytes()
 
 	// Handle passing of zero denominators
 	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
 		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
 	}
-	numSlice := common.LeftPadBytes(numerator_, 32)
-	denSlice := common.LeftPadBytes(denominator_, 32)
-	return append(numSlice, denSlice...), gas, nil
+
+	numeratorSlice := common.LeftPadBytes(numerator, 32)
+	denominatorSlice := common.LeftPadBytes(denominator, 32)
+	return append(numeratorSlice, denominatorSlice...), gas, nil
 }
 
