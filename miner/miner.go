@@ -44,7 +44,7 @@ type Backend interface {
 	InternalEVMHandler() *core.InternalEVMHandler
 }
 
-// Miner creates blocks and searches for proof-of-work values.
+// Miner creates blocks
 type Miner struct {
 	mux      *event.TypeMux
 	worker   *worker

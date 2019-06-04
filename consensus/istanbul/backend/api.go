@@ -42,7 +42,7 @@ func (api *API) GetSnapshot(number *rpc.BlockNumber) (*Snapshot, error) {
 	if header == nil {
 		return nil, errUnknownBlock
 	}
-	return api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash())
+	return api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 }
 
 // GetSnapshotAtHash retrieves the state snapshot at a given block.
@@ -51,7 +51,7 @@ func (api *API) GetSnapshotAtHash(hash common.Hash) (*Snapshot, error) {
 	if header == nil {
 		return nil, errUnknownBlock
 	}
-	return api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash())
+	return api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 }
 
 // GetValidators retrieves the list of authorized validators at the specified block.
@@ -67,7 +67,7 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	if header == nil {
 		return nil, errUnknownBlock
 	}
-	snap, err := api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash())
+	snap, err := api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	if header == nil {
 		return nil, errUnknownBlock
 	}
-	snap, err := api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash())
+	snap, err := api.istanbul.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil {
 		return nil, err
 	}
