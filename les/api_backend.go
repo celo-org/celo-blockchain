@@ -40,6 +40,7 @@ import (
 
 type LesApiBackend struct {
 	eth *LightEthereum
+	gpo *gasprice.Oracle
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {
@@ -172,7 +173,7 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
+	return b.gpo.SuggestPrice(ctx)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
