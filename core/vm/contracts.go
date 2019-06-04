@@ -511,13 +511,13 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	return input, gas, err
 }
 
+// computes a * (b ^ exponent) to decimals places of precision, where a and b are fractions
 type fractionMulExp struct{}
 
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
 	return params.FractionMulExpGas
 }
 
-// computes a * b^exponent for fractions a and b
 func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
