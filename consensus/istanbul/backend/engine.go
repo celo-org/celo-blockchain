@@ -373,13 +373,6 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
 		if validatorAddress == nil {
 			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
-
-			extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
-			if err != nil {
-				return err
-			}
-			header.Extra = extra
-
 		} else {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
@@ -391,28 +384,26 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			var newValSet []common.Address
 
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
+			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 1000000, header, state)
 			if err != nil {
-				log.Error("Istanbul.Finalize - Error in retrieving the validator set", "leftoverGas", leftoverGas, "err", err)
-				return err
+				log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "leftoverGas", leftoverGas, "err", err)
+			} else {
+				// add validators in snapshot to extraData's validators section
+				extra, err := assembleExtra(header, snap.validators(), newValSet)
+				if err != nil {
+					return err
+				}
+				header.Extra = extra
+				return nil
 			}
-
-			// add validators in snapshot to extraData's validators section
-			extra, err := assembleExtra(header, snap.validators(), newValSet)
-			if err != nil {
-				return err
-			}
-			header.Extra = extra
 		}
-	} else {
-		// If it's not the last block, then the validator set diff should be empty
-		extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
-		if err != nil {
-			return err
-		}
-		header.Extra = extra
 	}
-
+	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
+	extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
+	if err != nil {
+		return err
+	}
+	header.Extra = extra
 	return nil
 }
 
