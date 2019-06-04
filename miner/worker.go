@@ -227,6 +227,12 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		recommit = minRecommitInterval
 	}
 
+	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	if istanbul, ok := engine.(consensus.Istanbul); ok {
+		istanbul.SetInternalEVMHandler(eth.InternalEVMHandler())
+		istanbul.SetRegisteredAddresses(eth.RegisteredAddresses())
+	}
+
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
@@ -289,8 +295,7 @@ func (w *worker) start() {
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
-			},
-			w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+			})
 	}
 }
 

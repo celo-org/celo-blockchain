@@ -510,6 +510,7 @@ func (s *Ethereum) EthVersion() int                                  { return in
 func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
+func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
 
