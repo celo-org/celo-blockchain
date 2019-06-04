@@ -72,7 +72,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestVerificationAddress: &requestVerification{},
 	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
-	fractionMulExpAddress:   	&fractionMulExp{},
+	fractionMulExpAddress:      &fractionMulExp{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.

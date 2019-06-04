@@ -92,7 +92,7 @@ const (
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
 	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	GetCoinbaseGas         uint64 = 20   // Equivalent to the cost of the BLOCKHASH op
-	FractionMulExpGas         uint64 = 3000
+	FractionMulExpGas      uint64 = 3000
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
