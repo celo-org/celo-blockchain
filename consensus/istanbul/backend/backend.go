@@ -17,11 +17,11 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"math/big"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -44,7 +44,7 @@ const (
 )
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -52,8 +52,6 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 	backend := &Backend{
 		config:           config,
 		istanbulEventMux: new(event.TypeMux),
-		privateKey:       privateKey,
-		address:          crypto.PubkeyToAddress(privateKey.PublicKey),
 		logger:           log.New(),
 		db:               db,
 		commitCh:         make(chan *types.Block, 1),
@@ -71,15 +69,19 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
-	privateKey       *ecdsa.PrivateKey
-	address          common.Address
-	core             istanbulCore.Engine
-	logger           log.Logger
-	db               ethdb.Database
-	chain            consensus.ChainReader
-	currentBlock     func() *types.Block
-	hasBadBlock      func(hash common.Hash) bool
-	stateAt          func(hash common.Hash) (*state.StateDB, error)
+
+	// TODO(asa): Do we need locking around these?
+	address common.Address    // Ethereum address of the signing key
+	signFn  istanbul.SignerFn // Signer function to authorize hashes with
+	lock    sync.RWMutex      // Protects the signer fields
+
+	core         istanbulCore.Engine
+	logger       log.Logger
+	db           ethdb.Database
+	chain        consensus.ChainReader
+	currentBlock func() *types.Block
+	hasBadBlock  func(hash common.Hash) bool
+	stateAt      func(hash common.Hash) (*state.StateDB, error)
 
 	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
@@ -104,8 +106,18 @@ type Backend struct {
 	regAdd consensus.ConsensusRegAdd
 }
 
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
+	// sb.lock.Lock()
+	// defer sb.lock.Unlock()
+
+	sb.address = address
+	sb.signFn = signFn
+}
+
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
+	// sb.lock.RLock()
+	// defer sb.lock.RUnlock()
 	return sb.address
 }
 
@@ -323,7 +335,9 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	hashData := crypto.Keccak256(data)
-	return crypto.Sign(hashData, sb.privateKey)
+	// sb.lock.RLock()
+	// defer sb.lock.RUnlock()
+	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

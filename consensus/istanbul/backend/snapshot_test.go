@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -225,7 +226,12 @@ func TestValSetChange(t *testing.T) {
 		chain := &mockBlockchain{
 			headers: make(map[uint64]*types.Header),
 		}
-		engine := New(config, accounts.accounts[tt.validators[0]], db).(*Backend)
+		engine := New(config, db).(*Backend)
+		privateKey := accounts.accounts[tt.validators[0]]
+		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+			return crypto.Sign(data, privateKey)
+		}
+		engine.Authorize(crypto.PubkeyToAddress(privateKey.PublicKey), signerFn)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

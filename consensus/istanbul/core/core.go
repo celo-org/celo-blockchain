@@ -187,6 +187,7 @@ func (c *core) startNewRound(round *big.Int) {
 		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
 	}
 
+	logger.SetHandler(log.StdoutHandler)
 	roundChange := false
 	// Try to get last proposal
 	lastProposal, lastProposer := c.backend.LastProposal()
@@ -240,14 +241,17 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
+		logger.Info("am proposer")
 		// If it is locked, propose the old proposal
 		// If we have pending request, propose pending request
 		if c.current.IsHashLocked() {
+			logger.Info("am hashlocked")
 			r := &istanbul.Request{
 				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
 			}
 			c.sendPreprepare(r)
 		} else if c.current.pendingRequest != nil {
+			logger.Info("am not hashlocked", "pr", c.current.pendingRequest)
 			c.sendPreprepare(c.current.pendingRequest)
 		}
 	}

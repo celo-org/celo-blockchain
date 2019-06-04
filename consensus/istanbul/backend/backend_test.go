@@ -24,12 +24,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	elog "github.com/ethereum/go-ethereum/log"
 )
+
+var testLogger = elog.New()
 
 func TestSign(t *testing.T) {
 	b := newBackend()
@@ -174,8 +178,12 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
+	testLogger.Info("making block chain")
 	chain, engine := newBlockChain(1, true)
+	testLogger.Info("making block")
 	block := makeBlock(chain, engine, chain.Genesis())
+	testLogger.Info("inserting block")
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)
 	actual := engine.Address()
@@ -231,9 +239,16 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
+func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generatePrivateKey()
+	return crypto.Sign(data, key)
+}
+
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
+
 	key, _ := generatePrivateKey()
-	b.privateKey = key
+	address := crypto.PubkeyToAddress(key.PublicKey)
+	b.Authorize(address, signerFn)
 	return
 }

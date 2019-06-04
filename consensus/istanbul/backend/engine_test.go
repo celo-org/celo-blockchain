@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -44,7 +45,14 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
-	b, _ := New(config, nodeKeys[0], memDB).(*Backend)
+	b, _ := New(config, memDB).(*Backend)
+
+	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		return crypto.Sign(data, nodeKeys[0])
+	}
+	testLogger.Info("authorizing backend")
+	b.Authorize(crypto.PubkeyToAddress(nodeKeys[0].PublicKey), signerFn)
+
 	genesis.MustCommit(memDB)
 
 	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil)
@@ -65,8 +73,11 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	for _, key := range nodeKeys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		if addr.String() == proposerAddr.String() {
-			b.privateKey = key
-			b.address = addr
+			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+				return crypto.Sign(data, key)
+			}
+			testLogger.Info("authorizing proposer")
+			b.Authorize(addr, signerFn)
 		}
 	}
 
@@ -337,7 +348,7 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	// unauthorized users but still can get correct signer address
-	engine.privateKey, _ = crypto.GenerateKey()
+	engine.Authorize(common.Address{}, nil)
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
