@@ -45,13 +45,12 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
-	b, _ := New(config, memDB).(*Backend)
-
+	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
-	testLogger.Info("authorizing backend")
-	b.Authorize(crypto.PubkeyToAddress(nodeKeys[0].PublicKey), signerFn)
+
+	b, _ := New(config, address, signerFn, memDB).(*Backend)
 
 	genesis.MustCommit(memDB)
 
@@ -76,8 +75,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			testLogger.Info("authorizing proposer")
-			b.Authorize(addr, signerFn)
+			b.address = addr
+			b.signFn = signerFn
 		}
 	}
 
@@ -348,7 +347,8 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil)
+	engine.address = common.Address{}
+	engine.signFn = nil
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)

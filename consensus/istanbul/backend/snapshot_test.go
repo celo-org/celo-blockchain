@@ -226,12 +226,12 @@ func TestValSetChange(t *testing.T) {
 		chain := &mockBlockchain{
 			headers: make(map[uint64]*types.Header),
 		}
-		engine := New(config, db).(*Backend)
 		privateKey := accounts.accounts[tt.validators[0]]
+		address := crypto.PubkeyToAddress(privateKey.PublicKey)
 		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
 			return crypto.Sign(data, privateKey)
 		}
-		engine.Authorize(crypto.PubkeyToAddress(privateKey.PublicKey), signerFn)
+		engine := New(config, address, signerFn, db).(*Backend)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

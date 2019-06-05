@@ -25,6 +25,7 @@ import (
 
 func (c *core) sendPreprepare(request *istanbul.Request) {
 	logger := c.logger.New("state", c.state)
+	logger.Info("sent preprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
@@ -47,6 +48,7 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
+	logger.Info("Received preprepare")
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare

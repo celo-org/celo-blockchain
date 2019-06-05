@@ -44,7 +44,7 @@ const (
 )
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, address common.Address, signFn istanbul.SignerFn, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -54,6 +54,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux: new(event.TypeMux),
 		logger:           log.New(),
 		db:               db,
+		address:          address,
+		signFn:           signFn,
 		commitCh:         make(chan *types.Block, 1),
 		recents:          recents,
 		coreStarted:      false,
@@ -116,6 +118,8 @@ func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
+	sb.logger.SetHandler(log.StdoutHandler)
+	sb.logger.Info("reading address", "privateKey", nil)
 	// sb.lock.RLock()
 	// defer sb.lock.RUnlock()
 	return sb.address
@@ -334,6 +338,8 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
+	sb.logger.SetHandler(log.StdoutHandler)
+	sb.logger.Info("signing in backend")
 	hashData := crypto.Keccak256(data)
 	// sb.lock.RLock()
 	// defer sb.lock.RUnlock()
