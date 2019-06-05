@@ -75,4 +75,7 @@ type Backend interface {
 
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
+
+	// Authorize injects a private key into the consensus engine.
+	Authorize(address common.Address, signFn SignerFn)
 }

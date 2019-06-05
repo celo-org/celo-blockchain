@@ -50,7 +50,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
 
-	b, _ := New(config, address, signerFn, memDB).(*Backend)
+	b, _ := New(config, memDB).(*Backend)
+	b.Authorize(address, signerFn)
 
 	genesis.MustCommit(memDB)
 
@@ -75,8 +76,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			b.address = addr
-			b.signFn = signerFn
+			b.Authorize(address, signerFn)
 		}
 	}
 

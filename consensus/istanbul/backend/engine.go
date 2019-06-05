@@ -486,7 +486,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		sb.sealMu.Unlock()
 	}
 
-	testLogger.Info("posting block to istanbul engine")
 	// post block into Istanbul engine
 	go sb.EventMux().Post(istanbul.RequestEvent{
 		Proposal: block,
