@@ -225,7 +225,7 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 		log.Trace("CurrencyOperator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
 			"gas currency", gasCurrencyAddress.Hex())
 
-		if leftoverGas, err := co.iEvmH.MakeCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+		if leftoverGas, err := co.iEvmH.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
 			log.Error("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
@@ -281,7 +281,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 	if evm != nil {
 		leftoverGas, err = evm.ABIStaticCall(vm.AccountRef(common.HexToAddress("0x0")), contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else if iEvmH != nil {
-		leftoverGas, err = iEvmH.MakeCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
+		leftoverGas, err = iEvmH.MakeStaticCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	} else {
 		err = errors.New("Either iEvmH or evm must be non-nil")
 		return
@@ -318,7 +318,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
 
-	if leftoverGas, err := gcWl.iEvmH.MakeCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil); err != nil {
+	if leftoverGas, err := gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil); err != nil {
 		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "leftoverGas", leftoverGas, "err", err)
 		return []common.Address{}
 	}
