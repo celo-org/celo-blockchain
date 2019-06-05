@@ -62,3 +62,17 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 
 	return gasPrice, err
 }
+
+func GetGasPriceParams(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
+
+	var gasPriceParams []*big.Int
+	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+
+	if gasPriceOracleAddress == nil {
+		return nil, errors.New("no gasprice oracle contract address found")
+	}
+
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceParameters", []interface{}{}, gasPriceParams, 2000, nil, nil)
+
+	return gasPriceParams, err
+}

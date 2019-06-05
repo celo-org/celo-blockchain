@@ -441,8 +441,11 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 }
 
 // TODO (jarmg 5/23/18): Implement this
-func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *state.StateDB {
-	return (state)
+func (sb *Backend) updateGasPrice(state *state.StateDB) *state.StateDB {
+  GetGasPriceParams()
+  gasprice.CalculateGasPriceFloor()
+  gasprice.UpdateGasPriceFloor()
+  return err
 }
 
 // Seal generates a new block for the given input block with the local miner's
