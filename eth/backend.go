@@ -180,9 +180,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
-	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.  Note
+	// that this should NOT be used when executing smart contract calls done via end user transactions.
+	eth.iEvmH = core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
@@ -192,16 +192,16 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	co := core.NewCurrencyOperator(eth.gcWl, eth.regAdd, eth.iEvmH)
+	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, eth.iEvmH)
 
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl, eth.iEvmH)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, eth.iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, config.MinerVerificationRewards, co)
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, config.MinerVerificationRewards, pc)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth, nil}
@@ -209,7 +209,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.MinerGasPrice
 	}
-	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams, co)
+	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 
 	return eth, nil
 }

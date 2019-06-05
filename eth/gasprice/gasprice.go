@@ -23,10 +23,8 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -53,11 +51,10 @@ type Oracle struct {
 	percentile                       int
 	defaultPrice                     *big.Int
 	alwaysZero                       bool
-	co                               *core.CurrencyOperator
 }
 
 // NewOracle returns a new oracle.
-func NewOracle(backend ethapi.Backend, params Config, co *core.CurrencyOperator) *Oracle {
+func NewOracle(backend ethapi.Backend, params Config) *Oracle {
 	blocks := params.Blocks
 	if blocks < 1 {
 		blocks = 1
@@ -78,7 +75,6 @@ func NewOracle(backend ethapi.Backend, params Config, co *core.CurrencyOperator)
 		percentile:   percent,
 		defaultPrice: params.Default,
 		alwaysZero:   params.AlwaysZero,
-		co:           co,
 	}
 }
 
@@ -89,26 +85,28 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 		return big.NewInt(0), nil
 	}
 
-	price := getCachedPrice(gpo, ctx)
-	if price != nil {
-		return price, nil
-	}
-	return calculateGasSuggestion(gpo, ctx)
-}
-
-func calculateGasSuggestion(gpo *Oracle, ctx context.Context) (*big.Int, error) {
-	gpo.fetchLock.Lock()
-	defer gpo.fetchLock.Unlock()
-
-	// check if the cache was refreshed while we waited for the lock
-	price := getCachedPrice(gpo, ctx)
-	if price != nil {
-		return price, nil
-	}
+	gpo.cacheLock.RLock()
+	lastHead := gpo.lastHead
+	lastPrice := gpo.lastPrice
+	gpo.cacheLock.RUnlock()
 
 	head, _ := gpo.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
 	headHash := head.Hash()
-	lastPrice := gpo.lastPrice
+	if headHash == lastHead {
+		return lastPrice, nil
+	}
+
+	gpo.fetchLock.Lock()
+	defer gpo.fetchLock.Unlock()
+
+	// try checking the cache again, maybe the last fetch fetched what we need
+	gpo.cacheLock.RLock()
+	lastHead = gpo.lastHead
+	lastPrice = gpo.lastPrice
+	gpo.cacheLock.RUnlock()
+	if headHash == lastHead {
+		return lastPrice, nil
+	}
 
 	blockNum := head.Number.Uint64()
 	ch := make(chan getBlockPricesResult, gpo.checkBlocks)
@@ -143,7 +141,7 @@ func calculateGasSuggestion(gpo *Oracle, ctx context.Context) (*big.Int, error) 
 			blockNum--
 		}
 	}
-	price = gpo.defaultPrice
+	price := gpo.defaultPrice
 	if len(blockPrices) > 0 {
 		sort.Sort(bigIntArray(blockPrices))
 		price = blockPrices[(len(blockPrices)-1)*gpo.percentile/100]
@@ -159,26 +157,16 @@ func calculateGasSuggestion(gpo *Oracle, ctx context.Context) (*big.Int, error) 
 	return price, nil
 }
 
-// getCachedPrice is a private function which checks if the last gasPrice
-// suggestion was pulled from the current block and, if so, returns it
-func getCachedPrice(gpo *Oracle, ctx context.Context) *big.Int {
-	gpo.cacheLock.RLock()
-	lastHead := gpo.lastHead
-	lastPrice := gpo.lastPrice
-	gpo.cacheLock.RUnlock()
-
-	head, _ := gpo.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
-	headHash := head.Hash()
-	if headHash == lastHead {
-		return lastPrice
-	}
-	return nil
-}
-
 type getBlockPricesResult struct {
 	price *big.Int
 	err   error
 }
+
+type transactionsByGasPrice []*types.Transaction
+
+func (t transactionsByGasPrice) Len() int           { return len(t) }
+func (t transactionsByGasPrice) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t transactionsByGasPrice) Less(i, j int) bool { return t[i].GasPrice().Cmp(t[j].GasPrice()) < 0 }
 
 // getBlockPrices calculates the lowest transaction gas price in a given block
 // and sends it to the result channel. If the block is empty, price is nil.
@@ -190,25 +178,18 @@ func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, bloc
 	}
 
 	blockTxs := block.Transactions()
-	prices := make([]*big.Int, len(blockTxs))
+	txs := make([]*types.Transaction, len(blockTxs))
+	copy(txs, blockTxs)
+	sort.Sort(transactionsByGasPrice(txs))
 
-	for _, tx := range blockTxs {
+	for _, tx := range txs {
 		sender, err := types.Sender(signer, tx)
 		if err == nil && sender != block.Coinbase() {
-			gpInGold, err := gpo.co.ConvertToGold(tx.GasPrice(), tx.GasCurrency())
-			if err != nil {
-				log.Error("Error converting gas to gold", "error", err)
-			} else {
-				prices = append(prices, gpInGold)
-			}
+			ch <- getBlockPricesResult{tx.GasPrice(), nil}
+			return
 		}
 	}
-	if len(prices) == 0 {
-		ch <- getBlockPricesResult{nil, nil}
-	} else {
-		sort.Sort(bigIntArray(prices))
-		ch <- getBlockPricesResult{prices[0], nil}
-	}
+	ch <- getBlockPricesResult{nil, nil}
 }
 
 type bigIntArray []*big.Int
