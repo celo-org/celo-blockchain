@@ -149,11 +149,9 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return errInvalidNonce
 	}
 
-	// Ensure that the coinbase is empty (Istanbul was originally using it for a candidate validator vote)
-	// TODO(kevjue) - We will most likely need to change this so that the coinbase field is set to the proposer address for the identity protocol.
-	if header.Coinbase != emptyAddress {
-		return errInvalidCoinbase
-	}
+	// Ensure that the coinbase is the proposer
+	// TODO(Martin): verify coinbase is proposer if validating, accept any
+	// proposer otherwise
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
@@ -335,7 +333,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = emptyAddress
+	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
 	header.MixDigest = types.IstanbulDigest
 
@@ -418,14 +416,14 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, randomness [32]byte, newSealedRandomness [32]byte, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, []byte{0x42}, txs, nil, receipts), nil
+	return types.NewBlock(header, randomness, newSealedRandomness, txs, nil, receipts), nil
 }
 
 // Seal generates a new block for the given input block with the local miner's

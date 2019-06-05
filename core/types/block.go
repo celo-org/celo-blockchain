@@ -132,16 +132,19 @@ func rlpHash(x interface{}) (h common.Hash) {
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
-	Transactions []*Transaction
-	Uncles       []*Header
+	Randomness          [32]byte
+	NewSealedRandomness [32]byte
+	Transactions        []*Transaction
+	Uncles              []*Header
 }
 
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {
-	header       *Header
-	uncles       []*Header
+	header *Header
+	uncles []*Header
 
-	randomness []byte
+	randomness          [32]byte
+	newSealedRandomness [32]byte
 
 	transactions Transactions
 
@@ -174,19 +177,22 @@ type StorageBlock Block
 
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
-	Header *Header
-	Randomness []byte
-	Txs    []*Transaction
-	Uncles []*Header
+	Header              *Header
+	Randomness          [32]byte
+	NewSealedRandomness [32]byte
+	Txs                 []*Transaction
+	Uncles              []*Header
 }
 
 // [deprecated by eth/63]
 // "storage" block encoding. used for database.
 type storageblock struct {
-	Header *Header
-	Txs    []*Transaction
-	Uncles []*Header
-	TD     *big.Int
+	Header              *Header
+	Randomness          [32]byte
+	NewSealedRandomness [32]byte
+	Txs                 []*Transaction
+	Uncles              []*Header
+	TD                  *big.Int
 }
 
 // NewBlock creates a new block. The input data is copied,
@@ -196,8 +202,13 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, randomness []byte, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness}
+func NewBlock(header *Header, randomness [32]byte, newSealedRandomness [32]byte, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
+	b := &Block{
+		header:              CopyHeader(header),
+		td:                  new(big.Int),
+		randomness:          randomness,
+		newSealedRandomness: newSealedRandomness,
+	}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -262,7 +273,8 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.randomness, b.transactions = eb.Header, eb.Uncles, eb.Randomness, eb.Txs
+	b.header, b.uncles, b.randomness, b.newSealedRandomness, b.transactions =
+		eb.Header, eb.Uncles, eb.Randomness, eb.NewSealedRandomness, eb.Txs
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -270,10 +282,11 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 // EncodeRLP serializes b into the Ethereum RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
-		Header: b.header,
-		Randomness: b.randomness,
-		Txs:    b.transactions,
-		Uncles: b.uncles,
+		Header:              b.header,
+		Randomness:          b.randomness,
+		NewSealedRandomness: b.newSealedRandomness,
+		Txs:                 b.transactions,
+		Uncles:              b.uncles,
 	})
 }
 
@@ -283,15 +296,17 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.td = sb.Header, sb.Uncles, sb.Txs, sb.TD
+	b.header, b.uncles, b.randomness, b.newSealedRandomness, b.transactions, b.td =
+		sb.Header, sb.Uncles, sb.Randomness, sb.NewSealedRandomness, sb.Txs, sb.TD
 	return nil
 }
 
 // TODO: copies
 
-func (b *Block) Randomness() []byte          { return b.randomness }
-func (b *Block) Uncles() []*Header          { return b.uncles }
-func (b *Block) Transactions() Transactions { return b.transactions }
+func (b *Block) Uncles() []*Header             { return b.uncles }
+func (b *Block) Randomness() [32]byte          { return b.randomness }
+func (b *Block) NewSealedRandomness() [32]byte { return b.newSealedRandomness }
+func (b *Block) Transactions() Transactions    { return b.transactions }
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
@@ -324,7 +339,9 @@ func (b *Block) Signature() []byte        { return common.CopyBytes(b.header.Sig
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.uncles} }
+func (b *Block) Body() *Body {
+	return &Body{b.randomness, b.newSealedRandomness, b.transactions, b.uncles}
+}
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -355,18 +372,22 @@ func (b *Block) WithSeal(header *Header) *Block {
 	cpy := *header
 
 	return &Block{
-		header:       &cpy,
-		transactions: b.transactions,
-		uncles:       b.uncles,
+		header:              &cpy,
+		randomness:          b.randomness,
+		newSealedRandomness: b.newSealedRandomness,
+		transactions:        b.transactions,
+		uncles:              b.uncles,
 	}
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, uncles []*Header) *Block {
+func (b *Block) WithBody(randomness [32]byte, newSealedRandomness [32]byte, transactions []*Transaction, uncles []*Header) *Block {
 	block := &Block{
-		header:       CopyHeader(b.header),
-		transactions: make([]*Transaction, len(transactions)),
-		uncles:       make([]*Header, len(uncles)),
+		header:              CopyHeader(b.header),
+		randomness:          randomness,
+		newSealedRandomness: newSealedRandomness,
+		transactions:        make([]*Transaction, len(transactions)),
+		uncles:              make([]*Header, len(uncles)),
 	}
 	copy(block.transactions, transactions)
 	for i := range uncles {

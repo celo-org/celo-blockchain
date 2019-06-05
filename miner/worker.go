@@ -94,6 +94,10 @@ type environment struct {
 	header   *types.Header
 	txs      []*types.Transaction
 	receipts []*types.Receipt
+
+	// For randomness
+	randomness          [32]byte
+	newSealedRandomness [32]byte
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -752,7 +756,8 @@ func (w *worker) updateSnapshot() {
 
 	w.snapshotBlock = types.NewBlock(
 		w.current.header,
-		[]byte{},
+		w.current.randomness,
+		w.current.newSealedRandomness,
 		w.current.txs,
 		uncles,
 		w.current.receipts,
@@ -1002,8 +1007,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 
-	w.updateSnapshot()
-
 	// Refresh the registered address cache before processing transaction batch
 	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
 		regAdd.RefreshAddresses()
@@ -1025,7 +1028,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		randomness := [32]byte{}
 		randomnessSlice, err := (*w.db).Get(dbLocation)
 		if err != nil {
-			log.Debug("Failed to get stuff from database")
+			log.Debug("Failed to get randomness from database")
 		} else {
 			log.Debug("Got randomness from db", "randomnessSlice", randomnessSlice)
 			copy(randomness[:], randomnessSlice)
@@ -1036,7 +1039,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		if err != nil {
 			log.Error("Failed to generate randomness")
 		}
-		log.Debug("Submitting new randomness", "newRandomness", newRandomness)
+
+		w.current.randomness = randomness
+		w.current.newSealedRandomness = newRandomness
 		err = w.eth.Random().RevealAndCommit(randomness, newRandomness, w.coinbase, *randomAddress, w.current.header, w.current.state)
 		numberBytes := w.current.header.Number.Bytes()
 		dbLocation = append(dbPrefix, numberBytes...)
@@ -1045,6 +1050,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			log.Error("Failed to reveal and commit", "err", err)
 		}
 	}
+
+	w.updateSnapshot()
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
@@ -1100,7 +1107,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.randomness, w.current.newSealedRandomness, w.current.txs, uncles, w.current.receipts)
 	if err != nil {
 		return err
 	}

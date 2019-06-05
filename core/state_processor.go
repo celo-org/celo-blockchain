@@ -17,6 +17,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -39,6 +42,7 @@ type StateProcessor struct {
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
 	gcWl   *GasCurrencyWhitelist
 	regAdd *RegisteredAddresses
+	random *Random
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -58,6 +62,10 @@ func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	p.regAdd = regAdd
 }
 
+func (p *StateProcessor) SetRandom(random *Random) {
+	p.random = random
+}
+
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
 // the processor (coinbase) and any included uncles.
@@ -73,6 +81,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs  []*types.Log
 		gp       = new(GasPool).AddGas(block.GasLimit())
 	)
+
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
@@ -88,6 +97,16 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.gcWl.RefreshWhitelist()
 	}
 
+	randomAddress := p.regAdd.GetRegisteredAddress("Random")
+	nullAddress := common.BigToAddress(big.NewInt(0))
+
+	if randomAddress != nil && *randomAddress != nullAddress {
+		err := p.random.RevealAndCommit(block.Randomness(), block.NewSealedRandomness(), header.Coinbase, *randomAddress, header, statedb)
+		if err != nil {
+			log.Error("Error applying randomness", "err", err, "randomness", block.Randomness(), "newSealedRandomness", block.NewSealedRandomness(), "coinbase", header.Coinbase)
+		}
+	}
+
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -100,7 +119,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
+	p.engine.Finalize(p.bc, header, statedb, block.Randomness(), block.NewSealedRandomness(), block.Transactions(), block.Uncles(), receipts)
 
 	return receipts, allLogs, *usedGas, nil
 }

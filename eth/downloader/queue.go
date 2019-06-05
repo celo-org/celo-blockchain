@@ -57,10 +57,12 @@ type fetchResult struct {
 	Pending int         // Number of data fetches still pending
 	Hash    common.Hash // Hash of the header to prevent recalculating
 
-	Header       *types.Header
-	Uncles       []*types.Header
-	Transactions types.Transactions
-	Receipts     types.Receipts
+	Header              *types.Header
+	Uncles              []*types.Header
+	Randomness          [32]byte
+	NewSealedRandomness [32]byte
+	Transactions        types.Transactions
+	Receipts            types.Receipts
 }
 
 // queue represents hashes that are either need fetching or are being fetched
@@ -386,6 +388,8 @@ func (q *queue) Results(block bool) []*fetchResult {
 		// Recalculate the result item weights to prevent memory exhaustion
 		for _, result := range results {
 			size := result.Header.Size()
+			// Size of randomness and newSealedRandomness
+			size += 32 + 32
 			for _, uncle := range result.Uncles {
 				size += uncle.Size()
 			}
@@ -763,7 +767,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLists [][]*types.Header) (int, error) {
+func (q *queue) DeliverBodies(id string, randomness [][32]byte, newSealedRandomness [][32]byte, txLists [][]*types.Transaction, uncleLists [][]*types.Header) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -771,6 +775,8 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLi
 		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash || types.CalcUncleHash(uncleLists[index]) != header.UncleHash {
 			return errInvalidBody
 		}
+		result.Randomness = randomness[index]
+		result.NewSealedRandomness = newSealedRandomness[index]
 		result.Transactions = txLists[index]
 		result.Uncles = uncleLists[index]
 		return nil
