@@ -42,8 +42,8 @@ const (
 	ReceiptStatusSuccessful = uint64(1)
 )
 
-// VerificationRequest represents a request for verification in the Celo ABE protocol.
-type VerificationRequest struct {
+// AttestationRequest represents a request for verification in the Celo ABE protocol.
+type AttestationRequest struct {
 	PhoneHash      common.Hash
 	CodeHash       common.Hash
 	Account        common.Address
@@ -61,7 +61,7 @@ type Receipt struct {
 	Logs              []*Log `json:"logs"              gencodec:"required"`
 
 	// Celo fields
-	VerificationRequests []VerificationRequest
+	AttestationRequests []AttestationRequest
 
 	// Implementation fields (don't reorder!)
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`
@@ -94,7 +94,7 @@ type receiptStorageRLP struct {
 	GasUsed           uint64
 
 	// Celo fields
-	VerificationRequests []VerificationRequest
+	AttestationRequests []AttestationRequest
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -108,15 +108,15 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 	return r
 }
 
-// Decode a VerificationRequest from raw input bytes.
+// Decode a AttestationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
 // input[0:32]:  bytes32 phoneHash
 // input[32:64]: bytes32 codeHash
 // input[64:96]: address account
 // input[96:128]: address verifier
 // input[128:]:    bytes encryptedPhone
-func DecodeVerificationRequest(input []byte) (VerificationRequest, error) {
-	var v VerificationRequest
+func DecodeAttestationRequest(input []byte) (AttestationRequest, error) {
+	var v AttestationRequest
 	v.PhoneHash = common.BytesToHash(input[0:32])
 	v.Account = common.BytesToAddress(input[64:96])
 	v.CodeHash = common.BytesToHash(input[32:64])
@@ -191,14 +191,14 @@ type ReceiptForStorage Receipt
 // into an RLP stream.
 func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 	enc := &receiptStorageRLP{
-		PostStateOrStatus:    (*Receipt)(r).statusEncoding(),
-		CumulativeGasUsed:    r.CumulativeGasUsed,
-		Bloom:                r.Bloom,
-		TxHash:               r.TxHash,
-		ContractAddress:      r.ContractAddress,
-		Logs:                 make([]*LogForStorage, len(r.Logs)),
-		GasUsed:              r.GasUsed,
-		VerificationRequests: r.VerificationRequests,
+		PostStateOrStatus:   (*Receipt)(r).statusEncoding(),
+		CumulativeGasUsed:   r.CumulativeGasUsed,
+		Bloom:               r.Bloom,
+		TxHash:              r.TxHash,
+		ContractAddress:     r.ContractAddress,
+		Logs:                make([]*LogForStorage, len(r.Logs)),
+		GasUsed:             r.GasUsed,
+		AttestationRequests: r.AttestationRequests,
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -227,7 +227,7 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	r.TxHash, r.ContractAddress, r.GasUsed = dec.TxHash, dec.ContractAddress, dec.GasUsed
 
 	// Assign the celo fields
-	r.VerificationRequests = dec.VerificationRequests
+	r.AttestationRequests = dec.AttestationRequests
 	return nil
 }
 

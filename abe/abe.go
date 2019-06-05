@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func decryptPhoneNumber(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+func decryptPhoneNumber(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
 	phoneNumber, err := wallet.Decrypt(account, request.EncryptedPhone, nil, nil)
 	if err != nil {
 		return "", err
@@ -48,7 +48,7 @@ func decryptPhoneNumber(request types.VerificationRequest, account accounts.Acco
 	return string(phoneNumber), nil
 }
 
-func createVerificationMessage(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+func createAttestationMessage(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
 	signature, err := wallet.SignHash(account, request.CodeHash.Bytes())
 	if err != nil {
 		return "", err
@@ -72,16 +72,16 @@ func sendSms(phoneNumber string, message string, account common.Address, issuer 
 	return err
 }
 
-func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
+func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
 	account := accounts.Account{Address: coinbase}
 	wallet, err := accountManager.Find(account)
 	if err != nil {
-		log.Warn("[Celo] Failed to get account for sms verification", "err", err)
+		log.Warn("[Celo] Failed to get account for sms attestation", "err", err)
 		return
 	}
 
 	for _, receipt := range receipts {
-		for _, request := range receipt.VerificationRequests {
+		for _, request := range receipt.AttestationRequests {
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
 				continue
 			}
@@ -91,13 +91,13 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 				continue
 			}
 
-			message, err := createVerificationMessage(request, account, wallet)
+			message, err := createAttestationMessage(request, account, wallet)
 			if err != nil {
-				log.Error("[Celo] Failed to create verification message", "err", err)
+				log.Error("[Celo] Failed to create attestation message", "err", err)
 				continue
 			}
 
-			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
+			log.Debug(fmt.Sprintf("[Celo] Sending attestation message: \"%s\"", message), nil, nil)
 			err = sendSms(phoneNumber, message, request.Account, account.Address, verificationServiceURL)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)

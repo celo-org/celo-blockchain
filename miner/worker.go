@@ -389,21 +389,21 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-			processVerificationRequestsUpTo := func(number uint64) {
+			processAttestationRequestsUpTo := func(number uint64) {
 				w.verificationMu.Lock()
 				defer w.verificationMu.Unlock()
 				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
 					block := w.chain.GetBlockByNumber(number)
 					if now := time.Now().Unix(); block.Time().Uint64()+params.VerificationExpirySeconds >= uint64(now) {
 						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
+						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
 					} else {
 						break
 					}
 				}
 				w.lastBlockVerified = number
 			}
-			go processVerificationRequestsUpTo(headNumber)
+			go processAttestationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in

@@ -51,7 +51,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
-var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
+var requestAttestationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -67,8 +67,8 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	requestVerificationAddress: &requestVerification{},
-	transferAddress:            &transfer{},
+	requestAttestationAddress: &requestAttestation{},
+	transferAddress:           &transfer{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -417,32 +417,32 @@ func (c *bn256Pairing) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	return false32Byte, gas, nil
 }
 
-// Requesting verification in the Celo address based encryption  protocol is implemented as a
+// Requesting attestation in the Celo address based encryption  protocol is implemented as a
 // native contract.
-type requestVerification struct{}
+type requestAttestation struct{}
 
-func (c *requestVerification) RequiredGas(input []byte) uint64 {
+func (c *requestAttestation) RequiredGas(input []byte) uint64 {
 	// TODO(asa): Charge less gas when the phone number is invalid.
-	return params.VerificationRequestGas
+	return params.AttestationRequestGas
 }
 
-// Ensures that the input is parsable as a VerificationRequest.
-func (c *requestVerification) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+// Ensures that the input is parsable as a AttestationRequest.
+func (c *requestAttestation) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	abeAddress := evm.Context.getRegisteredAddress(params.AddressBasedEncryptionRegistryId)
+	abeAddress := evm.Context.getRegisteredAddress(params.AttestationsRegistryId)
 
 	if abeAddress == nil {
-		return nil, gas, fmt.Errorf("AddressBasedEncryption Address is not set in the Registry contract")
+		return nil, gas, fmt.Errorf("Attestations Address is not set in the Registry contract")
 	}
 
 	if caller != *abeAddress {
-		return nil, gas, fmt.Errorf("Unable to call requestVerification from unpermissioned address")
+		return nil, gas, fmt.Errorf("Unable to call requestAttestation from unpermissioned address")
 	}
-	_, err = types.DecodeVerificationRequest(input)
+	_, err = types.DecodeAttestationRequest(input)
 	if err != nil {
 		log.Error("[Celo] Unable to decode verification request", "err", err)
 		return nil, gas, err

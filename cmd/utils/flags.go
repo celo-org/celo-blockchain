@@ -396,7 +396,7 @@ var (
 	}
 	MinerVerificationServiceUrlFlag = cli.StringFlag{
 		Name:  "miner.verificationpool",
-		Usage: "URL to the verification service to be used by the miner to verify users' phone numbers",
+		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
 		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
 	}
 	// Account settings

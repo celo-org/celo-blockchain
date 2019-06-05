@@ -145,9 +145,9 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-	// Maintains a queue of Celo Address Based Encryption verification requests
+	// Maintains a queue of Celo attestation requests
 	// TODO(asa): Save this in StateDB
-	VerificationRequests []types.VerificationRequest
+	AttestationRequests []types.AttestationRequest
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should

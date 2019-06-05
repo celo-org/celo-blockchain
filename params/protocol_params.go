@@ -90,16 +90,16 @@ const (
 
 	// Celo precompiled contracts
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
+	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	GoldTokenRegistryId              = "GoldToken"
-	AddressBasedEncryptionRegistryId = "AddressBasedEncryption"
-	ReserveRegistryId                = "Reserve"
-	SortedOraclesRegistryId          = "SortedOracles"
-	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
-	ValidatorsRegistryId             = "Validators"
+	GoldTokenRegistryId            = "GoldToken"
+	AttestationsRegistryId         = "Attestations"
+	ReserveRegistryId              = "Reserve"
+	SortedOraclesRegistryId        = "SortedOracles"
+	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
+	ValidatorsRegistryId           = "Validators"
 )
 
 var (
@@ -110,5 +110,5 @@ var (
 )
 
 const (
-	VerificationExpirySeconds uint64 = 86400 // One day. The AddressBasedEncryption contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+	VerificationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
 )
