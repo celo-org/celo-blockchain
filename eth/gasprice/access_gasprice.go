@@ -58,7 +58,7 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
 
 	return gasPrice, err
 }
