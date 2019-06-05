@@ -70,7 +70,6 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	// TODO(asa): Do we need locking around these?
 	address common.Address    // Ethereum address of the signing key
 	signFn  istanbul.SignerFn // Signer function to authorize hashes with
 	lock    sync.RWMutex      // Protects the signer fields
@@ -106,9 +105,10 @@ type Backend struct {
 	regAdd consensus.ConsensusRegAdd
 }
 
+// Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
-	// sb.lock.Lock()
-	// defer sb.lock.Unlock()
+	sb.lock.Lock()
+	defer sb.lock.Unlock()
 
 	sb.address = address
 	sb.signFn = signFn
@@ -117,10 +117,6 @@ func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	sb.logger.SetHandler(log.StdoutHandler)
-	sb.logger.Info("reading address", "privateKey", nil)
-	// sb.lock.RLock()
-	// defer sb.lock.RUnlock()
 	return sb.address
 }
 
@@ -337,11 +333,9 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	sb.logger.SetHandler(log.StdoutHandler)
-	sb.logger.Info("signing in backend")
 	hashData := crypto.Keccak256(data)
-	// sb.lock.RLock()
-	// defer sb.lock.RUnlock()
+	sb.lock.RLock()
+	defer sb.lock.RUnlock()
 	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 

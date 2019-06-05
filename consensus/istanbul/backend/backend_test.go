@@ -30,10 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	elog "github.com/ethereum/go-ethereum/log"
 )
-
-var testLogger = elog.New()
 
 func TestSign(t *testing.T) {
 	b := newBackend()
@@ -178,12 +175,8 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	testLogger.SetHandler(elog.StdoutHandler)
-	testLogger.Info("making block chain")
 	chain, engine := newBlockChain(1, true)
-	testLogger.Info("making block")
 	block := makeBlock(chain, engine, chain.Genesis())
-	testLogger.Info("inserting block")
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)
 	actual := engine.Address()
