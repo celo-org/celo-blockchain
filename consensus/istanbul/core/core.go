@@ -149,6 +149,7 @@ func (c *core) broadcast(msg *message) {
 	}
 }
 
+// gossip will send the message to all connected eth peers
 func (c *core) gossip(msg *message) {
 	logger := c.logger.New("state", c.state)
 
