@@ -483,7 +483,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
-	pm.Start(1000, nil, nil)
+	pm.Start(1000, nil, nil, nil)
 	defer pm.Stop()
 
 	// Connect a new peer and check that we receive the DAO challenge
@@ -564,7 +564,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
-	pm.Start(1000, nil, nil)
+	pm.Start(1000, nil, nil, nil)
 	defer pm.Stop()
 	var peers []*testPeer
 	for i := 0; i < totalPeers; i++ {

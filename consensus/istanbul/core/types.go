@@ -167,4 +167,8 @@ func Encode(val interface{}) ([]byte, error) {
 type ValidatorEnode struct {
 	enodeURL string
 	blockNum *big.Int
+
+	// TODO(kevjue) - Need to figure out how to make this more accurate with whether or not
+	// the peer is actually connected.
+	addPeerAttempted bool
 }

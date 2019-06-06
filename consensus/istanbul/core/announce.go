@@ -61,18 +61,36 @@ func (c *core) handleAnnounce(msg *message) error {
 	}
 
 	fromAddress := msg.Address
-	if val, ok := c.valAddressToEnode[fromAddress]; ok {
+	c.valEnodeTableMu.Lock()
+	defer c.valEnodeTableMu.Unlock()
+	if valEnodeEntry, ok := c.valEnodeTable[fromAddress]; ok {
 		// If it is old message, ignore it.
-		if announce.BlockNum.Cmp(val.blockNum) <= 0 {
+		if announce.BlockNum.Cmp(valEnodeEntry.blockNum) <= 0 {
 			logger.Trace("Received an old announe message.  Ignoring it.", "from", msg.Address.Hex(), "blockNum", announce.BlockNum, "enode", announce.EnodeURL)
 			return errOldMessage
+		} else {
+			// Check if the enode has been changed
+			if announce.EnodeURL != valEnodeEntry.enodeURL {
+				if valEnodeEntry.addPeerAttempted {
+					// Remove the peer
+					c.backend.RemoveStaticPeer(valEnodeEntry.enodeURL)
+					valEnodeEntry.addPeerAttempted = false
+				}
+				valEnodeEntry.enodeURL = announce.EnodeURL
+			}
 		}
 	} else {
-		c.valAddressToEnode[fromAddress] = &ValidatorEnode{blockNum: announce.BlockNum, enodeURL: announce.EnodeURL}
+		c.valEnodeTable[fromAddress] = &ValidatorEnode{blockNum: announce.BlockNum, enodeURL: announce.EnodeURL}
 	}
 
-	// Add the peer
-	c.backend.AddPeer(announce.EnodeURL)
+	// Check if we need to add the peer
+	if _, v := c.valSet.GetByAddress(fromAddress); v != nil {
+		if !c.valEnodeTable[fromAddress].addPeerAttempted {
+			// Add the peer
+			c.backend.AddStaticPeer(announce.EnodeURL)
+			c.valEnodeTable[fromAddress].addPeerAttempted = true
+		}
+	}
 
 	return nil
 }

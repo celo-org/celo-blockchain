@@ -49,7 +49,8 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
-		valAddressToEnode:  make(map[common.Address]*ValidatorEnode),
+		valEnodeTable:      make(map[common.Address]*ValidatorEnode),
+		valEnodeTableMu:    new(sync.Mutex),
 	}
 	c.validateFn = c.checkValidatorSignature
 	return c
@@ -93,7 +94,8 @@ type core struct {
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 
-	valAddressToEnode map[common.Address]*ValidatorEnode
+	valEnodeTable   map[common.Address]*ValidatorEnode
+	valEnodeTableMu *sync.Mutex
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
@@ -246,6 +248,8 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+
+		go c.connectToValidators(c.valSet.List())
 	}
 
 	// Update logger
@@ -349,6 +353,20 @@ func (c *core) newRoundChangeTimer() {
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.valSet, data, sig)
+}
+
+func (c *core) connectToValidators(validators []istanbul.Validator) {
+	c.valEnodeTableMu.Lock()
+	defer c.valEnodeTableMu.Unlock()
+	for _, validator := range validators {
+		if valEnodeEntry, ok := c.valEnodeTable[validator.Address()]; ok {
+			if !valEnodeEntry.addPeerAttempted {
+				c.backend.AddStaticPeer(valEnodeEntry.enodeURL)
+				valEnodeEntry.addPeerAttempted = true
+			}
+		}
+
+	}
 }
 
 // PrepareCommittedSeal returns a committed seal for the given hash

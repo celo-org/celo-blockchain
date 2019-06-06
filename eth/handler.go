@@ -103,8 +103,9 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	getLocalNode func() *enode.Node
-	addPeer      func(*enode.Node)
+	getLocalNode     func() *enode.Node
+	addStaticPeer    func(*enode.Node)
+	removeStaticPeer func(*enode.Node)
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -221,10 +222,11 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addPeer func(*enode.Node)) {
+func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addStaticPeer func(*enode.Node), removeStaticPeer func(*enode.Node)) {
 	pm.maxPeers = maxPeers
 	pm.getLocalNode = getLocalNode
-	pm.addPeer = addPeer
+	pm.addStaticPeer = addStaticPeer
+	pm.removeStaticPeer = removeStaticPeer
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -860,10 +862,12 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 	return m
 }
 
-func (pm *ProtocolManager) AddPeer(enodeURL string) error {
-	log.Trace("Attempting to add peer", "enodeURL", enodeURL)
+func (pm *ProtocolManager) AddStaticPeer(enodeURL string) error {
+	log.Trace("Attempting to add static peer", "enodeURL", enodeURL)
 
 	// TODO(kevjue) - Make this more efficient, instead of looping through all of the connected peers
+	// Also need to check if the peer is a static one.  It could of been connected via regular discovery
+	// process.
 	for _, p := range pm.peers.Peers() {
 		if p.Node().String() == enodeURL {
 			log.Trace("Already connected to peer", "enodeURL", enodeURL)
@@ -878,7 +882,20 @@ func (pm *ProtocolManager) AddPeer(enodeURL string) error {
 		return err
 	}
 
-	pm.addPeer(node)
+	pm.addStaticPeer(node)
+	return nil
+}
+
+func (pm *ProtocolManager) RemoveStaticPeer(enodeURL string) error {
+	log.Trace("Attempting to remove a static peer", "enodeURL", enodeURL)
+
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
+		return err
+	}
+
+	pm.removeStaticPeer(node)
 	return nil
 }
 

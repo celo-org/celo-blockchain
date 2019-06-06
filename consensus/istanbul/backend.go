@@ -75,6 +75,9 @@ type Backend interface {
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
 
-	// Add Peer adds a peer
-	AddPeer(enodeURL string)
+	// AddPeer adds a peer
+	AddStaticPeer(enodeURL string)
+
+	// RemovePeer removes a peer
+	RemoveStaticPeer(enodeURL string)
 }

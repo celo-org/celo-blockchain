@@ -413,8 +413,14 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) AddPeer(enodeURL string) {
+func (sb *Backend) AddStaticPeer(enodeURL string) {
 	if sb.broadcaster != nil {
-		sb.broadcaster.AddPeer(enodeURL)
+		sb.broadcaster.AddStaticPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) RemoveStaticPeer(enodeURL string) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.RemoveStaticPeer(enodeURL)
 	}
 }
