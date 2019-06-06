@@ -104,6 +104,7 @@ type ProtocolManager struct {
 	engine consensus.Engine
 
 	getLocalNode func() *enode.Node
+	addPeer      func(*enode.Node)
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -220,9 +221,10 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node) {
+func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addPeer func(*enode.Node)) {
 	pm.maxPeers = maxPeers
 	pm.getLocalNode = getLocalNode
+	pm.addPeer = addPeer
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -846,18 +848,40 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (self *ProtocolManager) FindPeers(targets map[common.Address]bool, getAllPeers bool) map[common.Address]consensus.Peer {
+func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
 	m := make(map[common.Address]consensus.Peer)
-	for _, p := range self.peers.Peers() {
+	for _, p := range pm.peers.Peers() {
 		pubKey := p.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
-		if getAllPeers || targets[addr] {
+		if targets == nil || targets[addr] {
 			m[addr] = p
 		}
 	}
 	return m
 }
 
-func (srv *ProtocolManager) GetLocalNode() *enode.Node {
-	return srv.getLocalNode()
+func (pm *ProtocolManager) AddPeer(enodeURL string) error {
+	log.Trace("Attempting to add peer", "enodeURL", enodeURL)
+
+	// TODO(kevjue) - Make this more efficient, instead of looping through all of the connected peers
+	for _, p := range pm.peers.Peers() {
+		if p.Node().String() == enodeURL {
+			log.Trace("Already connected to peer", "enodeURL", enodeURL)
+			return nil
+		}
+	}
+
+	// Try to add the url as a static peer and return
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
+		return err
+	}
+
+	pm.addPeer(node)
+	return nil
+}
+
+func (pm *ProtocolManager) GetLocalNode() *enode.Node {
+	return pm.getLocalNode()
 }

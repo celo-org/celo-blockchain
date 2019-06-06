@@ -93,8 +93,6 @@ type core struct {
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 
-	// Keep the sequence number of the most recent Announce message received from each address.
-	// This map is pruned at the start of every new epoch
 	valAddressToEnode map[common.Address]*ValidatorEnode
 }
 
@@ -133,7 +131,7 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	return payload, nil
 }
 
-func (c *core) broadcast(msg *message, broadcastToAllPeers bool) {
+func (c *core) broadcast(msg *message) {
 	logger := c.logger.New("state", c.state)
 
 	payload, err := c.finalizeMessage(msg)
@@ -143,7 +141,23 @@ func (c *core) broadcast(msg *message, broadcastToAllPeers bool) {
 	}
 
 	// Broadcast payload
-	if err = c.backend.Broadcast(c.valSet, payload, broadcastToAllPeers); err != nil {
+	if err = c.backend.Broadcast(c.valSet, payload); err != nil {
+		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
+		return
+	}
+}
+
+func (c *core) gossip(msg *message) {
+	logger := c.logger.New("state", c.state)
+
+	payload, err := c.finalizeMessage(msg)
+	if err != nil {
+		logger.Error("Failed to finalize message", "msg", msg, "err", err)
+		return
+	}
+
+	// Broadcast payload
+	if err = c.backend.Gossip(nil, payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}
@@ -232,11 +246,6 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
-
-		if istanbul.IsLastBlockOfEpoch(c.backend.currentBlock().Number().Uint64(), c.backend.config.Epoch) {
-			// TODO (kevjue) - Connect/Disconnect from validators based on c.valset
-		}
-
 	}
 
 	// Update logger

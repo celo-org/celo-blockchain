@@ -120,9 +120,9 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte, broadcastToAllPeers bool) error {
+func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload, broadcastToAllPeers)
+	sb.Gossip(valSet, payload)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -132,19 +132,23 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte, broad
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, broadcastToAllPeers bool) error {
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 	hash := istanbul.RLPHash(payload)
 	sb.knownMessages.Add(hash, true)
 
-	targets := make(map[common.Address]bool)
-	for _, val := range valSet.List() {
-		if val.Address() != sb.Address() {
-			targets[val.Address()] = true
+	var targets map[common.Address]bool = nil
+
+	if valSet != nil {
+		targets = make(map[common.Address]bool)
+		for _, val := range valSet.List() {
+			if val.Address() != sb.Address() {
+				targets[val.Address()] = true
+			}
 		}
 	}
 
-	if sb.broadcaster != nil && (len(targets) > 0 || broadcastToAllPeers) {
-		ps := sb.broadcaster.FindPeers(targets, broadcastToAllPeers)
+	if sb.broadcaster != nil && (valSet == nil || len(targets) > 0) {
+		ps := sb.broadcaster.FindPeers(targets)
 
 		for addr, p := range ps {
 			ms, ok := sb.recentMessages.Get(addr)
@@ -398,4 +402,8 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 		return false
 	}
 	return sb.hasBadBlock(hash)
+}
+
+func (sb *Backend) AddPeer(enodeURL string) {
+	sb.broadcaster.AddPeer(enodeURL)
 }

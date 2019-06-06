@@ -34,7 +34,7 @@ func (c *core) sendPrepare() {
 	c.broadcast(&message{
 		Code: msgPrepare,
 		Msg:  encodedSubject,
-	}, false)
+	})
 }
 
 func (c *core) handlePrepare(msg *message, src istanbul.Validator) error {

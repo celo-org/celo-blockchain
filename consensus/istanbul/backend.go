@@ -40,10 +40,10 @@ type Backend interface {
 	EventMux() *event.TypeMux
 
 	// Broadcast sends a message to all validators (include self)
-	Broadcast(valSet ValidatorSet, payload []byte, broadcastToAllPeers bool) error
+	Broadcast(valSet ValidatorSet, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte, broadcastToAllPeers bool) error
+	Gossip(valSet ValidatorSet, payload []byte) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -74,4 +74,7 @@ type Backend interface {
 
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
+
+	// Add Peer adds a peer
+	AddPeer(enodeURL string)
 }

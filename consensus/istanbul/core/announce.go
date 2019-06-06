@@ -36,11 +36,10 @@ func (c *core) sendAnnounce() {
 
 	logger.Trace("Broadcasting an announce message", "blockNumber", block.Number(), "enodeURL", enodeUrl)
 
-	c.broadcast(&message{
+	c.gossip(&message{
 		Code: msgAnnounce,
 		Msg:  announce,
-	},
-		true)
+	})
 }
 
 func (c *core) handleAnnounce(msg *message) error {
@@ -65,6 +64,8 @@ func (c *core) handleAnnounce(msg *message) error {
 		c.valAddressToEnode[fromAddress] = &ValidatorEnode{blockNum: announce.BlockNum, enodeURL: announce.EnodeURL}
 	}
 
-	logger.Trace("Received an announce message", "from", msg.Address.Hex(), "blockNum", announce.BlockNum, "enode", announce.EnodeURL)
+	// Add the peer
+	c.backend.AddPeer(announce.EnodeURL)
+
 	return nil
 }

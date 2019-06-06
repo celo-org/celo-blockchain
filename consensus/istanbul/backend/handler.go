@@ -99,21 +99,15 @@ func (sb *Backend) NewChainHead() error {
 		return istanbul.ErrStoppedEngine
 	}
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
-	return nil
-}
 
-func (sb *Backend) GossipAnnounce() error {
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
+	currentBlock := sb.currentBlock()
 
 	// Gossip the announce message at every 10th block (for now).
 	// TODO (kevjue) - Read from the validator election smart contract to determine if
 	// the node needs to announce it's enode.
-	if sb.currentBlock().Number().Uint64()%10 == 0 {
+	if currentBlock.Number().Uint64()%10 == 0 {
 		go sb.EventMux().Post(istanbul.AnnounceEvent{})
 	}
+
 	return nil
 }
