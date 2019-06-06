@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 var testLogger = elog.New()
@@ -86,7 +87,6 @@ func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message [
 	}
 	return nil
 }
-
 func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte) error {
 	testLogger.Warn("not sign any data")
 	return nil
@@ -154,6 +154,12 @@ func (self *testSystemBackend) GetProposer(number uint64) common.Address {
 
 func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
+}
+
+func (self *testSystemBackend) AddPeer(enodeURL string) {}
+
+func (self *testSystemBackend) Enode() *enode.Node {
+	return nil
 }
 
 // ==============================================

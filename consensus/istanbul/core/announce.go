@@ -24,6 +24,13 @@ func (c *core) sendAnnounce() {
 	logger := c.logger.New()
 
 	block, _ := c.backend.LastProposal()
+
+	enode := c.backend.Enode()
+	if enode == nil {
+		logger.Warn("Enode is nil in sendAnnounce")
+		return
+	}
+
 	enodeUrl := c.backend.Enode().String()
 
 	announce, err := Encode(&istanbul.Announce{BlockNum: block.Number(),

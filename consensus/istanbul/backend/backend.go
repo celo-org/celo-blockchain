@@ -173,7 +173,11 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 }
 
 func (sb *Backend) Enode() *enode.Node {
-	return sb.broadcaster.GetLocalNode()
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetLocalNode()
+	} else {
+		return nil
+	}
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -405,5 +409,7 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 }
 
 func (sb *Backend) AddPeer(enodeURL string) {
-	sb.broadcaster.AddPeer(enodeURL)
+	if sb.broadcaster != nil {
+		sb.broadcaster.AddPeer(enodeURL)
+	}
 }
