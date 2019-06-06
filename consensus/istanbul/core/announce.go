@@ -78,6 +78,7 @@ func (c *core) handleAnnounce(msg *message) error {
 				}
 				valEnodeEntry.enodeURL = announce.EnodeURL
 			}
+			valEnodeEntry.blockNum = announce.BlockNum
 		}
 	} else {
 		c.valEnodeTable[fromAddress] = &ValidatorEnode{blockNum: announce.BlockNum, enodeURL: announce.EnodeURL}

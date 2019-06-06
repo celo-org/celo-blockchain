@@ -597,6 +597,7 @@ func (sb *Backend) Stop() error {
 	}
 	sb.coreStarted = false
 
+	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
 	return nil
 }
