@@ -18,6 +18,7 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -430,7 +432,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-	sb.updateGasPriceSuggestion(state)
+	sb.updateGasPrice(header, state)
 
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -440,12 +442,21 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	return types.NewBlock(header, txs, nil, receipts), nil
 }
 
-// TODO (jarmg 5/23/18): Implement this
-func (sb *Backend) updateGasPrice(state *state.StateDB) *state.StateDB {
-  GetGasPriceParams()
-  gasprice.CalculateGasPriceFloor()
-  gasprice.UpdateGasPriceFloor()
-  return err
+func (sb *Backend) updateGasPrice(header *types.Header, state *state.StateDB) error {
+	gasPriceParams, err := gasprice.GetGasPriceParams(context.Background(), sb.iEvmH, sb.regAdd)
+
+	if err != nil {
+		return err
+	}
+
+	gasPriceFloor := gasPriceParams[0]
+	targetDensity := gasPriceParams[1]
+	adjustmentSpeed := gasPriceParams[2]
+
+	newGasPriceFloor, err := gasprice.CalculateGasPriceFloor(header, gasPriceFloor, targetDensity, adjustmentSpeed)
+
+	//gasprice.UpdateGasPriceFloor()
+	return err
 }
 
 // Seal generates a new block for the given input block with the local miner's

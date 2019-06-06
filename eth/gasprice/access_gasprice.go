@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -32,7 +33,7 @@ const (
 	getGasPriceABIString = `[{
     "constant": true,
     "inputs": [],
-    "name": "getGasPriceSuggestion",
+    "name": "getGasPriceFloor",
     "outputs": [
       {
       "name": "",
@@ -42,14 +43,30 @@ const (
     "payable": false,
     "stateMutability": "view",
     "type": "function"
-    }]`
+	}]`
+
+	getGasPriceParamsABIString = `[{
+		"constant": true,
+		"inputs": [],
+		"name": "getGasPriceParameters",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256[3]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	}]`
 )
 
 var (
-	gasPriceOracleABI, _ = abi.JSON(strings.NewReader(getGasPriceABIString))
+	getGasPriceFloorABI, _  = abi.JSON(strings.NewReader(getGasPriceABIString))
+	gasGasPriceParamsABI, _ = abi.JSON(strings.NewReader(getGasPriceParamsABIString))
 )
 
-func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
+func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
@@ -58,21 +75,20 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, getGasPriceFloorABI, "getGasPriceFloor", []interface{}{}, &gasPrice, 2000, nil, nil)
 
 	return gasPrice, err
 }
 
-func GetGasPriceParams(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
-
-	var gasPriceParams []*big.Int
+func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) ([3]*big.Int, error) {
+	var gasPriceParams [3]*big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		return nil, errors.New("no gasprice oracle contract address found")
+		return gasPriceParams, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceParameters", []interface{}{}, gasPriceParams, 2000, nil, nil)
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
 
 	return gasPriceParams, err
 }

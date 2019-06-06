@@ -29,6 +29,10 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+type EvmHandler interface {
+	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+}
+
 // ChainContext supports retrieving chain data and consensus parameters
 // from the block chain to be used during transaction processing.
 type ChainContext interface {
