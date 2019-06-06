@@ -579,6 +579,9 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	}
 
 	sb.coreStarted = true
+
+	go sb.sendAnnounceMsgs()
+
 	return nil
 }
 
@@ -593,6 +596,8 @@ func (sb *Backend) Stop() error {
 		return err
 	}
 	sb.coreStarted = false
+
+	sb.announceWg.Wait()
 	return nil
 }
 
@@ -730,6 +735,24 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap.Hash = hash
 
 	return returnSnap, nil
+}
+
+func (sb *Backend) sendAnnounceMsgs() {
+	sb.announceWg.Add(1)
+	defer sb.announceWg.Done()
+
+	ticker := time.NewTicker(10 * time.Second)
+
+	for {
+		select {
+		case <-ticker.C:
+			go sb.EventMux().Post(istanbul.AnnounceEvent{})
+
+		case <-sb.announceQuit:
+			ticker.Stop()
+			break
+		}
+	}
 }
 
 // FIXME: Need to update this for Istanbul

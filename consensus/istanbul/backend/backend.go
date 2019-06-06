@@ -62,6 +62,8 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		coreStarted:      false,
 		recentMessages:   recentMessages,
 		knownMessages:    knownMessages,
+		announceWg:       new(sync.WaitGroup),
+		announceQuit:     make(chan struct{}),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -103,6 +105,9 @@ type Backend struct {
 
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
+
+	announceWg   *sync.WaitGroup
+	announceQuit chan struct{}
 }
 
 // Address implements istanbul.Backend.Address
