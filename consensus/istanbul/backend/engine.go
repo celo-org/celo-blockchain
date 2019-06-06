@@ -201,7 +201,6 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if chain.Config().FullHeaderChainAvailable {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-			log.Error("[nam] I should not be here")
 			return consensus.ErrUnknownAncestor
 		}
 		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
@@ -393,7 +392,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			var newValSet []common.Address
 
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
+			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
 			if err != nil {
 				log.Error("Istanbul.Finalize - Error in retrieving the validator set", "leftoverGas", leftoverGas, "err", err)
 				return err
@@ -455,7 +454,7 @@ func (sb *Backend) updateGasPrice(header *types.Header, state *state.StateDB) er
 
 	newGasPriceFloor, err := gasprice.CalculateGasPriceFloor(header, gasPriceFloor, targetDensity, adjustmentSpeed)
 
-	//gasprice.UpdateGasPriceFloor()
+	gasprice.UpdateGasPriceFloor(context.Background(), sb.iEvmH, sb.regAdd, newGasPriceFloor)
 	return err
 }
 

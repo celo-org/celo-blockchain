@@ -67,6 +67,7 @@ var (
 )
 
 func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
+  log.Info("gasprice.GetGasPrice called")
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
@@ -75,12 +76,13 @@ func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.Address
 		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, getGasPriceFloorABI, "getGasPriceFloor", []interface{}{}, &gasPrice, 2000, nil, nil)
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, getGasPriceFloorABI, "getGasPriceFloor", []interface{}{}, &gasPrice, 2000, nil, nil)
 
 	return gasPrice, err
 }
 
 func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) ([3]*big.Int, error) {
+  log.Info("gasprice.GetGasPriceParams called")
 	var gasPriceParams [3]*big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
@@ -88,7 +90,21 @@ func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.A
 		return gasPriceParams, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
+
+	return gasPriceParams, err
+}
+
+func UpdateGasPriceFloor(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, newGasPriceFloor *big.Int) ([3]*big.Int, error) {
+  log.Info("gasprice.UpdateGasPriceFloor called")
+	var gasPriceParams [3]*big.Int
+	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+
+	if gasPriceOracleAddress == nil {
+		return gasPriceParams, errors.New("no gasprice oracle contract address found")
+	}
+
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
 
 	return gasPriceParams, err
 }
