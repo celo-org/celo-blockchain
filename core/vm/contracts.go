@@ -511,7 +511,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	return input, gas, err
 }
 
-// computes a * (b ^ exponent) to decimals places of precision, where a and b are fractions
+// computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions
 type fractionMulExp struct{}
 
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
