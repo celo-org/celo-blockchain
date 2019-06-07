@@ -8,18 +8,19 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+
+// Implements the following:
+// newFloor = oldFloor * (1 + (density - targetDensity)*AdjSpeed)
+// but, to avoid dealing with floats, everything is essentially multiplied
+// by 1000^2 and then the eventual product is divided by 1000^2
+// Note: Target density and adjSpeed are already multiplied by 1000
+// for SC storage
 func CalculateGasPriceFloor(header *types.Header, oldGasPrice *big.Int, targetDensity *big.Int, adjSpeed *big.Int) (*big.Int, error) {
-	log.Info("Header:", "header", header)
-	log.Info("oldGasPrice:", "gas price", oldGasPrice)
-	log.Info("targetDensity", "target", targetDensity)
-	log.Info("gasUsed", "gasUsed", header.GasUsed)
-	log.Info("gasLimit", "limit", header.GasLimit)
-	log.Info("adjustment speed", "adjSpeed", adjSpeed)
 	if oldGasPrice == nil || targetDensity == nil || adjSpeed == nil {
 		return nil, errors.New("Invalid gas price calculation parameters")
 	}
 
-	// TODO: Clearer variable names
+	// TODO (jarmg): Clearer variable names
 	denom := big.NewInt(1000)
 	divisor := new(big.Int).Exp(denom, big.NewInt(2), nil) // TODO (jarmg 6/6/19): remove magic number
 	one := new(big.Int).Exp(denom, big.NewInt(2), nil)
