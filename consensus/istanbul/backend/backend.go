@@ -310,7 +310,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 	if validatorElectionAddress != nil {
 		var newValSet []common.Address
-		if _, err := sb.iEvmH.MakeCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
+		if _, err := sb.iEvmH.MakeStaticCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
 			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
 			return err
 		}
