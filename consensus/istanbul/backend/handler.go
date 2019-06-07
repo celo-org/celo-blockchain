@@ -50,10 +50,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	defer sb.coreMu.Unlock()
 
 	if msg.Code == istanbulMsg {
-		if !sb.coreStarted {
-			return true, istanbul.ErrStoppedEngine
-		}
-
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
 			return true, errDecodeFailed

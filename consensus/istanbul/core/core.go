@@ -51,6 +51,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 		valEnodeTable:      make(map[common.Address]*ValidatorEnode),
 		valEnodeTableMu:    new(sync.Mutex),
+		started:            false,
 	}
 	c.validateFn = c.checkValidatorSignature
 	return c
@@ -96,6 +97,8 @@ type core struct {
 
 	valEnodeTable   map[common.Address]*ValidatorEnode
 	valEnodeTableMu *sync.Mutex
+
+	started bool
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {

@@ -31,6 +31,7 @@ func (c *core) Start() error {
 	c.subscribeEvents()
 	go c.handleEvents()
 
+	c.started = true
 	return nil
 }
 
@@ -41,6 +42,8 @@ func (c *core) Stop() error {
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
+
+	c.started = false
 	return nil
 }
 
@@ -97,7 +100,9 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
-				c.handleMsg(ev.Payload)
+				if err := c.handleMsg(ev.Payload); err != nil {
+					c.logger.Error("Error in handling istanbul message", "err", err)
+				}
 			case backlogEvent:
 				// No need to check signature for internal messages
 				if err := c.handleCheckedMsg(ev.msg, ev.src); err == nil {
@@ -147,6 +152,11 @@ func (c *core) handleMsg(payload []byte) error {
 
 	var src istanbul.Validator = nil
 	if msg.Code != msgAnnounce {
+		// Only handle message if the istanbul core is started
+		if !c.started {
+			return istanbul.ErrStoppedEngine
+		}
+
 		// Only accept message if the address is valid
 		_, src = c.valSet.GetByAddress(msg.Address)
 		if src == nil {
