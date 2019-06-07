@@ -90,8 +90,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
+		if i == 0 {
+			// check from, to, first four bytes of data, return err if invalid
+		}
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
+		if i == 0 && receipt.Status == types.ReceiptStatusFailed {
+			// return err
+		}
 		if err != nil {
 			return nil, nil, 0, err
 		}
