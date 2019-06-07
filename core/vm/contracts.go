@@ -524,39 +524,41 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 		return nil, gas, err
 	}
 
-	aNumerator, err := math.ParseBig256(hexutil.Encode(input[0:32])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[0:32]))
+	parseErrorStr := "Error parsing input: unable to parse %s value from %s"
+
+	aNumerator, parsed := math.ParseBig256(hexutil.Encode(input[0:32]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "aNumerator", hexutil.Encode(input[0:32]))
 	}
 
-	aDenominator, err := math.ParseBig256(hexutil.Encode(input[32:64])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[32:64]))
+	aDenominator, parsed := math.ParseBig256(hexutil.Encode(input[32:64]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "aDenominator", hexutil.Encode(input[32:64]))
 	}
 
-	bNumerator, err := math.ParseBig256(hexutil.Encode(input[64:96])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[64:96]))
+	bNumerator, parsed := math.ParseBig256(hexutil.Encode(input[64:96]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "bNumerator", hexutil.Encode(input[64:96]))
 	}
 
-	bDenominator, err := math.ParseBig256(hexutil.Encode(input[96:128])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[96:128]))
+	bDenominator, parsed := math.ParseBig256(hexutil.Encode(input[96:128]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "bDenominator", hexutil.Encode(input[96:128]))
 	}
 
-	exponent, err := math.ParseBig256(hexutil.Encode(input[128:160])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[128:160]))
+	exponent, parsed := math.ParseBig256(hexutil.Encode(input[128:160]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "exponent", hexutil.Encode(input[128:160]))
 	}
 
-	decimals, err := math.ParseBig256(hexutil.Encode(input[160:192])
-	if err != nil {
-		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[160:192]))
+	decimals, parsed := math.ParseBig256(hexutil.Encode(input[160:192]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "decimals", hexutil.Encode(input[160:192]))
 	}
 
 	// Handle passing of zero denominators
 	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
-		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
+		return nil, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
 	}
 
 	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
