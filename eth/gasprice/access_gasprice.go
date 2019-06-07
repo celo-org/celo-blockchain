@@ -24,6 +24,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -59,15 +61,31 @@ const (
 		"stateMutability": "view",
 		"type": "function"
 	}]`
+
+	setGasPriceFloorABIString = `[{
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_gasPriceFloor",
+          "type": "uint256"
+        }
+      ],
+      "name": "setGasPriceFloor",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }]`
 )
 
 var (
 	getGasPriceFloorABI, _  = abi.JSON(strings.NewReader(getGasPriceABIString))
 	gasGasPriceParamsABI, _ = abi.JSON(strings.NewReader(getGasPriceParamsABIString))
+	setGasPriceFloorABI, _  = abi.JSON(strings.NewReader(setGasPriceFloorABIString))
 )
 
 func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
-  log.Info("gasprice.GetGasPrice called")
+	log.Info("gasprice.GetGasPrice called")
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
@@ -82,7 +100,7 @@ func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.Address
 }
 
 func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) ([3]*big.Int, error) {
-  log.Info("gasprice.GetGasPriceParams called")
+	log.Info("gasprice.GetGasPriceParams called")
 	var gasPriceParams [3]*big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
@@ -95,16 +113,15 @@ func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.A
 	return gasPriceParams, err
 }
 
-func UpdateGasPriceFloor(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, newGasPriceFloor *big.Int) ([3]*big.Int, error) {
-  log.Info("gasprice.UpdateGasPriceFloor called")
-	var gasPriceParams [3]*big.Int
+func SetGasPriceFloor(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, newGasPriceFloor *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
+	log.Info("gasprice.SetGasPriceFloor called")
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		return gasPriceParams, errors.New("no gasprice oracle contract address found")
+		return 0, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
+	gasLeft, err := iEvmH.MakeCall(*gasPriceOracleAddress, setGasPriceFloorABI, "setGasPriceFloor", []interface{}{newGasPriceFloor}, nil, 1000000000, big.NewInt(0), header, state)
 
-	return gasPriceParams, err
+	return gasLeft, err
 }
