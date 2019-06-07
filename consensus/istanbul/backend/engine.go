@@ -454,7 +454,7 @@ func (sb *Backend) updateGasPrice(header *types.Header, state *state.StateDB) er
 
 	newGasPriceFloor, err := gasprice.CalculateGasPriceFloor(header, gasPriceFloor, targetDensity, adjustmentSpeed)
 
-	gasprice.UpdateGasPriceFloor(context.Background(), sb.iEvmH, sb.regAdd, newGasPriceFloor)
+	gasprice.SetGasPriceFloor(context.Background(), sb.iEvmH, sb.regAdd, newGasPriceFloor, header, state)
 	return err
 }
 
