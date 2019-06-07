@@ -152,7 +152,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 	var src istanbul.Validator = nil
 	if msg.Code != msgAnnounce {
-		// Only handle message if the istanbul core is started
+		// Only handle consensus messages if the istanbul core is started
 		if !c.started {
 			return istanbul.ErrStoppedEngine
 		}
