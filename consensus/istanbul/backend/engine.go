@@ -759,7 +759,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 		case <-sb.announceQuit:
 			ticker.Stop()
-			break
+			return
 		}
 	}
 }
