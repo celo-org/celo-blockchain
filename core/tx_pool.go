@@ -246,14 +246,14 @@ type TxPool struct {
 
 	homestead bool
 
-	pc    *PriceComparator
+	co    *CurrencyOperator
 	gcWl  *GasCurrencyWhitelist
 	iEvmH *InternalEVMHandler
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, pc *PriceComparator, gcWl *GasCurrencyWhitelist, iEvmH *InternalEVMHandler) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator, gcWl *GasCurrencyWhitelist, iEvmH *InternalEVMHandler) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -269,7 +269,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		all:         newTxLookup(),
 		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
-		pc:          pc,
+		co:          co,
 		gcWl:        gcWl,
 		iEvmH:       iEvmH,
 	}
@@ -278,7 +278,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newTxPricedList(pool.all, pool.pc)
+	pool.priced = newTxPricedList(pool.all, pool.co)
 
 	pool.reset(nil, chain.CurrentBlock().Header())
 
@@ -637,7 +637,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.pc.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
+	if !local && pool.co.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
