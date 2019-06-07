@@ -524,26 +524,52 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 		return nil, gas, err
 	}
 
-	aNumerator, _ := math.ParseBig256(hexutil.Encode(input[0:32]))
-	aDenominator, _ := math.ParseBig256(hexutil.Encode(input[32:64]))
-	bNumerator, _ := math.ParseBig256(hexutil.Encode(input[64:96]))
-	bDenominator, _ := math.ParseBig256(hexutil.Encode(input[96:128]))
-	exponent, _ := math.ParseBig256(hexutil.Encode(input[128:160]))
-	decimals, _ := math.ParseBig256(hexutil.Encode(input[160:192]))
+	aNumerator, err := math.ParseBig256(hexutil.Encode(input[0:32])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[0:32]))
+	}
 
-	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
-	denominatorExp := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
+	aDenominator, err := math.ParseBig256(hexutil.Encode(input[32:64])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[32:64]))
+	}
 
-	numerator := new(big.Int).Div(new(big.Int).Mul(numeratorExp, new(big.Int).Exp(big.NewInt(10), decimals, nil)), denominatorExp).Bytes()
-	denominator := new(big.Int).Exp(big.NewInt(10), decimals, nil).Bytes()
+	bNumerator, err := math.ParseBig256(hexutil.Encode(input[64:96])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[64:96]))
+	}
+
+	bDenominator, err := math.ParseBig256(hexutil.Encode(input[96:128])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[96:128]))
+	}
+
+	exponent, err := math.ParseBig256(hexutil.Encode(input[128:160])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[128:160]))
+	}
+
+	decimals, err := math.ParseBig256(hexutil.Encode(input[160:192])
+	if err != nil {
+		return nil, gas, fmt.Errorf("Error parsing input: unable to parse value from " + hexutil.Encode(input[160:192]))
+	}
 
 	// Handle passing of zero denominators
 	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
 		return input, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
 	}
 
-	numeratorSlice := common.LeftPadBytes(numerator, 32)
-	denominatorSlice := common.LeftPadBytes(denominator, 32)
-	return append(numeratorSlice, denominatorSlice...), gas, nil
+	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
+	denominatorExp := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
+
+	decimalAdjustment := new(big.Int).Exp(big.NewInt(10), decimals, nil)
+
+	numeratorDecimalAdjusted := new(big.Int).Div(new(big.Int).Mul(numeratorExp, decimalAdjustment), denominatorExp).Bytes()
+	denominatorDecimalAdjusted := decimalAdjustment.Bytes()
+
+	numeratorPadded := common.LeftPadBytes(numeratorDecimalAdjusted, 32)
+	denominatorPadded := common.LeftPadBytes(denominatorDecimalAdjusted, 32)
+
+	return append(numeratorPadded, denominatorPadded...), gas, nil
 }
 
