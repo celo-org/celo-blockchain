@@ -190,7 +190,7 @@ func (st *StateTransition) buyGas() error {
 
 	st.initialGas = st.msg.Gas()
 	st.gas += st.msg.Gas()
-	err := st.debitGas(mgval, st.msg.GasCurrency())
+	err := st.debitGas(st.msg.From(), mgval, st.msg.GasCurrency())
 	return err
 }
 
@@ -206,57 +206,44 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
 }
 
-func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address, logTag string) error {
+func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
-		log.Trace(logTag + " successful: nothing to debit or credit")
 		return nil
 	}
 	evm := st.evm
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	log.Trace(logTag, "rootCaller", rootCaller, "customTokenContractAddress", *gasCurrency, "gas", maxGasForDebitAndCreditTransactions, "value", 0, "transactionData", hexutil.Encode(transactionData))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, maxGasForDebitAndCreditTransactions, big.NewInt(0))
 	if err != nil {
-		log.Debug(logTag+" failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
+		log.Error("failed to debit or credit ERC20 balance", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
 	}
 
-	log.Debug(logTag+" successful", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas)
 	return nil
 }
 
-func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) {
+func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
+	log.Debug("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
-		st.state.SubBalance(st.msg.From(), amount)
+		st.state.SubBalance(from, amount)
 		return nil
 	}
 
-	return st.debitOrCreditErc20Balance(
-		getDebitFromFunctionSelector(),
-		st.msg.From(),
-		amount,
-		gasCurrency,
-		"debitGas",
-	)
+	return st.debitOrCreditErc20Balance(getDebitFromFunctionSelector(), from, amount, gasCurrency)
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Error("Crediting gas", "receipient", to, "amount", amount, "gas Currency", gasCurrency)
+	log.Debug("Crediting gas", "receipient", to, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
 		return nil
 	}
 
-	return st.debitOrCreditErc20Balance(
-		getCreditToFunctionSelector(),
-		to,
-		amount,
-		gasCurrency,
-		"creditGas")
+	return st.debitOrCreditErc20Balance(getCreditToFunctionSelector(), to, amount, gasCurrency)
 }
 
 func getDebitFromFunctionSelector() []byte {
@@ -307,27 +294,32 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	// Calculate intrinsic gas.
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, msg.GasCurrency())
+	log.Info("Transaction has intrinsic gas", "err", err, "gas", gas)
 	if err != nil {
 		return nil, 0, false, err
 	}
 
+	log.Debug("Used gas 1", "gasUsed", st.gasUsed())
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
 		log.Info("Transaction failed provide intrinsic gas", "err", err, "gas", gas)
 		return nil, 0, false, vm.ErrOutOfGas
 	}
 
+	log.Debug("Used gas 2", "gasUsed", st.gasUsed())
 	err = st.buyGas()
 	if err != nil {
 		log.Info("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
+	log.Debug("Used gas 3", "gasUsed", st.gasUsed())
 	if err = st.useGas(gas); err != nil {
 		log.Info("Transaction failed to use gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
+	log.Debug("Used gas 4", "gasUsed", st.gasUsed())
 	var (
 		evm = st.evm
 		// vm errors do not effect consensus and are therefore
@@ -344,6 +336,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
+	log.Debug("Used gas 5", "gasUsed", st.gasUsed())
 	if vmerr != nil {
 		log.Debug("VM returned with error", "err", vmerr)
 		// The only possible consensus-error would be if there wasn't
@@ -360,10 +353,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	gasUsed := st.gasUsed()
+	log.Debug("Used gas 6", "gasUsed", st.gasUsed())
 	// Pay gas fee to gas fee recipient
 	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-	log.Error("Paying gas fees", "receipient", msg.GasFeeRecipient(), "gasFee", gasFee, "gas Currency", msg.GasCurrency())
-
 	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
 	if msg.GasFeeRecipient() == nil {
 		err = st.creditGas(msg.From(), gasFee, msg.GasCurrency())
@@ -371,6 +363,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		err = st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
 	}
 
+	log.Debug("Used gas 7", "gasUsed", st.gasUsed())
 	if err != nil {
 		return nil, 0, false, err
 	}
