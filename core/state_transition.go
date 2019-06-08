@@ -324,7 +324,9 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
-	return st.buyGas()
+	if msg.chargeforgas {
+		return st.buyGas()
+	}
 }
 
 // TransitionDb will transition the state by applying the current message and
@@ -371,18 +373,20 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	st.refundGas()
 	gasUsed := st.gasUsed()
-	// Pay gas fee to Coinbase chosen by the miner
-	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", gasFee)
-	log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", gasFee, "gas Currency", msg.GasCurrency())
+	if msg.chargeforgas {
+		st.refundGas()
+		// Pay gas fee to Coinbase chosen by the miner
+		gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
+		log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", gasFee)
+		log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", gasFee, "gas Currency", msg.GasCurrency())
 
-	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
-	if msg.GasFeeRecipient() == nil {
-		st.creditGas(msg.From(), gasFee, msg.GasCurrency())
-	} else {
-		st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
+		// TODO(asa): Revisit this when paying gas fees partially to infra fund.
+		if msg.GasFeeRecipient() == nil {
+			st.creditGas(msg.From(), gasFee, msg.GasCurrency())
+		} else {
+			st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
+		}
 	}
 
 	return ret, st.gasUsed(), vmerr != nil, err

@@ -535,6 +535,7 @@ func (w *worker) mainLoop() {
 				}
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
+				// TODO(m-chrzan): Add RevealAndCommit tx here.
 				w.commitTransactions(txset, coinbase, nil)
 				w.updateSnapshot()
 			} else {
@@ -919,6 +920,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		header.Coinbase = w.coinbase
 		// TODO(asa): Set signature in the consensus engine, verify elsewhere
+		// TODO(martin): Example of signing
 		wallet, err := w.eth.AccountManager().Find(accounts.Account{Address: w.coinbase})
 		if err != nil {
 			log.Error("[Celo] Failed to get account for block signature", "err", err)
