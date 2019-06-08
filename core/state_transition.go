@@ -36,8 +36,9 @@ var (
 	// This is the amount of gas a single debitFrom or creditTo request can use.
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
+	// If these values are changed, "setDefaults" will need updating.
 	maxGasForDebitAndCreditTransactions uint64 = 30 * 1000
-	masGasToReadErc20Balance            uint64 = 1000
+	maxGasToReadErc20Balance            uint64 = 1000
 )
 
 /*
@@ -124,7 +125,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 
 	// We need to read an ERC20 balance and make one creditGas() and two debitGas() calls.
 	if gasCurrency != nil {
-		gas += 3*maxGasForDebitAndCreditTransactions + masGasToReadErc20Balance
+		gas += 3*maxGasForDebitAndCreditTransactions + maxGasToReadErc20Balance
 	}
 
 	return gas, nil
@@ -180,8 +181,7 @@ func (st *StateTransition) buyGas() error {
 		return errNonWhitelistedGasCurrency
 	}
 
-	canBuy, _ := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
-	if !canBuy {
+	if !st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency()) {
 		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -194,16 +194,15 @@ func (st *StateTransition) buyGas() error {
 	return err
 }
 
-func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big.Int, gasCurrency *common.Address) (bool, uint64) {
+func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big.Int, gasCurrency *common.Address) bool {
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
 	}
-	balanceOf, gasUsed, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
-	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(), "gas used", gasUsed, "error", err)
+	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
 	if err != nil {
-		return false, gasUsed
+		return false
 	}
-	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
+	return balanceOf.Cmp(gasNeeded) > 0
 }
 
 func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address) error {
@@ -281,12 +280,11 @@ func (st *StateTransition) preCheck() error {
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
-	// Check that the nonce is correct
+	// Check that the transaction nonce is correct
 	if err = st.preCheck(); err != nil {
 		log.Error("Transaction failed precheck", "err", err)
 		return
 	}
-	log.Info("Transaction passed precheck", "err", err)
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
@@ -294,32 +292,27 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	// Calculate intrinsic gas.
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, msg.GasCurrency())
-	log.Info("Transaction has intrinsic gas", "err", err, "gas", gas)
 	if err != nil {
 		return nil, 0, false, err
 	}
 
-	log.Debug("Used gas 1", "gasUsed", st.gasUsed())
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
-		log.Info("Transaction failed provide intrinsic gas", "err", err, "gas", gas)
+		log.Error("Transaction failed provide intrinsic gas", "err", err, "gas", gas)
 		return nil, 0, false, vm.ErrOutOfGas
 	}
 
-	log.Debug("Used gas 2", "gasUsed", st.gasUsed())
 	err = st.buyGas()
 	if err != nil {
-		log.Info("Transaction failed to buy gas", "err", err, "gas", gas)
+		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
-	log.Debug("Used gas 3", "gasUsed", st.gasUsed())
 	if err = st.useGas(gas); err != nil {
-		log.Info("Transaction failed to use gas", "err", err, "gas", gas)
+		log.Error("Transaction failed to use gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
-	log.Debug("Used gas 4", "gasUsed", st.gasUsed())
 	var (
 		evm = st.evm
 		// vm errors do not effect consensus and are therefore
@@ -327,7 +320,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		// error.
 		vmerr error
 	)
-	// txfail := false
 	if contractCreation {
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
 	} else {
@@ -336,7 +328,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
-	log.Debug("Used gas 5", "gasUsed", st.gasUsed())
 	if vmerr != nil {
 		log.Debug("VM returned with error", "err", vmerr)
 		// The only possible consensus-error would be if there wasn't
@@ -353,7 +344,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	gasUsed := st.gasUsed()
-	log.Debug("Used gas 6", "gasUsed", st.gasUsed())
 	// Pay gas fee to gas fee recipient
 	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
@@ -363,7 +353,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		err = st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
 	}
 
-	log.Debug("Used gas 7", "gasUsed", st.gasUsed())
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -381,8 +370,6 @@ func (st *StateTransition) refundGas() error {
 	st.gas += refund
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-
-	log.Trace("Refunding gas to sender", "sender", st.msg.From(), "refundAmount", remaining, "gas Currency", st.msg.GasCurrency())
 	err := st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
