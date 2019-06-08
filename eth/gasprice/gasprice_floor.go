@@ -32,7 +32,8 @@ func CalculateGasPriceFloor(header *types.Header, oldGasPrice *big.Int, targetDe
 	log.Info("Adjusting Gas Price Floor", "Adjustment percentage", new(big.Int).Div(gasPriceAdjustment, big.NewInt(10000)))
 	adjustmentMultiplier := new(big.Int).Add(one, gasPriceAdjustment)
 	undividedNewGasPriceFloor := new(big.Int).Mul(oldGasPrice, adjustmentMultiplier)
-	finalNewGasPriceFloor := new(big.Int).Div(undividedNewGasPriceFloor, divisor)
+	dividedNewGasPriceFloor := new(big.Int).Div(undividedNewGasPriceFloor, divisor)
+  finalNewGasPriceFloor := new(big.Int).Add(dividedNewGasPriceFloor, big.NewInt(1)) // Adding 1 so gas price never hits 0
 
 	return finalNewGasPriceFloor, nil
 }
