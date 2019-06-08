@@ -196,7 +196,7 @@ func (st *StateTransition) buyGas() error {
 
 func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big.Int, gasCurrency *common.Address) bool {
 	if gasCurrency == nil {
-		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
+		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
 	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
 	if err != nil {
