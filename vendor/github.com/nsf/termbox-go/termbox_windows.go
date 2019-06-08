@@ -431,8 +431,8 @@ var color_table_bg = []word{
 	background_green,
 	background_red | background_green, // yellow
 	background_blue,
-	background_red | background_blue,                    // magenta
-	background_green | background_blue,                  // cyan
+	background_red | background_blue,   // magenta
+	background_green | background_blue, // cyan
 	background_red | background_blue | background_green, // white
 }
 
@@ -443,8 +443,8 @@ var color_table_fg = []word{
 	foreground_green,
 	foreground_red | foreground_green, // yellow
 	foreground_blue,
-	foreground_red | foreground_blue,                    // magenta
-	foreground_green | foreground_blue,                  // cyan
+	foreground_red | foreground_blue,   // magenta
+	foreground_green | foreground_blue, // cyan
 	foreground_red | foreground_blue | foreground_green, // white
 }
 

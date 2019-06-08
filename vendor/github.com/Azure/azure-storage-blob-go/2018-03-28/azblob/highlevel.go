@@ -147,7 +147,6 @@ func UploadFileToBlockBlob(ctx context.Context, file *os.File,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-
 const BlobDefaultDownloadBlockSize = int64(4 * 1024 * 1024) // 4MB
 
 // DownloadFromAzureFileOptions identifies options used by the DownloadAzureFileToBuffer and DownloadAzureFileToFile functions.
@@ -211,11 +210,11 @@ func downloadBlobToBuffer(ctx context.Context, blobURL BlobURL, offset int64, co
 
 	err := doBatchTransfer(ctx, batchTransferOptions{
 		operationName: "downloadBlobToBuffer",
-		transferSize:    count,
+		transferSize:  count,
 		chunkSize:     o.BlockSize,
 		parallelism:   o.Parallelism,
 		operation: func(chunkStart int64, count int64) error {
-			dr, err := blobURL.Download(ctx, chunkStart+ offset, count, ac, false)
+			dr, err := blobURL.Download(ctx, chunkStart+offset, count, ac, false)
 			body := dr.Body(o.RetryReaderOptionsPerBlock)
 			if o.Progress != nil {
 				rangeProgress := int64(0)
@@ -295,7 +294,6 @@ func DownloadBlobToFile(ctx context.Context, blobURL BlobURL, offset int64, coun
 		return nil
 	}
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -416,7 +414,7 @@ func (t *uploadStreamToBlockBlobOptions) end(ctx context.Context) (interface{}, 
 	}
 	// Multiple blocks staged, commit them all now
 	blockID := newUuidBlockID(t.blockIDPrefix)
-	blockIDs := make([]string, t.maxBlockNum + 1)
+	blockIDs := make([]string, t.maxBlockNum+1)
 	for bn := uint32(0); bn <= t.maxBlockNum; bn++ {
 		blockIDs[bn] = blockID.WithBlockNumber(bn).ToBase64()
 	}

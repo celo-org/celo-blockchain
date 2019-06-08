@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
-	"io/ioutil"
 	"io"
+	"io/ioutil"
 )
 
 // RetryPolicy tells the pipeline what kind of retry policy to use. See the RetryPolicy* constants.
@@ -57,11 +57,11 @@ type RetryOptions struct {
 	// If RetryReadsFromSecondaryHost is "" (the default) then operations are not retried against another host.
 	// NOTE: Before setting this field, make sure you understand the issues around reading stale & potentially-inconsistent
 	// data at this webpage: https://docs.microsoft.com/en-us/azure/storage/common/storage-designing-ha-apps-with-ragrs
-	RetryReadsFromSecondaryHost string	// Comment this our for non-Blob SDKs
+	RetryReadsFromSecondaryHost string // Comment this our for non-Blob SDKs
 }
 
 func (o RetryOptions) retryReadsFromSecondaryHost() string {
-	return o.RetryReadsFromSecondaryHost	// This is for the Blob SDK only
+	return o.RetryReadsFromSecondaryHost // This is for the Blob SDK only
 	//return "" // This is for non-blob SDKs
 }
 

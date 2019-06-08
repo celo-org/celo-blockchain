@@ -17,7 +17,7 @@ type httpRange struct {
 
 func (r httpRange) pointers() *string {
 	if r.offset == 0 && r.count == 0 { // Do common case first for performance
-		return nil	// No specified range
+		return nil // No specified range
 	}
 	if r.offset < 0 {
 		panic("The range offset must be >= 0")

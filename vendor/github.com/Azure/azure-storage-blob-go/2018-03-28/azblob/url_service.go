@@ -89,8 +89,8 @@ func (s ServiceURL) ListContainersSegment(ctx context.Context, marker Marker, o 
 // ListContainersOptions defines options available when calling ListContainers.
 type ListContainersSegmentOptions struct {
 	Detail     ListContainersDetail // No IncludeType header is produced if ""
-	Prefix     string                   // No Prefix header is produced if ""
-	MaxResults int32                    // 0 means unspecified
+	Prefix     string               // No Prefix header is produced if ""
+	MaxResults int32                // 0 means unspecified
 	// TODO: update swagger to generate this type?
 }
 

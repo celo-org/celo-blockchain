@@ -17,119 +17,164 @@
 package core
 
 import (
-	"strings"
-	"sync"
+    "strings"
+    "sync"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
+    "github.com/ethereum/go-ethereum/accounts/abi"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/log"
+    "github.com/ethereum/go-ethereum/params"
 )
 
 const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
-	getAddressForABI = `[{"constant": true,
-                              "inputs": [
-                                   {
-                                       "name": "identifier",
-                                       "type": "string"
-                                   }
-                              ],
-                              "name": "getAddressFor",
-                              "outputs": [
-                                   {
-                                       "name": "",
-                                       "type": "address"
-                                   }
-                              ],
-                              "payable": false,
-                              "stateMutability": "view",
-                              "type": "function"
-                             }]`
+    // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
+    getAddressForABI = `[{"constant": true,
+                            "inputs": [
+                            {
+                                "name": "identifier",
+                                "type": "string"
+                            }
+                            ],
+                            "name": "getAddressFor",
+                            "outputs": [
+                            {
+                                "name": "",
+                                "type": "address"
+                            }
+                            ],
+                            "payable": false,
+                            "stateMutability": "view",
+                            "type": "function"
+                        }]`
+    migrationCompleteFlagABI = `[{
+                                    "constant": true,
+                                    "inputs": [],
+                                    "name": "migrationCompleteFlag",
+                                    "outputs": [
+                                    {
+                                        "name": "",
+                                        "type": "bool"
+                                    }
+                                    ],
+                                    "payable": false,
+                                    "stateMutability": "view",
+                                    "type": "function"
+                                }]`
 )
 
 var (
-	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AttestationsRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId, params.GasPriceOracleRegistryId, params.GovernanceRegistryId, params.BondedDepositsRegistryId}
-	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
-	zeroAddress                  = common.Address{}
+    registrySmartContractAddress    = common.HexToAddress("0x000000000000000000000000000000000000ce10")
+    registeredContractIds           = []string{params.GoldTokenRegistryId, params.AttestationsRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId, params.GasPriceOracleRegistryId, params.GovernanceRegistryId, params.BondedDepositsRegistryId}
+	getAddressForFuncABI, _         = abi.JSON(strings.NewReader(getAddressForABI))
+    migrationCompleteFlagFuncABI, _ = abi.JSON(strings.NewReader(migrationCompleteFlagABI))
+    zeroAddress                     = common.Address{}
 )
 
 type RegisteredAddresses struct {
-	registeredAddresses   map[string]common.Address
-	registeredAddressesMu sync.RWMutex
-	iEvmH                 *InternalEVMHandler
+    registeredAddresses     map[string]common.Address
+    registeredAddressesMu   sync.RWMutex
+    migrationCompleteFlag   bool
+    migrationCompleteFlagMu sync.RWMutex
+    iEvmH                   *InternalEVMHandler
 }
 
 func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.Address {
-	log.Trace("RegisteredAddresses.retrieveRegisteredAddresses called")
+    log.Trace("RegisteredAddresses.retrieveRegisteredAddresses called")
 
-	returnMap := make(map[string]common.Address)
+    returnMap := make(map[string]common.Address)
 
-	for _, contractRegistryId := range registeredContractIds {
-		var contractAddress common.Address
-		log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
-		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
-			log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
-			continue
-		} else {
-			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
+    for _, contractRegistryId := range registeredContractIds {
+        var contractAddress common.Address
+        log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
+        if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
+            log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
+            continue
+        } else {
+            log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
 
-			if contractAddress != zeroAddress {
-				returnMap[contractRegistryId] = contractAddress
-			}
-		}
-	}
+            if contractAddress != zeroAddress {
+                returnMap[contractRegistryId] = contractAddress
+            }
+        }
+    }
 
-	return returnMap
+    return returnMap
+}
+
+func (ra *RegisteredAddresses) retrieveMigrationCompleteFlag() bool {
+    log.Trace("RegisteredAddresses.retrieveMigrationCompleteFlag called")
+
+    returnFlag := false
+    if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, migrationCompleteFlagFuncABI, "migrationCompleteFlag", []interface{}{}, &returnFlag, 20000, nil, nil); err != nil {
+        log.Error("RegisteredAddresses.retrieveMigrationCompleteFlag - Registry.migrationCompleteFlag invocation error", "leftoverGas", leftoverGas, "err", err)
+    } else {
+        log.Trace("RegisteredAddresses.retrieveMigrationCompleteFlag - Registry.migrationCompleteFlag invocation success", "leftoverGas", leftoverGas)
+    }
+
+    return returnFlag
 }
 
 func (ra *RegisteredAddresses) RefreshAddresses() {
-	registeredAddresses := ra.retrieveRegisteredAddresses()
+    registeredAddresses := ra.retrieveRegisteredAddresses()
 
-	ra.registeredAddressesMu.Lock()
-	ra.registeredAddresses = registeredAddresses
-	ra.registeredAddressesMu.Unlock()
+    ra.registeredAddressesMu.Lock()
+    ra.registeredAddresses = registeredAddresses
+    ra.registeredAddressesMu.Unlock()
+
+    // refresh flag only if migrations have not yet completed
+    if !ra.migrationCompleteFlag {
+        migrationCompleteFlag := ra.retrieveMigrationCompleteFlag()
+
+        ra.migrationCompleteFlagMu.Lock()
+        ra.migrationCompleteFlag = migrationCompleteFlag
+        ra.migrationCompleteFlagMu.Unlock()
+        log.Info("Migration status updated", "complete", ra.migrationCompleteFlag)
+    }
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
-	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
-		ra.RefreshAddresses()
-	}
+    if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+        ra.RefreshAddresses()
+    }
 
-	ra.registeredAddressesMu.RLock()
-	defer ra.registeredAddressesMu.RUnlock()
+    ra.registeredAddressesMu.RLock()
+    defer ra.registeredAddressesMu.RUnlock()
 
-	if address, ok := ra.registeredAddresses[registryId]; !ok {
-		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
-		return nil
-	} else {
-		return &address
-	}
+    if address, ok := ra.registeredAddresses[registryId]; !ok {
+        if ra.migrationCompleteFlag {
+            log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for", "registry", registryId)
+        } else {
+            log.Error("RegisteredAddresses.GetRegisteredAddress - Migration in progress during address retrieval for", "registry", registryId)
+        }
+        return nil
+    } else {
+        return &address
+    }
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddressMap() map[string]*common.Address {
-	returnMap := make(map[string]*common.Address)
+    returnMap := make(map[string]*common.Address)
 
-	ra.registeredAddressesMu.RLock()
-	defer ra.registeredAddressesMu.RUnlock()
+    ra.registeredAddressesMu.RLock()
+    defer ra.registeredAddressesMu.RUnlock()
 
-	for _, registryId := range registeredContractIds {
-		if address, ok := ra.registeredAddresses[registryId]; !ok {
-			returnMap[registryId] = nil
-		} else {
-			returnMap[registryId] = &address
-		}
-	}
+    for _, registryId := range registeredContractIds {
+        if address, ok := ra.registeredAddresses[registryId]; !ok {
+            returnMap[registryId] = nil
+        } else {
+            returnMap[registryId] = &address
+        }
+    }
 
-	return returnMap
+    return returnMap
 }
 
 func NewRegisteredAddresses(iEvmH *InternalEVMHandler) *RegisteredAddresses {
-	ra := &RegisteredAddresses{
-		registeredAddresses: make(map[string]common.Address),
-		iEvmH:               iEvmH,
-	}
+    ra := &RegisteredAddresses{
+        registeredAddresses:   make(map[string]common.Address),
+        migrationCompleteFlag: false,
+        iEvmH:                 iEvmH,
+    }
 
-	return ra
+    return ra
 }
