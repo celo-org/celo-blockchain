@@ -87,7 +87,7 @@ func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message [
 	}
 	return nil
 }
-func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte) error {
+func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte, msgCode uint64) error {
 	testLogger.Warn("not sign any data")
 	return nil
 }
@@ -163,6 +163,8 @@ func (self *testSystemBackend) RemoveStaticPeer(enodeURL string) {}
 func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
+
+func (self *testSystemBackend) ConnectToValidators(validators []istanbul.Validator) {}
 
 // ==============================================
 //

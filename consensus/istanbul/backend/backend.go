@@ -44,6 +44,16 @@ const (
 	fetcherID = "istanbul"
 )
 
+// Entries for the valEnodeTable
+type ValidatorEnode struct {
+	enodeURL string
+	blockNum *big.Int
+
+	// TODO(kevjue) - Need to figure out how to make this more accurate with whether or not
+	// the peer is actually connected.
+	addPeerAttempted bool
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -64,6 +74,8 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 		knownMessages:    knownMessages,
 		announceWg:       new(sync.WaitGroup),
 		announceQuit:     make(chan struct{}),
+		valEnodeTable:    make(map[common.Address]*ValidatorEnode),
+		valEnodeTableMu:  new(sync.Mutex),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -106,6 +118,9 @@ type Backend struct {
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
 
+	valEnodeTable   map[common.Address]*ValidatorEnode
+	valEnodeTableMu *sync.Mutex
+
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 }
@@ -127,7 +142,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 // Broadcast implements istanbul.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload)
+	sb.Gossip(valSet, payload, istanbulMsg)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -137,7 +152,7 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64) error {
 	hash := istanbul.RLPHash(payload)
 	sb.knownMessages.Add(hash, true)
 
@@ -152,11 +167,11 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 		}
 	}
 
-	if sb.broadcaster != nil && (valSet == nil || len(targets) > 0) {
+	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
 
-		for addr, p := range ps {
-			ms, ok := sb.recentMessages.Get(addr)
+		for _, p := range ps {
+			/*ms, ok := sb.recentMessages.Get(addr)
 			var m *lru.ARCCache
 			if ok {
 				m, _ = ms.(*lru.ARCCache)
@@ -169,9 +184,9 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
 			}
 
 			m.Add(hash, true)
-			sb.recentMessages.Add(addr, m)
+			sb.recentMessages.Add(addr, m)*/
 
-			go p.Send(istanbulMsg, payload)
+			go p.Send(msgCode, payload)
 		}
 	}
 	return nil
@@ -422,5 +437,18 @@ func (sb *Backend) AddStaticPeer(enodeURL string) {
 func (sb *Backend) RemoveStaticPeer(enodeURL string) {
 	if sb.broadcaster != nil {
 		sb.broadcaster.RemoveStaticPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) ConnectToValidators(validators []istanbul.Validator) {
+	sb.valEnodeTableMu.Lock()
+	defer sb.valEnodeTableMu.Unlock()
+	for _, validator := range validators {
+		if valEnodeEntry, ok := sb.valEnodeTable[validator.Address()]; ok {
+			if !valEnodeEntry.addPeerAttempted {
+				sb.AddStaticPeer(valEnodeEntry.enodeURL)
+				valEnodeEntry.addPeerAttempted = true
+			}
+		}
 	}
 }

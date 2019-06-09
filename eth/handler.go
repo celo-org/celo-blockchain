@@ -357,6 +357,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
+	log.Trace("eth handle msg called", "msg.Code", msg.Code)
+
 	// Send messages to the consensus engine first. If they are consensus related,
 	// e.g. for IBFT, let the consensus handler handle the message.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
@@ -851,12 +853,14 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 }
 
 func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
+	log.Trace("FindPeers called", "targets", targets)
 	m := make(map[common.Address]consensus.Peer)
 	for _, p := range pm.peers.Peers() {
 		pubKey := p.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
-		if targets == nil || targets[addr] {
+		if targets[addr] || (targets == nil) {
 			m[addr] = p
+			log.Trace("Found peer", "addr", addr, "targets", targets)
 		}
 	}
 	return m

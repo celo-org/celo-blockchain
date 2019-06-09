@@ -41,6 +41,4 @@ var (
 	errFailedDecodePrepare = errors.New("failed to decode PREPARE")
 	// errFailedDecodeCommit is returned when the COMMIT message is malformed.
 	errFailedDecodeCommit = errors.New("failed to decode COMMIT")
-	// errFailedDecodeAnnounce is returned when the ANNOUNCE message is malformed.
-	errFailedDecodeAnnounce = errors.New("failed to decode ANNOUNCE")
 )

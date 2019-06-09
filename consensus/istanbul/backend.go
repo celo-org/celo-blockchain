@@ -43,7 +43,7 @@ type Backend interface {
 	Broadcast(valSet ValidatorSet, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte) error
+	Gossip(valSet ValidatorSet, payload []byte, msgCode uint64) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -80,4 +80,7 @@ type Backend interface {
 
 	// RemovePeer removes a peer
 	RemoveStaticPeer(enodeURL string)
+
+	// ConnectToValidators will attempt to establish a static connection to all the validators
+	ConnectToValidators(validators []Validator)
 }

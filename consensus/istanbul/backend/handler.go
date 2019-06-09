@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	istanbulMsg = 0x11
+	istanbulMsg         = 0x11
+	istanbulAnnounceMsg = 0x12
 )
 
 var (
@@ -40,7 +41,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{18},
+		Lengths:  []uint64{19},
 	}
 }
 
@@ -49,7 +50,11 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if msg.Code == istanbulMsg {
+	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) {
+		if !sb.coreStarted && (msg.Code == istanbulMsg) {
+			return true, istanbul.ErrStoppedEngine
+		}
+
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
 			return true, errDecodeFailed
@@ -74,9 +79,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 		}
 		sb.knownMessages.Add(hash, true)
 
-		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-			Payload: data,
-		})
+		if msg.Code == istanbulMsg {
+			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+				Payload: data,
+			})
+		} else if msg.Code == istanbulAnnounceMsg {
+			go sb.handleIstAnnounce(data)
+		}
 
 		return true, nil
 	}

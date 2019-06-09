@@ -196,6 +196,7 @@ func (p *peer) MarkTransaction(hash common.Hash) {
 // Send writes an RLP-encoded message with the given code.
 // data should encode as an RLP list.
 func (p *peer) Send(msgcode uint64, data interface{}) error {
+	p.Log().Trace("Peer send called", "msgcode", msgcode)
 	return p2p.Send(p.rw, msgcode, data)
 }
 

@@ -31,7 +31,6 @@ func (c *core) Start() error {
 	c.subscribeEvents()
 	go c.handleEvents()
 
-	c.started = true
 	return nil
 }
 
@@ -43,7 +42,6 @@ func (c *core) Stop() error {
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
 
-	c.started = false
 	return nil
 }
 
@@ -55,7 +53,6 @@ func (c *core) subscribeEvents() {
 		// external events
 		istanbul.RequestEvent{},
 		istanbul.MessageEvent{},
-		istanbul.AnnounceEvent{},
 		// internal events
 		backlogEvent{},
 	)
@@ -100,21 +97,20 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
+				c.logger.Trace("Received a MessageEvent")
 				if err := c.handleMsg(ev.Payload); err != nil {
 					c.logger.Error("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
 				if err := c.handleCheckedMsg(ev.msg, ev.src); err == nil {
-					p, err := ev.msg.Payload()
+					_, err := ev.msg.Payload()
 					if err != nil {
 						c.logger.Warn("Get message payload failed", "err", err)
 						continue
 					}
-					c.backend.Gossip(c.valSet, p)
+					//c.backend.Gossip(c.valSet, p)
 				}
-			case istanbul.AnnounceEvent:
-				c.sendAnnounce()
 			}
 		case _, ok := <-c.timeoutSub.Chan():
 			if !ok {
@@ -150,27 +146,19 @@ func (c *core) handleMsg(payload []byte) error {
 		return err
 	}
 
-	var src istanbul.Validator = nil
-	if msg.Code != msgAnnounce {
-		// Only handle consensus messages if the istanbul core is started
-		if !c.started {
-			return istanbul.ErrStoppedEngine
-		}
+	logger.Trace("Handling a new Istanbul message", "msg.Code", msg.Code, "msgAddress", msg.Address)
 
-		// Only accept message if the address is valid
-		_, src = c.valSet.GetByAddress(msg.Address)
-		if src == nil {
-			logger.Error("Invalid address in message", "msg", msg)
-			return istanbul.ErrUnauthorizedAddress
-		}
+	var src istanbul.Validator = nil
+
+	// Only accept message if the address is valid
+	_, src = c.valSet.GetByAddress(msg.Address)
+	if src == nil {
+		logger.Error("Invalid address in message", "msg", msg)
+		return istanbul.ErrUnauthorizedAddress
 	}
 
 	if err = c.handleCheckedMsg(msg, src); err != nil {
 		return err
-	}
-
-	if msg.Code == msgAnnounce {
-		c.backend.Gossip(nil, payload)
 	}
 
 	return nil
@@ -197,8 +185,6 @@ func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
 		return testBacklog(c.handleCommit(msg, src))
 	case msgRoundChange:
 		return testBacklog(c.handleRoundChange(msg, src))
-	case msgAnnounce:
-		return c.handleAnnounce(msg)
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}

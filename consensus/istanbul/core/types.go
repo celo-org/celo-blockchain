@@ -19,7 +19,6 @@ package core
 import (
 	"fmt"
 	"io"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -72,7 +71,6 @@ const (
 	msgPrepare
 	msgCommit
 	msgRoundChange
-	msgAnnounce
 )
 
 type message struct {
@@ -162,13 +160,4 @@ func (m *message) String() string {
 
 func Encode(val interface{}) ([]byte, error) {
 	return rlp.EncodeToBytes(val)
-}
-
-type ValidatorEnode struct {
-	enodeURL string
-	blockNum *big.Int
-
-	// TODO(kevjue) - Need to figure out how to make this more accurate with whether or not
-	// the peer is actually connected.
-	addPeerAttempted bool
 }

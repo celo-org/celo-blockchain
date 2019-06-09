@@ -83,6 +83,9 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
+	// errOldMessage is returned when the received announce message's block number is earlier
+	// than a previous received message
+	errOldAnnounceMessage = errors.New("old announce message")
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 	getValidatorsABI = `[{"constant": true,
@@ -755,7 +758,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 	for {
 		select {
 		case <-ticker.C:
-			go sb.EventMux().Post(istanbul.AnnounceEvent{})
+			go sb.sendIstAnnounce()
 
 		case <-sb.announceQuit:
 			ticker.Stop()
