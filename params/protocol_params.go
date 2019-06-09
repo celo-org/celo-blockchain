@@ -103,6 +103,7 @@ const (
 	SortedOraclesRegistryId          = "SortedOracles"
 	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
 	ValidatorsRegistryId             = "Validators"
+	GasPriceOracleRegistryId         = "GasPriceOracle"
 )
 
 var (

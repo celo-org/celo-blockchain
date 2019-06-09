@@ -186,10 +186,10 @@ type worker struct {
 	lastBlockVerified   uint64
 
 	// Transaction processing
-	pc *core.PriceComparator
+	co *core.CurrencyOperator
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -215,7 +215,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		pc:                  pc,
+		co:                  co,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -322,7 +322,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return w.pc.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return w.co.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
