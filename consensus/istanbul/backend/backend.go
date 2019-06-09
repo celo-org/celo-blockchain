@@ -43,6 +43,11 @@ const (
 	fetcherID = "istanbul"
 )
 
+var (
+	// errInvalidSigningFn is returned when the consensus signing function is invalid.
+	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+)
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -70,9 +75,9 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address common.Address    // Ethereum address of the signing key
-	signFn  istanbul.SignerFn // Signer function to authorize hashes with
-	lock    sync.RWMutex      // Protects the signer fields
+	address  common.Address    // Ethereum address of the signing key
+	signFn   istanbul.SignerFn // Signer function to authorize hashes with
+	signFnMu sync.RWMutex      // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -107,8 +112,8 @@ type Backend struct {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
-	sb.lock.Lock()
-	defer sb.lock.Unlock()
+	sb.signFnMu.Lock()
+	defer sb.signFnMu.Unlock()
 
 	sb.address = address
 	sb.signFn = signFn
@@ -333,9 +338,12 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
+	if sb.signFn == nil {
+		return nil, errInvalidSigningFn
+	}
 	hashData := crypto.Keccak256(data)
-	sb.lock.RLock()
-	defer sb.lock.RUnlock()
+	sb.signFnMu.RLock()
+	defer sb.signFnMu.RUnlock()
 	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 
