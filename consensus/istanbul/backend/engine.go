@@ -105,7 +105,7 @@ var (
       "inputs": [
         {
           "name": "blockReward",
-          "type": "uint128"
+          "type": "uint256"
         }
       ],
       "name": "setCumulativeRewardWeight",
@@ -448,10 +448,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
 
-	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
-	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = nilUncleHash
-
 	infrastructureBlockReward := big.NewInt(2e+18)
 	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 	if governanceAddress != nil {
@@ -463,12 +459,15 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	if bondedDepositsAddress != nil {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 		// TODO(asa): Call into bonded deposits to set the block reward
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 50000, big.NewInt(0), header, state)
-		if err != nil {
-			log.Error("Unable to send block rewards to bonded deposits")
-			return nil, err
+		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
+		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+			log.Error("Unable to send block rewards to bonded deposits", "err", err)
 		}
 	}
+
+	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
