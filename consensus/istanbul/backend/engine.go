@@ -382,7 +382,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			// Get the new epoch's validator set
 			var newValSet []common.Address
 
-			maxGasForGetValidators := 1000000
+			maxGasForGetValidators := uint64(1000000)
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 			if err != nil {
