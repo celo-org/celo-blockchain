@@ -574,4 +574,3 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 
 	return append(numeratorPadded, denominatorPadded...), gas, nil
 }
-
