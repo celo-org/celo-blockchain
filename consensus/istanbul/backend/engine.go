@@ -199,7 +199,6 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if chain.Config().FullHeaderChainAvailable {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-			log.Error("[nam] I should not be here")
 			return consensus.ErrUnknownAncestor
 		}
 		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
@@ -383,8 +382,9 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			// Get the new epoch's validator set
 			var newValSet []common.Address
 
+			maxGasForGetValidators := 1000000
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 1000000, header, state)
+			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxHasForGetValidators, header, state)
 			if err != nil {
 				log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "leftoverGas", leftoverGas, "err", err)
 			} else {
@@ -419,12 +419,21 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+
+	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
+	sb.updateGasPriceSuggestion(state)
+
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
+}
+
+// TODO (jarmg 5/23/18): Implement this
+func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *state.StateDB {
+	return (state)
 }
 
 // Seal generates a new block for the given input block with the local miner's
