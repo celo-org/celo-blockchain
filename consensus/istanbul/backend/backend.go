@@ -56,7 +56,7 @@ type ValidatorEnode struct {
 }
 
 func (ve *ValidatorEnode) String() string {
-     return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
+	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
 }
 
 // New creates an Ethereum backend for Istanbul core engine.

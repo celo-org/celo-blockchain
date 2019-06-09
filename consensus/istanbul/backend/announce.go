@@ -84,8 +84,8 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{Address: am.Address,
-		EnodeURL: am.EnodeURL,
-		View:     am.View,
+		EnodeURL:  am.EnodeURL,
+		View:      am.View,
 		Signature: []byte{}})
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func (sb *Backend) sendIstAnnounce() error {
 	}
 
 	logger.Trace("Broadcasting an announce message", "msg", msg)
-	
+
 	sb.Gossip(nil, payload, istanbulAnnounceMsg)
 
 	return nil
@@ -176,8 +176,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
-	        sb.logger.Trace("Received an IstanbulAnnounce message sent from this node. Ignoring it.")
-	        return nil
+		sb.logger.Trace("Received an IstanbulAnnounce message sent from this node. Ignoring it.")
+		return nil
 	}
 
 	// Save in the valEnodeTable if mining
@@ -204,7 +204,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		} else {
 			sb.valEnodeTable[msg.Address] = &ValidatorEnode{view: msg.View, enodeURL: msg.EnodeURL}
-		        sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
+			sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 		}
 
 		// If the msg.Address is part of the current validator set, then check if we need to add it as a static peer.
