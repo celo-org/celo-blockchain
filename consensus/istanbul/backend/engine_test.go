@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -51,7 +52,17 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	if err != nil {
 		panic(err)
 	}
-	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil, nil)
+	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock,
+		func(parentHash common.Hash) (*state.StateDB, error) {
+			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
+			return blockchain.StateAt(parentStateRoot)
+		},
+		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
+		},
+		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+			return blockchain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+		})
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
