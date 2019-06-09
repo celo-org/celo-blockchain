@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"errors"
 	"math/big"
 	"sync"
 	"time"
