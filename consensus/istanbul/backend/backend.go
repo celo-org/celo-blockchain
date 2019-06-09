@@ -238,17 +238,19 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
-	if err == nil || err == errEmptyCommittedSeals {
-		return 0, nil
-	} else if err == consensus.ErrFutureBlock {
-		return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
+	if err != nil && err != errEmptyCommittedSeals {
+		if err == consensus.ErrFutureBlock {
+			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
+		} else {
+			return 0, err
+		}
 	}
 
 	// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
 	// Get the state from this block's parent.
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
-		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
+		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 		return 0, err
 	}
 
@@ -258,19 +260,20 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Apply this block's transactions to update the state
 	receipts, _, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
-		log.Error("verify - Error in processing the block")
+		log.Error("verify - Error in processing the block", "err", err)
 		return 0, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
-		log.Error("verify - Error in validating the block")
+		log.Error("verify - Error in validating the block", "err", err)
 		return 0, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
+			log.Error("verify - Error in verifying the val set diff", "err", err)
 			return 0, err
 		}
 	}
