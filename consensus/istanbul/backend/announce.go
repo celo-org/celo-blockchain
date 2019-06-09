@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -35,12 +34,12 @@ import (
 type announceMessage struct {
 	Address   common.Address
 	EnodeURL  string
-	BlockNum  *big.Int
+	View      *istanbul.View
 	Signature []byte
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{BlockNum: %v, EnodeURL: %v, Signature: %v}", am.BlockNum, am.EnodeURL, hex.EncodeToString(am.Signature))
+	return fmt.Sprintf("{Address: %s, View: %v, EnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.EnodeURL, hex.EncodeToString(am.Signature))
 }
 
 // ==============================================
@@ -49,7 +48,7 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.BlockNum, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -57,14 +56,14 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address   common.Address
 		EnodeURL  string
-		BlockNum  *big.Int
+		View      *istanbul.View
 		Signature []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.EnodeURL, am.BlockNum, am.Signature = msg.Address, msg.EnodeURL, msg.BlockNum, msg.Signature
+	am.Address, am.EnodeURL, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.View, msg.Signature
 	return nil
 }
 
@@ -78,33 +77,30 @@ func (am *announceMessage) FromPayload(b []byte) error {
 }
 
 func (am *announceMessage) Payload() ([]byte, error) {
-	payload, err := rlp.EncodeToBytes(am)
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
+	return rlp.EncodeToBytes(am)
 }
 
 func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	msg := &announceMessage{Address: am.Address,
+	// Construct and encode a message with no signature
+	var payloadNoSig []byte
+	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{Address: am.Address,
 		EnodeURL: am.EnodeURL,
-		BlockNum: am.BlockNum}
-
-	data, err := rlp.EncodeToBytes(msg)
+		View:     am.View,
+		Signature: []byte{}})
 	if err != nil {
 		return err
 	}
-	am.Signature, err = signingFn(data)
+	am.Signature, err = signingFn(payloadNoSig)
 	return err
 }
 
 func (am *announceMessage) VerifySig() error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
-	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{Address: am.Address,
+	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
+		Address:   am.Address,
 		EnodeURL:  am.EnodeURL,
-		BlockNum:  am.BlockNum,
+		View:      am.View,
 		Signature: []byte{}})
 	if err != nil {
 		return err
@@ -135,13 +131,11 @@ func (sb *Backend) sendIstAnnounce() error {
 	}
 
 	enodeUrl := enode.String()
-	block := sb.currentBlock()
-
-	logger.Trace("Broadcasting an announce message", "blockNum", block.Number(), "enodeURL", enodeUrl)
+	view := sb.core.CurrentView()
 
 	msg := &announceMessage{Address: sb.Address(),
 		EnodeURL: enodeUrl,
-		BlockNum: block.Number()}
+		View:     view}
 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
@@ -156,13 +150,15 @@ func (sb *Backend) sendIstAnnounce() error {
 		return err
 	}
 
+	logger.Trace("Broadcasting an announce message", "msg", msg)
+	
 	sb.Gossip(nil, payload, istanbulAnnounceMsg)
 
 	return nil
 }
 
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
-	sb.logger.Trace("Received a handleAnnounce message")
+	sb.logger.Trace("Handling an IstanbulAnnounce message")
 
 	msg := new(announceMessage)
 	// Decode message
@@ -178,14 +174,20 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
+	// If the message is originally from this node, then ignore it
+	if msg.Address == sb.Address() {
+	        sb.logger.Trace("Received an IstanbulAnnounce message sent from this node. Ignoring it.")
+	        return nil
+	}
+
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
 		sb.valEnodeTableMu.Lock()
 		defer sb.valEnodeTableMu.Unlock()
 		if valEnodeEntry, ok := sb.valEnodeTable[msg.Address]; ok {
 			// If it is old message, ignore it.
-			if msg.BlockNum.Cmp(valEnodeEntry.blockNum) <= 0 {
-				sb.logger.Trace("Received an old announce message.  Ignoring it.", "from", msg.Address.Hex(), "blockNum", msg.BlockNum, "enode", msg.EnodeURL)
+			if msg.View.Cmp(valEnodeEntry.view) <= 0 {
+				sb.logger.Trace("Received an old announce message.  Ignoring it.", "from", msg.Address.Hex(), "view", msg.View, "enode", msg.EnodeURL)
 				return errOldAnnounceMessage
 			} else {
 				// Check if the enode has been changed
@@ -197,10 +199,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 					}
 					valEnodeEntry.enodeURL = msg.EnodeURL
 				}
-				valEnodeEntry.blockNum = msg.BlockNum
+				valEnodeEntry.view = msg.View
+				sb.logger.Trace("Updated an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 			}
 		} else {
-			sb.valEnodeTable[msg.Address] = &ValidatorEnode{blockNum: msg.BlockNum, enodeURL: msg.EnodeURL}
+			sb.valEnodeTable[msg.Address] = &ValidatorEnode{view: msg.View, enodeURL: msg.EnodeURL}
+		        sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 		}
 
 		// If the msg.Address is part of the current validator set, then check if we need to add it as a static peer.
@@ -220,6 +224,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Regossip the announce message.
 	// TODO(kevjue) - Only regossip if it's a potential validator for the upcoming epoch
+	sb.logger.Trace("Regossiping the istanbul announce message", "msg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg)
 
 	return nil

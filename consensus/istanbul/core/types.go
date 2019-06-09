@@ -21,12 +21,14 @@ import (
 	"io"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type Engine interface {
 	Start() error
 	Stop() error
+	CurrentView() *istanbul.View
 }
 
 type State uint64

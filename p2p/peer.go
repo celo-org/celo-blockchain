@@ -279,7 +279,6 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
-	p.log.Trace("p2p.peer handle called", "msg.Code", msg.Code)
 	switch {
 	case msg.Code == pingMsg:
 		msg.Discard()

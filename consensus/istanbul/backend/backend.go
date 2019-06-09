@@ -18,6 +18,7 @@ package backend
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -47,11 +48,15 @@ const (
 // Entries for the valEnodeTable
 type ValidatorEnode struct {
 	enodeURL string
-	blockNum *big.Int
+	view     *istanbul.View
 
 	// TODO(kevjue) - Need to figure out how to make this more accurate with whether or not
 	// the peer is actually connected.
 	addPeerAttempted bool
+}
+
+func (ve *ValidatorEnode) String() string {
+     return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -170,8 +175,8 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
 
-		for _, p := range ps {
-			/*ms, ok := sb.recentMessages.Get(addr)
+		for addr, p := range ps {
+			ms, ok := sb.recentMessages.Get(addr)
 			var m *lru.ARCCache
 			if ok {
 				m, _ = ms.(*lru.ARCCache)
@@ -184,7 +189,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 			}
 
 			m.Add(hash, true)
-			sb.recentMessages.Add(addr, m)*/
+			sb.recentMessages.Add(addr, m)
 
 			go p.Send(msgCode, payload)
 		}
@@ -441,6 +446,7 @@ func (sb *Backend) RemoveStaticPeer(enodeURL string) {
 }
 
 func (sb *Backend) ConnectToValidators(validators []istanbul.Validator) {
+	sb.logger.Trace("Called ConnectToValidators", "validators", validators)
 	sb.valEnodeTableMu.Lock()
 	defer sb.valEnodeTableMu.Unlock()
 	for _, validator := range validators {

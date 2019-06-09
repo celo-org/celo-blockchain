@@ -41,8 +41,11 @@ func (c *core) Stop() error {
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
-
 	return nil
+}
+
+func (c *core) CurrentView() *istanbul.View {
+	return c.currentView()
 }
 
 // ----------------------------------------------------------------------------
@@ -97,7 +100,6 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
-				c.logger.Trace("Received a MessageEvent")
 				if err := c.handleMsg(ev.Payload); err != nil {
 					c.logger.Error("Error in handling istanbul message", "err", err)
 				}
@@ -137,31 +139,21 @@ func (c *core) sendEvent(ev interface{}) {
 func (c *core) handleMsg(payload []byte) error {
 	logger := c.logger.New()
 
-	var err error
-
 	// Decode message and check its signature
 	msg := new(message)
-	if err = msg.FromPayload(payload, c.validateFn); err != nil {
+	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Error("Failed to decode message from payload", "err", err)
 		return err
 	}
 
-	logger.Trace("Handling a new Istanbul message", "msg.Code", msg.Code, "msgAddress", msg.Address)
-
-	var src istanbul.Validator = nil
-
 	// Only accept message if the address is valid
-	_, src = c.valSet.GetByAddress(msg.Address)
+	_, src := c.valSet.GetByAddress(msg.Address)
 	if src == nil {
 		logger.Error("Invalid address in message", "msg", msg)
 		return istanbul.ErrUnauthorizedAddress
 	}
 
-	if err = c.handleCheckedMsg(msg, src); err != nil {
-		return err
-	}
-
-	return nil
+	return c.handleCheckedMsg(msg, src)
 }
 
 func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
