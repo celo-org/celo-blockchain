@@ -97,7 +97,22 @@ var (
 			      "payable": false,
 			      "stateMutability": "view",
 			      "type": "function"
-			     }]`
+				 }]`
+
+	increaseSupplyABI = `[{
+		"constant": false,
+		"inputs": [
+		  {
+			"name": "amount",
+			"type": "uint256"
+		  }
+		],
+		"name": "increaseSupply",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	  }]`
 )
 var (
 	defaultDifficulty = big.NewInt(1)
@@ -109,7 +124,8 @@ var (
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
-	getValidatorsFuncABI, _ = abi.JSON(strings.NewReader(getValidatorsABI))
+	getValidatorsFuncABI, _  = abi.JSON(strings.NewReader(getValidatorsABI))
+	increaseSupplyFuncABI, _ = abi.JSON(strings.NewReader(increaseSupplyABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -424,6 +440,18 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.updateGasPriceSuggestion(state)
 
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
+
+	totalBlockRewards := big.NewInt(0)
+
+	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+
+	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
+
+		if _, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 200000, big.NewInt(0), header, state); err != nil {
+			//return err, nil// TODO nguo add value param
+		}
+	}
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
