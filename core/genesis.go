@@ -240,10 +240,11 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
 		}
-		log.Info("add totalsupply from genesis done", "totalsupply", totalSupply, "addr", addr)
 	}
 	// Store the total supply after genesis to address 0.
-	statedb.AddBalance(common.HexToAddress("0x0000000000000000000000000000000000000000"), totalSupply)
+	zeroAddress = common.Address{}
+	statedb.AddBalance(zeroAddress, totalSupply)
+	log.Info("add totalsupply from genesis done", "totalsupply", totalSupply)
 	root := statedb.IntermediateRoot(false)
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),

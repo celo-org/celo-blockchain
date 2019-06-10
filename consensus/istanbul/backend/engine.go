@@ -441,7 +441,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 
-	totalBlockRewards := big.NewInt(0)
+	totalBlockRewards := big.NewInt(1)
 
 	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
