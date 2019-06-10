@@ -758,6 +758,11 @@ func (sb *Backend) sendAnnounceMsgs() {
 	for {
 		select {
 		case <-ticker.C:
+		        // output the valEnodeTable for debugging purposes
+			log.Trace("ValEnodeTable:")
+			for address := range sb.valEnodeTable {
+			    log.Trace(fmt.Sprintf("\tAddress: %s\tValEnode: %s", address.Hex(), sb.valEnodeTable[address]))
+			}
 			go sb.sendIstAnnounce()
 
 		case <-sb.announceQuit:
