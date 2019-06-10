@@ -541,7 +541,6 @@ func (w *worker) mainLoop() {
 				}
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
-				// TODO(m-chrzan): Add RevealAndCommit tx here.
 				w.commitTransactions(txset, coinbase, nil)
 				w.updateSnapshot()
 			} else {
@@ -769,8 +768,8 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	if tx.Special {
-		random := core.NewRandom(w.iEvmH)
-		err := random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.randomAddress, w.current.header, w.current.state)
+		random := core.NewRandom(w.iEvmH, w.eth.RegisteredAddresses())
+		err := random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
 
 		if err != nil {
 			log.Error("Failed to reveal and commit")

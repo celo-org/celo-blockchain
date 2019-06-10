@@ -37,26 +37,32 @@ const (
       "type": "function"
     }
 ]`
+
+	gasAmount = 1000000
 )
 
 var (
 	revealAndCommitFuncABI, _ = abi.JSON(strings.NewReader(revealAndCommitABI))
+	zeroValue                 = big.NewInt(0)
 )
 
 type Random struct {
-	iEvmH *InternalEVMHandler
+	registeredAddresses *RegisteredAddresses
+	iEvmH               *InternalEVMHandler
 }
 
-func NewRandom(iEvmH *InternalEVMHandler) *Random {
+func NewRandom(iEvmH *InternalEVMHandler, registeredAddresses *RegisteredAddresses) *Random {
 	r := &Random{
-		iEvmH: iEvmH,
+		iEvmH:               iEvmH,
+		registeredAddresses: registeredAddresses,
 	}
 	return r
 }
 
-func (r *Random) RevealAndCommit(randomness [32]byte, newSealedRandomness [32]byte, proposer common.Address, address common.Address, header *types.Header, state *state.StateDB) error {
-	log.Debug("Calling to revealAndCommit", "randomness", randomness, "newSealedRandomness", newSealedRandomness, "proposer", proposer)
-	_, err := r.iEvmH.MakeCall(address, revealAndCommitFuncABI, "revealAndCommit", []interface{}{randomness, newSealedRandomness, proposer}, []interface{}{}, 1000000, big.NewInt(0), header, state)
+func (r *Random) RevealAndCommit(randomness [32]byte, newSealedRandomness [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
+	randomAddress := r.registeredAddresses.GetRegisteredAddress("Random")
+	args := []interface{}{randomness, newSealedRandomness, proposer}
+	_, err := r.iEvmH.MakeCall(*randomAddress, revealAndCommitFuncABI, "revealAndCommit", args, []interface{}{}, gasAmount, zeroValue, header, state)
 	if err != nil {
 		log.Error("MakeCall failed", "err", err)
 		return err
