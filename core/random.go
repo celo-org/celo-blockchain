@@ -51,10 +51,10 @@ type Random struct {
 	iEvmH               *InternalEVMHandler
 }
 
-func NewRandom(iEvmH *InternalEVMHandler, registeredAddresses *RegisteredAddresses) *Random {
+func NewRandom(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandler) *Random {
 	r := &Random{
-		iEvmH:               iEvmH,
 		registeredAddresses: registeredAddresses,
+		iEvmH:               iEvmH,
 	}
 	return r
 }

@@ -39,7 +39,7 @@ type StateProcessor struct {
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
 	gcWl   *GasCurrencyWhitelist
 	regAdd *RegisteredAddresses
-	iEvmH  *InternalEVMHandler
+	random *Random
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -59,8 +59,8 @@ func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	p.regAdd = regAdd
 }
 
-func (p *StateProcessor) SetIEvmH(iEvmH *InternalEVMHandler) {
-	p.iEvmH = iEvmH
+func (p *StateProcessor) SetRandom(random *Random) {
+	p.random = random
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -108,8 +108,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			var randomness, newSealedRandomness [32]byte
 			copy(randomness[:], tx.Data()[:32])
 			copy(newSealedRandomness[:], tx.Data()[32:])
-			random := NewRandom(p.iEvmH, p.regAdd)
-			random.RevealAndCommit(randomness, newSealedRandomness, block.Header().Coinbase, block.Header(), statedb)
+			p.random.RevealAndCommit(randomness, newSealedRandomness, block.Header().Coinbase, block.Header(), statedb)
 			// check from, to, first four bytes of data, return err if invalid
 		} else {
 			statedb.Prepare(tx.Hash(), block.Hash(), i)

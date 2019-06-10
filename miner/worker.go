@@ -190,11 +190,11 @@ type worker struct {
 	lastBlockVerified   uint64
 
 	// Transaction processing
-	co    *core.CurrencyOperator
-	iEvmH *core.InternalEVMHandler
+	co     *core.CurrencyOperator
+	random *core.Random
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, iEvmH *core.InternalEVMHandler) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, random *core.Random) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -221,7 +221,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		co:                  co,
-		iEvmH:               iEvmH,
+		random:              random,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -768,8 +768,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	if tx.Special {
-		random := core.NewRandom(w.iEvmH, w.eth.RegisteredAddresses())
-		err := random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
+		err := w.random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
 
 		if err != nil {
 			log.Error("Failed to reveal and commit")
