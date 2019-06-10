@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -1059,30 +1058,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if randomAddress != nil && *randomAddress != nullAddress {
 		w.current.randomAddress = *randomAddress
 
-		privateKey := crypto.ToECDSAUnsafe([]byte{0x42})
-		address := common.BytesToAddress([]byte{0x6f, 0x4c, 0x95, 0x04, 0x42, 0xe1, 0xAf, 0x09, 0x3B, 0xcf, 0xF7, 0x30, 0x38, 0x1E, 0x63, 0xAe, 0x91, 0x71, 0xb8, 0x7a})
-
 		randomness := [32]byte{1}
 		newRandomness := [32]byte{2}
 		w.current.randomness = randomness
 		w.current.newSealedRandomness = newRandomness
-		callData := make([]byte, 68)
+		callData := make([]byte, 64)
 		copy(callData[0:], randomness[:])
 		copy(callData[32:], newRandomness[:])
 
-		nonce := w.current.state.GetNonce(address)
-
-		tx := types.NewTransaction(nonce, *randomAddress, big.NewInt(0), 1000000, big.NewInt(0), nil, nil, callData)
-
-		tx, err = types.SignTx(tx, types.NewEIP155Signer(w.config.ChainID), privateKey)
-		if err != nil {
-			log.Debug("Failed to sign tx", "tx", tx, "err", err)
-		}
+		tx := types.NewTransaction(0, nullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
 		tx.Special = true
 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
-			address: types.Transactions{tx},
+			nullAddress: types.Transactions{tx},
 		}, w.txCmp)
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
