@@ -771,6 +771,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	if tx.Special {
 		random := core.NewRandom(w.iEvmH)
 		err := random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.randomAddress, w.current.header, w.current.state)
+
 		if err != nil {
 			log.Error("Failed to reveal and commit")
 		}
@@ -1055,6 +1056,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.eth.RegisteredAddresses().RefreshAddresses()
 	nullAddress := common.NullAddress()
 	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
+
 	if randomAddress != nil && *randomAddress != nullAddress {
 		w.current.randomAddress = *randomAddress
 
@@ -1073,6 +1075,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
 			nullAddress: types.Transactions{tx},
 		}, w.txCmp)
+
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
 		}

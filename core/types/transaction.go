@@ -41,7 +41,7 @@ type Transaction struct {
 	hash    atomic.Value
 	size    atomic.Value
 	from    atomic.Value
-	Special bool
+	Special bool // utility flag for randomness protocol
 }
 
 type txdata struct {
