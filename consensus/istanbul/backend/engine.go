@@ -440,13 +440,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
 
-	infrastructureBlockReward := big.NewInt(2e+18)
+	infrastructureBlockReward := big.NewInt(params.Ether)
 	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 	if governanceAddress != nil {
 		state.AddBalance(*governanceAddress, infrastructureBlockReward)
 	}
 
-	stakerBlockReward := big.NewInt(2e+18)
+	stakerBlockReward := big.NewInt(params.Ether)
 	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
 	if bondedDepositsAddress != nil {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
