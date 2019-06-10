@@ -291,7 +291,10 @@ func (w *worker) start() {
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
-			func(parentHash common.Hash) (*state.StateDB, error) { return w.chain.StateAt(parentHash) },
+			func(parentHash common.Hash) (*state.StateDB, error) {
+				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
+				return w.chain.StateAt(parentStateRoot)
+			},
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
