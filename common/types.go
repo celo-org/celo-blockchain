@@ -39,8 +39,9 @@ const (
 )
 
 var (
-	hashT    = reflect.TypeOf(Hash{})
-	addressT = reflect.TypeOf(Address{})
+	hashT       = reflect.TypeOf(Hash{})
+	addressT    = reflect.TypeOf(Address{})
+	NullAddress = BytesToAddress([]byte{})
 )
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
@@ -165,11 +166,6 @@ func BytesToAddress(b []byte) Address {
 	var a Address
 	a.SetBytes(b)
 	return a
-}
-
-// NullAddress returns Address object for 0x0
-func NullAddress() Address {
-	return BytesToAddress([]byte{})
 }
 
 // BigToAddress returns Address with byte values of b.

@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -192,9 +194,12 @@ type worker struct {
 	// Transaction processing
 	co     *core.CurrencyOperator
 	random *core.Random
+
+	// Needed for randomness
+	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, random *core.Random) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -222,6 +227,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		co:                  co,
 		random:              random,
+		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -1052,16 +1058,24 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	w.eth.RegisteredAddresses().RefreshAddresses()
-	nullAddress := common.NullAddress()
+	nullAddress := common.NullAddress
 	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
 
 	if randomAddress != nil && *randomAddress != nullAddress {
 		w.current.randomAddress = *randomAddress
 
-		randomness := [32]byte{1}
-		newRandomness := [32]byte{2}
+		randomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to get last randomness")
+		}
+		newRandomness := [32]byte{}
+		_, err = rand.Read(newRandomness[0:32])
+		if err != nil {
+			log.Error("Failed to generate randomness")
+		}
 		w.current.randomness = randomness
 		w.current.newSealedRandomness = newRandomness
+		w.random.StoreCommitment(newRandomness, newRandomness, w.db)
 		callData := make([]byte, 64)
 		copy(callData[0:], randomness[:])
 		copy(callData[32:], newRandomness[:])

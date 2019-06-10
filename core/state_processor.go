@@ -93,7 +93,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.gcWl.RefreshWhitelist()
 	}
 
-	nullAddress := common.NullAddress()
+	nullAddress := common.NullAddress
 	randomAddress := p.regAdd.GetRegisteredAddress("Random")
 	randomRunning := randomAddress != nil && *randomAddress != nullAddress
 
