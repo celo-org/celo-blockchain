@@ -46,6 +46,7 @@ func init() {
 // notifier sends initial notification with symmetric key, and
 // second notification symmetrically encrypted
 func TestStart(t *testing.T) {
+	t.Skip("Disabled due to flakiness")
 	adapter := adapters.NewSimAdapter(newServices(false))
 	net := simulations.NewNetwork(adapter, &simulations.NetworkConfig{
 		ID:             "0",
