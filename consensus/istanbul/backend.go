@@ -20,10 +20,15 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+// SignerFn is a signer callback function to request a hash to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, []byte) ([]byte, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -83,4 +88,7 @@ type Backend interface {
 
 	// ConnectToValidators will attempt to establish a static connection to all the validators
 	ConnectToValidators(validators []Validator)
+
+	// Authorize injects a private key into the consensus engine.
+	Authorize(address common.Address, signFn SignerFn)
 }

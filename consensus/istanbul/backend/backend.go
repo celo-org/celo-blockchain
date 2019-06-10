@@ -17,12 +17,13 @@
 package backend
 
 import (
-	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -45,6 +46,11 @@ const (
 	fetcherID = "istanbul"
 )
 
+var (
+	// errInvalidSigningFn is returned when the consensus signing function is invalid.
+	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+)
+
 // Entries for the valEnodeTable
 type ValidatorEnode struct {
 	enodeURL string
@@ -60,7 +66,7 @@ func (ve *ValidatorEnode) String() string {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -68,8 +74,6 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 	backend := &Backend{
 		config:           config,
 		istanbulEventMux: new(event.TypeMux),
-		privateKey:       privateKey,
-		address:          crypto.PubkeyToAddress(privateKey.PublicKey),
 		logger:           log.New(),
 		db:               db,
 		commitCh:         make(chan *types.Block, 1),
@@ -91,15 +95,18 @@ func New(config *istanbul.Config, privateKey *ecdsa.PrivateKey, db ethdb.Databas
 type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
-	privateKey       *ecdsa.PrivateKey
-	address          common.Address
-	core             istanbulCore.Engine
-	logger           log.Logger
-	db               ethdb.Database
-	chain            consensus.ChainReader
-	currentBlock     func() *types.Block
-	hasBadBlock      func(hash common.Hash) bool
-	stateAt          func(hash common.Hash) (*state.StateDB, error)
+
+	address  common.Address    // Ethereum address of the signing key
+	signFn   istanbul.SignerFn // Signer function to authorize hashes with
+	signFnMu sync.RWMutex      // Protects the signer fields
+
+	core         istanbulCore.Engine
+	logger       log.Logger
+	db           ethdb.Database
+	chain        consensus.ChainReader
+	currentBlock func() *types.Block
+	hasBadBlock  func(hash common.Hash) bool
+	stateAt      func(hash common.Hash) (*state.StateDB, error)
 
 	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
@@ -128,6 +135,16 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
+}
+
+// Authorize implements istanbul.Backend.Authorize
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
+	sb.signFnMu.Lock()
+	defer sb.signFnMu.Unlock()
+
+	sb.address = address
+	sb.signFn = signFn
+	sb.core.SetAddress(address)
 }
 
 // Address implements istanbul.Backend.Address
@@ -277,17 +294,19 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
-	if err == nil || err == errEmptyCommittedSeals {
-		return 0, nil
-	} else if err == consensus.ErrFutureBlock {
-		return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
+	if err != nil && err != errEmptyCommittedSeals {
+		if err == consensus.ErrFutureBlock {
+			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
+		} else {
+			return 0, err
+		}
 	}
 
 	// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
 	// Get the state from this block's parent.
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
-		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash)
+		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 		return 0, err
 	}
 
@@ -297,19 +316,20 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Apply this block's transactions to update the state
 	receipts, _, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
-		log.Error("verify - Error in processing the block")
+		log.Error("verify - Error in processing the block", "err", err)
 		return 0, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
-		log.Error("verify - Error in validating the block")
+		log.Error("verify - Error in validating the block", "err", err)
 		return 0, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
+			log.Error("verify - Error in verifying the val set diff", "err", err)
 			return 0, err
 		}
 	}
@@ -361,8 +381,13 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
+	if sb.signFn == nil {
+		return nil, errInvalidSigningFn
+	}
 	hashData := crypto.Keccak256(data)
-	return crypto.Sign(hashData, sb.privateKey)
+	sb.signFnMu.RLock()
+	defer sb.signFnMu.RUnlock()
+	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

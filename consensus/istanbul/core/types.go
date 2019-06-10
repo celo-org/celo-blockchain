@@ -29,6 +29,7 @@ type Engine interface {
 	Start() error
 	Stop() error
 	CurrentView() *istanbul.View
+	SetAddress(common.Address)
 }
 
 type State uint64
