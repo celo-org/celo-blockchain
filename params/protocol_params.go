@@ -102,6 +102,7 @@ const (
 	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
 	ValidatorsRegistryId             = "Validators"
 	GasPriceOracleRegistryId         = "GasPriceOracle"
+	RandomRegistryId                 = "Random"
 )
 
 var (

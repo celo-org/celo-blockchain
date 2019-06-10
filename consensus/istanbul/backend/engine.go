@@ -157,11 +157,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return errInvalidNonce
 	}
 
-	// Ensure that the coinbase is empty (Istanbul was originally using it for a candidate validator vote)
-	// TODO(kevjue) - We will most likely need to change this so that the coinbase field is set to the proposer address for the identity protocol.
-	if header.Coinbase != emptyAddress {
-		return errInvalidCoinbase
-	}
+	// TODO(martin) - ensure coinbase is block proposer when validating
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
@@ -342,7 +338,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = emptyAddress
+	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
 	header.MixDigest = types.IstanbulDigest
 

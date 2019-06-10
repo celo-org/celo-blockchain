@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -92,6 +93,10 @@ type environment struct {
 	header   *types.Header
 	txs      []*types.Transaction
 	receipts []*types.Receipt
+
+	randomness          [32]byte
+	newSealedRandomness [32]byte
+	randomAddress       common.Address
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -186,10 +191,11 @@ type worker struct {
 	lastBlockVerified   uint64
 
 	// Transaction processing
-	co *core.CurrencyOperator
+	co    *core.CurrencyOperator
+	iEvmH *core.InternalEVMHandler
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, iEvmH *core.InternalEVMHandler) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -216,6 +222,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		co:                  co,
+		iEvmH:               iEvmH,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -762,15 +769,30 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
-	if err != nil {
-		w.current.state.RevertToSnapshot(snap)
-		return nil, err
-	}
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
+	if tx.Special {
+		random := core.NewRandom(w.iEvmH)
+		err := random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.randomAddress, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to reveal and commit")
+		}
 
-	return receipt.Logs, nil
+		receipt := types.SpecialReceipt(tx)
+		w.current.txs = append(w.current.txs, tx)
+		w.current.receipts = append(w.current.receipts, receipt)
+
+		return []*types.Log{}, nil
+	} else {
+		receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
+		if err != nil {
+			w.current.state.RevertToSnapshot(snap)
+			return nil, err
+		}
+
+		w.current.txs = append(w.current.txs, tx)
+		w.current.receipts = append(w.current.receipts, receipt)
+
+		return receipt.Logs, nil
+	}
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -829,6 +851,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			txs.Pop()
 			continue
 		}
+
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
@@ -1019,17 +1042,55 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		istanbulEmptyBlockCommit()
 		return
 	}
-	// Short circuit if there is no available pending transactions
-	if len(pending) == 0 {
-		istanbulEmptyBlockCommit()
-		return
-	}
+	// TODO(martin): readd short circuiting if no pending, after adding special
+	// tx?
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
 		if txs := remoteTxs[account]; len(txs) > 0 {
 			delete(remoteTxs, account)
 			localTxs[account] = txs
+		}
+	}
+
+	w.eth.RegisteredAddresses().RefreshAddresses()
+	nullAddress := common.NullAddress()
+	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
+	if randomAddress != nil && *randomAddress != nullAddress {
+		w.current.randomAddress = *randomAddress
+
+		privateKey, err := crypto.ToECDSA2([]byte{0x42})
+		address := common.BytesToAddress([]byte{0x6f, 0x4c, 0x95, 0x04, 0x42, 0xe1, 0xAf, 0x09, 0x3B, 0xcf, 0xF7, 0x30, 0x38, 0x1E, 0x63, 0xAe, 0x91, 0x71, 0xb8, 0x7a})
+		if err != nil {
+			log.Error("failed making key", "err", err)
+		}
+
+		functionSignature := [4]byte{0xc4, 0x6b, 0x0f, 0x9f}
+		randomness := [32]byte{1}
+		newRandomness := [32]byte{2}
+		w.current.randomness = randomness
+		w.current.newSealedRandomness = newRandomness
+		callData := make([]byte, 68)
+		copy(callData[0:], functionSignature[:])
+		copy(callData[4:], randomness[:])
+		copy(callData[36:], newRandomness[:])
+
+		nonce := w.current.state.GetNonce(address)
+
+		tx := types.NewTransaction(nonce, *randomAddress, big.NewInt(0), 1000000, big.NewInt(0), nil, nil, callData)
+
+		tx, err = types.SignTx(tx, types.NewEIP155Signer(w.config.ChainID), privateKey)
+		if err != nil {
+			log.Debug("Failed to sign tx", "tx", tx, "err", err)
+		}
+
+		tx.Special = true
+
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
+			address: types.Transactions{tx},
+		}, w.txCmp)
+		if w.commitTransactions(txs, w.coinbase, interrupt) {
+			return
 		}
 	}
 	if len(localTxs) > 0 {

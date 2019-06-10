@@ -39,6 +39,7 @@ type StateProcessor struct {
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
 	gcWl   *GasCurrencyWhitelist
 	regAdd *RegisteredAddresses
+	iEvmH  *InternalEVMHandler
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -56,6 +57,10 @@ func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
 
 func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	p.regAdd = regAdd
+}
+
+func (p *StateProcessor) SetIEvmH(iEvmH *InternalEVMHandler) {
+	p.iEvmH = iEvmH
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -88,21 +93,36 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.gcWl.RefreshWhitelist()
 	}
 
+	nullAddress := common.NullAddress()
+	randomAddress := p.regAdd.GetRegisteredAddress("Random")
+	randomRunning := randomAddress != nil && *randomAddress != nullAddress
+
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if i == 0 {
+		if i == 0 && randomRunning {
+			receipt := types.NewReceipt([]byte{}, false, 0)
+			receipt.TxHash = tx.Hash()
+			receipt.GasUsed = 0
+			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+			receipts = append(receipts, receipt)
+			var randomness, newSealedRandomness [32]byte
+			copy(randomness[:], tx.Data()[4:36])
+			copy(newSealedRandomness[:], tx.Data()[36:])
+			random := NewRandom(p.iEvmH)
+			random.RevealAndCommit(randomness, newSealedRandomness, block.Header().Coinbase, *randomAddress, block.Header(), statedb)
 			// check from, to, first four bytes of data, return err if invalid
+		} else {
+			statedb.Prepare(tx.Hash(), block.Hash(), i)
+			receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
+			if i == 0 && receipt.Status == types.ReceiptStatusFailed {
+				// return err
+			}
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			receipts = append(receipts, receipt)
+			allLogs = append(allLogs, receipt.Logs...)
 		}
-		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
-		if i == 0 && receipt.Status == types.ReceiptStatusFailed {
-			// return err
-		}
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		receipts = append(receipts, receipt)
-		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
@@ -125,8 +145,10 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
+
 	// dont charge the first tx
-	msg.chargeforgas = usedGas != 0
+	// msg.chargeforgas = usedGas != 0
+
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl)
 	if err != nil {

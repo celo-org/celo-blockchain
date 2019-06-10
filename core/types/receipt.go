@@ -112,6 +112,15 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 	return r
 }
 
+func SpecialReceipt(tx *Transaction) *Receipt {
+	receipt := NewReceipt([]byte{}, false, 0)
+	receipt.TxHash = tx.Hash()
+	receipt.GasUsed = 0
+	receipt.Bloom = CreateBloom(Receipts{receipt})
+
+	return receipt
+}
+
 // Decode a VerificationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
 // input[0:32]:  bytes32 phoneHash

@@ -38,9 +38,10 @@ var (
 type Transaction struct {
 	data txdata
 	// caches
-	hash atomic.Value
-	size atomic.Value
-	from atomic.Value
+	hash    atomic.Value
+	size    atomic.Value
+	from    atomic.Value
+	Special bool
 }
 
 type txdata struct {
@@ -360,6 +361,9 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 		txCmpFunc: txCmpFunc,
 	}
 	for from, accTxs := range txs {
+		if len(accTxs) == 0 {
+			continue
+		}
 		heads.Push(accTxs[0])
 		// Ensure the sender address is from the signer
 		acc, _ := Sender(signer, accTxs[0])

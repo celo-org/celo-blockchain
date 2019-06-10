@@ -167,6 +167,11 @@ func BytesToAddress(b []byte) Address {
 	return a
 }
 
+// NullAddress returns Address object for 0x0
+func NullAddress() Address {
+	return BytesToAddress([]byte{})
+}
+
 // BigToAddress returns Address with byte values of b.
 // If b is larger than len(h), b will be cropped from the left.
 func BigToAddress(b *big.Int) Address { return BytesToAddress(b.Bytes()) }
