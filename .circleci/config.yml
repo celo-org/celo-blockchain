@@ -88,11 +88,13 @@ jobs:
             sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
             sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
             cd ${CELO_MONOREPO_DIR}/packages/celotool
+            # TODO(asa): Remove this line
+            git checkout asaj/gasfeetests
             yarn
       - persist_to_workspace:
           root: .
           paths: .
-     
+
   end-to-end-transfer-test:
     docker:
       - image: celohq/node8:gcloud
@@ -109,7 +111,7 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_transfers.sh local ~/geth
-  
+
   end-to-end-sync-test:
     docker:
       - image: celohq/node8:gcloud
