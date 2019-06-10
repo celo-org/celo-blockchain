@@ -106,8 +106,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 			receipts = append(receipts, receipt)
 			var randomness, newSealedRandomness [32]byte
-			copy(randomness[:], tx.Data()[4:36])
-			copy(newSealedRandomness[:], tx.Data()[36:])
+			copy(randomness[:], tx.Data()[:32])
+			copy(newSealedRandomness[:], tx.Data()[32:])
 			random := NewRandom(p.iEvmH)
 			random.RevealAndCommit(randomness, newSealedRandomness, block.Header().Coinbase, *randomAddress, block.Header(), statedb)
 			// check from, to, first four bytes of data, return err if invalid

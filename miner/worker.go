@@ -1059,21 +1059,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if randomAddress != nil && *randomAddress != nullAddress {
 		w.current.randomAddress = *randomAddress
 
-		privateKey, err := crypto.ToECDSA2([]byte{0x42})
+		privateKey := crypto.ToECDSAUnsafe([]byte{0x42})
 		address := common.BytesToAddress([]byte{0x6f, 0x4c, 0x95, 0x04, 0x42, 0xe1, 0xAf, 0x09, 0x3B, 0xcf, 0xF7, 0x30, 0x38, 0x1E, 0x63, 0xAe, 0x91, 0x71, 0xb8, 0x7a})
-		if err != nil {
-			log.Error("failed making key", "err", err)
-		}
 
-		functionSignature := [4]byte{0xc4, 0x6b, 0x0f, 0x9f}
 		randomness := [32]byte{1}
 		newRandomness := [32]byte{2}
 		w.current.randomness = randomness
 		w.current.newSealedRandomness = newRandomness
 		callData := make([]byte, 68)
-		copy(callData[0:], functionSignature[:])
-		copy(callData[4:], randomness[:])
-		copy(callData[36:], newRandomness[:])
+		copy(callData[0:], randomness[:])
+		copy(callData[32:], newRandomness[:])
 
 		nonce := w.current.state.GetNonce(address)
 

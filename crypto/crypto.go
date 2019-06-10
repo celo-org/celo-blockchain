@@ -87,11 +87,6 @@ func ToECDSA(d []byte) (*ecdsa.PrivateKey, error) {
 	return toECDSA(d, true)
 }
 
-// ToECDSA2 creates a private key with the given D value.
-func ToECDSA2(d []byte) (*ecdsa.PrivateKey, error) {
-	return toECDSA(d, false)
-}
-
 // ToECDSAUnsafe blindly converts a binary blob to a private key. It should almost
 // never be used unless you are sure the input is valid and want to avoid hitting
 // errors due to bad origin encoding (0 prefixes cut off).
