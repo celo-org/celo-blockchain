@@ -1220,7 +1220,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		*(*uint64)(args.Gas) = 90000
 	}
 	if args.GasPrice == nil {
-		price, err := b.SuggestPrice(ctx)
+		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err
 		}
