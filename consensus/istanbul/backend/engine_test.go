@@ -24,11 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -44,15 +46,32 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
-	b, _ := New(config, nodeKeys[0], memDB).(*Backend)
+	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
+	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		return crypto.Sign(data, nodeKeys[0])
+	}
+
+	b, _ := New(config, memDB).(*Backend)
+	b.Authorize(address, signerFn)
+
 	genesis.MustCommit(memDB)
 
 	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil)
 	if err != nil {
 		panic(err)
 	}
-	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock, nil, nil, nil, nil, nil)
-	snap, err := b.snapshot(blockchain, 0, common.Hash{})
+	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock,
+		func(parentHash common.Hash) (*state.StateDB, error) {
+			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
+			return blockchain.StateAt(parentStateRoot)
+		},
+		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
+		},
+		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+			return blockchain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+		})
+	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -65,8 +84,10 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	for _, key := range nodeKeys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		if addr.String() == proposerAddr.String() {
-			b.privateKey = key
-			b.address = addr
+			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+				return crypto.Sign(data, key)
+			}
+			b.Authorize(address, signerFn)
 		}
 	}
 
@@ -337,7 +358,7 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	// unauthorized users but still can get correct signer address
-	engine.privateKey, _ = crypto.GenerateKey()
+	engine.Authorize(common.Address{}, nil)
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)

@@ -1,5 +1,8 @@
 {
-  "name": "@celo/geth",
+  "name": "@celo/client",
   "version": "0.0.1",
-  "description": "celo geth"
+  "description": "Celo client for mobile",
+  "files": [
+    "build/bin/geth.aar"
+  ]
 }

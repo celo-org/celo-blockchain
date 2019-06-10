@@ -56,6 +56,11 @@ type testCommittedMsgs struct {
 //
 // define the functions that needs to be provided for Istanbul.
 
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn) {
+	self.address = address
+	self.engine.SetAddress(address)
+}
+
 func (self *testSystemBackend) Address() common.Address {
 	return self.address
 }

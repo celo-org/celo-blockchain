@@ -50,7 +50,7 @@ const (
 
 var (
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId}
+	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AddressBasedEncryptionRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId, params.GasPriceOracleRegistryId}
 	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
 	zeroAddress                  = common.Address{}
 )
@@ -69,7 +69,7 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 	for _, contractRegistryId := range registeredContractIds {
 		var contractAddress common.Address
 		log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
-		if leftoverGas, err := ra.iEvmH.MakeCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
+		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
 			log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
@@ -93,10 +93,15 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
+	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+		ra.RefreshAddresses()
+	}
+
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
+		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
 		return nil
 	} else {
 		return &address

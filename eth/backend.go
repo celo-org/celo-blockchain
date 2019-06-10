@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -146,11 +145,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, config.SyncMode != downloader.CeloLatestSync),
 	}
 
-	// force to set the istanbul etherbase to node key address
-	if chainConfig.Istanbul != nil {
-		eth.etherbase = crypto.PubkeyToAddress(ctx.NodeKey().PublicKey)
-	}
-
 	log.Info("Initialising Ethereum protocol", "versions", eth.engine.Protocol().Versions, "network", config.NetworkId)
 
 	if !config.SkipBcVersionCheck {
@@ -186,9 +180,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.  Note
-	// that this should NOT be used when executing smart contract calls done via end user transactions.
-	eth.iEvmH = core.NewInternalEVMHandler(eth.chainConfig, eth.blockchain)
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
+	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
@@ -198,16 +192,16 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	pc := core.NewPriceComparator(eth.gcWl, eth.regAdd, eth.iEvmH)
+	co := core.NewCurrencyOperator(eth.gcWl, eth.regAdd, eth.iEvmH)
 
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, pc, eth.gcWl, eth.iEvmH)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl, eth.iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, config.MinerVerificationRewards, pc)
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, config.MinerVerificationRewards, co)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth, nil}
@@ -215,7 +209,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.MinerGasPrice
 	}
-	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
+	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams, co)
 
 	return eth, nil
 }
@@ -261,7 +255,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
-		return istanbulBackend.New(&config.Istanbul, ctx.NodeKey(), db)
+		return istanbulBackend.New(&config.Istanbul, db)
 	}
 
 	// Otherwise assume proof-of-work
@@ -465,13 +459,20 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
-		if clique, ok := s.engine.(*clique.Clique); ok {
+		clique, isClique := s.engine.(*clique.Clique)
+		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
+		if isIstanbul || isClique {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
-			clique.Authorize(eb, wallet.SignHash)
+			if isClique {
+				clique.Authorize(eb, wallet.SignHash)
+			}
+			if isIstanbul {
+				istanbul.Authorize(eb, wallet.SignHash)
+			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.
@@ -510,6 +511,7 @@ func (s *Ethereum) EthVersion() int                                  { return in
 func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
+func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
 
