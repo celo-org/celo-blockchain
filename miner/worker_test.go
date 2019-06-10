@@ -178,8 +178,20 @@ func TestPendingStateAndBlockEthash(t *testing.T) {
 func TestPendingStateAndBlockClique(t *testing.T) {
 	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
 }
+
+func getAuthorizedIstanbulEngine() consensus.Istanbul {
+
+	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		return crypto.Sign(data, testBankKey)
+	}
+
+	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn)
+	return engine
+}
+
 func TestPendingStateAndBlockIstanbul(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()))
+	testPendingStateAndBlock(t, cliqueChainConfig, getAuthorizedIstanbulEngine())
 }
 
 func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
@@ -221,8 +233,8 @@ func TestEmptyWorkClique(t *testing.T) {
 func TestEmptyWorkIstanbul(t *testing.T) {
 	// TODO(nambrot): Fix this
 	t.Skip("Disabled due to flakiness")
-	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), false, true)
-	testEmptyWork(t, istanbulChainConfig, istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase()), true, false)
+	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), false, true)
+	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), true, false)
 }
 
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, expectEmptyBlock bool, shouldAddPendingTxs bool) {
@@ -365,7 +377,7 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	t.Skip("Disabled due to flakiness")
 
 	chainConfig := istanbulChainConfig
-	engine := istanbulBackend.New(istanbul.DefaultConfig, testBankKey, ethdb.NewMemDatabase())
+	engine := getAuthorizedIstanbulEngine()
 
 	defer engine.Close()
 
