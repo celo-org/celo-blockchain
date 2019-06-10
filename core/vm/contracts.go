@@ -54,6 +54,7 @@ var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestVerificationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var getCoinbaseAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
+var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -71,6 +72,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestVerificationAddress: &requestVerification{},
 	getCoinbaseAddress:         &getCoinbase{},
 	transferAddress:            &transfer{},
+	fractionMulExpAddress:      &fractionMulExp{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -507,4 +509,68 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	gas, err := evm.TobinTransfer(evm.StateDB, from, to, gas, value)
 
 	return input, gas, err
+}
+
+// computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions
+type fractionMulExp struct{}
+
+func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
+	return params.FractionMulExpGas
+}
+
+func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	parseErrorStr := "Error parsing input: unable to parse %s value from %s"
+
+	aNumerator, parsed := math.ParseBig256(hexutil.Encode(input[0:32]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "aNumerator", hexutil.Encode(input[0:32]))
+	}
+
+	aDenominator, parsed := math.ParseBig256(hexutil.Encode(input[32:64]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "aDenominator", hexutil.Encode(input[32:64]))
+	}
+
+	bNumerator, parsed := math.ParseBig256(hexutil.Encode(input[64:96]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "bNumerator", hexutil.Encode(input[64:96]))
+	}
+
+	bDenominator, parsed := math.ParseBig256(hexutil.Encode(input[96:128]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "bDenominator", hexutil.Encode(input[96:128]))
+	}
+
+	exponent, parsed := math.ParseBig256(hexutil.Encode(input[128:160]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "exponent", hexutil.Encode(input[128:160]))
+	}
+
+	decimals, parsed := math.ParseBig256(hexutil.Encode(input[160:192]))
+	if !parsed {
+		return nil, gas, fmt.Errorf(parseErrorStr, "decimals", hexutil.Encode(input[160:192]))
+	}
+
+	// Handle passing of zero denominators
+	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
+		return nil, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
+	}
+
+	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
+	denominatorExp := new(big.Int).Mul(aDenominator, new(big.Int).Exp(bDenominator, exponent, nil))
+
+	decimalAdjustment := new(big.Int).Exp(big.NewInt(10), decimals, nil)
+
+	numeratorDecimalAdjusted := new(big.Int).Div(new(big.Int).Mul(numeratorExp, decimalAdjustment), denominatorExp).Bytes()
+	denominatorDecimalAdjusted := decimalAdjustment.Bytes()
+
+	numeratorPadded := common.LeftPadBytes(numeratorDecimalAdjusted, 32)
+	denominatorPadded := common.LeftPadBytes(denominatorDecimalAdjusted, 32)
+
+	return append(numeratorPadded, denominatorPadded...), gas, nil
 }
