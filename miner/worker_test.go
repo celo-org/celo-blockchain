@@ -91,6 +91,9 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
+	iEvmH          *core.InternalEVMHandler
+	regAdd         *core.RegisteredAddresses
+	gcWl           *core.GasCurrencyWhitelist
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -120,8 +123,20 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
-	co := core.NewCurrencyOperator(nil, nil, nil)
+
+	iEvmH := core.NewInternalEVMHandler(chain)
+	regAdd := core.NewRegisteredAddresses(iEvmH)
+	iEvmH.SetRegisteredAddresses(regAdd)
+	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
+	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
+
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
+
+	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	if istanbul, ok := engine.(consensus.Istanbul); ok {
+		istanbul.SetInternalEVMHandler(iEvmH)
+		istanbul.SetRegisteredAddresses(regAdd)
+	}
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -142,12 +157,21 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	var backends []accounts.Backend
 	accountManager := accounts.NewManager(backends...)
 
+	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	if istanbul, ok := engine.(consensus.Istanbul); ok {
+		istanbul.SetInternalEVMHandler(nil)
+		istanbul.SetRegisteredAddresses(nil)
+	}
+
 	return &testWorkerBackend{
 		accountManager: accountManager,
 		db:             db,
 		chain:          chain,
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
+		iEvmH:          iEvmH,
+		gcWl:           gcWl,
+		regAdd:         regAdd,
 	}
 }
 
@@ -157,9 +181,9 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
-func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return nil }
-func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return nil }
-func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return nil }
+func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
+func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
+func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return b.iEvmH }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
