@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -496,7 +497,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 
 	if sb.badBlock() {
 		// Generate bad transactions
-		tx := types.NewTransaction(100, common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, nil)
+		tx := types.NewTransaction(100, common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, nil, nil)
 		block.WithBody([]*types.Transaction{tx}, nil)
 	}
 
