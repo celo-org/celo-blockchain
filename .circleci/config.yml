@@ -6,10 +6,22 @@ defaults: &defaults
   working_directory: /go/src/github.com/celo-org/geth
 
 jobs:
-  build:
+  unit-test:
     <<: *defaults
     steps:
       - checkout
       - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test
 
+  lint:
+    <<: *defaults
+    steps:
+      - checkout
+      - run: build/env.sh go run build/ci.go lint
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - unit-test
+      - lint
