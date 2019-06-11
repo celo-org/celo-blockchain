@@ -32,13 +32,6 @@ var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
 
 	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
-
-	// This is the amount of gas a single debitFrom or creditTo request can use.
-	// TODO(asa): Make these operations less expensive by charging only what is used.
-	// The problem is we don't know how much to refund until the refund is complete.
-	// If these values are changed, "setDefaults" will need updating.
-	maxGasForDebitAndCreditTransactions uint64 = 30 * 1000
-	maxGasToReadErc20Balance            uint64 = 1000
 )
 
 /*
@@ -125,7 +118,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 
 	// We need to read an ERC20 balance and make one creditGas() and two debitGas() calls.
 	if gasCurrency != nil {
-		gas += 3*maxGasForDebitAndCreditTransactions + maxGasToReadErc20Balance
+		gas += 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
 	}
 
 	return gas, nil
@@ -214,7 +207,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, ad
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, maxGasForDebitAndCreditTransactions, big.NewInt(0))
+	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitAndCreditTransactions, big.NewInt(0))
 	if err != nil {
 		log.Error("failed to debit or credit ERC20 balance", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
@@ -327,7 +320,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
-
 	if vmerr != nil {
 		log.Debug("VM returned with error", "err", vmerr)
 		// The only possible consensus-error would be if there wasn't
