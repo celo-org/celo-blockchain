@@ -27,6 +27,7 @@ import (
 type Engine interface {
 	Start() error
 	Stop() error
+	SetAddress(common.Address)
 }
 
 type State uint64
