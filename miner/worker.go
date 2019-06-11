@@ -1062,7 +1062,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.eth.RegisteredAddresses().RefreshAddresses()
 	nullAddress := common.NullAddress
-	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress("Random")
+	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress(params.RandomRegistryId)
 
 	if randomAddress != nil && *randomAddress != nullAddress {
 		w.current.randomAddress = *randomAddress

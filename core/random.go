@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -111,10 +112,13 @@ func (r *Random) StoreCommitment(randomness [32]byte, sealedRandomness [32]byte,
 	return (*db).Put(dbLocation, randomness[:])
 }
 
+func (r *Random) randomAddress() common.Address {
+	return *r.registeredAddresses.GetRegisteredAddress(params.RandomRegistryId)
+}
+
 func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) ([32]byte, error) {
-	randomAddress := r.registeredAddresses.GetRegisteredAddress("Random")
 	sealedRandomness := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*randomAddress, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &sealedRandomness, 100000, header, state)
+	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &sealedRandomness, 100000, header, state)
 	return sealedRandomness, err
 }
 
@@ -132,9 +136,8 @@ func (r *Random) getRandomnessFromCommitment(sealedRandomness [32]byte, coinbase
 }
 
 func (r *Random) SealRandomness(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
-	randomAddress := r.registeredAddresses.GetRegisteredAddress("Random")
 	sealedRandomness := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*randomAddress, sealFuncABI, "seal", []interface{}{randomness}, &sealedRandomness, 100000, header, state)
+	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), sealFuncABI, "seal", []interface{}{randomness}, &sealedRandomness, 100000, header, state)
 	return sealedRandomness, err
 }
 
@@ -149,9 +152,8 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 }
 
 func (r *Random) RevealAndCommit(randomness [32]byte, newSealedRandomness [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
-	randomAddress := r.registeredAddresses.GetRegisteredAddress("Random")
 	args := []interface{}{randomness, newSealedRandomness, proposer}
-	_, err := r.iEvmH.MakeCall(*randomAddress, revealAndCommitFuncABI, "revealAndCommit", args, []interface{}{}, gasAmount, zeroValue, header, state)
+	_, err := r.iEvmH.MakeCall(r.randomAddress(), revealAndCommitFuncABI, "revealAndCommit", args, []interface{}{}, gasAmount, zeroValue, header, state)
 	if err != nil {
 		log.Error("MakeCall failed", "err", err)
 		return err

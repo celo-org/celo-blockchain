@@ -94,7 +94,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	nullAddress := common.NullAddress
-	randomAddress := p.regAdd.GetRegisteredAddress("Random")
+	randomAddress := p.regAdd.GetRegisteredAddress(params.RandomRegistryId)
 	randomRunning := randomAddress != nil && *randomAddress != nullAddress
 
 	// Iterate over and process the individual transactions
