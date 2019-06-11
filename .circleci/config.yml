@@ -35,7 +35,6 @@ jobs:
       - run:
           name: Tests without coverage
           command: |
-            set -e
             cd ~/geth
             # Some tests are flaky. Run twice, so that, at least one invocation passes.
             build/env.sh go run build/ci.go test || build/env.sh go run build/ci.go test
