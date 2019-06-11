@@ -601,9 +601,6 @@ func testInsertNonceError(t *testing.T, full bool) {
 // Tests that fast importing a block chain produces the same chain data as the
 // classical full block processing.
 func TestFastVsFullChains(t *testing.T) {
-	// TODO(ashishb): Fix this
-	t.Skip("Disabled due to flakiness")
-
 	// Configure and generate a sample block chain
 	var (
 		gendb   = ethdb.NewMemDatabase()
@@ -887,9 +884,6 @@ func TestChainTxReorgs(t *testing.T) {
 }
 
 func TestLogReorgs(t *testing.T) {
-	// TODO(ashishb): Fix this
-	t.Skip("Disabled due to flakiness")
-
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr1   = crypto.PubkeyToAddress(key1.PublicKey)

@@ -117,7 +117,7 @@ func getGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.Address
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		return nil, errors.New("no gasprice oracle contract address found")
+		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
 	}
 
 	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, getGasPriceFloorABI, "getGasPriceFloor", []interface{}{currencyAddress}, &gasPrice, 200000, nil, nil)

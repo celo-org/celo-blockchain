@@ -100,6 +100,22 @@ var (
 			      "stateMutability": "view",
 			      "type": "function"
 			     }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
+	setCumulativeRewardWeightABI = `[{
+      "constant": false,
+      "inputs": [
+        {
+          "name": "blockReward",
+          "type": "uint256"
+        }
+      ],
+      "name": "setCumulativeRewardWeight",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }]`
 )
 var (
 	defaultDifficulty = big.NewInt(1)
@@ -111,7 +127,8 @@ var (
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
-	getValidatorsFuncABI, _ = abi.JSON(strings.NewReader(getValidatorsABI))
+	getValidatorsFuncABI, _             = abi.JSON(strings.NewReader(getValidatorsABI))
+	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -374,13 +391,6 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
 		if validatorAddress == nil {
 			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
-
-			extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
-			if err != nil {
-				return err
-			}
-			header.Extra = extra
-
 		} else {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
@@ -391,29 +401,28 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			// Get the new epoch's validator set
 			var newValSet []common.Address
 
+			maxGasForGetValidators := uint64(1000000)
 			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state)
+			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 			if err != nil {
-				log.Error("Istanbul.Finalize - Error in retrieving the validator set", "leftoverGas", leftoverGas, "err", err)
-				return err
+				log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "leftoverGas", leftoverGas, "err", err)
+			} else {
+				// add validators in snapshot to extraData's validators section
+				extra, err := assembleExtra(header, snap.validators(), newValSet)
+				if err != nil {
+					return err
+				}
+				header.Extra = extra
+				return nil
 			}
-
-			// add validators in snapshot to extraData's validators section
-			extra, err := assembleExtra(header, snap.validators(), newValSet)
-			if err != nil {
-				return err
-			}
-			header.Extra = extra
 		}
-	} else {
-		// If it's not the last block, then the validator set diff should be empty
-		extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
-		if err != nil {
-			return err
-		}
-		header.Extra = extra
 	}
-
+	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
+	extra, err := assembleExtra(header, []common.Address{}, []common.Address{})
+	if err != nil {
+		return err
+	}
+	header.Extra = extra
 	return nil
 }
 
@@ -432,6 +441,22 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPrice(header, state)
+
+	infrastructureBlockReward := big.NewInt(params.Ether)
+	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+	if governanceAddress != nil {
+		state.AddBalance(*governanceAddress, infrastructureBlockReward)
+	}
+
+	stakerBlockReward := big.NewInt(params.Ether)
+	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+	if bondedDepositsAddress != nil {
+		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
+		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
+		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+			log.Error("Unable to send block rewards to bonded deposits", "err", err)
+		}
+	}
 
 	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -805,7 +830,7 @@ func assembleExtra(header *types.Header, oldValSet []common.Address, newValSet [
 
 	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
-	log.Trace("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
+	log.Info("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
 		"addedValidators", common.ConvertToStringSlice(addedValidators), "removedValidators", common.ConvertToStringSlice(removedValidators))
 
 	ist := &types.IstanbulExtra{
