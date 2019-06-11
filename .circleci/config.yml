@@ -119,7 +119,7 @@ workflows:
       - unit-tests
       - coverage
 
-      - end-to-end-checkout
+      - end-to-end-checkout:
           requires:
             - unit-tests
       - end-to-end-transfer-test:
