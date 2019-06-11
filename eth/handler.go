@@ -865,21 +865,21 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 func (pm *ProtocolManager) AddStaticPeer(enodeURL string) error {
 	log.Trace("Attempting to add static peer", "enodeURL", enodeURL)
 
-	// TODO(kevjue) - Make this more efficient, instead of looping through all of the connected peers
-	// Also need to check if the peer is a static one.  It could of been connected via regular discovery
-	// process.
-	for _, p := range pm.peers.Peers() {
-		if p.Node().String() == enodeURL {
-			log.Trace("Already connected to peer", "enodeURL", enodeURL)
-			return nil
-		}
-	}
-
-	// Try to add the url as a static peer and return
+	// Parse the enodeURL into a node object
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
 		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
 		return err
+	}
+
+	// TODO(kevjue) - Make this more efficient, instead of looping through all of the connected peers
+	// Also need to check if the peer is a static one.  It could of been connected via regular discovery
+	// process.
+	for _, p := range pm.peers.Peers() {
+		if p.Node().ID() == node.ID() {
+			log.Trace("Already connected to peer", "enodeURL", enodeURL)
+			return nil
+		}
 	}
 
 	pm.addStaticPeer(node)
