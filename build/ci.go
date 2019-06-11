@@ -350,7 +350,7 @@ func doTest(cmdline []string) {
 	// and some tests run into timeouts under load.
 	gotest := goTool("test", buildFlags(env)...)
 	// failfast -> fail ont the first failure, don't run all the tests.
-	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m", "-v", "-failfast")
+	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
 	}
