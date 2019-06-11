@@ -1077,11 +1077,17 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			log.Error("Failed to generate randomness")
 		}
 		w.current.randomness = randomness
-		w.current.newSealedRandomness = newRandomness
-		w.random.StoreCommitment(newRandomness, newRandomness, w.db)
+
+		w.current.newSealedRandomness, err = w.random.SealRandomness(newRandomness, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to seal randomness", "err", err)
+		}
+
+		w.random.StoreCommitment(newRandomness, w.current.newSealedRandomness, w.db)
+
 		callData := make([]byte, 64)
 		copy(callData[0:], randomness[:])
-		copy(callData[32:], newRandomness[:])
+		copy(callData[32:], w.current.newSealedRandomness[:])
 
 		tx := types.NewTransaction(0, nullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
