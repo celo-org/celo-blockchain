@@ -13,6 +13,13 @@ jobs:
       - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test
 
+  coverage:
+    <<: *defaults
+    steps:
+      - checkout
+      - run: build/env.sh go run build/ci.go test -coverage
+      - run: bash <(curl -s https://codecov.io/bash)
+
   lint:
     <<: *defaults
     steps:
