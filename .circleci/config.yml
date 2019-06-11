@@ -6,11 +6,20 @@ jobs:
       - image: circleci/golang:1.11
     steps:
       - checkout
+      - run: build/env.sh go run build/ci.go test
       - attach_workspace:
           at: ~/geth
       - persist_to_workspace:
           root: .
           paths: .
+
+  code-checkout-with-tests:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/celo-org/geth
+    steps:
+      - checkout
+      - run: build/env.sh go run build/ci.go test
 
   lint:
     docker:
@@ -146,6 +155,7 @@ workflows:
   build:
     jobs:
       - code-checkout
+      - code-checkout-with-tests
       - lint:
           requires:
             - code-checkout
