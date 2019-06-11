@@ -220,8 +220,6 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
-	// TODO(asaj): Fix this
-	t.Skip("Disabled due to flakiness")
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
 }
@@ -231,8 +229,6 @@ func TestEmptyWorkClique(t *testing.T) {
 }
 
 func TestEmptyWorkIstanbul(t *testing.T) {
-	// TODO(nambrot): Fix this
-	t.Skip("Disabled due to flakiness")
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), false, true)
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), true, false)
 }
@@ -373,9 +369,6 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 // that potentially increase the fee revenue for the sealer. In Istanbul, that is not possible and even counter productive
 // as proposing another block after having already done so is clearly byzantine behavior.
 func TestRegenerateMiningBlockIstanbul(t *testing.T) {
-	// TODO(ashishb): Fix this
-	t.Skip("Disabled due to flakiness")
-
 	chainConfig := istanbulChainConfig
 	engine := getAuthorizedIstanbulEngine()
 
