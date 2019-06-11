@@ -26,7 +26,6 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/abe"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -921,19 +920,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 		header.Coinbase = w.coinbase
-		// TODO(asa): Set signature in the consensus engine, verify elsewhere
-		wallet, err := w.eth.AccountManager().Find(accounts.Account{Address: w.coinbase})
-		if err != nil {
-			log.Error("[Celo] Failed to get account for block signature", "err", err)
-		} else {
-			code, err := wallet.SignHash(accounts.Account{Address: w.coinbase}, header.ParentHash.Bytes())
-			if err != nil {
-				log.Error("[Celo] Failed to sign block hash", "err", err)
-			} else {
-				// TODO(asa): Verify the signature when doing block verification
-				copy(header.Signature[:], code[:])
-			}
-		}
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
