@@ -91,7 +91,7 @@ var (
 	commitmentsFuncABI, _     = abi.JSON(strings.NewReader(commitmentsAbi))
 	sealFuncABI, _            = abi.JSON(strings.NewReader(sealAbi))
 	zeroValue                 = big.NewInt(0)
-	dbPrefix                  = []byte{0x12, 0x34, 0x56, 0x78, 0x90}
+	dbRandomnessPrefix        = []byte("commitment-to-randomness")
 )
 
 type Random struct {
@@ -107,8 +107,10 @@ func NewRandom(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandl
 	return r
 }
 
+// StoreCommitment stores a mapping from `sealedRandomness` to its preimage,
+// randomness, for later retrieval in GetLastRandomness.
 func (r *Random) StoreCommitment(randomness [32]byte, sealedRandomness [32]byte, db *ethdb.Database) error {
-	dbLocation := append(dbPrefix, sealedRandomness[:]...)
+	dbLocation := append(dbRandomnessPrefix, sealedRandomness[:]...)
 	return (*db).Put(dbLocation, randomness[:])
 }
 
@@ -123,34 +125,42 @@ func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header
 }
 
 func (r *Random) getRandomnessFromCommitment(sealedRandomness [32]byte, coinbase common.Address, db *ethdb.Database) ([32]byte, error) {
-	dbLocation := append(dbPrefix, sealedRandomness[:]...)
+	dbLocation := append(dbRandomnessPrefix, sealedRandomness[:]...)
 	randomness := [32]byte{}
 	randomnessSlice, err := (*db).Get(dbLocation)
 	if err != nil {
-		log.Debug("Failed to get randomness from database")
+		log.Debug("Failed to get randomness from database", "err", err)
 	} else {
-		log.Debug("Got randomness from db", "randomnessSlice", randomnessSlice)
 		copy(randomness[:], randomnessSlice)
 	}
 	return randomness, err
 }
 
+// SealRandomness computes the commitment to a randomness value by calling a
+// public static function on the Random contract.
 func (r *Random) SealRandomness(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	sealedRandomness := [32]byte{}
 	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), sealFuncABI, "seal", []interface{}{randomness}, &sealedRandomness, 100000, header, state)
 	return sealedRandomness, err
 }
 
+// GetLastRandomness returns up the last randomness we committed to by first
+// looking up our last commitment in the smart contract, and then finding the
+// corresponding preimage in a (commitment => randomness) mapping we keep in the
+// database.
 func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	sealedRandomness, err := r.getLastCommitment(coinbase, header, state)
 	if err != nil {
-		log.Error("Failed to get last commitment")
+		log.Debug("Failed to get last commitment", "err", err)
 		return [32]byte{}, err
 	}
 
 	return r.getRandomnessFromCommitment(sealedRandomness, coinbase, db)
 }
 
+// RevealAndCommit performs an internal call to the EVM that reveals a
+// proposer's previously committed to randomness, and commits new randomness for
+// a future block.
 func (r *Random) RevealAndCommit(randomness [32]byte, newSealedRandomness [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newSealedRandomness, proposer}
 	_, err := r.iEvmH.MakeCall(r.randomAddress(), revealAndCommitFuncABI, "revealAndCommit", args, []interface{}{}, gasAmount, zeroValue, header, state)
