@@ -337,7 +337,7 @@ func doTest(cmdline []string) {
 	// failfast -> fail ont the first failure, don't run all the tests.
 	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m", "-v", "-failfast")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.txt")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
 	}
 
 	gotest.Args = append(gotest.Args, packages...)
