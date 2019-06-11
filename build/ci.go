@@ -315,6 +315,16 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
+func Filter(vs []string, pred func(string) bool) []string {
+	filtered := make([]string, 0)
+	for _, v := range vs {
+		if pred(v) {
+			filtered = append(filtered, v)
+		}
+	}
+	return filtered
+}
+
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
@@ -330,6 +340,11 @@ func doTest(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
+	// Skip all swarm tests as it's not needed for Celo.
+	packages = Filter(packages, func(p string) bool {
+		return !strings.Contains(p, "swarm")
+	})
+
 	// Run the actual tests.
 	// Test a single package at a time. CI builders are slow
 	// and some tests run into timeouts under load.
@@ -337,7 +352,7 @@ func doTest(cmdline []string) {
 	// failfast -> fail ont the first failure, don't run all the tests.
 	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m", "-v", "-failfast")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.txt")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
 	}
 
 	gotest.Args = append(gotest.Args, packages...)
