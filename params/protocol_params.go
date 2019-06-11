@@ -110,5 +110,5 @@ var (
 )
 
 const (
-	VerificationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
 )
