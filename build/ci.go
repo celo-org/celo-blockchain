@@ -315,6 +315,16 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
+func Filter(vs []string, pred func(string) bool) []string {
+	filtered := make([]string, 0)
+	for _, v := range vs {
+		if pred(v) {
+			filtered = append(filtered, v)
+		}
+	}
+	return filtered
+}
+
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
@@ -329,6 +339,11 @@ func doTest(cmdline []string) {
 		packages = flag.CommandLine.Args()
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
+
+	// Skip all swarm tests as it's not needed for Celo.
+	packages = Filter(packages, func(p string) bool {
+		return !strings.Contains(p, "swarm")
+	})
 
 	// Run the actual tests.
 	// Test a single package at a time. CI builders are slow
