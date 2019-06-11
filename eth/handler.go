@@ -77,10 +77,12 @@ type ProtocolManager struct {
 	blockchain  *core.BlockChain
 	chainconfig *params.ChainConfig
 	maxPeers    int
+	numValPeers int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
 	peers      *peerSet
+	valPeers   map[string]bool
 
 	SubProtocols []p2p.Protocol
 
@@ -119,6 +121,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		blockchain:  blockchain,
 		chainconfig: config,
 		peers:       newPeerSet(),
+		valPeers:    make(map[string]bool),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
@@ -216,6 +219,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "peer", id, "err", err)
 	}
+	delete(pm.valPeers, id)
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
@@ -260,6 +264,9 @@ func (pm *ProtocolManager) Stop() {
 	// sessions which are already established but not added to pm.peers yet
 	// will exit when they try to register.
 	pm.peers.Close()
+	for id := range pm.valPeers {
+		delete(pm.valPeers, id)
+	}
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
@@ -274,8 +281,10 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	// Ignore maxPeers if this is a trusted peer
-	if pm.peers.Len() >= pm.maxPeers && !p.Peer.Info().Network.Trusted {
+	isValPeer := p.Validator()
+
+	// Ignore maxPeers if this is a trusted peer or a validator peer
+	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer) {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -299,6 +308,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if err := pm.peers.Register(p); err != nil {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
+	}
+	if isValPeer {
+		pm.valPeers[p.id] = true
 	}
 	defer pm.removePeer(p.id)
 

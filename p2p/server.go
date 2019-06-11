@@ -171,7 +171,7 @@ type Server struct {
 	lastLookup   time.Time
 	DiscV5       *discv5.Network
 
-	// These are for Peers, PeerCount (and nothing else).
+	// These are for Peers, PeerCount, ValPeerCount (and nothing else).
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
@@ -843,7 +843,7 @@ running:
 			}
 			removeTrusted(n)
 		case op := <-srv.peerOp:
-			// This channel is used by Peers and PeerCount.
+			// This channel is used by Peers and PeerCount and ValPeerCount.
 			op(peers)
 			srv.peerOpDone <- struct{}{}
 		case t := <-taskdone:

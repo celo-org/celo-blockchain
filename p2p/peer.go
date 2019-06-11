@@ -176,6 +176,11 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
+// Validator returns true if the peer is a validator connection
+func (p *Peer) Validator() bool {
+	return p.rw.is(validatorConn)
+}
+
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
