@@ -88,7 +88,7 @@ func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Tr
 }
 
 func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil, nil), types.HomesteadSigner{}, key)
 	return tx
 }
 
@@ -97,8 +97,8 @@ func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
 	key, _ := crypto.GenerateKey()
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 
 	return pool, key
 }
@@ -208,8 +208,8 @@ func TestStateChangeDuringTransactionPoolReset(t *testing.T) {
 	tx0 := transaction(0, 100000, key)
 	tx1 := transaction(1, 100000, key)
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	nonce := pool.State().GetNonce(address)
@@ -336,7 +336,7 @@ func TestTransactionNegativeValue(t *testing.T) {
 	pool, key := setupTxPool()
 	defer pool.Stop()
 
-	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(-1), 100, big.NewInt(1), nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(-1), 100, big.NewInt(1), nil, nil, nil), types.HomesteadSigner{}, key)
 	from, _ := deriveSender(tx)
 	pool.currentState.AddBalance(from, big.NewInt(1))
 	if err := pool.AddRemote(tx); err != ErrNegativeValue {
@@ -390,9 +390,9 @@ func TestTransactionDoubleNonce(t *testing.T) {
 	resetState()
 
 	signer := types.HomesteadSigner{}
-	tx1, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 100000, big.NewInt(1), nil, nil), signer, key)
-	tx2, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(2), nil, nil), signer, key)
-	tx3, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(1), nil, nil), signer, key)
+	tx1, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 100000, big.NewInt(1), nil, nil, nil), signer, key)
+	tx2, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(2), nil, nil, nil), signer, key)
+	tx3, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(1), nil, nil, nil), signer, key)
 
 	// Add the first two transaction, ensure higher priced stays only
 	if replace, err := pool.add(tx1, false); err != nil || replace {
@@ -574,8 +574,8 @@ func TestTransactionPostponing(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create two test accounts to produce different gap profiles with
@@ -794,8 +794,8 @@ func testTransactionQueueGlobalLimiting(t *testing.T, nolocals bool) {
 	config.NoLocals = nolocals
 	config.GlobalQueue = config.AccountQueue*3 - 1 // reduce the queue limits to shorten test time (-1 to make it non divisible)
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create a number of test accounts and fund them (last one will be the local)
@@ -883,8 +883,8 @@ func testTransactionQueueTimeLimiting(t *testing.T, nolocals bool) {
 	config.Lifetime = time.Second
 	config.NoLocals = nolocals
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create two test accounts to ensure remotes expire but locals do not
@@ -1037,8 +1037,8 @@ func TestTransactionPendingGlobalLimiting(t *testing.T) {
 	config := testTxPoolConfig
 	config.GlobalSlots = config.AccountSlots * 10
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create a number of test accounts and fund them
@@ -1086,8 +1086,8 @@ func TestTransactionCapClearsFromAll(t *testing.T) {
 	config.AccountQueue = 2
 	config.GlobalSlots = 8
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create a number of test accounts and fund them
@@ -1119,8 +1119,8 @@ func TestTransactionPendingMinimumAllowance(t *testing.T) {
 	config := testTxPoolConfig
 	config.GlobalSlots = 1
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create a number of test accounts and fund them
@@ -1165,8 +1165,8 @@ func TestTransactionPoolRepricing(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Keep track of transaction events to ensure all executables get announced
@@ -1287,8 +1287,8 @@ func TestTransactionPoolRepricingKeepsLocals(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create a number of test accounts and fund them
@@ -1354,8 +1354,8 @@ func TestTransactionPoolUnderpricing(t *testing.T) {
 	config.GlobalSlots = 2
 	config.GlobalQueue = 2
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Keep track of transaction events to ensure all executables get announced
@@ -1461,8 +1461,8 @@ func TestTransactionPoolStableUnderpricing(t *testing.T) {
 	config.GlobalSlots = 128
 	config.GlobalQueue = 0
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Keep track of transaction events to ensure all executables get announced
@@ -1524,8 +1524,8 @@ func TestTransactionReplacement(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Keep track of transaction events to ensure all executables get announced
@@ -1624,8 +1624,8 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 	config.Journal = journal
 	config.Rejournal = time.Second
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 
 	// Create two test accounts to ensure remotes expire but locals do not
 	local, _ := crypto.GenerateKey()
@@ -1662,8 +1662,8 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
 	blockchain = &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc = NewPriceComparator(nil, nil, nil)
-	pool = NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co = NewCurrencyOperator(nil, nil, nil)
+	pool = NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 
 	pending, queued = pool.Stats()
 	if queued != 0 {
@@ -1689,8 +1689,8 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
 	blockchain = &testBlockChain{statedb, 1000000, new(event.Feed)}
-	pc = NewPriceComparator(nil, nil, nil)
-	pool = NewTxPool(config, params.TestChainConfig, blockchain, pc, nil, nil)
+	co = NewCurrencyOperator(nil, nil, nil)
+	pool = NewTxPool(config, params.TestChainConfig, blockchain, co, nil, nil)
 
 	pending, queued = pool.Stats()
 	if pending != 0 {
@@ -1720,8 +1720,8 @@ func TestTransactionStatusCheck(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
-	pc := NewPriceComparator(nil, nil, nil)
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, pc, nil, nil)
+	co := NewCurrencyOperator(nil, nil, nil)
+	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain, co, nil, nil)
 	defer pool.Stop()
 
 	// Create the test accounts to check various transaction statuses with

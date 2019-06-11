@@ -198,7 +198,7 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestPrice(ctx)
+	return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -224,10 +224,14 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
+func (b *EthAPIBackend) GasFeeRecipient() common.Address {
+	return b.eth.GasFeeRecipient()
+}
+
 func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.gcWl
+	return b.eth.GasCurrencyWhitelist()
 }
 
 func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.regAdd
+	return b.eth.RegisteredAddresses()
 }

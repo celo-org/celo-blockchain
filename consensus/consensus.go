@@ -52,7 +52,8 @@ type ChainReader interface {
 }
 
 type ConsensusIEvmH interface {
-	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
 }
 
 type ConsensusRegAdd interface {
@@ -143,12 +144,15 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// Setter functions
+	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
+
+	SetRegisteredAddresses(regAdd ConsensusRegAdd)
+
 	// Start starts the engine
 	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
 		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-		iEvmH ConsensusIEvmH,
-		regAdd ConsensusRegAdd) error
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error

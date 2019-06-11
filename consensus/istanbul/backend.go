@@ -20,9 +20,14 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 )
+
+// SignerFn is a signer callback function to request a hash to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, []byte) ([]byte, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -70,4 +75,7 @@ type Backend interface {
 
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
+
+	// Authorize injects a private key into the consensus engine.
+	Authorize(address common.Address, signFn SignerFn)
 }

@@ -186,10 +186,10 @@ type worker struct {
 	lastBlockVerified   uint64
 
 	// Transaction processing
-	pc *core.PriceComparator
+	co *core.CurrencyOperator
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -215,7 +215,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		pc:                  pc,
+		co:                  co,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -227,6 +227,12 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	if recommit < minRecommitInterval {
 		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
 		recommit = minRecommitInterval
+	}
+
+	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	if istanbul, ok := engine.(consensus.Istanbul); ok {
+		istanbul.SetInternalEVMHandler(eth.InternalEVMHandler())
+		istanbul.SetRegisteredAddresses(eth.RegisteredAddresses())
 	}
 
 	go worker.mainLoop()
@@ -285,14 +291,16 @@ func (w *worker) start() {
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
-			func(parentHash common.Hash) (*state.StateDB, error) { return w.chain.StateAt(parentHash) },
+			func(parentHash common.Hash) (*state.StateDB, error) {
+				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
+				return w.chain.StateAt(parentStateRoot)
+			},
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, nil, state, receipts, usedGas)
-			},
-			w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+			})
 	}
 }
 
@@ -317,7 +325,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return w.pc.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return w.co.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.

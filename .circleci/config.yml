@@ -1,21 +1,35 @@
 version: 2
-jobs:
-  build:
-    docker:
-      - image: circleci/golang:1.11
 
-    working_directory: /go/src/github.com/celo-org/geth
+defaults: &defaults
+  docker:
+    - image: circleci/golang:1.12
+  working_directory: /go/src/github.com/celo-org/geth
+
+jobs:
+  unit-tests:
+    <<: *defaults
     steps:
       - checkout
       - run: build/env.sh go run build/ci.go lint
+      - run: build/env.sh go run build/ci.go test
+
+  coverage:
+    <<: *defaults
+    steps:
+      - checkout
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
-  end-to-end-test:
-    docker:
-      - image: circleci/golang:1.11
-
-    working_directory: /go/src/github.com/celo-org/geth
+  lint:
+    <<: *defaults
     steps:
       - checkout
-      - run: ./geth_end_to_end_test.sh checkout a2b5418ebf8f3eefea24323fadf0b9c3e47e3230 ${PWD}
+      - run: build/env.sh go run build/ci.go lint
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - lint
+      - unit-tests
+      - coverage
