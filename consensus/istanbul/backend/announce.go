@@ -192,11 +192,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			} else {
 				// Check if the enode has been changed
 				if msg.EnodeURL != valEnodeEntry.enodeURL {
-					if valEnodeEntry.addPeerAttempted {
-						// Remove the peer
-						sb.RemoveStaticPeer(valEnodeEntry.enodeURL)
-						valEnodeEntry.addPeerAttempted = false
-					}
+					// Disconnect from the peer
+					sb.RemoveValidatorPeer(valEnodeEntry.enodeURL)
 					valEnodeEntry.enodeURL = msg.EnodeURL
 				}
 				valEnodeEntry.view = msg.View
@@ -214,11 +211,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 		if _, v := valSet.GetByAddress(msg.Address); v != nil {
-			if !sb.valEnodeTable[msg.Address].addPeerAttempted {
-				// Add the peer
-				sb.AddStaticPeer(msg.EnodeURL)
-				sb.valEnodeTable[msg.Address].addPeerAttempted = true
-			}
+			sb.AddValidatorPeer(msg.EnodeURL)
 		}
 	}
 

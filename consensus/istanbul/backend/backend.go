@@ -55,10 +55,6 @@ var (
 type ValidatorEnode struct {
 	enodeURL string
 	view     *istanbul.View
-
-	// TODO(kevjue) - Need to figure out how to make this more accurate with whether or not
-	// the peer is actually connected.
-	addPeerAttempted bool
 }
 
 func (ve *ValidatorEnode) String() string {
@@ -458,15 +454,15 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) AddStaticPeer(enodeURL string) {
+func (sb *Backend) AddValidatorPeer(enodeURL string) {
 	if sb.broadcaster != nil {
-		sb.broadcaster.AddStaticPeer(enodeURL)
+		sb.broadcaster.AddValidatorPeer(enodeURL)
 	}
 }
 
-func (sb *Backend) RemoveStaticPeer(enodeURL string) {
+func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
 	if sb.broadcaster != nil {
-		sb.broadcaster.RemoveStaticPeer(enodeURL)
+		sb.broadcaster.RemoveValidatorPeer(enodeURL)
 	}
 }
 
@@ -476,10 +472,7 @@ func (sb *Backend) ConnectToValidators(validators []istanbul.Validator) {
 	defer sb.valEnodeTableMu.Unlock()
 	for _, validator := range validators {
 		if valEnodeEntry, ok := sb.valEnodeTable[validator.Address()]; ok {
-			if !valEnodeEntry.addPeerAttempted {
-				sb.AddStaticPeer(valEnodeEntry.enodeURL)
-				valEnodeEntry.addPeerAttempted = true
-			}
+			sb.AddValidatorPeer(valEnodeEntry.enodeURL)
 		}
 	}
 }

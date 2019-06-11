@@ -80,11 +80,11 @@ type Backend interface {
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
 
-	// AddPeer adds a peer
-	AddStaticPeer(enodeURL string)
+	// AddValidatorPeer adds a validator peer
+	AddValidatorPeer(enodeURL string)
 
-	// RemovePeer removes a peer
-	RemoveStaticPeer(enodeURL string)
+	// RemoveValidatorPeer removes a validator peer
+	RemoveValidatorPeer(enodeURL string)
 
 	// ConnectToValidators will attempt to establish a static connection to all the validators
 	ConnectToValidators(validators []Validator)

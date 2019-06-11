@@ -103,9 +103,9 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	getLocalNode     func() *enode.Node
-	addStaticPeer    func(*enode.Node)
-	removeStaticPeer func(*enode.Node)
+	getLocalNode        func() *enode.Node
+	addValidatorPeer    func(*enode.Node)
+	removeValidatorPeer func(*enode.Node)
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -222,11 +222,11 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addStaticPeer func(*enode.Node), removeStaticPeer func(*enode.Node)) {
+func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addValidatorPeer func(*enode.Node), removeValidatorPeer func(*enode.Node)) {
 	pm.maxPeers = maxPeers
 	pm.getLocalNode = getLocalNode
-	pm.addStaticPeer = addStaticPeer
-	pm.removeStaticPeer = removeStaticPeer
+	pm.addValidatorPeer = addValidatorPeer
+	pm.removeValidatorPeer = removeValidatorPeer
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -862,8 +862,8 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 	return m
 }
 
-func (pm *ProtocolManager) AddStaticPeer(enodeURL string) error {
-	log.Trace("Attempting to add static peer", "enodeURL", enodeURL)
+func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
+	log.Trace("Attempting to add validator peer", "enodeURL", enodeURL)
 
 	// Parse the enodeURL into a node object
 	node, err := enode.ParseV4(enodeURL)
@@ -872,22 +872,12 @@ func (pm *ProtocolManager) AddStaticPeer(enodeURL string) error {
 		return err
 	}
 
-	// TODO(kevjue) - Make this more efficient, instead of looping through all of the connected peers
-	// Also need to check if the peer is a static one.  It could of been connected via regular discovery
-	// process.
-	for _, p := range pm.peers.Peers() {
-		if p.Node().ID() == node.ID() {
-			log.Trace("Already connected to peer", "enodeURL", enodeURL)
-			return nil
-		}
-	}
-
-	pm.addStaticPeer(node)
+	pm.addValidatorPeer(node)
 	return nil
 }
 
-func (pm *ProtocolManager) RemoveStaticPeer(enodeURL string) error {
-	log.Trace("Attempting to remove a static peer", "enodeURL", enodeURL)
+func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
+	log.Trace("Attempting to remove a validator peer", "enodeURL", enodeURL)
 
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
@@ -895,7 +885,7 @@ func (pm *ProtocolManager) RemoveStaticPeer(enodeURL string) error {
 		return err
 	}
 
-	pm.removeStaticPeer(node)
+	pm.removeValidatorPeer(node)
 	return nil
 }
 

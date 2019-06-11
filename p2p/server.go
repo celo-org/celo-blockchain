@@ -175,17 +175,19 @@ type Server struct {
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
-	quit          chan struct{}
-	addstatic     chan *enode.Node
-	removestatic  chan *enode.Node
-	addtrusted    chan *enode.Node
-	removetrusted chan *enode.Node
-	posthandshake chan *conn
-	addpeer       chan *conn
-	delpeer       chan peerDrop
-	loopWG        sync.WaitGroup // loop, listenLoop
-	peerFeed      event.Feed
-	log           log.Logger
+	quit            chan struct{}
+	addvalidator    chan *enode.Node
+	removevalidator chan *enode.Node
+	addstatic       chan *enode.Node
+	removestatic    chan *enode.Node
+	addtrusted      chan *enode.Node
+	removetrusted   chan *enode.Node
+	posthandshake   chan *conn
+	addpeer         chan *conn
+	delpeer         chan peerDrop
+	loopWG          sync.WaitGroup // loop, listenLoop
+	peerFeed        event.Feed
+	log             log.Logger
 }
 
 type peerOpFunc func(map[enode.ID]*Peer)
@@ -203,6 +205,7 @@ const (
 	staticDialedConn
 	inboundConn
 	trustedConn
+	validatorConn
 )
 
 // conn wraps a network connection with information gathered
@@ -253,6 +256,9 @@ func (f connFlag) String() string {
 	}
 	if f&inboundConn != 0 {
 		s += "-inbound"
+	}
+	if f&validatorConn != 0 {
+		s += "-validator"
 	}
 	if s != "" {
 		s = s[1:]
@@ -307,6 +313,39 @@ func (srv *Server) PeerCount() int {
 	case <-srv.quit:
 	}
 	return count
+}
+
+// ValPeerCount returns the number of connected validator peers.
+func (srv *Server) ValPeerCount() int {
+	var count int = 0
+	select {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer) {
+		for _, p := range ps {
+			if p.rw.is(validatorConn) {
+				count++
+			}
+		}
+	}:
+		<-srv.peerOpDone
+	case <-srv.quit:
+	}
+	return count
+}
+
+// AddValidatorPeer assigns the given node as a validator node.  It will set it as a static and trusted node.
+func (srv *Server) AddValidatorPeer(node *enode.Node) {
+	select {
+	case srv.addvalidator <- node:
+	case <-srv.quit:
+	}
+}
+
+// RemoveValidatorPeer removes the given node as a validator node.
+func (srv *Server) RemoveValidatorPeer(node *enode.Node) {
+	select {
+	case srv.removevalidator <- node:
+	case <-srv.quit:
+	}
 }
 
 // AddPeer connects to the given node and maintains the connection until the
@@ -436,6 +475,8 @@ func (srv *Server) Start() (err error) {
 	srv.addpeer = make(chan *conn)
 	srv.delpeer = make(chan peerDrop)
 	srv.posthandshake = make(chan *conn)
+	srv.addvalidator = make(chan *enode.Node)
+	srv.removevalidator = make(chan *enode.Node)
 	srv.addstatic = make(chan *enode.Node)
 	srv.removestatic = make(chan *enode.Node)
 	srv.addtrusted = make(chan *enode.Node)
@@ -599,6 +640,12 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*enode.Node)
 	removeStatic(*enode.Node)
+	isStatic(*enode.Node) bool
+}
+
+type previousNodeConfig struct {
+	static  bool
+	trusted bool
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -607,12 +654,15 @@ func (srv *Server) run(dialstate dialer) {
 	defer srv.nodedb.Close()
 
 	var (
-		peers        = make(map[enode.ID]*Peer)
-		inboundCount = 0
-		trusted      = make(map[enode.ID]bool, len(srv.TrustedNodes))
-		taskdone     = make(chan task, maxActiveDialTasks)
-		runningTasks []task
-		queuedTasks  []task // tasks that can't run yet
+		peers                = make(map[enode.ID]*Peer)
+		inboundCount         = 0
+		trusted              = make(map[enode.ID]bool, len(srv.TrustedNodes))
+		taskdone             = make(chan task, maxActiveDialTasks)
+		runningTasks         []task
+		queuedTasks          []task // tasks that can't run yet
+		valNodes             = make(map[enode.ID]*previousNodeConfig)
+		numConnectedValPeers = 0
+		numInboundValPeers   = 0
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup or added via AddTrustedPeer RPC.
@@ -650,6 +700,42 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
+	isValNode := func(id enode.ID) bool {
+		if _, ok := valNodes[id]; ok {
+			return true
+		}
+		return false
+	}
+
+	addStatic := func(n *enode.Node) {
+		dialstate.addStatic(n)
+	}
+
+	removeStatic := func(n *enode.Node) {
+		dialstate.removeStatic(n)
+		if p, ok := peers[n.ID()]; ok {
+			p.Disconnect(DiscRequested)
+		}
+	}
+
+	addTrusted := func(n *enode.Node) {
+		trusted[n.ID()] = true
+		// Mark any already-connected peer as trusted
+		if p, ok := peers[n.ID()]; ok {
+			p.rw.set(trustedConn, true)
+		}
+	}
+
+	removeTrusted := func(n *enode.Node) {
+		if _, ok := trusted[n.ID()]; ok {
+			delete(trusted, n.ID())
+		}
+		// Unmark any already-connected peer as trusted
+		if p, ok := peers[n.ID()]; ok {
+			p.rw.set(trustedConn, false)
+		}
+	}
+
 running:
 	for {
 		scheduleTasks()
@@ -658,41 +744,104 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+		case n := <-srv.addvalidator:
+			if !isValNode(n.ID()) {
+				srv.log.Trace("Adding validator node", "node", n)
+
+				// Save the previous state of the peer, so that when it's removed as a validator node, it will be restored to that state
+				isStatic := dialstate.isStatic(n)
+				_, isTrusted := trusted[n.ID()]
+
+				valNodes[n.ID()] = &previousNodeConfig{static: isStatic, trusted: isTrusted}
+
+				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
+				if !isStatic {
+					srv.log.Trace("Setting validator node to static")
+					addStatic(n)
+				}
+
+				// Mark it as trusted, so that if the remote validator connects to it, it wouldn't could against the max inbound peers
+				if !isTrusted {
+					srv.log.Trace("Setting validator node to trusted")
+					addTrusted(n)
+				}
+
+				// If already connected, updated val peer counters and set the validatorConn flag in the connection
+				if p, ok := peers[n.ID()]; ok {
+					if p, ok := peers[n.ID()]; ok {
+						p.rw.set(validatorConn, true)
+					}
+					numConnectedValPeers++
+					if p.Inbound() {
+						numInboundValPeers++
+					}
+				}
+			}
+		case n := <-srv.removevalidator:
+			// Mark the node as static and trusted.
+			// Static will make this node continuously connect to the remote node, even when connections
+			// are broken.
+			if isValNode(n.ID()) {
+				srv.log.Trace("Removing validator node", "node", n)
+
+				previousConfig := valNodes[n.ID()]
+				delete(valNodes, n.ID())
+
+				// Restore the previous state of the peer.
+
+				// If it was originally not static, then remove as static peer.
+				// If it was originally static, then don't do anything, as a validator node is already set as static.
+				// Note that this will disconnect the peer, if it was not a static node before.
+				if !previousConfig.static {
+					removeStatic(n)
+				}
+
+				// If it was originally not trusted, then remove as trusted peer.
+				// If it was originally trusted, then don't do anything, as a validator node is already set as trusted.
+				if !previousConfig.trusted {
+					removeTrusted(n)
+				}
+			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
-			srv.log.Trace("Adding static node", "node", n)
-			dialstate.addStatic(n)
+
+			// Disable setting validator peer to be static if it's already a validator peer
+			if isValNode(n.ID()) {
+				srv.log.Trace("Not adding static node, since it's a validator node", "node", n)
+			} else {
+				srv.log.Trace("Adding static node", "node", n)
+			}
+			addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
-			srv.log.Trace("Removing static node", "node", n)
-			dialstate.removeStatic(n)
-			if p, ok := peers[n.ID()]; ok {
-				p.Disconnect(DiscRequested)
+			if isValNode(n.ID()) {
+				srv.log.Trace("Not removing static node, since it's a validator node", "node", n)
+			} else {
+				srv.log.Trace("Removing static node", "node", n)
+				removeStatic(n)
 			}
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
-			srv.log.Trace("Adding trusted node", "node", n)
-			trusted[n.ID()] = true
-			// Mark any already-connected peer as trusted
-			if p, ok := peers[n.ID()]; ok {
-				p.rw.set(trustedConn, true)
+			if isValNode(n.ID()) {
+				srv.log.Trace("Not adding trusted node, since it's a validator node", "node", n)
+			} else {
+				srv.log.Trace("Adding trusted node", "node", n)
+				addTrusted(n)
 			}
 		case n := <-srv.removetrusted:
 			// This channel is used by RemoveTrustedPeer to remove an enode
 			// from the trusted node set.
-			srv.log.Trace("Removing trusted node", "node", n)
-			if _, ok := trusted[n.ID()]; ok {
-				delete(trusted, n.ID())
+			if isValNode(n.ID()) {
+				srv.log.Trace("Not removing trusted node, since it's a validator node", "node", n)
+			} else {
+				srv.log.Trace("Removing trusted node", "node", n)
 			}
-			// Unmark any already-connected peer as trusted
-			if p, ok := peers[n.ID()]; ok {
-				p.rw.set(trustedConn, false)
-			}
+			removeTrusted(n)
 		case op := <-srv.peerOp:
 			// This channel is used by Peers and PeerCount.
 			op(peers)
@@ -711,16 +860,19 @@ running:
 				// Ensure that the trusted flag is set before checking against MaxPeers.
 				c.flags |= trustedConn
 			}
+			if _, ok := valNodes[c.node.ID()]; ok {
+				c.flags |= validatorConn
+			}
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
 			select {
-			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c):
+			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers):
 			case <-srv.quit:
 				break running
 			}
 		case c := <-srv.addpeer:
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
-			err := srv.protoHandshakeChecks(peers, inboundCount, c)
+			err := srv.protoHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
 				p := newPeer(c, srv.Protocols)
@@ -736,6 +888,15 @@ running:
 				if p.Inbound() {
 					inboundCount++
 				}
+
+				// increment the validator peer counters
+				if isValNode(c.node.ID()) {
+					numConnectedValPeers++
+					if p.Inbound() {
+						numInboundValPeers++
+					}
+				}
+
 			}
 			// The dialer logic relies on the assumption that
 			// dial tasks complete after the peer has been added or
@@ -752,6 +913,14 @@ running:
 			delete(peers, pd.ID())
 			if pd.Inbound() {
 				inboundCount--
+			}
+
+			// decrement the validator peer counters
+			if isValNode(pd.ID()) {
+				numConnectedValPeers--
+				if pd.Inbound() {
+					numInboundValPeers--
+				}
 			}
 		}
 	}
@@ -779,21 +948,21 @@ running:
 	}
 }
 
-func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
+func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
 	// Drop connections with no matching protocols.
 	if len(srv.Protocols) > 0 && countMatchingProtocols(srv.Protocols, c.caps) == 0 {
 		return DiscUselessPeer
 	}
 	// Repeat the encryption handshake checks because the
 	// peer set might have changed between the handshakes.
-	return srv.encHandshakeChecks(peers, inboundCount, c)
+	return srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
 }
 
-func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
+func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !c.is(trustedConn|staticDialedConn|validatorConn) && len(peers) >= (srv.MaxPeers+numConnectedValPeers): // Don't count the validator nodes against max peers
 		return DiscTooManyPeers
-	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
+	case !c.is(trustedConn|validatorConn) && c.is(inboundConn) && inboundCount >= (srv.maxInboundConns()+numInboundValPeers): // Don't count the inbound validator nodes against max inbound conns
 		return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected

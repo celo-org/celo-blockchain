@@ -56,9 +56,9 @@ type Broadcaster interface {
 	// GetLocalNode retrieves the node's local node
 	GetLocalNode() *enode.Node
 	// Add a new static peer
-	AddStaticPeer(enodeURL string) error
+	AddValidatorPeer(enodeURL string) error
 	// Remove a static peer
-	RemoveStaticPeer(enodeURL string) error
+	RemoveValidatorPeer(enodeURL string) error
 }
 
 // Peer defines the interface to communicate with peer

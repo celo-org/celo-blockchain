@@ -161,9 +161,9 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 	return self.peers
 }
 
-func (self *testSystemBackend) AddStaticPeer(enodeURL string) {}
+func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
 
-func (self *testSystemBackend) RemoveStaticPeer(enodeURL string) {}
+func (self *testSystemBackend) RemoveValidatorPeer(enodeURL string) {}
 
 func (self *testSystemBackend) Enode() *enode.Node {
 	return nil

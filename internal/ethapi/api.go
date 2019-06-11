@@ -1584,6 +1584,11 @@ func (s *PublicNetAPI) PeerCount() hexutil.Uint {
 	return hexutil.Uint(s.net.PeerCount())
 }
 
+// PeerCount returns the number of connected peers
+func (s *PublicNetAPI) ValPeerCount() hexutil.Uint {
+	return hexutil.Uint(s.net.ValPeerCount())
+}
+
 // Version returns the current ethereum protocol version.
 func (s *PublicNetAPI) Version() string {
 	return fmt.Sprintf("%d", s.networkVersion)
