@@ -97,14 +97,16 @@ const (
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	GoldTokenRegistryId              = "GoldToken"
 	AddressBasedEncryptionRegistryId = "AddressBasedEncryption"
+	BondedDepositsRegistryId         = "BondedDeposits"
+	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
+	GasPriceOracleRegistryId         = "GasPriceOracle"
+	GoldTokenRegistryId              = "GoldToken"
+	GovernanceRegistryId             = "Governance"
+	RandomRegistryId                 = "Random"
 	ReserveRegistryId                = "Reserve"
 	SortedOraclesRegistryId          = "SortedOracles"
-	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
 	ValidatorsRegistryId             = "Validators"
-	GasPriceOracleRegistryId         = "GasPriceOracle"
-	RandomRegistryId                 = "Random"
 )
 
 var (
