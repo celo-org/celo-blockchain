@@ -63,7 +63,7 @@ jobs:
           root: .
           paths: .
 
-   end-to-end-transfer-test:
+  end-to-end-transfer-test:
     docker:
       - image: celohq/node8:gcloud
     steps:
@@ -79,7 +79,7 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_transfers.sh local ~/geth
-   end-to-end-sync-test:
+  end-to-end-sync-test:
     docker:
       - image: celohq/node8:gcloud
     steps:
@@ -95,7 +95,7 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/geth
 
-   end-to-end-sync-integration-test:
+  end-to-end-sync-integration-test:
     docker:
       - image: celohq/node8:gcloud
     steps:
