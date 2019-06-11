@@ -84,6 +84,7 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_transfers.sh local ~/geth
+
   end-to-end-sync-test:
     <<: *end-to-end-defaults
     steps:
@@ -98,21 +99,6 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/geth
-
-  end-to-end-sync-integration-test:
-    <<: *end-to-end-defaults
-    steps:
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Geth sync with integration network(s) test
-          command: |
-            GO_LANG_DIR="$HOME/geth/golang"
-            ${GO_LANG_DIR}/go/bin/go version
-            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
-            cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_integration_sync.sh local ~/geth
 
 workflows:
   version: 2
