@@ -8,8 +8,6 @@ defaults: &defaults
 end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node8:gcloud
-  docker:
-    - image: circleci/golang:1.12
   working_directory: ~/geth
 
 jobs:
