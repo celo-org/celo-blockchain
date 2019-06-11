@@ -19,6 +19,7 @@ jobs:
     working_directory: /go/src/github.com/celo-org/geth
     steps:
       - checkout
+      - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test
 
   lint:
