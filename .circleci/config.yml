@@ -115,6 +115,3 @@ workflows:
       - end-to-end-sync-test:
           requires:
             - end-to-end-checkout
-      - end-to-end-sync-integration-test:
-          requires:
-            - end-to-end-checkout
