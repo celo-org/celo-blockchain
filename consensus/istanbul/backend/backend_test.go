@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -231,9 +232,15 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
+func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generatePrivateKey()
+	return crypto.Sign(data, key)
+}
+
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
+
 	key, _ := generatePrivateKey()
-	b.privateKey = key
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn)
 	return
 }

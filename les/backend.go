@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/light"
@@ -73,6 +72,10 @@ type LightEthereum struct {
 
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
+
+	regAdd *core.RegisteredAddresses
+	iEvmH  *core.InternalEVMHandler
+	gcWl   *core.GasCurrencyWhitelist
 
 	wg sync.WaitGroup
 }
@@ -135,6 +138,17 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
 		return nil, err
 	}
+
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Note: that this should NOT be used when executing smart contract calls done via end user transactions.
+	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
+
+	// Object used to retrieve and cache registered addresses from the Registry smart contract.
+	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
+	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
+	leth.regAdd.RefreshAddresses()
+	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd, leth.iEvmH)
+
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
 	leth.chtIndexer.Start(leth.blockchain)
@@ -151,12 +165,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg, config.Etherbase); err != nil {
 		return nil, err
 	}
-	leth.ApiBackend = &LesApiBackend{leth, nil}
-	gpoParams := config.GPO
-	if gpoParams.Default == nil {
-		gpoParams.Default = config.MinerGasPrice
-	}
-	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
+	leth.ApiBackend = &LesApiBackend{leth}
 	return leth, nil
 }
 
