@@ -41,9 +41,10 @@ type Backend interface {
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
+	InternalEVMHandler() *core.InternalEVMHandler
 }
 
-// Miner creates blocks and searches for proof-of-work values.
+// Miner creates blocks
 type Miner struct {
 	mux      *event.TypeMux
 	worker   *worker
@@ -56,13 +57,13 @@ type Miner struct {
 	shouldStart int32 // should start indicates whether we should start after sync
 }
 
-func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(block *types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *Miner {
+func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(block *types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator) *Miner {
 	miner := &Miner{
 		eth:      eth,
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),
-		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock, verificationService, verificationRewards, pc),
+		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock, verificationService, verificationRewards, co),
 		canStart: 1,
 	}
 	go miner.update()

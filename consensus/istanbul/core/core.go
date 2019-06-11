@@ -97,6 +97,10 @@ type core struct {
 	consensusTimer metrics.Timer
 }
 
+func (c *core) SetAddress(address common.Address) {
+	c.address = address
+}
+
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	var err error
 	// Add sender address

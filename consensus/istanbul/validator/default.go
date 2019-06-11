@@ -157,32 +157,64 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 	return valSet.GetByIndex(pick)
 }
 
-func (valSet *defaultSet) AddValidator(address common.Address) bool {
+func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
+	newValidators := make([]istanbul.Validator, 0, len(addresses))
+	newAddressesMap := make(map[common.Address]bool)
+	for _, address := range addresses {
+		newAddressesMap[address] = true
+		newValidators = append(newValidators, New(address))
+	}
+
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
+
+	// Verify that the validators to add is not already in the valset
 	for _, v := range valSet.validators {
-		if v.Address() == address {
+		if _, ok := newAddressesMap[v.Address()]; ok {
 			return false
 		}
 	}
-	valSet.validators = append(valSet.validators, New(address))
+
+	valSet.validators = append(valSet.validators, newValidators...)
 	// TODO: we may not need to re-sort it again
 	// sort validator
 	sort.Sort(valSet.validators)
 	return true
 }
 
-func (valSet *defaultSet) RemoveValidator(address common.Address) bool {
+func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
+	if len(addresses) == 0 {
+		return true
+	}
+
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
-	for i, v := range valSet.validators {
-		if v.Address() == address {
-			valSet.validators = append(valSet.validators[:i], valSet.validators[i+1:]...)
-			return true
+	removeAddressesMap := make(map[common.Address]bool)
+	for _, address := range addresses {
+		removeAddressesMap[address] = true
+	}
+
+	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
+	// new memory will be allocated
+	tempList := valSet.validators[:0]
+	defer func() {
+		valSet.validators = tempList
+	}()
+
+	for _, v := range valSet.validators {
+		if _, ok := removeAddressesMap[v.Address()]; !ok {
+			tempList = append(tempList, v)
+		} else {
+			delete(removeAddressesMap, v.Address())
 		}
 	}
-	return false
+
+	if len(removeAddressesMap) > 0 {
+		return false
+	} else {
+		return true
+	}
 }
 
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {

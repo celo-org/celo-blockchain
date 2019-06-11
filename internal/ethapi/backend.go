@@ -71,6 +71,7 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
+	GasFeeRecipient() common.Address
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

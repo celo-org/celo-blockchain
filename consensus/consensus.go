@@ -20,6 +20,7 @@ package consensus
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,6 +49,14 @@ type ChainReader interface {
 
 	// GetBlock retrieves a block from the database by hash and number.
 	GetBlock(hash common.Hash, number uint64) *types.Block
+}
+
+type ConsensusIEvmH interface {
+	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+}
+
+type ConsensusRegAdd interface {
+	GetRegisteredAddress(registryId string) *common.Address
 }
 
 // Engine is an algorithm agnostic consensus engine.
@@ -134,9 +143,25 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// Setter functions
+	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
+
+	SetRegisteredAddresses(regAdd ConsensusRegAdd)
+
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(hash common.Hash) bool) error
+	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error
+
+	// This is only implemented for Istanbul.
+	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
+	// The changes are executed inline.
+	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
+
+	// This is only implemented for Istanbul.
+	// It will check to see if the header is from the last block of an epoch
+	IsLastBlockOfEpoch(header *types.Header) bool
 }
