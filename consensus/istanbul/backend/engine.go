@@ -456,6 +456,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
 
+	// Add block rewards
+
 	infrastructureBlockReward := big.NewInt(params.Ether)
 	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 	if governanceAddress != nil {
@@ -472,9 +474,11 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 	}
 
-	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
+	// Increase totalSupply for Gold
 
-	totalBlockRewards := big.NewInt(1)
+	totalBlockRewards := big.NewInt(0)
+	totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
+	totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
 
 	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
