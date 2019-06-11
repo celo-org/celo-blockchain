@@ -69,7 +69,6 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 	// Celo Precompiled Contracts
 	requestAttestationAddress: &requestAttestation{},
-	getCoinbaseAddress:        &getCoinbase{},
 	transferAddress:           &transfer{},
 	fractionMulExpAddress:     &fractionMulExp{},
 }

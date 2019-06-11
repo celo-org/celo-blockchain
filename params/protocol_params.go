@@ -90,8 +90,7 @@ const (
 
 	// Celo precompiled contracts
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
-	GetCoinbaseGas         uint64 = 20   // Equivalent to the cost of the BLOCKHASH op
+	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 
