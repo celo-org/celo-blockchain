@@ -1217,7 +1217,7 @@ type SendTxArgs struct {
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
-		uint64 defaultGas = 90000
+		defaultGas := uint64(90000)
 		if args.GasCurrency == nil {
 			*(*uint64)(args.Gas) = defaultGas
 		} else {
