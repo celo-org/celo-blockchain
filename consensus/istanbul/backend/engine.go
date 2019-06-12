@@ -105,6 +105,10 @@ var (
 		  {
 			"name": "amount",
 			"type": "uint256"
+		  },
+		  {
+			"name": "sequence",
+			"type": "uint256"
 		  }
 		],
 		"name": "increaseSupply",
@@ -483,7 +487,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
-		_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 200000, big.NewInt(0), header, state)
+		_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 200000, big.NewInt(0), header, state)
 		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
 			log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
 		}
