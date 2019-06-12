@@ -326,7 +326,7 @@ func (self *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable b
 
 		if head := self.hc.CurrentHeader(); head.Hash() == hash {
 			parentHeader := self.GetHeader(head.ParentHash, head.Number.Uint64()-1)
-			// In all sync modes except CeloLatestSync, a complete header chain is available.
+			// In all sync modes except CeloLatestSync and UltraLightSync, a complete header chain is available.
 			// Maintain the old behavior in those cases.
 			if fullHeaderChainAvailable || parentHeader != nil {
 				self.hc.SetCurrentHeader(parentHeader)

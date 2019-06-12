@@ -57,9 +57,12 @@ func (pm *ProtocolManager) syncer() {
 
 func (pm *ProtocolManager) needToSync(peerHead blockInfo, mode downloader.SyncMode) bool {
 	head := pm.blockchain.CurrentHeader()
-	if mode == downloader.CeloLatestSync {
-		// In the celolatest mode, the difficulty calculation is meaningless, so, we rely on the block
-		// numbers.
+	if !mode.SyncFullHeaderChain() {
+		// There are two modes where this holds, celolatest and ultralight.
+		// In the celolatest mode, the difficulty calculation cannot be done since we don't have all the blocks,
+		// so, we rely on the block numbers.
+		// In the ultralight mode used for IBFT, each block has a difficulty of 1, so, block number
+		// corresponds to the difficulty level.
 		currentHead := head.Number.Uint64()
 		log.Debug("needToSync", "currentHead", currentHead, "peerHead", peerHead.Number)
 		return peerHead.Number > currentHead
