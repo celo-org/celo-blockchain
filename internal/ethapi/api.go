@@ -1217,12 +1217,12 @@ type SendTxArgs struct {
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
+		uint64 defaultGas = 90000
 		if args.GasCurrency == nil {
-			*(*uint64)(args.Gas) = 90000
+			*(*uint64)(args.Gas) = defaultGas 
 		} else {
-			// When paying for gas in a currency other than Celo Gold, the intrinsic cost is 91k gas
-			// greater than when paying for gas in Celo Gold.
-			*(*uint64)(args.Gas) = 181000
+			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
+			*(*uint64)(args.Gas) = defaultGas + params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
 		}
 	}
 	if args.GasPrice == nil {
