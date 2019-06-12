@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -307,15 +306,14 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	validatorElectionAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-
-	if validatorElectionAddress != nil {
-		var newValSet []common.Address
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
-			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
-			return err
+	newValSet, err := sb.getValSet(block.Header(), state)
+	if err != nil {
+		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", common.ConvertToStringSlice(istExtra.RemovedValidators))
+			return errInvalidValidatorSetDiff
 		}
-
+	} else {
 		parentValidators := sb.ParentValidators(proposal)
 		oldValSet := make([]common.Address, 0, parentValidators.Size())
 
@@ -326,13 +324,6 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
 		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
-			return errInvalidValidatorSetDiff
-		}
-	} else {
-		// The validator election smart contract is not registered yet, so the validator set diff should be empty
-
-		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
 		}
 	}
