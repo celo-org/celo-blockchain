@@ -191,14 +191,14 @@ type worker struct {
 	lastBlockVerified   uint64
 
 	// Transaction processing
-	co     *core.CurrencyOperator
-	random *core.Random
+	co  *core.CurrencyOperator
+	rng *core.Rng
 
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator, rng *core.Rng, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -225,7 +225,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		co:                  co,
-		random:              random,
+		rng:                 rng,
 		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -776,7 +776,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	if tx.Special {
-		err := w.random.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
+		err := w.rng.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
 
 		if err != nil {
 			log.Error("Failed to reveal and commit")
@@ -1058,10 +1058,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 
-	w.eth.RegisteredAddresses().RefreshAddresses()
-
-	if w.random.RandomRunning() {
-		randomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	if w.rng.RngRunning() {
+		randomness, err := w.rng.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness")
 		}
@@ -1072,12 +1070,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		w.current.randomness = randomness
 
-		w.current.newSealedRandomness, err = w.random.SealRandomness(newRandomness, w.current.header, w.current.state)
+		w.current.newSealedRandomness, err = w.rng.SealRandomness(newRandomness, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to seal randomness", "err", err)
 		}
 
-		w.random.StoreCommitment(newRandomness, w.current.newSealedRandomness, w.db)
+		w.rng.StoreCommitment(newRandomness, w.current.newSealedRandomness, w.db)
 
 		callData := make([]byte, 64)
 		copy(callData[0:], randomness[:])

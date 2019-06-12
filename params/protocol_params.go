@@ -103,7 +103,7 @@ const (
 	GasPriceOracleRegistryId         = "GasPriceOracle"
 	GoldTokenRegistryId              = "GoldToken"
 	GovernanceRegistryId             = "Governance"
-	RandomRegistryId                 = "Random"
+	RngRegistryId                    = "Rng"
 	ReserveRegistryId                = "Reserve"
 	SortedOraclesRegistryId          = "SortedOracles"
 	ValidatorsRegistryId             = "Validators"

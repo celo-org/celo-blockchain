@@ -57,7 +57,7 @@ var (
 		params.GasPriceOracleRegistryId,
 		params.GoldTokenRegistryId,
 		params.GovernanceRegistryId,
-		params.RandomRegistryId,
+		params.RngRegistryId,
 		params.ReserveRegistryId,
 		params.SortedOraclesRegistryId,
 		params.ValidatorsRegistryId,
