@@ -372,8 +372,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	gasUsed := st.gasUsed()
 	st.refundGas()
+	gasUsed := st.gasUsed()
 	// Pay gas fee to Coinbase chosen by the miner
 	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", gasFee)
