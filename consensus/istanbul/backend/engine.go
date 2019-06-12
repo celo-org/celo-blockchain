@@ -391,7 +391,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 	} else {
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
-		// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 		_, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
 	}

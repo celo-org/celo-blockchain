@@ -310,7 +310,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", common.ConvertToStringSlice(istExtra.RemovedValidators))
 			return errInvalidValidatorSetDiff
 		}
 	} else {
