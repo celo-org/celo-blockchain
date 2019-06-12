@@ -116,7 +116,16 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 		gas += z * params.TxDataZeroGas
 	}
 
-	// We need to read an ERC20 balance and make one creditGas() and two debitGas() calls.
+	// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
+	// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
+	// non-native currency at the end and the other covers for the user refund at the end.
+	// A user might or might not have a gas refund at the end and even if they do the gas refund might
+	// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
+	// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
+	// have to expect the user to estimate the mining fee right or else end up losing
+	// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
+	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
+	// keeping it consistent.
 	if gasCurrency != nil {
 		gas += 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
 	}
@@ -191,7 +200,7 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
+	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, params.MaxGasToReadErc20Balance)
 	if err != nil {
 		return false
 	}
@@ -209,7 +218,7 @@ func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, ad
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitAndCreditTransactions, big.NewInt(0))
 	if err != nil {
-		log.Error("failed to debit or credit ERC20 balance", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
+		log.Error("failed to debit or credit ERC20 balance", "functionSelector", functionSelector, "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
 		return err
 	}
 
@@ -228,7 +237,7 @@ func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCur
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Debug("Crediting gas", "receipient", to, "amount", amount, "gasCurrency", gasCurrency)
+	log.Debug("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
@@ -332,6 +341,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	err = st.refundGas()
 	if err != nil {
+		log.Error("Failed to refund gas", "err", err)
 		return nil, 0, false, err
 	}
 
