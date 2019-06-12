@@ -190,7 +190,7 @@ func initGenesis(ctx *cli.Context) error {
 	}
 	// Open an initialise both full and light databases
 	stack := makeFullNode(ctx)
-	for _, name := range []string{"chaindata", "lightchaindata", "celolatestchaindata"} {
+	for _, name := range []string{"chaindata", "lightchaindata", "celolatestchaindata", "ultralightchaindata"} {
 		chaindb, err := stack.OpenDatabase(name, 0, 0)
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)

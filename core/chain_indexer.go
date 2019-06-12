@@ -92,8 +92,8 @@ type ChainIndexer struct {
 
 	log  log.Logger
 	lock sync.RWMutex
-	// True in all sync modes except CeloLatestSync.
-	fullChainDownloaded bool
+	// True in all sync modes except CeloLatestSync and UltraLightSync
+	fullHeaderChainDownloaded bool
 }
 
 // NewChainIndexer creates a new chain indexer to do background processing on
@@ -101,16 +101,16 @@ type ChainIndexer struct {
 // The throttling parameter might be used to prevent database thrashing.
 func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string, fullChainDownloaded bool) *ChainIndexer {
 	c := &ChainIndexer{
-		chainDb:             chainDb,
-		indexDb:             indexDb,
-		backend:             backend,
-		update:              make(chan struct{}, 1),
-		quit:                make(chan chan error),
-		sectionSize:         section,
-		confirmsReq:         confirm,
-		throttling:          throttling,
-		log:                 log.New("type", kind),
-		fullChainDownloaded: fullChainDownloaded,
+		chainDb:                   chainDb,
+		indexDb:                   indexDb,
+		backend:                   backend,
+		update:                    make(chan struct{}, 1),
+		quit:                      make(chan chan error),
+		sectionSize:               section,
+		confirmsReq:               confirm,
+		throttling:                throttling,
+		log:                       log.New("type", kind),
+		fullHeaderChainDownloaded: fullChainDownloaded,
 	}
 	// Initialize database dependent fields and start the updater
 	c.loadValidSections()
@@ -395,7 +395,7 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	for number := section * c.sectionSize; number < (section+1)*c.sectionSize; number++ {
 		hash := rawdb.ReadCanonicalHash(c.chainDb, number)
 		if hash == (common.Hash{}) {
-			if !c.fullChainDownloaded {
+			if !c.fullHeaderChainDownloaded {
 				return lastHead, nil
 			}
 			return common.Hash{}, fmt.Errorf("canonical block #%d unknown", number)

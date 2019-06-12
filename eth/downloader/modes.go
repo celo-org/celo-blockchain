@@ -26,10 +26,13 @@ const (
 	FastSync                       // Quickly download the headers, full sync only at the chain head
 	LightSync                      // Download only the headers and terminate afterwards
 	CeloLatestSync                 // Latest block only (Celo-specific mode)
+	UltraLightSync                 // Synchronise one block per Epoch (Celo-specific mode)
 )
 
+const ultraLightSyncModeAsString = "ultralight"
+
 func (mode SyncMode) IsValid() bool {
-	return mode >= FullSync && mode <= CeloLatestSync
+	return mode >= FullSync && mode <= UltraLightSync
 }
 
 // String implements the stringer interface.
@@ -43,6 +46,8 @@ func (mode SyncMode) String() string {
 		return "light"
 	case CeloLatestSync:
 		return "celolatest"
+	case UltraLightSync:
+		return ultraLightSyncModeAsString
 	default:
 		return "unknown"
 	}
@@ -58,6 +63,8 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("light"), nil
 	case CeloLatestSync:
 		return []byte("celolatest"), nil
+	case UltraLightSync:
+		return []byte(ultraLightSyncModeAsString), nil
 	default:
 		return nil, fmt.Errorf("unknown sync mode %d", mode)
 	}
@@ -73,8 +80,48 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = LightSync
 	case "celolatest":
 		*mode = CeloLatestSync
+	case ultraLightSyncModeAsString:
+		*mode = UltraLightSync
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "celolatest"`, text)
+		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", "celolatest", or "%s"`,
+			text, ultraLightSyncModeAsString)
 	}
 	return nil
+}
+
+// Returns true if the all headers and not just some a small, discontinuous, set of headers are fetched.
+func (mode SyncMode) SyncFullHeaderChain() bool {
+	switch mode {
+	case FullSync:
+		return true
+	case FastSync:
+		return true
+	case LightSync:
+		return true
+	case CeloLatestSync:
+		return false
+	case UltraLightSync:
+		return false
+	default:
+		panic(fmt.Errorf("unknown sync mode %d", mode))
+	}
+}
+
+// Returns true if the full blocks (and not just headers) are fetched.
+// If a mode returns true here then it will return true for `SyncFullHeaderChain` as well.
+func (mode SyncMode) SyncFullBlockChain() bool {
+	switch mode {
+	case FullSync:
+		return true
+	case FastSync:
+		return true
+	case LightSync:
+		return false
+	case CeloLatestSync:
+		return false
+	case UltraLightSync:
+		return false
+	default:
+		panic(fmt.Errorf("unknown sync mode %d", mode))
+	}
 }

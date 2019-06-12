@@ -666,7 +666,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return ErrInsufficientFunds
 		}
 	}
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency())
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
