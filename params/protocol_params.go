@@ -125,5 +125,5 @@ const (
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
 	MaxGasForDebitAndCreditTransactions uint64 = 30 * 1000
-	MaxGasToReadErc20Balance            uint64 = 1000
+	MaxGasToReadErc20Balance            uint64 = 3 * 1000
 )
