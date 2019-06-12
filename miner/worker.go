@@ -1094,7 +1094,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		tx.Special = true
 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
-			nullAddress: types.Transactions{tx},
+			nullAddress: {tx},
 		}, w.txCmp)
 
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
