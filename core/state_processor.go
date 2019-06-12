@@ -93,13 +93,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.gcWl.RefreshWhitelist()
 	}
 
-	nullAddress := common.NullAddress
-	randomAddress := p.regAdd.GetRegisteredAddress(params.RandomRegistryId)
-	randomRunning := randomAddress != nil && *randomAddress != nullAddress
-
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if i == 0 && randomRunning {
+		if i == 0 && p.random.RandomRunning() {
 			receipt := types.NewReceipt([]byte{}, false, 0)
 			receipt.TxHash = tx.Hash()
 			receipt.GasUsed = 0

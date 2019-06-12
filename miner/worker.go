@@ -97,7 +97,6 @@ type environment struct {
 
 	randomness          [32]byte
 	newSealedRandomness [32]byte
-	randomAddress       common.Address
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -1060,12 +1059,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	w.eth.RegisteredAddresses().RefreshAddresses()
-	nullAddress := common.NullAddress
-	randomAddress := w.eth.RegisteredAddresses().GetRegisteredAddress(params.RandomRegistryId)
 
-	if randomAddress != nil && *randomAddress != nullAddress {
-		w.current.randomAddress = *randomAddress
-
+	if w.random.RandomRunning() {
 		randomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness")
@@ -1088,12 +1083,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		copy(callData[0:], randomness[:])
 		copy(callData[32:], w.current.newSealedRandomness[:])
 
-		tx := types.NewTransaction(0, nullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
+		tx := types.NewTransaction(0, common.NullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
 		tx.Special = true
 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
-			nullAddress: {tx},
+			common.NullAddress: {tx},
 		}, w.txCmp)
 
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
