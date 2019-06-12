@@ -145,9 +145,6 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 
-	// dont charge the first tx
-	// msg.chargeforgas = usedGas != 0
-
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl)
 	if err != nil {

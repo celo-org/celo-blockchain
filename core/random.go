@@ -109,9 +109,8 @@ func NewRandom(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandl
 
 // StoreCommitment stores a mapping from `sealedRandomness` to its preimage,
 // randomness, for later retrieval in GetLastRandomness.
-func (r *Random) StoreCommitment(randomness [32]byte, sealedRandomness [32]byte, db *ethdb.Database) error {
-	dbLocation := append(dbRandomnessPrefix, sealedRandomness[:]...)
-	return (*db).Put(dbLocation, randomness[:])
+func (r *Random) StoreCommitment(randomness, sealedRandomness [32]byte, db *ethdb.Database) error {
+	return (*db).Put(commitmentDbLocation(sealedRandomness), randomness[:])
 }
 
 func (r *Random) randomAddress() common.Address {
@@ -120,14 +119,17 @@ func (r *Random) randomAddress() common.Address {
 
 func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	sealedRandomness := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &sealedRandomness, 100000, header, state)
+	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &sealedRandomness, gasAmount, header, state)
 	return sealedRandomness, err
 }
 
+func commitmentDbLocation(sealedRandomness [32]byte) []byte {
+	return append(dbRandomnessPrefix, sealedRandomness[:]...)
+}
+
 func (r *Random) getRandomnessFromCommitment(sealedRandomness [32]byte, coinbase common.Address, db *ethdb.Database) ([32]byte, error) {
-	dbLocation := append(dbRandomnessPrefix, sealedRandomness[:]...)
 	randomness := [32]byte{}
-	randomnessSlice, err := (*db).Get(dbLocation)
+	randomnessSlice, err := (*db).Get(commitmentDbLocation(sealedRandomness))
 	if err != nil {
 		log.Debug("Failed to get randomness from database", "err", err)
 	} else {
@@ -140,7 +142,7 @@ func (r *Random) getRandomnessFromCommitment(sealedRandomness [32]byte, coinbase
 // public static function on the Random contract.
 func (r *Random) SealRandomness(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	sealedRandomness := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), sealFuncABI, "seal", []interface{}{randomness}, &sealedRandomness, 100000, header, state)
+	_, err := r.iEvmH.MakeStaticCall(r.randomAddress(), sealFuncABI, "seal", []interface{}{randomness}, &sealedRandomness, gasAmount, header, state)
 	return sealedRandomness, err
 }
 
@@ -161,7 +163,7 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
-func (r *Random) RevealAndCommit(randomness [32]byte, newSealedRandomness [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
+func (r *Random) RevealAndCommit(randomness, newSealedRandomness [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newSealedRandomness, proposer}
 	_, err := r.iEvmH.MakeCall(r.randomAddress(), revealAndCommitFuncABI, "revealAndCommit", args, []interface{}{}, gasAmount, zeroValue, header, state)
 	if err != nil {

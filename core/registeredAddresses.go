@@ -51,16 +51,16 @@ const (
 var (
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 	registeredContractIds        = []string{
-		params.GoldTokenRegistryId,
 		params.AddressBasedEncryptionRegistryId,
+		params.BondedDepositsRegistryId,
+		params.GasCurrencyWhitelistRegistryId,
+		params.GasPriceOracleRegistryId,
+		params.GoldTokenRegistryId,
+		params.GovernanceRegistryId,
+		params.RandomRegistryId,
 		params.ReserveRegistryId,
 		params.SortedOraclesRegistryId,
-		params.GasCurrencyWhitelistRegistryId,
 		params.ValidatorsRegistryId,
-		params.GasPriceOracleRegistryId,
-		params.GovernanceRegistryId,
-		params.BondedDepositsRegistryId,
-		params.RandomRegistryId,
 	}
 	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 	zeroAddress             = common.Address{}
