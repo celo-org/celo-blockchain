@@ -174,8 +174,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return errInvalidNonce
 	}
 
-	// TODO(martin) - ensure coinbase is block proposer when validating
-
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
 		return errInvalidMixDigest
