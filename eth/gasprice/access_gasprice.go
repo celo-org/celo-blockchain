@@ -53,21 +53,6 @@ const (
       "type": "function"
   }]`
 
-	getGasPriceParamsABIString = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "getGasPriceParameters",
-		"outputs": [
-			{
-				"name": "",
-				"type": "uint256[3]"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}]`
-
 	setGasPriceFloorABIString = `[{
       "constant": false,
       "inputs": [
@@ -81,12 +66,59 @@ const (
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
-    }]`
+    },
+   {
+    "constant": true,
+    "inputs": [
+      {
+        "name": "_blockGasTotal",
+        "type": "uint256"
+      },
+      {
+        "name": "_blockGasLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "calculateGasPriceFloor",
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_blockGasTotal",
+          "type": "uint256"
+        },
+        {
+          "name": "_blockGasLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateGasPriceFloor",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    } 
+  
+  ]`
 )
 
 var (
 	getGasPriceFloorABI, _  = abi.JSON(strings.NewReader(getGasPriceFloorABIString))
-	gasGasPriceParamsABI, _ = abi.JSON(strings.NewReader(getGasPriceParamsABIString))
 	setGasPriceFloorABI, _  = abi.JSON(strings.NewReader(setGasPriceFloorABIString))
 )
 
@@ -126,30 +158,17 @@ func getGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.Address
 }
 
 
-func GetGasPriceParams(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) ([3]*big.Int, error) {
-	log.Info("gasprice.GetGasPriceParams called")
-	var gasPriceParams [3]*big.Int
+func UpdateGasPriceFloor(iEvmH core.EvmHandler, regAdd core.AddressRegistry, header *types.Header, state *state.StateDB) (*big.Int, error) {
+	log.Info("gasprice.UpdateGasPriceFloor called")
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	if gasPriceOracleAddress == nil {
-		return gasPriceParams, errors.New("no gasprice oracle contract address found")
-	}
-
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasGasPriceParamsABI, "getGasPriceParameters", []interface{}{}, &gasPriceParams, 200000, nil, nil)
-
-	return gasPriceParams, err
-}
-
-
-func SetGasPriceFloor(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, newGasPriceFloor *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
-	log.Info("gasprice.SetGasPriceFloor called")
-	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+	var updatedGasPriceFloor *big.Int
 
 	if gasPriceOracleAddress == nil {
-		return 0, errors.New("no gasprice oracle contract address found")
+		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
-	gasLeft, err := iEvmH.MakeCall(*gasPriceOracleAddress, setGasPriceFloorABI, "setGasPriceFloor", []interface{}{newGasPriceFloor}, nil, 1000000000, big.NewInt(0), header, state)
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, setGasPriceFloorABI, "updateGasPriceFloor", []interface{}{big.NewInt(int64(header.GasUsed)), big.NewInt(int64(header.GasLimit))}, &updatedGasPriceFloor, 1000000000, big.NewInt(0), header, state)
 
-	return gasLeft, err
+	return updatedGasPriceFloor, err
 }
