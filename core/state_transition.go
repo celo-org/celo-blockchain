@@ -325,9 +325,7 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
-	// if msg.chargeforgas {
 	return st.buyGas()
-	// }
 }
 
 // TransitionDb will transition the state by applying the current message and
@@ -374,9 +372,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	// TODO: is it ok that we changed the order of refundGas, gasUsed?
 	gasUsed := st.gasUsed()
-	// if msg.chargeforgas {
 	st.refundGas()
 	// Pay gas fee to Coinbase chosen by the miner
 	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
@@ -389,7 +385,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	} else {
 		st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
 	}
-	// }
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }
