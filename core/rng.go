@@ -112,7 +112,11 @@ func (r *Rng) StoreCommitment(randomness, commitment [32]byte, db *ethdb.Databas
 }
 
 func (r *Rng) rngAddress() *common.Address {
-	return r.registeredAddresses.GetRegisteredAddress(params.RngRegistryId)
+	if r.registeredAddresses != nil {
+		return r.registeredAddresses.GetRegisteredAddress(params.RngRegistryId)
+	} else {
+		return &common.ZeroAddress
+	}
 }
 
 func (r *Rng) RngRunning() bool {
