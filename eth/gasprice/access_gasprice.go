@@ -17,7 +17,6 @@
 package gasprice
 
 import (
-	"context"
 	"errors"
 	"math/big"
 	"strings"
@@ -123,32 +122,34 @@ var (
 )
 
 
-func GetGoldGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
+func GetGoldGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
 	log.Info("gasprice.GetGoldGasPrice called")
   goldTokenAddress := regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
   if goldTokenAddress == nil {
-		return nil, errors.New("no gasprice oracle contract address found")
+    log.Warn("No gasprice oracle contract address found. Returning default gold gasprice floor of 0")
+		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
   }
 
-  return getGasPrice(ctx, iEvmH, regAdd, goldTokenAddress)
+  return getGasPrice(iEvmH, regAdd, goldTokenAddress)
 
 }
 
 
-func GetGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
+func GetGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
 	log.Info("gasprice.GetGasPrice called")
-  return getGasPrice(ctx, iEvmH, regAdd, currencyAddress)
+  return getGasPrice(iEvmH, regAdd, currencyAddress)
 }
 
 
-func getGasPrice(ctx context.Context, iEvmH core.EvmHandler, regAdd core.AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
+func getGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
 	log.Info("gasprice.getGasPrice called")
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
+    log.Warn("No gasprice oracle contract address found. Returning default gasprice floor of 0")
 		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
 	}
 

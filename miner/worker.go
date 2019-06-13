@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
@@ -537,8 +538,21 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
+        wl := w.eth.GasCurrencyWhitelist()
+        gasPriceFloors := make(map[common.Address]*big.Int)
+        goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+        currencies := wl.GetListCopy()
+        for address, isValidForGas := range currencies {
+          if isValidForGas {
+            gp, err := gasprice.GetGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), &address)
+            if err == nil {
+              gasPriceFloors[address] = gp
+            }
+          }
+        }
+
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
-				w.commitTransactions(txset, coinbase, nil)
+				w.commitTransactions(txset, coinbase, nil, gasPriceFloors, goldGasPriceFloor)
 				w.updateSnapshot()
 			} else {
 				// If we're mining, but nothing is being processed, wake on new transactions
@@ -775,7 +789,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32, gasPriceFloors map[common.Address]*big.Int, goldGasPriceFloor *big.Int) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -813,11 +827,20 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 			break
 		}
+
+
+
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
 			break
 		}
+
+    // TODO (jarmg 6/12): check if currency is invalid
+    if (tx.GasPrice().Cmp(gasPriceFloors[*tx.GasCurrency()]) == -1) {
+      break
+    }
+
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
 		//
@@ -1012,6 +1035,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
+  wl := w.eth.GasCurrencyWhitelist()
+  gasPriceFloors := make(map[common.Address]*big.Int)
+  goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+  currencies := wl.GetListCopy()
+  for address, isValidForGas := range currencies {
+    if isValidForGas {
+      gp, err := gasprice.GetGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), &address)
+      if err == nil {
+        gasPriceFloors[address] = gp
+      }
+    }
+  }
+
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -1035,13 +1072,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, w.coinbase, interrupt, gasPriceFloors, goldGasPriceFloor) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, w.coinbase, interrupt, gasPriceFloors, goldGasPriceFloor) {
 			return
 		}
 	}
