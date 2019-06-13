@@ -97,6 +97,10 @@ var (
 	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 62)")
 )
 
+// If you adding a new variable add it at the bottom. Otherwise, you can end up making some uint64 unaligned to 8-byte
+// boundary. That seems fine with ARM but on X86 (emulator), atomic loading of 64-bit variables causes a confusing crash.
+// Some variables like rttEstimate are loaded atomically with atomic.LoadUint64()
+
 type Downloader struct {
 	Mode SyncMode       // Synchronisation mode defining the strategy used (per sync cycle)
 	mux  *event.TypeMux // Event multiplexer to announce sync operation events
@@ -105,9 +109,6 @@ type Downloader struct {
 	queue         *queue   // Scheduler for selecting the hashes to download
 	peers         *peerSet // Set of active peers from which download can proceed
 	stateDB       ethdb.Database
-	ibftConsensus bool   // True if we are in IBFT consensus mode
-	epoch         uint64 // Epoch value is useful in IBFT consensus
-
 	rttEstimate   uint64 // Round trip time to target for download requests
 	rttConfidence uint64 // Confidence in the estimated RTT (unit: millionths to allow atomic ops)
 
@@ -148,8 +149,10 @@ type Downloader struct {
 	cancelLock sync.RWMutex   // Lock to protect the cancel channel and peer in delivers
 	cancelWg   sync.WaitGroup // Make sure all fetcher goroutines have exited.
 
-	quitCh   chan struct{} // Quit channel to signal termination
-	quitLock sync.RWMutex  // Lock to prevent double closes
+	quitCh        chan struct{} // Quit channel to signal termination
+	quitLock      sync.RWMutex  // Lock to prevent double closes
+	epoch         uint64        // Epoch value is useful in IBFT consensus
+	ibftConsensus bool          // True if we are in IBFT consensus mode
 
 	// Testing hooks
 	syncInitHook     func(uint64, uint64)  // Method to call upon initiating a new sync run
