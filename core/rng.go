@@ -117,7 +117,7 @@ func (r *Rng) rngAddress() *common.Address {
 
 func (r *Rng) RngRunning() bool {
 	rngAddress := r.rngAddress()
-	return rngAddress != nil && *rngAddress != common.NullAddress
+	return rngAddress != nil && *rngAddress != common.ZeroAddress
 }
 
 func (r *Rng) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) ([32]byte, error) {

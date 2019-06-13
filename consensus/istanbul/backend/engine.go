@@ -122,7 +122,6 @@ var (
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
-	emptyAddress      = common.Address{}
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)

@@ -1089,12 +1089,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		copy(callData[0:], randomness[:])
 		copy(callData[32:], w.current.newCommitment[:])
 
-		tx := types.NewTransaction(0, common.NullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
+		tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
 		tx.RngSpecial = true
 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
-			common.NullAddress: {tx},
+			common.ZeroAddress: {tx},
 		}, w.txCmp)
 
 		if w.commitTransactions(txs, w.coinbase, interrupt) {

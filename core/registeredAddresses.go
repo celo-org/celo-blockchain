@@ -63,7 +63,6 @@ var (
 		params.ValidatorsRegistryId,
 	}
 	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
-	zeroAddress             = common.Address{}
 )
 
 type RegisteredAddresses struct {
@@ -86,7 +85,7 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 		} else {
 			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
 
-			if contractAddress != zeroAddress {
+			if contractAddress != common.ZeroAddress {
 				returnMap[contractRegistryId] = contractAddress
 			}
 		}
