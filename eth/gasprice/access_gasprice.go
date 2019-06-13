@@ -31,7 +31,26 @@ import (
 
 // TODO (jarmg 5/22/18): Store contract function ABIs in a central location
 const (
-	gasPriceOracleABIString = `[{
+	gasPriceOracleABIString = `[
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "infrastructureSplit",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "constant": false,
       "inputs": [
         {
@@ -130,21 +149,17 @@ type AddressRegistry interface {
 	GetRegisteredAddress(registryId string) *common.Address
 }
 
-func GetGoldGasPrice(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*big.Int, error) {
-	log.Info("gasprice.GetGoldGasPrice called")
-  goldTokenAddress := regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-
-  if goldTokenAddress == nil {
-    log.Warn("No gasprice oracle contract address found. Returning default gold gasprice floor of 0")
-		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
-  }
-
-  return getGasPrice(iEvmH, regAdd, goldTokenAddress)
-}
-
-
 func GetGasPrice(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
 	log.Info("gasprice.GetGasPrice called")
+  if currencyAddress == nil {
+    currencyAddress = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+
+    if currencyAddress == nil {
+      log.Warn("No gold token contract address found. Returning default gold gasprice floor of 0")
+      return big.NewInt(0), errors.New("no gasprice oracle contract address found")
+    }
+  }
+
   return getGasPrice(iEvmH, regAdd, currencyAddress)
 }
 
@@ -183,7 +198,7 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 // GetGasPriceMapAndGold returns a map of gasprice floors for all whitelisted currencies and the gold gasprice floor
 func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int ){
   gasPriceFloors := make(map[common.Address]*big.Int)
-  goldGasPriceFloor, _ := GetGoldGasPrice(iEvmH, regAdd)
+  goldGasPriceFloor, _ := GetGasPrice(iEvmH, regAdd, nil)
   for address, isValidForGas := range gasCurrencyMap {
     if isValidForGas {
       gp, err := GetGasPrice(iEvmH, regAdd, &address)
@@ -193,4 +208,17 @@ func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCu
     }
   }
   return gasPriceFloors, goldGasPriceFloor
+}
+
+
+func GetInfraSplit(iEvmH StaticEvmHandler, regAdd AddressRegistry) ([2]*big.Int, error) {
+	var infraFraction [2]*big.Int
+	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+
+	if gasPriceOracleAddress == nil {
+		return infraFraction, errors.New("no gasprice oracle contract address found")
+	}
+
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "infrastructureSplit", []interface{}{}, &infraFraction, 200000, nil, nil)
+	return infraFraction, err
 }
