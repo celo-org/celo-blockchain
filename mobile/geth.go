@@ -45,6 +45,7 @@ const SyncModeFullSync = 1
 const SyncModeFastSync = 2
 const SyncModeLightSync = 3
 const SyncModeCeloLatestSync = 4
+const UltraLightSync = 5
 
 // NodeConfig represents the collection of configuration values to fine tune the Geth
 // node embedded into a mobile process. The available values are a subset of the
@@ -217,6 +218,8 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 		return downloader.LightSync
 	case SyncModeCeloLatestSync:
 		return downloader.CeloLatestSync
+	case UltraLightSync:
+		return downloader.UltraLightSync
 	default:
 		panic(fmt.Sprintf("Unexpected sync mode value: %d", syncMode))
 	}

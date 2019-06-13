@@ -161,8 +161,8 @@ func newTestProtocolManager(syncmode downloader.SyncMode, blocks int, generator 
 	if peers == nil {
 		peers = newPeerSet()
 	}
+	lightSync := !syncmode.SyncFullBlockChain()
 
-	lightSync := syncmode == downloader.LightSync || syncmode == downloader.CeloLatestSync
 	if lightSync {
 		chain, _ = light.NewLightChain(odr, gspec.Config, engine)
 	} else {

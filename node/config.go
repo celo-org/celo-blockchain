@@ -367,7 +367,7 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	// Load the nodes from the config file.
 	var nodelist []string
 	if err := common.LoadJSON(path, &nodelist); err != nil {
-		log.Error(fmt.Sprintf("Can't load node list file: %v", err))
+		panic(fmt.Sprintf("Can't load node list file: %v", err))
 		return nil
 	}
 	// Interpret the list as a discovery node array
@@ -378,8 +378,7 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 		}
 		node, err := enode.ParseV4(url)
 		if err != nil {
-			log.Error(fmt.Sprintf("Node URL %s: %v\n", url, err))
-			continue
+			panic(fmt.Sprintf("Node URL %s: %v\n", url, err))
 		}
 		nodes = append(nodes, node)
 	}
