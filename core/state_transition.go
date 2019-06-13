@@ -22,16 +22,21 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-
 	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
+
+	errGasPriceDoesNotExceedFloor = errors.New("gasprice does not exceed floor")
 
 	// This is the amount of gas a single debitFrom or creditTo request can use.
 	// This prevents arbitrary computation to be performed in these functions.
@@ -314,6 +319,25 @@ func getCreditToFunctionSelector() []byte {
 	return hexutil.MustDecode("0x9951b90c")
 }
 
+//TODO(jarmg 6/13) Find a better way to do this please 
+type gasPriceFloorEvm struct {
+  zeroCaller vm.ContractRef
+  evm *vm.EVM
+}
+
+func (gEvm gasPriceFloorEvm) MakeStaticCall(
+  scAddress common.Address,
+  abi abi.ABI,
+  funcName string,
+  args []interface{},
+  returnObj interface{},
+  gas uint64,
+  header *types.Header,
+  state *state.StateDB,
+) (uint64, error) {
+  return gEvm.evm.ABIStaticCall(gEvm.zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
+}
+
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
@@ -324,6 +348,27 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
+
+
+  gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
+
+  gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(gEvm, st.gcWl.regAdd, st.gcWl.GetListCopy())
+
+  var gasPriceFloor *big.Int
+  gasCurrency := st.msg.GasCurrency()
+
+  if gasCurrency == nil {
+    gasPriceFloor = goldGasPriceFloor
+  } else if gasPriceFloors[*gasCurrency] != nil {
+    gasPriceFloor = gasPriceFloors[*gasCurrency]
+  } else {
+    return errNonWhitelistedGasCurrency // currency should have already been checked in tx_pool
+  }
+
+  if (st.msg.GasPrice().Cmp(gasPriceFloor) == -1) {
+    return errGasPriceDoesNotExceedFloor
+  }
+
 	return st.buyGas()
 }
 
