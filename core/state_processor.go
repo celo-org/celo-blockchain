@@ -96,10 +96,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		if i == 0 && p.rng.RngRunning() {
-			receipt := types.NewReceipt([]byte{}, false, 0)
-			receipt.TxHash = tx.Hash()
-			receipt.GasUsed = 0
-			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+			receipt := types.NewSpecialReceipt(tx)
 			receipts = append(receipts, receipt)
 			var randomness, newCommitment [32]byte
 			copy(randomness[:], tx.Data()[:32])

@@ -772,32 +772,40 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitRngSpecialTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+	err := w.rng.RevealAndCommit(w.current.randomness, w.current.newCommitment, coinbase, w.current.header, w.current.state)
+
+	if err != nil {
+		log.Error("Failed to reveal and commit")
+	}
+
+	receipt := types.NewSpecialReceipt(tx)
+	w.current.txs = append(w.current.txs, tx)
+	w.current.receipts = append(w.current.receipts, receipt)
+
+	return []*types.Log{}, nil
+}
+
+func (w *worker) commitRegularTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	if tx.Special {
-		err := w.rng.RevealAndCommit(w.current.randomness, w.current.newCommitment, w.coinbase, w.current.header, w.current.state)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
+	if err != nil {
+		w.current.state.RevertToSnapshot(snap)
+		return nil, err
+	}
 
-		if err != nil {
-			log.Error("Failed to reveal and commit")
-		}
+	w.current.txs = append(w.current.txs, tx)
+	w.current.receipts = append(w.current.receipts, receipt)
 
-		receipt := types.SpecialReceipt(tx)
-		w.current.txs = append(w.current.txs, tx)
-		w.current.receipts = append(w.current.receipts, receipt)
+	return receipt.Logs, nil
+}
 
-		return []*types.Log{}, nil
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+	if tx.RngSpecial {
+		return w.commitRngSpecialTransaction(tx, coinbase)
 	} else {
-		receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
-		if err != nil {
-			w.current.state.RevertToSnapshot(snap)
-			return nil, err
-		}
-
-		w.current.txs = append(w.current.txs, tx)
-		w.current.receipts = append(w.current.receipts, receipt)
-
-		return receipt.Logs, nil
+		return w.commitRegularTransaction(tx, coinbase)
 	}
 }
 
@@ -1083,7 +1091,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 		tx := types.NewTransaction(0, common.NullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
-		tx.Special = true
+		tx.RngSpecial = true
 
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
 			common.NullAddress: {tx},
