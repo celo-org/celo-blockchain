@@ -184,6 +184,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if sb.coreStarted {
 		sb.valEnodeTableMu.Lock()
 		defer sb.valEnodeTableMu.Unlock()
+
 		if valEnodeEntry, ok := sb.valEnodeTable[msg.Address]; ok {
 			// If it is old message, ignore it.
 			if msg.View.Cmp(valEnodeEntry.view) <= 0 {
@@ -195,12 +196,14 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 					// Disconnect from the peer
 					sb.RemoveValidatorPeer(valEnodeEntry.enodeURL)
 					valEnodeEntry.enodeURL = msg.EnodeURL
+					sb.reverseValEnodeTable[msg.EnodeURL] = msg.Address
 				}
 				valEnodeEntry.view = msg.View
 				sb.logger.Trace("Updated an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 			}
 		} else {
 			sb.valEnodeTable[msg.Address] = &ValidatorEnode{view: msg.View, enodeURL: msg.EnodeURL}
+			sb.reverseValEnodeTable[msg.EnodeURL] = msg.Address
 			sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 		}
 

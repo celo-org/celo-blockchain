@@ -165,11 +165,15 @@ func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
 
 func (self *testSystemBackend) RemoveValidatorPeer(enodeURL string) {}
 
+func (self *testSystemBackend) GetValidatorPeers() []string {
+	return nil
+}
+
 func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
 
-func (self *testSystemBackend) ConnectToValidators(validators []istanbul.Validator) {}
+func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 
 // ==============================================
 //

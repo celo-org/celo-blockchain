@@ -231,8 +231,6 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
-
-		go c.backend.ConnectToValidators(c.valSet.List())
 	}
 
 	// Update logger

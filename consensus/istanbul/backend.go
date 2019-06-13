@@ -86,8 +86,11 @@ type Backend interface {
 	// RemoveValidatorPeer removes a validator peer
 	RemoveValidatorPeer(enodeURL string)
 
-	// ConnectToValidators will attempt to establish a static connection to all the validators
-	ConnectToValidators(validators []Validator)
+	// Get's all of the validator peers' enodeURL
+	GetValidatorPeers() []string
+
+	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
+	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn)

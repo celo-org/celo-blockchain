@@ -55,10 +55,12 @@ type Broadcaster interface {
 	FindPeers(map[common.Address]bool) map[common.Address]Peer
 	// GetLocalNode retrieves the node's local node
 	GetLocalNode() *enode.Node
-	// Add a new static peer
+	// Add a new validator peer
 	AddValidatorPeer(enodeURL string) error
-	// Remove a static peer
+	// Remove a validator peer
 	RemoveValidatorPeer(enodeURL string) error
+	// Get's all of the validator peers' enodeURL
+	GetValidatorPeers() []string
 }
 
 // Peer defines the interface to communicate with peer

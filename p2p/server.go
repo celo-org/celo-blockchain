@@ -171,7 +171,7 @@ type Server struct {
 	lastLookup   time.Time
 	DiscV5       *discv5.Network
 
-	// These are for Peers, PeerCount, ValPeerCount (and nothing else).
+	// These are for Peers, PeerCount, ValPeers (and nothing else).
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
@@ -190,7 +190,7 @@ type Server struct {
 	log             log.Logger
 }
 
-type peerOpFunc func(map[enode.ID]*Peer)
+type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo)
 
 type peerDrop struct {
 	*Peer
@@ -293,7 +293,7 @@ func (srv *Server) Peers() []*Peer {
 	// Note: We'd love to put this function into a variable but
 	// that seems to cause a weird compiler error in some
 	// environments.
-	case srv.peerOp <- func(peers map[enode.ID]*Peer) {
+	case srv.peerOp <- func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
 		for _, p := range peers {
 			ps = append(ps, p)
 		}
@@ -308,28 +308,27 @@ func (srv *Server) Peers() []*Peer {
 func (srv *Server) PeerCount() int {
 	var count int
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer) { count = len(ps) }:
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) { count = len(ps) }:
 		<-srv.peerOpDone
 	case <-srv.quit:
 	}
 	return count
 }
 
-// ValPeerCount returns the number of connected validator peers.
-func (srv *Server) ValPeerCount() int {
-	var count int = 0
+// ValPeers returns the validator enodeURLs
+func (srv *Server) ValPeers() []string {
+	var valPeers []string
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer) {
-		for _, p := range ps {
-			if p.rw.is(validatorConn) {
-				count++
-			}
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
+		for _, valPeerInfo := range valNodes {
+			valPeers = append(valPeers, valPeerInfo.remoteEnodeURL)
 		}
 	}:
 		<-srv.peerOpDone
 	case <-srv.quit:
 	}
-	return count
+
+	return valPeers
 }
 
 // AddValidatorPeer assigns the given node as a validator node.  It will set it as a static and trusted node.
@@ -643,9 +642,10 @@ type dialer interface {
 	isStatic(*enode.Node) bool
 }
 
-type previousNodeConfig struct {
-	static  bool
-	trusted bool
+type valNodeInfo struct {
+	atRemoveStatic  bool
+	atRemoveTrusted bool
+	remoteEnodeURL  string
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -660,7 +660,7 @@ func (srv *Server) run(dialstate dialer) {
 		taskdone             = make(chan task, maxActiveDialTasks)
 		runningTasks         []task
 		queuedTasks          []task // tasks that can't run yet
-		valNodes             = make(map[enode.ID]*previousNodeConfig)
+		valNodes             = make(map[enode.ID]*valNodeInfo)
 		numConnectedValPeers = 0
 		numInboundValPeers   = 0
 	)
@@ -700,8 +700,8 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	isValNode := func(id enode.ID) bool {
-		if _, ok := valNodes[id]; ok {
+	isValNode := func(ID enode.ID) bool {
+		if _, ok := valNodes[ID]; ok {
 			return true
 		}
 		return false
@@ -752,7 +752,7 @@ running:
 				isStatic := dialstate.isStatic(n)
 				_, isTrusted := trusted[n.ID()]
 
-				valNodes[n.ID()] = &previousNodeConfig{static: isStatic, trusted: isTrusted}
+				valNodes[n.ID()] = &valNodeInfo{atRemoveStatic: isStatic, atRemoveTrusted: isTrusted, remoteEnodeURL: n.String()}
 
 				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
 				if !isStatic {
@@ -784,7 +784,7 @@ running:
 			if isValNode(n.ID()) {
 				srv.log.Trace("Removing validator node", "node", n)
 
-				previousConfig := valNodes[n.ID()]
+				valNodeInfo := valNodes[n.ID()]
 				delete(valNodes, n.ID())
 
 				// Restore the previous state of the peer.
@@ -792,13 +792,13 @@ running:
 				// If it was originally not static, then remove as static peer.
 				// If it was originally static, then don't do anything, as a validator node is already set as static.
 				// Note that this will disconnect the peer, if it was not a static node before.
-				if !previousConfig.static {
+				if !valNodeInfo.atRemoveStatic {
 					removeStatic(n)
 				}
 
 				// If it was originally not trusted, then remove as trusted peer.
 				// If it was originally trusted, then don't do anything, as a validator node is already set as trusted.
-				if !previousConfig.trusted {
+				if !valNodeInfo.atRemoveTrusted {
 					removeTrusted(n)
 				}
 			}
@@ -809,7 +809,7 @@ running:
 
 			// Disable setting validator peer to be static if it's already a validator peer
 			if isValNode(n.ID()) {
-				srv.log.Trace("Not adding static node, since it's a validator node", "node", n)
+				valNodes[n.ID()].atRemoveStatic = true
 			} else {
 				srv.log.Trace("Adding static node", "node", n)
 			}
@@ -819,7 +819,7 @@ running:
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
-				srv.log.Trace("Not removing static node, since it's a validator node", "node", n)
+				valNodes[n.ID()].atRemoveStatic = false
 			} else {
 				srv.log.Trace("Removing static node", "node", n)
 				removeStatic(n)
@@ -828,7 +828,7 @@ running:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
 			if isValNode(n.ID()) {
-				srv.log.Trace("Not adding trusted node, since it's a validator node", "node", n)
+				valNodes[n.ID()].atRemoveTrusted = true
 			} else {
 				srv.log.Trace("Adding trusted node", "node", n)
 				addTrusted(n)
@@ -837,14 +837,14 @@ running:
 			// This channel is used by RemoveTrustedPeer to remove an enode
 			// from the trusted node set.
 			if isValNode(n.ID()) {
-				srv.log.Trace("Not removing trusted node, since it's a validator node", "node", n)
+				valNodes[n.ID()].atRemoveTrusted = false
 			} else {
 				srv.log.Trace("Removing trusted node", "node", n)
 			}
 			removeTrusted(n)
 		case op := <-srv.peerOp:
-			// This channel is used by Peers and PeerCount and ValPeerCount.
-			op(peers)
+			// This channel is used by Peers and PeerCount and ValPeers.
+			op(peers, valNodes)
 			srv.peerOpDone <- struct{}{}
 		case t := <-taskdone:
 			// A task got done. Tell dialstate about it so it

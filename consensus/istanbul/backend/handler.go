@@ -103,6 +103,16 @@ func (sb *Backend) NewChainHead() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
+
+	// If the last block of the epoch has just been added to the blockchain, then
+	// establish 'validator' type connections to all validators in the upcoming epoch
+	// and disconnect from the ones that are no longer in the val set.
+	currentBlock := sb.currentBlock()
+	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
+		sb.logger.Trace("At end of epoch and going to refresh validator peers", "current block number", currentBlock.Number().Uint64())
+		go sb.RefreshValPeers(sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash()))
+	}
+
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }

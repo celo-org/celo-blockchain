@@ -108,6 +108,7 @@ type ProtocolManager struct {
 	getLocalNode        func() *enode.Node
 	addValidatorPeer    func(*enode.Node)
 	removeValidatorPeer func(*enode.Node)
+	getValPeers         func() []string
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -226,11 +227,13 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addValidatorPeer func(*enode.Node), removeValidatorPeer func(*enode.Node)) {
+func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addValidatorPeer func(*enode.Node),
+	removeValidatorPeer func(*enode.Node), getValPeers func() []string) {
 	pm.maxPeers = maxPeers
 	pm.getLocalNode = getLocalNode
 	pm.addValidatorPeer = addValidatorPeer
 	pm.removeValidatorPeer = removeValidatorPeer
+	pm.getValPeers = getValPeers
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -899,6 +902,10 @@ func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
 
 	pm.removeValidatorPeer(node)
 	return nil
+}
+
+func (pm *ProtocolManager) GetValidatorPeers() []string {
+	return pm.getValPeers()
 }
 
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {

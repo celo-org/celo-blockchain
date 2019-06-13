@@ -68,19 +68,20 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
 	knownMessages, _ := lru.NewARC(inmemoryMessages)
 	backend := &Backend{
-		config:           config,
-		istanbulEventMux: new(event.TypeMux),
-		logger:           log.New(),
-		db:               db,
-		commitCh:         make(chan *types.Block, 1),
-		recents:          recents,
-		coreStarted:      false,
-		recentMessages:   recentMessages,
-		knownMessages:    knownMessages,
-		announceWg:       new(sync.WaitGroup),
-		announceQuit:     make(chan struct{}),
-		valEnodeTable:    make(map[common.Address]*ValidatorEnode),
-		valEnodeTableMu:  new(sync.Mutex),
+		config:               config,
+		istanbulEventMux:     new(event.TypeMux),
+		logger:               log.New(),
+		db:                   db,
+		commitCh:             make(chan *types.Block, 1),
+		recents:              recents,
+		coreStarted:          false,
+		recentMessages:       recentMessages,
+		knownMessages:        knownMessages,
+		announceWg:           new(sync.WaitGroup),
+		announceQuit:         make(chan struct{}),
+		valEnodeTable:        make(map[common.Address]*ValidatorEnode),
+		valEnodeTableMu:      new(sync.RWMutex),
+		reverseValEnodeTable: make(map[string]common.Address),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -126,8 +127,9 @@ type Backend struct {
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
 
-	valEnodeTable   map[common.Address]*ValidatorEnode
-	valEnodeTableMu *sync.Mutex
+	valEnodeTable        map[common.Address]*ValidatorEnode
+	reverseValEnodeTable map[string]common.Address // EnodeURL -> Address mapping
+	valEnodeTableMu      *sync.RWMutex             // This mutex protects both valEnodeTable and reverseValEnodeTable, since they are modified at the same time
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
@@ -366,10 +368,10 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	} else {
 		// The validator election smart contract is not registered yet, so the validator set diff should be empty
 
-		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+		/*if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
 			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
-		}
+		}*/
 	}
 
 	return nil
@@ -466,13 +468,45 @@ func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
 	}
 }
 
-func (sb *Backend) ConnectToValidators(validators []istanbul.Validator) {
-	sb.logger.Trace("Called ConnectToValidators", "validators", validators)
-	sb.valEnodeTableMu.Lock()
-	defer sb.valEnodeTableMu.Unlock()
-	for _, validator := range validators {
-		if valEnodeEntry, ok := sb.valEnodeTable[validator.Address()]; ok {
-			sb.AddValidatorPeer(valEnodeEntry.enodeURL)
+func (sb *Backend) GetValidatorPeers() []string {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetValidatorPeers()
+	} else {
+		return nil
+	}
+}
+
+// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// peers that are not part of the valset.
+// It will also disconnect all validator connections if this node is not a validator.
+func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
+	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+
+	currentValPeers := sb.GetValidatorPeers()
+
+	sb.valEnodeTableMu.RLock()
+	defer sb.valEnodeTableMu.RUnlock()
+
+	// Disconnect all validator peers if this node is not in the valset
+	if _, val := valset.GetByAddress(sb.Address()); val == nil {
+		for _, peerEnodeURL := range currentValPeers {
+			sb.RemoveValidatorPeer(peerEnodeURL)
+		}
+	} else {
+		// Add all of the valset entries as validator peers
+		for _, val := range valset.List() {
+			if valEnodeEntry, ok := sb.valEnodeTable[val.Address()]; ok {
+				sb.AddValidatorPeer(valEnodeEntry.enodeURL)
+			}
+		}
+
+		// Remove the peers that are not in the valset
+		for _, peerEnodeURL := range currentValPeers {
+			if peerAddress, ok := sb.reverseValEnodeTable[peerEnodeURL]; ok {
+				if _, src := valset.GetByAddress(peerAddress); src == nil {
+					sb.RemoveValidatorPeer(peerEnodeURL)
+				}
+			}
 		}
 	}
 }
