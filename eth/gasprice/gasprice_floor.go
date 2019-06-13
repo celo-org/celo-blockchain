@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-
 // Implements the following:
 // newFloor = oldFloor * (1 + (density - targetDensity)*AdjSpeed)
 // but, to avoid dealing with floats, everything is essentially multiplied
@@ -33,7 +32,7 @@ func CalculateGasPriceFloor(header *types.Header, oldGasPrice *big.Int, targetDe
 	adjustmentMultiplier := new(big.Int).Add(one, gasPriceAdjustment)
 	undividedNewGasPriceFloor := new(big.Int).Mul(oldGasPrice, adjustmentMultiplier)
 	dividedNewGasPriceFloor := new(big.Int).Div(undividedNewGasPriceFloor, divisor)
-  finalNewGasPriceFloor := new(big.Int).Add(dividedNewGasPriceFloor, big.NewInt(1)) // Adding 1 so gas price never hits 0
+	finalNewGasPriceFloor := new(big.Int).Add(dividedNewGasPriceFloor, big.NewInt(1)) // Adding 1 so gas price never hits 0
 
 	return finalNewGasPriceFloor, nil
 }

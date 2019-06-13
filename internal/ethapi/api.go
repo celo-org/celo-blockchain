@@ -707,11 +707,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 		gas = math.MaxUint64 / 2
 	}
 	if gasPrice.Sign() == 0 {
-    if args.GasCurrency == nil {
-      gasPrice, err = s.b.SuggestPrice(ctx)
-    } else {
-		   gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
-    }
+		if args.GasCurrency == nil {
+			gasPrice, err = s.b.SuggestPrice(ctx)
+		} else {
+			gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
+		}
 	}
 
 	// Create new call message

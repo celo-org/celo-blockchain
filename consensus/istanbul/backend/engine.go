@@ -439,12 +439,12 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-  updatedGasPriceFloor, err := gasprice.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
-  log.Info("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
+	updatedGasPriceFloor, err := gasprice.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
+	log.Info("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
 
-  if err != nil {
-    log.Error("Error in updating gas price floor", "error", err)
-  }
+	if err != nil {
+		log.Error("Error in updating gas price floor", "error", err)
+	}
 
 	infrastructureBlockReward := big.NewInt(params.Ether)
 	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
@@ -469,7 +469,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts), nil
 }
-
 
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.

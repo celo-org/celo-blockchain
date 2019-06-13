@@ -55,7 +55,6 @@ var (
 	zeroAddress                  = common.Address{}
 )
 
-
 type RegisteredAddresses struct {
 	registeredAddresses   map[string]common.Address
 	registeredAddressesMu sync.RWMutex

@@ -21,13 +21,13 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -319,23 +319,23 @@ func getCreditToFunctionSelector() []byte {
 	return hexutil.MustDecode("0x9951b90c")
 }
 
-//TODO(jarmg 6/13) Find a better way to do this please 
+//TODO(jarmg 6/13) Find a better way to do this please
 type gasPriceFloorEvm struct {
-  zeroCaller vm.ContractRef
-  evm *vm.EVM
+	zeroCaller vm.ContractRef
+	evm        *vm.EVM
 }
 
 func (gEvm gasPriceFloorEvm) MakeStaticCall(
-  scAddress common.Address,
-  abi abi.ABI,
-  funcName string,
-  args []interface{},
-  returnObj interface{},
-  gas uint64,
-  header *types.Header,
-  state *state.StateDB,
+	scAddress common.Address,
+	abi abi.ABI,
+	funcName string,
+	args []interface{},
+	returnObj interface{},
+	gas uint64,
+	header *types.Header,
+	state *state.StateDB,
 ) (uint64, error) {
-  return gEvm.evm.ABIStaticCall(gEvm.zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
+	return gEvm.evm.ABIStaticCall(gEvm.zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
 }
 
 func (st *StateTransition) preCheck() error {
@@ -349,17 +349,17 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
-  gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
-  gasPriceFloor, err := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
+	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
+	gasPriceFloor, err := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
 
-  if gasPriceFloor == nil {
-    log.Error("Received a nil gas price in preCheck - invalidating transaction")
-    return err
-  }
+	if gasPriceFloor == nil {
+		log.Error("Received a nil gas price in preCheck - invalidating transaction")
+		return err
+	}
 
-  if (st.msg.GasPrice().Cmp(gasPriceFloor) == -1) {
-    return errGasPriceDoesNotExceedFloor
-  }
+	if st.msg.GasPrice().Cmp(gasPriceFloor) == -1 {
+		return errGasPriceDoesNotExceedFloor
+	}
 
 	return st.buyGas()
 }
@@ -376,7 +376,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-  gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
+	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
 
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
@@ -411,28 +411,27 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-  // TODO (jarmg): check for errors
-  gasPriceFloor, gpErr := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, msg.GasCurrency())
-  infraPercent, gpErr := gasprice.GetInfraSplit(gEvm, st.gcWl.regAdd)
-  infraAddress := st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
+	// TODO (jarmg): check for errors
+	gasPriceFloor, gpErr := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, msg.GasCurrency())
+	infraPercent, gpErr := gasprice.GetInfraSplit(gEvm, st.gcWl.regAdd)
+	infraAddress := st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
 
 	st.refundGas()
 	gasUsed := st.gasUsed()
 
-  infraTxFee := big.NewInt(0)
+	infraTxFee := big.NewInt(0)
 
 	// Pay gas fee to Coinbase chosen by the miner
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 
-  if gpErr == nil {
-    infraTxFee = new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraPercent[0])), infraPercent[1])
-  }
-  minerTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
+	if gpErr == nil {
+		infraTxFee = new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraPercent[0])), infraPercent[1])
+	}
+	minerTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
 
 	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", totalTxFee)
 	log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", minerTxFee, "gas Currency", msg.GasCurrency())
 	log.Trace("Paying gas fees", "infrastructureFund", infraAddress, "gasFee", infraTxFee, "gas Currency", msg.GasCurrency())
-
 
 	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
 	if msg.GasFeeRecipient() == nil {
@@ -441,10 +440,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		st.creditGas(*msg.GasFeeRecipient(), minerTxFee, msg.GasCurrency())
 	}
 
-  if infraAddress != nil {
-    st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
-  }
-
+	if infraAddress != nil {
+		st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }

@@ -359,15 +359,14 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 }
 
 func (gcWl *GasCurrencyWhitelist) GetListCopy() map[common.Address]bool {
-  gcWl.whitelistedAddressesMu.RLock()
-  defer gcWl.whitelistedAddressesMu.RUnlock()
-  whitelistCopy := make(map[common.Address]bool)
-  for address, isValid := range gcWl.whitelistedAddresses {
-    whitelistCopy[address] = isValid
-  }
-  return whitelistCopy
+	gcWl.whitelistedAddressesMu.RLock()
+	defer gcWl.whitelistedAddressesMu.RUnlock()
+	whitelistCopy := make(map[common.Address]bool)
+	for address, isValid := range gcWl.whitelistedAddresses {
+		whitelistCopy[address] = isValid
+	}
+	return whitelistCopy
 }
-
 
 func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
 	gcWl := &GasCurrencyWhitelist{

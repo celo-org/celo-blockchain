@@ -28,12 +28,12 @@ import (
 	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -538,8 +538,8 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
-        wl := w.eth.GasCurrencyWhitelist()
-        gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
+				wl := w.eth.GasCurrencyWhitelist()
+				gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				w.commitTransactions(txset, coinbase, nil, gasPriceFloors, goldGasPriceFloor)
@@ -818,30 +818,28 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 
-
-
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
 			break
 		}
 
-    // Check for valid gas currency and that the tx exceeds the gasPriceFloor
-    var gasPriceFloor *big.Int
-    if tx.GasCurrency() == nil {
-      gasPriceFloor = goldGasPriceFloor
-    } else if gasPriceFloors[*tx.GasCurrency()] != nil {
-      gasPriceFloor = gasPriceFloors[*tx.GasCurrency()]
-    } else {
-      log.Error("Invalid gas currency", "currency", tx.GasCurrency())
-      txs.Shift()
-      continue
-    }
+		// Check for valid gas currency and that the tx exceeds the gasPriceFloor
+		var gasPriceFloor *big.Int
+		if tx.GasCurrency() == nil {
+			gasPriceFloor = goldGasPriceFloor
+		} else if gasPriceFloors[*tx.GasCurrency()] != nil {
+			gasPriceFloor = gasPriceFloors[*tx.GasCurrency()]
+		} else {
+			log.Error("Invalid gas currency", "currency", tx.GasCurrency())
+			txs.Shift()
+			continue
+		}
 
-    if (tx.GasPrice().Cmp(gasPriceFloor) == -1) {
-      log.Info("Excluding transaction from block due to failure to exceed gasPriceFloor")
-      break
-    }
+		if tx.GasPrice().Cmp(gasPriceFloor) == -1 {
+			log.Info("Excluding transaction from block due to failure to exceed gasPriceFloor")
+			break
+		}
 
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -1037,9 +1035,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
-  wl := w.eth.GasCurrencyWhitelist()
-  gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
-
+	wl := w.eth.GasCurrencyWhitelist()
+	gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()

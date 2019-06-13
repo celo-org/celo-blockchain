@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-
 var (
 	zeroCaller   = vm.AccountRef(common.HexToAddress("0x0"))
 	emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
