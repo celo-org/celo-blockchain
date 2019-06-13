@@ -181,7 +181,6 @@ type worker struct {
 
 	// Verification Service
 	verificationService string
-	verificationRewards common.Address
 	verificationMu      sync.RWMutex
 	lastBlockVerified   uint64
 
@@ -189,7 +188,7 @@ type worker struct {
 	co *core.CurrencyOperator
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, verificationRewards common.Address, co *core.CurrencyOperator) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, co *core.CurrencyOperator) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -200,7 +199,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		gasCeil:             gasCeil,
 		isLocalBlock:        isLocalBlock,
 		verificationService: verificationService,
-		verificationRewards: verificationRewards,
 		localUncles:         make(map[common.Hash]*types.Block),
 		remoteUncles:        make(map[common.Hash]*types.Block),
 		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
@@ -394,21 +392,21 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-			processVerificationRequestsUpTo := func(number uint64) {
+			processAttestationRequestsUpTo := func(number uint64) {
 				w.verificationMu.Lock()
 				defer w.verificationMu.Unlock()
 				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
 					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time().Uint64()+params.VerificationExpirySeconds >= uint64(now) {
+					if now := time.Now().Unix(); block.Time().Uint64()+params.AttestationExpirySeconds >= uint64(now) {
 						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendVerificationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService, w.verificationRewards)
+						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
 					} else {
 						break
 					}
 				}
 				w.lastBlockVerified = number
 			}
-			go processVerificationRequestsUpTo(headNumber)
+			go processAttestationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
