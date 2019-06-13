@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -110,11 +111,13 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 
 // Decode a AttestationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
-// input[0:32]:  bytes32 phoneHash
-// input[32:64]: bytes32 codeHash
-// input[64:96]: address account
-// input[96:128]: address verifier
-// input[128:]:    bytes encryptedPhone
+// input[0:32]:        bytes32 phoneHash
+// input[32:64]:       bytes32 codeHash
+// input[64:96]:       address account
+// input[96:128]:      address verifier
+// input[128:160]:     s - uint256 start of encryptedPhone data
+// input[s:s+32]:      l - length of encryptedPhoneData
+// input[s+32:s+32+l]: bytes encryptedPhone
 func DecodeAttestationRequest(input []byte) (AttestationRequest, error) {
 	var v AttestationRequest
 	v.PhoneHash = common.BytesToHash(input[0:32])
@@ -122,8 +125,17 @@ func DecodeAttestationRequest(input []byte) (AttestationRequest, error) {
 	v.CodeHash = common.BytesToHash(input[32:64])
 	v.Verifier = common.BytesToAddress(input[96:128])
 
+	encodedEncryptedPhoneStart := big.NewInt(0)
+	encodedEncryptedPhoneLen := big.NewInt(0)
+
+	encodedEncryptedPhoneStart.SetBytes(input[128:160])
+	encryptedPhoneStart := encodedEncryptedPhoneStart.Uint64()
+
+	encodedEncryptedPhoneLen.SetBytes(input[encryptedPhoneStart:(encryptedPhoneStart + 32)])
+	encryptedPhoneLen := encodedEncryptedPhoneLen.Uint64()
+
 	// TODO(asa): Consider validating the length of EncryptedPhone
-	v.EncryptedPhone = input[128:]
+	v.EncryptedPhone = input[(encryptedPhoneStart + 32):(encryptedPhoneStart + 32 + encryptedPhoneLen)]
 	return v, nil
 }
 
