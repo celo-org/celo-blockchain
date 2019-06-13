@@ -538,6 +538,7 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
+        // TODO (jarmg 6/12/19): move gasPriceFloors into function
         wl := w.eth.GasCurrencyWhitelist()
         gasPriceFloors := make(map[common.Address]*big.Int)
         goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
@@ -836,8 +837,20 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 
-    // TODO (jarmg 6/12): check if currency is invalid
-    if (tx.GasPrice().Cmp(gasPriceFloors[*tx.GasCurrency()]) == -1) {
+    // Check for valid gas currency and that the tx exceeds the gasPriceFloor
+    var gasPriceFloor *big.Int
+    if tx.GasCurrency() == nil {
+      gasPriceFloor = goldGasPriceFloor
+    } else if gasPriceFloors[*tx.GasCurrency()] != nil {
+      gasPriceFloor = gasPriceFloors[*tx.GasCurrency()]
+    } else {
+      log.Error("Invalid gas currency", "currency", tx.GasCurrency())
+      txs.Shift()
+      continue
+    }
+
+    if (tx.GasPrice().Cmp(gasPriceFloor) == -1) {
+      log.Info("Excluding transaction from block due to failure to exceed gasPriceFloor")
       break
     }
 
@@ -1035,6 +1048,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
+  // TODO (jarmg 6/12/19): move gasPriceFloors into function
   wl := w.eth.GasCurrencyWhitelist()
   gasPriceFloors := make(map[common.Address]*big.Int)
   goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
