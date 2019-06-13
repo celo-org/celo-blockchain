@@ -51,7 +51,7 @@ const (
 var (
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 	registeredContractIds        = []string{
-		params.AddressBasedEncryptionRegistryId,
+		params.AttestationsRegistryId,
 		params.BondedDepositsRegistryId,
 		params.GasCurrencyWhitelistRegistryId,
 		params.GasPriceOracleRegistryId,

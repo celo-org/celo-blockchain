@@ -53,9 +53,7 @@ var (
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
 
-	testVerificationService        = ""
-	testVerificationRewardsKey, _  = crypto.GenerateKey()
-	testVerificationRewardsAddress = crypto.PubkeyToAddress(testVerificationRewardsKey.PublicKey)
+	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -192,7 +190,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 	co := core.NewCurrencyOperator(nil, nil, nil)
 	rng := core.NewRng(backend.regAdd, backend.iEvmH)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, co, rng, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, rng, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
