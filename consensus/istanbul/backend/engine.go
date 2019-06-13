@@ -449,8 +449,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
 	if bondedDepositsAddress != nil {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
-		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 100000, big.NewInt(0), header, state)
+		if err != nil {
 			log.Error("Unable to send block rewards to bonded deposits", "err", err)
 		}
 	}
