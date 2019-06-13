@@ -95,7 +95,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if i == 0 && p.rng.RngRunning() {
+		if i == 0 && p.rng != nil && p.rng.RngRunning() {
 			receipt := types.NewSpecialReceipt(tx)
 			receipts = append(receipts, receipt)
 			var randomness, newCommitment [32]byte

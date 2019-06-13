@@ -115,7 +115,7 @@ func (r *Rng) rngAddress() *common.Address {
 	if r.registeredAddresses != nil {
 		return r.registeredAddresses.GetRegisteredAddress(params.RngRegistryId)
 	} else {
-		return &common.ZeroAddress
+		return nil
 	}
 }
 
