@@ -643,9 +643,9 @@ type dialer interface {
 }
 
 type valNodeInfo struct {
-	atRemoveStatic  bool
-	atRemoveTrusted bool
-	remoteEnodeURL  string
+	atValRemoveSetStatic  bool
+	atValRemoveSetTrusted bool
+	remoteEnodeURL        string
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -752,7 +752,7 @@ running:
 				isStatic := dialstate.isStatic(n)
 				_, isTrusted := trusted[n.ID()]
 
-				valNodes[n.ID()] = &valNodeInfo{atRemoveStatic: isStatic, atRemoveTrusted: isTrusted, remoteEnodeURL: n.String()}
+				valNodes[n.ID()] = &valNodeInfo{atValRemoveSetStatic: isStatic, atValRemoveSetTrusted: isTrusted, remoteEnodeURL: n.String()}
 
 				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
 				if !isStatic {
@@ -792,14 +792,14 @@ running:
 				// If it was originally not static, then remove as static peer.
 				// If it was originally static, then don't do anything, as a validator node is already set as static.
 				// Note that this will disconnect the peer, if it was not a static node before.
-				if !valNodeInfo.atRemoveStatic {
+				if !valNodeInfo.atValRemoveSetStatic {
 					srv.log.Trace("removing static node as part of removing validator node")
 					removeStatic(n)
 				}
 
 				// If it was originally not trusted, then remove as trusted peer.
 				// If it was originally trusted, then don't do anything, as a validator node is already set as trusted.
-				if !valNodeInfo.atRemoveTrusted {
+				if !valNodeInfo.atValRemoveSetTrusted {
 					srv.log.Trace("removing trusted node as part of removing validator node")
 					removeTrusted(n)
 				}
@@ -811,7 +811,7 @@ running:
 
 			// Disable setting validator peer to be static if it's already a validator peer
 			if isValNode(n.ID()) {
-				valNodes[n.ID()].atRemoveStatic = true
+				valNodes[n.ID()].atValRemoveSetStatic = true
 			} else {
 				srv.log.Trace("Adding static node", "node", n)
 			}
@@ -821,7 +821,7 @@ running:
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
-				valNodes[n.ID()].atRemoveStatic = false
+				valNodes[n.ID()].atValRemoveSetStatic = false
 			} else {
 				srv.log.Trace("Removing static node", "node", n)
 				removeStatic(n)
@@ -830,7 +830,7 @@ running:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
 			if isValNode(n.ID()) {
-				valNodes[n.ID()].atRemoveTrusted = true
+				valNodes[n.ID()].atValRemoveSetTrusted = true
 			} else {
 				srv.log.Trace("Adding trusted node", "node", n)
 				addTrusted(n)
@@ -839,7 +839,7 @@ running:
 			// This channel is used by RemoveTrustedPeer to remove an enode
 			// from the trusted node set.
 			if isValNode(n.ID()) {
-				valNodes[n.ID()].atRemoveTrusted = false
+				valNodes[n.ID()].atValRemoveSetTrusted = false
 			} else {
 				srv.log.Trace("Removing trusted node", "node", n)
 			}

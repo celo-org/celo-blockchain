@@ -61,6 +61,12 @@ func (ve *ValidatorEnode) String() string {
 	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
 }
 
+// Entries for the recent announce messages
+type AnnounceGossipTimestamp struct {
+	enodeURL  string
+	timestamp time.Time
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -82,6 +88,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		valEnodeTable:        make(map[common.Address]*ValidatorEnode),
 		valEnodeTableMu:      new(sync.RWMutex),
 		reverseValEnodeTable: make(map[string]common.Address),
+		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	return backend
@@ -131,6 +138,8 @@ type Backend struct {
 	reverseValEnodeTable map[string]common.Address // EnodeURL -> Address mapping
 	valEnodeTableMu      *sync.RWMutex             // This mutex protects both valEnodeTable and reverseValEnodeTable, since they are modified at the same time
 
+	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
+
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 }
@@ -162,7 +171,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 // Broadcast implements istanbul.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload, istanbulMsg)
+	sb.Gossip(valSet, payload, istanbulMsg, false)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -172,9 +181,12 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64) error {
-	hash := istanbul.RLPHash(payload)
-	sb.knownMessages.Add(hash, true)
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+	var hash common.Hash
+	if !ignoreCache {
+		hash = istanbul.RLPHash(payload)
+		sb.knownMessages.Add(hash, true)
+	}
 
 	var targets map[common.Address]bool = nil
 
@@ -191,20 +203,22 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 		ps := sb.broadcaster.FindPeers(targets)
 
 		for addr, p := range ps {
-			ms, ok := sb.recentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-				if _, k := m.Get(hash); k {
-					// This peer had this event, skip it
-					continue
+			if !ignoreCache {
+				ms, ok := sb.recentMessages.Get(addr)
+				var m *lru.ARCCache
+				if ok {
+					m, _ = ms.(*lru.ARCCache)
+					if _, k := m.Get(hash); k {
+						// This peer had this event, skip it
+						continue
+					}
+				} else {
+					m, _ = lru.NewARC(inmemoryMessages)
 				}
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
-			}
 
-			m.Add(hash, true)
-			sb.recentMessages.Add(addr, m)
+				m.Add(hash, true)
+				sb.recentMessages.Add(addr, m)
+			}
 
 			go p.Send(msgCode, payload)
 		}

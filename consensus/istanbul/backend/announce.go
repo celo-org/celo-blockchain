@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -152,7 +153,7 @@ func (sb *Backend) sendIstAnnounce() error {
 
 	logger.Trace("Broadcasting an announce message", "msg", msg)
 
-	sb.Gossip(nil, payload, istanbulAnnounceMsg)
+	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	return nil
 }
@@ -207,9 +208,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
 		}
 
-		// If the msg.Address is part of the current validator set, then check if we need to add it as a static peer.
-		// TODO(kevjue) - This should be changed to check if the msg.Address
-		//                is a potential validator for the upcoming epoch.
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
@@ -222,10 +220,18 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		}
 	}
 
-	// Regossip the announce message.
-	// TODO(kevjue) - Only regossip if it's a potential validator for the upcoming epoch
+	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
+	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
+		if lastGossipTs.enodeURL == msg.EnodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "msg", msg)
+			return nil
+		}
+	}
+
 	sb.logger.Trace("Regossiping the istanbul announce message", "msg", msg)
-	sb.Gossip(nil, payload, istanbulAnnounceMsg)
+	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
 
 	return nil
 }
