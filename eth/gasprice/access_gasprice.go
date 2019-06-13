@@ -32,7 +32,21 @@ import (
 
 // TODO (jarmg 5/22/18): Store contract function ABIs in a central location
 const (
-	getGasPriceFloorABIString = `[{
+	gasPriceOracleABIString = `[{
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_gasPriceFloor",
+          "type": "uint256"
+        }
+      ],
+      "name": "setGasPriceFloor",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "constant": true,
       "inputs": [
         {
@@ -49,21 +63,6 @@ const (
       ],
       "payable": false,
       "stateMutability": "view",
-      "type": "function"
-  }]`
-
-	setGasPriceFloorABIString = `[{
-      "constant": false,
-      "inputs": [
-        {
-          "name": "_gasPriceFloor",
-          "type": "uint256"
-        }
-      ],
-      "name": "setGasPriceFloor",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
       "type": "function"
     },
    {
@@ -116,10 +115,8 @@ const (
   ]`
 )
 
-var (
-	getGasPriceFloorABI, _  = abi.JSON(strings.NewReader(getGasPriceFloorABIString))
-	setGasPriceFloorABI, _  = abi.JSON(strings.NewReader(setGasPriceFloorABIString))
-)
+var gasPriceOracleABI, _  = abi.JSON(strings.NewReader(gasPriceOracleABIString))
+
 
 
 func GetGoldGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.Int, error) {
@@ -132,7 +129,6 @@ func GetGoldGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry) (*big.I
   }
 
   return getGasPrice(iEvmH, regAdd, goldTokenAddress)
-
 }
 
 
@@ -153,8 +149,7 @@ func getGasPrice(iEvmH core.EvmHandler, regAdd core.AddressRegistry, currencyAdd
 		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, getGasPriceFloorABI, "getGasPriceFloor", []interface{}{currencyAddress}, &gasPrice, 200000, nil, nil)
-
+	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceFloor", []interface{}{currencyAddress}, &gasPrice, 200000, nil, nil)
 	return gasPrice, err
 }
 
@@ -169,7 +164,6 @@ func UpdateGasPriceFloor(iEvmH core.EvmHandler, regAdd core.AddressRegistry, hea
 		return nil, errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, setGasPriceFloorABI, "updateGasPriceFloor", []interface{}{big.NewInt(int64(header.GasUsed)), big.NewInt(int64(header.GasLimit))}, &updatedGasPriceFloor, 1000000000, big.NewInt(0), header, state)
-
+	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "updateGasPriceFloor", []interface{}{big.NewInt(int64(header.GasUsed)), big.NewInt(int64(header.GasLimit))}, &updatedGasPriceFloor, 1000000000, big.NewInt(0), header, state)
 	return updatedGasPriceFloor, err
 }
