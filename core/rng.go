@@ -92,6 +92,10 @@ var (
 	dbRandomnessPrefix        = []byte("commitment-to-randomness")
 )
 
+func commitmentDbLocation(commitment [32]byte) []byte {
+	return append(dbRandomnessPrefix, commitment[:]...)
+}
+
 type Rng struct {
 	registeredAddresses *RegisteredAddresses
 	iEvmH               *InternalEVMHandler
@@ -105,18 +109,18 @@ func NewRng(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandler)
 	return r
 }
 
-// StoreCommitment stores a mapping from `commitment` to its preimage,
-// `randomness`, for later retrieval in GetLastRandomness.
-func (r *Rng) StoreCommitment(randomness, commitment [32]byte, db *ethdb.Database) error {
-	return (*db).Put(commitmentDbLocation(commitment), randomness[:])
-}
-
 func (r *Rng) address() *common.Address {
 	if r.registeredAddresses != nil {
 		return r.registeredAddresses.GetRegisteredAddress(params.RngRegistryId)
 	} else {
 		return nil
 	}
+}
+
+// StoreCommitment stores a mapping from `commitment` to its preimage,
+// `randomness`, for later retrieval in GetLastRandomness.
+func (r *Rng) StoreCommitment(randomness, commitment [32]byte, db *ethdb.Database) error {
+	return (*db).Put(commitmentDbLocation(commitment), randomness[:])
 }
 
 func (r *Rng) Running() bool {
@@ -128,10 +132,6 @@ func (r *Rng) getLastCommitment(coinbase common.Address, header *types.Header, s
 	commitment := [32]byte{}
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &commitment, gasAmount, header, state)
 	return commitment, err
-}
-
-func commitmentDbLocation(commitment [32]byte) []byte {
-	return append(dbRandomnessPrefix, commitment[:]...)
 }
 
 func (r *Rng) getRandomnessFromCommitment(commitment [32]byte, coinbase common.Address, db *ethdb.Database) ([32]byte, error) {
