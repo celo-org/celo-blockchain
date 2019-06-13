@@ -167,3 +167,19 @@ func UpdateGasPriceFloor(iEvmH core.EvmHandler, regAdd core.AddressRegistry, hea
 	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "updateGasPriceFloor", []interface{}{big.NewInt(int64(header.GasUsed)), big.NewInt(int64(header.GasLimit))}, &updatedGasPriceFloor, 1000000000, big.NewInt(0), header, state)
 	return updatedGasPriceFloor, err
 }
+
+
+// GetGasPriceMapAndGold returns a map of gasprice floors for all whitelisted currencies and the gold gasprice floor
+func GetGasPriceMapAndGold(iEvmH core.EvmHandler, regAdd core.AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int ){
+  gasPriceFloors := make(map[common.Address]*big.Int)
+  goldGasPriceFloor, _ := GetGoldGasPrice(iEvmH, regAdd)
+  for address, isValidForGas := range gasCurrencyMap {
+    if isValidForGas {
+      gp, err := GetGasPrice(iEvmH, regAdd, &address)
+      if err == nil {
+        gasPriceFloors[address] = gp
+      }
+    }
+  }
+  return gasPriceFloors, goldGasPriceFloor
+}

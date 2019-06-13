@@ -538,19 +538,8 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
-        // TODO (jarmg 6/12/19): move gasPriceFloors into function
         wl := w.eth.GasCurrencyWhitelist()
-        gasPriceFloors := make(map[common.Address]*big.Int)
-        goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
-        currencies := wl.GetListCopy()
-        for address, isValidForGas := range currencies {
-          if isValidForGas {
-            gp, err := gasprice.GetGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), &address)
-            if err == nil {
-              gasPriceFloors[address] = gp
-            }
-          }
-        }
+        gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				w.commitTransactions(txset, coinbase, nil, gasPriceFloors, goldGasPriceFloor)
@@ -1048,19 +1037,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
-  // TODO (jarmg 6/12/19): move gasPriceFloors into function
   wl := w.eth.GasCurrencyWhitelist()
-  gasPriceFloors := make(map[common.Address]*big.Int)
-  goldGasPriceFloor, _ := gasprice.GetGoldGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
-  currencies := wl.GetListCopy()
-  for address, isValidForGas := range currencies {
-    if isValidForGas {
-      gp, err := gasprice.GetGasPrice(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), &address)
-      if err == nil {
-        gasPriceFloors[address] = gp
-      }
-    }
-  }
+  gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
 
 
 	// Fill the block with all available pending transactions.
