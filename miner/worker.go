@@ -95,8 +95,8 @@ type environment struct {
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 
-	randomness          [32]byte
-	newSealedRandomness [32]byte
+	randomness    [32]byte
+	newCommitment [32]byte
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -776,7 +776,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	if tx.Special {
-		err := w.rng.RevealAndCommit(w.current.randomness, w.current.newSealedRandomness, w.coinbase, w.current.header, w.current.state)
+		err := w.rng.RevealAndCommit(w.current.randomness, w.current.newCommitment, w.coinbase, w.current.header, w.current.state)
 
 		if err != nil {
 			log.Error("Failed to reveal and commit")
@@ -1070,16 +1070,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		w.current.randomness = randomness
 
-		w.current.newSealedRandomness, err = w.rng.SealRandomness(newRandomness, w.current.header, w.current.state)
+		w.current.newCommitment, err = w.rng.MakeCommitment(newRandomness, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to seal randomness", "err", err)
 		}
 
-		w.rng.StoreCommitment(newRandomness, w.current.newSealedRandomness, w.db)
+		w.rng.StoreCommitment(newRandomness, w.current.newCommitment, w.db)
 
 		callData := make([]byte, 64)
 		copy(callData[0:], randomness[:])
-		copy(callData[32:], w.current.newSealedRandomness[:])
+		copy(callData[32:], w.current.newCommitment[:])
 
 		tx := types.NewTransaction(0, common.NullAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 

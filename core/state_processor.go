@@ -101,10 +101,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			receipt.GasUsed = 0
 			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 			receipts = append(receipts, receipt)
-			var randomness, newSealedRandomness [32]byte
+			var randomness, newCommitment [32]byte
 			copy(randomness[:], tx.Data()[:32])
-			copy(newSealedRandomness[:], tx.Data()[32:])
-			err := p.rng.RevealAndCommit(randomness, newSealedRandomness, block.Header().Coinbase, block.Header(), statedb)
+			copy(newCommitment[:], tx.Data()[32:])
+			err := p.rng.RevealAndCommit(randomness, newCommitment, block.Header().Coinbase, block.Header(), statedb)
 			if err != nil {
 				return nil, nil, 0, err
 			}
