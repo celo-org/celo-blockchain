@@ -1380,7 +1380,7 @@ func SetDashboardConfig(ctx *cli.Context, cfg *dashboard.Config) {
 // RegisterEthService adds an Ethereum client to the stack.
 func RegisterEthService(stack *node.Node, cfg *eth.Config) {
 	var err error
-	if cfg.SyncMode == downloader.LightSync || cfg.SyncMode == downloader.CeloLatestSync {
+	if !cfg.SyncMode.SyncFullBlockChain() {
 		err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 			return les.New(ctx, cfg)
 		})
@@ -1481,6 +1481,8 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 		name = "lightchaindata"
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
 		name = "celolatestchaindata"
+	} else if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
+		name = "ultralightchaindata"
 	}
 	chainDb, err := stack.OpenDatabase(name, cache, handles)
 	if err != nil {

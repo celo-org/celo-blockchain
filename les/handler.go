@@ -125,8 +125,12 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
-func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
-	lightSync := syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync
+func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig,
+	syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine,
+	peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database,
+	odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{},
+	wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
+	lightSync := !syncMode.SyncFullBlockChain()
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		lightSync:   lightSync,
@@ -157,7 +161,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 		removePeer = func(id string) {}
 	}
 
-	if syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync {
+	if lightSync {
 		manager.downloader = downloader.New(syncMode, chainDb, manager.eventMux, nil, blockchain, removePeer)
 		manager.peers.notify((*downloaderPeerNotify)(manager))
 		manager.fetcher = newLightFetcher(manager)

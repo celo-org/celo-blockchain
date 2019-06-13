@@ -81,6 +81,8 @@ var (
 	errEmptyCommittedSeals = errors.New("zero committed seals")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
+	// errValidatorsContractNotRegistered is returned if there is no registered "Validators" address.
+	errValidatorsContractNotRegistered = errors.New("no registered `Validators` address")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
 
@@ -375,14 +377,28 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	return nil
 }
 
+func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
+	var newValSet []common.Address
+	validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if validatorAddress == nil {
+		return newValSet, errValidatorsContractNotRegistered
+	} else {
+		// Get the new epoch's validator set
+		maxGasForGetValidators := uint64(1000000)
+		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+		_, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+		return newValSet, err
+	}
+}
+
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-		if validatorAddress == nil {
-			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
+		newValSet, err := sb.getValSet(header, state)
+		if err != nil {
+			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
@@ -390,23 +406,13 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 				return err
 			}
 
-			// Get the new epoch's validator set
-			var newValSet []common.Address
-
-			maxGasForGetValidators := uint64(1000000)
-			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+			// add validators in snapshot to extraData's validators section
+			extra, err := assembleExtra(header, snap.validators(), newValSet)
 			if err != nil {
-				log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "leftoverGas", leftoverGas, "err", err)
-			} else {
-				// add validators in snapshot to extraData's validators section
-				extra, err := assembleExtra(header, snap.validators(), newValSet)
-				if err != nil {
-					return err
-				}
-				header.Extra = extra
-				return nil
+				return err
 			}
+			header.Extra = extra
+			return nil
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
