@@ -1,7 +1,6 @@
 package core
 
 import (
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -89,7 +88,7 @@ var (
 	revealAndCommitFuncABI, _ = abi.JSON(strings.NewReader(revealAndCommitABI))
 	commitmentsFuncABI, _     = abi.JSON(strings.NewReader(commitmentsAbi))
 	makeCommitmentFuncABI, _  = abi.JSON(strings.NewReader(makeCommitmentAbi))
-	zeroValue                 = big.NewInt(0)
+	zeroValue                 = common.Big0
 	dbRandomnessPrefix        = []byte("commitment-to-randomness")
 )
 

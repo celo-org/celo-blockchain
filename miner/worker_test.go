@@ -191,8 +191,8 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	co := core.NewCurrencyOperator(nil, nil, nil)
-	random := core.NewRandom(backend.regAdd, backend.iEvmH)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, co, random, &backend.db)
+	rng := core.NewRng(backend.regAdd, backend.iEvmH)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, co, rng, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
