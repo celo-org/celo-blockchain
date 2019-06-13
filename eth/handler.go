@@ -878,8 +878,6 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 }
 
 func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
-	log.Trace("Attempting to add validator peer", "enodeURL", enodeURL)
-
 	// Parse the enodeURL into a node object
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
@@ -892,8 +890,6 @@ func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
 }
 
 func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
-	log.Trace("Attempting to remove a validator peer", "enodeURL", enodeURL)
-
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
 		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)

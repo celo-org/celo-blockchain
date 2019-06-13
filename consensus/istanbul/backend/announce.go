@@ -213,8 +213,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		if _, v := valSet.GetByAddress(msg.Address); v != nil {
-			sb.AddValidatorPeer(msg.EnodeURL)
+		// Connect to the remote peer if it's part of the current epoch's valset and
+		// if this node is also part of the current epoch's valset
+		if _, remoteVal := valSet.GetByAddress(msg.Address); remoteVal != nil {
+			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
+				sb.AddValidatorPeer(msg.EnodeURL)
+			}
 		}
 	}
 

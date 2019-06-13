@@ -793,12 +793,14 @@ running:
 				// If it was originally static, then don't do anything, as a validator node is already set as static.
 				// Note that this will disconnect the peer, if it was not a static node before.
 				if !valNodeInfo.atRemoveStatic {
+					srv.log.Trace("removing static node as part of removing validator node")
 					removeStatic(n)
 				}
 
 				// If it was originally not trusted, then remove as trusted peer.
 				// If it was originally trusted, then don't do anything, as a validator node is already set as trusted.
 				if !valNodeInfo.atRemoveTrusted {
+					srv.log.Trace("removing trusted node as part of removing validator node")
 					removeTrusted(n)
 				}
 			}
