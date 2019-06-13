@@ -55,9 +55,6 @@ var (
 	zeroAddress                  = common.Address{}
 )
 
-type AddressRegistry interface {
-	GetRegisteredAddress(registryId string) *common.Address
-}
 
 type RegisteredAddresses struct {
 	registeredAddresses   map[string]common.Address

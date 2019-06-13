@@ -29,10 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-type EvmHandler interface {
-	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
-	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
-}
 
 var (
 	zeroCaller   = vm.AccountRef(common.HexToAddress("0x0"))
