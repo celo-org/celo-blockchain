@@ -39,7 +39,6 @@ import (
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
 	eth *Ethereum
-	gpo *gasprice.Oracle
 }
 
 // ChainConfig returns the active chain configuration.

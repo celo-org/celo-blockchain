@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -55,11 +54,6 @@ var DefaultConfig = Config{
 	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
 
 	TxPool: core.DefaultTxPoolConfig,
-	GPO: gasprice.Config{
-		Blocks:     20,
-		Percentile: 60,
-		AlwaysZero: false,
-	},
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -124,9 +118,6 @@ type Config struct {
 
 	// Transaction pool options
 	TxPool core.TxPoolConfig
-
-	// Gas Price Oracle options
-	GPO gasprice.Config
 
 	// Enables tracking of SHA3 preimages in the VM
 	EnablePreimageRecording bool
