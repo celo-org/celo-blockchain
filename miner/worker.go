@@ -1055,16 +1055,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		istanbulEmptyBlockCommit()
 		return
 	}
-	// TODO(martin): readd short circuiting if no pending, after adding special
-	// tx?
-	// Split the pending transactions into locals and remotes
-	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
-	for _, account := range w.eth.TxPool().Locals() {
-		if txs := remoteTxs[account]; len(txs) > 0 {
-			delete(remoteTxs, account)
-			localTxs[account] = txs
-		}
-	}
 
 	if w.rng != nil && w.rng.RngRunning() {
 		randomness, err := w.rng.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
@@ -1099,6 +1089,18 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
+		}
+	} else if len(pending) == 0 {
+		istanbulEmptyBlockCommit()
+		return
+	}
+
+	// Split the pending transactions into locals and remotes
+	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
+	for _, account := range w.eth.TxPool().Locals() {
+		if txs := remoteTxs[account]; len(txs) > 0 {
+			delete(remoteTxs, account)
+			localTxs[account] = txs
 		}
 	}
 	if len(localTxs) > 0 {
