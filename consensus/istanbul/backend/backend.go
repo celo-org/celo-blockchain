@@ -368,10 +368,10 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	} else {
 		// The validator election smart contract is not registered yet, so the validator set diff should be empty
 
-		/*if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
 			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
-		}*/
+		}
 	}
 
 	return nil
