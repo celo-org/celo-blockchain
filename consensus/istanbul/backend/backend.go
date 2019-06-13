@@ -489,38 +489,3 @@ func (sb *Backend) GetValidatorPeers() []string {
 		return nil
 	}
 }
-
-// This will create 'validator' type peers to all the valset validators, and disconnect from the
-// peers that are not part of the valset.
-// It will also disconnect all validator connections if this node is not a validator.
-func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
-	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
-
-	currentValPeers := sb.GetValidatorPeers()
-
-	sb.valEnodeTableMu.RLock()
-	defer sb.valEnodeTableMu.RUnlock()
-
-	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.Address()); val == nil {
-		for _, peerEnodeURL := range currentValPeers {
-			sb.RemoveValidatorPeer(peerEnodeURL)
-		}
-	} else {
-		// Add all of the valset entries as validator peers
-		for _, val := range valset.List() {
-			if valEnodeEntry, ok := sb.valEnodeTable[val.Address()]; ok {
-				sb.AddValidatorPeer(valEnodeEntry.enodeURL)
-			}
-		}
-
-		// Remove the peers that are not in the valset
-		for _, peerEnodeURL := range currentValPeers {
-			if peerAddress, ok := sb.reverseValEnodeTable[peerEnodeURL]; ok {
-				if _, src := valset.GetByAddress(peerAddress); src == nil {
-					sb.RemoveValidatorPeer(peerEnodeURL)
-				}
-			}
-		}
-	}
-}

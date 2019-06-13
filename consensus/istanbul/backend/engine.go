@@ -86,6 +86,9 @@ var (
 	// errOldMessage is returned when the received announce message's block number is earlier
 	// than a previous received message
 	errOldAnnounceMessage = errors.New("old announce message")
+	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
+	// an unregistered validator
+	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 	getValidatorsABI = `[{"constant": true,
@@ -772,29 +775,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap.Hash = hash
 
 	return returnSnap, nil
-}
-
-func (sb *Backend) sendAnnounceMsgs() {
-	sb.announceWg.Add(1)
-	defer sb.announceWg.Done()
-
-	ticker := time.NewTicker(time.Minute)
-
-	for {
-		select {
-		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValEnodeTable:")
-			for address := range sb.valEnodeTable {
-				log.Trace(fmt.Sprintf("\tAddress: %s\tValEnode: %s", address.Hex(), sb.valEnodeTable[address]))
-			}
-			go sb.sendIstAnnounce()
-
-		case <-sb.announceQuit:
-			ticker.Stop()
-			return
-		}
-	}
 }
 
 // FIXME: Need to update this for Istanbul

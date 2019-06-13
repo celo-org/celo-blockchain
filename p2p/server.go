@@ -760,7 +760,7 @@ running:
 					addStatic(n)
 				}
 
-				// Mark it as trusted, so that if the remote validator connects to it, it wouldn't could against the max inbound peers
+				// Mark it as trusted, so that if the remote validator connects to it, it wouldn't count against the max inbound peers
 				if !isTrusted {
 					srv.log.Trace("Setting validator node to trusted")
 					addTrusted(n)
@@ -778,27 +778,22 @@ running:
 				}
 			}
 		case n := <-srv.removevalidator:
-			// Mark the node as static and trusted.
-			// Static will make this node continuously connect to the remote node, even when connections
-			// are broken.
 			if isValNode(n.ID()) {
 				srv.log.Trace("Removing validator node", "node", n)
 
 				valNodeInfo := valNodes[n.ID()]
 				delete(valNodes, n.ID())
 
-				// Restore the previous state of the peer.
-
-				// If it was originally not static, then remove as static peer.
-				// If it was originally static, then don't do anything, as a validator node is already set as static.
-				// Note that this will disconnect the peer, if it was not a static node before.
+				// If it was not set as static by the user, then remove as static peer.
+				// If it was set as static by the user, then don't do anything, as a validator node is already set as static.
 				if !valNodeInfo.atValRemoveSetStatic {
 					srv.log.Trace("removing static node as part of removing validator node")
+					// This will disconnect the connection
 					removeStatic(n)
 				}
 
-				// If it was originally not trusted, then remove as trusted peer.
-				// If it was originally trusted, then don't do anything, as a validator node is already set as trusted.
+				// If it was not set as trusted by the user, then remove as trusted peer.
+				// If it was set as trusted by the user, then don't do anything, as a validator node is already set as trusted.
 				if !valNodeInfo.atValRemoveSetTrusted {
 					srv.log.Trace("removing trusted node as part of removing validator node")
 					removeTrusted(n)

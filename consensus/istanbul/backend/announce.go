@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/rand"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -177,8 +178,15 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
-		sb.logger.Trace("Received an IstanbulAnnounce message sent from this node. Ignoring it.")
+		sb.logger.Trace("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
 		return nil
+	}
+
+	// If the message is not within the registered validator set, then ignore it
+	regVals := sb.retrieveRegisteredValidators()
+	if !regVals[msg.Address] {
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "msg", msg.String())
+		return errUnauthorizedAnnounceMessage
 	}
 
 	// Save in the valEnodeTable if mining
@@ -232,6 +240,28 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
+
+	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
+	if (rand.Int() % 100) <= 5 {
+		regVals := sb.retrieveRegisteredValidators()
+
+		for remoteAddress := range sb.lastAnnounceGossiped {
+			if !regVals[remoteAddress] {
+				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
+				delete(sb.lastAnnounceGossiped, remoteAddress)
+			}
+		}
+
+		sb.valEnodeTableMu.Lock()
+		for remoteAddress := range sb.valEnodeTable {
+			if !regVals[remoteAddress] {
+				log.Trace("Deleting entry from the valEnodeTable and reverseValEnodeTable table", "address", remoteAddress, "valEnodeEntry", sb.valEnodeTable[remoteAddress].String())
+				delete(sb.reverseValEnodeTable, sb.valEnodeTable[remoteAddress].enodeURL)
+				delete(sb.valEnodeTable, remoteAddress)
+			}
+		}
+		sb.valEnodeTableMu.Unlock()
+	}
 
 	return nil
 }
