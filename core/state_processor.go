@@ -95,9 +95,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if i == 0 && p.rng != nil && p.rng.RngRunning() {
-			receipt := types.NewSpecialReceipt(tx)
-			receipts = append(receipts, receipt)
+		var receipt *types.Receipt
+		if i == 0 && p.rng != nil && p.rng.Running() {
+			receipt = types.NewSpecialReceipt(tx)
 			var randomness, newCommitment [32]byte
 			copy(randomness[:], tx.Data()[:32])
 			copy(newCommitment[:], tx.Data()[32:])
@@ -107,13 +107,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 		} else {
 			statedb.Prepare(tx.Hash(), block.Hash(), i)
-			receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
+			var err error
+			receipt, _, err = ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
 			if err != nil {
 				return nil, nil, 0, err
 			}
-			receipts = append(receipts, receipt)
-			allLogs = append(allLogs, receipt.Logs...)
 		}
+		receipts = append(receipts, receipt)
+		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)

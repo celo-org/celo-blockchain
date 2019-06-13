@@ -111,7 +111,7 @@ func (r *Rng) StoreCommitment(randomness, commitment [32]byte, db *ethdb.Databas
 	return (*db).Put(commitmentDbLocation(commitment), randomness[:])
 }
 
-func (r *Rng) rngAddress() *common.Address {
+func (r *Rng) address() *common.Address {
 	if r.registeredAddresses != nil {
 		return r.registeredAddresses.GetRegisteredAddress(params.RngRegistryId)
 	} else {
@@ -119,14 +119,14 @@ func (r *Rng) rngAddress() *common.Address {
 	}
 }
 
-func (r *Rng) RngRunning() bool {
-	rngAddress := r.rngAddress()
+func (r *Rng) Running() bool {
+	rngAddress := r.address()
 	return rngAddress != nil && *rngAddress != common.ZeroAddress
 }
 
 func (r *Rng) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	commitment := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*r.rngAddress(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &commitment, gasAmount, header, state)
+	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &commitment, gasAmount, header, state)
 	return commitment, err
 }
 
@@ -149,7 +149,7 @@ func (r *Rng) getRandomnessFromCommitment(commitment [32]byte, coinbase common.A
 // public static function on the Random contract.
 func (r *Rng) MakeCommitment(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	commitment := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*r.rngAddress(), makeCommitmentFuncABI, "makeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	_, err := r.iEvmH.MakeStaticCall(*r.address(), makeCommitmentFuncABI, "makeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	return commitment, err
 }
 
@@ -172,7 +172,7 @@ func (r *Rng) GetLastRandomness(coinbase common.Address, db *ethdb.Database, hea
 // a future block.
 func (r *Rng) RevealAndCommit(randomness, newCommitment [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
-	_, err := r.iEvmH.MakeCall(*r.rngAddress(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
+	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	if err != nil {
 		log.Error("MakeCall failed", "err", err)
 		return err
