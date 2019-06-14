@@ -136,6 +136,10 @@ func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header
 }
 
 func (r *Random) getRandomnessFromCommitment(commitment [32]byte, coinbase common.Address, db *ethdb.Database) ([32]byte, error) {
+	if commitment == [32]byte{} {
+		return [32]byte{}, nil
+	}
+
 	randomness := [32]byte{}
 	randomnessSlice, err := (*db).Get(commitmentDbLocation(commitment))
 	if err != nil {

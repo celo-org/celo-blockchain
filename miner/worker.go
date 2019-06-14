@@ -791,17 +791,18 @@ func (w *worker) getLastRandomness() ([32]byte, error) {
 	}
 }
 
-func (w *worker) commitRandomTransaction() {
+func (w *worker) commitRandomTransaction() error {
 	randomness, err := w.getLastRandomness()
 	if err != nil {
 		log.Error("Failed to get last randomness", "err", err)
-		panic(err)
+		return err
 	}
 
 	newRandomness := [32]byte{}
 	_, err = rand.Read(newRandomness[0:32])
 	if err != nil {
 		log.Error("Failed to generate randomness", "err", err)
+		return err
 	}
 
 	w.current.randomness = newRandomness
@@ -809,6 +810,7 @@ func (w *worker) commitRandomTransaction() {
 	newCommitment, err := w.random.MakeCommitment(newRandomness, w.current.header, w.current.state)
 	if err != nil {
 		log.Error("Failed to seal randomness", "err", err)
+		return err
 	}
 
 	w.random.StoreCommitment(newRandomness, newCommitment, w.db)
@@ -820,6 +822,7 @@ func (w *worker) commitRandomTransaction() {
 	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
 	if err != nil {
 		log.Error("Failed to reveal and commit")
+		return err
 	}
 
 	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
@@ -827,6 +830,8 @@ func (w *worker) commitRandomTransaction() {
 	w.current.tcount++
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
+
+	return nil
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -1076,7 +1081,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	if w.random != nil && w.random.Running() {
-		w.commitRandomTransaction()
+		err := w.commitRandomTransaction()
+		if err != nil {
+			log.Error("Failed to commit randomness", "err", err)
+			return
+		}
 	} else if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return
