@@ -409,15 +409,12 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	// Pay gas fee to gas fee recipient and Infrastructure fund
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 	infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraFraction.Numerator)), infraFraction.Denominator)
-	minerTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
-
-	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", totalTxFee)
-	log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", minerTxFee, "gas Currency", msg.GasCurrency())
+	recipientTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
 
 	if msg.GasFeeRecipient() == nil {
-		st.creditGas(msg.From(), minerTxFee, msg.GasCurrency())
+	  st.creditGas(msg.From(), recipientTxFee, msg.GasCurrency())
 	} else {
-    err = st.creditGas(*msg.GasFeeRecipient(), minerTxFee, msg.GasCurrency())
+    err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
 	}
 
   if err != nil {
@@ -425,8 +422,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
   }
 
 	if infraAddress != nil {
-		log.Trace("Paying gas fees", "infrastructureFund", infraAddress, "gasFee", infraTxFee, "gas Currency", msg.GasCurrency())
 		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
+  } else {
+    log.Error("no infrastructure account address found")
   }
 
   if err != nil {

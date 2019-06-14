@@ -35,7 +35,7 @@ const (
     {
       "constant": true,
       "inputs": [],
-      "name": "infrastructureSplit",
+      "name": "infrastructureFraction",
       "outputs": [
         {
           "name": "",
@@ -48,20 +48,6 @@ const (
       ],
       "payable": false,
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "_gasPriceFloor",
-          "type": "uint256"
-        }
-      ],
-      "name": "setGasPriceFloor",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -83,30 +69,7 @@ const (
       "stateMutability": "view",
       "type": "function"
     },
-   {
-    "constant": true,
-    "inputs": [
-      {
-        "name": "_blockGasTotal",
-        "type": "uint256"
-      },
-      {
-        "name": "_blockGasLimit",
-        "type": "uint256"
-      }
-    ],
-    "name": "calculateGasPriceFloor",
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
+    {
       "constant": false,
       "inputs": [
         {
@@ -128,10 +91,12 @@ const (
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
-    } 
-  
+      } 
+    
   ]`
 )
+
+const defaultGasAmount = 2000000
 
 var gasPriceOracleABI, _ = abi.JSON(strings.NewReader(gasPriceOracleABIString))
 var errNoGasPriceOracle = errors.New("no gasprice oracle contract address found")
@@ -169,7 +134,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		log.Warn("No gasprice oracle contract address found. Returning default gasprice floor of 0")
+		log.Error("no gasprice oracle contract address found. Returning default gasprice floor of 0")
 		return fallbackGasPriceFloor, errNoGasPriceOracle
 	}
 
@@ -179,7 +144,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
 		"getGasPriceFloor",
 		[]interface{}{currencyAddress},
 		&gasPrice,
-		200000,
+		defaultGasAmount,
 		nil,
 		nil,
 	)
@@ -191,6 +156,7 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
+    log.Error("no gasprice oracle contract address found when attempting to update gas price floor")
 		return nil, errNoGasPriceOracle
 	}
 
@@ -203,7 +169,7 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
 			big.NewInt(int64(header.GasLimit))},
 		&updatedGasPriceFloor,
-		1000000000,
+		defaultGasAmount,
 		big.NewInt(0),
 		header,
 		state,
@@ -229,7 +195,7 @@ func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCu
 
 // Returns the fraction of the gasprice floor that should be allocated to the infrastructure fund
 func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
-	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
+	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the gasFeeRecipient as fallback
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	var err error
