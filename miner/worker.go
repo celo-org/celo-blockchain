@@ -537,7 +537,7 @@ func (w *worker) mainLoop() {
 				}
 
 				wl := w.eth.GasCurrencyWhitelist()
-				gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
+				gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				w.commitTransactions(txset, coinbase, nil, gasPriceFloors, goldGasPriceFloor)
@@ -1034,7 +1034,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	wl := w.eth.GasCurrencyWhitelist()
-	gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetListCopy())
+	gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()

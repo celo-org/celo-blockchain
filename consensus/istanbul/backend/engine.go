@@ -446,7 +446,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	updatedGasPriceFloor, err := gasprice.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
-	log.Info("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
+	log.Trace("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
 
 	if err != nil {
 		log.Error("Error in updating gas price floor", "error", err)
