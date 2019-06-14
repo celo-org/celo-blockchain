@@ -170,13 +170,13 @@ func (r *Rng) GetLastRandomness(coinbase common.Address, db *ethdb.Database, hea
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
-func (r *Rng) RevealAndCommit(randomness, newCommitment [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) error {
+func (r *Rng) RevealAndCommit(randomness, newCommitment [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) (*types.Receipt, error) {
 	args := []interface{}{randomness, newCommitment, proposer}
 	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	if err != nil {
 		log.Error("MakeCall failed", "err", err)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return types.NewEmptyReceipt(), nil
 }

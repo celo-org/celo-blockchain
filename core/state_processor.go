@@ -98,16 +98,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		var receipt *types.Receipt
 		var err error
 		if i == 0 && p.rng != nil && p.rng.Running() {
-			receipt = types.NewSpecialReceipt(tx)
 			var randomness, newCommitment [32]byte
 			copy(randomness[:], tx.Data()[:32])
 			copy(newCommitment[:], tx.Data()[32:])
-			err = p.rng.RevealAndCommit(randomness, newCommitment, block.Header().Coinbase, block.Header(), statedb)
+			receipt, err = p.rng.RevealAndCommit(randomness, newCommitment, block.Header().Coinbase, block.Header(), statedb)
 		} else {
 			statedb.Prepare(tx.Hash(), block.Hash(), i)
 			receipt, _, err = ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
 		}
-
 		if err != nil {
 			return nil, nil, 0, err
 		}

@@ -111,9 +111,8 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 
 // NewSpecialReceipt creates a mostly empty receipt that is used for the special
 // Rng transactions.
-func NewSpecialReceipt(tx *Transaction) *Receipt {
+func NewEmptyReceipt() *Receipt {
 	receipt := NewReceipt([]byte{}, false, 0)
-	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = 0
 	receipt.Bloom = CreateBloom(Receipts{receipt})
 

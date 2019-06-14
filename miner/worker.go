@@ -770,21 +770,16 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitRngSpecialTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
-	err := w.rng.RevealAndCommit(w.current.randomness, w.current.newCommitment, coinbase, w.current.header, w.current.state)
-
-	if err != nil {
-		log.Error("Failed to reveal and commit")
-	}
-
-	receipt := types.NewSpecialReceipt(tx)
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
+func (w *worker) commitRngSpecialTransaction(randomness, newCommitment [32]byte, coinbase common.Address) ([]*types.Log, error) {
+	/*
+		w.current.txs = append(w.current.txs, tx)
+		w.current.receipts = append(w.current.receipts, receipt)
+	*/
 
 	return []*types.Log{}, nil
 }
 
-func (w *worker) commitRegularTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
@@ -799,12 +794,40 @@ func (w *worker) commitRegularTransaction(tx *types.Transaction, coinbase common
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
-	if tx.RngSpecial {
-		return w.commitRngSpecialTransaction(tx, coinbase)
-	} else {
-		return w.commitRegularTransaction(tx, coinbase)
+func (w *worker) commitRngTransaction() {
+	randomness, err := w.rng.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	if err != nil {
+		log.Error("Failed to get last randomness")
 	}
+
+	newRandomness := [32]byte{}
+	_, err = rand.Read(newRandomness[0:32])
+	if err != nil {
+		log.Error("Failed to generate randomness")
+	}
+
+	newCommitment, err := w.rng.MakeCommitment(newRandomness, w.current.header, w.current.state)
+	if err != nil {
+		log.Error("Failed to seal randomness", "err", err)
+	}
+
+	w.rng.StoreCommitment(newRandomness, newCommitment, w.db)
+
+	callData := make([]byte, 64)
+	copy(callData[0:], randomness[:])
+	copy(callData[32:], newCommitment[:])
+
+	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
+
+	receipt, err := w.rng.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
+
+	if err != nil {
+		log.Error("Failed to reveal and commit")
+	}
+
+	w.current.tcount++
+	w.current.txs = append(w.current.txs, tx)
+	w.current.receipts = append(w.current.receipts, receipt)
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -1055,39 +1078,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	if w.rng != nil && w.rng.Running() {
-		randomness, err := w.rng.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to get last randomness")
-		}
-		newRandomness := [32]byte{}
-		_, err = rand.Read(newRandomness[0:32])
-		if err != nil {
-			log.Error("Failed to generate randomness")
-		}
-		w.current.randomness = randomness
-
-		w.current.newCommitment, err = w.rng.MakeCommitment(newRandomness, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to seal randomness", "err", err)
-		}
-
-		w.rng.StoreCommitment(newRandomness, w.current.newCommitment, w.db)
-
-		callData := make([]byte, 64)
-		copy(callData[0:], randomness[:])
-		copy(callData[32:], w.current.newCommitment[:])
-
-		tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
-		tx.RngSpecial = true
-
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, map[common.Address]types.Transactions{
-			common.ZeroAddress: {tx},
-		}, w.txCmp)
-
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
-			return
-		}
+		w.commitRngTransaction()
 	} else if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return
