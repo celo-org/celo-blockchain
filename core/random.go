@@ -90,7 +90,6 @@ var (
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("commitment-to-randomness")
-	emptyReceipt                = types.NewEmptyReceipt()
 )
 
 func commitmentDbLocation(commitment [32]byte) []byte {
@@ -172,6 +171,14 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 	return r.getRandomnessFromCommitment(commitment, coinbase, db)
 }
 
+func emptyReceipt() *types.Receipt {
+	receipt := types.NewReceipt([]byte{}, false, 0)
+	receipt.GasUsed = 0
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+
+	return receipt
+}
+
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
@@ -183,5 +190,5 @@ func (r *Random) RevealAndCommit(randomness, newCommitment [32]byte, proposer co
 		return nil, err
 	}
 
-	return emptyReceipt, nil
+	return emptyReceipt(), nil
 }

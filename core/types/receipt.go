@@ -109,16 +109,6 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 	return r
 }
 
-// NewSpecialReceipt creates a mostly empty receipt that is used for the special
-// Random transactions.
-func NewEmptyReceipt() *Receipt {
-	receipt := NewReceipt([]byte{}, false, 0)
-	receipt.GasUsed = 0
-	receipt.Bloom = CreateBloom(Receipts{receipt})
-
-	return receipt
-}
-
 // Decode an AttestationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
 // input[0:32]:        bytes32 phoneHash
