@@ -770,15 +770,6 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitRngSpecialTransaction(randomness, newCommitment [32]byte, coinbase common.Address) ([]*types.Log, error) {
-	/*
-		w.current.txs = append(w.current.txs, tx)
-		w.current.receipts = append(w.current.receipts, receipt)
-	*/
-
-	return []*types.Log{}, nil
-}
-
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
@@ -787,7 +778,6 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
-
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
 
@@ -886,7 +876,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			txs.Pop()
 			continue
 		}
-
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
