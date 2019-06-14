@@ -304,7 +304,7 @@ func (st *StateTransition) preCheck() error {
 	gasPriceFloor := big.NewInt(0)
 	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
 	if st.gcWl != nil && st.gcWl.regAdd != nil {
-		gasPriceFloor, err := gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
+		gasPriceFloor, err := gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, st.msg.GasCurrency(), nil)
 		if gasPriceFloor == nil {
 			log.Error("Received a nil gas price in preCheck - invalidating transaction")
 			return err
@@ -386,7 +386,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	)
 	if st.gcWl != nil && st.gcWl.regAdd != nil {
 		gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
-		gasPriceFloor, _ = gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, msg.GasCurrency())
+		gasPriceFloor, _ = gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, msg.GasCurrency(), nil)
 		infraFraction, _ = gasprice.GetInfrastructureFraction(gEvm, st.gcWl.regAdd)
 		infraAddress = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
 	}
