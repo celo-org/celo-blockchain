@@ -131,7 +131,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if gasCurrency != nil {
-		gas += 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+		gas += 4 * params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
 	}
 
 	return gas, nil
