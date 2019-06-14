@@ -1221,7 +1221,14 @@ type SendTxArgs struct {
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
-		*(*uint64)(args.Gas) = 90000
+		defaultGas := uint64(90000)
+		if args.GasCurrency == nil {
+			*(*uint64)(args.Gas) = defaultGas
+		} else {
+			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
+			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
+			*(*uint64)(args.Gas) = defaultGas + 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+		}
 	}
 	if args.GasPrice == nil {
 		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)

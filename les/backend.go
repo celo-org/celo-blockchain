@@ -90,6 +90,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	} else if syncMode == downloader.CeloLatestSync {
 		chainName = "celolatestchaindata"
 		fullChainAvailable = false
+	} else if syncMode == downloader.UltraLightSync {
+		chainName = "ultralightchaindata"
+		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}
@@ -122,6 +125,12 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
+	}
+
+	if syncMode == downloader.UltraLightSync && chainConfig.Istanbul == nil {
+		msg := fmt.Sprintf(
+			"To use UltraLightSync sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
+		panic(msg)
 	}
 
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)

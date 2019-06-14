@@ -5,6 +5,11 @@ defaults: &defaults
     - image: circleci/golang:1.12
   working_directory: /go/src/github.com/celo-org/geth
 
+end-to-end-defaults: &end-to-end-defaults
+  docker:
+    - image: celohq/node8:gcloud
+  working_directory: ~/geth
+
 jobs:
   unit-tests:
     <<: *defaults
@@ -26,6 +31,73 @@ jobs:
       - checkout
       - run: build/env.sh go run build/ci.go lint
 
+  end-to-end-checkout:
+    <<: *end-to-end-defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Setup Go language
+          command: |
+            set -euo pipefail
+            GO_LANG_DIR="./golang"
+            mkdir -p ${GO_LANG_DIR}
+            wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
+            tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
+            ${GO_LANG_DIR}/go/bin/go version
+      - run:
+          name: Setup celo-monorepo
+          command: |
+            set -euo pipefail
+            # Use -p since it does not fail if the dir exists. It fails if the directory does not exist and
+            # it fails to create the directory though.
+            mkdir -p ~/.ssh/
+            echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+            export CELO_MONOREPO_DIR="./celo-monorepo"
+            git clone --depth 1 https://${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            # Change these paths to use https login since the SSH key does not have access to these repositories.
+            # These environment variables are configured atssh -p 64535 34.230.3.71 https://circleci.com/gh/celo-org/geth/edit#env-vars
+            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
+            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
+            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            yarn
+      - persist_to_workspace:
+          root: .
+          paths: .
+
+  end-to-end-transfer-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth transfer test
+          no_output_timeout: 900
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_transfers.sh local ~/geth
+
+  end-to-end-sync-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth sync with a standalone node test
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_sync.sh local ~/geth
+
 workflows:
   version: 2
   build:
@@ -33,3 +105,13 @@ workflows:
       - lint
       - unit-tests
       - coverage
+
+      - end-to-end-checkout:
+          requires:
+            - unit-tests
+      - end-to-end-transfer-test:
+          requires:
+            - end-to-end-checkout
+      - end-to-end-sync-test:
+          requires:
+            - end-to-end-checkout
