@@ -794,13 +794,14 @@ func (w *worker) getLastRandomness() ([32]byte, error) {
 func (w *worker) commitRandomTransaction() {
 	randomness, err := w.getLastRandomness()
 	if err != nil {
-		log.Error("Failed to get last randomness")
+		log.Error("Failed to get last randomness", "err", err)
+		panic(err)
 	}
 
 	newRandomness := [32]byte{}
 	_, err = rand.Read(newRandomness[0:32])
 	if err != nil {
-		log.Error("Failed to generate randomness")
+		log.Error("Failed to generate randomness", "err", err)
 	}
 
 	w.current.randomness = newRandomness
