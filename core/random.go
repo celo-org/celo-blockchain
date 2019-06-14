@@ -90,6 +90,7 @@ var (
 	makeCommitmentFuncABI, _  = abi.JSON(strings.NewReader(makeCommitmentAbi))
 	zeroValue                 = common.Big0
 	dbRandomnessPrefix        = []byte("commitment-to-randomness")
+	emptyReceipt              = types.NewEmptyReceipt()
 )
 
 func commitmentDbLocation(commitment [32]byte) []byte {
@@ -178,5 +179,5 @@ func (r *Random) RevealAndCommit(randomness, newCommitment [32]byte, proposer co
 		return nil, err
 	}
 
-	return types.NewEmptyReceipt(), nil
+	return emptyReceipt, nil
 }

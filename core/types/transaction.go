@@ -38,10 +38,9 @@ var (
 type Transaction struct {
 	data txdata
 	// caches
-	hash       atomic.Value
-	size       atomic.Value
-	from       atomic.Value
-	RngSpecial bool // utility flag for randomness protocol
+	hash atomic.Value
+	size atomic.Value
+	from atomic.Value
 }
 
 type txdata struct {
