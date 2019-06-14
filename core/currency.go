@@ -358,7 +358,7 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 	return ok
 }
 
-func (gcWl *GasCurrencyWhitelist) GetListCopy() map[common.Address]bool {
+func (gcWl *GasCurrencyWhitelist) GetWhitelist() map[common.Address]bool {
 	gcWl.whitelistedAddressesMu.RLock()
 	defer gcWl.whitelistedAddressesMu.RUnlock()
 	whitelistCopy := make(map[common.Address]bool)
