@@ -707,11 +707,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 		gas = math.MaxUint64 / 2
 	}
 	if gasPrice.Sign() == 0 {
-		if args.GasCurrency == nil {
-			gasPrice, err = s.b.SuggestPrice(ctx)
-		} else {
-			gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
-		}
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 	}
 
 	// Create new call message
@@ -745,7 +741,9 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist())
+	gasPriceFloor, err := s.b.GasPriceFloor(ctx, args.GasCurrency)
+	infraFraction, err := s.b.InfrastructureFraction(ctx)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceFloor, infraFraction)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}

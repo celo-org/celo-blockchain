@@ -197,11 +197,19 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil, &b.eth.iEvmH.CurrentHeaderHash())
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress, &b.eth.iEvmH.CurrentHeaderHash())
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+}
+
+func (b *EthAPIBackend) GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+}
+
+func (b *EthAPIBackend) InfrastructureFraction(ctx context.Context) (*gasprice.InfrastructureFraction, error) {
+	return gasprice.GetInfrastructureFraction(b.eth.iEvmH, b.eth.regAdd)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

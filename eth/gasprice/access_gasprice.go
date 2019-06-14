@@ -149,6 +149,7 @@ type EvmHandler interface {
 
 type StaticEvmHandler interface {
 	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+  CurrentHeader() *types.Header
 }
 
 type AddressRegistry interface {
@@ -160,8 +161,13 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
-func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address, currentHeaderHash *common.Hash) (*big.Int, error) {
+func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
 	fallbackGasPriceFloor := big.NewInt(0) // gasprice floor to return if contracts are not found
+
+  if iEvmH == nil || regAdd == nil {
+    log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default gasprice floor of 0")
+    return fallbackGasPriceFloor, errors.New("nil iEvmH or addressRegistry")
+  }
 
 	if currencyAddress == nil {
 		currencyAddress = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
@@ -175,17 +181,15 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
   cacheMu.Lock()
   defer cacheMu.Unlock()
 
-
-  if currentHeaderHash != nil && cacheHeaderHash != *currentHeaderHash {
+  currentHeaderHash := iEvmH.CurrentHeader().Hash()
+  if cacheHeaderHash != currentHeaderHash{
     gasPriceFloorCache = make(map[common.Address]*big.Int)
-    cacheHeaderHash = *currentHeaderHash
+    cacheHeaderHash = currentHeaderHash
   }
 
   var gasPriceFloor *big.Int
-  if  currentHeaderHash != nil {
-    if gasPriceFloor, ok := gasPriceFloorCache[*currencyAddress]; ok {
-      return gasPriceFloor, nil
-    }
+  if gasPriceFloor, ok := gasPriceFloorCache[*currencyAddress]; ok {
+    return gasPriceFloor, nil
   }
 
   gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
@@ -204,7 +208,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
     nil,
     nil,
   )
-  if currentHeaderHash != nil &&err == nil {
+  if err == nil {
     gasPriceFloorCache[*currencyAddress] = gasPriceFloor
   }
 	return gasPriceFloor, err
@@ -239,10 +243,10 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 // TODO (jarmg 6/13/19): Deprecate this by caching GetGasPriceFloor by blockhash
 func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int) {
 	gasPriceFloors := make(map[common.Address]*big.Int)
-	goldGasPriceFloor, _ := GetGasPriceFloor(iEvmH, regAdd, nil, nil)
+	goldGasPriceFloor, _ := GetGasPriceFloor(iEvmH, regAdd, nil)
 	for address, isValidForGas := range gasCurrencyMap {
 		if isValidForGas {
-			gp, err := GetGasPriceFloor(iEvmH, regAdd, &address, nil)
+			gp, err := GetGasPriceFloor(iEvmH, regAdd, &address)
 			if err == nil {
 				gasPriceFloors[address] = gp
 			}

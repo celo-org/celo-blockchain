@@ -179,6 +179,14 @@ func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddr
 	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
+func (b *LesApiBackend) GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+}
+
+func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*gasprice.InfrastructureFraction, error) {
+	return gasprice.GetInfrastructureFraction(b.eth.iEvmH, b.eth.regAdd)
+}
+
 func (b *LesApiBackend) ChainDb() ethdb.Database {
 	return b.eth.chainDb
 }

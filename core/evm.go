@@ -147,8 +147,8 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 	return iEvmH.makeCall(abiCall, header, state)
 }
 
-func (iEvmH *InternalEVMHandler) CurrentHeaderHash() (common.Hash) {
-  return iEvmH.chain.CurrentHeader().Hash()
+func (iEvmH *InternalEVMHandler) CurrentHeader() (*types.Header) {
+  return iEvmH.chain.CurrentHeader()
 }
 
 func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB) (uint64, error) {
