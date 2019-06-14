@@ -536,7 +536,6 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
-				wl := w.eth.GasCurrencyWhitelist()
 				gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
@@ -1033,7 +1032,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
-	wl := w.eth.GasCurrencyWhitelist()
 	gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
 
 	// Fill the block with all available pending transactions.
