@@ -809,7 +809,7 @@ func (w *worker) commitRandomTransaction() error {
 
 	newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
 	if err != nil {
-		log.Error("Failed to seal randomness", "err", err)
+		log.Error("Failed to compute commitment to randomness", "err", err)
 		return err
 	}
 
@@ -821,7 +821,7 @@ func (w *worker) commitRandomTransaction() error {
 
 	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
 	if err != nil {
-		log.Error("Failed to reveal and commit")
+		log.Error("Failed to reveal and commit randomness", "err", err)
 		return err
 	}
 
@@ -1083,7 +1083,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if w.random != nil && w.random.Running() {
 		err := w.commitRandomTransaction()
 		if err != nil {
-			log.Error("Failed to commit randomness", "err", err)
+			log.Error("Failed to commit randomness transaction", "err", err)
 			return
 		}
 	} else if len(pending) == 0 {
