@@ -103,7 +103,7 @@ const (
 	GoldTokenRegistryId            = "GoldToken"
 	GovernanceRegistryId           = "Governance"
 	ReserveRegistryId              = "Reserve"
-	RngRegistryId                  = "Rng"
+	RandomRegistryId               = "Random"
 	SortedOraclesRegistryId        = "SortedOracles"
 	ValidatorsRegistryId           = "Validators"
 )

@@ -110,7 +110,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 }
 
 // NewSpecialReceipt creates a mostly empty receipt that is used for the special
-// Rng transactions.
+// Random transactions.
 func NewEmptyReceipt() *Receipt {
 	receipt := NewReceipt([]byte{}, false, 0)
 	receipt.GasUsed = 0
