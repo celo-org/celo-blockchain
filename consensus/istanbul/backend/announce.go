@@ -243,8 +243,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (rand.Int() % 100) <= 5 {
-		regVals := sb.retrieveRegisteredValidators()
-
 		for remoteAddress := range sb.lastAnnounceGossiped {
 			if !regVals[remoteAddress] {
 				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
