@@ -24,8 +24,6 @@ import (
 )
 
 func (c *core) sendCommit() {
-	logger := c.logger.New("state", c.state)
-	logger.Info("Sending commit")
 	sub := c.current.Subject()
 	c.broadcastCommit(sub)
 }

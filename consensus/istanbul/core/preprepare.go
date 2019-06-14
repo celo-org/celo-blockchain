@@ -25,7 +25,6 @@ import (
 
 func (c *core) sendPreprepare(request *istanbul.Request) {
 	logger := c.logger.New("state", c.state)
-	logger.Info("Sending preprepare", "proposal", request.Proposal)
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
@@ -39,35 +38,22 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 			return
 		}
 
-		msg := &message{
+		c.broadcast(&message{
 			Code: msgPreprepare,
 			Msg:  preprepare,
-		}
-
-		var prepreparedecode *istanbul.Preprepare
-		err = msg.Decode(&prepreparedecode)
-		if err != nil {
-			logger.Error("Failed to decode preprepare in send", "err", err)
-		} else {
-			logger.Info("Decoded preprepare in send")
-		}
-
-		c.broadcast(msg)
+		})
 	}
 }
 
 func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
-	logger.Info("Handling preprepare")
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare
 	err := msg.Decode(&preprepare)
 	if err != nil {
-		logger.Error("Failed to decode preprepare", "err", err)
 		return errFailedDecodePreprepare
 	}
-	logger.Info("Decoded preprepare")
 
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
@@ -88,14 +74,12 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
-	logger.Info("Decoded preprepare 1")
 	// Check if the message comes from current proposer
 	if !c.valSet.IsProposer(src.Address()) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
 	}
 
-	logger.Info("Decoded preprepare 2")
 	// Verify the proposal we received
 	if duration, err := c.backend.Verify(preprepare.Proposal, src); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
@@ -113,7 +97,6 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 		}
 		return err
 	}
-	logger.Info("Decoded preprepare 3")
 
 	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {

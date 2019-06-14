@@ -435,7 +435,6 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
-	log.Info("Istanbul.Finalize - finalizing block")
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
@@ -460,7 +459,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
-	log.Info("Istanbul.Finalize - finalized block with randomness", "randomness", randomness)
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
 }
