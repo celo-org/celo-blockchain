@@ -91,11 +91,11 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header   *types.Header
-	txs      []*types.Transaction
-	receipts []*types.Receipt
-
-	randomness [32]byte
+	header               *types.Header
+	txs                  []*types.Transaction
+	receipts             []*types.Receipt
+	unrevealedRandomness *common.Hash
+	randomness           *types.Randomness
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -764,6 +764,7 @@ func (w *worker) updateSnapshot() {
 		w.current.txs,
 		uncles,
 		w.current.receipts,
+		w.current.randomness,
 	)
 
 	w.snapshotState = w.current.state.Copy()
@@ -783,14 +784,15 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) getLastRandomness() ([32]byte, error) {
-	if w.current.randomness != [32]byte{} {
-		return w.current.randomness, nil
-	} else {
+func (w *worker) getLastRandomness() (common.Hash, error) {
+	if w.current.unrevealedRandomness == nil {
 		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	} else {
+		return *w.current.unrevealedRandomness, nil
 	}
 }
 
+/*
 func (w *worker) commitRandomTransaction() error {
 	randomness, err := w.getLastRandomness()
 	if err != nil {
@@ -833,6 +835,7 @@ func (w *worker) commitRandomTransaction() error {
 
 	return nil
 }
+*/
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
@@ -1071,6 +1074,48 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
+	// TODO(asa): Set current randomness here.
+	if w.random != nil && w.random.Running() {
+		log.Info("Randomness is running")
+		unrevealedRandomness, err := w.getLastRandomness()
+		if err != nil {
+			log.Error("Failed to get last randomness", "err", err)
+			return
+		}
+
+		randomBytes := [32]byte{}
+		_, err = rand.Read(randomBytes[0:32])
+		if err != nil {
+			log.Error("Failed to generate randomness", "err", err)
+			return
+		}
+		newRandomness := common.BytesToHash(randomBytes[:])
+
+		newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to seal randomness", "err", err)
+			return
+		}
+
+		w.random.StoreCommitment(newRandomness, newCommitment, w.db)
+
+		callData := make([]byte, 64)
+		copy(callData[0:], unrevealedRandomness[:])
+		copy(callData[32:], newCommitment[:])
+
+		log.Info("Revealing and committing randomness", "revealed", unrevealedRandomness.Hex(), "committed", newCommitment.Hex())
+		_, err = w.random.RevealAndCommit(unrevealedRandomness, newCommitment, w.coinbase, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to reveal and commit")
+			return
+		}
+		// We're passing the new randomness rather than the revealed randomness
+		w.current.randomness = &types.Randomness{Revealed: unrevealedRandomness, Committed: newCommitment}
+		w.current.unrevealedRandomness = &newRandomness
+	} else {
+		w.current.randomness = &types.Randomness{Revealed: common.Hash{}, Committed: common.Hash{}}
+	}
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -1080,16 +1125,18 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	if w.random != nil && w.random.Running() {
-		err := w.commitRandomTransaction()
-		if err != nil {
-			log.Error("Failed to commit randomness", "err", err)
+	/*
+		if w.random != nil && w.random.Running() {
+			err := w.commitRandomTransaction()
+			if err != nil {
+				log.Error("Failed to commit randomness", "err", err)
+				return
+			}
+		} else if len(pending) == 0 {
+			istanbulEmptyBlockCommit()
 			return
 		}
-	} else if len(pending) == 0 {
-		istanbulEmptyBlockCommit()
-		return
-	}
+	*/
 
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
@@ -1132,7 +1179,8 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+	log.Info("Finalized block", "block", block)
 	if err != nil {
 		return err
 	}

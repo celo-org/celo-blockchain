@@ -24,6 +24,7 @@ import (
 
 func (c *core) sendPrepare() {
 	logger := c.logger.New("state", c.state)
+	logger.Info("Sending prepare")
 
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)

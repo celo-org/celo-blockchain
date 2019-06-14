@@ -227,6 +227,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 
 // Verify implements istanbul.Backend.Verify
 func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
+	sb.logger.Info("Verifying proposal, %v", proposal)
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)

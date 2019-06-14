@@ -80,7 +80,7 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 		var contractAddress common.Address
 		log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
 		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
-			log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
+			// log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
 			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)

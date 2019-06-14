@@ -47,6 +47,7 @@ type bodyPack struct {
 	peerID       string
 	transactions [][]*types.Transaction
 	uncles       [][]*types.Header
+	randomness   []*types.Randomness
 }
 
 func (p *bodyPack) PeerId() string { return p.peerID }

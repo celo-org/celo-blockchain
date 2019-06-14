@@ -60,7 +60,7 @@ const (
 	}
 ]`
 
-	makeCommitmentAbi = `[
+	computeCommitmentAbi = `[
     {
       "constant": true,
       "inputs": [
@@ -69,7 +69,7 @@ const (
           "type": "bytes32"
         }
       ],
-      "name": "makeCommitment",
+      "name": "computeCommitment",
       "outputs": [
         {
           "name": "",
@@ -85,12 +85,11 @@ const (
 )
 
 var (
-	revealAndCommitFuncABI, _ = abi.JSON(strings.NewReader(revealAndCommitABI))
-	commitmentsFuncABI, _     = abi.JSON(strings.NewReader(commitmentsAbi))
-	makeCommitmentFuncABI, _  = abi.JSON(strings.NewReader(makeCommitmentAbi))
-	zeroValue                 = common.Big0
-	dbRandomnessPrefix        = []byte("commitment-to-randomness")
-	emptyReceipt              = types.NewEmptyReceipt()
+	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
+	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
+	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
+	zeroValue                   = common.Big0
+	dbRandomnessPrefix          = []byte("commitment-to-randomness")
 )
 
 func commitmentDbLocation(commitment [32]byte) []byte {
@@ -120,7 +119,7 @@ func (r *Random) address() *common.Address {
 
 // StoreCommitment stores a mapping from `commitment` to its preimage,
 // `randomness`, for later retrieval in GetLastRandomness.
-func (r *Random) StoreCommitment(randomness, commitment [32]byte, db *ethdb.Database) error {
+func (r *Random) StoreCommitment(randomness, commitment common.Hash, db *ethdb.Database) error {
 	return (*db).Put(commitmentDbLocation(commitment), randomness[:])
 }
 
@@ -129,32 +128,32 @@ func (r *Random) Running() bool {
 	return randomAddress != nil && *randomAddress != common.ZeroAddress
 }
 
-func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) ([32]byte, error) {
-	commitment := [32]byte{}
+func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) (common.Hash, error) {
+	commitment := common.Hash{}
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &commitment, gasAmount, header, state)
 	return commitment, err
 }
 
-func (r *Random) getRandomnessFromCommitment(commitment [32]byte, coinbase common.Address, db *ethdb.Database) ([32]byte, error) {
-	if commitment == [32]byte{} {
-		return [32]byte{}, nil
+func (r *Random) getRandomnessFromCommitment(commitment common.Hash, coinbase common.Address, db *ethdb.Database) (common.Hash, error) {
+	if (commitment == common.Hash{}) {
+		return common.Hash{}, nil
 	}
 
-	randomness := [32]byte{}
+	randomness := common.Hash{}
 	randomnessSlice, err := (*db).Get(commitmentDbLocation(commitment))
 	if err != nil {
 		log.Debug("Failed to get randomness from database", "err", err)
 	} else {
-		copy(randomness[:], randomnessSlice)
+		randomness = common.BytesToHash(randomnessSlice)
 	}
 	return randomness, err
 }
 
-// MakeCommitment computes the commitment to a randomness value by calling a
+// ComputeCommitment computes the commitment to a randomness value by calling a
 // public static function on the Random contract.
-func (r *Random) MakeCommitment(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
-	commitment := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*r.address(), makeCommitmentFuncABI, "makeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+func (r *Random) ComputeCommitment(randomness common.Hash, header *types.Header, state *state.StateDB) (common.Hash, error) {
+	commitment := common.Hash{}
+	_, err := r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	return commitment, err
 }
 
@@ -162,20 +161,28 @@ func (r *Random) MakeCommitment(randomness [32]byte, header *types.Header, state
 // looking up our last commitment in the smart contract, and then finding the
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
-func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) ([32]byte, error) {
+func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
 	commitment, err := r.getLastCommitment(coinbase, header, state)
 	if err != nil {
 		log.Debug("Failed to get last commitment", "err", err)
-		return [32]byte{}, err
+		return common.Hash{}, err
 	}
 
 	return r.getRandomnessFromCommitment(commitment, coinbase, db)
 }
 
+func emptyReceipt() *types.Receipt {
+	receipt := types.NewReceipt([]byte{}, false, 0)
+	receipt.GasUsed = 0
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+
+	return receipt
+}
+
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
-func (r *Random) RevealAndCommit(randomness, newCommitment [32]byte, proposer common.Address, header *types.Header, state *state.StateDB) (*types.Receipt, error) {
+func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) (*types.Receipt, error) {
 	args := []interface{}{randomness, newCommitment, proposer}
 	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	if err != nil {
@@ -183,5 +190,5 @@ func (r *Random) RevealAndCommit(randomness, newCommitment [32]byte, proposer co
 		return nil, err
 	}
 
-	return emptyReceipt, nil
+	return emptyReceipt(), nil
 }
