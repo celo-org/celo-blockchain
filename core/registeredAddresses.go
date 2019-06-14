@@ -125,10 +125,12 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 	if !ra.migrationCompleteFlag {
 		migrationCompleteFlag := ra.retrieveMigrationCompleteFlag()
 
-		ra.migrationCompleteFlagMu.Lock()
-		ra.migrationCompleteFlag = migrationCompleteFlag
-		ra.migrationCompleteFlagMu.Unlock()
-		log.Info("Migration status updated", "complete", ra.migrationCompleteFlag)
+		if migrationCompleteFlag {
+			ra.migrationCompleteFlagMu.Lock()
+			ra.migrationCompleteFlag = migrationCompleteFlag
+			ra.migrationCompleteFlagMu.Unlock()
+			log.Info("Migration status updated", "complete", ra.migrationCompleteFlag)
+		}
 	}
 }
 
