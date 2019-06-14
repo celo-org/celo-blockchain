@@ -60,7 +60,7 @@ const (
 	}
 ]`
 
-	makeCommitmentAbi = `[
+	computeCommitmentAbi = `[
     {
       "constant": true,
       "inputs": [
@@ -69,7 +69,7 @@ const (
           "type": "bytes32"
         }
       ],
-      "name": "makeCommitment",
+      "name": "computeCommitment",
       "outputs": [
         {
           "name": "",
@@ -85,12 +85,12 @@ const (
 )
 
 var (
-	revealAndCommitFuncABI, _ = abi.JSON(strings.NewReader(revealAndCommitABI))
-	commitmentsFuncABI, _     = abi.JSON(strings.NewReader(commitmentsAbi))
-	makeCommitmentFuncABI, _  = abi.JSON(strings.NewReader(makeCommitmentAbi))
-	zeroValue                 = common.Big0
-	dbRandomnessPrefix        = []byte("commitment-to-randomness")
-	emptyReceipt              = types.NewEmptyReceipt()
+	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
+	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
+	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
+	zeroValue                   = common.Big0
+	dbRandomnessPrefix          = []byte("commitment-to-randomness")
+	emptyReceipt                = types.NewEmptyReceipt()
 )
 
 func commitmentDbLocation(commitment [32]byte) []byte {
@@ -150,11 +150,11 @@ func (r *Random) getRandomnessFromCommitment(commitment [32]byte, coinbase commo
 	return randomness, err
 }
 
-// MakeCommitment computes the commitment to a randomness value by calling a
+// ComputeCommitment computes the commitment to a randomness value by calling a
 // public static function on the Random contract.
-func (r *Random) MakeCommitment(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
+func (r *Random) ComputeCommitment(randomness [32]byte, header *types.Header, state *state.StateDB) ([32]byte, error) {
 	commitment := [32]byte{}
-	_, err := r.iEvmH.MakeStaticCall(*r.address(), makeCommitmentFuncABI, "makeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	_, err := r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	return commitment, err
 }
 

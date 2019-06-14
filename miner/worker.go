@@ -807,7 +807,7 @@ func (w *worker) commitRandomTransaction() error {
 
 	w.current.randomness = newRandomness
 
-	newCommitment, err := w.random.MakeCommitment(newRandomness, w.current.header, w.current.state)
+	newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
 	if err != nil {
 		log.Error("Failed to seal randomness", "err", err)
 		return err
