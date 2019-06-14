@@ -172,11 +172,11 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPrice(b.eth.iEvmH, b.eth.regAdd, nil)
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gasprice.GetGasPrice(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

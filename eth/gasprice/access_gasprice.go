@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// TODO (jarmg 5/22/18): Store contract function ABIs in a central location
+// TODO (jarmg 5/22/19): Store ABIs in a central location
 const (
 	gasPriceOracleABIString = `[
     {
@@ -134,9 +134,9 @@ const (
 )
 
 var gasPriceOracleABI, _ = abi.JSON(strings.NewReader(gasPriceOracleABIString))
+var errNoGasPriceOracle = errors.New("no gasprice oracle contract address found")
 
 type EvmHandler interface {
-	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
 	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
 }
 
@@ -148,56 +148,77 @@ type AddressRegistry interface {
 	GetRegisteredAddress(registryId string) *common.Address
 }
 
-func GetGasPrice(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
-	log.Info("gasprice.GetGasPrice called")
+type InfrastructureFraction struct {
+	Numerator   *big.Int
+	Denominator *big.Int
+}
+
+func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
+	fallbackGasPriceFloor := big.NewInt(0) // gasprice floor to return if contracts are not found
+
 	if currencyAddress == nil {
 		currencyAddress = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 		if currencyAddress == nil {
 			log.Warn("No gold token contract address found. Returning default gold gasprice floor of 0")
-			return big.NewInt(0), errors.New("no gasprice oracle contract address found")
+			return fallbackGasPriceFloor, errors.New("no goldtoken contract address found")
 		}
 	}
-
-	return getGasPrice(iEvmH, regAdd, currencyAddress)
-}
-
-func getGasPrice(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
-	log.Info("gasprice.getGasPrice called")
 
 	var gasPrice *big.Int
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
 		log.Warn("No gasprice oracle contract address found. Returning default gasprice floor of 0")
-		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
+		return fallbackGasPriceFloor, errNoGasPriceOracle
 	}
 
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceFloor", []interface{}{currencyAddress}, &gasPrice, 200000, nil, nil)
+	_, err := iEvmH.MakeStaticCall(
+		*gasPriceOracleAddress,
+		gasPriceOracleABI,
+		"getGasPriceFloor",
+		[]interface{}{currencyAddress},
+		&gasPrice,
+		200000,
+		nil,
+		nil,
+	)
 	return gasPrice, err
 }
 
 func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types.Header, state *state.StateDB) (*big.Int, error) {
-	log.Info("gasprice.UpdateGasPriceFloor called")
+	log.Trace("gasprice.UpdateGasPriceFloor called")
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+
+	if gasPriceOracleAddress == nil {
+		return nil, errNoGasPriceOracle
+	}
 
 	var updatedGasPriceFloor *big.Int
 
-	if gasPriceOracleAddress == nil {
-		return nil, errors.New("no gasprice oracle contract address found")
-	}
-
-	_, err := iEvmH.MakeCall(*gasPriceOracleAddress, gasPriceOracleABI, "updateGasPriceFloor", []interface{}{big.NewInt(int64(header.GasUsed)), big.NewInt(int64(header.GasLimit))}, &updatedGasPriceFloor, 1000000000, big.NewInt(0), header, state)
+	_, err := iEvmH.MakeCall(
+		*gasPriceOracleAddress,
+		gasPriceOracleABI,
+		"updateGasPriceFloor",
+		[]interface{}{big.NewInt(int64(header.GasUsed)),
+			big.NewInt(int64(header.GasLimit))},
+		&updatedGasPriceFloor,
+		1000000000,
+		big.NewInt(0),
+		header,
+		state,
+	)
 	return updatedGasPriceFloor, err
 }
 
-// GetGasPriceMapAndGold returns a map of gasprice floors for all whitelisted currencies and the gold gasprice floor
+// This is useful when doing multiple gasprice floors in the same block number
+// TODO (jarmg 6/13/19): Deprecate this by caching GetGasPriceFloor by blockhash
 func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int) {
 	gasPriceFloors := make(map[common.Address]*big.Int)
-	goldGasPriceFloor, _ := GetGasPrice(iEvmH, regAdd, nil)
+	goldGasPriceFloor, _ := GetGasPriceFloor(iEvmH, regAdd, nil)
 	for address, isValidForGas := range gasCurrencyMap {
 		if isValidForGas {
-			gp, err := GetGasPrice(iEvmH, regAdd, &address)
+			gp, err := GetGasPriceFloor(iEvmH, regAdd, &address)
 			if err == nil {
 				gasPriceFloors[address] = gp
 			}
@@ -206,14 +227,26 @@ func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCu
 	return gasPriceFloors, goldGasPriceFloor
 }
 
-func GetInfraSplit(iEvmH StaticEvmHandler, regAdd AddressRegistry) ([2]*big.Int, error) {
-	var infraFraction [2]*big.Int
+// Returns the fraction of the gasprice floor that should be allocated to the infrastructure fund
+func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
+	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	if gasPriceOracleAddress == nil {
-		return infraFraction, errors.New("no gasprice oracle contract address found")
-	}
+	var err error
 
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "infrastructureSplit", []interface{}{}, &infraFraction, 200000, nil, nil)
-	return infraFraction, err
+	if gasPriceOracleAddress != nil {
+		_, err = iEvmH.MakeStaticCall(
+			*gasPriceOracleAddress,
+			gasPriceOracleABI,
+			"infrastructureSplit",
+			[]interface{}{},
+			&infraFraction,
+			200000,
+			nil,
+			nil,
+		)
+	} else {
+		err = errNoGasPriceOracle
+	}
+	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }

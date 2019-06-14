@@ -33,9 +33,8 @@ import (
 )
 
 var (
-	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
-
+	errInsufficientBalanceForGas  = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency  = errors.New("non-whitelisted gas currency address")
 	errGasPriceDoesNotExceedFloor = errors.New("gasprice does not exceed floor")
 
 	// This is the amount of gas a single debitFrom or creditTo request can use.
@@ -319,7 +318,8 @@ func getCreditToFunctionSelector() []byte {
 	return hexutil.MustDecode("0x9951b90c")
 }
 
-//TODO(jarmg 6/13) Find a better way to do this please
+//TODO(jarmg 6/13) Find a cleaner way to adhere to the interface that
+// we need to get gasprice floor information
 type gasPriceFloorEvm struct {
 	zeroCaller vm.ContractRef
 	evm        *vm.EVM
@@ -349,14 +349,16 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
+	// Make sure this transaction's gas price is valid.
+	gasPriceFloor := big.NewInt(0)
 	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
-	gasPriceFloor, err := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
-
-	if gasPriceFloor == nil {
-		log.Error("Received a nil gas price in preCheck - invalidating transaction")
-		return err
+	if st.gcWl != nil && st.gcWl.regAdd != nil {
+		gasPriceFloor, err := gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
+		if gasPriceFloor == nil {
+			log.Error("Received a nil gas price in preCheck - invalidating transaction")
+			return err
+		}
 	}
-
 	if st.msg.GasPrice().Cmp(gasPriceFloor) == -1 {
 		return errGasPriceDoesNotExceedFloor
 	}
@@ -375,8 +377,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
-
-	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
 
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
@@ -411,29 +411,38 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-	// TODO (jarmg): check for errors
-	gasPriceFloor, gpErr := gasprice.GetGasPrice(gEvm, st.gcWl.regAdd, msg.GasCurrency())
-	infraPercent, gpErr := gasprice.GetInfraSplit(gEvm, st.gcWl.regAdd)
-	infraAddress := st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
+	// Collect values from smart contracts or set defaults
+	var (
+		gasPriceFloor *big.Int                         = nil
+		infraFraction *gasprice.InfrastructureFraction = nil
+		infraAddress  *common.Address                  = nil
+	)
+	if st.gcWl != nil && st.gcWl.regAdd != nil {
+		gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
+		gasPriceFloor, _ = gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, msg.GasCurrency())
+		infraFraction, _ = gasprice.GetInfrastructureFraction(gEvm, st.gcWl.regAdd)
+		infraAddress = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
+	}
 
+	if gasPriceFloor == nil || infraFraction == nil || infraAddress == nil {
+		log.Error("Failed to collect gasprice floor infrastructure parameters. Setting gasprice floor of 0 and sending all tx fees to coinbase")
+		gasPriceFloor = big.NewInt(0)
+		infraFraction = &gasprice.InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+		infraAddress = nil
+	}
+
+	// Distribute transaction fees
 	st.refundGas()
 	gasUsed := st.gasUsed()
 
-	infraTxFee := big.NewInt(0)
-
-	// Pay gas fee to Coinbase chosen by the miner
+	// Pay gas fee to Coinbase chosen by the miner and Infrastructure fund
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-
-	if gpErr == nil {
-		infraTxFee = new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraPercent[0])), infraPercent[1])
-	}
+	infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraFraction.Numerator)), infraFraction.Denominator)
 	minerTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
 
 	log.Trace("Paying gas fees", "gas used", st.gasUsed(), "gasUsed", gasUsed, "gas fee", totalTxFee)
 	log.Trace("Paying gas fees", "miner", st.evm.Coinbase, "gasFee", minerTxFee, "gas Currency", msg.GasCurrency())
-	log.Trace("Paying gas fees", "infrastructureFund", infraAddress, "gasFee", infraTxFee, "gas Currency", msg.GasCurrency())
 
-	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
 	if msg.GasFeeRecipient() == nil {
 		st.creditGas(msg.From(), minerTxFee, msg.GasCurrency())
 	} else {
@@ -441,6 +450,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	if infraAddress != nil {
+		log.Trace("Paying gas fees", "infrastructureFund", infraAddress, "gasFee", infraTxFee, "gas Currency", msg.GasCurrency())
 		st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
 	}
 
