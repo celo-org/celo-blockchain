@@ -95,8 +95,7 @@ type environment struct {
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 
-	randomness    [32]byte
-	newCommitment [32]byte
+	randomness [32]byte
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -784,8 +783,16 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
+func (w *worker) getLastRandomness() ([32]byte, error) {
+	if w.current.randomness != [32]byte{} {
+		return w.current.randomness, nil
+	} else {
+		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	}
+}
+
 func (w *worker) commitRandomTransaction() {
-	randomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	randomness, err := w.getLastRandomness()
 	if err != nil {
 		log.Error("Failed to get last randomness")
 	}
@@ -795,6 +802,8 @@ func (w *worker) commitRandomTransaction() {
 	if err != nil {
 		log.Error("Failed to generate randomness")
 	}
+
+	w.current.randomness = newRandomness
 
 	newCommitment, err := w.random.MakeCommitment(newRandomness, w.current.header, w.current.state)
 	if err != nil {
@@ -807,13 +816,12 @@ func (w *worker) commitRandomTransaction() {
 	copy(callData[0:], randomness[:])
 	copy(callData[32:], newCommitment[:])
 
-	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
 	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
-
 	if err != nil {
 		log.Error("Failed to reveal and commit")
 	}
+
+	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
 
 	w.current.tcount++
 	w.current.txs = append(w.current.txs, tx)
