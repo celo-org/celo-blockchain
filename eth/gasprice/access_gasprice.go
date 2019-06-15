@@ -36,7 +36,7 @@ const (
     {
       "constant": true,
       "inputs": [],
-      "name": "infrastructureSplit",
+      "name": "infrastructureFraction",
       "outputs": [
         {
           "name": "",
@@ -239,42 +239,32 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 	return updatedGasPriceFloor, err
 }
 
-// This is useful when doing multiple gasprice floors in the same block number
-// TODO (jarmg 6/13/19): Deprecate this by caching GetGasPriceFloor by blockhash
-func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int) {
-	gasPriceFloors := make(map[common.Address]*big.Int)
-	goldGasPriceFloor, _ := GetGasPriceFloor(iEvmH, regAdd, nil)
-	for address, isValidForGas := range gasCurrencyMap {
-		if isValidForGas {
-			gp, err := GetGasPriceFloor(iEvmH, regAdd, &address)
-			if err == nil {
-				gasPriceFloors[address] = gp
-			}
-		}
-	}
-	return gasPriceFloors, goldGasPriceFloor
-}
-
 // Returns the fraction of the gasprice floor that should be allocated to the infrastructure fund
 func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
+  fallbackInfraFraction := InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+
+  if regAdd == nil {
+    log.Error("received nil addressRegistry - return default infra fraction of 0/1")
+    return &fallbackInfraFraction, errors.New("no addressRegistry")
+  }
+
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	var err error
-
-	if gasPriceOracleAddress != nil {
-		_, err = iEvmH.MakeStaticCall(
-			*gasPriceOracleAddress,
-			gasPriceOracleABI,
-			"infrastructureSplit",
-			[]interface{}{},
-			&infraFraction,
-			200000,
-			nil,
-			nil,
-		)
-	} else {
-		err = errNoGasPriceOracle
+	if gasPriceOracleAddress == nil {
+		return &fallbackInfraFraction, errNoGasPriceOracle
 	}
+
+  _, err := iEvmH.MakeStaticCall(
+    *gasPriceOracleAddress,
+    gasPriceOracleABI,
+    "infrastructureFraction",
+    []interface{}{},
+    &infraFraction,
+    200000,
+    nil,
+    nil,
+  )
+
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }
