@@ -21,11 +21,8 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/log"
@@ -278,19 +275,6 @@ func getCreditToFunctionSelector() []byte {
 type gasPriceFloorEvm struct {
 	zeroCaller vm.ContractRef
 	evm        *vm.EVM
-}
-
-func (gEvm gasPriceFloorEvm) MakeStaticCall(
-	scAddress common.Address,
-	abi abi.ABI,
-	funcName string,
-	args []interface{},
-	returnObj interface{},
-	gas uint64,
-	header *types.Header,
-	state *state.StateDB,
-) (uint64, error) {
-	return gEvm.evm.ABIStaticCall(gEvm.zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
 }
 
 func (st *StateTransition) preCheck() error {
