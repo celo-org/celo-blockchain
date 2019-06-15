@@ -18,7 +18,6 @@ package miner
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -91,11 +90,10 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header               *types.Header
-	txs                  []*types.Transaction
-	receipts             []*types.Receipt
-	unrevealedRandomness *common.Hash
-	randomness           *types.Randomness
+	header     *types.Header
+	txs        []*types.Transaction
+	receipts   []*types.Receipt
+	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -268,7 +266,7 @@ func (w *worker) setExtra(extra []byte) {
 	w.extra = extra
 }
 
-// setRecommitInterval updates the interval for miner sealing work recommitting.
+// setRecommitInterval updates the interval for miner sealing work recomiting.
 func (w *worker) setRecommitInterval(interval time.Duration) {
 	w.resubmitIntervalCh <- interval
 }
@@ -784,59 +782,6 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) getLastRandomness() (common.Hash, error) {
-	if w.current.unrevealedRandomness == nil {
-		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
-	} else {
-		return *w.current.unrevealedRandomness, nil
-	}
-}
-
-/*
-func (w *worker) commitRandomTransaction() error {
-	randomness, err := w.getLastRandomness()
-	if err != nil {
-		log.Error("Failed to get last randomness", "err", err)
-		return err
-	}
-
-	newRandomness := [32]byte{}
-	_, err = rand.Read(newRandomness[0:32])
-	if err != nil {
-		log.Error("Failed to generate randomness", "err", err)
-		return err
-	}
-
-	w.current.randomness = newRandomness
-
-	newCommitment, err := w.random.MakeCommitment(newRandomness, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to seal randomness", "err", err)
-		return err
-	}
-
-	w.random.StoreCommitment(newRandomness, newCommitment, w.db)
-
-	callData := make([]byte, 64)
-	copy(callData[0:], randomness[:])
-	copy(callData[32:], newCommitment[:])
-
-	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to reveal and commit")
-		return err
-	}
-
-	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
-	w.current.tcount++
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
-
-	return nil
-}
-*/
-
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
@@ -1041,7 +986,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			if err := w.commitUncle(env, uncle.Header()); err != nil {
 				log.Trace("Possible uncle rejected", "hash", hash, "reason", err)
 			} else {
-				log.Debug("Committing new uncle to block", "hash", hash)
+				log.Debug("Commiting new uncle to block", "hash", hash)
 				uncles = append(uncles, uncle.Header())
 			}
 		}
@@ -1074,42 +1019,28 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
-	// TODO(asa): Set current randomness here.
+	// Play our part in generating the random beacon.
 	if w.random != nil && w.random.Running() {
-		unrevealedRandomness, err := w.getLastRandomness()
+		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
 		}
 
-		randomBytes := [32]byte{}
-		_, err = rand.Read(randomBytes[0:32])
+		commitment, err := w.random.ComputeCommitment(w.current.header, w.current.state, w.db)
 		if err != nil {
-			log.Error("Failed to generate randomness", "err", err)
-			return
-		}
-		newRandomness := common.BytesToHash(randomBytes[:])
-
-		newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to seal randomness", "err", err)
+			log.Error("Failed to compute commitment", "err", err)
 			return
 		}
 
-		w.random.StoreCommitment(newRandomness, newCommitment, w.db)
-
-		callData := make([]byte, 64)
-		copy(callData[0:], unrevealedRandomness[:])
-		copy(callData[32:], newCommitment[:])
-
-		_, err = w.random.RevealAndCommit(unrevealedRandomness, newCommitment, w.coinbase, w.current.header, w.current.state)
+		log.Error("Revealing and committing", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex())
+		err = w.random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
-			log.Error("Failed to reveal and commit")
+			log.Error("Failed to reveal and commit", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
 		}
-		// We're passing the new randomness rather than the revealed randomness
-		w.current.randomness = &types.Randomness{Revealed: unrevealedRandomness, Committed: newCommitment}
-		w.current.unrevealedRandomness = &newRandomness
+
+		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
 	} else {
 		w.current.randomness = &types.Randomness{Revealed: common.Hash{}, Committed: common.Hash{}}
 	}

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/rand"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -92,11 +93,12 @@ var (
 	dbRandomnessPrefix          = []byte("commitment-to-randomness")
 )
 
-func commitmentDbLocation(commitment [32]byte) []byte {
-	return append(dbRandomnessPrefix, commitment[:]...)
+func commitmentDbLocation(commitment common.Hash) []byte {
+	return append(dbRandomnessPrefix, commitment.Bytes()...)
 }
 
 type Random struct {
+	randomnessCache     common.Hash
 	registeredAddresses *RegisteredAddresses
 	iEvmH               *InternalEVMHandler
 }
@@ -117,44 +119,9 @@ func (r *Random) address() *common.Address {
 	}
 }
 
-// StoreCommitment stores a mapping from `commitment` to its preimage,
-// `randomness`, for later retrieval in GetLastRandomness.
-func (r *Random) StoreCommitment(randomness, commitment common.Hash, db *ethdb.Database) error {
-	return (*db).Put(commitmentDbLocation(commitment), randomness[:])
-}
-
 func (r *Random) Running() bool {
 	randomAddress := r.address()
 	return randomAddress != nil && *randomAddress != common.ZeroAddress
-}
-
-func (r *Random) getLastCommitment(coinbase common.Address, header *types.Header, state *state.StateDB) (common.Hash, error) {
-	commitment := common.Hash{}
-	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &commitment, gasAmount, header, state)
-	return commitment, err
-}
-
-func (r *Random) getRandomnessFromCommitment(commitment common.Hash, coinbase common.Address, db *ethdb.Database) (common.Hash, error) {
-	if (commitment == common.Hash{}) {
-		return common.Hash{}, nil
-	}
-
-	randomness := common.Hash{}
-	randomnessSlice, err := (*db).Get(commitmentDbLocation(commitment))
-	if err != nil {
-		log.Debug("Failed to get randomness from database", "err", err)
-	} else {
-		randomness = common.BytesToHash(randomnessSlice)
-	}
-	return randomness, err
-}
-
-// ComputeCommitment computes the commitment to a randomness value by calling a
-// public static function on the Random contract.
-func (r *Random) ComputeCommitment(randomness common.Hash, header *types.Header, state *state.StateDB) (common.Hash, error) {
-	commitment := common.Hash{}
-	_, err := r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
-	return commitment, err
 }
 
 // GetLastRandomness returns up the last randomness we committed to by first
@@ -162,33 +129,68 @@ func (r *Random) ComputeCommitment(randomness common.Hash, header *types.Header,
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
 func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
-	commitment, err := r.getLastCommitment(coinbase, header, state)
+	if (r.randomnessCache != common.Hash{}) {
+		log.Trace("Read last randomness from cache", "randomness", r.randomnessCache.Hex())
+		return r.randomnessCache, nil
+	}
+
+	log.Warn("Last randomness cache miss, reading from the smart contract")
+	lastCommitment := common.Hash{}
+	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
-		log.Debug("Failed to get last commitment", "err", err)
+		log.Error("Failed to get last commitment", "err", err)
+		return lastCommitment, err
+	}
+
+	if (lastCommitment == common.Hash{}) {
+		log.Debug("Unable to find last randomness commitment in smart contract")
 		return common.Hash{}, err
 	}
 
-	return r.getRandomnessFromCommitment(commitment, coinbase, db)
+	randomness := common.Hash{}
+	randomnessSlice, err := (*db).Get(commitmentDbLocation(lastCommitment))
+	if err != nil {
+		log.Error("Failed to get randomness from database", "commitment", lastCommitment.Hex(), "err", err)
+	} else {
+		randomness = common.BytesToHash(randomnessSlice)
+	}
+	return randomness, err
 }
 
-func emptyReceipt() *types.Receipt {
-	receipt := types.NewReceipt([]byte{}, false, 0)
-	receipt.GasUsed = 0
-	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+// ComputeCommitment generates a new random number and a corresponding commitment.
+// The random number is cached and stored in the database, keyed by the corresponding commitment.
+func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
+	commitment := common.Hash{}
 
-	return receipt
+	randomBytes := [32]byte{}
+	_, err := rand.Read(randomBytes[0:32])
+	if err != nil {
+		log.Error("Failed to generate randomness", "err", err)
+		return commitment, err
+	}
+	randomness := common.BytesToHash(randomBytes[:])
+	r.randomnessCache = randomness
+	log.Info("Generated and cached randomness", "randomness", randomness.Hex())
+	// TODO(asa): Make an issue to not have to do this via StaticCall
+	_, err = r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	log.Info("Computed commitment", "commitment", commitment.Hex())
+	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
+	if err != nil {
+		log.Error("Failed to save randomness to the database", "err", err)
+	}
+
+	return commitment, err
 }
 
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
-func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) (*types.Receipt, error) {
+func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	if err != nil {
-		log.Error("MakeCall failed", "err", err)
-		return nil, err
+		return err
 	}
 
-	return emptyReceipt(), nil
+	return nil
 }
