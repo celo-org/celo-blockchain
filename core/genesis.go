@@ -253,10 +253,6 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Coinbase:   g.Coinbase,
 		Root:       root,
 	}
-	randomness := &types.Randomness{
-		Revealed:  common.Hash{},
-		Committed: common.Hash{},
-	}
 	if g.GasLimit == 0 {
 		head.GasLimit = params.GenesisGasLimit
 	}
@@ -266,7 +262,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
 
-	return types.NewBlock(head, nil, nil, nil, randomness)
+	return types.NewBlock(head, nil, nil, nil, nil)
 }
 
 // Commit writes the block and state of a genesis specification to the database.

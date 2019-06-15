@@ -573,7 +573,7 @@ func (evm *EVM) handleABICall(caller ContractRef, abi abi.ABI, funcName string, 
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-			// log.Error("Error in unpacking EVM call return bytes", "err", err)
+			log.Error("Error in unpacking EVM call return bytes", "err", err)
 			return leftoverGas, err
 		}
 	}

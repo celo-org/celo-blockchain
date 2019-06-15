@@ -890,8 +890,10 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
 		"signature":        hexutil.Bytes(common.CopyBytes(head.Signature[:])),
-		"revealed":         hexutil.Bytes(b.Randomness().Revealed.Bytes()),
-		"committed":        hexutil.Bytes(b.Randomness().Committed.Bytes()),
+	}
+	fields["randomness"] = map[string]interface{}{
+		"revealed":  hexutil.Bytes(b.Randomness().Revealed.Bytes()),
+		"committed": hexutil.Bytes(b.Randomness().Committed.Bytes()),
 	}
 
 	if inclTx {
