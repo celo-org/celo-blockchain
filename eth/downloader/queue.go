@@ -458,7 +458,8 @@ func (q *queue) ReserveHeaders(p *peerConnection, count int) *fetchRequest {
 // returns a flag whether empty blocks were queued requiring processing.
 func (q *queue) ReserveBodies(p *peerConnection, count int) (*fetchRequest, bool, error) {
 	isNoop := func(header *types.Header) bool {
-		return header.TxHash == types.EmptyRootHash && header.UncleHash == types.EmptyUncleHash
+		// All headers must be fetched so that the random beacon can be updated correctly.
+		return false
 	}
 	q.lock.Lock()
 	defer q.lock.Unlock()

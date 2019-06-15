@@ -430,7 +430,6 @@ func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) *types.Header 
 	}
 	// Cache the found header for next time and return
 	hc.headerCache.Add(hash, header)
-	log.Info("Got header", "hash", hash, "number", number, "header", header)
 	return header
 }
 
@@ -455,13 +454,10 @@ func (hc *HeaderChain) HasHeader(hash common.Hash, number uint64) bool {
 // GetHeaderByNumber retrieves a block header from the database by number,
 // caching it (associated with its hash) if found.
 func (hc *HeaderChain) GetHeaderByNumber(number uint64) *types.Header {
-	log.Info("Getting header by number", "number", number)
 	hash := rawdb.ReadCanonicalHash(hc.chainDb, number)
-	log.Info("Read canonical hash", "hash", hash, "number", number)
 	if hash == (common.Hash{}) {
 		return nil
 	}
-	log.Info("Getting header", "hash", hash, "number", number)
 	return hc.GetHeader(hash, number)
 }
 

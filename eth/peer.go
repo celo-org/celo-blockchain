@@ -26,6 +26,7 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -249,6 +250,7 @@ func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
 
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
+	log.Info("SendNewBlock")
 	p.knownBlocks.Add(block.Hash())
 	return p2p.Send(p.rw, NewBlockMsg, []interface{}{block, td})
 }
@@ -256,6 +258,7 @@ func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
 // the peer's broadcast queue is full, the event is silently dropped.
 func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
+	log.Info("AsyncSendNewBlock")
 	select {
 	case p.queuedProps <- &propEvent{block: block, td: td}:
 		p.knownBlocks.Add(block.Hash())

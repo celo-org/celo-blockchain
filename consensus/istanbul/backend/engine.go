@@ -667,11 +667,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		if numberIter == number {
 			blockHash = hash
 		} else {
-			log.Info("Getting header by number", "numberIter", numberIter)
-			header := chain.GetHeaderByNumber(numberIter)
-			log.Info("Got header by number", "header", header)
-			blockHash := header.Hash()
-			log.Info("Got block hash", "blockHash", blockHash)
+			blockHash = chain.GetHeaderByNumber(numberIter).Hash()
 		}
 
 		if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {

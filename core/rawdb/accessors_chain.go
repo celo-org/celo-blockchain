@@ -29,9 +29,7 @@ import (
 
 // ReadCanonicalHash retrieves the hash assigned to a canonical block number.
 func ReadCanonicalHash(db DatabaseReader, number uint64) common.Hash {
-	log.Info("Getting header hash key", "number", number)
 	data, _ := db.Get(headerHashKey(number))
-	log.Info("Got data", "number", number)
 	if len(data) == 0 {
 		return common.Hash{}
 	}

@@ -95,7 +95,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	if p.random != nil && p.random.Running() {
-		log.Info("Randomness running when block processing", "revealed", block.Randomness().Revealed.Hex(), "committed", block.Randomness().Committed.Hex())
+		log.Info("Randomness running when block processing", "number", block.Number(), "revealed", block.Randomness().Revealed.Hex(), "committed", block.Randomness().Committed.Hex())
 		_, err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, block.Header().Coinbase, block.Header(), statedb)
 		if err != nil {
 			return nil, nil, 0, err

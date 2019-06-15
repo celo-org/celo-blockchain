@@ -522,7 +522,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == GetBlockBodiesMsg:
-		log.Info("Got BlockBodiesMsg")
+		log.Info("Got GetBlockBodiesMsg")
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
@@ -545,6 +545,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if data := pm.blockchain.GetBodyRLP(hash); len(data) != 0 {
 				bodies = append(bodies, data)
 				bytes += len(data)
+
+				if body := pm.blockchain.GetBody(hash); body != nil {
+					header := pm.blockchain.GetHeaderByHash(hash)
+					log.Info("Got Body in GetBlockBodiesMsg", "number", header.Number, "hash", hash.Hex(), "revealed", body.Randomness.Revealed.Hex(), "committed", body.Randomness.Committed.Hex())
+				}
 			}
 		}
 		return p.SendBlockBodiesRLP(bodies)
@@ -565,6 +570,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
 			randomness[i] = body.Randomness
+			log.Info("Got Body in BlockBodiesMsg", "revealed", body.Randomness.Revealed.Hex(), "committed", body.Randomness.Committed.Hex(), "txhash", types.DeriveSha(types.Transactions(body.Transactions)).Hex())
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
 		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0
