@@ -29,7 +29,9 @@ import (
 
 // ReadCanonicalHash retrieves the hash assigned to a canonical block number.
 func ReadCanonicalHash(db DatabaseReader, number uint64) common.Hash {
+	log.Info("Getting header hash key", "number", number)
 	data, _ := db.Get(headerHashKey(number))
+	log.Info("Got data", "number", number)
 	if len(data) == 0 {
 		return common.Hash{}
 	}
@@ -225,6 +227,7 @@ func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.Body {
 
 // WriteBody storea a block body into the database.
 func WriteBody(db DatabaseWriter, hash common.Hash, number uint64, body *types.Body) {
+	log.Info("Writing body", "hash", hash, "number", number, "body", body)
 	data, err := rlp.EncodeToBytes(body)
 	if err != nil {
 		log.Crit("Failed to RLP encode body", "err", err)

@@ -33,8 +33,9 @@ import (
 )
 
 var (
-	EmptyRootHash  = DeriveSha(Transactions{})
-	EmptyUncleHash = CalcUncleHash(nil)
+	EmptyRootHash   = DeriveSha(Transactions{})
+	EmptyUncleHash  = CalcUncleHash(nil)
+	EmptyRandomness = Randomness{}
 )
 
 // A BlockNonce is a 64-bit hash which proves (combined with the
@@ -138,6 +139,22 @@ func (r *Randomness) Size() common.StorageSize {
 	return common.StorageSize(64)
 }
 
+func (r *Randomness) DecodeRLP(s *rlp.Stream) error {
+	var random struct {
+		Revealed  common.Hash
+		Committed common.Hash
+	}
+	if err := s.Decode(&random); err != nil {
+		return err
+	}
+	r.Revealed, r.Committed = random.Revealed, random.Committed
+	return nil
+}
+
+func (r *Randomness) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{r.Revealed, r.Committed})
+}
+
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
@@ -232,6 +249,10 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 		for i := range uncles {
 			b.uncles[i] = CopyHeader(uncles[i])
 		}
+	}
+
+	if randomness == nil {
+		b.randomness = &EmptyRandomness
 	}
 
 	return b
@@ -382,6 +403,9 @@ func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomne
 	copy(block.transactions, transactions)
 	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
+	}
+	if randomness == nil {
+		block.randomness = &EmptyRandomness
 	}
 	return block
 }
