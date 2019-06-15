@@ -434,7 +434,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			p.Log().Trace("Valid announcement signature")
 		}
 
-		p.Log().Debug("Announce message content", "number", req.Number, "hash", req.Hash, "td", req.Td, "reorg", req.ReorgDepth)
+		p.Log().Trace("Announce message content", "number", req.Number, "hash", req.Hash, "td", req.Td, "reorg", req.ReorgDepth)
 		if pm.fetcher != nil {
 			pm.fetcher.announce(p, &req)
 		}
