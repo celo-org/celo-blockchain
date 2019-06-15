@@ -20,6 +20,7 @@ import (
 	"errors"
 	"math/big"
 	"strings"
+  "sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -98,8 +99,14 @@ const (
 
 const defaultGasAmount = 2000000
 
-var gasPriceOracleABI, _ = abi.JSON(strings.NewReader(gasPriceOracleABIString))
-var errNoGasPriceOracle = errors.New("no gasprice oracle contract address found")
+var (
+  gasPriceOracleABI, _ = abi.JSON(strings.NewReader(gasPriceOracleABIString))
+  errNoGasPriceOracle = errors.New("no gasprice oracle contract address found")
+  gasPriceFloorCache = make(map[common.Address]*big.Int)
+  cacheHeaderHash common.Hash
+  cacheMu = new(sync.RWMutex)
+)
+
 
 type EvmHandler interface {
 	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
@@ -107,6 +114,7 @@ type EvmHandler interface {
 
 type StaticEvmHandler interface {
 	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+  CurrentHeader() *types.Header
 }
 
 type AddressRegistry interface {
@@ -121,34 +129,54 @@ type InfrastructureFraction struct {
 func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
 	fallbackGasPriceFloor := big.NewInt(0) // gasprice floor to return if contracts are not found
 
+  if iEvmH == nil || regAdd == nil {
+    log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default gasprice floor of 0")
+    return fallbackGasPriceFloor, errors.New("nil iEvmH or addressRegistry")
+  }
+
 	if currencyAddress == nil {
 		currencyAddress = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 		if currencyAddress == nil {
-			log.Warn("No gold token contract address found. Returning default gold gasprice floor of 0")
+			log.Error("No gold token contract address found. Returning default gold gasprice floor of 0")
 			return fallbackGasPriceFloor, errors.New("no goldtoken contract address found")
 		}
 	}
 
-	var gasPrice *big.Int
-	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+  cacheMu.Lock()
+  defer cacheMu.Unlock()
 
-	if gasPriceOracleAddress == nil {
-		log.Error("no gasprice oracle contract address found. Returning default gasprice floor of 0")
-		return fallbackGasPriceFloor, errNoGasPriceOracle
-	}
+  currentHeaderHash := iEvmH.CurrentHeader().Hash()
+  if cacheHeaderHash != currentHeaderHash{
+    gasPriceFloorCache = make(map[common.Address]*big.Int)
+    cacheHeaderHash = currentHeaderHash
+  }
 
-	_, err := iEvmH.MakeStaticCall(
-		*gasPriceOracleAddress,
-		gasPriceOracleABI,
-		"getGasPriceFloor",
-		[]interface{}{currencyAddress},
-		&gasPrice,
-		defaultGasAmount,
-		nil,
-		nil,
-	)
-	return gasPrice, err
+  var gasPriceFloor *big.Int
+  if gasPriceFloor, ok := gasPriceFloorCache[*currencyAddress]; ok {
+    return gasPriceFloor, nil
+  }
+
+  gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+  if gasPriceOracleAddress == nil {
+    log.Error("No gasprice oracle contract address found. Returning default gasprice floor of 0")
+    return fallbackGasPriceFloor, errNoGasPriceOracle
+  }
+
+  _, err := iEvmH.MakeStaticCall(
+    *gasPriceOracleAddress,
+    gasPriceOracleABI,
+    "getGasPriceFloor",
+    []interface{}{currencyAddress},
+    &gasPriceFloor,
+    defaultGasAmount,
+    nil,
+    nil,
+  )
+  if err == nil {
+    gasPriceFloorCache[*currencyAddress] = gasPriceFloor
+  }
+	return gasPriceFloor, err
 }
 
 func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types.Header, state *state.StateDB) (*big.Int, error) {
@@ -177,42 +205,32 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 	return updatedGasPriceFloor, err
 }
 
-// This is useful when doing multiple gasprice floors in the same block number
-// TODO (jarmg 6/13/19): Deprecate this by caching GetGasPriceFloor by blockhash
-func GetGasPriceMapAndGold(iEvmH StaticEvmHandler, regAdd AddressRegistry, gasCurrencyMap map[common.Address]bool) (map[common.Address]*big.Int, *big.Int) {
-	gasPriceFloors := make(map[common.Address]*big.Int)
-	goldGasPriceFloor, _ := GetGasPriceFloor(iEvmH, regAdd, nil)
-	for address, isValidForGas := range gasCurrencyMap {
-		if isValidForGas {
-			gp, err := GetGasPriceFloor(iEvmH, regAdd, &address)
-			if err == nil {
-				gasPriceFloors[address] = gp
-			}
-		}
-	}
-	return gasPriceFloors, goldGasPriceFloor
-}
-
 // Returns the fraction of the gasprice floor that should be allocated to the infrastructure fund
 func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
-	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the gasFeeRecipient as fallback
+	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
+  fallbackInfraFraction := InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+
+  if regAdd == nil {
+    log.Error("received nil addressRegistry - return default infra fraction of 0/1")
+    return &fallbackInfraFraction, errors.New("no addressRegistry")
+  }
+
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	var err error
-
-	if gasPriceOracleAddress != nil {
-		_, err = iEvmH.MakeStaticCall(
-			*gasPriceOracleAddress,
-			gasPriceOracleABI,
-			"infrastructureSplit",
-			[]interface{}{},
-			&infraFraction,
-			200000,
-			nil,
-			nil,
-		)
-	} else {
-		err = errNoGasPriceOracle
+	if gasPriceOracleAddress == nil {
+		return &fallbackInfraFraction, errNoGasPriceOracle
 	}
+
+  _, err := iEvmH.MakeStaticCall(
+    *gasPriceOracleAddress,
+    gasPriceOracleABI,
+    "infrastructureFraction",
+    []interface{}{},
+    &infraFraction,
+    200000,
+    nil,
+    nil,
+  )
+
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }

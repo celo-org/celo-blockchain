@@ -21,11 +21,8 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/log"
@@ -66,6 +63,8 @@ type StateTransition struct {
 	state      vm.StateDB
 	evm        *vm.EVM
 	gcWl       *GasCurrencyWhitelist
+  gasPriceFloor *big.Int
+  infraFraction *gasprice.InfrastructureFraction
 }
 
 // Message represents a message sent to a contract.
@@ -138,7 +137,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *gasprice.InfrastructureFraction) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
 		evm:      evm,
@@ -148,6 +147,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 		data:     msg.Data(),
 		state:    evm.StateDB,
 		gcWl:     gcWl,
+    gasPriceFloor: gasPriceFloor,
+    infraFraction: infraFraction,
 	}
 }
 
@@ -158,8 +159,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *gasprice.InfrastructureFraction) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl, gasPriceFloor, infraFraction).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -276,19 +277,6 @@ type gasPriceFloorEvm struct {
 	evm        *vm.EVM
 }
 
-func (gEvm gasPriceFloorEvm) MakeStaticCall(
-	scAddress common.Address,
-	abi abi.ABI,
-	funcName string,
-	args []interface{},
-	returnObj interface{},
-	gas uint64,
-	header *types.Header,
-	state *state.StateDB,
-) (uint64, error) {
-	return gEvm.evm.ABIStaticCall(gEvm.zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
-}
-
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
@@ -301,16 +289,7 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	// Make sure this transaction's gas price is valid.
-	gasPriceFloor := big.NewInt(0)
-	gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
-	if st.gcWl != nil && st.gcWl.regAdd != nil {
-		gasPriceFloor, err := gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, st.msg.GasCurrency())
-		if gasPriceFloor == nil {
-			log.Error("Received a nil gas price in preCheck - invalidating transaction")
-			return err
-		}
-	}
-	if st.msg.GasPrice().Cmp(gasPriceFloor) == -1 {
+	if st.gasPrice.Cmp(st.gasPriceFloor) == -1 {
 		return errGasPriceDoesNotExceedFloor
 	}
 
@@ -378,24 +357,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-	// Collect values from smart contracts or set defaults
-	var (
-		gasPriceFloor *big.Int                         = nil
-		infraFraction *gasprice.InfrastructureFraction = nil
-		infraAddress  *common.Address                  = nil
-	)
-	if st.gcWl != nil && st.gcWl.regAdd != nil {
-		gEvm := gasPriceFloorEvm{vm.AccountRef(common.HexToAddress("0x0")), st.evm}
-		gasPriceFloor, _ = gasprice.GetGasPriceFloor(gEvm, st.gcWl.regAdd, msg.GasCurrency())
-		infraFraction, _ = gasprice.GetInfrastructureFraction(gEvm, st.gcWl.regAdd)
+  var infraAddress *common.Address = nil
+  if st.gcWl != nil && st.gcWl.regAdd != nil {
 		infraAddress = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
-	}
-
-	if gasPriceFloor == nil || infraFraction == nil || infraAddress == nil {
-		log.Error("Failed to collect gasprice floor infrastructure parameters. Setting gasprice floor of 0 and sending all tx fees to coinbase")
-		gasPriceFloor = big.NewInt(0)
-		infraFraction = &gasprice.InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
-		infraAddress = nil
 	}
 
 	// Distribute transaction fees
@@ -406,26 +370,28 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 	gasUsed := st.gasUsed()
 
-	// Pay gas fee to gas fee recipient and Infrastructure fund
+	// Pay tx fee to tx fee recipient and Infrastructure fund
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-	infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(gasPriceFloor, infraFraction.Numerator)), infraFraction.Denominator)
-	recipientTxFee := new(big.Int).Sub(totalTxFee, infraTxFee)
 
-	if msg.GasFeeRecipient() == nil {
-	  st.creditGas(msg.From(), recipientTxFee, msg.GasCurrency())
-	} else {
-    err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
-	}
+  var recipientTxFee *big.Int
+	if infraAddress != nil {
+    infraTxFee     := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceFloor, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+    recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
+		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
+  } else {
+    log.Error("no infrastructure account address found - sending enitre txFee to fee recipient")
+    recipientTxFee = totalTxFee
+  }
 
   if err != nil {
     return nil, 0, false, err
   }
 
-	if infraAddress != nil {
-		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
-  } else {
-    log.Error("no infrastructure account address found")
-  }
+	if msg.GasFeeRecipient() == nil {
+		st.creditGas(msg.From(), recipientTxFee, msg.GasCurrency())
+	} else {
+    err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
+	}
 
   if err != nil {
     return nil, 0, false, err

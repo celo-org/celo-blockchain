@@ -536,10 +536,8 @@ func (w *worker) mainLoop() {
 					wl.RefreshWhitelist()
 				}
 
-				gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
-
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
-				w.commitTransactions(txset, coinbase, nil, gasPriceFloors, goldGasPriceFloor)
+				w.commitTransactions(txset, coinbase, nil)
 				w.updateSnapshot()
 			} else {
 				// If we're mining, but nothing is being processed, wake on new transactions
@@ -762,10 +760,12 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, infraFraction *gasprice.InfrastructureFraction) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
+  gasPriceFloor, _ := gasprice.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceFloor, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -776,7 +776,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32, gasPriceFloors map[common.Address]*big.Int, goldGasPriceFloor *big.Int) bool {
+func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -785,6 +785,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
 	}
+
+  infraFraction, _ := gasprice.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 
 	var coalescedLogs []*types.Log
 
@@ -822,16 +824,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		}
 
 		// Check for valid gas currency and that the tx exceeds the gasPriceFloor
-		var gasPriceFloor *big.Int
-		if tx.GasCurrency() == nil {
-			gasPriceFloor = goldGasPriceFloor
-		} else if gasPriceFloors[*tx.GasCurrency()] != nil {
-			gasPriceFloor = gasPriceFloors[*tx.GasCurrency()]
-		} else {
-			log.Error("Invalid gas currency", "currency", tx.GasCurrency())
-			txs.Shift()
-			continue
-		}
+
+    gasPriceFloor, _ := gasprice.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
 
 		if tx.GasPrice().Cmp(gasPriceFloor) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceFloor")
@@ -854,7 +848,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, coinbase)
+		logs, err := w.commitTransaction(tx, coinbase, infraFraction)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -1032,8 +1026,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
-	gasPriceFloors, goldGasPriceFloor := gasprice.GetGasPriceMapAndGold(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), wl.GetWhitelist())
-
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -1057,13 +1049,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt, gasPriceFloors, goldGasPriceFloor) {
+		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt, gasPriceFloors, goldGasPriceFloor) {
+		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
 		}
 	}

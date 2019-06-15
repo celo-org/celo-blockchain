@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -42,6 +43,8 @@ type Backend interface {
 	ProtocolVersion() int
 	SuggestPrice(ctx context.Context) (*big.Int, error)
 	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	InfrastructureFraction(ctx context.Context) (*gasprice.InfrastructureFraction, error)
 	ChainDb() ethdb.Database
 	EventMux() *event.TypeMux
 	AccountManager() *accounts.Manager
