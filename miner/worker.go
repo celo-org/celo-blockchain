@@ -1020,7 +1020,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	// Play our part in generating the random beacon.
-	if w.random != nil && w.random.Running() {
+	if w.isRunning() && w.random != nil && w.random.Running() {
 		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
