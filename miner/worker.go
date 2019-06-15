@@ -1076,7 +1076,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// TODO(asa): Set current randomness here.
 	if w.random != nil && w.random.Running() {
-		log.Info("Randomness is running")
 		unrevealedRandomness, err := w.getLastRandomness()
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
@@ -1103,7 +1102,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		copy(callData[0:], unrevealedRandomness[:])
 		copy(callData[32:], newCommitment[:])
 
-		log.Info("Revealing and committing randomness", "revealed", unrevealedRandomness.Hex(), "committed", newCommitment.Hex())
 		_, err = w.random.RevealAndCommit(unrevealedRandomness, newCommitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit")
@@ -1124,19 +1122,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		istanbulEmptyBlockCommit()
 		return
 	}
-
-	/*
-		if w.random != nil && w.random.Running() {
-			err := w.commitRandomTransaction()
-			if err != nil {
-				log.Error("Failed to commit randomness", "err", err)
-				return
-			}
-		} else if len(pending) == 0 {
-			istanbulEmptyBlockCommit()
-			return
-		}
-	*/
 
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
@@ -1180,7 +1165,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
-	log.Info("Finalized block", "block", block)
 	if err != nil {
 		return err
 	}
