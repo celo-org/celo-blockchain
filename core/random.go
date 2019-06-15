@@ -170,10 +170,8 @@ func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, d
 	}
 	randomness := common.BytesToHash(randomBytes[:])
 	r.randomnessCache = randomness
-	log.Info("Generated and cached randomness", "randomness", randomness.Hex())
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err = r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
-	log.Info("Computed commitment", "commitment", commitment.Hex())
 	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
 	if err != nil {
 		log.Error("Failed to save randomness to the database", "err", err)

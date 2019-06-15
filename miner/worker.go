@@ -266,7 +266,7 @@ func (w *worker) setExtra(extra []byte) {
 	w.extra = extra
 }
 
-// setRecommitInterval updates the interval for miner sealing work recomiting.
+// setRecommitInterval updates the interval for miner sealing work recommitting.
 func (w *worker) setRecommitInterval(interval time.Duration) {
 	w.resubmitIntervalCh <- interval
 }
@@ -986,7 +986,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			if err := w.commitUncle(env, uncle.Header()); err != nil {
 				log.Trace("Possible uncle rejected", "hash", hash, "reason", err)
 			} else {
-				log.Debug("Commiting new uncle to block", "hash", hash)
+				log.Debug("Committing new uncle to block", "hash", hash)
 				uncles = append(uncles, uncle.Header())
 			}
 		}
@@ -1029,14 +1029,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 		commitment, err := w.random.ComputeCommitment(w.current.header, w.current.state, w.db)
 		if err != nil {
-			log.Error("Failed to compute commitment", "err", err)
+			log.Error("Failed to compute randomness commitment", "err", err)
 			return
 		}
 
-		log.Error("Revealing and committing", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex())
 		err = w.random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
-			log.Error("Failed to reveal and commit", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
+			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
 		}
 
