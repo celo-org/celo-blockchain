@@ -147,8 +147,10 @@ func (f *lightFetcher) syncLoop() {
 				reqID   uint64
 				syncing bool
 			)
+			log.Info("Received new announce", "newAnnounce", newAnnounce, "syncing", f.syncing)
 			if !f.syncing && !(newAnnounce && s) {
 				rq, reqID, syncing = f.nextRequest()
+				log.Info("next request", "rq", rq, "reqID", reqID, "syncing", syncing)
 			}
 			f.lock.Unlock()
 
@@ -213,6 +215,7 @@ func (f *lightFetcher) syncLoop() {
 			p.Log().Debug("Done synchronising with peer")
 			f.checkSyncedHeaders(p)
 			f.syncing = false
+			p.Log().Debug("syncing set to false")
 			f.lock.Unlock()
 			f.requestChn <- false
 		}
@@ -328,6 +331,8 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 		}
 	}
 	if n == nil {
+		// TODO(asa): Strong hunch it's this
+		log.Info("Could not find reorg common ancestor or had to delete the entire tree, a new root and a resync is needed")
 		// could not find reorg common ancestor or had to delete entire tree, a new root and a resync is needed
 		if fp.root != nil {
 			fp.deleteNode(fp.root)
@@ -421,21 +426,28 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 
 	for p, fp := range f.peers {
 		for hash, n := range fp.nodeByHash {
+			log.Debug("nextRequest called", "bestTd", bestTd, "ntd", n.td)
 			if !f.checkKnownNode(p, n) && !n.requested && (bestTd == nil || n.td.Cmp(bestTd) >= 0) {
+				log.Debug("entered conditional 1", "bestTd", bestTd, "ntd", n.td)
+				// TODO(asa): We shouldn't expect amount when we're not syncing every header.
 				amount := f.requestAmount(p, n)
-				if bestTd == nil || n.td.Cmp(bestTd) > 0 || amount < bestAmount {
+				if bestTd == nil || n.td.Cmp(bestTd) > 0 || (amount < bestAmount && f.pm.downloader.Mode.SyncFullHeaderChain()) {
 					bestHash = hash
 					bestAmount = amount
 					bestTd = n.td
 					bestSyncing = fp.bestConfirmed == nil || fp.root == nil || !f.checkKnownNode(p, fp.root)
+					log.Debug("nextRequest entered conditional", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
+				} else {
+					log.Debug("nextRequest did not enter conditional", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 				}
 			}
 		}
 	}
 	if bestTd == f.maxConfirmedTd {
+		log.Debug("nextRequest returning false", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 		return nil, 0, false
 	} else {
-		log.Trace("nextRequest", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
+		log.Debug("nextRequest returniing true", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 	}
 
 	var rq *distReq
@@ -524,7 +536,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 	for i, header := range resp.headers {
 		headers[int(req.amount)-1-i] = header
 	}
-	if _, err := f.chain.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := f.chain.InsertHeaderChain(headers, 1, f.pm.downloader.Mode.SyncFullHeaderChain()); err != nil {
 		if err == consensus.ErrFutureBlock {
 			return true
 		}
@@ -553,7 +565,7 @@ func (f *lightFetcher) newHeaders(headers []*types.Header, tds []*big.Int) {
 			p.Log().Debug("Inconsistent announcement")
 			go f.pm.removePeer(p.id)
 		}
-		log.Trace("newHeaders", "fp.confirmedTd", fp.confirmedTd, "maxTd", maxTd)
+		log.Debug("newHeaders", "fp.confirmedTd", fp.confirmedTd, "maxTd", maxTd)
 		if fp.confirmedTd != nil && (maxTd == nil || maxTd.Cmp(fp.confirmedTd) > 0) {
 			maxTd = fp.confirmedTd
 		}
@@ -578,12 +590,8 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 		td     *big.Int
 	)
 
+	// TODO(Asa): Make this ultralight friendly
 	for i := len(headers) - 1; ; i-- {
-		// In celo latest sync mode, we don't have all the headers.
-		// Do not enable this for ultralight sync mode, it handles this behavior properly.
-		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
-			return true
-		}
 		if i < 0 {
 			if n == nil {
 				// no more headers and nothing to match
@@ -601,7 +609,7 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 			header = headers[i]
 			td = tds[i]
 		}
-		log.Trace(fmt.Sprintf("checkAnnouncedHeaders/header %d/%d is %v", i, len(headers), header.Number))
+		log.Debug(fmt.Sprintf("checkAnnouncedHeaders/header %d/%d is %v", i, len(headers), header.Number))
 		hash := header.Hash()
 		number := header.Number.Uint64()
 		if n == nil {
@@ -619,15 +627,15 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 				} else {
 					n.hash = hash
 					n.td = td
-					log.Trace("checkAnnouncedHeaders setting n.td", "n.td", n.td)
+					log.Debug("checkAnnouncedHeaders setting n.td", "n.td", n.td)
 					fp.nodeByHash[hash] = n
 				}
 			}
 			// check if it matches the header
 			if n.hash != hash || n.number != number || (n.td.Cmp(td) != 0) {
 				// peer has previously made an invalid announcement
-				log.Trace("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td)
-				log.Trace("checkAnnouncedHeaders", "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
+				log.Debug("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td)
+				log.Debug("checkAnnouncedHeaders", "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
 				return false
 			}
 			if n.known {
@@ -660,23 +668,30 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	var td *big.Int
 
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
+	// Check total difficulty if all headers are available.
 	// Disable this in Latest block only mode since we are not fetching the full chain
 	// now n is the latest downloaded header after syncing.
 	// Ultralightsync mode handles this behavior properly.
 	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {
+				log.Debug("Got TD", "td", td, "number", n.number)
 				break
 			}
 			n = n.parent
 		}
 	}
+	// Now n is the latest announced block by this peer that exists in our chain.
+	log.Debug("Got n", "number", n.number, "hash", n.hash, "td", td)
 	if n == nil {
 		p.Log().Debug("Synchronisation failed")
 		go f.pm.removePeer(p.id)
 	} else {
+		log.Debug("Getting header", "hash", n.hash, "number", n.number)
 		header := f.chain.GetHeader(n.hash, n.number)
+		log.Debug("Got header", "header", header)
 		f.newHeaders([]*types.Header{header}, []*big.Int{td})
+		log.Debug("New headers")
 	}
 }
 
@@ -760,6 +775,7 @@ type updateStatsEntry struct {
 // Those who have not confirmed such a head by now will be updated by a subsequent checkUpdateStats call with a
 // positive block delay value.
 func (f *lightFetcher) updateMaxConfirmedTd(td *big.Int) {
+	log.Info("Updating maxconfirmedtd", "td", td)
 	if f.maxConfirmedTd == nil || td.Cmp(f.maxConfirmedTd) > 0 {
 		f.maxConfirmedTd = td
 		newEntry := &updateStatsEntry{

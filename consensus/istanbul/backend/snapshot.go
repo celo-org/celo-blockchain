@@ -141,7 +141,7 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 		snap.Number += s.Epoch
 		snap.Hash = header.Hash()
 		snap.store(db)
-		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
+		log.Debug("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
 
 	return snap, nil
