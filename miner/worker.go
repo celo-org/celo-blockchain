@@ -18,7 +18,6 @@ package miner
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -781,57 +780,6 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	w.current.receipts = append(w.current.receipts, receipt)
 
 	return receipt.Logs, nil
-}
-
-func (w *worker) getLastRandomness() ([32]byte, error) {
-	if w.current.randomness != [32]byte{} {
-		return w.current.randomness, nil
-	} else {
-		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
-	}
-}
-
-func (w *worker) commitRandomTransaction() error {
-	randomness, err := w.getLastRandomness()
-	if err != nil {
-		log.Error("Failed to get last randomness", "err", err)
-		return err
-	}
-
-	newRandomness := [32]byte{}
-	_, err = rand.Read(newRandomness[0:32])
-	if err != nil {
-		log.Error("Failed to generate randomness", "err", err)
-		return err
-	}
-
-	w.current.randomness = newRandomness
-
-	newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to compute commitment to randomness", "err", err)
-		return err
-	}
-
-	w.random.StoreCommitment(newRandomness, newCommitment, w.db)
-
-	callData := make([]byte, 64)
-	copy(callData[0:], randomness[:])
-	copy(callData[32:], newCommitment[:])
-
-	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to reveal and commit randomness", "err", err)
-		return err
-	}
-
-	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
-	w.current.tcount++
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
-
-	return nil
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
