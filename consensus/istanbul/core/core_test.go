@@ -35,8 +35,7 @@ func makeBlock(number int64) *types.Block {
 		GasUsed:    0,
 		Time:       big.NewInt(0),
 	}
-	block := &types.Block{}
-	return block.WithSeal(header)
+	return types.NewBlock(header, nil, nil, nil, nil)
 }
 
 func newTestProposal() istanbul.Proposal {

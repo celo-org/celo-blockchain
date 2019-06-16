@@ -262,7 +262,7 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
-	return &Block{header: CopyHeader(header)}
+	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
