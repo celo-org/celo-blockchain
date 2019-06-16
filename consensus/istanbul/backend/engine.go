@@ -727,7 +727,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
-	// TODO(asa): Can this stay <=?
 	for numberIter+sb.config.Epoch <= number {
 		numberIter += sb.config.Epoch
 
