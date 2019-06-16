@@ -210,9 +210,9 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
   fallbackInfraFraction := InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
 
-  if regAdd == nil {
-    log.Error("received nil addressRegistry - return default infra fraction of 0/1")
-    return &fallbackInfraFraction, errors.New("no addressRegistry")
+  if iEvmH == nil || regAdd == nil {
+    log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default infra fraction of 0")
+    return &fallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
   }
 
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
