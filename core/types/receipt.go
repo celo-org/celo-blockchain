@@ -109,7 +109,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 	return r
 }
 
-// Decode a AttestationRequest from raw input bytes.
+// Decode an AttestationRequest from raw input bytes.
 // Input is expected to be encoded in the following manner:
 // input[0:32]:        bytes32 phoneHash
 // input[32:64]:       bytes32 codeHash
