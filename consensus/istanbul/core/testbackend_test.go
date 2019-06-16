@@ -109,7 +109,7 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, seals [][]byte
 	return nil
 }
 
-func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (self *testSystemBackend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
 	return 0, nil
 }
 
