@@ -123,7 +123,6 @@ var (
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
-	emptyAddress      = common.Address{}
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -175,12 +174,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
 	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
-	}
-
-	// Ensure that the coinbase is empty (Istanbul was originally using it for a candidate validator vote)
-	// TODO(kevjue) - We will most likely need to change this so that the coinbase field is set to the proposer address for the identity protocol.
-	if header.Coinbase != emptyAddress {
-		return errInvalidCoinbase
 	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
@@ -362,7 +355,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = emptyAddress
+	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
 	header.MixDigest = types.IstanbulDigest
 
@@ -462,8 +455,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
 	if bondedDepositsAddress != nil {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
-		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 100000, big.NewInt(0), header, state)
+		if err != nil {
 			log.Error("Unable to send block rewards to bonded deposits", "err", err)
 		}
 	}

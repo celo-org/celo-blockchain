@@ -50,9 +50,19 @@ const (
 
 var (
 	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{params.GoldTokenRegistryId, params.AttestationsRegistryId, params.ReserveRegistryId, params.SortedOraclesRegistryId, params.GasCurrencyWhitelistRegistryId, params.ValidatorsRegistryId, params.GasPriceOracleRegistryId, params.GovernanceRegistryId, params.BondedDepositsRegistryId}
-	getAddressForFuncABI, _      = abi.JSON(strings.NewReader(getAddressForABI))
-	zeroAddress                  = common.Address{}
+	registeredContractIds        = []string{
+		params.AttestationsRegistryId,
+		params.BondedDepositsRegistryId,
+		params.GasCurrencyWhitelistRegistryId,
+		params.GasPriceOracleRegistryId,
+		params.GoldTokenRegistryId,
+		params.GovernanceRegistryId,
+		params.RandomRegistryId,
+		params.ReserveRegistryId,
+		params.SortedOraclesRegistryId,
+		params.ValidatorsRegistryId,
+	}
+	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 )
 
 type RegisteredAddresses struct {
@@ -75,7 +85,7 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 		} else {
 			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
 
-			if contractAddress != zeroAddress {
+			if contractAddress != common.ZeroAddress {
 				returnMap[contractRegistryId] = contractAddress
 			}
 		}
