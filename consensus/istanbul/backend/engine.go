@@ -658,7 +658,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	// Retrieve the most recent cached or on disk snapshot.
 	for ; ; numberIter = numberIter - sb.config.Epoch {
-		log.Info("Checking for snapshot", "numberIter", numberIter)
 		// If an in-memory snapshot was found, use that
 		if s, ok := sb.recents.Get(numberIter); ok {
 			snap = s.(*Snapshot)
@@ -729,7 +728,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
 	// TODO(asa): Can this stay <=?
-	for numberIter+sb.config.Epoch < number {
+	for numberIter+sb.config.Epoch <= number {
 		numberIter += sb.config.Epoch
 
 		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "parents size", len(parents))

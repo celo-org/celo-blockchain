@@ -63,7 +63,7 @@ func newCanonical(n int) (ethdb.Database, *LightChain, error) {
 	}
 	// Header-only chain requested
 	headers := makeHeaderChain(genesis.Header(), n, db, canonicalSeed)
-	_, err := blockchain.InsertHeaderChain(headers, 1)
+	_, err := blockchain.InsertHeaderChain(headers, 1, true)
 	return db, blockchain, err
 }
 
@@ -98,7 +98,7 @@ func testFork(t *testing.T, LightChain *LightChain, i, n int, comparator func(td
 	}
 	// Extend the newly created chain
 	headerChainB := makeHeaderChain(LightChain2.CurrentHeader(), n, db, forkSeed)
-	if _, err := LightChain2.InsertHeaderChain(headerChainB, 1); err != nil {
+	if _, err := LightChain2.InsertHeaderChain(headerChainB, 1, true); err != nil {
 		t.Fatalf("failed to insert forking chain: %v", err)
 	}
 	// Sanity check that the forked chain can be imported into the original
@@ -297,8 +297,8 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 	bc := newTestLightChain()
 
 	// Insert an easy and a difficult chain afterwards
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, first, 11), 1)
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22), 1)
+	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, first, 11), 1, true)
+	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22), 1, true)
 	// Check that the chain is valid number and link wise
 	prev := bc.CurrentHeader()
 	for header := bc.GetHeaderByNumber(bc.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, bc.GetHeaderByNumber(header.Number.Uint64()-1) {
@@ -321,7 +321,7 @@ func TestBadHeaderHashes(t *testing.T) {
 	var err error
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
-	if _, err = bc.InsertHeaderChain(headers, 1); err != core.ErrBlacklistedHash {
+	if _, err = bc.InsertHeaderChain(headers, 1, true); err != core.ErrBlacklistedHash {
 		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
 	}
 }
@@ -334,7 +334,7 @@ func TestReorgBadHeaderHashes(t *testing.T) {
 	// Create a chain, import and ban afterwards
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 3, 4}, 10)
 
-	if _, err := bc.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := bc.InsertHeaderChain(headers, 1, true); err != nil {
 		t.Fatalf("failed to import headers: %v", err)
 	}
 	if bc.CurrentHeader().Hash() != headers[3].Hash() {
