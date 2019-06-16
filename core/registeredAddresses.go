@@ -93,6 +93,9 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
+  if ra == nil {
+    return nil
+  }
 	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
 		ra.RefreshAddresses()
 	}

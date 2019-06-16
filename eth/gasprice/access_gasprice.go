@@ -105,6 +105,8 @@ var (
   gasPriceFloorCache = make(map[common.Address]*big.Int)
   cacheHeaderHash common.Hash
   cacheMu = new(sync.RWMutex)
+  FallbackInfraFraction InfrastructureFraction = InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+  FallbackGasPriceFloor *big.Int = big.NewInt(0) // gasprice floor to return if contracts are not found
 )
 
 
@@ -126,12 +128,12 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
+
 func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
-	fallbackGasPriceFloor := big.NewInt(0) // gasprice floor to return if contracts are not found
 
   if iEvmH == nil || regAdd == nil {
     log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default gasprice floor of 0")
-    return fallbackGasPriceFloor, errors.New("nil iEvmH or addressRegistry")
+    return FallbackGasPriceFloor, errors.New("nil iEvmH or addressRegistry")
   }
 
 	if currencyAddress == nil {
@@ -139,7 +141,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
 
 		if currencyAddress == nil {
 			log.Error("No gold token contract address found. Returning default gold gasprice floor of 0")
-			return fallbackGasPriceFloor, errors.New("no goldtoken contract address found")
+			return FallbackGasPriceFloor, errors.New("no goldtoken contract address found")
 		}
 	}
 
@@ -160,7 +162,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
   gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
   if gasPriceOracleAddress == nil {
     log.Error("No gasprice oracle contract address found. Returning default gasprice floor of 0")
-    return fallbackGasPriceFloor, errNoGasPriceOracle
+    return FallbackGasPriceFloor, errNoGasPriceOracle
   }
 
   _, err := iEvmH.MakeStaticCall(
@@ -207,18 +209,17 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 
 // Returns the fraction of the gasprice floor that should be allocated to the infrastructure fund
 func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
-	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as fallback
-  fallbackInfraFraction := InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
   if iEvmH == nil || regAdd == nil {
     log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default infra fraction of 0")
-    return &fallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
+    return &FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
   }
 
 	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
 	if gasPriceOracleAddress == nil {
-		return &fallbackInfraFraction, errNoGasPriceOracle
+		return &FallbackInfraFraction, errNoGasPriceOracle
 	}
 
   _, err := iEvmH.MakeStaticCall(

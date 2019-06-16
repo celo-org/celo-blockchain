@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/params"
@@ -140,7 +141,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 
 				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil)
+				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil, gasprice.FallbackGasPriceFloor, &gasprice.FallbackInfraFraction)
 				res = append(res, ret...)
 			}
 		} else {
@@ -151,7 +152,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			context := core.NewEVMContext(msg, header, lc, nil, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
-			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil)
+			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil, gasprice.FallbackGasPriceFloor, &gasprice.FallbackInfraFraction)
 			if state.Error() == nil {
 				res = append(res, ret...)
 			}

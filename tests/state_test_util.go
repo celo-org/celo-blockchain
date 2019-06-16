@@ -141,7 +141,7 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateD
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(block.GasLimit())
 	snapshot := statedb.Snapshot()
-	if _, _, _, err := core.ApplyMessage(evm, msg, gaspool, nil, big.NewInt(0), &gasprice.InfrastructureFraction{big.NewInt(0), big.NewInt(1)}); err != nil {
+	if _, _, _, err := core.ApplyMessage(evm, msg, gaspool, nil, gasprice.FallbackGasPriceFloor, &gasprice.FallbackInfraFraction); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
 	// Commit block
