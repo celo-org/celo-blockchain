@@ -231,7 +231,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		db = ethdb.NewMemDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-	totalSupply := big.NewInt(0)
+	totalSupply := common.Big0
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
 		totalSupply.Add(totalSupply, account.Balance)
@@ -242,8 +242,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		}
 	}
 	// Store the total supply after genesis to address 0.
-	zeroAddress := common.Address{}
-	statedb.AddBalance(zeroAddress, totalSupply)
+	statedb.AddBalance(common.ZeroAddress, totalSupply)
 	log.Info("add totalsupply from genesis done", "totalsupply", totalSupply)
 	root := statedb.IntermediateRoot(false)
 	head := &types.Header{
