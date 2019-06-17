@@ -19,6 +19,7 @@ package downloader
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"strings"
 	"sync"
@@ -62,6 +63,10 @@ type downloadTester struct {
 	ownChainTd  map[common.Hash]*big.Int       // Total difficulties of the blocks in the local chain
 
 	lock sync.RWMutex
+}
+
+func (dl *downloadTester) Config() *params.ChainConfig {
+	return nil
 }
 
 // newTester creates a new downloader test mocker.

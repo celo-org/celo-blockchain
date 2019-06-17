@@ -39,6 +39,7 @@ type StateProcessor struct {
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
 	gcWl   *GasCurrencyWhitelist
 	regAdd *RegisteredAddresses
+	random *Random
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -56,6 +57,10 @@ func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
 
 func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	p.regAdd = regAdd
+}
+
+func (p *StateProcessor) SetRandom(random *Random) {
+	p.random = random
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -90,8 +95,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
+		var receipt *types.Receipt
+		var err error
+		if i == 0 && p.random != nil && p.random.Running() {
+			var randomness, newCommitment [32]byte
+			copy(randomness[:], tx.Data()[:32])
+			copy(newCommitment[:], tx.Data()[32:])
+			receipt, err = p.random.RevealAndCommit(randomness, newCommitment, block.Header().Coinbase, block.Header(), statedb)
+		} else {
+			statedb.Prepare(tx.Hash(), block.Hash(), i)
+			receipt, _, err = ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
+		}
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -142,7 +156,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if msg.To() == nil {
 		receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
 	}
-	receipt.VerificationRequests = vmenv.VerificationRequests
+	receipt.AttestationRequests = vmenv.AttestationRequests
 	// Set the receipt logs and create a bloom for filtering
 	receipt.Logs = statedb.GetLogs(tx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})

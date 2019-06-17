@@ -1,65 +1,40 @@
 version: 2
-jobs:
 
-  code-checkout:
-    docker:
-      - image: circleci/golang:1.11
+defaults: &defaults
+  docker:
+    - image: circleci/golang:1.12
+  working_directory: /go/src/github.com/celo-org/geth
+
+end-to-end-defaults: &end-to-end-defaults
+  docker:
+    - image: celohq/node8:gcloud
+  working_directory: ~/geth
+
+jobs:
+  unit-tests:
+    <<: *defaults
     steps:
       - checkout
-      - attach_workspace:
-          at: ~/geth
-      - persist_to_workspace:
-          root: .
-          paths: .
+      - run: build/env.sh go run build/ci.go lint
+      - run: build/env.sh go run build/ci.go test
+
+  coverage:
+    <<: *defaults
+    steps:
+      - checkout
+      - run: build/env.sh go run build/ci.go test -coverage
+      - run: bash <(curl -s https://codecov.io/bash)
 
   lint:
-    docker:
-      - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/celo-org/geth
+    <<: *defaults
     steps:
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Lint checks
-          command: |
-            cd ~/geth
-            build/env.sh go run build/ci.go lint
+      - checkout
+      - run: build/env.sh go run build/ci.go lint
 
-  unit-tests-no-coverage:
-    docker:
-      - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/celo-org/geth
+  end-to-end-checkout:
+    <<: *end-to-end-defaults
     steps:
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Tests without coverage
-          command: |
-            set -e
-            cd ~/geth
-            # Some tests are flaky. Run twice, so that, at least one invocation passes.
-            build/env.sh go run build/ci.go test || build/env.sh go run build/ci.go test
-
-  unit-tests-with-coverage:
-    docker:
-      - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/celo-org/geth
-    steps:
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Tests with coverage
-          command: |
-            set -e
-            cd ~/geth
-            # Many tests are flaky and fail under coverage. We won't fail if this step fails.
-            # We already are running all the tests, so, if they fail, we still fail.
-            build/env.sh go run build/ci.go test -coverage && bash <(curl -s https://codecov.io/bash) || true
-
-  celo-monorepo-checkout:
-    docker:
-      - image: celohq/node8:gcloud
-    steps:
+      - checkout
       - attach_workspace:
           at: ~/geth
       - run:
@@ -79,23 +54,25 @@ jobs:
             # it fails to create the directory though.
             mkdir -p ~/.ssh/
             echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
-
             export CELO_MONOREPO_DIR="./celo-monorepo"
-            git clone --depth 1 https://${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR}
+            git clone --depth 1 https://${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
             # Change these paths to use https login since the SSH key does not have access to these repositories.
-            # These environment variables are configured atssh -p 64535 34.230.3.71 https://circleci.com/gh/celo-org/geth/edit#env-vars
+            # Once we open source this code, these modifications can be eliminated. 
+            # These environment variables are configured at https://circleci.com/gh/celo-org/geth/edit#env-vars
             sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
+            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
             sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
             sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
+            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
+            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn
       - persist_to_workspace:
           root: .
           paths: .
-     
+
   end-to-end-transfer-test:
-    docker:
-      - image: celohq/node8:gcloud
+    <<: *end-to-end-defaults
     steps:
       - attach_workspace:
           at: ~/geth
@@ -109,10 +86,9 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_transfers.sh local ~/geth
-  
+
   end-to-end-sync-test:
-    docker:
-      - image: celohq/node8:gcloud
+    <<: *end-to-end-defaults
     steps:
       - attach_workspace:
           at: ~/geth
@@ -126,48 +102,18 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/geth
 
-  end-to-end-sync-integration-test:
-    docker:
-      - image: celohq/node8:gcloud
-    steps:
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Geth sync with integration network(s) test
-          command: |
-            GO_LANG_DIR="$HOME/geth/golang"
-            ${GO_LANG_DIR}/go/bin/go version
-            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
-            cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_integration_sync.sh local ~/geth
-
 workflows:
   version: 2
   build:
     jobs:
-      - code-checkout
-      - lint:
-          requires:
-            - code-checkout
-      - unit-tests-no-coverage:
-          requires:
-            - code-checkout
-      - unit-tests-with-coverage:
-          requires:
-            - code-checkout
-      - celo-monorepo-checkout:
-          requires:
-            - code-checkout
+      - lint
+      - unit-tests
+      - coverage
+      - end-to-end-checkout
+      
       - end-to-end-transfer-test:
           requires:
-            - code-checkout
-            - celo-monorepo-checkout
+            - end-to-end-checkout
       - end-to-end-sync-test:
           requires:
-            - code-checkout
-            - celo-monorepo-checkout
-      - end-to-end-sync-integration-test:
-          requires:
-            - code-checkout
-            - celo-monorepo-checkout
+            - end-to-end-checkout

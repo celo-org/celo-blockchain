@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -227,7 +226,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -252,6 +251,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// verify the header of proposed block
+	if block.Header().Coinbase != src.Address() {
+		return 0, errInvalidCoinbase
+	}
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
@@ -307,15 +309,14 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	validatorElectionAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-
-	if validatorElectionAddress != nil {
-		var newValSet []common.Address
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
-			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
-			return err
+	newValSet, err := sb.getValSet(block.Header(), state)
+	if err != nil {
+		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", common.ConvertToStringSlice(istExtra.RemovedValidators))
+			return errInvalidValidatorSetDiff
 		}
-
+	} else {
 		parentValidators := sb.ParentValidators(proposal)
 		oldValSet := make([]common.Address, 0, parentValidators.Size())
 
@@ -326,13 +327,6 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
 		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
-			return errInvalidValidatorSetDiff
-		}
-	} else {
-		// The validator election smart contract is not registered yet, so the validator set diff should be empty
-
-		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
 		}
 	}
