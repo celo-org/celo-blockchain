@@ -231,7 +231,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		db = ethdb.NewMemDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-	totalSupply := common.Big0
+	totalSupply := big.NewInt(0)
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
 		totalSupply.Add(totalSupply, account.Balance)
