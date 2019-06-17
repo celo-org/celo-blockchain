@@ -57,7 +57,7 @@ type ConsensusIEvmH interface {
 }
 
 type ConsensusRegAdd interface {
-	GetRegisteredAddress(registryId string) *common.Address
+	GetRegisteredAddress(registryId string) (*common.Address, error)
 }
 
 // Engine is an algorithm agnostic consensus engine.

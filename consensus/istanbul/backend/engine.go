@@ -378,8 +378,9 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-	if validatorAddress == nil {
+	validatorAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else {
 		// Get the new epoch's validator set
@@ -440,14 +441,18 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.updateGasPriceSuggestion(state)
 
 	infrastructureBlockReward := big.NewInt(params.Ether)
-	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-	if governanceAddress != nil {
+	governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
+	} else {
 		state.AddBalance(*governanceAddress, infrastructureBlockReward)
 	}
 
 	stakerBlockReward := big.NewInt(params.Ether)
-	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-	if bondedDepositsAddress != nil {
+	bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
+	} else {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 100000, big.NewInt(0), header, state)
 		if err != nil {
