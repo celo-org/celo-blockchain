@@ -45,15 +45,14 @@ func TestBlockEncoding(t *testing.T) {
 	check("Coinbase", block.Coinbase(), common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1"))
 	check("MixDigest", block.MixDigest(), common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000"))
 	check("Root", block.Root(), common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217"))
-	check("Hash", block.Hash(), common.HexToHash("9ddc8f73668b4a9cf6772715d1a28c59e352bdab6ac85a7dedef65f42755ec4f"))
+	check("Hash", block.Hash(), common.HexToHash("543f77909efcb1305bb8b8057403a7c6bac4b3df10f8270d56da95671d458cdb"))
 	check("Nonce", block.Nonce(), uint64(0x0))
 	check("Time", block.Time(), big.NewInt(1548187484))
 	check("Size", block.Size(), common.StorageSize(len(blockEnc)))
 	check("ParentHash", block.ParentHash(), common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7"))
-	check("Signature", block.Signature(), common.FromHex("3e835d97c294e9c5a24e072eb6cb07c91f562042c4dac5e67229b5cea30b35c73258e1a426173c4267c480a13d7c8c0c92ca70d55837b706194b763e0d57186a01"))
 
 	check("len(Transactions)", len(block.Transactions()), 1)
-	check("Transactions[0].Hash", block.Transactions()[0].Hash(), common.HexToHash("613448c2afd5564da95787b6fc1c464f0ef90a63eb5d54eced83e16dbe7c2a1a"))
+	check("Transactions[0].Hash", block.Transactions()[0].Hash(), common.HexToHash("f2048da8ea5a864531bfe14280d9020e6f236f58c8a5ef376e039dbe2fdb70df"))
 
 	ourBlockEnc, err := rlp.EncodeToBytes(&block)
 	if err != nil {
