@@ -39,10 +39,6 @@ func TestDefaultGenesisBlock(t *testing.T) {
 	if block.Hash() != params.TestnetGenesisHash {
 		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.TestnetGenesisHash.Hex())
 	}
-	block = DefaultRinkebyGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.RinkebyGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.RinkebyGenesisHash.Hex())
-	}
 }
 
 func TestSetupGenesis(t *testing.T) {

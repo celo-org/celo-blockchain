@@ -117,7 +117,6 @@ type Config struct {
 	MinerRecommit               time.Duration
 	MinerNoverify               bool
 	MinerVerificationServiceUrl string
-	MinerVerificationRewards    common.Address
 
 	// Ethash options
 	Ethash ethash.Config
