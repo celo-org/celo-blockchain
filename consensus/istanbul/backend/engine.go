@@ -467,35 +467,34 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.updateGasPriceSuggestion(state)
 
 	// Add block rewards
-
-	infrastructureBlockReward := big.NewInt(params.Ether)
-	governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-	if governanceAddress != nil {
-		state.AddBalance(*governanceAddress, infrastructureBlockReward)
-	}
-
-	stakerBlockReward := big.NewInt(params.Ether)
-	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-	if bondedDepositsAddress != nil {
-		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
-		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
-			log.Error("Unable to send block rewards to bonded deposits", "err", err)
-		}
-	}
-
-	// Increase totalSupply for Gold
-
-	totalBlockRewards := big.NewInt(0)
-	totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
-	totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-
 	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
-		_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 200000, big.NewInt(0), header, state)
-		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
-			log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
+		totalBlockRewards := big.NewInt(0)
+
+		infrastructureBlockReward := big.NewInt(params.Ether)
+		governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+
+		stakerBlockReward := big.NewInt(params.Ether)
+		bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+
+		if governanceAddress != nil && bondedDepositsAddress != nil {
+			state.AddBalance(*governanceAddress, infrastructureBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
+
+			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
+			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
+			if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+				log.Error("Unable to send block rewards to bonded deposits", "err", err)
+			}
+		}
+
+		// update totalSupply of GoldToken
+		if totalBlockRewards.Cmp(big.NewInt(0)) > 0 {
+			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 200000, big.NewInt(0), header, state)
+			if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
+			}
 		}
 	}
 
