@@ -667,13 +667,20 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		if numberIter == number {
 			blockHash = hash
 		} else {
-			blockHash = chain.GetHeaderByNumber(numberIter).Hash()
+			header = chain.GetHeaderByNumber(numberIter)
+			if header == nil {
+				log.Trace("Unable to find header in chain", "number", number)
+			} else {
+				blockHash = chain.GetHeaderByNumber(numberIter).Hash()
+			}
 		}
 
-		if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
-			log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
-			snap = s
-			break
+		if (blockHash != common.Hash{}) {
+			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
+				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
+				snap = s
+				break
+			}
 		}
 
 		if numberIter == 0 {
@@ -688,6 +695,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	// If snapshot is still nil, then create a snapshot from genesis block
 	if snap == nil {
+		log.Debug("Snapshot is nil, creating from genesis")
 		// Panic if the numberIter does not equal 0
 		if numberIter != 0 {
 			panic(fmt.Sprintf("There is a bug in the code.  NumberIter should be 0.  NumberIter: %v", numberIter))
@@ -695,41 +703,43 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 		genesis := chain.GetHeaderByNumber(0)
 
-		if err := sb.VerifyHeader(chain, genesis, false); err != nil {
-			return nil, err
-		}
-
 		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
 		if err != nil {
+			log.Error("Unable to extract istanbul extra", "err", err)
 			return nil, err
 		}
 
 		// The genesis block should have an empty RemovedValidators set.  If not, throw an error
 		if len(istanbulExtra.RemovedValidators) > 0 {
-			log.Trace("Genesis block has a non empty RemovedValidators set")
+			log.Error("Genesis block has a non empty RemovedValidators set")
 			return nil, errInvalidValidatorSetDiff
 		}
 
 		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, sb.config.ProposerPolicy))
 
 		if err := snap.store(sb.db); err != nil {
+			log.Error("Unable to store snapshot", "err", err)
 			return nil, err
 		}
-
-		log.Trace("Stored genesis voting snapshot to disk")
 	}
 
+	log.Trace("Most recent snapshot found", "number", numberIter)
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
-	minParentsBlockNumber := number - uint64(len(parents)) + 1
 	for numberIter+sb.config.Epoch <= number {
 		numberIter += sb.config.Epoch
 
-		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
-
-		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
-			header = parents[numberIter-minParentsBlockNumber]
+		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "parents size", len(parents))
+		inParents := -1
+		for i := len(parents) - 1; i >= 0; i-- {
+			if parents[i].Number.Uint64() == numberIter {
+				inParents = i
+				break
+			}
+		}
+		if inParents >= 0 {
+			header = parents[inParents]
 			log.Trace("Retrieved header from parents param", "header num", header.Number.Uint64())
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)
@@ -746,13 +756,12 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		var err error
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
+			log.Error("Unable to apply headers to snapshots", "headers", headers)
 			return nil, err
 		}
 
 		sb.recents.Add(numberIter, snap)
-		log.Trace("Stored voting snapshot to cache", "number", numberIter, "hash", snap.Hash)
 	}
-
 	// Make a copy of the snapshot to return, since a few fields will be modified.
 	// The original snap is probably stored within the LRU cache, so we don't want to
 	// modify that one.

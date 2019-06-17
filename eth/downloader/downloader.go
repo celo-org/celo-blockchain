@@ -176,7 +176,7 @@ type LightChain interface {
 	GetTd(common.Hash, uint64) *big.Int
 
 	// InsertHeaderChain inserts a batch of headers into the local chain.
-	InsertHeaderChain([]*types.Header, int) (int, error)
+	InsertHeaderChain([]*types.Header, int, bool) (int, error)
 
 	// Rollback removes a few recently added elements from the local chain.
 	Rollback([]common.Hash, bool)
@@ -1529,30 +1529,13 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
 					}
-					if d.Mode == UltraLightSync {
-						// `InsertHeaderChain` only permits the insertion of a continuous set of headers.
-						// See ValidateHeaderChain in core/headerchain.go for the check which rejects
-						// non-contiguous blocks. In UltraLightSync, we will be getting discontinuous epoch
-						// headers and a set of continuous headers around the last block number at the end.
-						for i := 0; i < len(chunk); i++ {
-							if n, err := d.lightchain.InsertHeaderChain(chunk[i:i+1], frequency); err != nil {
-								// If some headers were inserted, add them too to the rollback list
-								if n > 0 {
-									rollback = append(rollback, chunk[i:i+n]...)
-								}
-								log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
-								return errInvalidChain
-							}
+					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
+						// If some headers were inserted, add them too to the rollback list
+						if n > 0 {
+							rollback = append(rollback, chunk[:n]...)
 						}
-					} else {
-						if n, err := d.lightchain.InsertHeaderChain(chunk, frequency); err != nil {
-							// If some headers were inserted, add them too to the rollback list
-							if n > 0 {
-								rollback = append(rollback, chunk[:n]...)
-							}
-							log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
-							return errInvalidChain
-						}
+						log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
+						return errInvalidChain
 					}
 					// All verifications passed, store newly found uncertain headers
 					log.Trace(fmt.Sprintf("Adding headers for potential rollback: %v", headersToNumbers(unknown)))
