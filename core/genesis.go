@@ -242,7 +242,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		}
 	}
 	// Store the total supply after genesis to address 0.
-	zeroAddress = common.Address{}
+	zeroAddress := common.Address{}
 	statedb.AddBalance(zeroAddress, totalSupply)
 	log.Info("add totalsupply from genesis done", "totalsupply", totalSupply)
 	root := statedb.IntermediateRoot(false)
