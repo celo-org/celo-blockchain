@@ -186,9 +186,5 @@ func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, d
 func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
