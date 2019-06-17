@@ -98,7 +98,6 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 }
 
 type Random struct {
-	randomnessCache     common.Hash
 	registeredAddresses *RegisteredAddresses
 	iEvmH               *InternalEVMHandler
 }
@@ -129,12 +128,6 @@ func (r *Random) Running() bool {
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
 func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
-	if (r.randomnessCache != common.Hash{}) {
-		log.Trace("Read last randomness from cache", "randomness", r.randomnessCache.Hex())
-		return r.randomnessCache, nil
-	}
-
-	log.Warn("Last randomness cache miss, reading from the smart contract")
 	lastCommitment := common.Hash{}
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
@@ -144,7 +137,7 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 
 	if (lastCommitment == common.Hash{}) {
 		log.Debug("Unable to find last randomness commitment in smart contract")
-		return common.Hash{}, err
+		return common.Hash{}, nil
 	}
 
 	randomness := common.Hash{}
@@ -158,7 +151,7 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 }
 
 // ComputeCommitment generates a new random number and a corresponding commitment.
-// The random number is cached and stored in the database, keyed by the corresponding commitment.
+// The random number is stored in the database, keyed by the corresponding commitment.
 func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
 	commitment := common.Hash{}
 
@@ -169,7 +162,6 @@ func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, d
 		return commitment, err
 	}
 	randomness := common.BytesToHash(randomBytes[:])
-	r.randomnessCache = randomness
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err = r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
@@ -185,6 +177,7 @@ func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, d
 // a future block.
 func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
+	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
 	_, err := r.iEvmH.MakeCall(*r.address(), revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	return err
 }
