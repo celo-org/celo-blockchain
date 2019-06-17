@@ -150,9 +150,9 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 	return randomness, err
 }
 
-// ComputeCommitment generates a new random number and a corresponding commitment.
+// GenerateNewRandomnessAndCommitment generates a new random number and a corresponding commitment.
 // The random number is stored in the database, keyed by the corresponding commitment.
-func (r *Random) ComputeCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
+func (r *Random) GenerateNewRandomnessAndCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
 	commitment := common.Hash{}
 
 	randomBytes := [32]byte{}

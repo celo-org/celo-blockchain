@@ -1013,9 +1013,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 
-		commitment, err := w.random.ComputeCommitment(w.current.header, w.current.state, w.db)
+		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
 		if err != nil {
-			log.Error("Failed to compute randomness commitment", "err", err)
+			log.Error("Failed to generate randomness commitment", "err", err)
 			return
 		}
 
@@ -1027,7 +1027,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
 	} else {
-		w.current.randomness = &types.Randomness{Revealed: common.Hash{}, Committed: common.Hash{}}
+		w.current.randomness = &types.EmptyRandomness
 	}
 
 	// Fill the block with all available pending transactions.
