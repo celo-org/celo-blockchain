@@ -500,10 +500,10 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		// update totalSupply of GoldToken
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
-			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil{
+			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
 				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
 				return nil, err
-		    }
+			}
 			if totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
 				data, err := sb.db.Get(core.DBGenesisSupplyKey)
 				if err != nil {
