@@ -423,7 +423,7 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 		for hash, n := range fp.nodeByHash {
 			if !f.checkKnownNode(p, n) && !n.requested && (bestTd == nil || n.td.Cmp(bestTd) >= 0) {
 				amount := f.requestAmount(p, n)
-				if bestTd == nil || n.td.Cmp(bestTd) > 0 || amount < bestAmount {
+				if bestTd == nil || n.td.Cmp(bestTd) > 0 || (amount < bestAmount && f.pm.downloader.Mode.SyncFullHeaderChain()) {
 					bestHash = hash
 					bestAmount = amount
 					bestTd = n.td
@@ -524,7 +524,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 	for i, header := range resp.headers {
 		headers[int(req.amount)-1-i] = header
 	}
-	if _, err := f.chain.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := f.chain.InsertHeaderChain(headers, 1, f.pm.downloader.Mode.SyncFullHeaderChain()); err != nil {
 		if err == consensus.ErrFutureBlock {
 			return true
 		}
@@ -579,11 +579,6 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 	)
 
 	for i := len(headers) - 1; ; i-- {
-		// In celo latest sync mode, we don't have all the headers.
-		// Do not enable this for ultralight sync mode, it handles this behavior properly.
-		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
-			return true
-		}
 		if i < 0 {
 			if n == nil {
 				// no more headers and nothing to match
@@ -619,15 +614,14 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 				} else {
 					n.hash = hash
 					n.td = td
-					log.Trace("checkAnnouncedHeaders setting n.td", "n.td", n.td)
+					log.Debug("checkAnnouncedHeaders setting n.td", "n.td", n.td)
 					fp.nodeByHash[hash] = n
 				}
 			}
 			// check if it matches the header
 			if n.hash != hash || n.number != number || (n.td.Cmp(td) != 0) {
 				// peer has previously made an invalid announcement
-				log.Trace("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td)
-				log.Trace("checkAnnouncedHeaders", "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
+				log.Trace("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td, "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
 				return false
 			}
 			if n.known {
@@ -671,6 +665,7 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 			n = n.parent
 		}
 	}
+	// Now n is the latest announced block by this peer that exists in our chain.
 	if n == nil {
 		p.Log().Debug("Synchronisation failed")
 		go f.pm.removePeer(p.id)
