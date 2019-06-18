@@ -73,10 +73,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		knownMessages:        knownMessages,
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
-		valEnodeTable:        newValidatorEnodeTable(),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
+	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
 	return backend
 }
 
@@ -466,5 +466,25 @@ func (sb *Backend) GetValidatorPeers() []string {
 		return sb.broadcaster.GetValidatorPeers()
 	} else {
 		return nil
+	}
+}
+
+// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// peers that are not part of the valset.
+// It will also disconnect all validator connections if this node is not a validator.
+// Note that adding and removing validators are idempotent operations.  If the validator
+// being added or removed is already added or removed, then a no-op will be done.
+func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
+	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+
+	currentValPeers := sb.GetValidatorPeers()
+
+	// Disconnect all validator peers if this node is not in the valset
+	if _, val := valset.GetByAddress(sb.Address()); val == nil {
+		for _, peerEnodeURL := range currentValPeers {
+			sb.RemoveValidatorPeer(peerEnodeURL)
+		}
+	} else {
+		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
 	}
 }

@@ -192,7 +192,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Verify message signature
 	if err := msg.VerifySig(); err != nil {
-		sb.logger.Error("Error in verifying the signature of an Istanbul Announce message", "err", err, "msg", msg.String())
+		sb.logger.Error("Error in verifying the signature of an Istanbul Announce message", "err", err, "AnnounceMsg", msg.String())
 		return err
 	}
 
@@ -205,45 +205,31 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// If the message is not within the registered validator set, then ignore it
 	regVals := sb.retrieveRegisteredValidators()
 	if !regVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "msg", msg.String())
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String())
 		return errUnauthorizedAnnounceMessage
 	}
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		newValEnode := &validatorEnode{enodeURL: msg.EnodeURL, view: msg.View}
-		enodeURLUpdated, err := sb.valEnodeTable.testAndSet(msg.Address, newValEnode)
-		if err != nil {
-			sb.logger.Trace("Received an old announce message.  Ignoring it.", "from", msg.Address.Hex(), "view", msg.View, "enode", msg.EnodeURL)
-			return err
-		}
-
-		if enodeURLUpdated {
-			// Disconnect from the peer
-			sb.RemoveValidatorPeer(valEnodeEntry.enodeURL)
-		}
-
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		// Connect to the remote peer if it's part of the current epoch's valset and
-		// if this node is also part of the current epoch's valset
-		if _, remoteNode := valSet.GetByAddress(msg.Address); remoteNode != nil {
-			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
-				sb.AddValidatorPeer(msg.EnodeURL)
-			}
+		newValEnode := &validatorEnode{enodeURL: msg.EnodeURL, view: msg.View}
+		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
+			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
+			return err
 		}
 	}
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 		if lastGossipTs.enodeURL == msg.EnodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
-			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "msg", msg)
+			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			return nil
 		}
 	}
 
-	sb.logger.Trace("Regossiping the istanbul announce message", "msg", msg)
+	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
@@ -257,7 +243,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 
-		sb.vet.pruneEntries(regVals)
+		sb.valEnodeTable.pruneEntries(regVals)
 	}
 
 	return nil

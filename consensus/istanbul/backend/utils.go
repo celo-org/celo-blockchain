@@ -18,42 +18,7 @@ package backend
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
-
-// This will create 'validator' type peers to all the valset validators, and disconnect from the
-// peers that are not part of the valset.
-// It will also disconnect all validator connections if this node is not a validator.
-// Note that adding and removing validators are idempotent operations.  If the validator
-// being added or removed is already added or removed, then a no-op will be done.
-func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
-	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
-
-	currentValPeers := sb.GetValidatorPeers()
-
-	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.Address()); val == nil {
-		for _, peerEnodeURL := range currentValPeers {
-			sb.RemoveValidatorPeer(peerEnodeURL)
-		}
-	} else {
-		// Add all of the valset entries as validator peers
-		for _, val := range valset.List() {
-			if valEnodeEntry, ok := sb.valEnodeTable.getUsingAddress(val.Address()); ok {
-				sb.AddValidatorPeer(valEnodeEntry.enodeURL)
-			}
-		}
-
-		// Remove the peers that are not in the valset
-		for _, peerEnodeURL := range currentValPeers {
-			if peerAddress, ok := sb.reverseValEnodeTable[peerEnodeURL]; ok {
-				if _, src := valset.GetByAddress(peerAddress); src == nil {
-					sb.RemoveValidatorPeer(peerEnodeURL)
-				}
-			}
-		}
-	}
-}
 
 // This function will retrieve the set of registered validators from the validator election
 // smart contract.
