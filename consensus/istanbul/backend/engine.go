@@ -101,6 +101,7 @@ var (
 			      "type": "function"
 				 }]`
 
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	increaseSupplyABI = `[{
 		"constant": false,
 		"inputs": [
@@ -118,7 +119,23 @@ var (
 		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "function"
-			     }]`
+				 }]`
+				 
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	totalSupplyABI = `[{
+		"constant": true,
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
 	setCumulativeRewardWeightABI = `[{
@@ -147,6 +164,7 @@ var (
 
 	getValidatorsFuncABI, _             = abi.JSON(strings.NewReader(getValidatorsABI))
 	increaseSupplyFuncABI, _            = abi.JSON(strings.NewReader(increaseSupplyABI))
+	totalSupplyFuncABI, _               = abi.JSON(strings.NewReader(totalSupplyABI))
 	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
 )
 
@@ -484,6 +502,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		// update totalSupply of GoldToken
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
+			var totalSupply *big.Int // set it to something not 0 at first
+			sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state)
+			if totalSupply != nil && totalSupply.Cmp(common.Big0) == 0 {
+				totalBlockRewards.Add(totalBlockRewards, state.GetBalance(common.ZeroAddress))
+				state.SetBalance(common.ZeroAddress, common.Big0)
+			}
+
 			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
