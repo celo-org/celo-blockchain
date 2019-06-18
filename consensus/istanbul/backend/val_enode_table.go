@@ -42,7 +42,7 @@ type validatorEnodeTable struct {
 
 	// This is used to set and remove the enodeURL validator connections.  Those adds and removes needs to be synchronized with the
 	// updates/inserts/removes to their associated entries in the valEnodeTable.
-	addValidatorPeer    func(enoodeURL string)
+	addValidatorPeer    func(enodeURL string)
 	removeValidatorPeer func(enodeURL string)
 
 	address common.Address // Address of the local node
@@ -58,6 +58,16 @@ func newValidatorEnodeTable(addValidatorPeer func(enodeURL string), removeValida
 	return vet
 }
 
+func (vet *validatorEnodeTable) String() string {
+	outputString := "ValEnodeTable:"
+
+	for _, valEnode := range vet.valEnodeTable {
+		fmt.Sprintf(outputString, "%s\t%s", outputString, valEnode.String())
+	}
+
+	return outputString
+}
+
 func (vet *validatorEnodeTable) getUsingAddress(address common.Address) *validatorEnode {
 	return vet.valEnodeTable[address]
 }
@@ -68,16 +78,6 @@ func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Addres
 	} else {
 		return common.ZeroAddress, nil
 	}
-}
-
-func (vet *validatorEnodeTable) String() string {
-	outputString := "ValEnodeTable:"
-
-	for _, valEnode := range vet.valEnodeTable {
-		fmt.Sprintf(outputString, "%s\t%s", outputString, valEnode.String())
-	}
-
-	return outputString
 }
 
 // This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
@@ -94,6 +94,7 @@ func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode
 			if (newValEnode.enodeURL != oldValEnode.enodeURL) || (newValEnode.view.Cmp(oldValEnode.view) > 0) {
 				if newValEnode.enodeURL != oldValEnode.enodeURL {
 					vet.reverseValEnodeTable[newValEnode.enodeURL] = remoteAddress
+					delete(vet.reverseValEnodeTable, oldValEnode.enodeURL)
 					// Disconnect from the peer
 					vet.removeValidatorPeer(oldValEnode.enodeURL)
 				}
