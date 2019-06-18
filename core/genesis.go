@@ -41,7 +41,7 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBTotalSupplyKey   = []byte("total-supply-genesis")
+	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
 
@@ -234,17 +234,14 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		db = ethdb.NewMemDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-	totalSupply := big.NewInt(0)
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
-		totalSupply.Add(totalSupply, account.Balance)
 		statedb.SetCode(addr, account.Code)
 		statedb.SetNonce(addr, account.Nonce)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
 		}
 	}
-	db.Put(DBTotalSupplyKey, totalSupply.Bytes())
 	root := statedb.IntermediateRoot(false)
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),
@@ -271,6 +268,19 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	return types.NewBlock(head, nil, nil, nil, nil)
 }
 
+// StoreGenesisSupply computes the total supply of the genesis block and stores
+// it in the db.
+func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
+	if db == nil {
+		db = ethdb.NewMemDatabase()
+	}
+	genesisSupply := big.NewInt(0)
+	for _, account := range g.Alloc {
+		genesisSupply.Add(genesisSupply, account.Balance)
+	}
+	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
+}
+
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
@@ -284,6 +294,10 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeadBlockHash(db, block.Hash())
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
+	if err := g.StoreGenesisSupply(db); err != nil {
+		log.Error("Unable to store genesisSupply in db", "err", err)
+		return nil, err
+	}
 
 	config := g.Config
 	if config == nil {

@@ -500,16 +500,23 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		// update totalSupply of GoldToken
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
-			sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state)
-			if totalSupply != nil && totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
-				data, _ := sb.db.Get(core.DBTotalSupplyKey)
+			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil{
+				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
+				return nil, err
+		    }
+			if totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
+				data, err := sb.db.Get(core.DBGenesisSupplyKey)
+				if err != nil {
+					log.Error("Unable to fetch genesisSupply from db", "err", err)
+					return nil, err
+				}
 				genesisSupply := new(big.Int)
 				genesisSupply.SetBytes(data)
 				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
 			}
-			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state)
-			if err != nil {
+			if _, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
+				return nil, err
 			}
 		}
 	}
