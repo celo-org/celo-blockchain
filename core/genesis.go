@@ -41,7 +41,7 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBTotalSupplyKey = []byte("total-supply-genesis")
+	DBTotalSupplyKey   = []byte("total-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
 
