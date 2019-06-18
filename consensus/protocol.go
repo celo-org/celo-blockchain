@@ -59,7 +59,7 @@ type Broadcaster interface {
 	AddValidatorPeer(enodeURL string) error
 	// Remove a validator peer
 	RemoveValidatorPeer(enodeURL string) error
-	// Get's all of the validator peers' enodeURL
+	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
 }
 

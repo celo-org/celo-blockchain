@@ -77,7 +77,6 @@ type ProtocolManager struct {
 	blockchain  *core.BlockChain
 	chainconfig *params.ChainConfig
 	maxPeers    int
-	numValPeers int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
@@ -105,15 +104,14 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	getLocalNode        func() *enode.Node
-	addValidatorPeer    func(*enode.Node)
-	removeValidatorPeer func(*enode.Node)
-	getValPeers         func() []string
+	server *p2p.Server
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
-func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database, whitelist map[uint64]common.Hash) (*ProtocolManager, error) {
+func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
+	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
+	whitelist map[uint64]common.Hash, server *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -129,6 +127,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		txsyncCh:    make(chan *txsync),
 		quitSync:    make(chan struct{}),
 		engine:      engine,
+		server:      server,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -227,13 +226,8 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int, getLocalNode func() *enode.Node, addValidatorPeer func(*enode.Node),
-	removeValidatorPeer func(*enode.Node), getValPeers func() []string) {
+func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
-	pm.getLocalNode = getLocalNode
-	pm.addValidatorPeer = addValidatorPeer
-	pm.removeValidatorPeer = removeValidatorPeer
-	pm.getValPeers = getValPeers
 
 	// broadcast transactions
 	pm.txsCh = make(chan core.NewTxsEvent, txChanSize)
@@ -577,18 +571,20 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Deliver them all to the downloader for queuing
 		transactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
+		randomness := make([]*types.Randomness, len(request))
 
 		for i, body := range request {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
+			randomness[i] = body.Randomness
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0
+		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0
 		if filter {
-			transactions, uncles = pm.fetcher.FilterBodies(p.id, transactions, uncles, time.Now())
+			transactions, uncles, randomness = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, time.Now())
 		}
-		if len(transactions) > 0 || len(uncles) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles)
+		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || !filter {
+			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
 			}
@@ -878,14 +874,13 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 }
 
 func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
-	// Parse the enodeURL into a node object
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
 		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
 		return err
 	}
 
-	pm.addValidatorPeer(node)
+	pm.server.AddValidatorPeer(node)
 	return nil
 }
 
@@ -896,14 +891,14 @@ func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
 		return err
 	}
 
-	pm.removeValidatorPeer(node)
+	pm.server.RemoveValidatorPeer(node)
 	return nil
 }
 
 func (pm *ProtocolManager) GetValidatorPeers() []string {
-	return pm.getValPeers()
+	return pm.server.ValPeers()
 }
 
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {
-	return pm.getLocalNode()
+	return pm.server.Self()
 }

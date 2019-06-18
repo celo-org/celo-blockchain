@@ -81,6 +81,8 @@ var (
 	errEmptyCommittedSeals = errors.New("zero committed seals")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
+	// errValidatorsContractNotRegistered is returned if there is no registered "Validators" address.
+	errValidatorsContractNotRegistered = errors.New("no registered `Validators` address")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
 	// errOldMessage is returned when the received announce message's block number is earlier
@@ -126,7 +128,6 @@ var (
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
-	emptyAddress      = common.Address{}
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -178,12 +179,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
 	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
-	}
-
-	// Ensure that the coinbase is empty (Istanbul was originally using it for a candidate validator vote)
-	// TODO(kevjue) - We will most likely need to change this so that the coinbase field is set to the proposer address for the identity protocol.
-	if header.Coinbase != emptyAddress {
-		return errInvalidCoinbase
 	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
@@ -365,7 +360,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = emptyAddress
+	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
 	header.MixDigest = types.IstanbulDigest
 
@@ -387,14 +382,28 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	return nil
 }
 
+func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
+	var newValSet []common.Address
+	validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if validatorAddress == nil {
+		return newValSet, errValidatorsContractNotRegistered
+	} else {
+		// Get the new epoch's validator set
+		maxGasForGetValidators := uint64(1000000)
+		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+		_, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+		return newValSet, err
+	}
+}
+
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-		if validatorAddress == nil {
-			log.Warn("Finalizing last block of an epoch, and the validator smart contract is not deployed.  Using the previous epoch's validator set")
+		newValSet, err := sb.getValSet(header, state)
+		if err != nil {
+			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
@@ -402,23 +411,13 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 				return err
 			}
 
-			// Get the new epoch's validator set
-			var newValSet []common.Address
-
-			maxGasForGetValidators := uint64(1000000)
-			// TODO(kevjue) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-			leftoverGas, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+			// add validators in snapshot to extraData's validators section
+			extra, err := assembleExtra(header, snap.validators(), newValSet)
 			if err != nil {
-				log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "leftoverGas", leftoverGas, "err", err)
-			} else {
-				// add validators in snapshot to extraData's validators section
-				extra, err := assembleExtra(header, snap.validators(), newValSet)
-				if err != nil {
-					return err
-				}
-				header.Extra = extra
-				return nil
+				return err
 			}
+			header.Extra = extra
+			return nil
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
@@ -441,7 +440,7 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
@@ -456,8 +455,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
 	if bondedDepositsAddress != nil {
 		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, []interface{}{}, 100000, big.NewInt(0), header, state)
-		if err != nil && err != fmt.Errorf("abi: unmarshalling empty output") {
+		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 100000, big.NewInt(0), header, state)
+		if err != nil {
 			log.Error("Unable to send block rewards to bonded deposits", "err", err)
 		}
 	}
@@ -467,7 +466,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts), nil
+	return types.NewBlock(header, txs, nil, receipts, randomness), nil
 }
 
 // TODO (jarmg 5/23/18): Implement this
@@ -680,13 +679,20 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		if numberIter == number {
 			blockHash = hash
 		} else {
-			blockHash = chain.GetHeaderByNumber(numberIter).Hash()
+			header = chain.GetHeaderByNumber(numberIter)
+			if header == nil {
+				log.Trace("Unable to find header in chain", "number", number)
+			} else {
+				blockHash = chain.GetHeaderByNumber(numberIter).Hash()
+			}
 		}
 
-		if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
-			log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
-			snap = s
-			break
+		if (blockHash != common.Hash{}) {
+			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
+				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
+				snap = s
+				break
+			}
 		}
 
 		if numberIter == 0 {
@@ -701,6 +707,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	// If snapshot is still nil, then create a snapshot from genesis block
 	if snap == nil {
+		log.Debug("Snapshot is nil, creating from genesis")
 		// Panic if the numberIter does not equal 0
 		if numberIter != 0 {
 			panic(fmt.Sprintf("There is a bug in the code.  NumberIter should be 0.  NumberIter: %v", numberIter))
@@ -708,41 +715,43 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 		genesis := chain.GetHeaderByNumber(0)
 
-		if err := sb.VerifyHeader(chain, genesis, false); err != nil {
-			return nil, err
-		}
-
 		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
 		if err != nil {
+			log.Error("Unable to extract istanbul extra", "err", err)
 			return nil, err
 		}
 
 		// The genesis block should have an empty RemovedValidators set.  If not, throw an error
 		if len(istanbulExtra.RemovedValidators) > 0 {
-			log.Trace("Genesis block has a non empty RemovedValidators set")
+			log.Error("Genesis block has a non empty RemovedValidators set")
 			return nil, errInvalidValidatorSetDiff
 		}
 
 		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, sb.config.ProposerPolicy))
 
 		if err := snap.store(sb.db); err != nil {
+			log.Error("Unable to store snapshot", "err", err)
 			return nil, err
 		}
-
-		log.Trace("Stored genesis voting snapshot to disk")
 	}
 
+	log.Trace("Most recent snapshot found", "number", numberIter)
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
-	minParentsBlockNumber := number - uint64(len(parents)) + 1
 	for numberIter+sb.config.Epoch <= number {
 		numberIter += sb.config.Epoch
 
-		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "minParentsBlockNumber", minParentsBlockNumber, "parents size", len(parents))
-
-		if len(parents) > 0 && numberIter >= minParentsBlockNumber {
-			header = parents[numberIter-minParentsBlockNumber]
+		log.Trace("Retrieving ancestor header", "number", number, "numberIter", numberIter, "parents size", len(parents))
+		inParents := -1
+		for i := len(parents) - 1; i >= 0; i-- {
+			if parents[i].Number.Uint64() == numberIter {
+				inParents = i
+				break
+			}
+		}
+		if inParents >= 0 {
+			header = parents[inParents]
 			log.Trace("Retrieved header from parents param", "header num", header.Number.Uint64())
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)
@@ -759,13 +768,12 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		var err error
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
+			log.Error("Unable to apply headers to snapshots", "headers", headers)
 			return nil, err
 		}
 
 		sb.recents.Add(numberIter, snap)
-		log.Trace("Stored voting snapshot to cache", "number", numberIter, "hash", snap.Hash)
 	}
-
 	// Make a copy of the snapshot to return, since a few fields will be modified.
 	// The original snap is probably stored within the LRU cache, so we don't want to
 	// modify that one.

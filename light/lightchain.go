@@ -326,7 +326,7 @@ func (self *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable b
 
 		if head := self.hc.CurrentHeader(); head.Hash() == hash {
 			parentHeader := self.GetHeader(head.ParentHash, head.Number.Uint64()-1)
-			// In all sync modes except CeloLatestSync, a complete header chain is available.
+			// In all sync modes except CeloLatestSync and UltraLightSync, a complete header chain is available.
 			// Maintain the old behavior in those cases.
 			if fullHeaderChainAvailable || parentHeader != nil {
 				self.hc.SetCurrentHeader(parentHeader)
@@ -364,9 +364,9 @@ func (self *LightChain) postChainEvents(events []interface{}) {
 //
 // In the case of a light chain, InsertHeaderChain also creates and posts light
 // chain events when necessary.
-func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
+func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
 	start := time.Now()
-	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
+	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq, contiguousHeaders); err != nil {
 		log.Error(fmt.Sprintf("Failed to validate the header chain at %d due to \"%v\"", i, err))
 		return i, err
 	}

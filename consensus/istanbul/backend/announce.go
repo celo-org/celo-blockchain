@@ -123,12 +123,32 @@ func (am *announceMessage) VerifySig() error {
 	return nil
 }
 
-func (sb *Backend) sendIstAnnounce() error {
-	logger := sb.logger.New()
+// This function is meant to be run as a goroutine.  It will periodically gossip announce messages
+// to the rest of the registered validators to communicate it's enodeURL to them.
+func (sb *Backend) sendAnnounceMsgs() {
+	sb.announceWg.Add(1)
+	defer sb.announceWg.Done()
 
+	ticker := time.NewTicker(time.Minute)
+
+	for {
+		select {
+		case <-ticker.C:
+			// output the valEnodeTable for debugging purposes
+			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+			go sb.sendIstAnnounce()
+
+		case <-sb.announceQuit:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
+func (sb *Backend) sendIstAnnounce() error {
 	enode := sb.Enode()
 	if enode == nil {
-		logger.Warn("Enode is nil in sendIstAnnounce")
+		sb.logger.Error("Enode is nil in sendIstAnnounce")
 		return nil
 	}
 
@@ -141,18 +161,18 @@ func (sb *Backend) sendIstAnnounce() error {
 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
-		logger.Error("Error in signing an Istanbul Announce Message", "msg", msg.String(), "err", err)
+		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
 		return err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
-		logger.Error("Error in converting Istanbul Announce Message to payload", "msg", msg.String(), "err", err)
+		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
 		return err
 	}
 
-	logger.Trace("Broadcasting an announce message", "msg", msg)
+	sb.logger.Trace("Broadcasting an announce message", "AnnounceMsg", msg)
 
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
@@ -191,29 +211,16 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		sb.valEnodeTableMu.Lock()
-		defer sb.valEnodeTableMu.Unlock()
+		newValEnode := &validatorEnode{enodeURL: msg.EnodeURL, view: msg.View}
+		enodeURLUpdated, err := sb.valEnodeTable.testAndSet(msg.Address, newValEnode)
+		if err != nil {
+			sb.logger.Trace("Received an old announce message.  Ignoring it.", "from", msg.Address.Hex(), "view", msg.View, "enode", msg.EnodeURL)
+			return err
+		}
 
-		if valEnodeEntry, ok := sb.valEnodeTable[msg.Address]; ok {
-			// If it is old message, ignore it.
-			if msg.View.Cmp(valEnodeEntry.view) <= 0 {
-				sb.logger.Trace("Received an old announce message.  Ignoring it.", "from", msg.Address.Hex(), "view", msg.View, "enode", msg.EnodeURL)
-				return errOldAnnounceMessage
-			} else {
-				// Check if the enode has been changed
-				if msg.EnodeURL != valEnodeEntry.enodeURL {
-					// Disconnect from the peer
-					sb.RemoveValidatorPeer(valEnodeEntry.enodeURL)
-					valEnodeEntry.enodeURL = msg.EnodeURL
-					sb.reverseValEnodeTable[msg.EnodeURL] = msg.Address
-				}
-				valEnodeEntry.view = msg.View
-				sb.logger.Trace("Updated an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
-			}
-		} else {
-			sb.valEnodeTable[msg.Address] = &ValidatorEnode{view: msg.View, enodeURL: msg.EnodeURL}
-			sb.reverseValEnodeTable[msg.EnodeURL] = msg.Address
-			sb.logger.Trace("Created an entry in the valEnodeTable", "address", msg.Address, "ValidatorEnode", sb.valEnodeTable[msg.Address].String())
+		if enodeURLUpdated {
+			// Disconnect from the peer
+			sb.RemoveValidatorPeer(valEnodeEntry.enodeURL)
 		}
 
 		block := sb.currentBlock()
@@ -221,7 +228,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 		// Connect to the remote peer if it's part of the current epoch's valset and
 		// if this node is also part of the current epoch's valset
-		if _, remoteVal := valSet.GetByAddress(msg.Address); remoteVal != nil {
+		if _, remoteNode := valSet.GetByAddress(msg.Address); remoteNode != nil {
 			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
 				sb.AddValidatorPeer(msg.EnodeURL)
 			}
@@ -250,15 +257,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 
-		sb.valEnodeTableMu.Lock()
-		for remoteAddress := range sb.valEnodeTable {
-			if !regVals[remoteAddress] {
-				log.Trace("Deleting entry from the valEnodeTable and reverseValEnodeTable table", "address", remoteAddress, "valEnodeEntry", sb.valEnodeTable[remoteAddress].String())
-				delete(sb.reverseValEnodeTable, sb.valEnodeTable[remoteAddress].enodeURL)
-				delete(sb.valEnodeTable, remoteAddress)
-			}
-		}
-		sb.valEnodeTableMu.Unlock()
+		sb.vet.pruneEntries(regVals)
 	}
 
 	return nil

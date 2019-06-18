@@ -17,24 +17,19 @@
 package backend
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // This will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
+// Note that adding and removing validators are idempotent operations.  If the validator
+// being added or removed is already added or removed, then a no-op will be done.
 func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
 
 	currentValPeers := sb.GetValidatorPeers()
-
-	sb.valEnodeTableMu.RLock()
-	defer sb.valEnodeTableMu.RUnlock()
 
 	// Disconnect all validator peers if this node is not in the valset
 	if _, val := valset.GetByAddress(sb.Address()); val == nil {
@@ -44,7 +39,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	} else {
 		// Add all of the valset entries as validator peers
 		for _, val := range valset.List() {
-			if valEnodeEntry, ok := sb.valEnodeTable[val.Address()]; ok {
+			if valEnodeEntry, ok := sb.valEnodeTable.getUsingAddress(val.Address()); ok {
 				sb.AddValidatorPeer(valEnodeEntry.enodeURL)
 			}
 		}
@@ -56,31 +51,6 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 					sb.RemoveValidatorPeer(peerEnodeURL)
 				}
 			}
-		}
-	}
-}
-
-// This function is meant to be run as a goroutine.  It will periodically gossip announce messages
-// to the rest of the registered validators to communicate it's enodeURL to them.
-func (sb *Backend) sendAnnounceMsgs() {
-	sb.announceWg.Add(1)
-	defer sb.announceWg.Done()
-
-	ticker := time.NewTicker(time.Minute)
-
-	for {
-		select {
-		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValEnodeTable:")
-			for address := range sb.valEnodeTable {
-				log.Trace(fmt.Sprintf("\tAddress: %s\tValEnode: %s", address.Hex(), sb.valEnodeTable[address]))
-			}
-			go sb.sendIstAnnounce()
-
-		case <-sb.announceQuit:
-			ticker.Stop()
-			return
 		}
 	}
 }

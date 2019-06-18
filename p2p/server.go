@@ -804,13 +804,12 @@ running:
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
 
-			// Disable setting validator peer to be static if it's already a validator peer
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = true
 			} else {
 				srv.log.Trace("Adding static node", "node", n)
+				addStatic(n)
 			}
-			addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
@@ -837,8 +836,8 @@ running:
 				valNodes[n.ID()].atValRemoveSetTrusted = false
 			} else {
 				srv.log.Trace("Removing trusted node", "node", n)
+				removeTrusted(n)
 			}
-			removeTrusted(n)
 		case op := <-srv.peerOp:
 			// This channel is used by Peers and PeerCount and ValPeers.
 			op(peers, valNodes)
