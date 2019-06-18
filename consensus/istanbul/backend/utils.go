@@ -17,24 +17,55 @@
 package backend
 
 import (
+	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
+)
+
+const (
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
+	getRegisteredValidatorsABI = `[{"constant": true,
+                                        "inputs": [],
+                                        "name": "getRegisteredValidators",
+                                        "outputs": [
+                                          {
+                                            "name": "",
+                                            "type": "address[]"
+                                          }
+                                        ],
+                                        "payable": false,
+                                        "stateMutability": "view",
+                                        "type": "function"
+                                      }]`
+)
+
+var (
+	getRegisteredValidatorsFuncABI, _ = abi.JSON(strings.NewReader(getRegisteredValidatorsABI))
 )
 
 // This function will retrieve the set of registered validators from the validator election
 // smart contract.
-// TODO (kevjue) - Right now it will return the active epoch valitors and itself in the set.
-//                 Need to change to actually read from the smart contract.
-func (sb *Backend) retrieveRegisteredValidators() map[common.Address]bool {
-	returnMap := make(map[common.Address]bool)
+func (sb *Backend) retrieveRegisteredValidators() (map[common.Address]bool, error) {
+	var regVals []common.Address
 
-	currentBlock := sb.currentBlock()
-	valset := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
-
-	for _, val := range valset.List() {
-		returnMap[val.Address()] = true
+	validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if validatorAddress == nil {
+		return nil, errValidatorsContractNotRegistered
+	} else {
+		// Get the new epoch's validator set
+		maxGasForGetRegisteredValidators := uint64(1000000)
+		if _, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getRegisteredValidatorsFuncABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, nil, nil); err != nil {
+			return nil, err
+		}
 	}
 
-	returnMap[sb.Address()] = true
+	returnMap := make(map[common.Address]bool)
 
-	return returnMap
+	for _, address := range regVals {
+		returnMap[address] = true
+	}
+
+	return returnMap, nil
 }

@@ -203,7 +203,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regVals := sb.retrieveRegisteredValidators()
+	regVals, err := sb.retrieveRegisteredValidators()
+	if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return err
+	}
+
 	if !regVals[msg.Address] {
 		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String())
 		return errUnauthorizedAnnounceMessage
