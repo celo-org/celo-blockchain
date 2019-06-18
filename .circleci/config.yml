@@ -57,7 +57,7 @@ jobs:
             export CELO_MONOREPO_DIR="./celo-monorepo"
             git clone --depth 1 https://${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
             # Change these paths to use https login since the SSH key does not have access to these repositories.
-            # Once we open source this code, these modifications can be eliminated. 
+            # Once we open source this code, these modifications can be eliminated.
             # These environment variables are configured at https://circleci.com/gh/celo-org/geth/edit#env-vars
             sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
             sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
@@ -110,7 +110,7 @@ workflows:
       - unit-tests
       - coverage
       - end-to-end-checkout
-      
+
       - end-to-end-transfer-test:
           requires:
             - end-to-end-checkout
