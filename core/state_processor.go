@@ -105,20 +105,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
   infraFraction, _ := gasprice.GetInfrastructureFraction(iEvmH, p.regAdd)
 
+	if p.random != nil && p.random.Running() {
+		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		var receipt *types.Receipt
-		var err error
-		if i == 0 && p.random != nil && p.random.Running() {
-			var randomness, newCommitment [32]byte
-			copy(randomness[:], tx.Data()[:32])
-			copy(newCommitment[:], tx.Data()[32:])
-			receipt, err = p.random.RevealAndCommit(randomness, newCommitment, block.Header().Coinbase, block.Header(), statedb)
-		} else {
-			statedb.Prepare(tx.Hash(), block.Hash(), i)
-      gasPriceFloor, _ := gasprice.GetGasPriceFloor(iEvmH, p.regAdd, tx.GasCurrency())
-      receipt, _, err = ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceFloor, infraFraction)
-		}
+		statedb.Prepare(tx.Hash(), block.Hash(), i)
+    gasPriceFloor, _ := gasprice.GetGasPriceFloor(iEvmH, p.regAdd, tx.GasCurrency())
+    receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceFloor, infraFraction)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -126,7 +123,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
+	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts, block.Randomness())
 
 	return receipts, allLogs, *usedGas, nil
 }

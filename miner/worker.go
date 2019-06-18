@@ -18,7 +18,6 @@ package miner
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -27,7 +26,6 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/abe"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -92,11 +90,10 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header   *types.Header
-	txs      []*types.Transaction
-	receipts []*types.Receipt
-
-	randomness [32]byte
+	header     *types.Header
+	txs        []*types.Transaction
+	receipts   []*types.Receipt
+	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -765,6 +762,7 @@ func (w *worker) updateSnapshot() {
 		w.current.txs,
 		uncles,
 		w.current.receipts,
+		w.current.randomness,
 	)
 
 	w.snapshotState = w.current.state.Copy()
@@ -784,57 +782,6 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	w.current.receipts = append(w.current.receipts, receipt)
 
 	return receipt.Logs, nil
-}
-
-func (w *worker) getLastRandomness() ([32]byte, error) {
-	if w.current.randomness != [32]byte{} {
-		return w.current.randomness, nil
-	} else {
-		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
-	}
-}
-
-func (w *worker) commitRandomTransaction() error {
-	randomness, err := w.getLastRandomness()
-	if err != nil {
-		log.Error("Failed to get last randomness", "err", err)
-		return err
-	}
-
-	newRandomness := [32]byte{}
-	_, err = rand.Read(newRandomness[0:32])
-	if err != nil {
-		log.Error("Failed to generate randomness", "err", err)
-		return err
-	}
-
-	w.current.randomness = newRandomness
-
-	newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to compute commitment to randomness", "err", err)
-		return err
-	}
-
-	w.random.StoreCommitment(newRandomness, newCommitment, w.db)
-
-	callData := make([]byte, 64)
-	copy(callData[0:], randomness[:])
-	copy(callData[32:], newCommitment[:])
-
-	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to reveal and commit randomness", "err", err)
-		return err
-	}
-
-	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
-	w.current.tcount++
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
-
-	return nil
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -996,19 +943,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 		header.Coinbase = w.coinbase
-		// TODO(asa): Set signature in the consensus engine, verify elsewhere
-		wallet, err := w.eth.AccountManager().Find(accounts.Account{Address: w.coinbase})
-		if err != nil {
-			log.Error("[Celo] Failed to get account for block signature", "err", err)
-		} else {
-			code, err := wallet.SignHash(accounts.Account{Address: w.coinbase}, header.ParentHash.Bytes())
-			if err != nil {
-				log.Error("[Celo] Failed to sign block hash", "err", err)
-			} else {
-				// TODO(asa): Verify the signature when doing block verification
-				copy(header.Signature[:], code[:])
-			}
-		}
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -1087,6 +1021,31 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		wl.RefreshWhitelist()
 	}
 
+	// Play our part in generating the random beacon.
+	if w.isRunning() && w.random != nil && w.random.Running() {
+		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to get last randomness", "err", err)
+			return
+		}
+
+		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
+		if err != nil {
+			log.Error("Failed to generate randomness commitment", "err", err)
+			return
+		}
+
+		err = w.random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
+			return
+		}
+
+		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
+	} else {
+		w.current.randomness = &types.EmptyRandomness
+	}
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -1096,17 +1055,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	if w.random != nil && w.random.Running() {
-		err := w.commitRandomTransaction()
-		if err != nil {
-			log.Error("Failed to commit randomness transaction", "err", err)
-			return
-		}
-	} else if len(pending) == 0 {
+	// Short circuit if there is no available pending transactions
+	if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return
 	}
-
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
@@ -1148,7 +1101,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
 		return err
 	}
