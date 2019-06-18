@@ -210,7 +210,7 @@ func (dl *downloadTester) GetTd(hash common.Hash, number uint64) *big.Int {
 }
 
 // InsertHeaderChain injects a new batch of headers into the simulated chain.
-func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq int) (i int, err error) {
+func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq int, contiguousHeaders bool) (i int, err error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
