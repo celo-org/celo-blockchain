@@ -120,7 +120,7 @@ var (
 		"stateMutability": "nonpayable",
 		"type": "function"
 				 }]`
-				 
+
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	totalSupplyABI = `[{
 		"constant": true,
