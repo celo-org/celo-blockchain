@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -502,13 +503,14 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		// update totalSupply of GoldToken
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
-			var totalSupply *big.Int // set it to something not 0 at first
+			var totalSupply *big.Int
 			sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state)
-			if totalSupply != nil && totalSupply.Cmp(common.Big0) == 0 {
-				totalBlockRewards.Add(totalBlockRewards, state.GetBalance(common.ZeroAddress))
-				state.SetBalance(common.ZeroAddress, common.Big0)
+			if totalSupply != nil && totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
+				data, _ := sb.db.Get(core.DBTotalSupplyKey)
+				genesisSupply := new(big.Int)
+				genesisSupply.SetBytes(data)
+				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
 			}
-
 			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)

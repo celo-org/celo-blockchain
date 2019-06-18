@@ -40,7 +40,10 @@ import (
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
-var errGenesisNoConfig = errors.New("genesis has no chain configuration")
+var (
+	DBTotalSupplyKey = []byte("total-supply-genesis")
+	errGenesisNoConfig = errors.New("genesis has no chain configuration")
+)
 
 // Genesis specifies the header fields, state of a genesis block. It also defines hard
 // fork switch-over blocks through the chain configuration.
@@ -241,9 +244,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 			statedb.SetState(addr, key, value)
 		}
 	}
-	// Store the total supply after genesis to address 0.
-	statedb.AddBalance(common.ZeroAddress, totalSupply)
-	log.Info("add totalsupply from genesis done", "totalsupply", totalSupply)
+	db.Put(DBTotalSupplyKey, totalSupply.Bytes())
 	root := statedb.IntermediateRoot(false)
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),
