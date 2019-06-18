@@ -109,10 +109,6 @@ var (
 		  {
 			"name": "amount",
 			"type": "uint256"
-		  },
-		  {
-			"name": "sequence",
-			"type": "uint256"
 		  }
 		],
 		"name": "increaseSupply",
@@ -511,7 +507,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 				genesisSupply.SetBytes(data)
 				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
 			}
-			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards, header.Number}, nil, 1000000, common.Big0, header, state)
+			_, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
 			}
