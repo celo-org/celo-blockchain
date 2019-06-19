@@ -494,6 +494,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to send block rewards to bonded deposits", "err", err)
+				return nil, err
 			}
 		}
 
@@ -516,7 +517,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			}
 			if _, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
-				// return nil, err
+				return nil, err
 			}
 		}
 	}
