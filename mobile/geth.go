@@ -90,6 +90,10 @@ type NodeConfig struct {
 	// This has to be integer since Enum exports to Java are not supported by "gomobile"
 	// See getSyncMode(syncMode int)
 	SyncMode int
+
+	// UseLightweightKDF lowers the memory and CPU requirements of the key store
+	// scrypt KDF at the expense of security.
+	UseLightweightKDF bool
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
