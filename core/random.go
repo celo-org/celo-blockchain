@@ -112,7 +112,11 @@ func NewRandom(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandl
 
 func (r *Random) address() *common.Address {
 	if r.registeredAddresses != nil {
-		return r.registeredAddresses.GetRegisteredAddress(params.RandomRegistryId)
+		randomAddress, err := r.registeredAddresses.GetRegisteredAddress(params.RandomRegistryId)
+		if err != nil {
+			log.Warn("Registry address lookup failed", "err", err)
+		}
+		return randomAddress
 	} else {
 		return nil
 	}
