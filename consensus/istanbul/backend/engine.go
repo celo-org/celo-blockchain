@@ -378,7 +378,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
 	if err != nil {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
@@ -386,7 +386,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
 		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-		_, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+		_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
 	}
 }
