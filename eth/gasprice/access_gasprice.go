@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -52,13 +53,14 @@ var (
 func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *core.RegisteredAddresses) (*big.Int, error) {
 
 	var gasPrice *big.Int
-	gasPriceOracleAddress := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
+	gasPriceOracleAddress, err := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	if gasPriceOracleAddress == nil {
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
 		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
 	}
 
-	_, err := iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
+	_, err = iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)
 
 	return gasPrice, err
 }

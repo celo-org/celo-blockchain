@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"strings"
 	"sync"
 
@@ -102,7 +103,7 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 	ra.registeredAddressesMu.Unlock()
 }
 
-func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
+func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
 	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
 		ra.RefreshAddresses()
 	}
@@ -111,10 +112,9 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.A
 	defer ra.registeredAddressesMu.RUnlock()
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
-		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
-		return nil
+		return nil, errors.New("RegisteredAddresses.GetRegisteredAddress - " + registryId + " contract not deployed")
 	} else {
-		return &address
+		return &address, nil
 	}
 }
 
