@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
@@ -420,7 +421,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-	if err != nil {
+	if err == core.ErrNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else {
@@ -465,7 +466,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return nil
 }
 
-// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
+// TODO(brice): This needs a comment.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
@@ -483,7 +484,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Add block rewards
 	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-	if err != nil {
+	if err == core.ErrNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	}
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
@@ -491,13 +492,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-		if err != nil {
+		if err == core.ErrNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-		if err != nil {
+		if err == core.ErrNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		}
 
