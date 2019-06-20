@@ -413,14 +413,15 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-	if validatorAddress == nil {
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else {
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
 		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-		_, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+		_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
 	}
 }
@@ -480,10 +481,16 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		if err != nil {
+			log.Warn("Registry address lookup failed", "err", err)
+		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+		if err != nil {
+			log.Warn("Registry address lookup failed", "err", err)
+		}
 
 		if governanceAddress != nil && bondedDepositsAddress != nil {
 			state.AddBalance(*governanceAddress, infrastructureBlockReward)
