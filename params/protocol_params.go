@@ -124,8 +124,8 @@ const (
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
-	MaxGasForDebitFromTransactions      uint64 = 100 * 1000
-	ExpectedGasForDebitFromTransactions uint64 = 30 * 1000
+	MaxGasForDebitFromTransactions      uint64 = 50 * 1000
+	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
 	MaxGasForCreditToTransactions       uint64 = 30 * 1000
 	MaxGasToReadErc20Balance            uint64 = 10 * 1000
 )
