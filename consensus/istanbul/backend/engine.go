@@ -476,7 +476,10 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.updateGasPriceSuggestion(state)
 
 	// Add block rewards
-	goldTokenAddress := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
+	}
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
 		totalBlockRewards := big.NewInt(0)
 
