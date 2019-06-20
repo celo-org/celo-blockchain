@@ -67,9 +67,9 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 
 	b.SetInternalEVMHandler(iEvmH)
 	b.SetRegisteredAddresses(regAdd)
-	b.SetGetCurrentBlockFunc(blockchain.CurrentBlock)
+	b.SetChain(blockchain, blockchain.CurrentBlock)
 
-	b.Start(blockchain, blockchain.HasBadBlock,
+	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
 			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
 			return blockchain.StateAt(parentStateRoot)

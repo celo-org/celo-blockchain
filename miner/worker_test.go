@@ -134,7 +134,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
 		istanbul.SetInternalEVMHandler(iEvmH)
 		istanbul.SetRegisteredAddresses(regAdd)
-		istanbul.SetGetCurrentBlockFunc(chain.CurrentBlock)
+		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
 
 	// Generate a small n-block chain and an uncle block for it

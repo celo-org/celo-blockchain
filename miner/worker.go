@@ -289,7 +289,7 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain, w.chain.HasBadBlock,
+		istanbul.Start(w.chain.HasBadBlock,
 			func(parentHash common.Hash) (*state.StateDB, error) {
 				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
 				return w.chain.StateAt(parentStateRoot)
