@@ -588,8 +588,12 @@ func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
 	sb.regAdd = regAdd
 }
 
+func (sb *Backend) SetGetCurrentBlockFunc(currentBlockFunc func() *types.Block) {
+	sb.currentBlock = currentBlockFunc
+}
+
 // Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+func (sb *Backend) Start(chain consensus.ChainReader, hasBadBlock func(common.Hash) bool,
 	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -606,7 +610,6 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	sb.commitCh = make(chan *types.Block, 1)
 
 	sb.chain = chain
-	sb.currentBlock = currentBlock
 	sb.hasBadBlock = hasBadBlock
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock

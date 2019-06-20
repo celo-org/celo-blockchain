@@ -204,7 +204,19 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// If the message is not within the registered validator set, then ignore it
 	regVals, err := sb.retrieveRegisteredValidators()
-	if err != nil {
+
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
+		block := sb.currentBlock()
+		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+		regVals = make(map[common.Address]bool)
+		for _, val := range valSet.List() {
+			regVals[val.Address()] = true
+		}
+	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return err
 	}

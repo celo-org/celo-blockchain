@@ -149,8 +149,10 @@ type Istanbul interface {
 
 	SetRegisteredAddresses(regAdd ConsensusRegAdd)
 
+	SetGetCurrentBlockFunc(currentBlockFunc func() *types.Block)
+
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+	Start(chain ChainReader, hasBadBlock func(common.Hash) bool,
 		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 

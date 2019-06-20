@@ -207,6 +207,13 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
+	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
+	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
+		istanbul.SetGetCurrentBlockFunc(eth.blockchain.CurrentBlock)
+		istanbul.SetInternalEVMHandler(eth.iEvmH)
+		istanbul.SetRegisteredAddresses(eth.regAdd)
+	}
+
 	eth.APIBackend = &EthAPIBackend{eth, nil}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {

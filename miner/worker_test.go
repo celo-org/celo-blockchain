@@ -134,6 +134,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
 		istanbul.SetInternalEVMHandler(iEvmH)
 		istanbul.SetRegisteredAddresses(regAdd)
+		istanbul.SetGetCurrentBlockFunc(chain.CurrentBlock)
 	}
 
 	// Generate a small n-block chain and an uncle block for it
@@ -154,12 +155,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	})
 	var backends []accounts.Backend
 	accountManager := accounts.NewManager(backends...)
-
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
-	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(nil)
-		istanbul.SetRegisteredAddresses(nil)
-	}
 
 	return &testWorkerBackend{
 		accountManager: accountManager,
