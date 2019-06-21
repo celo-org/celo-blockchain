@@ -76,6 +76,38 @@ const (
                                           "stateMutability": "nonpayable",
                                           "type": "function"
                                         }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	increaseSupplyABI = `[{
+		"constant": false,
+		"inputs": [
+		  {
+			"name": "amount",
+			"type": "uint256"
+		  }
+		],
+		"name": "increaseSupply",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+				 }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	totalSupplyABI = `[{
+		"constant": true,
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
 )
 
 var (
@@ -122,70 +154,6 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
-	getValidatorsABI = `[{"constant": true,
-		              "inputs": [],
-			      "name": "getValidators",
-			      "outputs": [
-				   {
-				        "name": "",
-					"type": "address[]"
-				   }
-			      ],
-			      "payable": false,
-			      "stateMutability": "view",
-			      "type": "function"
-				 }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	increaseSupplyABI = `[{
-		"constant": false,
-		"inputs": [
-		  {
-			"name": "amount",
-			"type": "uint256"
-		  }
-		],
-		"name": "increaseSupply",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-				 }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	totalSupplyABI = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
-	setCumulativeRewardWeightABI = `[{
-      "constant": false,
-      "inputs": [
-        {
-          "name": "blockReward",
-          "type": "uint256"
-        }
-      ],
-      "name": "setCumulativeRewardWeight",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }]`
-
 )
 
 var (
