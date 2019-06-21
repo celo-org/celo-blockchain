@@ -57,11 +57,11 @@ var (
 
 func TestTransactionSigHash(t *testing.T) {
 	var homestead HomesteadSigner
-	if homestead.Hash(emptyTx) != common.HexToHash("c775b99e7ad12f50d819fcd602390467e28141316969f4b57f0626f74fe3b386") {
-		t.Errorf("empty transaction hash mismatch, got %x", emptyTx.Hash())
+	if homestead.Hash(emptyTx) != common.HexToHash("fb81b18a3eb793dfd8e02d08613259b548ab2da940434a96737c738269e29080") {
+		t.Errorf("empty transaction hash mismatch, got %x", homestead.Hash(emptyTx))
 	}
-	if homestead.Hash(rightvrsTx) != common.HexToHash("fe7a79529ed5f7c3375d06b26b186a8644e0e16c373d7a12be41c62d6042b77a") {
-		t.Errorf("RightVRS transaction hash mismatch, got %x", rightvrsTx.Hash())
+	if homestead.Hash(rightvrsTx) != common.HexToHash("05be82cd19ecd9018a33db2ef586bf68cf7731dd36591e8f77e67095ea1884d1") {
+		t.Errorf("RightVRS transaction hash mismatch, got %x", homestead.Hash(rightvrsTx))
 	}
 }
 
@@ -139,6 +139,54 @@ func TestRecipientNormal(t *testing.T) {
 
 	if addr != from {
 		t.Error("derived address doesn't match")
+	}
+}
+
+// Tests that a modified transaction does not produce a valid signature
+func TestTxAmountChanged(t *testing.T) {
+	_, addr := defaultTestKey()
+
+	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	tx.data.Amount = big.NewInt(20)
+
+	from, err := Sender(HomesteadSigner{}, tx)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if addr == from {
+		t.Error("derived address shouldn't match")
+	}
+}
+
+// Tests that a modified transaction does not produce a valid signature
+
+func TestTxGasFeeRecipientChanged(t *testing.T) {
+	_, addr := defaultTestKey()
+
+	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	
+	recipientAddr := common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
+	tx.data.GasFeeRecipient = &recipientAddr
+
+	from, err := Sender(HomesteadSigner{}, tx)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if addr == from {
+		t.Error("derived address shouldn't match")
 	}
 }
 
