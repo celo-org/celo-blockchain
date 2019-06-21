@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -121,6 +122,70 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
+	getValidatorsABI = `[{"constant": true,
+		              "inputs": [],
+			      "name": "getValidators",
+			      "outputs": [
+				   {
+				        "name": "",
+					"type": "address[]"
+				   }
+			      ],
+			      "payable": false,
+			      "stateMutability": "view",
+			      "type": "function"
+				 }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	increaseSupplyABI = `[{
+		"constant": false,
+		"inputs": [
+		  {
+			"name": "amount",
+			"type": "uint256"
+		  }
+		],
+		"name": "increaseSupply",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+				 }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	totalSupplyABI = `[{
+		"constant": true,
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
+	setCumulativeRewardWeightABI = `[{
+      "constant": false,
+      "inputs": [
+        {
+          "name": "blockReward",
+          "type": "uint256"
+        }
+      ],
+      "name": "setCumulativeRewardWeight",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }]`
+
 )
 
 var (
@@ -133,6 +198,8 @@ var (
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
 	getValidatorsFuncABI, _             = abi.JSON(strings.NewReader(getValidatorsABI))
+	increaseSupplyFuncABI, _            = abi.JSON(strings.NewReader(increaseSupplyABI))
+	totalSupplyFuncABI, _               = abi.JSON(strings.NewReader(totalSupplyABI))
 	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
 )
 
@@ -446,27 +513,63 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
 	sb.updateGasPriceSuggestion(state)
 
-	infrastructureBlockReward := big.NewInt(params.Ether)
-	governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+	// Add block rewards
+	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 	if err != nil {
 		log.Warn("Registry address lookup failed", "err", err)
-	} else {
-		state.AddBalance(*governanceAddress, infrastructureBlockReward)
 	}
+	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
+		totalBlockRewards := big.NewInt(0)
 
-	stakerBlockReward := big.NewInt(params.Ether)
-	bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-	if err != nil {
-		log.Warn("Registry address lookup failed", "err", err)
-	} else {
-		state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
-		_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 100000, big.NewInt(0), header, state)
+		infrastructureBlockReward := big.NewInt(params.Ether)
+		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 		if err != nil {
-			log.Error("Unable to send block rewards to bonded deposits", "err", err)
+			log.Warn("Registry address lookup failed", "err", err)
+		}
+
+		stakerBlockReward := big.NewInt(params.Ether)
+		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+		if err != nil {
+			log.Warn("Registry address lookup failed", "err", err)
+		}
+
+		if governanceAddress != nil && bondedDepositsAddress != nil {
+			state.AddBalance(*governanceAddress, infrastructureBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
+
+			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
+			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
+			if err != nil {
+				log.Error("Unable to send block rewards to bonded deposits", "err", err)
+				return nil, err
+			}
+		}
+
+		// update totalSupply of GoldToken
+		if totalBlockRewards.Cmp(common.Big0) > 0 {
+			var totalSupply *big.Int
+			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
+				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
+				return nil, err
+			}
+			if totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
+				data, err := sb.db.Get(core.DBGenesisSupplyKey)
+				if err != nil {
+					log.Error("Unable to fetch genesisSupply from db", "err", err)
+					return nil, err
+				}
+				genesisSupply := new(big.Int)
+				genesisSupply.SetBytes(data)
+				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
+			}
+			if _, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
+				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
+				return nil, err
+			}
 		}
 	}
 
-	// No block rewards in Istanbul, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
