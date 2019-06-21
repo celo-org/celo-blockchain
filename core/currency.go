@@ -196,9 +196,12 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 // This function will retrieve the exchange rates from the SortedOracles contract and cache them.
 // SortedOracles must have a function with the following signature:
 // "function medianRate(address)"
-func (co *CurrencyOperator) retrieveExchangeRates() {
-	gasCurrencyAddresses := co.gcWl.retrieveWhitelist()
-	log.Trace("CurrencyOperator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
+func (co *CurrencyOperator) refreshExchangeRates() {
+	gasCurrencyAddresses, err := co.gcWl.getWhitelist()
+	if err != nil {
+		log.Warn("Failed to get gas currency whitelist", "err", err)
+		return
+	}
 
 	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
@@ -223,14 +226,14 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 
 		var returnArray [2]*big.Int
 
-		log.Trace("CurrencyOperator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
+		log.Trace("CurrencyOperator.refreshExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
 			"gas currency", gasCurrencyAddress.Hex())
 
 		if leftoverGas, err := co.iEvmH.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			log.Error("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
+			log.Error("CurrencyOperator.refreshExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+			log.Trace("CurrencyOperator.refreshExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
 
 			if _, ok := co.exchangeRates[gasCurrencyAddress]; !ok {
 				co.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
@@ -246,11 +249,11 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 
 // TODO (jarmg 5/30/18): Change this to cache based on block number
 func (co *CurrencyOperator) mainLoop() {
-	co.retrieveExchangeRates()
+	co.refreshExchangeRates()
 	ticker := time.NewTicker(10 * time.Second)
 
 	for range ticker.C {
-		co.retrieveExchangeRates()
+		co.refreshExchangeRates()
 	}
 }
 
@@ -306,35 +309,24 @@ type GasCurrencyWhitelist struct {
 	iEvmH                  *InternalEVMHandler
 }
 
-func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
-	log.Trace("GasCurrencyWhitelist.retrieveWhitelist called")
-
+func (gcWl *GasCurrencyWhitelist) getWhitelist() ([]common.Address, error) {
 	returnList := []common.Address{}
-
 	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
 	if err != nil {
 		log.Warn("Registry address lookup failed", "err", err)
-		return returnList
+		return returnList, err
 	}
 
-	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
-
-	if leftoverGas, err := gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil); err != nil {
-		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "leftoverGas", leftoverGas, "err", err)
-		return []common.Address{}
-	}
-
-	outputWhiteList := make([]string, len(returnList))
-	for _, address := range returnList {
-		outputWhiteList = append(outputWhiteList, address.Hex())
-	}
-
-	log.Trace("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation success", "whitelisted currencies", outputWhiteList)
-	return returnList
+	_, err = gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil)
+	return returnList, err
 }
 
 func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
-	addresses := gcWl.retrieveWhitelist()
+	whitelist, err := gcWl.getWhitelist()
+	if err != nil {
+		log.Warn("Failed to get gas currency whitelist", "err", err)
+		return
+	}
 
 	gcWl.whitelistedAddressesMu.Lock()
 
@@ -342,7 +334,7 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 		delete(gcWl.whitelistedAddresses, k)
 	}
 
-	for _, address := range addresses {
+	for _, address := range whitelist {
 		gcWl.whitelistedAddresses[address] = true
 	}
 
@@ -350,6 +342,12 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 }
 
 func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
+	// This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+	// or was constructed before Celo Dollars were whitelisted.
+	// TODO(kevjue, jarmg): Figure out a better solution for this.
+	if len(gcWl.whitelistedAddresses) == 0 {
+		gcWl.RefreshWhitelist()
+	}
 	gcWl.whitelistedAddressesMu.RLock()
 
 	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]

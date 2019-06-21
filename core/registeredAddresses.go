@@ -104,7 +104,10 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
-	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+	// This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+	// or was constructed before addresses were registered.
+	// TODO(kevjue, jarmg): Figure out a better solution for this.
+	if len(ra.registeredAddresses) == 0 {
 		ra.RefreshAddresses()
 	}
 

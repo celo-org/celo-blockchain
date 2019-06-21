@@ -210,5 +210,5 @@ func (b *LesApiBackend) GasFeeRecipient() common.Address {
 }
 
 func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return nil
+	return b.eth.regAdd
 }

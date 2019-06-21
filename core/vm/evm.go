@@ -236,7 +236,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
 	if err != nil {
-		log.Debug("Failed to transfer with tobin tax", "err", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, gas, err
 	}
 	// Initialise a new contract and set the code that is to be used by the EVM.
@@ -423,7 +423,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 	if err != nil {
-		log.Error("TobinTransfer failed", "error", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, address, gas, err
 	}
 
@@ -509,9 +509,11 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	log.Debug("Called tobin transfer", "gas", gas)
 	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
 
 	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
+		// TODO(asa): Charge gas used.
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
@@ -523,6 +525,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			numerator := new(big.Int).SetBytes(ret[0:32])
 			denominator := new(big.Int).SetBytes(ret[32:64])
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+			log.Debug("Calculated tobin tax", "tobinTax", tobinTax, "gas", gas)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
@@ -531,6 +534,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+	log.Debug("No tobin tax", "gas", gas)
 	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
 }
