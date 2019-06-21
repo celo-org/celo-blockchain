@@ -128,4 +128,5 @@ const (
 	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
 	MaxGasForCreditToTransactions       uint64 = 30 * 1000
 	MaxGasToReadErc20Balance            uint64 = 10 * 1000
+	AdditionalGasForNonGoldCurrencies	uint64 = 2*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
 )
