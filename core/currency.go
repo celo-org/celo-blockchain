@@ -222,15 +222,11 @@ func (co *CurrencyOperator) refreshExchangeRates() {
 		}
 
 		var returnArray [2]*big.Int
-
-		log.Trace("CurrencyOperator.refreshExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
-			"gas currency", gasCurrencyAddress.Hex())
-
 		if leftoverGas, err := co.iEvmH.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			log.Error("CurrencyOperator.refreshExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
+			log.Error("medianRate invocation error", "gasCurrencyAddress", gasCurrencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("CurrencyOperator.refreshExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+			log.Trace("medianRate invocation success", "gasCurrencyAddress", gasCurrencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
 
 			if _, ok := co.exchangeRates[gasCurrencyAddress]; !ok {
 				co.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
@@ -300,7 +296,6 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 }
 
 type GasCurrencyWhitelist struct {
-	lastRefreshed          common.Hash
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
 	regAdd                 *RegisteredAddresses
@@ -324,16 +319,10 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtStateAndHeader(state *state.
 }
 
 func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
-	header := gcWl.iEvmH.CurrentHeader()
-	gcWl.refreshWhitelist(nil, header)
+	gcWl.refreshWhitelist(nil, nil)
 }
 
 func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header *types.Header) {
-	if header.Hash() == gcWl.lastRefreshed {
-		log.Trace("Gas currency whitelist already refreshed for header, using cache", "hash", header.Hash().Hex())
-		return
-	}
-
 	whitelist, err := gcWl.getWhitelist(state, header)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)
@@ -349,8 +338,6 @@ func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header 
 	for _, address := range whitelist {
 		gcWl.whitelistedAddresses[address] = true
 	}
-
-	gcWl.lastRefreshed = header.Hash()
 
 	gcWl.whitelistedAddressesMu.Unlock()
 }

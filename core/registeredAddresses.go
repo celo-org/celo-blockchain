@@ -69,7 +69,6 @@ var (
 )
 
 type RegisteredAddresses struct {
-	lastRefreshed         common.Hash
 	registeredAddresses   map[string]common.Address
 	registeredAddressesMu sync.RWMutex
 	iEvmH                 *InternalEVMHandler
@@ -94,12 +93,6 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses(state *state.StateDB,
 		}
 	}
 
-	if header != nil {
-		ra.lastRefreshed = header.Hash()
-	} else {
-		ra.lastRefreshed = ra.iEvmH.CurrentHeader().Hash()
-	}
-
 	return returnMap
 }
 
@@ -108,15 +101,10 @@ func (ra *RegisteredAddresses) RefreshAddressesAtStateAndHeader(state *state.Sta
 }
 
 func (ra *RegisteredAddresses) RefreshAddresses() {
-	header := ra.iEvmH.CurrentHeader()
-	ra.refreshAddresses(nil, header)
+	ra.refreshAddresses(nil, nil)
 }
 
 func (ra *RegisteredAddresses) refreshAddresses(state *state.StateDB, header *types.Header) {
-	if header.Hash() == ra.lastRefreshed {
-		log.Debug("Registered addresses already refreshed for header, using cache", "number", header.Number, "hash", header.Hash().Hex())
-		return
-	}
 	registeredAddresses := ra.retrieveRegisteredAddresses(state, header)
 
 	ra.registeredAddressesMu.Lock()

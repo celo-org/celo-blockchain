@@ -510,7 +510,6 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
-	log.Debug("Called tobin transfer", "gas", gas, "reserveAddress", reserveAddress)
 
 	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
@@ -524,7 +523,6 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 			numerator := new(big.Int).SetBytes(ret[0:32])
 			denominator := new(big.Int).SetBytes(ret[32:64])
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-			log.Debug("Calculated tobin tax", "tobinTax", tobinTax, "gas", gas)
 
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
@@ -533,7 +531,6 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	log.Debug("No tobin tax", "gas", gas)
 	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
 }
