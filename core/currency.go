@@ -302,7 +302,7 @@ type GasCurrencyWhitelist struct {
 	iEvmH                  *InternalEVMHandler
 }
 
-func (gcWl *GasCurrencyWhitelist) getWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
+func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
 	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
 	if err != nil {
@@ -323,7 +323,7 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 }
 
 func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header *types.Header) {
-	whitelist, err := gcWl.getWhitelist(state, header)
+	whitelist, err := gcWl.retrieveWhitelist(state, header)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)
 		return

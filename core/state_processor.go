@@ -84,16 +84,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// Refresh the registered addresses cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.regAdd.RefreshAddressesAtStateAndHeader(statedb, block.Header())
-	}
-
-	// Refresh the gas currency whitelist cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.gcWl.RefreshWhitelistAtStateAndHeader(statedb, block.Header())
-	}
-
 	if p.random != nil && p.random.Running() {
 		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
@@ -102,6 +92,15 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
+		// Refresh the registered addresses and gas currency whitelist right before processing the transaction
+		if p.regAdd != nil {
+			p.regAdd.RefreshAddressesAtStateAndHeader(statedb, block.Header())
+		}
+
+		if p.gcWl != nil {
+			p.gcWl.RefreshWhitelistAtStateAndHeader(statedb, block.Header())
+		}
+
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
 		if err != nil {
