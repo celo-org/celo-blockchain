@@ -649,7 +649,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			"txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
 	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, 10*1000)
+		gasCurrencyBalance, _, err := GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, params.MaxGasToReadErc20Balance)
 
 		if err != nil {
 			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)

@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
@@ -153,4 +154,14 @@ func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) 
 	}
 
 	return true
+}
+
+func GetNodeID(enodeURL string) (*enode.ID, error) {
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		return nil, err
+	}
+
+	id := node.ID()
+	return &id, nil
 }

@@ -81,6 +81,7 @@ type ProtocolManager struct {
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
 	peers      *peerSet
+	valPeers   map[string]bool
 
 	SubProtocols []p2p.Protocol
 
@@ -102,13 +103,15 @@ type ProtocolManager struct {
 	wg sync.WaitGroup
 
 	engine consensus.Engine
+
+	server *p2p.Server
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
 	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
-	whitelist map[uint64]common.Hash) (*ProtocolManager, error) {
+	whitelist map[uint64]common.Hash, server *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -117,12 +120,14 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		blockchain:  blockchain,
 		chainconfig: config,
 		peers:       newPeerSet(),
+		valPeers:    make(map[string]bool),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
 		txsyncCh:    make(chan *txsync),
 		quitSync:    make(chan struct{}),
 		engine:      engine,
+		server:      server,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -214,6 +219,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "peer", id, "err", err)
 	}
+	delete(pm.valPeers, id)
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
@@ -255,6 +261,9 @@ func (pm *ProtocolManager) Stop() {
 	// sessions which are already established but not added to pm.peers yet
 	// will exit when they try to register.
 	pm.peers.Close()
+	for id := range pm.valPeers {
+		delete(pm.valPeers, id)
+	}
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
@@ -269,8 +278,10 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	// Ignore maxPeers if this is a trusted peer
-	if pm.peers.Len() >= pm.maxPeers && !p.Peer.Info().Network.Trusted {
+	isValPeer := p.Validator()
+
+	// Ignore maxPeers if this is a trusted peer or a validator peer
+	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer) {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -294,6 +305,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if err := pm.peers.Register(p); err != nil {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
+	}
+	if isValPeer {
+		pm.valPeers[p.id] = true
 	}
 	defer pm.removePeer(p.id)
 
@@ -847,14 +861,44 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (self *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
+func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
 	m := make(map[common.Address]consensus.Peer)
-	for _, p := range self.peers.Peers() {
+	for _, p := range pm.peers.Peers() {
 		pubKey := p.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
-		if targets[addr] {
+		if targets[addr] || (targets == nil) {
 			m[addr] = p
 		}
 	}
 	return m
+}
+
+func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
+		return err
+	}
+
+	pm.server.AddValidatorPeer(node)
+	return nil
+}
+
+func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
+		return err
+	}
+
+	pm.server.RemoveValidatorPeer(node)
+	return nil
+}
+
+func (pm *ProtocolManager) GetValidatorPeers() []string {
+	return pm.server.ValPeers()
+}
+
+func (pm *ProtocolManager) GetLocalNode() *enode.Node {
+	return pm.server.Self()
 }
