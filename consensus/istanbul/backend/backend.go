@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -48,6 +49,12 @@ var (
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
+// Entries for the recent announce messages
+type AnnounceGossipTimestamp struct {
+	enodeURL  string
+	timestamp time.Time
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -55,17 +62,21 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
 	knownMessages, _ := lru.NewARC(inmemoryMessages)
 	backend := &Backend{
-		config:           config,
-		istanbulEventMux: new(event.TypeMux),
-		logger:           log.New(),
-		db:               db,
-		commitCh:         make(chan *types.Block, 1),
-		recents:          recents,
-		coreStarted:      false,
-		recentMessages:   recentMessages,
-		knownMessages:    knownMessages,
+		config:               config,
+		istanbulEventMux:     new(event.TypeMux),
+		logger:               log.New(),
+		db:                   db,
+		commitCh:             make(chan *types.Block, 1),
+		recents:              recents,
+		coreStarted:          false,
+		recentMessages:       recentMessages,
+		knownMessages:        knownMessages,
+		announceWg:           new(sync.WaitGroup),
+		announceQuit:         make(chan struct{}),
+		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
+	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
 	return backend
 }
 
@@ -108,6 +119,13 @@ type Backend struct {
 
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
+
+	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
+
+	valEnodeTable *validatorEnodeTable
+
+	announceWg   *sync.WaitGroup
+	announceQuit chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -137,7 +155,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 // Broadcast implements istanbul.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload)
+	sb.Gossip(valSet, payload, istanbulMsg, false)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -147,39 +165,57 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
-	hash := istanbul.RLPHash(payload)
-	sb.knownMessages.Add(hash, true)
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+	var hash common.Hash
+	if !ignoreCache {
+		hash = istanbul.RLPHash(payload)
+		sb.knownMessages.Add(hash, true)
+	}
 
-	targets := make(map[common.Address]bool)
-	for _, val := range valSet.List() {
-		if val.Address() != sb.Address() {
-			targets[val.Address()] = true
+	var targets map[common.Address]bool = nil
+
+	if valSet != nil {
+		targets = make(map[common.Address]bool)
+		for _, val := range valSet.List() {
+			if val.Address() != sb.Address() {
+				targets[val.Address()] = true
+			}
 		}
 	}
 
-	if sb.broadcaster != nil && len(targets) > 0 {
+	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
+
 		for addr, p := range ps {
-			ms, ok := sb.recentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-				if _, k := m.Get(hash); k {
-					// This peer had this event, skip it
-					continue
+			if !ignoreCache {
+				ms, ok := sb.recentMessages.Get(addr)
+				var m *lru.ARCCache
+				if ok {
+					m, _ = ms.(*lru.ARCCache)
+					if _, k := m.Get(hash); k {
+						// This peer had this event, skip it
+						continue
+					}
+				} else {
+					m, _ = lru.NewARC(inmemoryMessages)
 				}
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
+
+				m.Add(hash, true)
+				sb.recentMessages.Add(addr, m)
 			}
 
-			m.Add(hash, true)
-			sb.recentMessages.Add(addr, m)
-
-			go p.Send(istanbulMsg, payload)
+			go p.Send(msgCode, payload)
 		}
 	}
 	return nil
+}
+
+func (sb *Backend) Enode() *enode.Node {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetLocalNode()
+	} else {
+		return nil
+	}
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -411,4 +447,44 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 		return false
 	}
 	return sb.hasBadBlock(hash)
+}
+
+func (sb *Backend) AddValidatorPeer(enodeURL string) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.AddValidatorPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.RemoveValidatorPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) GetValidatorPeers() []string {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetValidatorPeers()
+	} else {
+		return nil
+	}
+}
+
+// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// peers that are not part of the valset.
+// It will also disconnect all validator connections if this node is not a validator.
+// Note that adding and removing validators are idempotent operations.  If the validator
+// being added or removed is already added or removed, then a no-op will be done.
+func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
+	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+
+	currentValPeers := sb.GetValidatorPeers()
+
+	// Disconnect all validator peers if this node is not in the valset
+	if _, val := valset.GetByAddress(sb.Address()); val == nil {
+		for _, peerEnodeURL := range currentValPeers {
+			sb.RemoveValidatorPeer(peerEnodeURL)
+		}
+	} else {
+		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
+	}
 }
