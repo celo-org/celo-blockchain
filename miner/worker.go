@@ -234,12 +234,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		recommit = minRecommitInterval
 	}
 
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
-	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(eth.InternalEVMHandler())
-		istanbul.SetRegisteredAddresses(eth.RegisteredAddresses())
-	}
-
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
@@ -295,7 +289,7 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
+		istanbul.Start(w.chain.HasBadBlock,
 			func(parentHash common.Hash) (*state.StateDB, error) {
 				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
 				return w.chain.StateAt(parentStateRoot)

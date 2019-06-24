@@ -176,6 +176,11 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
+// Validator returns true if the peer is a validator connection
+func (p *Peer) Validator() bool {
+	return p.rw.is(validatorConn)
+}
+
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
@@ -435,6 +440,7 @@ type PeerInfo struct {
 		Inbound       bool   `json:"inbound"`
 		Trusted       bool   `json:"trusted"`
 		Static        bool   `json:"static"`
+		Validator     bool   `json:"validator"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
@@ -459,6 +465,7 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.Inbound = p.rw.is(inboundConn)
 	info.Network.Trusted = p.rw.is(trustedConn)
 	info.Network.Static = p.rw.is(staticDialedConn)
+	info.Network.Validator = p.rw.is(validatorConn)
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {

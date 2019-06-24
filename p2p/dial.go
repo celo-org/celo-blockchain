@@ -159,6 +159,11 @@ func (s *dialstate) removeStatic(n *enode.Node) {
 	s.hist.remove(n.ID())
 }
 
+func (s *dialstate) isStatic(n *enode.Node) bool {
+	_, isStatic := s.static[n.ID()]
+	return isStatic
+}
+
 func (s *dialstate) newTasks(nRunning int, peers map[enode.ID]*Peer, now time.Time) []task {
 	if s.start.IsZero() {
 		s.start = now
