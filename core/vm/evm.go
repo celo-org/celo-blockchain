@@ -509,11 +509,10 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	log.Debug("Called tobin transfer", "gas", gas)
 	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
+	log.Debug("Called tobin transfer", "gas", gas, "reserveAddress", reserveAddress)
 
 	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
-		// TODO(asa): Charge gas used.
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err

@@ -23,6 +23,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -67,24 +69,24 @@ var (
 )
 
 type RegisteredAddresses struct {
+	lastRefreshed         common.Hash
 	registeredAddresses   map[string]common.Address
 	registeredAddressesMu sync.RWMutex
 	iEvmH                 *InternalEVMHandler
 }
 
-func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.Address {
+func (ra *RegisteredAddresses) retrieveRegisteredAddresses(state *state.StateDB, header *types.Header) map[string]common.Address {
 	log.Trace("RegisteredAddresses.retrieveRegisteredAddresses called")
 
 	returnMap := make(map[string]common.Address)
 
 	for _, contractRegistryId := range registeredContractIds {
 		var contractAddress common.Address
-		log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Calling Registry.getAddressFor", "contractRegistryId", contractRegistryId)
-		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, nil, nil); err != nil {
-			log.Error("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation error", "leftoverGas", leftoverGas, "err", err)
+		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, header, state); err != nil {
+			log.Error("Registry.getAddressFor invocation error", "registryId", contractRegistryId, "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("RegisteredAddresses.retrieveRegisteredAddresses - Registry.getAddressFor invocation success", "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
+			log.Debug("Registry.getAddressFor invocation success", "registryId", contractRegistryId, "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
 
 			if contractAddress != common.ZeroAddress {
 				returnMap[contractRegistryId] = contractAddress
@@ -92,11 +94,30 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses() map[string]common.A
 		}
 	}
 
+	if header != nil {
+		ra.lastRefreshed = header.Hash()
+	} else {
+		ra.lastRefreshed = ra.iEvmH.CurrentHeader().Hash()
+	}
+
 	return returnMap
 }
 
+func (ra *RegisteredAddresses) RefreshAddressesAtStateAndHeader(state *state.StateDB, header *types.Header) {
+	ra.refreshAddresses(state, header)
+}
+
 func (ra *RegisteredAddresses) RefreshAddresses() {
-	registeredAddresses := ra.retrieveRegisteredAddresses()
+	header := ra.iEvmH.CurrentHeader()
+	ra.refreshAddresses(nil, header)
+}
+
+func (ra *RegisteredAddresses) refreshAddresses(state *state.StateDB, header *types.Header) {
+	if header.Hash() == ra.lastRefreshed {
+		log.Trace("Registered addresses already refreshed for header, using cache", "hash", header.Hash().Hex())
+		return
+	}
+	registeredAddresses := ra.retrieveRegisteredAddresses(state, header)
 
 	ra.registeredAddressesMu.Lock()
 	ra.registeredAddresses = registeredAddresses
@@ -104,12 +125,7 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
-	// This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
-	// or was constructed before addresses were registered.
-	// TODO(kevjue, jarmg): Figure out a better solution for this.
-	if len(ra.registeredAddresses) == 0 {
-		ra.RefreshAddresses()
-	}
+	ra.RefreshAddresses()
 
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()

@@ -175,6 +175,10 @@ func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error)
 	return call(evm)
 }
 
+func (iEvmH *InternalEVMHandler) CurrentHeader() *types.Header {
+	return iEvmH.chain.CurrentHeader()
+}
+
 func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
 	iEvmH.regAdd = regAdd
 }

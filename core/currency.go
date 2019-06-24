@@ -25,6 +25,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -197,12 +199,7 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 // SortedOracles must have a function with the following signature:
 // "function medianRate(address)"
 func (co *CurrencyOperator) refreshExchangeRates() {
-	gasCurrencyAddresses, err := co.gcWl.getWhitelist()
-	if err != nil {
-		log.Warn("Failed to get gas currency whitelist", "err", err)
-		return
-	}
-
+	gasCurrencyAddresses := co.gcWl.Whitelist()
 	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
 	if err != nil {
@@ -303,13 +300,14 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 }
 
 type GasCurrencyWhitelist struct {
+	lastRefreshed          common.Hash
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
 	regAdd                 *RegisteredAddresses
 	iEvmH                  *InternalEVMHandler
 }
 
-func (gcWl *GasCurrencyWhitelist) getWhitelist() ([]common.Address, error) {
+func (gcWl *GasCurrencyWhitelist) getWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
 	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
 	if err != nil {
@@ -317,12 +315,26 @@ func (gcWl *GasCurrencyWhitelist) getWhitelist() ([]common.Address, error) {
 		return returnList, err
 	}
 
-	_, err = gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil)
+	_, err = gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
 	return returnList, err
 }
 
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtStateAndHeader(state *state.StateDB, header *types.Header) {
+	gcWl.refreshWhitelist(state, header)
+}
+
 func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
-	whitelist, err := gcWl.getWhitelist()
+	header := gcWl.iEvmH.CurrentHeader()
+	gcWl.refreshWhitelist(nil, header)
+}
+
+func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header *types.Header) {
+	if header.Hash() == gcWl.lastRefreshed {
+		log.Trace("Gas currency whitelist already refreshed for header, using cache", "hash", header.Hash().Hex())
+		return
+	}
+
+	whitelist, err := gcWl.getWhitelist(state, header)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)
 		return
@@ -338,16 +350,13 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 		gcWl.whitelistedAddresses[address] = true
 	}
 
+	gcWl.lastRefreshed = header.Hash()
+
 	gcWl.whitelistedAddressesMu.Unlock()
 }
 
 func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
-	// This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
-	// or was constructed before Celo Dollars were whitelisted.
-	// TODO(kevjue, jarmg): Figure out a better solution for this.
-	if len(gcWl.whitelistedAddresses) == 0 {
-		gcWl.RefreshWhitelist()
-	}
+	gcWl.RefreshWhitelist()
 	gcWl.whitelistedAddressesMu.RLock()
 
 	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
@@ -355,6 +364,15 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 	gcWl.whitelistedAddressesMu.RUnlock()
 
 	return ok
+}
+
+func (gcWl *GasCurrencyWhitelist) Whitelist() []common.Address {
+	gcWl.RefreshWhitelist()
+	whitelist := make([]common.Address, 0, len(gcWl.whitelistedAddresses))
+	for k := range gcWl.whitelistedAddresses {
+		whitelist = append(whitelist, k)
+	}
+	return whitelist
 }
 
 func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
