@@ -420,7 +420,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-	if err == core.ErrNotDeployed {
+	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else {
@@ -483,7 +483,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Add block rewards
 	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-	if err == core.ErrNotDeployed {
+	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	}
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
@@ -491,13 +491,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-		if err == core.ErrNotDeployed {
+		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-		if err == core.ErrNotDeployed {
+		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		}
 

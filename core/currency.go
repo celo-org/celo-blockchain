@@ -133,7 +133,7 @@ func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchange
 
 func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-	if err == ErrNotDeployed || currencyFrom == celoGoldAddress {
+	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
 	}
@@ -202,14 +202,14 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 
 	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
-	if err == ErrNotDeployed {
+	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return
 	}
 
 	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
-	if err == ErrNotDeployed {
+	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return
 	}
@@ -312,7 +312,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 	returnList := []common.Address{}
 
 	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
-	if err == ErrNotDeployed {
+	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return returnList
 	}
