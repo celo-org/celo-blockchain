@@ -136,6 +136,8 @@ func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Add
 	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 	return co.Convert(val, currencyFrom, celoGoldAddress)
 }
@@ -205,6 +207,8 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
@@ -212,6 +216,8 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	co.currencyOperatorMu.Lock()
@@ -315,6 +321,8 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return returnList
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())

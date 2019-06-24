@@ -423,6 +423,9 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
+	}  else if err != nil {
+		log.Error(err.Error())
+		return newValSet, err
 	} else {
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
@@ -485,6 +488,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
 		totalBlockRewards := big.NewInt(0)
@@ -493,12 +498,16 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
 		}
 
 		if governanceAddress != nil && bondedDepositsAddress != nil {
