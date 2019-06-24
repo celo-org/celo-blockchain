@@ -114,7 +114,7 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 
 func (ra *RegisteredAddresses) refreshAddresses(state *state.StateDB, header *types.Header) {
 	if header.Hash() == ra.lastRefreshed {
-		log.Trace("Registered addresses already refreshed for header, using cache", "hash", header.Hash().Hex())
+		log.Debug("Registered addresses already refreshed for header, using cache", "number", header.Number, "hash", header.Hash().Hex())
 		return
 	}
 	registeredAddresses := ra.retrieveRegisteredAddresses(state, header)

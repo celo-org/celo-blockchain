@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -71,6 +72,7 @@ func (p *StateProcessor) SetRandom(random *Random) {
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
 func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+	log.Debug("Processing block", "number", block.Header().Number)
 	var (
 		receipts types.Receipts
 		usedGas  = new(uint64)
@@ -85,12 +87,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Refresh the registered addresses cache right before processing the block's transactions
 	if p.gcWl != nil {
-		p.regAdd.RefreshAddresses()
+		p.regAdd.RefreshAddressesAtStateAndHeader(statedb, block.Header())
 	}
 
 	// Refresh the gas currency whitelist cache right before processing the block's transactions
 	if p.gcWl != nil {
-		p.gcWl.RefreshWhitelist()
+		p.gcWl.RefreshWhitelistAtStateAndHeader(statedb, block.Header())
 	}
 
 	if p.random != nil && p.random.Running() {
