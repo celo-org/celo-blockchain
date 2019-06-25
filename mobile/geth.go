@@ -93,7 +93,7 @@ type NodeConfig struct {
 
 	// UseLightweightKDF lowers the memory and CPU requirements of the key store
 	// scrypt KDF at the expense of security.
-  // See https://geth.ethereum.org/doc/Mobile_Account-management for reference
+	// See https://geth.ethereum.org/doc/Mobile_Account-management for reference
 	UseLightweightKDF bool
 }
 
@@ -137,12 +137,12 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 
 	// Create the empty networking stack
 	nodeConf := &node.Config{
-		Name:        clientIdentifier,
-		Version:     params.VersionWithMeta,
-		DataDir:     datadir,
-		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		Name:              clientIdentifier,
+		Version:           params.VersionWithMeta,
+		DataDir:           datadir,
+		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,
-		IPCPath:     "geth.ipc",
+		IPCPath:           "geth.ipc",
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      false,
