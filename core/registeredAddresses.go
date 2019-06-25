@@ -58,7 +58,7 @@ var (
 		params.AttestationsRegistryId,
 		params.BondedDepositsRegistryId,
 		params.GasCurrencyWhitelistRegistryId,
-		params.GasPriceOracleRegistryId,
+		params.GasPriceMinimumRegistryId,
 		params.GoldTokenRegistryId,
 		params.GovernanceRegistryId,
 		params.RandomRegistryId,

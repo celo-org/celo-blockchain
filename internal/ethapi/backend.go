@@ -42,7 +42,7 @@ type Backend interface {
 	ProtocolVersion() int
 	SuggestPrice(ctx context.Context) (*big.Int, error)
 	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
-	GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	GasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error)
 	ChainDb() ethdb.Database
 	EventMux() *event.TypeMux

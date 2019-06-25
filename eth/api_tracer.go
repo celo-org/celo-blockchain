@@ -502,9 +502,9 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, api.eth.regAdd)
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
-    gasPriceFloor, _ := api.eth.APIBackend.GasPriceFloor(ctx, msg.GasCurrency())
+    gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
     infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceFloor, infraFraction); err != nil {
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction); err != nil {
 			failed = err
 			break
 		}
@@ -602,9 +602,9 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		}
 		// Execute the transaction and flush any traces to disk
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vmConf)
-    gasPriceFloor, _ := api.eth.APIBackend.GasPriceFloor(ctx, msg.GasCurrency())
+    gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
     infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceFloor, infraFraction)
+		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
 
 		if dump != nil {
 			dump.Close()
@@ -753,9 +753,9 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	// Run the transaction with tracing enabled.
 	vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{Debug: true, Tracer: tracer})
 
-  gasPriceFloor, _ := api.eth.APIBackend.GasPriceFloor(ctx, message.GasCurrency())
+  gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, message.GasCurrency())
   infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceFloor, infraFraction)
+	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %v", err)
 	}
@@ -804,9 +804,9 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(ctx, statedb, api.config, vm.Config{})
-    gasPriceFloor, _ := api.eth.APIBackend.GasPriceFloor(context.Background(), msg.GasCurrency())
+    gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(context.Background(), msg.GasCurrency())
     infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(context.Background())
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceFloor, infraFraction); err != nil {
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state

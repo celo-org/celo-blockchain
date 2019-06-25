@@ -171,15 +171,15 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
-func (b *LesApiBackend) GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+func (b *LesApiBackend) GasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
 func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {

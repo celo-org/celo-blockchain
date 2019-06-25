@@ -62,7 +62,7 @@ type StateTransition struct {
 	state      vm.StateDB
 	evm        *vm.EVM
 	gcWl       *GasCurrencyWhitelist
-  gasPriceFloor *big.Int
+  gasPriceMinimum *big.Int
   infraFraction *InfrastructureFraction
 }
 
@@ -136,7 +136,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *InfrastructureFraction) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
 		evm:      evm,
@@ -146,7 +146,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 		data:     msg.Data(),
 		state:    evm.StateDB,
 		gcWl:     gcWl,
-    gasPriceFloor: gasPriceFloor,
+    gasPriceMinimum: gasPriceMinimum,
     infraFraction: infraFraction,
 	}
 }
@@ -158,8 +158,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *InfrastructureFraction) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl, gasPriceFloor, infraFraction).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -271,8 +271,8 @@ func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurr
 }
 
 //TODO(jarmg 6/13) Find a cleaner way to adhere to the interface that
-// we need to get gasprice floor information
-type gasPriceFloorEvm struct {
+// we need to get gasprice minimum information
+type gasPriceMinimumEvm struct {
 	zeroCaller vm.ContractRef
 	evm        *vm.EVM
 }
@@ -289,7 +289,7 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	// Make sure this transaction's gas price is valid.
-	if st.gasPrice.Cmp(st.gasPriceFloor) == -1 {
+	if st.gasPrice.Cmp(st.gasPriceMinimum) == -1 {
 		return errGasPriceDoesNotExceedFloor
 	}
 
@@ -375,7 +375,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
   var recipientTxFee *big.Int
 	if infraAddress != nil {
-    infraTxFee     := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceFloor, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+    infraTxFee     := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
     recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
   } else {

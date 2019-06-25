@@ -741,9 +741,9 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	gasPriceFloor, err := s.b.GasPriceFloor(ctx, args.GasCurrency)
+	gasPriceMinimum, err := s.b.GasPriceMinimum(ctx, args.GasCurrency)
 	infraFraction, err := s.b.InfrastructureFraction(ctx)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceFloor, infraFraction)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}

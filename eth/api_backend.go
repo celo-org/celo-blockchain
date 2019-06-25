@@ -196,15 +196,15 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
-func (b *EthAPIBackend) GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+func (b *EthAPIBackend) GasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
 func (b *EthAPIBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {

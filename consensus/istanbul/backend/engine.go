@@ -481,12 +481,12 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
-	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-	updatedGasPriceFloor, err := core.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
-	log.Trace("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
+	// Calculate a new gas price suggestion and push it to the GasPriceMinimum SmartContract
+	updatedGasPriceMinimum, err := core.UpdateGasPriceMinimum(sb.iEvmH, sb.regAdd, header, state)
+	log.Trace("Updated gas price minimum", "gas price minimum", updatedGasPriceMinimum)
 
 	if err != nil {
-		log.Error("Error in updating gas price floor", "error", err)
+		log.Error("Error in updating gas price minimum", "error", err)
 	}
 
 	// Add block rewards

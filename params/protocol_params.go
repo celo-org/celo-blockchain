@@ -99,7 +99,7 @@ const (
 	AttestationsRegistryId         = "Attestations"
 	BondedDepositsRegistryId       = "BondedDeposits"
 	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
-	GasPriceOracleRegistryId       = "GasPriceOracle"
+	GasPriceMinimumRegistryId      = "GasPriceMinimum"
 	GoldTokenRegistryId            = "GoldToken"
 	GovernanceRegistryId           = "Governance"
 	ReserveRegistryId              = "Reserve"
