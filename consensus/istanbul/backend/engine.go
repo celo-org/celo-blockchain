@@ -423,7 +423,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
-	}  else if err != nil {
+	} else if err != nil {
 		log.Error(err.Error())
 		return newValSet, err
 	} else {
