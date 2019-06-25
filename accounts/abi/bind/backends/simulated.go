@@ -40,7 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/core/gasprice"
 )
 
 // This nil assignment ensures compile time that SimulatedBackend implements bind.ContractBackend.
