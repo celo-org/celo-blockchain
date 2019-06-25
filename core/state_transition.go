@@ -127,7 +127,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if gasCurrency != nil {
-		gas += 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+		gas += params.AdditionalGasForNonGoldCurrencies
 	}
 
 	return gas, nil
@@ -207,22 +207,41 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	return balanceOf.Cmp(gasNeeded) > 0
 }
 
-func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address) error {
+func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
 	}
 	evm := st.evm
+	// Function is "debitFrom(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
+	functionSelector := hexutil.MustDecode("0x362a5f80")
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitAndCreditTransactions, big.NewInt(0))
-	if err != nil {
-		log.Error("failed to debit or credit ERC20 balance", "functionSelector", functionSelector, "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
-		return err
-	}
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
+	return err
+}
 
-	return nil
+func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
+	if amount.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+	evm := st.evm
+	// Function is "creditTo(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
+	functionSelector := hexutil.MustDecode("0x9951b90c")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
+	return err
 }
 
 func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
@@ -231,9 +250,9 @@ func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCur
 	if gasCurrency == nil {
 		st.state.SubBalance(from, amount)
 		return nil
+	} else {
+		return st.debitFrom(from, amount, gasCurrency)
 	}
-
-	return st.debitOrCreditErc20Balance(getDebitFromFunctionSelector(), from, amount, gasCurrency)
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
@@ -242,27 +261,9 @@ func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurr
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
 		return nil
+	} else {
+		return st.creditTo(to, amount, gasCurrency)
 	}
-
-	return st.debitOrCreditErc20Balance(getCreditToFunctionSelector(), to, amount, gasCurrency)
-}
-
-func getDebitFromFunctionSelector() []byte {
-	// Function is "debitFrom(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x362a5f80")
-}
-
-func getCreditToFunctionSelector() []byte {
-	// Function is "creditTo(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x9951b90c")
 }
 
 func (st *StateTransition) preCheck() error {

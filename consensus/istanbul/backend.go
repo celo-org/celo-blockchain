@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SignerFn is a signer callback function to request a hash to be signed by a
@@ -34,6 +35,9 @@ type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
 
+	// Enode returns the owner's enode
+	Enode() *enode.Node
+
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
 
@@ -44,7 +48,7 @@ type Backend interface {
 	Broadcast(valSet ValidatorSet, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte) error
+	Gossip(valSet ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -75,6 +79,18 @@ type Backend interface {
 
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
+
+	// AddValidatorPeer adds a validator peer
+	AddValidatorPeer(enodeURL string)
+
+	// RemoveValidatorPeer removes a validator peer
+	RemoveValidatorPeer(enodeURL string)
+
+	// Get's all of the validator peers' enodeURL
+	GetValidatorPeers() []string
+
+	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
+	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn)

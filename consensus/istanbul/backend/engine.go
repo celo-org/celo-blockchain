@@ -46,6 +46,68 @@ const (
 	inmemoryPeers                 = 40
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
+	getValidatorsABI = `[{"constant": true,
+		              "inputs": [],
+			      "name": "getValidators",
+			      "outputs": [
+				   {
+				        "name": "",
+					"type": "address[]"
+				   }
+			      ],
+			      "payable": false,
+			      "stateMutability": "view",
+			      "type": "function"
+			     }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
+	setCumulativeRewardWeightABI = `[{"constant": false,
+                                          "inputs": [
+                                            {
+                                              "name": "blockReward",
+                                              "type": "uint256"
+                                            }
+                                          ],
+                                          "name": "setCumulativeRewardWeight",
+                                          "outputs": [],
+                                          "payable": false,
+                                          "stateMutability": "nonpayable",
+                                          "type": "function"
+                                        }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	increaseSupplyABI = `[{
+		"constant": false,
+		"inputs": [
+		  {
+			"name": "amount",
+			"type": "uint256"
+		  }
+		],
+		"name": "increaseSupply",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+				 }]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	totalSupplyABI = `[{
+		"constant": true,
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
 )
 
 var (
@@ -86,70 +148,14 @@ var (
 	errValidatorsContractNotRegistered = errors.New("no registered `Validators` address")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
-	getValidatorsABI = `[{"constant": true,
-		              "inputs": [],
-			      "name": "getValidators",
-			      "outputs": [
-				   {
-				        "name": "",
-					"type": "address[]"
-				   }
-			      ],
-			      "payable": false,
-			      "stateMutability": "view",
-			      "type": "function"
-				 }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	increaseSupplyABI = `[{
-		"constant": false,
-		"inputs": [
-		  {
-			"name": "amount",
-			"type": "uint256"
-		  }
-		],
-		"name": "increaseSupply",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-				 }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	totalSupplyABI = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
-	setCumulativeRewardWeightABI = `[{
-      "constant": false,
-      "inputs": [
-        {
-          "name": "blockReward",
-          "type": "uint256"
-        }
-      ],
-      "name": "setCumulativeRewardWeight",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }]`
+	// errOldMessage is returned when the received announce message's block number is earlier
+	// than a previous received message
+	errOldAnnounceMessage = errors.New("old announce message")
+	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
+	// an unregistered validator
+	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 )
+
 var (
 	defaultDifficulty = big.NewInt(1)
 	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
@@ -414,9 +420,12 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-	if err != nil {
+	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
+	} else if err != nil {
+		log.Error(err.Error())
+		return newValSet, err
 	} else {
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
@@ -459,7 +468,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return nil
 }
 
-// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
+// TODO(brice): This needs a comment.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
@@ -477,22 +486,28 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Add block rewards
 	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-	if err != nil {
+	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-		if err != nil {
+		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
-		if err != nil {
+		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
 		}
 
 		if governanceAddress != nil && bondedDepositsAddress != nil {
@@ -658,8 +673,13 @@ func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
 	sb.regAdd = regAdd
 }
 
+func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {
+	sb.chain = chain
+	sb.currentBlock = currentBlock
+}
+
 // Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -675,8 +695,6 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	}
 	sb.commitCh = make(chan *types.Block, 1)
 
-	sb.chain = chain
-	sb.currentBlock = currentBlock
 	sb.hasBadBlock = hasBadBlock
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock
@@ -687,6 +705,9 @@ func (sb *Backend) Start(chain consensus.ChainReader, currentBlock func() *types
 	}
 
 	sb.coreStarted = true
+
+	go sb.sendAnnounceMsgs()
+
 	return nil
 }
 
@@ -701,6 +722,9 @@ func (sb *Backend) Stop() error {
 		return err
 	}
 	sb.coreStarted = false
+
+	sb.announceQuit <- struct{}{}
+	sb.announceWg.Wait()
 	return nil
 }
 

@@ -27,6 +27,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
+var ErrSmartContractNotDeployed = errors.New("registry contract not deployed")
+
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
 	getAddressForABI = `[{"constant": true,
@@ -104,6 +107,8 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
+	log.Trace("RegisteredAddresses.GetRegisteredAddress called for", "registryId", registryId)
+
 	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
 		ra.RefreshAddresses()
 	}
@@ -112,7 +117,7 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.
 	defer ra.registeredAddressesMu.RUnlock()
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
-		return nil, errors.New("RegisteredAddresses.GetRegisteredAddress - " + registryId + " contract not deployed")
+		return nil, ErrSmartContractNotDeployed
 	} else {
 		return &address, nil
 	}
