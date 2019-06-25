@@ -93,6 +93,7 @@ type NodeConfig struct {
 
 	// UseLightweightKDF lowers the memory and CPU requirements of the key store
 	// scrypt KDF at the expense of security.
+  // See https://geth.ethereum.org/doc/Mobile_Account-management for reference
 	UseLightweightKDF bool
 }
 
