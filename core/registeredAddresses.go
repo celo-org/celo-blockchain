@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"strings"
 	"sync"
 
@@ -25,6 +26,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
+var ErrSmartContractNotDeployed = errors.New("registry contract not deployed")
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
@@ -102,11 +106,13 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 	ra.registeredAddressesMu.Unlock()
 }
 
-func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.Address {
+func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
+	log.Trace("RegisteredAddresses.GetRegisteredAddress called for", "registryId", registryId)
   if ra == nil {
-    return nil
+    return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
   }
-	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+
+  if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
 		ra.RefreshAddresses()
 	}
 
@@ -114,10 +120,9 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) *common.A
 	defer ra.registeredAddressesMu.RUnlock()
 
 	if address, ok := ra.registeredAddresses[registryId]; !ok {
-		log.Error("RegisteredAddresses.GetRegisteredAddress - Error in address retrieval for ", "registry", registryId)
-		return nil
+		return nil, ErrSmartContractNotDeployed
 	} else {
-		return &address
+		return &address, nil
 	}
 }
 

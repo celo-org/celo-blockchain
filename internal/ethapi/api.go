@@ -1228,7 +1228,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		} else {
 			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
 			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
-			*(*uint64)(args.Gas) = defaultGas + 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
 		}
 	}
 	if args.GasPrice == nil {

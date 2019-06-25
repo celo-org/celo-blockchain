@@ -57,7 +57,7 @@ type ConsensusIEvmH interface {
 }
 
 type ConsensusRegAdd interface {
-	GetRegisteredAddress(registryId string) *common.Address
+	GetRegisteredAddress(registryId string) (*common.Address, error)
 }
 
 // Engine is an algorithm agnostic consensus engine.
@@ -149,8 +149,10 @@ type Istanbul interface {
 
 	SetRegisteredAddresses(regAdd ConsensusRegAdd)
 
+	SetChain(chain ChainReader, currentBlock func() *types.Block)
+
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+	Start(hasBadBlock func(common.Hash) bool,
 		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 

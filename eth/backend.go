@@ -200,13 +200,25 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 	eth.blockchain.Processor().SetRandom(random)
 
-	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
 		return nil, err
 	}
 	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
+	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
+	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
+		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+		istanbul.SetInternalEVMHandler(eth.iEvmH)
+		istanbul.SetRegisteredAddresses(eth.regAdd)
+	}
+
 	eth.APIBackend = &EthAPIBackend{eth}
+	gpoParams := config.GPO
+	if gpoParams.Default == nil {
+		gpoParams.Default = config.MinerGasPrice
+	}
+	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams, co)
 
 	return eth, nil
 }

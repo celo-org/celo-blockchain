@@ -132,9 +132,12 @@ func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchange
 }
 
 func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
-	if currencyFrom == nil || currencyFrom == celoGoldAddress {
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
+		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 	return co.Convert(val, currencyFrom, celoGoldAddress)
 }
@@ -199,18 +202,22 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 	gasCurrencyAddresses := co.gcWl.retrieveWhitelist()
 	log.Trace("CurrencyOperator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
 
-	sortedOraclesAddress := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
+	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
 
-	if sortedOraclesAddress == nil {
-		log.Error("Can't get the sortedOracles smart contract address from the registry")
+	if err == ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
 		return
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
-	celoGoldAddress := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
 
-	if celoGoldAddress == nil {
-		log.Error("Can't get the celo gold smart contract address from the registry")
+	if err == ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
 		return
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	co.currencyOperatorMu.Lock()
@@ -310,10 +317,12 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
 
 	returnList := []common.Address{}
 
-	gasCurrencyWhiteListAddress := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
-	if gasCurrencyWhiteListAddress == nil {
-		log.Error("Can't get the gas currency whitelist smart contract address from the registry")
+	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
+	if err == ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
 		return returnList
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
