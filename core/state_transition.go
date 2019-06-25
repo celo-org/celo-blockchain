@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/core/gasprice"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -64,7 +63,7 @@ type StateTransition struct {
 	evm        *vm.EVM
 	gcWl       *GasCurrencyWhitelist
   gasPriceFloor *big.Int
-  infraFraction *gasprice.InfrastructureFraction
+  infraFraction *InfrastructureFraction
 }
 
 // Message represents a message sent to a contract.
@@ -137,7 +136,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *gasprice.InfrastructureFraction) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *InfrastructureFraction) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
 		evm:      evm,
@@ -159,7 +158,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *gasprice.InfrastructureFraction) ([]byte, uint64, bool, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceFloor *big.Int, infraFraction *InfrastructureFraction) ([]byte, uint64, bool, error) {
 	return NewStateTransition(evm, msg, gp, gcWl, gasPriceFloor, infraFraction).TransitionDb()
 }
 
@@ -360,7 +359,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
   var infraAddress *common.Address = nil
   if st.gcWl != nil && st.gcWl.regAdd != nil {
-		infraAddress = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
+		infraAddress, err = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
 	}
 
 	// Distribute transaction fees

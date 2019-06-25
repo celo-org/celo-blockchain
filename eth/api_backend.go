@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/core/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -197,19 +196,19 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
+	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
 func (b *EthAPIBackend) GasPriceFloor(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gasprice.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return core.GetGasPriceFloor(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
 }
 
-func (b *EthAPIBackend) InfrastructureFraction(ctx context.Context) (*gasprice.InfrastructureFraction, error) {
-	return gasprice.GetInfrastructureFraction(b.eth.iEvmH, b.eth.regAdd)
+func (b *EthAPIBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
+	return core.GetInfrastructureFraction(b.eth.iEvmH, b.eth.regAdd)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

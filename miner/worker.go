@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -762,10 +761,10 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, infraFraction *gasprice.InfrastructureFraction) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, infraFraction *core.InfrastructureFraction) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-  gasPriceFloor, _ := gasprice.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+  gasPriceFloor, _ := core.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceFloor, infraFraction)
 	if err != nil {
@@ -788,7 +787,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
 	}
 
-  infraFraction, _ := gasprice.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+  infraFraction, _ := core.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 
 	var coalescedLogs []*types.Log
 
@@ -827,7 +826,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		// Check for valid gas currency and that the tx exceeds the gasPriceFloor
 
-    gasPriceFloor, _ := gasprice.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+    gasPriceFloor, _ := core.GetGasPriceFloor(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
 
 		if tx.GasPrice().Cmp(gasPriceFloor) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceFloor")

@@ -40,7 +40,6 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/core/gasprice"
 )
 
 // This nil assignment ensures compile time that SimulatedBackend implements bind.ContractBackend.
@@ -289,7 +288,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	vmenv := vm.NewEVM(evmContext, statedb, b.config, vm.Config{})
 	gaspool := new(core.GasPool).AddGas(math.MaxUint64)
 
-	return core.NewStateTransition(vmenv, msg, gaspool, nil, gasprice.FallbackGasPriceFloor, &gasprice.FallbackInfraFraction).TransitionDb()
+	return core.NewStateTransition(vmenv, msg, gaspool, nil, core.FallbackGasPriceFloor, &core.FallbackInfraFraction).TransitionDb()
 }
 
 // SendTransaction updates the pending block to include the given transaction.

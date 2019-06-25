@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/gasprice"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -483,7 +482,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-	updatedGasPriceFloor, err := gasprice.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
+	updatedGasPriceFloor, err := core.UpdateGasPriceFloor(sb.iEvmH, sb.regAdd, header, state)
 	log.Trace("Updated gas price floor", "gas price floor", updatedGasPriceFloor)
 
 	if err != nil {

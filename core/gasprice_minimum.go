@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package gasprice
+package core 
 
 import (
 	"errors"
@@ -110,7 +110,6 @@ var (
 )
 
 
-<<<<<<< HEAD
 type EvmHandler interface {
 	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
 }
@@ -121,7 +120,7 @@ type StaticEvmHandler interface {
 }
 
 type AddressRegistry interface {
-	GetRegisteredAddress(registryId string) *common.Address
+	GetRegisteredAddress(registryId string) (*common.Address, error)
 }
 
 type InfrastructureFraction struct {
@@ -130,21 +129,26 @@ type InfrastructureFraction struct {
 }
 
 
-func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAddress *common.Address) (*big.Int, error) {
+func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency *common.Address) (*big.Int, error) {
 
   if iEvmH == nil || regAdd == nil {
     log.Error("gasprice.GetGasPriceFloor - nil parameters. Returning default gasprice floor of 0")
     return FallbackGasPriceFloor, errors.New("nil iEvmH or addressRegistry")
   }
 
-	if currencyAddress == nil {
-		currencyAddress = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+  var currencyAddress *common.Address
+  var err error
 
-		if currencyAddress == nil {
+	if currency == nil {
+    currencyAddress, err = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+
+		if err != nil {
 			log.Error("No gold token contract address found. Returning default gold gasprice floor of 0")
 			return FallbackGasPriceFloor, errors.New("no goldtoken contract address found")
 		}
-	}
+	} else {
+    currencyAddress = currency
+  }
 
   cacheMu.Lock()
   defer cacheMu.Unlock()
@@ -170,7 +174,7 @@ func GetGasPriceFloor(iEvmH StaticEvmHandler, regAdd AddressRegistry, currencyAd
     return FallbackGasPriceFloor, err
 	}
 
-  _, err := iEvmH.MakeStaticCall(
+  _, err = iEvmH.MakeStaticCall(
     *gasPriceOracleAddress,
     gasPriceOracleABI,
     "getGasPriceFloor",
@@ -200,7 +204,7 @@ func UpdateGasPriceFloor(iEvmH EvmHandler, regAdd AddressRegistry, header *types
 
 	var updatedGasPriceFloor *big.Int
 
-	_, err := iEvmH.MakeCall(
+	_, err = iEvmH.MakeCall(
 		*gasPriceOracleAddress,
 		gasPriceOracleABI,
 		"updateGasPriceFloor",
@@ -224,11 +228,7 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
     return &FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
   }
 
-	if gasPriceOracleAddress == nil {
-	}
-
 	gasPriceOracleAddress, err := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
-
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &FallbackInfraFraction, err
@@ -237,10 +237,7 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
 		return &FallbackInfraFraction, err
 	}
 
-
-
-
-  _, err := iEvmH.MakeStaticCall(
+  _, err = iEvmH.MakeStaticCall(
     *gasPriceOracleAddress,
     gasPriceOracleABI,
     "infrastructureFraction",
