@@ -90,6 +90,11 @@ type NodeConfig struct {
 	// This has to be integer since Enum exports to Java are not supported by "gomobile"
 	// See getSyncMode(syncMode int)
 	SyncMode int
+
+	// UseLightweightKDF lowers the memory and CPU requirements of the key store
+	// scrypt KDF at the expense of security.
+	// See https://geth.ethereum.org/doc/Mobile_Account-management for reference
+	UseLightweightKDF bool
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
@@ -132,11 +137,12 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 
 	// Create the empty networking stack
 	nodeConf := &node.Config{
-		Name:        clientIdentifier,
-		Version:     params.VersionWithMeta,
-		DataDir:     datadir,
-		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
-		IPCPath:     "geth.ipc",
+		Name:              clientIdentifier,
+		Version:           params.VersionWithMeta,
+		DataDir:           datadir,
+		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
+		UseLightweightKDF: config.UseLightweightKDF,
+		IPCPath:           "geth.ipc",
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      false,
