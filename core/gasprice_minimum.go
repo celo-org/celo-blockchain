@@ -105,7 +105,7 @@ var (
   gasPriceMinimumCache = make(map[common.Address]*big.Int)
   cacheHeaderHash common.Hash
   cacheMu = new(sync.RWMutex)
-  FallbackInfraFraction InfrastructureFraction = InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
+  FallbackInfraFraction *InfrastructureFraction = &InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
   FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gasprice min to return if contracts are not found
 )
 
@@ -225,16 +225,16 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
 
   if iEvmH == nil || regAdd == nil {
     log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default infra fraction of 0")
-    return &FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
+    return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
   }
 
 	gasPriceMinimumAddress, err := regAdd.GetRegisteredAddress(params.GasPriceMinimumRegistryId)
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
-		return &FallbackInfraFraction, err
+		return FallbackInfraFraction, err
 	} else if err != nil {
 		log.Error(err.Error())
-		return &FallbackInfraFraction, err
+		return FallbackInfraFraction, err
 	}
 
   _, err = iEvmH.MakeStaticCall(
