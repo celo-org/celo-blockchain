@@ -83,16 +83,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// Refresh the registered addresses cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.regAdd.RefreshAddresses()
-	}
-
-	// Refresh the gas currency whitelist cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.gcWl.RefreshWhitelist()
-	}
-
 	if p.random != nil && p.random.Running() {
 		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
@@ -123,6 +113,15 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Refresh the registered addresses and gas currency whitelist right before processing the transaction
+	if regAdd != nil {
+		regAdd.RefreshAddressesAtStateAndHeader(statedb, header)
+	}
+
+	if gcWl != nil {
+		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
 	}
 
 	// Create a new context to be used in the EVM environment

@@ -528,12 +528,12 @@ func (w *worker) mainLoop() {
 
 				// Refresh the registered address cache before processing transaction batch
 				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-					regAdd.RefreshAddresses()
+					regAdd.RefreshAddressesAtCurrentHeader()
 				}
 
 				// Refresh the gas currency whitelist cache before processing transaction batch
 				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-					wl.RefreshWhitelist()
+					wl.RefreshWhitelistAtCurrentHeader()
 				}
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
@@ -991,12 +991,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Refresh the registered address cache before processing transaction batch
 	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-		regAdd.RefreshAddresses()
+		regAdd.RefreshAddressesAtCurrentHeader()
 	}
 
 	// Refresh the gas currency whitelist cache before processing the pending transactions
 	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-		wl.RefreshWhitelist()
+		wl.RefreshWhitelistAtCurrentHeader()
 	}
 
 	// Play our part in generating the random beacon.
