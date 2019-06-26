@@ -359,7 +359,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
   var infraAddress *common.Address = nil
   if st.gcWl != nil && st.gcWl.regAdd != nil {
-		infraAddress, err = st.gcWl.regAdd.GetRegisteredAddress(params.ReserveRegistryId)
+		infraAddress, err = st.gcWl.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 	}
 
 	// Distribute transaction fees
