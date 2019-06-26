@@ -17,7 +17,7 @@
 package core
 
 import (
-  "math/big"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -96,13 +96,13 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	var iEvmH *InternalEVMHandler
-	if p.gcWl == nil{
-    iEvmH = nil
+	if p.gcWl == nil {
+		iEvmH = nil
 	} else {
-    iEvmH = p.gcWl.iEvmH
-  }
+		iEvmH = p.gcWl.iEvmH
+	}
 
-  infraFraction, _ := GetInfrastructureFraction(iEvmH, p.regAdd)
+	infraFraction, _ := GetInfrastructureFraction(iEvmH, p.regAdd)
 
 	if p.random != nil && p.random.Running() {
 		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
@@ -113,8 +113,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-    gasPriceMinimum, _ := GetGasPriceMinimum(iEvmH, p.regAdd, tx.GasCurrency())
-    receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction)
+		gasPriceMinimum, _ := GetGasPriceMinimum(iEvmH, p.regAdd, tx.GasCurrency())
+		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction)
 		if err != nil {
 			return nil, nil, 0, err
 		}

@@ -481,7 +481,7 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
-	// Calculate a new gas price suggestion and push it to the GasPriceMinimum SmartContract
+	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := core.UpdateGasPriceMinimum(sb.iEvmH, sb.regAdd, header, state)
 	log.Trace("Updated gas price minimum", "gas price minimum", updatedGasPriceMinimum)
 

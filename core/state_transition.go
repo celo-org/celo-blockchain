@@ -52,18 +52,18 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp         *GasPool
-	msg        Message
-	gas        uint64
-	gasPrice   *big.Int
-	initialGas uint64
-	value      *big.Int
-	data       []byte
-	state      vm.StateDB
-	evm        *vm.EVM
-	gcWl       *GasCurrencyWhitelist
-  gasPriceMinimum *big.Int
-  infraFraction *InfrastructureFraction
+	gp              *GasPool
+	msg             Message
+	gas             uint64
+	gasPrice        *big.Int
+	initialGas      uint64
+	value           *big.Int
+	data            []byte
+	state           vm.StateDB
+	evm             *vm.EVM
+	gcWl            *GasCurrencyWhitelist
+	gasPriceMinimum *big.Int
+	infraFraction   *InfrastructureFraction
 }
 
 // Message represents a message sent to a contract.
@@ -138,16 +138,16 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) *StateTransition {
 	return &StateTransition{
-		gp:       gp,
-		evm:      evm,
-		msg:      msg,
-		gasPrice: msg.GasPrice(),
-		value:    msg.Value(),
-		data:     msg.Data(),
-		state:    evm.StateDB,
-		gcWl:     gcWl,
-    gasPriceMinimum: gasPriceMinimum,
-    infraFraction: infraFraction,
+		gp:              gp,
+		evm:             evm,
+		msg:             msg,
+		gasPrice:        msg.GasPrice(),
+		value:           msg.Value(),
+		data:            msg.Data(),
+		state:           evm.StateDB,
+		gcWl:            gcWl,
+		gasPriceMinimum: gasPriceMinimum,
+		infraFraction:   infraFraction,
 	}
 }
 
@@ -357,8 +357,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-  var infraAddress *common.Address = nil
-  if st.gcWl != nil && st.gcWl.regAdd != nil {
+	var infraAddress *common.Address = nil
+	if st.gcWl != nil && st.gcWl.regAdd != nil {
 		infraAddress, err = st.gcWl.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
 	}
 
@@ -373,29 +373,29 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	// Pay tx fee to tx fee recipient and Infrastructure fund
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 
-  var recipientTxFee *big.Int
+	var recipientTxFee *big.Int
 	if infraAddress != nil {
-    infraTxFee     := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
-    recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
+		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
-  } else {
-    log.Error("no infrastructure account address found - sending enitre txFee to fee recipient")
-    recipientTxFee = totalTxFee
-  }
+	} else {
+		log.Error("no infrastructure account address found - sending enitre txFee to fee recipient")
+		recipientTxFee = totalTxFee
+	}
 
-  if err != nil {
-    return nil, 0, false, err
-  }
+	if err != nil {
+		return nil, 0, false, err
+	}
 
 	if msg.GasFeeRecipient() == nil {
 		st.creditGas(msg.From(), recipientTxFee, msg.GasCurrency())
 	} else {
-    err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
+		err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
 	}
 
-  if err != nil {
-    return nil, 0, false, err
-  }
+	if err != nil {
+		return nil, 0, false, err
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }

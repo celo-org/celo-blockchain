@@ -764,7 +764,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, infraFraction *core.InfrastructureFraction) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-  gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+	gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
 
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction)
 	if err != nil {
@@ -787,7 +787,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
 	}
 
-  infraFraction, _ := core.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+	infraFraction, _ := core.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
 
 	var coalescedLogs []*types.Log
 
@@ -826,7 +826,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
 
-    gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+		gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
 
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum")

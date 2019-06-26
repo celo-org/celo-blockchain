@@ -108,11 +108,11 @@ func (ra *RegisteredAddresses) RefreshAddresses() {
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
 	log.Trace("RegisteredAddresses.GetRegisteredAddress called for", "registryId", registryId)
-  if ra == nil {
-    return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
-  }
+	if ra == nil {
+		return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
+	}
 
-  if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
+	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
 		ra.RefreshAddresses()
 	}
 
