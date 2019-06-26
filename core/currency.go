@@ -328,7 +328,7 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtStateAndHeader(state *state.
 	gcWl.refreshWhitelist(state, header)
 }
 
-func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtCurrentHeader() {
 	gcWl.refreshWhitelist(nil, nil)
 }
 
@@ -353,7 +353,7 @@ func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header 
 }
 
 func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
-	gcWl.RefreshWhitelist()
+	gcWl.RefreshWhitelistAtCurrentHeader()
 	gcWl.whitelistedAddressesMu.RLock()
 
 	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
@@ -364,11 +364,13 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 }
 
 func (gcWl *GasCurrencyWhitelist) Whitelist() []common.Address {
-	gcWl.RefreshWhitelist()
+	gcWl.RefreshWhitelistAtCurrentHeader()
 	whitelist := make([]common.Address, 0, len(gcWl.whitelistedAddresses))
+	gcWl.whitelistedAddressesMu.RLock()
 	for k := range gcWl.whitelistedAddresses {
 		whitelist = append(whitelist, k)
 	}
+	gcWl.whitelistedAddressesMu.RUnlock()
 	return whitelist
 }
 

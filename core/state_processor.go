@@ -91,15 +91,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		// Refresh the registered addresses and gas currency whitelist right before processing the transaction
-		if p.regAdd != nil {
-			p.regAdd.RefreshAddressesAtStateAndHeader(statedb, block.Header())
-		}
-
-		if p.gcWl != nil {
-			p.gcWl.RefreshWhitelistAtStateAndHeader(statedb, block.Header())
-		}
-
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd)
 		if err != nil {
@@ -122,6 +113,15 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Refresh the registered addresses and gas currency whitelist right before processing the transaction
+	if regAdd != nil {
+		regAdd.RefreshAddressesAtStateAndHeader(statedb, header)
+	}
+
+	if gcWl != nil {
+		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
 	}
 
 	// Create a new context to be used in the EVM environment

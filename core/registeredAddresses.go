@@ -103,7 +103,7 @@ func (ra *RegisteredAddresses) RefreshAddressesAtStateAndHeader(state *state.Sta
 	ra.refreshAddresses(state, header)
 }
 
-func (ra *RegisteredAddresses) RefreshAddresses() {
+func (ra *RegisteredAddresses) RefreshAddressesAtCurrentHeader() {
 	ra.refreshAddresses(nil, nil)
 }
 
@@ -116,7 +116,7 @@ func (ra *RegisteredAddresses) refreshAddresses(state *state.StateDB, header *ty
 }
 
 func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
-	ra.RefreshAddresses()
+	ra.RefreshAddressesAtCurrentHeader()
 
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
