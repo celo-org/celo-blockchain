@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	errInsufficientBalanceForGas  = errors.New("insufficient balance to pay for gas")
-	errNonWhitelistedGasCurrency  = errors.New("non-whitelisted gas currency address")
-	errGasPriceDoesNotExceedFloor = errors.New("gasprice does not exceed floor")
+	errInsufficientBalanceForGas    = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency    = errors.New("non-whitelisted gas currency address")
+	errGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
 )
 
 /*
@@ -270,13 +270,6 @@ func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurr
 	}
 }
 
-//TODO(jarmg 6/13) Find a cleaner way to adhere to the interface that
-// we need to get gasprice minimum information
-type gasPriceMinimumEvm struct {
-	zeroCaller vm.ContractRef
-	evm        *vm.EVM
-}
-
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
@@ -290,7 +283,7 @@ func (st *StateTransition) preCheck() error {
 
 	// Make sure this transaction's gas price is valid.
 	if st.gasPrice.Cmp(st.gasPriceMinimum) == -1 {
-		return errGasPriceDoesNotExceedFloor
+		return errGasPriceDoesNotExceedMinimum
 	}
 
 	return nil
@@ -387,11 +380,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		return nil, 0, false, err
 	}
 
-	if msg.GasFeeRecipient() == nil {
-		st.creditGas(msg.From(), recipientTxFee, msg.GasCurrency())
-	} else {
-		err = st.creditGas(*msg.GasFeeRecipient(), recipientTxFee, msg.GasCurrency())
+	txFeeRecipient := msg.GasFeeRecipient()
+	if txFeeRecipient == nil {
+		txFeeRecipient = msg.From()
 	}
+	err = st.creditGas(txFeeRecipient, recipientTxFee, msg.GasCurrency())
 
 	if err != nil {
 		return nil, 0, false, err
