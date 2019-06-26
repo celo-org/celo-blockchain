@@ -17,18 +17,64 @@
 package backend
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/big"
+	mrand "math/rand"
+	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+const (
+	getValidatorABI = `[{
+		"constant": true,
+		"inputs": [
+		  {
+			"name": "account",
+			"type": "address"
+		  }
+		],
+		"name": "getValidator",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "string"
+		  },
+		  {
+			"name": "",
+			"type": "string"
+		  },
+		  {
+			"name": "",
+			"type": "string"
+		  },
+		  {
+			"name": "",
+			"type": "bytes"
+		  },
+		  {
+			"name": "",
+			"type": "address"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
+)
+
+var (
+	getValidatorFuncABI, _ = abi.JSON(strings.NewReader(getValidatorABI))
+)
 // ==============================================
 //
 // define the istanbul announce message
@@ -146,6 +192,13 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) sendIstAnnounce() error {
+	block := sb.currentBlock()
+	state, err := sb.stateAt(block.Header().ParentHash)
+	if err != nil {
+		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
+		return err
+	}
+
 	enode := sb.Enode()
 	if enode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
@@ -154,6 +207,41 @@ func (sb *Backend) sendIstAnnounce() error {
 
 	enodeUrl := enode.String()
 	view := sb.core.CurrentView()
+
+	regVals, err := sb.retrieveRegisteredValidators()
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
+		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+		regVals = make(map[common.Address]bool)
+		for _, val := range valSet.List() {
+			regVals[val.Address()] = true
+		}
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return err
+	}
+
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
+		return errValidatorsContractNotRegistered
+	}
+
+	encryptedEnodeUrl := make(map[common.Address]string)
+	log.Info("wow", "poo", regVals)
+	for addr := range regVals {
+		var newValSet *big.Int
+		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &newValSet, uint64(1000000), block.Header(), state); err != nil {
+			log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
+			return err
+		}
+		ECDSAKey = crypto.UnmarshalPubkey(newValSet.publicKey)
+		pubKey = ecies.ImportECDSA(ECDSAKey)
+		encryptedEnodeUrl[addr] = ecies.Encrypt(rand.Reader, pubKey, enodeUrl, nil, nil)
+	}
 
 	msg := &announceMessage{Address: sb.Address(),
 		EnodeURL: enodeUrl,
@@ -252,7 +340,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
-	if (rand.Int() % 100) <= 5 {
+	if (mrand.Int() % 100) <= 5 {
 		for remoteAddress := range sb.lastAnnounceGossiped {
 			if !regVals[remoteAddress] {
 				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
