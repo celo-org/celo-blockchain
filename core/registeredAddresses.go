@@ -125,7 +125,7 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.
 		ra.RefreshAddresses()
 	}
 
-  ra.RefreshAddressesAtCurrentHeader()
+	ra.RefreshAddressesAtCurrentHeader()
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()
 
