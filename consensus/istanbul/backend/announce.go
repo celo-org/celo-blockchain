@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/big"
 	mrand "math/rand"
 	"strings"
 	"time"
@@ -29,6 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -192,6 +193,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) sendIstAnnounce() error {
+	log.Info("hello")
 	block := sb.currentBlock()
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
@@ -230,17 +232,22 @@ func (sb *Backend) sendIstAnnounce() error {
 		return errValidatorsContractNotRegistered
 	}
 
-	encryptedEnodeUrl := make(map[common.Address]string)
+	encryptedEnodeUrls := make(map[common.Address]string)
 	log.Info("wow", "poo", regVals)
 	for addr := range regVals {
-		var newValSet *big.Int
+		var newValSet interface{}
 		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &newValSet, uint64(1000000), block.Header(), state); err != nil {
 			log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
 			return err
 		}
-		ECDSAKey = crypto.UnmarshalPubkey(newValSet.publicKey)
-		pubKey = ecies.ImportECDSA(ECDSAKey)
-		encryptedEnodeUrl[addr] = ecies.Encrypt(rand.Reader, pubKey, enodeUrl, nil, nil)
+		ECDSAKey, err := crypto.UnmarshalPubkey(newValSet.publicKey)
+		pubKey := ecies.ImportECDSAPublic(ECDSAKey)
+		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
+		if err != nil {
+			log.Error("Unable to unmarshal public key", "err", err)
+		} else {
+			encryptedEnodeUrls[addr] = string(encryptedEnodeUrl)
+		}
 	}
 
 	msg := &announceMessage{Address: sb.Address(),
