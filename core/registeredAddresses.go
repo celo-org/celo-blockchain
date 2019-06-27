@@ -121,10 +121,6 @@ func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.
 		return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
 	}
 
-	if len(ra.registeredAddresses) == 0 { // This refresh is for a light client that failed to refresh (did not have a network connection) during node construction
-		ra.RefreshAddresses()
-	}
-
 	ra.RefreshAddressesAtCurrentHeader()
 	ra.registeredAddressesMu.RLock()
 	defer ra.registeredAddressesMu.RUnlock()

@@ -85,16 +85,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// Refresh the registered addresses cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.regAdd.RefreshAddresses()
-	}
-
-	// Refresh the gas currency whitelist cache right before processing the block's transactions
-	if p.gcWl != nil {
-		p.gcWl.RefreshWhitelist()
-	}
-
 	var iEvmH *InternalEVMHandler
 	if p.gcWl == nil {
 		iEvmH = nil

@@ -101,7 +101,6 @@ const defaultGasAmount = 2000000
 
 var (
 	gasPriceMinimumABI, _   = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	errNoGasPriceMinimum    = errors.New("no gasprice minimum contract address found")
 	gasPriceMinimumCache    = make(map[common.Address]*big.Int)
 	cacheHeaderHash         common.Hash
 	cacheMu                                         = new(sync.RWMutex)
