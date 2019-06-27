@@ -765,7 +765,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction, nil)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err

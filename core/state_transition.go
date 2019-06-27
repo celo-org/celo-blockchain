@@ -64,6 +64,7 @@ type StateTransition struct {
 	gcWl            *GasCurrencyWhitelist
 	gasPriceMinimum *big.Int
 	infraFraction   *InfrastructureFraction
+	infraAddress    *common.Address
 }
 
 // Message represents a message sent to a contract.
@@ -136,7 +137,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) *StateTransition {
 	return &StateTransition{
 		gp:              gp,
 		evm:             evm,
@@ -148,6 +149,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 		gcWl:            gcWl,
 		gasPriceMinimum: gasPriceMinimum,
 		infraFraction:   infraFraction,
+		infraAddress:    infraAddress,
 	}
 }
 
@@ -158,8 +160,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -350,11 +352,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-	var infraAddress *common.Address = nil
-	if st.gcWl != nil && st.gcWl.regAdd != nil {
-		infraAddress, err = st.gcWl.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
-	}
-
 	// Distribute transaction fees
 	err = st.refundGas()
 	if err != nil {
@@ -367,10 +364,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 
 	var recipientTxFee *big.Int
-	if infraAddress != nil {
+	if st.infraAddress != nil {
 		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
-		err = st.creditGas(*infraAddress, infraTxFee, msg.GasCurrency())
+		err = st.creditGas(*st.infraAddress, infraTxFee, msg.GasCurrency())
 	} else {
 		log.Error("no infrastructure account address found - sending enitre txFee to fee recipient")
 		recipientTxFee = totalTxFee

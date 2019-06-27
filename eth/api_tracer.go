@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
@@ -504,7 +505,21 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
 		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
 		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction); err != nil {
+
+		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
+		var infraAddress *common.Address
+		var err error
+		if api.eth.regAdd != nil {
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		}
+
+		if err == core.ErrSmartContractNotDeployed {
+			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
+		}
+
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress); err != nil {
 			failed = err
 			break
 		}
@@ -604,7 +619,19 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vmConf)
 		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
 		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
+
+		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
+		var infraAddress *common.Address
+		if api.eth.regAdd != nil {
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		}
+		if err == core.ErrSmartContractNotDeployed {
+			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
+		}
+
+		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
 
 		if dump != nil {
 			dump.Close()
@@ -755,7 +782,19 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 
 	gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, message.GasCurrency())
 	infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
-	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
+
+	// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
+	var infraAddress *common.Address
+	if api.eth.regAdd != nil {
+		infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+	}
+	if err == core.ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
+	}
+
+	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %v", err)
 	}
@@ -806,7 +845,20 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		vmenv := vm.NewEVM(ctx, statedb, api.config, vm.Config{})
 		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(context.Background(), msg.GasCurrency())
 		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(context.Background())
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction); err != nil {
+
+		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
+		var infraAddress *common.Address
+		var err error
+		if api.eth.regAdd != nil {
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		}
+		if err == core.ErrSmartContractNotDeployed {
+			log.Warn("Registry address lookup failed", "err", err)
+		} else if err != nil {
+			log.Error(err.Error())
+		}
+
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state

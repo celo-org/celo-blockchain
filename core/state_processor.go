@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -92,6 +93,18 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		iEvmH = p.gcWl.iEvmH
 	}
 
+	var infraAddress *common.Address
+	var err error
+	if p.gcWl != nil && p.gcWl.regAdd != nil {
+		infraAddress, err = p.gcWl.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+	}
+
+	if err == ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
+	}
+
 	infraFraction, _ := GetInfrastructureFraction(iEvmH, p.regAdd)
 
 	if p.random != nil && p.random.Running() {
@@ -104,7 +117,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		gasPriceMinimum, _ := GetGasPriceMinimum(iEvmH, p.regAdd, tx.GasCurrency())
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction)
+		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction, infraAddress)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -121,7 +134,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) (*types.Receipt, uint64, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
@@ -142,7 +155,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 	// Apply the transaction to the current state (included in the env)
-	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction)
+	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
 		return nil, 0, err
 	}

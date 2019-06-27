@@ -743,7 +743,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 
 	gasPriceMinimum, err := s.b.GasPriceMinimum(ctx, args.GasCurrency)
 	infraFraction, err := s.b.InfrastructureFraction(ctx)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, nil)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
