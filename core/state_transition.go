@@ -382,9 +382,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	txFeeRecipient := msg.GasFeeRecipient()
 	if txFeeRecipient == nil {
-		txFeeRecipient = msg.From()
+		sender := msg.From()
+		txFeeRecipient = &sender
 	}
-	err = st.creditGas(txFeeRecipient, recipientTxFee, msg.GasCurrency())
+	err = st.creditGas(*txFeeRecipient, recipientTxFee, msg.GasCurrency())
 
 	if err != nil {
 		return nil, 0, false, err
