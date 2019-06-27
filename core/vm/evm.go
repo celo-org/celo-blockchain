@@ -236,7 +236,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
 	if err != nil {
-		log.Debug("Failed to transfer with tobin tax", "err", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, gas, err
 	}
 	// Initialise a new contract and set the code that is to be used by the EVM.
@@ -423,7 +423,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 	if err != nil {
-		log.Error("TobinTransfer failed", "error", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, address, gas, err
 	}
 

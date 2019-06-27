@@ -137,6 +137,15 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		return nil, 0, err
 	}
 
+	// Refresh the registered addresses and gas currency whitelist right before processing the transaction
+	if regAdd != nil {
+		regAdd.RefreshAddressesAtStateAndHeader(statedb, header)
+	}
+
+	if gcWl != nil {
+		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
+	}
+
 	// Create a new context to be used in the EVM environment
 	context := NewEVMContext(msg, header, bc, author, regAdd)
 	// Create a new environment which holds all relevant information
