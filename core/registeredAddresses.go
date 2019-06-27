@@ -88,7 +88,7 @@ func (ra *RegisteredAddresses) retrieveRegisteredAddresses(state *state.StateDB,
 			log.Error("Registry.getAddressFor invocation error", "registryId", contractRegistryId, "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Debug("Registry.getAddressFor invocation success", "registryId", contractRegistryId, "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
+			log.Trace("Registry.getAddressFor invocation success", "registryId", contractRegistryId, "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
 
 			if contractAddress != common.ZeroAddress {
 				returnMap[contractRegistryId] = contractAddress
