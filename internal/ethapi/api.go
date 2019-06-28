@@ -702,10 +702,10 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	if gas == 0 {
 		gas = math.MaxUint64 / 2
 	}
-	// Checking against 1 is a hack to allow users to bypass the default gas price being set by web3,
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
-	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(1)) == 0 {
+	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
 		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 	}
 
@@ -1233,10 +1233,10 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
 		}
 	}
-	// Checking against 1 is a hack to allow users to bypass the default gas price being set by web3,
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
-	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(1)) == 0 {
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
 		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err
