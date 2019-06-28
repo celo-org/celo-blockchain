@@ -128,7 +128,6 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		currencyAddress, err = gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 
 		if err != nil {
-			log.Error("No gold token contract address found. Returning default gold gasprice min of 0")
 			return FallbackGasPriceMinimum, errors.New("no goldtoken contract address found")
 		}
 	} else {
@@ -138,11 +137,7 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 	var gasPriceMinimum *big.Int
 	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
 
-	if err == ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return FallbackGasPriceMinimum, err
-	} else if err != nil {
-		log.Error(err.Error())
+	if err != nil {
 		return FallbackGasPriceMinimum, err
 	}
 
@@ -160,14 +155,9 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 }
 
 func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
-	log.Info("gasprice.UpdateGasPriceMinimum called", "gpm", gpm)
 	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
 
-	if err == ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return nil, err
-	} else if err != nil {
-		log.Error(err.Error())
+	if err != nil {
 		return nil, err
 	}
 
@@ -193,16 +183,11 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	if gpm.iEvmH == nil || gpm.regAdd == nil {
-		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default infra fraction of 0")
 		return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
 	}
 
 	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-	if err == ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return FallbackInfraFraction, err
-	} else if err != nil {
-		log.Error(err.Error())
+	if err != nil {
 		return FallbackInfraFraction, err
 	}
 

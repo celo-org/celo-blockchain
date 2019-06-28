@@ -276,7 +276,6 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 	}
 	// n is now the reorg common ancestor, add a new branch of nodes
 	if n != nil && (head.Number >= n.number+maxNodeCount || head.Number <= n.number) {
-		log.Info("Asa: blah blah blah")
 		// if announced head block height is lower or same as n or too far from it to add
 		// intermediate nodes then discard previous announcement info and trigger a resync
 		n = nil
@@ -284,7 +283,6 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 		fp.nodeByHash = make(map[common.Hash]*fetcherTreeNode)
 	}
 	if n != nil {
-		log.Info("Asa: bleh bleh bleh")
 		// check if the node count is too high to add new nodes, discard oldest ones if necessary
 		locked := false
 		for uint64(fp.nodeCnt)+head.Number-n.number > maxNodeCount && fp.root != nil {
@@ -318,7 +316,6 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 			}
 		}
 		if n != nil {
-			log.Info("Asa: bloo bloo lboo")
 			for n.number < head.Number {
 				nn := &fetcherTreeNode{number: n.number + 1, parent: n}
 				n.children = append(n.children, nn)
@@ -331,7 +328,6 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 		}
 	}
 	if n == nil {
-		log.Info("Asa: n was nil")
 		// could not find reorg common ancestor or had to delete entire tree, a new root and a resync is needed
 		if fp.root != nil {
 			fp.deleteNode(fp.root)
@@ -661,10 +657,8 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	// Disable this in Latest block only mode since we are not fetching the full chain
 	// now n is the latest downloaded header after syncing.
 	// Ultralightsync mode handles this behavior properly.
-	// TODO(asa): Comment explaining why this works.
 	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
-			log.Debug("Doing stuff with n", "hash", n.hash, "number", n.number, "parent", n.parent)
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {
 				break
 			}

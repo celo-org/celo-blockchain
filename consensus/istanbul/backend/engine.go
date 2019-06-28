@@ -479,25 +479,21 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
-
-	log.Info("Finalize: gaspriceminimum", "gpm", sb.gpm)
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := sb.gpm.UpdateGasPriceMinimum(header, state)
-	log.Trace("Updated gas price minimum", "gas price minimum", updatedGasPriceMinimum)
 
 	if err != nil {
-		log.Error("Error in updating gas price minimum", "error", err)
+		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
-	// Add block rewards
 	goldTokenAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
-
-	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
+	// Add block rewards only if goldtoken smart contract has been initialized
+	if goldTokenAddress != nil {
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
