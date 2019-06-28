@@ -516,10 +516,12 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			log.Error(err.Error())
 		}
 
-		if governanceAddress != nil && bondedDepositsAddress != nil {
+		if governanceAddress != nil {
 			state.AddBalance(*governanceAddress, infrastructureBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
+		}
 
+		if bondedDepositsAddress != nil {
 			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
 			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
