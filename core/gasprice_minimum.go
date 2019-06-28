@@ -102,6 +102,7 @@ var (
 	gasPriceMinimumABI, _                           = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
 	FallbackInfraFraction   *InfrastructureFraction = &InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
 	FallbackGasPriceMinimum *big.Int                = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier    *big.Int                = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
 type InfrastructureFraction struct {
@@ -112,6 +113,11 @@ type InfrastructureFraction struct {
 type GasPriceMinimum struct {
 	regAdd *RegisteredAddresses
 	iEvmH  *InternalEVMHandler
+}
+
+func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
+	gasPriceMinimum, err := gpm.GetGasPriceMinimum(currency, state, header)
+	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
 }
 
 func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
