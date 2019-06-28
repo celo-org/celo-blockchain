@@ -92,6 +92,7 @@ type testWorkerBackend struct {
 	iEvmH          *core.InternalEVMHandler
 	regAdd         *core.RegisteredAddresses
 	gcWl           *core.GasCurrencyWhitelist
+	gpm            *core.GasPriceMinimum
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -126,6 +127,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	regAdd := core.NewRegisteredAddresses(iEvmH)
 	iEvmH.SetRegisteredAddresses(regAdd)
 	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
+	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
 	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
@@ -134,6 +136,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
 		istanbul.SetInternalEVMHandler(iEvmH)
 		istanbul.SetRegisteredAddresses(regAdd)
+		istanbul.SetGasPriceMinimum(gpm)
 		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
 
@@ -165,6 +168,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		iEvmH:          iEvmH,
 		gcWl:           gcWl,
 		regAdd:         regAdd,
+		gpm:            gpm,
 	}
 }
 
@@ -177,6 +181,7 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
 func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
 func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return b.iEvmH }
+func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)

@@ -122,7 +122,7 @@ func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, stat
 
 func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
 
-	if gpm.iEvmH == nil || gpm.regAdd == nil {
+	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
 		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
 		return FallbackGasPriceMinimum, errors.New("nil iEvmH or addressRegistry")
 	}
@@ -188,7 +188,7 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	if gpm.iEvmH == nil || gpm.regAdd == nil {
+	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
 		return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
 	}
 
