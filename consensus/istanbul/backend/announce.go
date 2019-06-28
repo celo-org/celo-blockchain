@@ -233,22 +233,23 @@ func (sb *Backend) sendIstAnnounce() error {
 	}
 
 	encryptedEnodeUrls := make(map[common.Address]string)
-	log.Info("wow", "poo", regVals)
 	for addr := range regVals {
-		var newValSet interface{}
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &newValSet, uint64(1000000), block.Header(), state); err != nil {
+		var validator []interface{}
+		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
 			log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
 			return err
 		}
-		ECDSAKey, err := crypto.UnmarshalPubkey(newValSet.publicKey)
+		pubKeyBytes, ok := validator[3].([]byte) // The publicKey field
+		ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
 		pubKey := ecies.ImportECDSAPublic(ECDSAKey)
 		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
-		if err != nil {
+		if err != nil || !ok {
 			log.Error("Unable to unmarshal public key", "err", err)
 		} else {
 			encryptedEnodeUrls[addr] = string(encryptedEnodeUrl)
 		}
 	}
+	log.Info("wow", "poo", encryptedEnodeUrls)
 
 	msg := &announceMessage{Address: sb.Address(),
 		EnodeURL: enodeUrl,
