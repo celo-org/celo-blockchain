@@ -83,6 +83,7 @@ var (
 type announceMessage struct {
 	Address   common.Address
 	EnodeURL  string
+	EncryptedEnodeUrls map[common.Address][]byte
 	View      *istanbul.View
 	Signature []byte
 }
@@ -232,7 +233,7 @@ func (sb *Backend) sendIstAnnounce() error {
 		return errValidatorsContractNotRegistered
 	}
 
-	encryptedEnodeUrls := make(map[common.Address]string)
+	encryptedEnodeUrls := make(map[common.Address][]byte)
 	for addr := range regVals {
 		var validator []interface{}
 		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
@@ -246,7 +247,7 @@ func (sb *Backend) sendIstAnnounce() error {
 		if err != nil || !ok {
 			log.Error("Unable to unmarshal public key", "err", err)
 		} else {
-			encryptedEnodeUrls[addr] = string(encryptedEnodeUrl)
+			encryptedEnodeUrls[addr] = encryptedEnodeUrl
 		}
 	}
 	log.Info("wow", "poo", encryptedEnodeUrls)
@@ -322,8 +323,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return errUnauthorizedAnnounceMessage
 	}
 
+	// Decrypt the EnodeURL
+	encryptedEnodeUrls := msg.EncryptedEnodeUrls
+	encryptedEnodeUrl := encryptedEnodeUrls[sb.Address()]
+	enodeUrl, err := sb.Decrypt(encryptedEnodeUrl)
+
 	// Save in the valEnodeTable if mining
-	if sb.coreStarted {
+	if sb.coreStarted && enodeUrl != nil {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 

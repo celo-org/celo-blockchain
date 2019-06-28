@@ -484,7 +484,7 @@ func (s *Ethereum) StartMining(threads int) error {
 				clique.Authorize(eb, wallet.SignHash)
 			}
 			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignHash)
+				istanbul.Authorize(eb, wallet.Decrypt, wallet.SignHash)
 			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism

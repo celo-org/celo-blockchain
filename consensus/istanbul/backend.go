@@ -26,6 +26,10 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
+// DecrypterFn is a decrypter callback function to request a ciphertext to be
+// decrypted by a backing account.
+type DecrypterFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
+
 // SignerFn is a signer callback function to request a hash to be signed by a
 // backing account.
 type SignerFn func(accounts.Account, []byte) ([]byte, error)
@@ -93,5 +97,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn)
+	Authorize(address common.Address, decryptFn DecrypterFn, signFn SignerFn)
 }
