@@ -83,7 +83,7 @@ var (
 type announceMessage struct {
 	Address   common.Address
 	EnodeURL  string
-	EncryptedEnodeUrls map[common.Address][]byte
+	EncryptedEnodeURLs map[common.Address][]byte
 	View      *istanbul.View
 	Signature []byte
 }
@@ -252,9 +252,12 @@ func (sb *Backend) sendIstAnnounce() error {
 	}
 	log.Info("wow", "poo", encryptedEnodeUrls)
 
-	msg := &announceMessage{Address: sb.Address(),
+	msg := &announceMessage{
+		Address: sb.Address(),
 		EnodeURL: enodeUrl,
-		View:     view}
+		EncryptedEnodeURLs: encryptedEnodeUrls,
+		View: view,
+	}
 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
@@ -324,7 +327,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// Decrypt the EnodeURL
-	encryptedEnodeUrls := msg.EncryptedEnodeUrls
+	encryptedEnodeUrls := msg.EncryptedEnodeURLs
 	encryptedEnodeUrl := encryptedEnodeUrls[sb.Address()]
 	enodeUrl, err := sb.Decrypt(encryptedEnodeUrl)
 
