@@ -206,8 +206,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
-	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
@@ -216,6 +214,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		istanbul.SetRegisteredAddresses(eth.regAdd)
 		istanbul.SetGasPriceMinimum(eth.gpm)
 	}
+
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
+	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth}
 	return eth, nil

@@ -1230,7 +1230,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
 		}
 	}
-	if args.GasPrice == nil {
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
 		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err

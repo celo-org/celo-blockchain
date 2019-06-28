@@ -478,9 +478,9 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
+	log.Info("Finalize: gaspriceminimum", "gpm", sb.gpm)
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := sb.gpm.UpdateGasPriceMinimum(header, state)
 	log.Trace("Updated gas price minimum", "gas price minimum", updatedGasPriceMinimum)

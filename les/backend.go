@@ -157,6 +157,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
 	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
 	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd, leth.iEvmH)
+	leth.gpm = core.NewGasPriceMinimum(leth.iEvmH, leth.regAdd)
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
