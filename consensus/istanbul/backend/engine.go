@@ -504,17 +504,17 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			log.Error(err.Error())
 		}
 
+		if governanceAddress != nil {
+			state.AddBalance(*governanceAddress, infrastructureBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
+		}
+
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.BondedDepositsRegistryId, state, header)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
-		}
-
-		if governanceAddress != nil {
-			state.AddBalance(*governanceAddress, infrastructureBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
 		}
 
 		if bondedDepositsAddress != nil {

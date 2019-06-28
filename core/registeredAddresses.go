@@ -28,7 +28,7 @@ import (
 )
 
 // ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-var ErrSmartContractNotDeployed = errors.New("registry contract not deployed")
+var ErrSmartContractNotDeployed = errors.New("registered contract not deployed")
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
