@@ -100,35 +100,27 @@ const (
 const defaultGasAmount = 2000000
 
 var (
-	gasPriceMinimumABI, _   = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	gasPriceMinimumCache    = make(map[common.Address]*big.Int)
-	cacheHeaderHash         common.Hash
-	cacheMu                                         = new(sync.RWMutex)
+	gasPriceMinimumABI, _                           = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
 	FallbackInfraFraction   *InfrastructureFraction = &InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
 	FallbackGasPriceMinimum *big.Int                = big.NewInt(0) // gasprice min to return if contracts are not found
 )
-
-type EvmHandler interface {
-	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
-}
-
-type StaticEvmHandler interface {
-	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
-	CurrentHeader() *types.Header
-}
-
-type AddressRegistry interface {
-	GetRegisteredAddress(registryId string) (*common.Address, error)
-}
 
 type InfrastructureFraction struct {
 	Numerator   *big.Int
 	Denominator *big.Int
 }
 
-func GetGasPriceMinimum(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency *common.Address) (*big.Int, error) {
+type GasPriceMinimum struct {
+	regAdd               *RegisteredAddresses
+	iEvmH                *InternalEVMHandler
+	gasPriceMinimumCache map[common.Address]*big.Int
+	cacheHeaderHash      common.Hash
+	cacheMu              *sync.RWMutex
+}
 
-	if iEvmH == nil || regAdd == nil {
+func (gp *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
+
+	if gp.iEvmH == nil || gp.regAdd == nil {
 		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
 		return FallbackGasPriceMinimum, errors.New("nil iEvmH or addressRegistry")
 	}
@@ -137,7 +129,7 @@ func GetGasPriceMinimum(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+		currencyAddress, err = gp.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 
 		if err != nil {
 			log.Error("No gold token contract address found. Returning default gold gasprice min of 0")
@@ -147,21 +139,21 @@ func GetGasPriceMinimum(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency
 		currencyAddress = currency
 	}
 
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
+	gp.cacheMu.Lock()
+	defer gp.cacheMu.Unlock()
 
-	currentHeaderHash := iEvmH.CurrentHeader().Hash()
-	if cacheHeaderHash != currentHeaderHash {
-		gasPriceMinimumCache = make(map[common.Address]*big.Int)
-		cacheHeaderHash = currentHeaderHash
+	currentHeaderHash := gp.iEvmH.CurrentHeader().Hash()
+	if gp.cacheHeaderHash != currentHeaderHash {
+		gp.gasPriceMinimumCache = make(map[common.Address]*big.Int)
+		gp.cacheHeaderHash = currentHeaderHash
 	}
 
 	var gasPriceMinimum *big.Int
-	if gasPriceMinimum, ok := gasPriceMinimumCache[*currencyAddress]; ok {
+	if gasPriceMinimum, ok := gp.gasPriceMinimumCache[*currencyAddress]; ok {
 		return gasPriceMinimum, nil
 	}
 
-	gasPriceMinimumAddress, err := regAdd.GetRegisteredAddress(params.GasPriceMinimumRegistryId)
+	gasPriceMinimumAddress, err := gp.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -171,7 +163,7 @@ func GetGasPriceMinimum(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency
 		return FallbackGasPriceMinimum, err
 	}
 
-	_, err = iEvmH.MakeStaticCall(
+	_, err = gp.iEvmH.MakeStaticCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
@@ -182,14 +174,14 @@ func GetGasPriceMinimum(iEvmH StaticEvmHandler, regAdd AddressRegistry, currency
 		nil,
 	)
 	if err == nil {
-		gasPriceMinimumCache[*currencyAddress] = gasPriceMinimum
+		gp.gasPriceMinimumCache[*currencyAddress] = gasPriceMinimum
 	}
 	return gasPriceMinimum, err
 }
 
-func UpdateGasPriceMinimum(iEvmH EvmHandler, regAdd AddressRegistry, header *types.Header, state *state.StateDB) (*big.Int, error) {
+func (gp *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
 	log.Trace("gasprice.UpdateGasPriceMinimum called")
-	gasPriceMinimumAddress, err := regAdd.GetRegisteredAddress(params.GasPriceMinimumRegistryId)
+	gasPriceMinimumAddress, err := gp.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -201,7 +193,7 @@ func UpdateGasPriceMinimum(iEvmH EvmHandler, regAdd AddressRegistry, header *typ
 
 	var updatedGasPriceMinimum *big.Int
 
-	_, err = iEvmH.MakeCall(
+	_, err = gp.iEvmH.MakeCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
@@ -217,15 +209,15 @@ func UpdateGasPriceMinimum(iEvmH EvmHandler, regAdd AddressRegistry, header *typ
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (*InfrastructureFraction, error) {
+func (gp *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	if iEvmH == nil || regAdd == nil {
+	if gp.iEvmH == nil || gp.regAdd == nil {
 		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default infra fraction of 0")
 		return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
 	}
 
-	gasPriceMinimumAddress, err := regAdd.GetRegisteredAddress(params.GasPriceMinimumRegistryId)
+	gasPriceMinimumAddress, err := gp.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return FallbackInfraFraction, err
@@ -234,7 +226,7 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
 		return FallbackInfraFraction, err
 	}
 
-	_, err = iEvmH.MakeStaticCall(
+	_, err = gp.iEvmH.MakeStaticCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"infrastructureFraction",
@@ -246,4 +238,15 @@ func GetInfrastructureFraction(iEvmH StaticEvmHandler, regAdd AddressRegistry) (
 	)
 
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
+}
+
+func NewGasPriceMinimum(iEvmH *InternalEVMHandler, regAdd *RegisteredAddresses) *GasPriceMinimum {
+	gp := &GasPriceMinimum{
+		gasPriceMinimumCache: make(map[common.Address]*big.Int),
+		cacheMu:              new(sync.RWMutex),
+		iEvmH:                iEvmH,
+		regAdd:               regAdd,
+	}
+
+	return gp
 }

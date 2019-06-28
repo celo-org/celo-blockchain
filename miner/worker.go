@@ -526,11 +526,6 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				// Refresh the registered address cache before processing transaction batch
-				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-					regAdd.RefreshAddressesAtCurrentHeader()
-				}
-
 				// Refresh the gas currency whitelist cache before processing transaction batch
 				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
 					wl.RefreshWhitelistAtCurrentHeader()
@@ -764,8 +759,8 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, infraFraction *core.InfrastructureFraction) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction, nil)
+	gasPriceMinimum, _ := w.eth.GasPriceMinimum().GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -786,7 +781,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
 	}
 
-	infraFraction, _ := core.GetInfrastructureFraction(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses())
+	infraFraction, _ := w.eth.GasPriceMinimum().GetInfrastructureFraction(w.current.state, w.current.header)
 	var coalescedLogs []*types.Log
 
 	for {
@@ -821,7 +816,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
-		gasPriceMinimum, _ := core.GetGasPriceMinimum(w.eth.InternalEVMHandler(), w.eth.RegisteredAddresses(), tx.GasCurrency())
+		gasPriceMinimum, _ := w.eth.GasPriceMinimum().GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum")
 			break
@@ -996,11 +991,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	w.updateSnapshot()
-
-	// Refresh the registered address cache before processing transaction batch
-	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-		regAdd.RefreshAddressesAtCurrentHeader()
-	}
 
 	// Refresh the gas currency whitelist cache before processing the pending transactions
 	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {

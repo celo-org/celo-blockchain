@@ -503,14 +503,14 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, api.eth.regAdd)
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
-		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
+		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
+		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
 
 		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
 		var infraAddress *common.Address
 		var err error
 		if api.eth.regAdd != nil {
-			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
 		}
 
 		if err == core.ErrSmartContractNotDeployed {
@@ -617,13 +617,13 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		}
 		// Execute the transaction and flush any traces to disk
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vmConf)
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, msg.GasCurrency())
-		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
+		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
+		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
 
 		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
 		var infraAddress *common.Address
 		if api.eth.regAdd != nil {
-			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
 		}
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
@@ -780,13 +780,13 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	// Run the transaction with tracing enabled.
 	vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{Debug: true, Tracer: tracer})
 
-	gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(ctx, message.GasCurrency())
-	infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(ctx)
+	gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(message.GasCurrency(), statedb, nil)
+	infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, nil)
 
 	// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
 	var infraAddress *common.Address
 	if api.eth.regAdd != nil {
-		infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		infraAddress, err = api.eth.regAdd.GetRegisteredAddressAtCurrentHeader(params.GovernanceRegistryId)
 	}
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -843,14 +843,14 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(ctx, statedb, api.config, vm.Config{})
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum(context.Background(), msg.GasCurrency())
-		infraFraction, _ := api.eth.APIBackend.InfrastructureFraction(context.Background())
+		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
+		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
 
 		// TODO (jarmg 6/26): Remove this address pull - likely fixed during object refactor
 		var infraAddress *common.Address
 		var err error
 		if api.eth.regAdd != nil {
-			infraAddress, err = api.eth.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+			infraAddress, err = api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
 		}
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)

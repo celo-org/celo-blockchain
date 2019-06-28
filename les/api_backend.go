@@ -171,19 +171,19 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, nil)
+	return b.eth.gpm.GetGasPriceMinimum(nil, nil, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+	return b.eth.gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
-func (b *LesApiBackend) GasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceMinimum(b.eth.iEvmH, b.eth.regAdd, currencyAddress)
+func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return b.eth.gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
 func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
-	return core.GetInfrastructureFraction(b.eth.iEvmH, b.eth.regAdd)
+	return b.eth.gpm.GetInfrastructureFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -222,4 +222,8 @@ func (b *LesApiBackend) GasFeeRecipient() common.Address {
 
 func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
 	return b.eth.regAdd
+}
+
+func (b *LesApiBackend) GasPriceMinimum() *core.GasPriceMinimum {
+	return b.eth.gpm
 }

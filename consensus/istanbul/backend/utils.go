@@ -50,7 +50,7 @@ var (
 func (sb *Backend) retrieveRegisteredValidators() (map[common.Address]bool, error) {
 	var regVals []common.Address
 
-	validatorAddress, _ := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorAddress, _ := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
 	if validatorAddress == nil {
 		return nil, errValidatorsContractNotRegistered
 	} else {

@@ -419,7 +419,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.ValidatorsRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
@@ -482,7 +482,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	updatedGasPriceMinimum, err := core.UpdateGasPriceMinimum(sb.iEvmH, sb.regAdd, header, state)
+	updatedGasPriceMinimum, err := sb.gpm.UpdateGasPriceMinimum(header, state)
 	log.Trace("Updated gas price minimum", "gas price minimum", updatedGasPriceMinimum)
 
 	if err != nil {
@@ -490,17 +490,18 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	// Add block rewards
-	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	goldTokenAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
+
 	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		governanceAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
@@ -508,7 +509,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.BondedDepositsRegistryId, state, header)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
@@ -528,7 +529,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			}
 		}
 
-		// update totalSupply of GoldToken
+		// Update totalSupply of GoldToken.
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
 			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
@@ -671,6 +672,10 @@ func (sb *Backend) SetInternalEVMHandler(iEvmH consensus.ConsensusIEvmH) {
 
 func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
 	sb.regAdd = regAdd
+}
+
+func (sb *Backend) SetGasPriceMinimum(gpm consensus.ConsensusGasPriceMinimum) {
+	sb.gpm = gpm
 }
 
 func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {

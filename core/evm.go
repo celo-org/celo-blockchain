@@ -66,7 +66,12 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 
 	var registeredAddressMap map[string]*common.Address
 	if registeredAddresses != nil {
-		registeredAddressMap = registeredAddresses.GetRegisteredAddressMap()
+		state, err := chain.State()
+		if err != nil {
+			registeredAddressMap = registeredAddresses.GetRegisteredAddressMapAtCurrentHeader()
+		} else {
+			registeredAddressMap = registeredAddresses.GetRegisteredAddressMapAtStateAndHeader(state, header)
+		}
 	}
 
 	return vm.Context{
@@ -133,7 +138,15 @@ func (iEvmH *InternalEVMHandler) MakeStaticCall(scAddress common.Address, abi ab
 		return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
 	}
 
-	return iEvmH.makeCall(abiStaticCall, header, state)
+	return iEvmH.makeCall(abiStaticCall, header, state, iEvmH.regAdd)
+}
+
+func (iEvmH *InternalEVMHandler) MakeStaticCallNoRegisteredAddressMap(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+	abiStaticCall := func(evm *vm.EVM) (uint64, error) {
+		return evm.ABIStaticCall(zeroCaller, scAddress, abi, funcName, args, returnObj, gas)
+	}
+
+	return iEvmH.makeCall(abiStaticCall, header, state, nil)
 }
 
 func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
@@ -144,14 +157,14 @@ func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI,
 		return gasLeft, err
 	}
 
-	return iEvmH.makeCall(abiCall, header, state)
+	return iEvmH.makeCall(abiCall, header, state, iEvmH.regAdd)
 }
 
 func (iEvmH *InternalEVMHandler) CurrentHeader() *types.Header {
 	return iEvmH.chain.CurrentHeader()
 }
 
-func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB) (uint64, error) {
+func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB, regAdd *RegisteredAddresses) (uint64, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
@@ -173,7 +186,7 @@ func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error)
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := NewEVMContext(emptyMessage, header, iEvmH.chain, nil, iEvmH.regAdd)
+	context := NewEVMContext(emptyMessage, header, iEvmH.chain, nil, regAdd)
 	evm := vm.NewEVM(context, state, iEvmH.chain.Config(), *iEvmH.chain.GetVMConfig())
 
 	return call(evm)

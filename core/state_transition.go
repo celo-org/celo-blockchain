@@ -369,7 +369,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*st.infraAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		log.Error("no infrastructure account address found - sending enitre txFee to fee recipient")
+		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
 		recipientTxFee = totalTxFee
 	}
 
