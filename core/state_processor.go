@@ -90,7 +90,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	infraFraction, _ := p.gpm.GetInfrastructureFraction(statedb, header)
 	if p.random != nil && p.random.Running() {
 		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
@@ -100,6 +99,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
+		infraFraction, _ := p.gpm.GetInfrastructureFraction(statedb, header)
 		gasPriceMinimum, _ := p.gpm.GetGasPriceMinimum(tx.GasCurrency(), statedb, header)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction)
 		if err != nil {

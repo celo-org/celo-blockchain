@@ -154,8 +154,8 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		[]interface{}{currencyAddress},
 		&gasPriceMinimum,
 		defaultGasAmount,
-		nil,
-		nil,
+		header,
+		state,
 	)
 	return gasPriceMinimum, err
 }
@@ -204,8 +204,8 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 		[]interface{}{},
 		&infraFraction,
 		200000,
-		nil,
-		nil,
+		header,
+		state,
 	)
 
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
