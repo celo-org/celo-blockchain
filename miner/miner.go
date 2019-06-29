@@ -43,6 +43,7 @@ type Backend interface {
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
 	InternalEVMHandler() *core.InternalEVMHandler
+	GasPriceMinimum() *core.GasPriceMinimum
 }
 
 // Miner creates blocks
