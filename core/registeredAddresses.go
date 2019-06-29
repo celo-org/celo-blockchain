@@ -109,6 +109,9 @@ func (ra *RegisteredAddresses) GetRegisteredAddressMapAtCurrentHeader() map[stri
 
 func (ra *RegisteredAddresses) GetRegisteredAddressMapAtStateAndHeader(state *state.StateDB, header *types.Header) map[string]*common.Address {
 	returnMap := make(map[string]*common.Address)
+	if ra == nil {
+		return returnMap
+	}
 
 	for _, contractRegistryId := range registeredContractIds {
 		contractAddress, _ := ra.getRegisteredAddress(contractRegistryId, state, header)

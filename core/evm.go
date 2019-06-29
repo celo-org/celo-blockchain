@@ -55,23 +55,13 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, registeredAddresses *RegisteredAddresses) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address, registeredAddressesMap map[string]*common.Address) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
 		beneficiary, _ = chain.Engine().Author(header) // Ignore error, we're past header validation
 	} else {
 		beneficiary = *author
-	}
-
-	var registeredAddressMap map[string]*common.Address
-	if registeredAddresses != nil {
-		state, err := chain.State()
-		if err != nil {
-			registeredAddressMap = registeredAddresses.GetRegisteredAddressMapAtCurrentHeader()
-		} else {
-			registeredAddressMap = registeredAddresses.GetRegisteredAddressMapAtStateAndHeader(state, header)
-		}
 	}
 
 	return vm.Context{
@@ -85,7 +75,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		Difficulty:           new(big.Int).Set(header.Difficulty),
 		GasLimit:             header.GasLimit,
 		GasPrice:             new(big.Int).Set(msg.GasPrice()),
-		RegisteredAddressMap: registeredAddressMap,
+		RegisteredAddressMap: registeredAddressesMap,
 	}
 }
 
@@ -184,9 +174,10 @@ func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error)
 		}
 	}
 
+	registeredAddressesMap := regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := NewEVMContext(emptyMessage, header, iEvmH.chain, nil, regAdd)
+	context := NewEVMContext(emptyMessage, header, iEvmH.chain, nil, registeredAddressesMap)
 	evm := vm.NewEVM(context, state, iEvmH.chain.Config(), *iEvmH.chain.GetVMConfig())
 
 	return call(evm)

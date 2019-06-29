@@ -129,12 +129,13 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
 	}
 
+	registeredAddressesMap := regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, header)
 	// Create a new context to be used in the EVM environment
-	context := NewEVMContext(msg, header, bc, author, regAdd)
+	context := NewEVMContext(msg, header, bc, author, registeredAddressesMap)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
-	infraAddress, err := regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, header)
+	infraAddress := registeredAddressesMap[params.GovernanceRegistryId]
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
