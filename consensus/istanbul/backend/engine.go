@@ -419,7 +419,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.ValidatorsRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
@@ -478,42 +478,46 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
+	updatedGasPriceMinimum, err := sb.gpm.UpdateGasPriceMinimum(header, state)
 
-	// Calculate a new gas price suggestion and push it to the GasPriceOracle SmartContract
-	sb.updateGasPriceSuggestion(state)
+	if err != nil {
+		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
+	}
 
-	// Add block rewards
-	goldTokenAddress, err := sb.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	goldTokenAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
-	if goldTokenAddress != nil { // add block rewards only if goldtoken smart contract has been initialized
+	// Add block rewards only if goldtoken smart contract has been initialized
+	if goldTokenAddress != nil {
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := sb.regAdd.GetRegisteredAddress(params.GovernanceRegistryId)
+		governanceAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
+		}
+
+		if governanceAddress != nil {
+			state.AddBalance(*governanceAddress, infrastructureBlockReward)
+			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddress(params.BondedDepositsRegistryId)
+		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.BondedDepositsRegistryId, state, header)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
 
-		if governanceAddress != nil && bondedDepositsAddress != nil {
-			state.AddBalance(*governanceAddress, infrastructureBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
-
+		if bondedDepositsAddress != nil {
 			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
 			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
@@ -523,7 +527,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			}
 		}
 
-		// update totalSupply of GoldToken
+		// Update totalSupply of GoldToken.
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
 			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
@@ -552,11 +556,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
-}
-
-// TODO (jarmg 5/23/18): Implement this
-func (sb *Backend) updateGasPriceSuggestion(state *state.StateDB) *state.StateDB {
-	return (state)
 }
 
 // Seal generates a new block for the given input block with the local miner's
@@ -671,6 +670,10 @@ func (sb *Backend) SetInternalEVMHandler(iEvmH consensus.ConsensusIEvmH) {
 
 func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
 	sb.regAdd = regAdd
+}
+
+func (sb *Backend) SetGasPriceMinimum(gpm consensus.ConsensusGasPriceMinimum) {
+	sb.gpm = gpm
 }
 
 func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {

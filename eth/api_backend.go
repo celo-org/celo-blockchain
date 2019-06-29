@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -39,7 +38,6 @@ import (
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
 	eth *Ethereum
-	gpo *gasprice.Oracle
 }
 
 // ChainConfig returns the active chain configuration.
@@ -129,7 +127,8 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, b.eth.regAdd)
+	registeredAddressesMap := b.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
+	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, registeredAddressesMap)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
@@ -198,7 +197,11 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
+	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(nil, nil, nil)
+}
+
+func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -234,4 +237,8 @@ func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 
 func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
 	return b.eth.RegisteredAddresses()
+}
+
+func (b *EthAPIBackend) GasPriceMinimum() *core.GasPriceMinimum {
+	return b.eth.GasPriceMinimum()
 }
