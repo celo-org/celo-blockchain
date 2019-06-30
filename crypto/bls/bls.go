@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) (*BLS.PrivateKey, error) {
-	privateKeyBytes := crypto.FromECDSA(privateKeyBytes)
+func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) (*bls.PrivateKey, error) {
+	privateKeyBytes := crypto.FromECDSA(privateKeyECDSA)
 	privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, err
