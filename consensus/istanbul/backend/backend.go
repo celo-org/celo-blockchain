@@ -388,19 +388,16 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 
 // CheckSignature implements istanbul.Backend.CheckSignature
 func (sb *Backend) CheckSignature(data []byte, address common.Address, sig []byte) error {
-	/*
-		signer, err := istanbul.GetSignatureAddress(data, sig)
-		if err != nil {
-			log.Error("Failed to get signer address", "err", err)
-			return err
-		}
-		// Compare derived addresses
-		if signer != address {
-			return errInvalidSignature
-		}
-		return nil
-	*/
-	return errors.New("not implemented")
+	signer, err := istanbul.GetSignatureAddress(data, sig)
+	if err != nil {
+		log.Error("Failed to get signer address", "err", err)
+		return err
+	}
+	// Compare derived addresses
+	if signer != address {
+		return errInvalidSignature
+	}
+	return nil
 }
 
 // HasProposal implements istanbul.Backend.HasProposal
