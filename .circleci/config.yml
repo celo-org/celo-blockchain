@@ -76,7 +76,7 @@ jobs:
             yarn
       - run:
           name: Compile bls-zexe
-          run: |
+          command: |
             set -euo pipefail
             cd ~/geth
             make bls-zexe
