@@ -47,6 +47,13 @@ jobs:
             tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
             ${GO_LANG_DIR}/go/bin/go version
       - run:
+          name: Setup Rust language
+          command: |
+            set -euo pipefail
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+            rustup install nightly
+            rustup default nightly
+      - run:
           name: Setup celo-monorepo
           command: |
             set -euo pipefail
@@ -68,6 +75,13 @@ jobs:
             sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn
+      - run:
+          name: Compile bls-zexe
+          run: |
+            set -euo pipefail
+            cd ~/geth
+            make bls-zexe
+
       - persist_to_workspace:
           root: .
           paths: .
