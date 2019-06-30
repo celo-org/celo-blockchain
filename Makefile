@@ -14,7 +14,7 @@ GO ?= latest
 bls-zexe:
 	cd vendor/github.com/celo-org/bls-zexe/ultralight && cargo build --release
 
-geth:
+geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
