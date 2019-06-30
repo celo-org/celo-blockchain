@@ -244,6 +244,7 @@ func (c *CliqueConfig) String() string {
 type IstanbulConfig struct {
 	Epoch          uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
 	ProposerPolicy uint64 `json:"policy"` // The policy for proposer selection
+	BLS            bool   `json:"bls"`    // Should use BLS signatures
 }
 
 // String implements the stringer interface, returning the consensus engine details.

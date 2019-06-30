@@ -375,24 +375,31 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	if sb.signFn == nil {
 		return nil, errInvalidSigningFn
 	}
-	hashData := crypto.Keccak256(data)
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
+	if sb.config.BLS {
+		return sb.signFn(accounts.Account{Address: sb.address}, data)
+	} else {
+		hashData := crypto.Keccak256(data)
+		return sb.signFn(accounts.Account{Address: sb.address}, hashData)
+	}
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
 func (sb *Backend) CheckSignature(data []byte, address common.Address, sig []byte) error {
-	signer, err := istanbul.GetSignatureAddress(data, sig)
-	if err != nil {
-		log.Error("Failed to get signer address", "err", err)
-		return err
-	}
-	// Compare derived addresses
-	if signer != address {
-		return errInvalidSignature
-	}
-	return nil
+	/*
+		signer, err := istanbul.GetSignatureAddress(data, sig)
+		if err != nil {
+			log.Error("Failed to get signer address", "err", err)
+			return err
+		}
+		// Compare derived addresses
+		if signer != address {
+			return errInvalidSignature
+		}
+		return nil
+	*/
+	return errors.New("not implemented")
 }
 
 // HasProposal implements istanbul.Backend.HasProposal

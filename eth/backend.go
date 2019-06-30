@@ -267,6 +267,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
+		config.Istanbul.BLS = chainConfig.Istanbul.BLS
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
 
@@ -484,7 +485,11 @@ func (s *Ethereum) StartMining(threads int) error {
 				clique.Authorize(eb, wallet.SignHash)
 			}
 			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignHash)
+				if s.config.Istanbul.BLS {
+					istanbul.Authorize(eb, wallet.SignMessage)
+				} else {
+					istanbul.Authorize(eb, wallet.SignHash)
+				}
 			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism

@@ -33,6 +33,7 @@ import (
 	"sync"
 	"time"
 
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -42,9 +43,10 @@ import (
 )
 
 var (
-	ErrLocked  = accounts.NewAuthNeededError("password or unlock")
-	ErrNoMatch = errors.New("no key for given address or file")
-	ErrDecrypt = errors.New("could not decrypt key with given passphrase")
+	ErrLocked       = accounts.NewAuthNeededError("password or unlock")
+	ErrNoMatch      = errors.New("no key for given address or file")
+	ErrDecrypt      = errors.New("could not decrypt key with given passphrase")
+	ErrBLSSignature = errors.New("could not create a BLS signature")
 )
 
 // KeyStoreType is the reflect type of a keystore backend.
@@ -281,6 +283,36 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	}
 	// Sign the hash using plain ECDSA operations
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
+}
+
+func (ks *KeyStore) SignMessage(a accounts.Account, msg []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	privateKeyBytes := crypto.FromECDSA(unlockedKey.PrivateKey)
+	privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, ErrBLSSignature
+	}
+	defer privateKeyBLS.Destroy()
+
+	signature, err := privateKeyBLS.SignMessage(msg)
+	if err != nil {
+		return nil, ErrBLSSignature
+	}
+	defer signature.Destroy()
+
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, ErrBLSSignature
+	}
+
+	return signatureBytes, nil
 }
 
 // SignTx signs the given transaction with the requested account.

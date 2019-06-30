@@ -103,6 +103,10 @@ func (w *keystoreWallet) SignHash(account accounts.Account, hash []byte) ([]byte
 	return w.keystore.SignHash(account, hash)
 }
 
+func (w *keystoreWallet) SignMessage(account accounts.Account, msg []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 // SignTx implements accounts.Wallet, attempting to sign the given transaction
 // with the given account. If the wallet does not wrap this particular account,
 // an error is returned to avoid account leakage (even though in theory we may

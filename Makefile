@@ -11,6 +11,9 @@
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
 
+bls-zexe:
+	cd vendor/github.com/celo-org/bls-zexe/ultralight && cargo build --release
+
 geth:
 	build/env.sh go run build/ci.go install ./cmd/geth
 	@echo "Done building."
