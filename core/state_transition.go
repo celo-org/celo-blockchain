@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-
-	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
+	errInsufficientBalanceForGas    = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency    = errors.New("non-whitelisted gas currency address")
+	errGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
 )
 
 /*
@@ -52,16 +52,19 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp         *GasPool
-	msg        Message
-	gas        uint64
-	gasPrice   *big.Int
-	initialGas uint64
-	value      *big.Int
-	data       []byte
-	state      vm.StateDB
-	evm        *vm.EVM
-	gcWl       *GasCurrencyWhitelist
+	gp              *GasPool
+	msg             Message
+	gas             uint64
+	gasPrice        *big.Int
+	initialGas      uint64
+	value           *big.Int
+	data            []byte
+	state           vm.StateDB
+	evm             *vm.EVM
+	gcWl            *GasCurrencyWhitelist
+	gasPriceMinimum *big.Int
+	infraFraction   *InfrastructureFraction
+	infraAddress    *common.Address
 }
 
 // Message represents a message sent to a contract.
@@ -134,16 +137,19 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) *StateTransition {
 	return &StateTransition{
-		gp:       gp,
-		evm:      evm,
-		msg:      msg,
-		gasPrice: msg.GasPrice(),
-		value:    msg.Value(),
-		data:     msg.Data(),
-		state:    evm.StateDB,
-		gcWl:     gcWl,
+		gp:              gp,
+		evm:             evm,
+		msg:             msg,
+		gasPrice:        msg.GasPrice(),
+		value:           msg.Value(),
+		data:            msg.Data(),
+		state:           evm.StateDB,
+		gcWl:            gcWl,
+		gasPriceMinimum: gasPriceMinimum,
+		infraFraction:   infraFraction,
+		infraAddress:    infraAddress,
 	}
 }
 
@@ -154,8 +160,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -276,6 +282,13 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
+
+	// Make sure this transaction's gas price is valid.
+	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
+		log.Error("Tx gas price does not exceed minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+		return errGasPriceDoesNotExceedMinimum
+	}
+
 	return nil
 }
 
@@ -340,21 +353,37 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
+	// Distribute transaction fees
 	err = st.refundGas()
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)
 		return nil, 0, false, err
 	}
-
 	gasUsed := st.gasUsed()
-	// Pay gas fee to gas fee recipient
-	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
-	if msg.GasFeeRecipient() == nil {
-		err = st.creditGas(msg.From(), gasFee, msg.GasCurrency())
+
+	// Pay tx fee to tx fee recipient and Infrastructure fund
+	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
+
+	var recipientTxFee *big.Int
+	if st.infraAddress != nil {
+		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
+		err = st.creditGas(*st.infraAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		err = st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
+		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		recipientTxFee = totalTxFee
 	}
+
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	txFeeRecipient := msg.GasFeeRecipient()
+	if txFeeRecipient == nil {
+		sender := msg.From()
+		txFeeRecipient = &sender
+	}
+	err = st.creditGas(*txFeeRecipient, recipientTxFee, msg.GasCurrency())
 
 	if err != nil {
 		return nil, 0, false, err
