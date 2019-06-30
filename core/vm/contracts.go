@@ -73,6 +73,10 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	fractionMulExpAddress:     &fractionMulExp{},
 }
 
+// List of registered smart contracts that the Celo Precompiled Contracts needs to be aware of
+var RegisteredContractsForPrecompiledContracts = []string{params.AttestationsRegistryId, params.GoldTokenRegistryId}
+
+
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
@@ -435,7 +439,7 @@ func (c *requestAttestation) Run(input []byte, caller common.Address, evm *EVM, 
 		return nil, gas, err
 	}
 
-	abeAddress := evm.Context.getRegisteredAddress(params.AttestationsRegistryId)
+	abeAddress := evm.Context.registeredAddressesForPrecompiles[params.AttestationsRegistryId]
 
 	if abeAddress == nil {
 		return nil, gas, fmt.Errorf("Attestations Address is not set in the Registry contract")
@@ -461,7 +465,7 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	celoGoldAddress := evm.Context.getRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress := evm.Context.registeredAddressesForPrecompiles[params.GoldTokenRegistryId]
 
 	if celoGoldAddress == nil {
 		return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")

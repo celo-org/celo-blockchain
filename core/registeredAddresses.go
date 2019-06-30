@@ -26,49 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
-
-// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-var ErrSmartContractNotDeployed = errors.New("registered contract not deployed")
-
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
-	getAddressForABI = `[{"constant": true,
-                              "inputs": [
-                                   {
-                                       "name": "identifier",
-                                       "type": "string"
-                                   }
-                              ],
-                              "name": "getAddressFor",
-                              "outputs": [
-                                   {
-                                       "name": "",
-                                       "type": "address"
-                                   }
-                              ],
-                              "payable": false,
-                              "stateMutability": "view",
-                              "type": "function"
-                             }]`
-)
-
-var (
-	registrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	registeredContractIds        = []string{
-		params.AttestationsRegistryId,
-		params.BondedDepositsRegistryId,
-		params.GasCurrencyWhitelistRegistryId,
-		params.GasPriceMinimumRegistryId,
-		params.GoldTokenRegistryId,
-		params.GovernanceRegistryId,
-		params.RandomRegistryId,
-		params.ReserveRegistryId,
-		params.SortedOraclesRegistryId,
-		params.ValidatorsRegistryId,
-	}
-	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
-)
-
 type RegisteredAddresses struct {
 	iEvmH *InternalEVMHandler
 }
