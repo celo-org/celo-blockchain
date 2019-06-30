@@ -79,6 +79,7 @@ jobs:
           name: Compile bls-zexe
           command: |
             set -euo pipefail
+            export PATH=$PATH:$HOME/.cargo/bin
             cd ~/geth
             make bls-zexe
 
