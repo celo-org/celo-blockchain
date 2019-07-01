@@ -651,9 +651,9 @@ func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey e
 
 func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) {
 	// Reply.
-	senderFrom := req.From.IP
-	if senderFrom == nil {
-		senderFrom = from.IP
+	senderFrom := from.IP
+	if req.From.IP != nil && !req.From.IP.IsLoopback() {
+		senderFrom = req.From.IP
 	}
 
 	t.send(from, fromID, pongPacket, &pong{
