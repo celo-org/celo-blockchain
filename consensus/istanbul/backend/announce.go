@@ -76,16 +76,17 @@ const (
 var (
 	getValidatorFuncABI, _ = abi.JSON(strings.NewReader(getValidatorABI))
 )
+
 // ==============================================
 //
 // define the istanbul announce message
 
 type announceMessage struct {
-	Address   common.Address
-	EnodeURL  string
+	Address            common.Address
+	EnodeURL           string
 	EncryptedEnodeURLs map[common.Address][]byte
-	View      *istanbul.View
-	Signature []byte
+	View               *istanbul.View
+	Signature          []byte
 }
 
 func (am *announceMessage) String() string {
@@ -253,10 +254,10 @@ func (sb *Backend) sendIstAnnounce() error {
 	log.Info("wow", "poo", encryptedEnodeUrls)
 
 	msg := &announceMessage{
-		Address: sb.Address(),
-		EnodeURL: enodeUrl,
+		Address:            sb.Address(),
+		EnodeURL:           enodeUrl,
 		EncryptedEnodeURLs: encryptedEnodeUrls,
-		View: view,
+		View:               view,
 	}
 
 	// Sign the announce message

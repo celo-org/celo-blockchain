@@ -47,7 +47,7 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidDecryptingFn = errors.New("invalid decrypting function for istanbul messages")
-	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+	errInvalidSigningFn    = errors.New("invalid signing function for istanbul messages")
 )
 
 // Entries for the recent announce messages
@@ -87,11 +87,11 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address  common.Address    // Ethereum address of the signing key
-	signFn   istanbul.SignerFn // Signer function to authorize hashes with
-	signFnMu sync.RWMutex      // Protects the signer fields
+	address     common.Address       // Ethereum address of the signing key
+	signFn      istanbul.SignerFn    // Signer function to authorize hashes with
+	signFnMu    sync.RWMutex         // Protects the signer fields
 	decryptFn   istanbul.DecrypterFn // Decrypter function
-	decryptFnMu sync.RWMutex      // Protects the decrypter fields
+	decryptFnMu sync.RWMutex         // Protects the decrypter fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
