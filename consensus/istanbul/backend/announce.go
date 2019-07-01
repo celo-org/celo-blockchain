@@ -227,7 +227,7 @@ func (sb *Backend) sendIstAnnounce() error {
 		return err
 	}
 
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
 	if err != nil {
 		log.Warn("Registry address lookup failed", "err", err)
 		return errValidatorsContractNotRegistered
@@ -329,14 +329,15 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// Decrypt the EnodeURL
 	encryptedEnodeUrls := msg.EncryptedEnodeURLs
 	encryptedEnodeUrl := encryptedEnodeUrls[sb.Address()]
-	enodeUrl, err := sb.Decrypt(encryptedEnodeUrl)
+	enodeUrlBytes, err := sb.Decrypt(encryptedEnodeUrl)
+	enodeUrl := string(enodeUrlBytes)
 
 	// Save in the valEnodeTable if mining
-	if sb.coreStarted && enodeUrl != nil {
+	if sb.coreStarted && enodeUrl != "" {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		newValEnode := &validatorEnode{enodeURL: msg.EnodeURL, view: msg.View}
+		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
 			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
@@ -345,7 +346,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == msg.EnodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			return nil
 		}
@@ -354,7 +355,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {
