@@ -55,9 +55,11 @@ func GetGasPrice(ctx context.Context, iEvmH *core.InternalEVMHandler, regAdd *co
 	var gasPrice *big.Int
 	gasPriceOracleAddress, err := regAdd.GetRegisteredAddress(params.GasPriceOracleRegistryId)
 
-	if err != nil {
+	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return big.NewInt(0), errors.New("no gasprice oracle contract address found")
+	} else if err != nil {
+		log.Error(err.Error())
 	}
 
 	_, err = iEvmH.MakeStaticCall(*gasPriceOracleAddress, gasPriceOracleABI, "getGasPriceSuggestion", []interface{}{}, &gasPrice, 2000, nil, nil)

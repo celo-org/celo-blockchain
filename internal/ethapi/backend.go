@@ -71,6 +71,7 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
+	RegisteredAddresses() *core.RegisteredAddresses
 	GasFeeRecipient() common.Address
 }
 
