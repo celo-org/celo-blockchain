@@ -241,6 +241,6 @@ func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn)
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), nil, signerFn)
 	return
 }

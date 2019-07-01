@@ -52,7 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, signerFn)
+	b.Authorize(address, nil, signerFn)
 
 	genesis.MustCommit(memDB)
 
@@ -98,7 +98,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			b.Authorize(address, signerFn)
+			b.Authorize(address, nil, signerFn)
 		}
 	}
 
@@ -369,7 +369,7 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil)
+	engine.Authorize(common.Address{}, nil, nil)
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
