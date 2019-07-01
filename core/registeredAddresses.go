@@ -19,18 +19,16 @@ package core
 import (
 	"errors"
 	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 // ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-var ErrSmartContractNotDeployed = errors.New("registry contract not deployed")
+var ErrSmartContractNotDeployed = errors.New("registered contract not deployed")
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
@@ -60,7 +58,7 @@ var (
 		params.AttestationsRegistryId,
 		params.BondedDepositsRegistryId,
 		params.GasCurrencyWhitelistRegistryId,
-		params.GasPriceOracleRegistryId,
+		params.GasPriceMinimumRegistryId,
 		params.GoldTokenRegistryId,
 		params.GovernanceRegistryId,
 		params.RandomRegistryId,
@@ -72,74 +70,52 @@ var (
 )
 
 type RegisteredAddresses struct {
-	registeredAddresses   map[string]common.Address
-	registeredAddressesMu sync.RWMutex
-	iEvmH                 *InternalEVMHandler
+	iEvmH *InternalEVMHandler
 }
 
-func (ra *RegisteredAddresses) retrieveRegisteredAddresses(state *state.StateDB, header *types.Header) map[string]common.Address {
-	log.Trace("RegisteredAddresses.retrieveRegisteredAddresses called")
+func (ra *RegisteredAddresses) getRegisteredAddress(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error) {
+	var contractAddress common.Address
+	_, err := ra.iEvmH.MakeStaticCallNoRegisteredAddressMap(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
+	if (contractAddress == common.Address{}) {
+		return nil, ErrSmartContractNotDeployed
+	}
+	return &contractAddress, err
+}
 
-	returnMap := make(map[string]common.Address)
+func (ra *RegisteredAddresses) GetRegisteredAddressAtCurrentHeader(registryId string) (*common.Address, error) {
+	if ra == nil {
+		return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
+	}
+	return ra.getRegisteredAddress(registryId, nil, nil)
+}
+
+func (ra *RegisteredAddresses) GetRegisteredAddressAtStateAndHeader(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error) {
+	if ra == nil {
+		return nil, errors.New("Method called on nil interface of type RegisteredAddresses")
+	}
+	return ra.getRegisteredAddress(registryId, state, header)
+}
+
+func (ra *RegisteredAddresses) GetRegisteredAddressMapAtCurrentHeader() map[string]*common.Address {
+	returnMap := make(map[string]*common.Address)
 
 	for _, contractRegistryId := range registeredContractIds {
-		var contractAddress common.Address
-		if leftoverGas, err := ra.iEvmH.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{contractRegistryId}, &contractAddress, 20000, header, state); err != nil {
-			log.Error("Registry.getAddressFor invocation error", "registryId", contractRegistryId, "leftoverGas", leftoverGas, "err", err)
-			continue
-		} else {
-			log.Trace("Registry.getAddressFor invocation success", "registryId", contractRegistryId, "contractAddress", contractAddress.Hex(), "leftoverGas", leftoverGas)
-
-			if contractAddress != common.ZeroAddress {
-				returnMap[contractRegistryId] = contractAddress
-			}
-		}
+		contractAddress, _ := ra.getRegisteredAddress(contractRegistryId, nil, nil)
+		returnMap[contractRegistryId] = contractAddress
 	}
 
 	return returnMap
 }
 
-func (ra *RegisteredAddresses) RefreshAddressesAtStateAndHeader(state *state.StateDB, header *types.Header) {
-	ra.refreshAddresses(state, header)
-}
-
-func (ra *RegisteredAddresses) RefreshAddressesAtCurrentHeader() {
-	ra.refreshAddresses(nil, nil)
-}
-
-func (ra *RegisteredAddresses) refreshAddresses(state *state.StateDB, header *types.Header) {
-	registeredAddresses := ra.retrieveRegisteredAddresses(state, header)
-
-	ra.registeredAddressesMu.Lock()
-	ra.registeredAddresses = registeredAddresses
-	ra.registeredAddressesMu.Unlock()
-}
-
-func (ra *RegisteredAddresses) GetRegisteredAddress(registryId string) (*common.Address, error) {
-	ra.RefreshAddressesAtCurrentHeader()
-
-	ra.registeredAddressesMu.RLock()
-	defer ra.registeredAddressesMu.RUnlock()
-
-	if address, ok := ra.registeredAddresses[registryId]; !ok {
-		return nil, ErrSmartContractNotDeployed
-	} else {
-		return &address, nil
-	}
-}
-
-func (ra *RegisteredAddresses) GetRegisteredAddressMap() map[string]*common.Address {
+func (ra *RegisteredAddresses) GetRegisteredAddressMapAtStateAndHeader(state *state.StateDB, header *types.Header) map[string]*common.Address {
 	returnMap := make(map[string]*common.Address)
+	if ra == nil {
+		return returnMap
+	}
 
-	ra.registeredAddressesMu.RLock()
-	defer ra.registeredAddressesMu.RUnlock()
-
-	for _, registryId := range registeredContractIds {
-		if address, ok := ra.registeredAddresses[registryId]; !ok {
-			returnMap[registryId] = nil
-		} else {
-			returnMap[registryId] = &address
-		}
+	for _, contractRegistryId := range registeredContractIds {
+		contractAddress, _ := ra.getRegisteredAddress(contractRegistryId, state, header)
+		returnMap[contractRegistryId] = contractAddress
 	}
 
 	return returnMap
@@ -147,8 +123,7 @@ func (ra *RegisteredAddresses) GetRegisteredAddressMap() map[string]*common.Addr
 
 func NewRegisteredAddresses(iEvmH *InternalEVMHandler) *RegisteredAddresses {
 	ra := &RegisteredAddresses{
-		registeredAddresses: make(map[string]common.Address),
-		iEvmH:               iEvmH,
+		iEvmH: iEvmH,
 	}
 
 	return ra

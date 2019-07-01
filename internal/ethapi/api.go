@@ -46,10 +46,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-const (
-	defaultGasPrice = uint64(0) // Always free gas
-)
-
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -706,8 +702,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	if gas == 0 {
 		gas = math.MaxUint64 / 2
 	}
-	if gasPrice.Sign() == 0 {
-		gasPrice = new(big.Int).SetUint64(defaultGasPrice)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 	}
 
 	// Create new call message
@@ -726,7 +725,6 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	defer cancel()
 
 	// Needed so that the values returned by estimate gas, view functions, are correct.
-	s.b.RegisteredAddresses().RefreshAddressesAtStateAndHeader(state, header)
 	s.b.GasCurrencyWhitelist().RefreshWhitelistAtStateAndHeader(state, header)
 
 	// Get a new instance of the EVM.
@@ -745,7 +743,9 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist())
+	gasPriceMinimum, err := s.b.GasPriceMinimum().GetGasPriceMinimum(args.GasCurrency, state, header)
+	infraFraction, err := s.b.GasPriceMinimum().GetInfrastructureFraction(state, header)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, nil)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
@@ -1233,8 +1233,11 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
 		}
 	}
-	if args.GasPrice == nil {
-		price, err := b.SuggestPrice(ctx)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err
 		}

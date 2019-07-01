@@ -57,7 +57,13 @@ type ConsensusIEvmH interface {
 }
 
 type ConsensusRegAdd interface {
-	GetRegisteredAddress(registryId string) (*common.Address, error)
+	GetRegisteredAddressAtStateAndHeader(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error)
+	GetRegisteredAddressAtCurrentHeader(registryId string) (*common.Address, error)
+	GetRegisteredAddressMapAtStateAndHeader(state *state.StateDB, header *types.Header) map[string]*common.Address
+}
+
+type ConsensusGasPriceMinimum interface {
+	UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error)
 }
 
 // Engine is an algorithm agnostic consensus engine.
@@ -148,6 +154,8 @@ type Istanbul interface {
 	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
 
 	SetRegisteredAddresses(regAdd ConsensusRegAdd)
+
+	SetGasPriceMinimum(gpm ConsensusGasPriceMinimum)
 
 	SetChain(chain ChainReader, currentBlock func() *types.Block)
 

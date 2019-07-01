@@ -526,11 +526,6 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				// Refresh the registered address cache before processing transaction batch
-				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-					regAdd.RefreshAddressesAtCurrentHeader()
-				}
-
 				// Refresh the gas currency whitelist cache before processing transaction batch
 				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
 					wl.RefreshWhitelistAtCurrentHeader()
@@ -761,10 +756,11 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, gasPriceMinimum *big.Int) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
+	infraFraction, _ := w.eth.GasPriceMinimum().GetInfrastructureFraction(w.current.state, w.current.header)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -840,7 +836,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, coinbase)
+		logs, err := w.commitTransaction(tx, coinbase, gasPriceMinimum)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -994,11 +990,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	w.updateSnapshot()
-
-	// Refresh the registered address cache before processing transaction batch
-	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-		regAdd.RefreshAddressesAtCurrentHeader()
-	}
 
 	// Refresh the gas currency whitelist cache before processing the pending transactions
 	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {

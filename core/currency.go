@@ -134,7 +134,7 @@ func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchange
 }
 
 func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
 	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
@@ -202,7 +202,7 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 // "function medianRate(address)"
 func (co *CurrencyOperator) refreshExchangeRates() {
 	gasCurrencyAddresses := co.gcWl.Whitelist()
-	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
+	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.SortedOraclesRegistryId)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -211,7 +211,7 @@ func (co *CurrencyOperator) refreshExchangeRates() {
 		log.Error(err.Error())
 	}
 
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -310,7 +310,7 @@ type GasCurrencyWhitelist struct {
 
 func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
-	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
+	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddressAtCurrentHeader(params.GasCurrencyWhitelistRegistryId)
 	if err != nil {
 		if err == ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
