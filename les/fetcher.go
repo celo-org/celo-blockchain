@@ -654,9 +654,13 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	var td *big.Int
 
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
-	// Disable this in Latest block only mode since we are not fetching the full chain
-	// now n is the latest downloaded header after syncing.
-	// Ultralightsync mode handles this behavior properly.
+	// Disable this in Latest block only mode since we are not fetching the full chain now n is the
+	// latest downloaded header after syncing.
+	// Ultralightsync mode handles this behavior properly because it will download the latest
+	// announced header before completing the sync.
+	//
+	// Check for the latest announced header in our chain. If it is present, then move on, otherwise,
+	// move through the parents until we find a header that we have downloaded.
 	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {

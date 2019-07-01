@@ -957,12 +957,11 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		nextEpochBlock := (from-1)/epoch*epoch + epoch
 		// If we're still not synced up to the latest epoch, sync only epoch headers.
 		// Otherwise, sync block headers as we would normally in light sync.
+		log.Trace("Getting headers in ultralight sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 		if nextEpochBlock < height {
-			log.Trace("getHeaders#epochDownload", "from", from, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 			getEpochHeaders(nextEpochBlock)
 			return true
-		} else if from < height {
-			log.Trace("getHeaders, all epoch blocks have been fetched, now fetch the last block", "from", height, "epoch", epoch)
+		} else if from <= height {
 			getHeaders(height)
 			return true
 		} else {

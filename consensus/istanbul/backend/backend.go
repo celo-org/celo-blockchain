@@ -122,6 +122,7 @@ type Backend struct {
 
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
+	gpm    consensus.ConsensusGasPriceMinimum
 
 	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
 
