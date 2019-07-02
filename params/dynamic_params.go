@@ -43,6 +43,7 @@ var (
 
 type StateDB interface {
 	GetCodeHash(addr common.Address) common.Hash
+	GetCodeSize(addr common.Address) int
 	GetStorageRoot(addr common.Address) common.Hash
 }
 
@@ -58,8 +59,7 @@ type regAddrCacheEntry struct {
 }
 
 func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
-	emptyHash := common.Hash{}
-	if evm.GetStateDB().GetCodeHash(registrySmartContractAddress) == emptyHash {
+	if evm.GetStateDB().GetCodeSize(registrySmartContractAddress) == 0 {
 		return nil, ErrSmartContractNotDeployed
 	}
 
