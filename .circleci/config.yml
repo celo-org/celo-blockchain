@@ -102,6 +102,22 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/geth
 
+  end-to-end-geth-governance-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth goverenance with a standalone node
+          no_output_timeout: "1200s"
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_governance.sh local ~/geth
+
 workflows:
   version: 2
   build:
@@ -115,5 +131,8 @@ workflows:
           requires:
             - end-to-end-checkout
       - end-to-end-sync-test:
+          requires:
+            - end-to-end-checkout
+      - end-to-end-geth-governance-test:
           requires:
             - end-to-end-checkout
