@@ -282,7 +282,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 	var leftoverGas uint64
 
 	if evm != nil {
-		leftoverGas, err = evm.ABIStaticCall(vm.AccountRef(common.HexToAddress("0x0")), contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
+		leftoverGas, err = evm.StaticCallFromSystem(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else if iEvmH != nil {
 		leftoverGas, err = iEvmH.MakeStaticCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	} else {

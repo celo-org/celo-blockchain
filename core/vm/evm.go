@@ -35,6 +35,9 @@ import (
 // deployed contract addresses (relevant after the account abstraction).
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
+// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
+var systemCaller = AccountRef(common.HexToAddress("0x0"))
+
 type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
@@ -93,21 +96,6 @@ type Context struct {
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
-
-	// Registered contract addresses
-	RegisteredAddressMap map[string]*common.Address
-}
-
-func (context *Context) getRegisteredAddress(registryId string) *common.Address {
-	if context.RegisteredAddressMap == nil {
-		return nil
-	} else {
-		if address, ok := context.RegisteredAddressMap[registryId]; ok {
-			return address
-		} else {
-			return nil
-		}
-	}
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -195,6 +183,10 @@ func (evm *EVM) Cancel() {
 // Interpreter returns the current interpreter
 func (evm *EVM) Interpreter() Interpreter {
 	return evm.interpreter
+}
+
+func (evm *EVM) GetStateDB() params.StateDB {
+	return evm.StateDB
 }
 
 // Call executes the contract associated with the addr with the given input as
@@ -509,9 +501,13 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	reserveAddress := evm.Context.getRegisteredAddress(params.ReserveRegistryId)
+	reserveAddress, err := params.GetRegisteredAddress(params.ReserveRegistryId, evm)
 
-	if amount.Cmp(big.NewInt(0)) != 0 && reserveAddress != nil {
+	if err != nil {
+		return gas, err
+	}
+
+	if amount.Cmp(big.NewInt(0)) != 0 {
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err
@@ -535,27 +531,27 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	return gas, nil
 }
 
-func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		log.Trace("Performing static call in the EVM", "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData))
+		log.Trace("Performing static call in the EVM", "transactionData", hexutil.Encode(transactionData))
 
-		return evm.StaticCall(caller, address, transactionData, gas)
+		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
 
-	return evm.handleABICall(caller, abi, funcName, args, returnObj, staticCall)
+	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
-func (evm *EVM) ABICall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		log.Trace("Performing call in the EVM", "caller", caller, "transactionData", hexutil.Encode(transactionData))
+		log.Trace("Performing call in the EVM", "transactionData", hexutil.Encode(transactionData))
 
-		return evm.Call(caller, address, transactionData, gas, value)
+		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 
-	return evm.handleABICall(caller, abi, funcName, args, returnObj, call)
+	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
-func (evm *EVM) handleABICall(caller ContractRef, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
+func (evm *EVM) handleABICall(abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
 		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)

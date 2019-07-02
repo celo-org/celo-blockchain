@@ -252,6 +252,14 @@ func (self *StateDB) GetCodeHash(addr common.Address) common.Hash {
 	return common.BytesToHash(stateObject.CodeHash())
 }
 
+func (self *StateDB) GetStorageRoot(addr common.Address) common.Hash {
+	stateObject := self.getStateObject(addr)
+	if stateObject == nil {
+		return common.Hash{}
+	}
+	return stateObject.Root()
+}
+
 // GetState retrieves a value from the given account's storage trie.
 func (self *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := self.getStateObject(addr)

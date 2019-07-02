@@ -127,8 +127,7 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	registeredAddressesMap := b.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, registeredAddressesMap)
+	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 

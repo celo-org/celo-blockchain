@@ -435,10 +435,10 @@ func (c *requestAttestation) Run(input []byte, caller common.Address, evm *EVM, 
 		return nil, gas, err
 	}
 
-	abeAddress := evm.Context.getRegisteredAddress(params.AttestationsRegistryId)
+	abeAddress, err := params.GetRegisteredAddress(params.AttestationsRegistryId, evm)
 
-	if abeAddress == nil {
-		return nil, gas, fmt.Errorf("Attestations Address is not set in the Registry contract")
+	if err != nil {
+		return nil, gas, err
 	}
 
 	if caller != *abeAddress {
@@ -461,7 +461,11 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	celoGoldAddress := evm.Context.getRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := params.GetRegisteredAddress(params.GoldTokenRegistryId, evm)
+
+	if err != nil {
+		return nil, gas, err
+	}
 
 	if celoGoldAddress == nil {
 		return nil, gas, fmt.Errorf("Celo Gold smart contract has no entry in the Registry smart contract")
@@ -482,7 +486,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, ErrInsufficientBalance
 	}
 
-	gas, err := evm.TobinTransfer(evm.StateDB, from, to, gas, value)
+	gas, err = evm.TobinTransfer(evm.StateDB, from, to, gas, value)
 
 	return input, gas, err
 }
