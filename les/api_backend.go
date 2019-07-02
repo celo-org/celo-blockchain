@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/light"
@@ -107,7 +106,8 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 
-	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, nil)
+	registeredAddressesMap := b.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
+	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, registeredAddressesMap)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 
@@ -172,7 +172,19 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
+	return b.eth.gpm.GetGasPriceSuggestion(nil, nil, nil)
+}
+
+func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return b.eth.gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
+}
+
+func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return b.eth.gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+}
+
+func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
+	return b.eth.gpm.GetInfrastructureFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -210,5 +222,9 @@ func (b *LesApiBackend) GasFeeRecipient() common.Address {
 }
 
 func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return nil
+	return b.eth.regAdd
+}
+
+func (b *LesApiBackend) GasPriceMinimum() *core.GasPriceMinimum {
+	return b.eth.gpm
 }

@@ -112,7 +112,7 @@ func NewRandom(registeredAddresses *RegisteredAddresses, iEvmH *InternalEVMHandl
 
 func (r *Random) address() *common.Address {
 	if r.registeredAddresses != nil {
-		randomAddress, err := r.registeredAddresses.GetRegisteredAddress(params.RandomRegistryId)
+		randomAddress, err := r.registeredAddresses.GetRegisteredAddressAtCurrentHeader(params.RandomRegistryId)
 		if err == ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {

@@ -99,7 +99,7 @@ const (
 	AttestationsRegistryId         = "Attestations"
 	BondedDepositsRegistryId       = "BondedDeposits"
 	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
-	GasPriceOracleRegistryId       = "GasPriceOracle"
+	GasPriceMinimumRegistryId      = "GasPriceMinimum"
 	GoldTokenRegistryId            = "GoldToken"
 	GovernanceRegistryId           = "Governance"
 	ReserveRegistryId              = "Reserve"
@@ -120,7 +120,6 @@ const (
 )
 
 const (
-	// This is the amount of gas a single debitFrom or creditTo request can use.
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
@@ -128,5 +127,7 @@ const (
 	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
 	MaxGasForCreditToTransactions       uint64 = 30 * 1000
 	MaxGasToReadErc20Balance            uint64 = 10 * 1000
-	AdditionalGasForNonGoldCurrencies   uint64 = 2*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
+	MaxGasToReadTobinTax                uint64 = 50 * 1000
+	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
+	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
 )

@@ -25,6 +25,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -132,7 +134,7 @@ func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchange
 }
 
 func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
 	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
@@ -198,11 +200,9 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 // This function will retrieve the exchange rates from the SortedOracles contract and cache them.
 // SortedOracles must have a function with the following signature:
 // "function medianRate(address)"
-func (co *CurrencyOperator) retrieveExchangeRates() {
-	gasCurrencyAddresses := co.gcWl.retrieveWhitelist()
-	log.Trace("CurrencyOperator.retrieveExchangeRates called", "gasCurrencyAddresses", gasCurrencyAddresses)
-
-	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddress(params.SortedOraclesRegistryId)
+func (co *CurrencyOperator) refreshExchangeRates() {
+	gasCurrencyAddresses := co.gcWl.Whitelist()
+	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.SortedOraclesRegistryId)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -211,7 +211,7 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 		log.Error(err.Error())
 	}
 
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddress(params.GoldTokenRegistryId)
+	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -228,15 +228,11 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 		}
 
 		var returnArray [2]*big.Int
-
-		log.Trace("CurrencyOperator.retrieveExchangeRates - Calling medianRate", "sortedOraclesAddress", sortedOraclesAddress.Hex(),
-			"gas currency", gasCurrencyAddress.Hex())
-
 		if leftoverGas, err := co.iEvmH.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			log.Error("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation error", "leftoverGas", leftoverGas, "err", err)
+			log.Error("medianRate invocation error", "gasCurrencyAddress", gasCurrencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
-			log.Trace("CurrencyOperator.retrieveExchangeRates - SortedOracles.medianRate invocation success", "returnArray", returnArray, "leftoverGas", leftoverGas)
+			log.Trace("medianRate invocation success", "gasCurrencyAddress", gasCurrencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
 
 			if _, ok := co.exchangeRates[gasCurrencyAddress]; !ok {
 				co.exchangeRates[gasCurrencyAddress] = &exchangeRate{}
@@ -252,11 +248,11 @@ func (co *CurrencyOperator) retrieveExchangeRates() {
 
 // TODO (jarmg 5/30/18): Change this to cache based on block number
 func (co *CurrencyOperator) mainLoop() {
-	co.retrieveExchangeRates()
+	co.refreshExchangeRates()
 	ticker := time.NewTicker(10 * time.Second)
 
 	for range ticker.C {
-		co.retrieveExchangeRates()
+		co.refreshExchangeRates()
 	}
 }
 
@@ -312,37 +308,36 @@ type GasCurrencyWhitelist struct {
 	iEvmH                  *InternalEVMHandler
 }
 
-func (gcWl *GasCurrencyWhitelist) retrieveWhitelist() []common.Address {
-	log.Trace("GasCurrencyWhitelist.retrieveWhitelist called")
-
+func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
-
-	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId)
-	if err == ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return returnList
-	} else if err != nil {
-		log.Error(err.Error())
+	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddressAtCurrentHeader(params.GasCurrencyWhitelistRegistryId)
+	if err != nil {
+		if err == ErrSmartContractNotDeployed {
+			log.Warn("Registry address lookup failed", "err", err)
+		} else {
+			log.Error("Registry address lookup failed", "err", err)
+		}
+		return returnList, err
 	}
 
-	log.Trace("GasCurrencyWhiteList.retrieveWhiteList() - Calling retrieveWhiteList", "address", gasCurrencyWhiteListAddress.Hex())
-
-	if leftoverGas, err := gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, nil, nil); err != nil {
-		log.Error("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation error", "leftoverGas", leftoverGas, "err", err)
-		return []common.Address{}
-	}
-
-	outputWhiteList := make([]string, len(returnList))
-	for _, address := range returnList {
-		outputWhiteList = append(outputWhiteList, address.Hex())
-	}
-
-	log.Trace("GasCurrencyWhitelist.retrieveWhitelist - GasCurrencyWhitelist.getWhitelist invocation success", "whitelisted currencies", outputWhiteList)
-	return returnList
+	_, err = gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	return returnList, err
 }
 
-func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
-	addresses := gcWl.retrieveWhitelist()
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtStateAndHeader(state *state.StateDB, header *types.Header) {
+	gcWl.refreshWhitelist(state, header)
+}
+
+func (gcWl *GasCurrencyWhitelist) RefreshWhitelistAtCurrentHeader() {
+	gcWl.refreshWhitelist(nil, nil)
+}
+
+func (gcWl *GasCurrencyWhitelist) refreshWhitelist(state *state.StateDB, header *types.Header) {
+	whitelist, err := gcWl.retrieveWhitelist(state, header)
+	if err != nil {
+		log.Warn("Failed to get gas currency whitelist", "err", err)
+		return
+	}
 
 	gcWl.whitelistedAddressesMu.Lock()
 
@@ -350,7 +345,7 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 		delete(gcWl.whitelistedAddresses, k)
 	}
 
-	for _, address := range addresses {
+	for _, address := range whitelist {
 		gcWl.whitelistedAddresses[address] = true
 	}
 
@@ -358,6 +353,7 @@ func (gcWl *GasCurrencyWhitelist) RefreshWhitelist() {
 }
 
 func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Address) bool {
+	gcWl.RefreshWhitelistAtCurrentHeader()
 	gcWl.whitelistedAddressesMu.RLock()
 
 	_, ok := gcWl.whitelistedAddresses[gasCurrencyAddress]
@@ -365,6 +361,17 @@ func (gcWl *GasCurrencyWhitelist) IsWhitelisted(gasCurrencyAddress common.Addres
 	gcWl.whitelistedAddressesMu.RUnlock()
 
 	return ok
+}
+
+func (gcWl *GasCurrencyWhitelist) Whitelist() []common.Address {
+	gcWl.RefreshWhitelistAtCurrentHeader()
+	whitelist := make([]common.Address, 0, len(gcWl.whitelistedAddresses))
+	gcWl.whitelistedAddressesMu.RLock()
+	for k := range gcWl.whitelistedAddresses {
+		whitelist = append(whitelist, k)
+	}
+	gcWl.whitelistedAddressesMu.RUnlock()
+	return whitelist
 }
 
 func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
