@@ -136,6 +136,8 @@ type EVM struct {
 	// Maintains a queue of Celo attestation requests
 	// TODO(asa): Save this in StateDB
 	AttestationRequests []types.AttestationRequest
+
+	dontmetergas bool
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -148,6 +150,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
+		dontmetergas: false,
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
@@ -501,13 +504,15 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	evm.dontmetergas = true
 	reserveAddress, err := params.GetRegisteredAddress(params.ReserveRegistryId, evm)
+	evm.dontmetergas = false
 
-	if err != nil {
+	if err != nil && err != params.ErrSmartContractNotDeployed {
 		return gas, err
 	}
 
-	if amount.Cmp(big.NewInt(0)) != 0 {
+	if amount.Cmp(big.NewInt(0)) != 0 && err == nil {
 		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
 		if err != nil {
 			return gas, err

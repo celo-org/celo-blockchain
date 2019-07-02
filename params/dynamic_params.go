@@ -58,6 +58,11 @@ type regAddrCacheEntry struct {
 }
 
 func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
+	emptyHash := common.Hash{}
+	if evm.GetStateDB().GetCodeHash(registrySmartContractAddress) == emptyHash {
+		return nil, ErrSmartContractNotDeployed
+	}
+
 	registryStorageHash := evm.GetStateDB().GetStorageRoot(registrySmartContractAddress)
 	registryCodeHash := evm.GetStateDB().GetCodeHash(registrySmartContractAddress)
 
