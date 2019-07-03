@@ -19,6 +19,7 @@ package backend
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	mrand "math/rand"
@@ -29,7 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/crypto"
+	// "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -87,10 +88,11 @@ var (
 type announceMessage struct {
 	Address            common.Address
 	EnodeURL           string
-	EncryptedEnodeURLs map[common.Address][]byte
+	EncryptedEnodeData []byte
 	View               *istanbul.View
 	Signature          []byte
 }
+
 
 func (am *announceMessage) String() string {
 	return fmt.Sprintf("{Address: %s, View: %v, EnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.EnodeURL, hex.EncodeToString(am.Signature))
@@ -102,7 +104,7 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.EncryptedEnodeURLs, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.EncryptedEnodeData, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -110,7 +112,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address            common.Address
 		EnodeURL           string
-		EncryptedEnodeURLs map[common.Address][]byte
+		EncryptedEnodeData []byte
 		View               *istanbul.View
 		Signature          []byte
 	}
@@ -118,7 +120,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.EnodeURL, am.EncryptedEnodeURLs, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.EncryptedEnodeURLs, msg.View, msg.Signature
+	am.Address, am.EnodeURL, am.EncryptedEnodeData, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.EncryptedEnodeData, msg.View, msg.Signature
 	return nil
 }
 
@@ -141,7 +143,7 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
 		EnodeURL:           am.EnodeURL,
-		EncryptedEnodeURLs: am.EncryptedEnodeURLs,
+		EncryptedEnodeData: am.EncryptedEnodeData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -158,7 +160,7 @@ func (am *announceMessage) VerifySig() error {
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
 		EnodeURL:           am.EnodeURL,
-		EncryptedEnodeURLs: am.EncryptedEnodeURLs,
+		EncryptedEnodeData: am.EncryptedEnodeData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -263,12 +265,13 @@ func (sb *Backend) sendIstAnnounce() error {
 			pubKeyBytes = g.Alloc[addr].PublicKey
 			log.Info("pkfire", "pk", pubKeyBytes)
 		}
-		ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
-		if err != nil {
-			log.Info("bigsad")
-			continue;
-		}
-		pubKey := ecies.ImportECDSAPublic(ECDSAKey)
+		// ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+		// if err != nil {
+		// 	log.Info("bigsad")
+		// 	continue;
+		// }
+		// pubKey := ecies.ImportECDSAPublic(ECDSAKey)
+		pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
 		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
 		if err != nil {
 			log.Error("Unable to unmarshal public key", "err", err)
@@ -276,12 +279,17 @@ func (sb *Backend) sendIstAnnounce() error {
 			encryptedEnodeUrls[addr] = encryptedEnodeUrl
 		}
 	}
-	log.Info("wow", "popo", encryptedEnodeUrls)
+
+	encryptedEnodeData, err := json.Marshal(encryptedEnodeUrls)
+	if err != nil {
+		sb.logger.Error("Error in marshaling encrypted enode data", "err", err)
+		return err
+	}
 
 	msg := &announceMessage{
 		Address:            sb.Address(),
 		EnodeURL:           enodeUrl,
-		EncryptedEnodeURLs: encryptedEnodeUrls,
+		EncryptedEnodeData: encryptedEnodeData,
 		View:               view,
 	}
 
@@ -353,7 +361,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// Decrypt the EnodeURL
-	encryptedEnodeUrls := msg.EncryptedEnodeURLs
+	encryptedEnodeData := msg.EncryptedEnodeData
+	var encryptedEnodeUrls map[common.Address][]byte
+	json.Unmarshal(encryptedEnodeData, &encryptedEnodeUrls)
 	encryptedEnodeUrl := encryptedEnodeUrls[sb.Address()]
 	enodeUrlBytes, err := sb.Decrypt(encryptedEnodeUrl)
 	enodeUrl := string(enodeUrlBytes)

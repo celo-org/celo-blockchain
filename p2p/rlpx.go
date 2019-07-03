@@ -338,7 +338,7 @@ func (h *encHandshake) makeAuthMsg(prv *ecdsa.PrivateKey) (*authMsgV4, error) {
 
 func (h *encHandshake) handleAuthResp(msg *authRespV4) (err error) {
 	h.respNonce = msg.Nonce[:]
-	h.remoteRandomPub, err = importPublicKey(msg.RandomPubkey[:])
+	h.remoteRandomPub, err = ImportPublicKey(msg.RandomPubkey[:])
 	return err
 }
 
@@ -378,7 +378,7 @@ func receiverEncHandshake(conn io.ReadWriter, prv *ecdsa.PrivateKey) (s secrets,
 
 func (h *encHandshake) handleAuthMsg(msg *authMsgV4, prv *ecdsa.PrivateKey) error {
 	// Import the remote identity.
-	rpub, err := importPublicKey(msg.InitiatorPubkey[:])
+	rpub, err := ImportPublicKey(msg.InitiatorPubkey[:])
 	if err != nil {
 		return err
 	}
@@ -404,7 +404,7 @@ func (h *encHandshake) handleAuthMsg(msg *authMsgV4, prv *ecdsa.PrivateKey) erro
 	if err != nil {
 		return err
 	}
-	h.remoteRandomPub, _ = importPublicKey(remoteRandomPub)
+	h.remoteRandomPub, _ = ImportPublicKey(remoteRandomPub)
 	return nil
 }
 
@@ -507,8 +507,8 @@ func readHandshakeMsg(msg plainDecoder, plainSize int, prv *ecdsa.PrivateKey, r 
 	return buf, s.Decode(msg)
 }
 
-// importPublicKey unmarshals 512 bit public keys.
-func importPublicKey(pubKey []byte) (*ecies.PublicKey, error) {
+// ImportPublicKey unmarshals 512 bit public keys.
+func ImportPublicKey(pubKey []byte) (*ecies.PublicKey, error) {
 	var pubKey65 []byte
 	switch len(pubKey) {
 	case 64:
