@@ -134,9 +134,12 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
-	vmenv.DontMeterGas = true
-	infraAddress, err := params.GetRegisteredAddress(params.GovernanceRegistryId, vmenv)
-	vmenv.DontMeterGas = false
+
+  addressLookupEMV:= vm.NewEVM(context, statedb, config, cfg)
+	//addressLookupEMV.DontMeterGas = true
+	infraAddress, err := params.GetRegisteredAddress(params.GovernanceRegistryId, addressLookupEMV)
+	//addressLookupEMV.DontMeterGas = false
+
 	if err != nil && err != params.ErrSmartContractNotDeployed {
 		return nil, 0, err
 	} else if err == params.ErrSmartContractNotDeployed {

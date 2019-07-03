@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 // TODO (jarmg 5/22/19): Store ABIs in a central location
@@ -147,7 +148,8 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		return FallbackGasPriceMinimum, err
 	}
 
-	_, err = gpm.iEvmH.MakeStaticCall(
+  log.Info("========== getting gasprice with singleton ============")
+	_, err = userspace_communication.MakeStaticCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
@@ -157,6 +159,7 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		header,
 		state,
 	)
+  log.Info("========== returning from singleton function call ============", "gasprice min", gasPriceMinimum)
 	return gasPriceMinimum, err
 }
 
