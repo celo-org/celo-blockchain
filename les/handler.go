@@ -1180,6 +1180,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
 		pm.peers.setEtherbase(p, resp.Etherbase)
 
 	default:
