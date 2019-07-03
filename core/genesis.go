@@ -87,6 +87,7 @@ type GenesisAccount struct {
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
+	PublicKey  []byte                      `json:"secretKey,omitempty"`
 }
 
 // field type overrides for gencodec
@@ -107,6 +108,7 @@ type genesisAccountMarshaling struct {
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
 	PrivateKey hexutil.Bytes
+	PublicKey  hexutil.Bytes
 }
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
@@ -276,6 +278,7 @@ func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
 	}
 	genesisSupply := big.NewInt(0)
 	for _, account := range g.Alloc {
+		log.Info("pkfire", "pk", account)
 		genesisSupply.Add(genesisSupply, account.Balance)
 	}
 	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())

@@ -28,11 +28,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+
 )
 
 const (
@@ -99,22 +101,23 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.EncryptedEnodeURLs, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address   common.Address
-		EnodeURL  string
-		View      *istanbul.View
-		Signature []byte
+		Address            common.Address
+		EnodeURL           string
+		EncryptedEnodeURLs map[common.Address][]byte
+		View               *istanbul.View
+		Signature          []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.EnodeURL, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.View, msg.Signature
+	am.Address, am.EnodeURL, am.EncryptedEnodeURLs, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.EncryptedEnodeURLs, msg.View, msg.Signature
 	return nil
 }
 
@@ -134,10 +137,13 @@ func (am *announceMessage) Payload() ([]byte, error) {
 func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
-	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{Address: am.Address,
-		EnodeURL:  am.EnodeURL,
-		View:      am.View,
-		Signature: []byte{}})
+	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
+		Address:            am.Address,
+		EnodeURL:           am.EnodeURL,
+		EncryptedEnodeURLs: am.EncryptedEnodeURLs,
+		View:               am.View,
+		Signature:          []byte{},
+	})
 	if err != nil {
 		return err
 	}
@@ -149,10 +155,12 @@ func (am *announceMessage) VerifySig() error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:   am.Address,
-		EnodeURL:  am.EnodeURL,
-		View:      am.View,
-		Signature: []byte{}})
+		Address:            am.Address,
+		EnodeURL:           am.EnodeURL,
+		EncryptedEnodeURLs: am.EncryptedEnodeURLs,
+		View:               am.View,
+		Signature:          []byte{},
+	})
 	if err != nil {
 		return err
 	}
@@ -195,7 +203,9 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) sendIstAnnounce() error {
-	log.Info("hello")
+	genesisHeader := sb.chain.GetHeaderByNumber(0)
+	istExtra, err := types.ExtractIstanbulExtra(genesisHeader)
+	log.Info("sad", "noo", istExtra)
 	block := sb.currentBlock()
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
