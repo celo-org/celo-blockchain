@@ -28,11 +28,12 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rlp"
 
 )
@@ -203,9 +204,6 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) sendIstAnnounce() error {
-	genesisHeader := sb.chain.GetHeaderByNumber(0)
-	istExtra, err := types.ExtractIstanbulExtra(genesisHeader)
-	log.Info("sad", "noo", istExtra)
 	block := sb.currentBlock()
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
@@ -238,30 +236,47 @@ func (sb *Backend) sendIstAnnounce() error {
 		return err
 	}
 
+	useValidatorContract := true
+	var g core.Genesis
 	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
 	if err != nil {
 		log.Warn("Registry address lookup failed", "err", err)
-		return errValidatorsContractNotRegistered
+		useValidatorContract = false
+		genesisJSON, err := sb.db.Get(core.DBGenesisKey)
+		err = g.UnmarshalJSON(genesisJSON)
+		if err != nil {
+			log.Error("Unable to retrieve genesis from db", "err", err)
+		}
 	}
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
 	for addr := range regVals {
-		var validator []interface{}
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
-			log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
-			return err
+		var pubKeyBytes []byte
+		if useValidatorContract {
+			var validator []interface{}
+			if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
+				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
+				return err
+			}
+			pubKeyBytes, _ = validator[3].([]byte) // The publicKey field
+		} else {
+			pubKeyBytes = g.Alloc[addr].PublicKey
+			log.Info("pkfire", "pk", pubKeyBytes)
 		}
-		pubKeyBytes, ok := validator[3].([]byte) // The publicKey field
 		ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+		if err != nil {
+			log.Info("bigsad")
+			continue;
+		}
 		pubKey := ecies.ImportECDSAPublic(ECDSAKey)
 		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
-		if err != nil || !ok {
+		if err != nil {
 			log.Error("Unable to unmarshal public key", "err", err)
 		} else {
 			encryptedEnodeUrls[addr] = encryptedEnodeUrl
 		}
 	}
-	log.Info("wow", "poo", encryptedEnodeUrls)
+	log.Info("wow", "popo", encryptedEnodeUrls)
 
 	msg := &announceMessage{
 		Address:            sb.Address(),

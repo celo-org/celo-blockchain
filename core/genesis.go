@@ -41,6 +41,7 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
+	DBGenesisKey = []byte("genesis object data")
 	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
@@ -278,7 +279,6 @@ func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
 	}
 	genesisSupply := big.NewInt(0)
 	for _, account := range g.Alloc {
-		log.Info("pkfire", "pk", account)
 		genesisSupply.Add(genesisSupply, account.Balance)
 	}
 	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
@@ -299,6 +299,13 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
 	if err := g.StoreGenesisSupply(db); err != nil {
 		log.Error("Unable to store genesisSupply in db", "err", err)
+		return nil, err
+	}
+
+	genesisJSON, err := g.MarshalJSON()
+	err = db.Put(DBGenesisKey, genesisJSON)
+	if err != nil {
+		log.Error("Unable to store genesis in db", "err", err)
 		return nil, err
 	}
 

@@ -34,6 +34,7 @@ func (g GenesisAccount) MarshalJSON() ([]byte, error) {
 	enc.Balance = (*math.HexOrDecimal256)(g.Balance)
 	enc.Nonce = math.HexOrDecimal64(g.Nonce)
 	enc.PrivateKey = g.PrivateKey
+	enc.PublicKey = g.PublicKey
 	return json.Marshal(&enc)
 }
 
@@ -44,7 +45,7 @@ func (g *GenesisAccount) UnmarshalJSON(input []byte) error {
 		Balance    *math.HexOrDecimal256       `json:"balance" gencodec:"required"`
 		Nonce      *math.HexOrDecimal64        `json:"nonce,omitempty"`
 		PrivateKey *hexutil.Bytes              `json:"secretKey,omitempty"`
-		PublicKey  *hexutil.Bytes               `json:"publicKey,omitempty"`
+		PublicKey  *hexutil.Bytes              `json:"publicKey,omitempty"`
 	}
 	var dec GenesisAccount
 	if err := json.Unmarshal(input, &dec); err != nil {
