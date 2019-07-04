@@ -127,7 +127,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	regAdd := core.NewRegisteredAddresses(iEvmH)
 	iEvmH.SetRegisteredAddresses(regAdd)
 	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
-	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
+	gpm := core.NewGasPriceMinimum(regAdd)
 	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)

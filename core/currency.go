@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 const (
@@ -115,7 +116,6 @@ type CurrencyOperator struct {
 	gcWl               *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
 	exchangeRates      map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
 	regAdd             *RegisteredAddresses
-	iEvmH              *InternalEVMHandler
 	currencyOperatorMu sync.RWMutex
 }
 
@@ -228,7 +228,7 @@ func (co *CurrencyOperator) refreshExchangeRates() {
 		}
 
 		var returnArray [2]*big.Int
-		if leftoverGas, err := co.iEvmH.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+		if leftoverGas, err := userspace_communication.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
 			log.Error("medianRate invocation error", "gasCurrencyAddress", gasCurrencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
@@ -256,14 +256,13 @@ func (co *CurrencyOperator) mainLoop() {
 	}
 }
 
-func NewCurrencyOperator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *CurrencyOperator {
+func NewCurrencyOperator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses) *CurrencyOperator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
 	co := &CurrencyOperator{
 		gcWl:          gcWl,
 		exchangeRates: exchangeRates,
 		regAdd:        regAdd,
-		iEvmH:         iEvmH,
 	}
 
 	if co.gcWl != nil {
@@ -275,7 +274,7 @@ func NewCurrencyOperator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses
 
 // This function will retrieve the balance of an ERC20 token.
 //
-func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, iEvmH *InternalEVMHandler, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
 
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
@@ -283,11 +282,8 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, i
 
 	if evm != nil {
 		leftoverGas, err = evm.StaticCallFromSystem(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
-	} else if iEvmH != nil {
-		leftoverGas, err = iEvmH.MakeStaticCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	} else {
-		err = errors.New("Either iEvmH or evm must be non-nil")
-		return
+		leftoverGas, err = userspace_communication.MakeStaticCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	}
 
 	if err != nil {
@@ -305,7 +301,6 @@ type GasCurrencyWhitelist struct {
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
 	regAdd                 *RegisteredAddresses
-	iEvmH                  *InternalEVMHandler
 }
 
 func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
@@ -320,7 +315,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header
 		return returnList, err
 	}
 
-	_, err = gcWl.iEvmH.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	_, err = userspace_communication.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
 	return returnList, err
 }
 
@@ -374,11 +369,10 @@ func (gcWl *GasCurrencyWhitelist) Whitelist() []common.Address {
 	return whitelist
 }
 
-func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses, iEvmH *InternalEVMHandler) *GasCurrencyWhitelist {
+func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses) *GasCurrencyWhitelist {
 	gcWl := &GasCurrencyWhitelist{
 		whitelistedAddresses: make(map[common.Address]bool),
 		regAdd:               regAdd,
-		iEvmH:                iEvmH,
 	}
 
 	return gcWl

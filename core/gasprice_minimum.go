@@ -113,7 +113,6 @@ type InfrastructureFraction struct {
 
 type GasPriceMinimum struct {
 	regAdd *RegisteredAddresses
-	iEvmH  *InternalEVMHandler
 }
 
 func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
@@ -123,9 +122,9 @@ func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, stat
 
 func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
 
-	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
+	if gpm == nil || gpm.regAdd == nil {
 		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
-		return FallbackGasPriceMinimum, errors.New("nil iEvmH or addressRegistry")
+		return FallbackGasPriceMinimum, errors.New("nil addressRegistry")
 	}
 
 	var currencyAddress *common.Address
@@ -170,7 +169,7 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 
 	var updatedGasPriceMinimum *big.Int
 
-	_, err = gpm.iEvmH.MakeCall(
+	_, err = userspace_communication.MakeCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
@@ -189,8 +188,8 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
-		return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
+	if gpm == nil || gpm.regAdd == nil {
+		return FallbackInfraFraction, errors.New("nil addressRegistry")
 	}
 
 	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
@@ -198,7 +197,7 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 		return FallbackInfraFraction, err
 	}
 
-	_, err = gpm.iEvmH.MakeStaticCall(
+	_, err = userspace_communication.MakeStaticCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
 		"infrastructureFraction",
@@ -212,9 +211,8 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }
 
-func NewGasPriceMinimum(iEvmH *InternalEVMHandler, regAdd *RegisteredAddresses) *GasPriceMinimum {
+func NewGasPriceMinimum(regAdd *RegisteredAddresses) *GasPriceMinimum {
 	gpm := &GasPriceMinimum{
-		iEvmH:  iEvmH,
 		regAdd: regAdd,
 	}
 

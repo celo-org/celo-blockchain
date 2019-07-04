@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 const (
@@ -56,7 +57,7 @@ func (sb *Backend) retrieveRegisteredValidators() (map[common.Address]bool, erro
 	} else {
 		// Get the new epoch's validator set
 		maxGasForGetRegisteredValidators := uint64(1000000)
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getRegisteredValidatorsFuncABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, nil, nil); err != nil {
+		if _, err := userspace_communication.MakeStaticCall(*validatorAddress, getRegisteredValidatorsFuncABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, nil, nil); err != nil {
 			return nil, err
 		}
 	}

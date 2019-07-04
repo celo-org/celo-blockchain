@@ -65,10 +65,11 @@ func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
 		return nil, ErrSmartContractNotDeployed
 	}
 
-  var contractAddress common.Address
+	var contractAddress common.Address
 	_, err := evm.StaticCallFromSystem(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
 	if err == abi.ErrEmptyOutput {
+		log.Trace("Registry contract not deployed")
 		return nil, ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err

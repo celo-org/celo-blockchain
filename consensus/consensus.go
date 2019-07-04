@@ -151,8 +151,6 @@ type Istanbul interface {
 	Engine
 
 	// Setter functions
-	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
-
 	SetRegisteredAddresses(regAdd ConsensusRegAdd)
 
 	SetGasPriceMinimum(gpm ConsensusGasPriceMinimum)

@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -430,7 +431,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 		// Get the new epoch's validator set
 		maxGasForGetValidators := uint64(1000000)
 		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-		_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+		_, err := userspace_communication.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
 	}
 }
@@ -520,7 +521,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		if bondedDepositsAddress != nil {
 			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-			_, err := sb.iEvmH.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
+			_, err := userspace_communication.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to send block rewards to bonded deposits", "err", err)
 				return nil, err
@@ -530,7 +531,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		// Update totalSupply of GoldToken.
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
-			if _, err := sb.iEvmH.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
+			if _, err := userspace_communication.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
 				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
 				return nil, err
 			}
@@ -544,7 +545,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 				genesisSupply.SetBytes(data)
 				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
 			}
-			if _, err := sb.iEvmH.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
+			if _, err := userspace_communication.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
 				return nil, err
 			}
@@ -661,11 +662,6 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 		Service:   &API{chain: chain, istanbul: sb},
 		Public:    true,
 	}}
-}
-
-// Setter functions
-func (sb *Backend) SetInternalEVMHandler(iEvmH consensus.ConsensusIEvmH) {
-	sb.iEvmH = iEvmH
 }
 
 func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
