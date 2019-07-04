@@ -42,7 +42,6 @@ type Backend interface {
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
-	InternalEVMHandler() *core.InternalEVMHandler
 	GasPriceMinimum() *core.GasPriceMinimum
 }
 

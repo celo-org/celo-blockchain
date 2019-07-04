@@ -61,10 +61,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	iEvmH := core.NewInternalEVMHandler(blockchain)
 	regAdd := core.NewRegisteredAddresses()
 	gpm := core.NewGasPriceMinimum(regAdd)
-	iEvmH.SetRegisteredAddresses(regAdd)
 
 	b.SetRegisteredAddresses(regAdd)
 	b.SetGasPriceMinimum(gpm)

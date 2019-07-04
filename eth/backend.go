@@ -95,7 +95,6 @@ type Ethereum struct {
 
 	gcWl   *core.GasCurrencyWhitelist
 	regAdd *core.RegisteredAddresses
-	iEvmH  *core.InternalEVMHandler
 	gpm    *core.GasPriceMinimum
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
@@ -184,14 +183,12 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
 
 	//jarmg - this should become the only signature
 	userspace_communication.SetInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	eth.regAdd = core.NewRegisteredAddresses()
-	eth.iEvmH.SetRegisteredAddresses(eth.regAdd)
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd)
@@ -527,7 +524,6 @@ func (s *Ethereum) Downloader() *downloader.Downloader               { return s.
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
 func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
-func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
 func (s *Ethereum) GasPriceMinimum() *core.GasPriceMinimum           { return s.gpm }
 
 // Protocols implements node.Service, returning all the currently configured

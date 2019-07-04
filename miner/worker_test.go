@@ -89,7 +89,6 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
-	iEvmH          *core.InternalEVMHandler
 	regAdd         *core.RegisteredAddresses
 	gcWl           *core.GasCurrencyWhitelist
 	gpm            *core.GasPriceMinimum
@@ -123,18 +122,15 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 
-	iEvmH := core.NewInternalEVMHandler(chain)
 	regAdd := core.NewRegisteredAddresses()
-	iEvmH.SetRegisteredAddresses(regAdd)
 	gcWl := core.NewGasCurrencyWhitelist(regAdd)
 	gpm := core.NewGasPriceMinimum(regAdd)
 	co := core.NewCurrencyOperator(gcWl, regAdd)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
 
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	// If istanbul engine used, set the regAddr objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(iEvmH)
 		istanbul.SetRegisteredAddresses(regAdd)
 		istanbul.SetGasPriceMinimum(gpm)
 		istanbul.SetChain(chain, chain.CurrentBlock)
@@ -165,7 +161,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		chain:          chain,
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
-		iEvmH:          iEvmH,
 		gcWl:           gcWl,
 		regAdd:         regAdd,
 		gpm:            gpm,
@@ -180,7 +175,6 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 }
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
 func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
-func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return b.iEvmH }
 func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
@@ -189,7 +183,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	co := core.NewCurrencyOperator(nil, nil, nil)
-	random := core.NewRandom(backend.regAdd, backend.iEvmH)
+	random := core.NewRandom(backend.regAdd)
 	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
