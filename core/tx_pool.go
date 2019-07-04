@@ -246,14 +246,13 @@ type TxPool struct {
 
 	homestead bool
 
-	co    *CurrencyOperator
-	gcWl  *GasCurrencyWhitelist
-	iEvmH *InternalEVMHandler
+	co   *CurrencyOperator
+	gcWl *GasCurrencyWhitelist
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator, gcWl *GasCurrencyWhitelist, iEvmH *InternalEVMHandler) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator, gcWl *GasCurrencyWhitelist) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -271,7 +270,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
 		co:          co,
 		gcWl:        gcWl,
-		iEvmH:       iEvmH,
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {

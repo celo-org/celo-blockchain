@@ -154,7 +154,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
+	leth.regAdd = core.NewRegisteredAddresses()
 	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
 	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd)
 	leth.gpm = core.NewGasPriceMinimum(leth.regAdd)

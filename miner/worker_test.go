@@ -124,11 +124,11 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 
 	iEvmH := core.NewInternalEVMHandler(chain)
-	regAdd := core.NewRegisteredAddresses(iEvmH)
+	regAdd := core.NewRegisteredAddresses()
 	iEvmH.SetRegisteredAddresses(regAdd)
-	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
+	gcWl := core.NewGasCurrencyWhitelist(regAdd)
 	gpm := core.NewGasPriceMinimum(regAdd)
-	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
+	co := core.NewCurrencyOperator(gcWl, regAdd)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
 

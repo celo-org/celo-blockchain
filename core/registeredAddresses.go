@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 // ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
@@ -70,12 +71,11 @@ var (
 )
 
 type RegisteredAddresses struct {
-	iEvmH *InternalEVMHandler
 }
 
 func (ra *RegisteredAddresses) getRegisteredAddress(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error) {
 	var contractAddress common.Address
-	_, err := ra.iEvmH.MakeStaticCallNoRegisteredAddressMap(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
+	_, err := userspace_communication.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
 	if (contractAddress == common.Address{}) {
 		return nil, ErrSmartContractNotDeployed
 	}
@@ -121,10 +121,8 @@ func (ra *RegisteredAddresses) GetRegisteredAddressMapAtStateAndHeader(state *st
 	return returnMap
 }
 
-func NewRegisteredAddresses(iEvmH *InternalEVMHandler) *RegisteredAddresses {
-	ra := &RegisteredAddresses{
-		iEvmH: iEvmH,
-	}
+func NewRegisteredAddresses() *RegisteredAddresses {
+	ra := &RegisteredAddresses{}
 
 	return ra
 }
