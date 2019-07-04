@@ -508,7 +508,8 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	reserveAddress, err := params.GetRegisteredAddress(params.ReserveRegistryId, evm)
 	evm.DontMeterGas = false
 
-	if err != nil && err != params.ErrSmartContractNotDeployed {
+	if err != nil && err != params.ErrSmartContractNotDeployed && err != params.ErrRegistryContractNotDeployed {
+		log.Trace("Error in tobin transfer", "error", err)
 		return gas, err
 	}
 

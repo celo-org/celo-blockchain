@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -35,7 +36,8 @@ var (
 	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
 	// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-	ErrSmartContractNotDeployed = errors.New("registered contract not deployed")
+	ErrSmartContractNotDeployed    = errors.New("registered contract not deployed")
+	ErrRegistryContractNotDeployed = errors.New("contract registry not deployed")
 
 	regAddrCache   = make(map[string]*regAddrCacheEntry)
 	regAddrCacheMu sync.RWMutex
@@ -63,46 +65,18 @@ func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
 		return nil, ErrSmartContractNotDeployed
 	}
 
-	registryStorageHash := evm.GetStateDB().GetStorageRoot(registrySmartContractAddress)
-	registryCodeHash := evm.GetStateDB().GetCodeHash(registrySmartContractAddress)
+  var contractAddress common.Address
+	_, err := evm.StaticCallFromSystem(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
-	regAddrCacheMu.RLock()
-	if regAddrCacheEntry := regAddrCache[registryId]; regAddrCacheEntry != nil &&
-		regAddrCacheEntry.registryStorageHash == registryStorageHash &&
-		regAddrCacheEntry.registryCodeHash == registryCodeHash {
-		regAddrCacheMu.RUnlock()
-		return regAddrCacheEntry.address, nil
-	}
-	regAddrCacheMu.RUnlock()
-
-	// Fetch the address and update the cache
-	var contractAddress common.Address
-	regAddrCacheMu.Lock()
-	defer regAddrCacheMu.Unlock()
-
-	// Check to see if the cache just got inserted from another thread.
-	if regAddrCacheEntry := regAddrCache[registryId]; regAddrCacheEntry != nil &&
-		regAddrCacheEntry.registryStorageHash == registryStorageHash &&
-		regAddrCacheEntry.registryCodeHash == registryCodeHash {
-		return regAddrCacheEntry.address, nil
-	}
-
-	if _, err := evm.StaticCallFromSystem(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000); err != nil {
+	if err == abi.ErrEmptyOutput {
+		return nil, ErrRegistryContractNotDeployed
+	} else if err != nil {
 		return nil, err
 	}
 
-	if _, ok := regAddrCache[registryId]; !ok {
-		regAddrCache[registryId] = new(regAddrCacheEntry)
-	}
-
-	// The contract has not been registered yet
 	if contractAddress == common.ZeroAddress {
 		return nil, ErrSmartContractNotDeployed
 	}
-
-	regAddrCache[registryId].address = &contractAddress
-	regAddrCache[registryId].registryStorageHash = registryStorageHash
-	regAddrCache[registryId].registryCodeHash = registryCodeHash
 
 	return &contractAddress, nil
 }

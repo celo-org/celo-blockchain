@@ -42,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
@@ -51,6 +50,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 type LesServer interface {
@@ -186,9 +186,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
 	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
 
-  //jarmg - this should become the only signature
-  userspace_communication.SetInternalEVMHandler(eth.blockchain)
-
+	//jarmg - this should become the only signature
+	userspace_communication.SetInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)

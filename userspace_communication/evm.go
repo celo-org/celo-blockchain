@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-
 package userspace_communication
 
 import (
@@ -31,8 +30,8 @@ import (
 )
 
 var (
-	emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
-  IevmHSingleton *InternalEVMHandler
+	emptyMessage   = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
+	IevmHSingleton *InternalEVMHandler
 )
 
 // ChainContext supports retrieving chain data and consensus parameters
@@ -119,7 +118,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 
 // An EVM handler to make calls to smart contracts from within geth
 type InternalEVMHandler struct {
-	chain  ChainContext
+	chain ChainContext
 }
 
 func MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
@@ -128,7 +127,6 @@ func MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args
 	}
 	return makeCall(abiStaticCall, header, state)
 }
-
 
 func MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
 	abiCall := func(evm *vm.EVM) (uint64, error) {
@@ -174,11 +172,11 @@ func makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, stat
 }
 
 func SetInternalEVMHandler(chain ChainContext) {
-  if IevmHSingleton == nil {
-    log.Trace("Setting the InternalEVMHandler Singleton")
-    iEvmH := InternalEVMHandler {
-      chain: chain,
-    }
-    IevmHSingleton = &iEvmH
-  }
+	if IevmHSingleton == nil {
+		log.Trace("Setting the InternalEVMHandler Singleton")
+		iEvmH := InternalEVMHandler{
+			chain: chain,
+		}
+		IevmHSingleton = &iEvmH
+	}
 }

@@ -148,7 +148,6 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		return FallbackGasPriceMinimum, err
 	}
 
-  log.Info("========== getting gasprice with singleton ============")
 	_, err = userspace_communication.MakeStaticCall(
 		*gasPriceMinimumAddress,
 		gasPriceMinimumABI,
@@ -159,7 +158,6 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		header,
 		state,
 	)
-  log.Info("========== returning from singleton function call ============", "gasprice min", gasPriceMinimum)
 	return gasPriceMinimum, err
 }
 

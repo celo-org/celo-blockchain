@@ -135,16 +135,17 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 
-  addressLookupEMV:= vm.NewEVM(context, statedb, config, cfg)
+	addressLookupEMV := vm.NewEVM(context, statedb, config, cfg)
 	//addressLookupEMV.DontMeterGas = true
 	infraAddress, err := params.GetRegisteredAddress(params.GovernanceRegistryId, addressLookupEMV)
 	//addressLookupEMV.DontMeterGas = false
 
-	if err != nil && err != params.ErrSmartContractNotDeployed {
-		return nil, 0, err
-	} else if err == params.ErrSmartContractNotDeployed {
+	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
 		infraAddress = nil
+	} else if err != nil {
+		return nil, 0, err
 	}
+
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
