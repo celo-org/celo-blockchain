@@ -106,7 +106,7 @@ func TestTxPool(t *testing.T) {
 	}
 	lightchain, _ := NewLightChain(odr, params.TestChainConfig, ethash.NewFullFaker())
 	txPermanent = 50
-	pool := NewTxPool(params.TestChainConfig, lightchain, relay)
+	pool := NewTxPool(params.TestChainConfig, lightchain, relay, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
