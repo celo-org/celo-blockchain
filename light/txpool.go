@@ -378,7 +378,10 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
 	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String(), "from", from.Hex(), "txn cost", tx.Cost().String())
+		log.Debug("Insufficient funds",
+			"from", from, "balance", b, "Transaction cost", tx.Cost(), "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "gas currency", tx.GasCurrency())
 		return core.ErrInsufficientFunds
 	} else if tx.GasCurrency() != nil {
 		gasCurrencyBalance, _, err := core.GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, params.MaxGasToReadErc20Balance)
