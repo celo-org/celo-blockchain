@@ -3,7 +3,6 @@ package params
 import (
 	"errors"
 	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,8 +38,11 @@ var (
 	ErrSmartContractNotDeployed    = errors.New("registered contract not deployed")
 	ErrRegistryContractNotDeployed = errors.New("contract registry not deployed")
 
-	regAddrCache   = make(map[string]*regAddrCacheEntry)
-	regAddrCacheMu sync.RWMutex
+	// TODO(kevjue) - Re-Enable caching of the retrieved registered address
+	// See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
+	// See the changes in the dynamic_params.go file.
+	// regAddrCache   = make(map[string]*regAddrCacheEntry)
+	// regAddrCacheMu sync.RWMutex
 )
 
 type StateDB interface {

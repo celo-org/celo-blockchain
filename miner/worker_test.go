@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 var (
@@ -121,13 +122,14 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	userspace_communication.SetInternalEVMHandler(chain)
 
 	regAdd := core.NewRegisteredAddresses()
 	gcWl := core.NewGasCurrencyWhitelist(regAdd)
 	gpm := core.NewGasPriceMinimum(regAdd)
 	co := core.NewCurrencyOperator(gcWl, regAdd)
 
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil)
 
 	// If istanbul engine used, set the regAddr objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
@@ -182,7 +184,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	co := core.NewCurrencyOperator(nil, nil, nil)
+	co := core.NewCurrencyOperator(nil, nil)
 	random := core.NewRandom(backend.regAdd)
 	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
 	w.setEtherbase(testBankAddress)
