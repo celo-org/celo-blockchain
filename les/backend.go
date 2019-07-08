@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/params"
 	rpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 type LightEthereum struct {
@@ -147,6 +148,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
 		return nil, err
 	}
+
+	//jarmg - this should become the only signature
+	userspace_communication.SetInternalEVMHandler(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	leth.regAdd = core.NewRegisteredAddresses()
