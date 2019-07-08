@@ -64,7 +64,7 @@ type regAddrCacheEntry struct {
 
 func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
 	if evm.GetStateDB().GetCodeSize(registrySmartContractAddress) == 0 {
-		return nil, ErrSmartContractNotDeployed
+		return nil, ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
