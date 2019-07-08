@@ -368,7 +368,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		if enodeUrl != msg.EnodeUrl {
+		if enodeUrl != msg.EnodeURL {
 			sb.logger.Warn("Should fail here") //TODO(nguo) remove this
 		}
 
