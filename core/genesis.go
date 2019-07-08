@@ -88,7 +88,7 @@ type GenesisAccount struct {
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
-	PublicKey  []byte                      `json:"secretKey,omitempty"`
+	PublicKey  []byte                      `json:"publicKey,omitempty"`
 }
 
 // field type overrides for gencodec

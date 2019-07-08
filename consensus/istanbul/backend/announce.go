@@ -85,7 +85,7 @@ var (
 
 type announceMessage struct {
 	Address            common.Address
-	EnodeURL           string
+	EnodeURL           string //TODO(nguo) remove this field
 	EncryptedEnodeData []byte
 	View               *istanbul.View
 	Signature          []byte
@@ -204,12 +204,6 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 func (sb *Backend) sendIstAnnounce() error {
 	block := sb.currentBlock()
-	state, err := sb.stateAt(block.Header().ParentHash)
-	if err != nil {
-		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-		return err
-	}
-
 	enode := sb.Enode()
 	if enode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
@@ -252,6 +246,11 @@ func (sb *Backend) sendIstAnnounce() error {
 	for addr := range regVals {
 		var pubKeyBytes []byte
 		if useValidatorContract {
+			state, err := sb.stateAt(block.Header().ParentHash)
+			if err != nil {
+				log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
+				return err
+			}
 			var validator []interface{}
 			if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
@@ -260,7 +259,6 @@ func (sb *Backend) sendIstAnnounce() error {
 			pubKeyBytes, _ = validator[3].([]byte) // The publicKey field
 		} else {
 			pubKeyBytes = g.Alloc[addr].PublicKey
-			log.Info("pkfire", "pk", pubKeyBytes)
 		}
 		// ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
 		// if err != nil {
@@ -369,6 +367,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if sb.coreStarted && enodeUrl != "" {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+		if enodeUrl != msg.enodeUrl {
+			sb.logger.Warn("Should fail here") //TODO(nguo) remove this
+		}
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
