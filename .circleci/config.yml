@@ -8,7 +8,7 @@ defaults: &defaults
 rust-defaults: &rust-defaults
   docker:
     - image: circleci/rust:1.36.0
-  working_directory: /go/src/github.com/celo-org/geth
+  working_directory: ~/geth
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
