@@ -4,12 +4,9 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math/big"
 
-	bls "github.com/celo-org/bls-zexe/go"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -41,7 +38,7 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 		privateKeyBytes[i], privateKeyBytes[opp] = privateKeyBytes[opp], privateKeyBytes[i]
 	}
 
-	privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
+	privateKeyBLS, err := ultralight.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -55,20 +52,20 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	return privateKeyBLSBytes, nil
 }
 
-func IstanbulSigToPub(pubKeyBytes []byte) ([]byte, error) {
-	publicKey, err := bls.DeserializePublicKey(pubKeyBytes)
+func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
+	privateKey, err := ultralight.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	publicKey, err := privateKey.ToPublic()
 	if err != nil {
 		return nil, err
 	}
 	defer publicKey.Destroy()
 
-	signature, err := bls.DeserializeSignature(sigBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer signature.Destroy()
-
-	err = publicKey.VerifySignature(msg, signature)
+	pubKeyBytes, err := publicKey.Serialize()
 	if err != nil {
 		return nil, err
 	}
