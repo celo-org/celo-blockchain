@@ -1004,13 +1004,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && w.random != nil && w.random.Running() {
-		account := accounts.Account{Address: w.coinbase}
-		wallet, err := w.eth.AccountManager().Find(account)
-
-		if err != nil && randomSeed == nil {
-			randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
-			log.Error("Unable to create random seed", "err", err)
-			return
+		if randomSeed == nil {
+			account := accounts.Account{Address: w.coinbase}
+			wallet, err := w.eth.AccountManager().Find(account)
+			if err == nil {
+				randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
+			}
+			if err != nil {
+				log.Error("Unable to create random seed", "err", err)
+				return
+			}
 		}
 
 		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, randomSeed)
