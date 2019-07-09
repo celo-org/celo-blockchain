@@ -5,6 +5,11 @@ defaults: &defaults
     - image: circleci/golang:1.12
   working_directory: /go/src/github.com/celo-org/geth
 
+rust-defaults: &rust-defaults
+  docker:
+    - image: circleci/rust:1.36.0
+  working_directory: /go/src/github.com/celo-org/geth
+
 end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node8:gcloud
@@ -31,6 +36,23 @@ jobs:
       - checkout
       - run: build/env.sh go run build/ci.go lint
 
+  bls-zexe:
+    <<: *rust-defaults
+    steps:
+      - run:
+          name: Setup Rust language
+          command: |
+            set -euo pipefail
+            rustup install nightly
+            rustup default nightly
+      - run:
+          name: Compile bls-zexe
+          command: |
+            set -euo pipefail
+            export PATH=$PATH:$HOME/.cargo/bin
+            cd ~/geth
+            make bls-zexe
+
   end-to-end-checkout:
     <<: *end-to-end-defaults
     steps:
@@ -46,15 +68,6 @@ jobs:
             wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
             tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
             ${GO_LANG_DIR}/go/bin/go version
-      - run:
-          name: Setup Rust language
-          command: |
-            set -euo pipefail
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            export PATH=$PATH:$HOME/.cargo/bin
-            rustup install nightly
-            rustup default nightly
-
       - run:
           name: Setup celo-monorepo
           command: |
@@ -76,14 +89,6 @@ jobs:
             sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn
-
-      - run:
-          name: Compile bls-zexe
-          command: |
-            set -euo pipefail
-            export PATH=$PATH:$HOME/.cargo/bin
-            cd ~/geth
-            make bls-zexe
 
       - persist_to_workspace:
           root: .
@@ -140,10 +145,18 @@ workflows:
   version: 2
   build:
     jobs:
-      - lint
-      - unit-tests
-      - coverage
-      - end-to-end-checkout
+      - lint:
+          requires:
+            - bls-zexe
+      - unit-tests:
+          requires:
+            - bls-zexe
+      - coverage:
+          requires:
+            - bls-zexe
+      - end-to-end-checkout:
+          requires:
+            - bls-zexe
 
       - end-to-end-transfer-test:
           requires:
