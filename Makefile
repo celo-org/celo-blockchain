@@ -11,10 +11,13 @@
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
 
-geth:
+geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
+bls-zexe:
+	cd vendor/github.com/celo-org/bls-zexe/ultralight && cargo build --release
 
 swarm:
 	build/env.sh go run build/ci.go install ./cmd/swarm
