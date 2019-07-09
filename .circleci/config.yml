@@ -39,6 +39,7 @@ jobs:
   bls-zexe:
     <<: *rust-defaults
     steps:
+      - checkout
       - run:
           name: Setup Rust language
           command: |
