@@ -110,7 +110,7 @@ var (
 	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
-	prevBlockHashFuncABI, _        = abi.JSON(strings.NewReader(prevBlockHashAbi))
+	prevBlockHashFuncABI, _     = abi.JSON(strings.NewReader(prevBlockHashAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("commitment-to-randomness")
 )

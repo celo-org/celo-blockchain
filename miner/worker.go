@@ -81,7 +81,7 @@ const (
 
 var (
 	randomSeedString = []byte("Randomness seed string")
-	randomSeed []byte
+	randomSeed       []byte
 )
 
 // environment is the worker's current environment and holds all of the current state information.
