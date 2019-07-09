@@ -19,21 +19,24 @@ jobs:
   unit-tests:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test
 
   coverage:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
   lint:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go lint
 
   bls-zexe:
@@ -53,11 +56,13 @@ jobs:
             export PATH=$PATH:$HOME/.cargo/bin
             cd ~/geth
             make bls-zexe
+      - persist_to_workspace:
+          root: .
+          paths: .
 
   end-to-end-checkout:
     <<: *end-to-end-defaults
     steps:
-      - checkout
       - attach_workspace:
           at: ~/geth
       - run:
