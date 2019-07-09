@@ -145,6 +145,7 @@ workflows:
   version: 2
   build:
     jobs:
+      - bls-zexe
       - lint:
           requires:
             - bls-zexe
