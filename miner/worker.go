@@ -26,6 +26,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/abe"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -76,6 +77,11 @@ const (
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
 	staleThreshold = 7
+)
+
+var (
+	randomSeedString = []byte("Randomness seed string")
+	randomSeed []byte
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -998,13 +1004,22 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && w.random != nil && w.random.Running() {
-		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+		account := accounts.Account{Address: w.coinbase}
+		wallet, err := w.eth.AccountManager().Find(account)
+
+		if err != nil && randomSeed == nil {
+			randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
+			log.Error("Unable to create random seed", "err", err)
+			return
+		}
+
+		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, randomSeed)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
 		}
 
-		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
+		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
 		if err != nil {
 			log.Error("Failed to generate randomness commitment", "err", err)
 			return
