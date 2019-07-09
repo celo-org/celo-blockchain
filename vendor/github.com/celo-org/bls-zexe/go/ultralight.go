@@ -26,7 +26,7 @@ type Signature struct {
 	ptr *C.struct_Signature
 }
 
-func init() {
+func InitBLSCrypto() {
 	C.init()
 }
 

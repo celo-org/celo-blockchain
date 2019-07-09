@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
+	ultralight.InitBLSCrypto()
 	privateKey, _ := ultralight.GeneratePrivateKey()
 	defer privateKey.Destroy()
 	privateKeyBytes, _ := privateKey.Serialize()
