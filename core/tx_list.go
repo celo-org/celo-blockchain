@@ -564,8 +564,13 @@ func (l *txPricedList) Discard(count int, local *accountSet) types.Transactions 
 // Retrieves the heap with the lowest normalized price at it's head
 func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 	// Initialize it to the nilCurrencyHeap
-	var cheapestHeap *priceHeap = l.nilCurrencyHeap
-	var cheapestTxn *types.Transaction = []*types.Transaction(*l.nilCurrencyHeap)[0]
+	var cheapestHeap *priceHeap
+	var cheapestTxn *types.Transaction
+
+	if len(*l.nilCurrencyHeap) > 0 {
+		cheapestHeap = l.nilCurrencyHeap
+		cheapestTxn = []*types.Transaction(*l.nilCurrencyHeap)[0]
+	}
 
 	for _, priceHeap := range l.nonNilCurrencyHeaps {
 		if len(*priceHeap) > 0 {
