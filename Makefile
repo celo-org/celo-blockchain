@@ -16,7 +16,9 @@ geth: bls-zexe
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-bls-zexe:
+bls-zexe: vendor/github.com/celo-org/bls-zexe/ultralight/target/release/libbls_zexe.a
+
+vendor/github.com/celo-org/bls-zexe/ultralight/target/release/libbls_zexe.a:
 	cd vendor/github.com/celo-org/bls-zexe/ultralight && cargo build --release
 
 swarm:
