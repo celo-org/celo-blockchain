@@ -60,28 +60,6 @@ const (
 		"type": "function"
 	}
 ]`
-	prevBlockHashAbi = `[
-	{
-		"constant": true,
-		"inputs": [
-			{
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "prevBlockHash",
-		"outputs": [
-			{
-				"name": "",
-				"type": "bytes32"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}
-]`
-
 	computeCommitmentAbi = `[
     {
       "constant": true,
@@ -110,9 +88,8 @@ var (
 	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
-	prevBlockHashFuncABI, _     = abi.JSON(strings.NewReader(prevBlockHashAbi))
 	zeroValue                   = common.Big0
-	dbRandomnessPrefix          = []byte("commitment-to-randomness")
+	dbRandomnessPrefix          = []byte("db-randomness-prefix")
 )
 
 func commitmentDbLocation(commitment common.Hash) []byte {
@@ -155,7 +132,7 @@ func (r *Random) Running() bool {
 // looking up our last commitment in the smart contract, and then finding the
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
-func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB, seed []byte) (common.Hash, error) {
+func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB, chain *BlockChain, seed []byte) (common.Hash, error) {
 	lastCommitment := common.Hash{}
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
@@ -168,17 +145,20 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 		return common.Hash{}, nil
 	}
 
-	randomness := common.Hash{}
-	randomnessSlice, err := (*db).Get(commitmentDbLocation(lastCommitment))
+	parentBlockHashBytes, err := (*db).Get(commitmentDbLocation(lastCommitment))
 	if err != nil {
-		log.Error("Failed to get randomness from database", "commitment", lastCommitment.Hex(), "err", err)
-		prevBlockHash := common.Hash{}
-		_, err := r.iEvmH.MakeStaticCall(*r.address(), prevBlockHashFuncABI, "prevBlockHash", []interface{}{coinbase}, &prevBlockHash, gasAmount, header, state)
-		return crypto.Keccak256Hash(append(seed, prevBlockHash.Bytes()...)), err
-	} else {
-		randomness = common.BytesToHash(randomnessSlice)
+		log.Error("Failed to get last block proposed from database", "commitment", lastCommitment.Hex(), "err", err)
+		parentBlockHash := header.ParentHash
+		for {
+			blockHeader := chain.GetHeaderByHash(parentBlockHash)
+			parentBlockHash = blockHeader.ParentHash
+			if blockHeader.Coinbase == coinbase {
+				break
+			}
+		}
+		parentBlockHashBytes = parentBlockHash.Bytes()
 	}
-	return randomness, err
+	return crypto.Keccak256Hash(append(seed, parentBlockHashBytes...)), nil
 }
 
 // GenerateNewRandomnessAndCommitment generates a new random number and a corresponding commitment.
@@ -188,9 +168,9 @@ func (r *Random) GenerateNewRandomnessAndCommitment(header *types.Header, state 
 	randomness := crypto.Keccak256Hash(append(seed, header.ParentHash.Bytes()...))
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
-	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
+	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
-		log.Error("Failed to save randomness to the database", "err", err)
+		log.Error("Failed to save last block proposed to the database", "err", err)
 	}
 
 	return commitment, err
