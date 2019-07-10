@@ -34,6 +34,7 @@ var (
 	IevmHSingleton *InternalEVMHandler
 )
 
+// TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
 // ChainContext supports retrieving chain data and consensus parameters
 // from the block chain to be used during transaction processing.
 type ChainContext interface {
@@ -121,34 +122,20 @@ type InternalEVMHandler struct {
 	chain ChainContext
 }
 
-func MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
-	abiStaticCall := func(evm *vm.EVM) (uint64, error) {
-		return evm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-	}
-	return makeCall(abiStaticCall, header, state)
+func MakeStaticCall(scRegistryID string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+	return executeEVMFunction(scRegistryID, abi, funcName, args, returnObj, gas, value, header, state, false)
 }
 
-func MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
-	abiCall := func(evm *vm.EVM) (uint64, error) {
-		gasLeft, err := evm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
-		state.Finalise(true)
-
-		return gasLeft, err
-	}
-
-	return makeCall(abiCall, header, state)
+func MakeCall(scRegistryID string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
+	return executeEVMFunction(scRegistryID, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
-func CurrentHeader() *types.Header {
-	return IevmHSingleton.chain.CurrentHeader()
-}
-
-func makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB) (uint64, error) {
+func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	log.Trace("InternalEVMHandler.makeCall called")
+	log.Trace("createEVM called")
 
 	if header == nil {
 		header = IevmHSingleton.chain.CurrentHeader()
@@ -158,8 +145,8 @@ func makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, stat
 		var err error
 		state, err = IevmHSingleton.chain.State()
 		if err != nil {
-			log.Error("Error in retrieving the state from the blockchain")
-			return 0, err
+			log.Error("Error in retrieving the state from the blockchain", "err", err)
+			return nil, err
 		}
 	}
 
@@ -168,7 +155,35 @@ func makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, stat
 	context := NewEVMContext(emptyMessage, header, IevmHSingleton.chain, nil)
 	evm := vm.NewEVM(context, state, IevmHSingleton.chain.Config(), *IevmHSingleton.chain.GetVMConfig())
 
-	return call(evm)
+	return evm, nil
+}
+
+func executeEVMFunction(scRegistryID, string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB, mutateState bool) (uint64, error) {
+	vmevm, err := createVMEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	scAddress, err := params.GetRegisteredAddress(scRegistryID, vmevm)
+	if err != nil {
+		return 0, err
+	}
+
+	if mutateState {
+		gasLeft, err := vmevm.CallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value)
+	} else {
+		gasLeft, err := vmevm.StaticCallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value)
+	}
+	if err != nil {
+		log.Error("Error when invoking evm function", "err", err)
+		return gasLeft, err
+	}
+
+	if mutateState {
+		state.Finalise(true)
+	}
+
+	return gasLeft, nil
 }
 
 func SetInternalEVMHandler(chain ChainContext) {
