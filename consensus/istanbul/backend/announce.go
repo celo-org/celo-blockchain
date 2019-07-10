@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	getValidatorABI = `[{
+	getValidatorPublicKeyABI = `[{
 		"constant": true,
 		"inputs": [
 		  {
@@ -46,27 +46,11 @@ const (
 			"type": "address"
 		  }
 		],
-		"name": "getValidator",
+		"name": "getValidatorPublicKey",
 		"outputs": [
 		  {
 			"name": "",
-			"type": "string"
-		  },
-		  {
-			"name": "",
-			"type": "string"
-		  },
-		  {
-			"name": "",
-			"type": "string"
-		  },
-		  {
-			"name": "",
 			"type": "bytes"
-		  },
-		  {
-			"name": "",
-			"type": "address"
 		  }
 		],
 		"payable": false,
@@ -76,7 +60,7 @@ const (
 )
 
 var (
-	getValidatorFuncABI, _ = abi.JSON(strings.NewReader(getValidatorABI))
+	getValidatorPublicKeyFuncABI, _ = abi.JSON(strings.NewReader(getValidatorPublicKeyABI))
 )
 
 // ==============================================
@@ -213,6 +197,8 @@ func (sb *Backend) sendIstAnnounce() error {
 	enodeUrl := enode.String()
 	view := sb.core.CurrentView()
 
+	useValidatorContract := true
+	var g core.Genesis
 	regVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -224,22 +210,20 @@ func (sb *Backend) sendIstAnnounce() error {
 		for _, val := range valSet.List() {
 			regVals[val.Address()] = true
 		}
-	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
-		return err
-	}
-
-	useValidatorContract := true
-	var g core.Genesis
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
-	if err != nil {
-		log.Warn("Registry address lookup failed", "err", err)
 		useValidatorContract = false
 		genesisJSON, err := sb.db.Get(core.DBGenesisKey)
 		err = g.UnmarshalJSON(genesisJSON)
 		if err != nil {
 			log.Error("Unable to retrieve genesis from db", "err", err)
 		}
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return err
+	}
+
+	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
+	if err != nil {
+		log.Warn("Registry address lookup failed", "err", err)
 	}
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
@@ -251,21 +235,13 @@ func (sb *Backend) sendIstAnnounce() error {
 				log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 				return err
 			}
-			var validator []interface{}
-			if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorFuncABI, "getValidator", []interface{}{}, &validator, uint64(1000000), block.Header(), state); err != nil {
+			if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorPublicKeyFuncABI, "getValidatorPublicKey", []interface{}{addr}, &pubKeyBytes, uint64(1000000), block.Header(), state); err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
 				return err
 			}
-			pubKeyBytes, _ = validator[3].([]byte) // The publicKey field
 		} else {
 			pubKeyBytes = g.Alloc[addr].PublicKey
 		}
-		// ECDSAKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
-		// if err != nil {
-		// 	log.Info("bigsad")
-		// 	continue;
-		// }
-		// pubKey := ecies.ImportECDSAPublic(ECDSAKey)
 		pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
 		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
 		if err != nil {
@@ -286,6 +262,10 @@ func (sb *Backend) sendIstAnnounce() error {
 		EnodeURL:           enodeUrl,
 		EncryptedEnodeData: encryptedEnodeData,
 		View:               view,
+	}
+
+	if useValidatorContract {
+		log.Info("wowow", "msg", msg.EncryptedEnodeData)
 	}
 
 	// Sign the announce message
@@ -351,7 +331,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String())
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regVals, "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -369,7 +349,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 		if enodeUrl != msg.EnodeURL {
-			sb.logger.Warn("Should fail here") //TODO(nguo) remove this
+			log.Info("Should fail here") //TODO(nguo) remove this
+		} else {
+			log.Info("yayyyy")
 		}
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
