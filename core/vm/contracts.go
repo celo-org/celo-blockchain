@@ -461,8 +461,6 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	log.Info("[Celo] Running transfer precompile")
-
 	celoGoldAddress := evm.Context.getRegisteredAddress(params.GoldTokenRegistryId)
 
 	if celoGoldAddress == nil {

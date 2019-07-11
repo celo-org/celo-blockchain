@@ -523,7 +523,6 @@ func (srv *Server) setupLocalNode() error {
 	srv.localnode.Set(capsByNameAndVersion(srv.ourHandshake.Caps))
 	// TODO: check conflicts
 	var primaries []string
-	var protocols []string
 	for _, p := range srv.Protocols {
 		if p.Primary {
 			primaries = append(primaries, p.Name)
@@ -536,8 +535,6 @@ func (srv *Server) setupLocalNode() error {
 	if len(primaries) > 1 {
 		srv.log.Crit("Multiple primary protocols specified", "names", strings.Join(primaries, ", "))
 	}
-	srv.log.Info("Primary protocols specified", "names", strings.Join(primaries, ", "))
-	srv.log.Info("protocols specified", "names", strings.Join(protocols, ", "))
 	switch srv.NAT.(type) {
 	case nil:
 		// No NAT interface, do nothing.
