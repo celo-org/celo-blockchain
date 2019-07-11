@@ -79,7 +79,7 @@ func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coin
 	for _, receipt := range receipts {
 		for _, request := range receipt.AttestationRequests {
 			if walletErr != nil {
-				log.Error("[Celo] Failed to get account for sms attestation", "err", err)
+				log.Error("[Celo] Failed to get account for sms attestation", "err", walletErr)
 				return
 			}
 
