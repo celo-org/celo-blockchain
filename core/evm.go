@@ -155,12 +155,8 @@ func (iEvmH *InternalEVMHandler) CurrentHeader() *types.Header {
 }
 
 func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB, regAdd *RegisteredAddresses) (uint64, error) {
-	// Normally, when making an evm call, we should use the current block's state.  However,
-	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
-	// to call the evm using the currently mined block.  In that case, the header and state params
-	// will be non nil.
-	log.Trace("InternalEVMHandler.makeCall called")
-
+	// Normally, when making an evm call, we should pass the header and state at which to perform
+	// the call.  However there are some times where we need to use the most recent header.
 	if header == nil {
 		header = iEvmH.chain.CurrentHeader()
 	}

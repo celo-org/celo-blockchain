@@ -745,7 +745,8 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 
 	gasPriceMinimum, err := s.b.GasPriceMinimum().GetGasPriceMinimum(args.GasCurrency, state, header)
 	infraFraction, err := s.b.GasPriceMinimum().GetInfrastructureFraction(state, header)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, nil)
+	infraAddress, _ := s.b.RegisteredAddresses().GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
