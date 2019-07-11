@@ -561,11 +561,11 @@ func (evm *EVM) handleABICall(caller ContractRef, abi abi.ABI, funcName string, 
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		log.Error("Error in calling the EVM", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(args), "err", err)
+		log.Error("Error in calling the EVM", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "err", err)
 		return leftoverGas, err
 	}
 
-	log.Trace("EVM call successful", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(args), "ret", hexutil.Encode(ret))
+	log.Trace("EVM call successful", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
