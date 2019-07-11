@@ -24,6 +24,7 @@ import (
 	"errors"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -521,11 +522,22 @@ func (srv *Server) setupLocalNode() error {
 	srv.localnode.SetFallbackIP(net.IP{127, 0, 0, 1})
 	srv.localnode.Set(capsByNameAndVersion(srv.ourHandshake.Caps))
 	// TODO: check conflicts
+	var primaries []string
+	var protocols []string
 	for _, p := range srv.Protocols {
+		if p.Primary {
+			primaries = append(primaries, p.Name)
+		}
+		protocols = append(protocols, p.Name)
 		for _, e := range p.Attributes {
 			srv.localnode.Set(e)
 		}
 	}
+	if len(primaries) > 1 {
+		srv.log.Crit("Multiple primary protocols specified", "names", strings.Join(primaries, ", "))
+	}
+	srv.log.Info("Primary protocols specified", "names", strings.Join(primaries, ", "))
+	srv.log.Info("protocols specified", "names", strings.Join(protocols, ", "))
 	switch srv.NAT.(type) {
 	case nil:
 		// No NAT interface, do nothing.

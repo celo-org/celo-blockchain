@@ -200,6 +200,7 @@ func (n *Node) Start() error {
 	// Start each of the services
 	started := []reflect.Type{}
 	for kind, service := range services {
+		n.log.Info("Starting service", "kind", kind)
 		// Start the next service, stopping all previous upon failure
 		if err := service.Start(running); err != nil {
 			for _, kind := range started {
