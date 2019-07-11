@@ -156,6 +156,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 			Name:    protocol.Name,
 			Version: version,
 			Length:  protocol.Lengths[i],
+			Primary: protocol.Primary,
 			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 				peer := manager.newPeer(int(version), p, rw)
 				select {
