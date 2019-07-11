@@ -527,7 +527,6 @@ func (srv *Server) setupLocalNode() error {
 		if p.Primary {
 			primaries = append(primaries, p.Name)
 		}
-		protocols = append(protocols, p.Name)
 		for _, e := range p.Attributes {
 			srv.localnode.Set(e)
 		}
