@@ -60,11 +60,11 @@ jobs:
             # Once we open source this code, these modifications can be eliminated.
             # These environment variables are configured at https://circleci.com/gh/celo-org/geth/edit#env-vars
             sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
-            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
+            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/contractkit/package.json
             sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
             sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
-            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
-            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
+            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/contractkit/package.json
+            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/contractkit/package.json
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn
       - persist_to_workspace:
