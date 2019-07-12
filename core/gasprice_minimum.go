@@ -134,7 +134,7 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		currencyAddress, err = gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
 
 		if err != nil {
-			return FallbackGasPriceMinimum, errors.New("no goldtoken contract address found")
+			return FallbackGasPriceMinimum, nil
 		}
 	} else {
 		currencyAddress = currency
