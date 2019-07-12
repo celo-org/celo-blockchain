@@ -185,14 +185,11 @@ type worker struct {
 	verificationMu      sync.RWMutex
 	lastBlockVerified   uint64
 
-	// Transaction processing
-	random *core.Random
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, random *core.Random, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -217,7 +214,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		random:              random,
 		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -985,20 +981,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.updateSnapshot()
 
 	// Play our part in generating the random beacon.
-	if w.isRunning() && w.random != nil && w.random.Running() {
-		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	if w.isRunning() && core.Running() {
+		lastRandomness, err := core.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
 		}
 
-		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
+		commitment, err := core.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
 		if err != nil {
 			log.Error("Failed to generate randomness commitment", "err", err)
 			return
 		}
 
-		err = w.random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		err = core.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return

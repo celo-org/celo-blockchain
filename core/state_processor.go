@@ -37,9 +37,6 @@ type StateProcessor struct {
 	config *params.ChainConfig // Chain configuration options
 	bc     *BlockChain         // Canonical block chain
 	engine consensus.Engine    // Consensus engine used for block rewards
-
-	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
-	random *Random
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -49,10 +46,6 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		bc:     bc,
 		engine: engine,
 	}
-}
-
-func (p *StateProcessor) SetRandom(random *Random) {
-	p.random = random
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -75,8 +68,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	if p.random != nil && p.random.Running() {
-		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
+	if Running() {
+		err := RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
 			return nil, nil, 0, err
 		}

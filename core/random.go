@@ -98,15 +98,7 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 	return append(dbRandomnessPrefix, commitment.Bytes()...)
 }
 
-type Random struct {
-}
-
-func NewRandom() *Random {
-	r := &Random{}
-	return r
-}
-
-func (r *Random) address() *common.Address {
+func address() *common.Address {
 	randomAddress, err := userspace_communication.GetContractAddress(params.RandomRegistryId, nil, nil)
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -116,8 +108,8 @@ func (r *Random) address() *common.Address {
 	return randomAddress
 }
 
-func (r *Random) Running() bool {
-	randomAddress := r.address()
+func Running() bool {
+	randomAddress := address()
 	return randomAddress != nil && *randomAddress != common.ZeroAddress
 }
 
@@ -125,7 +117,7 @@ func (r *Random) Running() bool {
 // looking up our last commitment in the smart contract, and then finding the
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
-func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
+func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
 	lastCommitment := common.Hash{}
 	_, err := userspace_communication.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
@@ -151,7 +143,7 @@ func (r *Random) GetLastRandomness(coinbase common.Address, db *ethdb.Database, 
 
 // GenerateNewRandomnessAndCommitment generates a new random number and a corresponding commitment.
 // The random number is stored in the database, keyed by the corresponding commitment.
-func (r *Random) GenerateNewRandomnessAndCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
+func GenerateNewRandomnessAndCommitment(header *types.Header, state *state.StateDB, db *ethdb.Database) (common.Hash, error) {
 	commitment := common.Hash{}
 
 	randomBytes := [32]byte{}
@@ -168,14 +160,13 @@ func (r *Random) GenerateNewRandomnessAndCommitment(header *types.Header, state 
 	if err != nil {
 		log.Error("Failed to save randomness to the database", "err", err)
 	}
-
 	return commitment, err
 }
 
 // RevealAndCommit performs an internal call to the EVM that reveals a
 // proposer's previously committed to randomness, and commits new randomness for
 // a future block.
-func (r *Random) RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
+func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
 	_, err := userspace_communication.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
