@@ -505,7 +505,7 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	evm.DontMeterGas = true
-	reserveAddress, err := params.GetRegisteredAddress(params.ReserveRegistryId, evm)
+	reserveAddress, err := params.GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 	evm.DontMeterGas = false
 
 	if err != nil && err != params.ErrSmartContractNotDeployed && err != params.ErrRegistryContractNotDeployed {

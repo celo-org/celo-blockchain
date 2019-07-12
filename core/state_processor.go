@@ -137,7 +137,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 
 	addressLookupEMV := vm.NewEVM(context, statedb, config, cfg)
 	//addressLookupEMV.DontMeterGas = true
-	infraAddress, err := params.GetRegisteredAddress(params.GovernanceRegistryId, addressLookupEMV)
+	infraAddress, err := params.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, addressLookupEMV)
 	//addressLookupEMV.DontMeterGas = false
 
 	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {

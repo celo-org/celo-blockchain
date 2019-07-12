@@ -62,7 +62,7 @@ type regAddrCacheEntry struct {
 	registryCodeHash    common.Hash
 }
 
-func GetRegisteredAddress(registryId string, evm EVM) (*common.Address, error) {
+func GetRegisteredAddressWithEvm(registryId string, evm EVM) (*common.Address, error) {
 	if evm.GetStateDB().GetCodeSize(registrySmartContractAddress) == 0 {
 		return nil, ErrRegistryContractNotDeployed
 	}

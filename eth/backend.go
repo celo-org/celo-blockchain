@@ -191,11 +191,11 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.regAdd = core.NewRegisteredAddresses()
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd)
+	eth.gcWl = core.NewGasCurrencyWhitelist()
 	eth.gpm = core.NewGasPriceMinimum(eth.regAdd)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	co := core.NewCurrencyOperator(eth.gcWl, eth.regAdd)
+	co := core.NewCurrencyOperator(eth.gcWl)
 	random := core.NewRandom(eth.regAdd)
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl)
@@ -211,7 +211,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
-		istanbul.SetRegisteredAddresses(eth.regAdd)
 		istanbul.SetGasPriceMinimum(eth.gpm)
 	}
 

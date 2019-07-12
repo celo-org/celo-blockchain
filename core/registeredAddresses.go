@@ -75,7 +75,7 @@ type RegisteredAddresses struct {
 
 func (ra *RegisteredAddresses) getRegisteredAddress(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error) {
 	var contractAddress common.Address
-	_, err := userspace_communication.MakeStaticCall(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
+	_, err := userspace_communication.MakeStaticCallWithAddress(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
 	if (contractAddress == common.Address{}) {
 		return nil, ErrSmartContractNotDeployed
 	}

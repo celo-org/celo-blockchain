@@ -141,14 +141,8 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 	}
 
 	var gasPriceMinimum *big.Int
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-
-	if err != nil {
-		return FallbackGasPriceMinimum, err
-	}
-
 	_, err = userspace_communication.MakeStaticCall(
-		*gasPriceMinimumAddress,
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
 		[]interface{}{currencyAddress},
@@ -157,20 +151,19 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		header,
 		state,
 	)
+
+	if err != nil {
+		return FallbackGasPriceMinimum, err
+	}
+
 	return gasPriceMinimum, err
 }
 
 func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-
-	if err != nil {
-		return nil, err
-	}
-
 	var updatedGasPriceMinimum *big.Int
 
-	_, err = userspace_communication.MakeCall(
-		*gasPriceMinimumAddress,
+	_, err := userspace_communication.MakeCall(
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
@@ -181,6 +174,9 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 		header,
 		state,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return updatedGasPriceMinimum, err
 }
 
@@ -192,13 +188,8 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 		return FallbackInfraFraction, errors.New("nil addressRegistry")
 	}
 
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-	if err != nil {
-		return FallbackInfraFraction, err
-	}
-
-	_, err = userspace_communication.MakeStaticCall(
-		*gasPriceMinimumAddress,
+	_, err := userspace_communication.MakeStaticCall(
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"infrastructureFraction",
 		[]interface{}{},
@@ -207,6 +198,9 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 		header,
 		state,
 	)
+	if err != nil {
+		return FallbackInfraFraction, err
+	}
 
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }

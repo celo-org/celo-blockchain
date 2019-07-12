@@ -115,7 +115,6 @@ type exchangeRate struct {
 type CurrencyOperator struct {
 	gcWl               *GasCurrencyWhitelist            // Object to retrieve the set of currencies that will have their exchange rate monitored
 	exchangeRates      map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	regAdd             *RegisteredAddresses
 	currencyOperatorMu sync.RWMutex
 }
 
@@ -134,7 +133,7 @@ func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchange
 }
 
 func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
+	celoGoldAddress, err := userspace_communication.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
 	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
@@ -202,16 +201,7 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 // "function medianRate(address)"
 func (co *CurrencyOperator) refreshExchangeRates() {
 	gasCurrencyAddresses := co.gcWl.Whitelist()
-	sortedOraclesAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.SortedOraclesRegistryId)
-
-	if err == ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return
-	} else if err != nil {
-		log.Error(err.Error())
-	}
-
-	celoGoldAddress, err := co.regAdd.GetRegisteredAddressAtCurrentHeader(params.GoldTokenRegistryId)
+	celoGoldAddress, err := userspace_communication.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
 
 	if err == ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -228,7 +218,11 @@ func (co *CurrencyOperator) refreshExchangeRates() {
 		}
 
 		var returnArray [2]*big.Int
-		if leftoverGas, err := userspace_communication.MakeStaticCall(*sortedOraclesAddress, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+		if leftoverGas, err := userspace_communication.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{gasCurrencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+			if err == ErrSmartContractNotDeployed {
+				log.Warn("Registry address lookup failed", "err", err)
+				return
+			}
 			log.Error("medianRate invocation error", "gasCurrencyAddress", gasCurrencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
 			continue
 		} else {
@@ -256,13 +250,12 @@ func (co *CurrencyOperator) mainLoop() {
 	}
 }
 
-func NewCurrencyOperator(gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses) *CurrencyOperator {
+func NewCurrencyOperator(gcWl *GasCurrencyWhitelist) *CurrencyOperator {
 	exchangeRates := make(map[common.Address]*exchangeRate)
 
 	co := &CurrencyOperator{
 		gcWl:          gcWl,
 		exchangeRates: exchangeRates,
-		regAdd:        regAdd,
 	}
 
 	if co.gcWl != nil {
@@ -283,7 +276,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 	if evm != nil {
 		leftoverGas, err = evm.StaticCallFromSystem(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else {
-		leftoverGas, err = userspace_communication.MakeStaticCall(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
+		leftoverGas, err = userspace_communication.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	}
 
 	if err != nil {
@@ -300,12 +293,11 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 type GasCurrencyWhitelist struct {
 	whitelistedAddresses   map[common.Address]bool
 	whitelistedAddressesMu sync.RWMutex
-	regAdd                 *RegisteredAddresses
 }
 
 func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
-	gasCurrencyWhiteListAddress, err := gcWl.regAdd.GetRegisteredAddressAtCurrentHeader(params.GasCurrencyWhitelistRegistryId)
+	gasCurrencyWhiteListAddress, err := userspace_communication.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
 		if err == ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
@@ -315,7 +307,7 @@ func (gcWl *GasCurrencyWhitelist) retrieveWhitelist(state *state.StateDB, header
 		return returnList, err
 	}
 
-	_, err = userspace_communication.MakeStaticCall(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	_, err = userspace_communication.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
 	return returnList, err
 }
 
@@ -369,10 +361,9 @@ func (gcWl *GasCurrencyWhitelist) Whitelist() []common.Address {
 	return whitelist
 }
 
-func NewGasCurrencyWhitelist(regAdd *RegisteredAddresses) *GasCurrencyWhitelist {
+func NewGasCurrencyWhitelist() *GasCurrencyWhitelist {
 	gcWl := &GasCurrencyWhitelist{
 		whitelistedAddresses: make(map[common.Address]bool),
-		regAdd:               regAdd,
 	}
 
 	return gcWl

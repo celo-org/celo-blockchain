@@ -151,8 +151,6 @@ type Istanbul interface {
 	Engine
 
 	// Setter functions
-	SetRegisteredAddresses(regAdd ConsensusRegAdd)
-
 	SetGasPriceMinimum(gpm ConsensusGasPriceMinimum)
 
 	SetChain(chain ChainReader, currentBlock func() *types.Block)

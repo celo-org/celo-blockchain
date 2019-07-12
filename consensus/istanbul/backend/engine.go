@@ -420,20 +420,19 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.ValidatorsRegistryId, state, header)
+	// Get the new epoch's validator set
+	maxGasForGetValidators := uint64(1000000)
+	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+	_, err := userspace_communication.MakeStaticCall(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
+
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else if err != nil {
 		log.Error(err.Error())
 		return newValSet, err
-	} else {
-		// Get the new epoch's validator set
-		maxGasForGetValidators := uint64(1000000)
-		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-		_, err := userspace_communication.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
-		return newValSet, err
 	}
+	return newValSet, err
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
@@ -487,7 +486,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
-	goldTokenAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
+	goldTokenAddress, err := userspace_communication.GetContractAddress(params.GoldTokenRegistryId, header, state)
 	if err == core.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
@@ -498,7 +497,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
+		governanceAddress, err := userspace_communication.GetContractAddress(params.GovernanceRegistryId, header, state)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
@@ -511,7 +510,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.BondedDepositsRegistryId, state, header)
+		bondedDepositsAddress, err := userspace_communication.GetContractAddress(params.BondedDepositsRegistryId, header, state)
 		if err == core.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
@@ -521,7 +520,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		if bondedDepositsAddress != nil {
 			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-			_, err := userspace_communication.MakeCall(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
+			_, err := userspace_communication.MakeCallWithAddress(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
 				log.Error("Unable to send block rewards to bonded deposits", "err", err)
 				return nil, err
@@ -531,7 +530,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		// Update totalSupply of GoldToken.
 		if totalBlockRewards.Cmp(common.Big0) > 0 {
 			var totalSupply *big.Int
-			if _, err := userspace_communication.MakeStaticCall(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
+			if _, err := userspace_communication.MakeStaticCallWithAddress(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
 				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
 				return nil, err
 			}
@@ -545,7 +544,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 				genesisSupply.SetBytes(data)
 				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
 			}
-			if _, err := userspace_communication.MakeCall(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
+			if _, err := userspace_communication.MakeCallWithAddress(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
 				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
 				return nil, err
 			}
@@ -662,10 +661,6 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 		Service:   &API{chain: chain, istanbul: sb},
 		Public:    true,
 	}}
-}
-
-func (sb *Backend) SetRegisteredAddresses(regAdd consensus.ConsensusRegAdd) {
-	sb.regAdd = regAdd
 }
 
 func (sb *Backend) SetGasPriceMinimum(gpm consensus.ConsensusGasPriceMinimum) {
