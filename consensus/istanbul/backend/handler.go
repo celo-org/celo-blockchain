@@ -42,6 +42,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 		Name:     "istanbul",
 		Versions: []uint{64},
 		Lengths:  []uint64{19},
+		Primary:  true,
 	}
 }
 
