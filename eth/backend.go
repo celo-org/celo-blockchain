@@ -93,9 +93,8 @@ type Ethereum struct {
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
 
-	gcWl   *core.GasCurrencyWhitelist
-	regAdd *core.RegisteredAddresses
-	gpm    *core.GasPriceMinimum
+	gcWl *core.GasCurrencyWhitelist
+	gpm  *core.GasPriceMinimum
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -188,19 +187,17 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	userspace_communication.SetInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	eth.regAdd = core.NewRegisteredAddresses()
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
 	eth.gcWl = core.NewGasCurrencyWhitelist()
-	eth.gpm = core.NewGasPriceMinimum(eth.regAdd)
+	eth.gpm = core.NewGasPriceMinimum()
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
 	co := core.NewCurrencyOperator(eth.gcWl)
-	random := core.NewRandom(eth.regAdd)
+	random := core.NewRandom()
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
-	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
 	eth.blockchain.Processor().SetGasPriceMinimum(eth.gpm)
 	eth.blockchain.Processor().SetRandom(random)
 
@@ -522,7 +519,6 @@ func (s *Ethereum) NetVersion() uint64                               { return s.
 func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
 func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
 func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
-func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 func (s *Ethereum) GasPriceMinimum() *core.GasPriceMinimum           { return s.gpm }
 
 // Protocols implements node.Service, returning all the currently configured

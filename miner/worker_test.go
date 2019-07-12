@@ -90,7 +90,6 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
-	regAdd         *core.RegisteredAddresses
 	gcWl           *core.GasCurrencyWhitelist
 	gpm            *core.GasPriceMinimum
 }
@@ -124,16 +123,14 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 	userspace_communication.SetInternalEVMHandler(chain)
 
-	regAdd := core.NewRegisteredAddresses()
-	gcWl := core.NewGasCurrencyWhitelist(regAdd)
-	gpm := core.NewGasPriceMinimum(regAdd)
-	co := core.NewCurrencyOperator(gcWl, regAdd)
+	gcWl := core.NewGasCurrencyWhitelist()
+	gpm := core.NewGasPriceMinimum()
+	co := core.NewCurrencyOperator(gcWl)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil)
 
-	// If istanbul engine used, set the regAddr objects in that engine
+	// If istanbul engine used, set the objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetRegisteredAddresses(regAdd)
 		istanbul.SetGasPriceMinimum(gpm)
 		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
@@ -164,7 +161,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
 		gcWl:           gcWl,
-		regAdd:         regAdd,
 		gpm:            gpm,
 	}
 }
@@ -176,7 +172,6 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
-func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
 func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
@@ -185,7 +180,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	co := core.NewCurrencyOperator(nil, nil)
-	random := core.NewRandom(backend.regAdd)
+	random := core.NewRandom()
 	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend

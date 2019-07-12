@@ -74,9 +74,8 @@ type LightEthereum struct {
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
 
-	regAdd *core.RegisteredAddresses
-	gcWl   *core.GasCurrencyWhitelist
-	gpm    *core.GasPriceMinimum
+	gcWl *core.GasCurrencyWhitelist
+	gpm  *core.GasPriceMinimum
 
 	wg sync.WaitGroup
 }
@@ -153,9 +152,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	userspace_communication.SetInternalEVMHandler(leth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	leth.regAdd = core.NewRegisteredAddresses()
 	leth.gcWl = core.NewGasCurrencyWhitelist()
-	leth.gpm = core.NewGasPriceMinimum(leth.regAdd)
+	leth.gpm = core.NewGasPriceMinimum()
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)

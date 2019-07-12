@@ -19,13 +19,11 @@ package core
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -113,80 +111,4 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
-}
-
-// An EVM handler to make calls to smart contracts from within geth
-type InternalEVMHandler struct {
-	chain  ChainContext
-	regAdd *RegisteredAddresses
-}
-
-func (iEvmH *InternalEVMHandler) MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
-	abiStaticCall := func(evm *vm.EVM) (uint64, error) {
-		return evm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-	}
-
-	return iEvmH.makeCall(abiStaticCall, header, state, iEvmH.regAdd)
-}
-
-func (iEvmH *InternalEVMHandler) MakeStaticCallNoRegisteredAddressMap(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
-	abiStaticCall := func(evm *vm.EVM) (uint64, error) {
-		return evm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-	}
-
-	return iEvmH.makeCall(abiStaticCall, header, state, nil)
-}
-
-func (iEvmH *InternalEVMHandler) MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
-	abiCall := func(evm *vm.EVM) (uint64, error) {
-		gasLeft, err := evm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
-		state.Finalise(true)
-
-		return gasLeft, err
-	}
-
-	return iEvmH.makeCall(abiCall, header, state, iEvmH.regAdd)
-}
-
-func (iEvmH *InternalEVMHandler) CurrentHeader() *types.Header {
-	return iEvmH.chain.CurrentHeader()
-}
-
-func (iEvmH *InternalEVMHandler) makeCall(call func(evm *vm.EVM) (uint64, error), header *types.Header, state *state.StateDB, regAdd *RegisteredAddresses) (uint64, error) {
-	// Normally, when making an evm call, we should use the current block's state.  However,
-	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
-	// to call the evm using the currently mined block.  In that case, the header and state params
-	// will be non nil.
-	log.Trace("InternalEVMHandler.makeCall called")
-
-	if header == nil {
-		header = iEvmH.chain.CurrentHeader()
-	}
-
-	if state == nil {
-		var err error
-		state, err = iEvmH.chain.State()
-		if err != nil {
-			log.Error("Error in retrieving the state from the blockchain")
-			return 0, err
-		}
-	}
-
-	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-	// Putting in zero values.
-	context := NewEVMContext(emptyMessage, header, iEvmH.chain, nil)
-	evm := vm.NewEVM(context, state, iEvmH.chain.Config(), *iEvmH.chain.GetVMConfig())
-
-	return call(evm)
-}
-
-func (iEvmH *InternalEVMHandler) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
-	iEvmH.regAdd = regAdd
-}
-
-func NewInternalEVMHandler(chain ChainContext) *InternalEVMHandler {
-	iEvmH := InternalEVMHandler{
-		chain: chain,
-	}
-	return &iEvmH
 }

@@ -99,28 +99,21 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 }
 
 type Random struct {
-	registeredAddresses *RegisteredAddresses
 }
 
-func NewRandom(registeredAddresses *RegisteredAddresses) *Random {
-	r := &Random{
-		registeredAddresses: registeredAddresses,
-	}
+func NewRandom() *Random {
+	r := &Random{}
 	return r
 }
 
 func (r *Random) address() *common.Address {
-	if r.registeredAddresses != nil {
-		randomAddress, err := r.registeredAddresses.GetRegisteredAddressAtCurrentHeader(params.RandomRegistryId)
-		if err == ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err)
-		} else if err != nil {
-			log.Error(err.Error())
-		}
-		return randomAddress
-	} else {
-		return nil
+	randomAddress, err := userspace_communication.GetContractAddress(params.RandomRegistryId, nil, nil)
+	if err == ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
 	}
+	return randomAddress
 }
 
 func (r *Random) Running() bool {

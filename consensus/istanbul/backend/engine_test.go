@@ -62,10 +62,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	regAdd := core.NewRegisteredAddresses()
-	gpm := core.NewGasPriceMinimum(regAdd)
+	gpm := core.NewGasPriceMinimum()
 
-	b.SetRegisteredAddresses(regAdd)
 	b.SetGasPriceMinimum(gpm)
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 

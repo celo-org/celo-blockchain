@@ -234,10 +234,6 @@ func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return b.eth.GasCurrencyWhitelist()
 }
 
-func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.RegisteredAddresses()
-}
-
 func (b *EthAPIBackend) GasPriceMinimum() *core.GasPriceMinimum {
 	return b.eth.GasPriceMinimum()
 }

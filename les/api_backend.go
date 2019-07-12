@@ -220,10 +220,6 @@ func (b *LesApiBackend) GasFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
 }
 
-func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.regAdd
-}
-
 func (b *LesApiBackend) GasPriceMinimum() *core.GasPriceMinimum {
 	return b.eth.gpm
 }

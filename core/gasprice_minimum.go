@@ -112,7 +112,6 @@ type InfrastructureFraction struct {
 }
 
 type GasPriceMinimum struct {
-	regAdd *RegisteredAddresses
 }
 
 func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
@@ -122,7 +121,7 @@ func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, stat
 
 func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
 
-	if gpm == nil || gpm.regAdd == nil {
+	if gpm == nil {
 		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
 		return FallbackGasPriceMinimum, errors.New("nil addressRegistry")
 	}
@@ -131,7 +130,7 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
+		currencyAddress, err = userspace_communication.GetContractAddress(params.GoldTokenRegistryId, header, state)
 
 		if err != nil {
 			return FallbackGasPriceMinimum, errors.New("no goldtoken contract address found")
@@ -184,8 +183,8 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	if gpm == nil || gpm.regAdd == nil {
-		return FallbackInfraFraction, errors.New("nil addressRegistry")
+	if gpm == nil {
+		return FallbackInfraFraction, errors.New("nil gpm")
 	}
 
 	_, err := userspace_communication.MakeStaticCall(
@@ -205,10 +204,8 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }
 
-func NewGasPriceMinimum(regAdd *RegisteredAddresses) *GasPriceMinimum {
-	gpm := &GasPriceMinimum{
-		regAdd: regAdd,
-	}
+func NewGasPriceMinimum() *GasPriceMinimum {
+	gpm := &GasPriceMinimum{}
 
 	return gpm
 }

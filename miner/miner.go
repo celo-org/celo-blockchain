@@ -41,7 +41,6 @@ type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
-	RegisteredAddresses() *core.RegisteredAddresses
 	GasPriceMinimum() *core.GasPriceMinimum
 }
 
