@@ -229,7 +229,3 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 func (b *EthAPIBackend) GasFeeRecipient() common.Address {
 	return b.eth.GasFeeRecipient()
 }
-
-func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.GasCurrencyWhitelist()
-}

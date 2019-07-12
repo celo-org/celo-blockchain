@@ -71,7 +71,6 @@ type Backend interface {
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
 
-	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	GasFeeRecipient() common.Address
 }
 

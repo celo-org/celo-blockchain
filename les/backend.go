@@ -74,8 +74,6 @@ type LightEthereum struct {
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
 
-	gcWl *core.GasCurrencyWhitelist
-
 	wg sync.WaitGroup
 }
 
@@ -149,9 +147,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	//jarmg - this should become the only signature
 	userspace_communication.SetInternalEVMHandler(leth.blockchain)
-
-	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	leth.gcWl = core.NewGasCurrencyWhitelist()
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)

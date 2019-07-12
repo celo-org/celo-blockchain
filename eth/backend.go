@@ -93,8 +93,6 @@ type Ethereum struct {
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
 
-	gcWl *core.GasCurrencyWhitelist
-
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
 
@@ -187,15 +185,11 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 
-	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist()
-
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	co := core.NewCurrencyOperator(eth.gcWl)
+	co := core.NewCurrencyOperator()
 	random := core.NewRandom()
 
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl)
-	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co)
 	eth.blockchain.Processor().SetRandom(random)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
@@ -503,18 +497,17 @@ func (s *Ethereum) StopMining() {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager                { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain                     { return s.blockchain }
-func (s *Ethereum) TxPool() *core.TxPool                             { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux                         { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine                         { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database                          { return s.chainDb }
-func (s *Ethereum) IsListening() bool                                { return true } // Always listening
-func (s *Ethereum) EthVersion() int                                  { return int(s.protocolManager.SubProtocols[0].Version) }
-func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
-func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
-func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
+func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
+func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
+func (s *Ethereum) IsListening() bool                  { return true } // Always listening
+func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
+func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
+func (s *Ethereum) GasFeeRecipient() common.Address    { return s.config.Etherbase }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

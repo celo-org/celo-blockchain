@@ -61,7 +61,6 @@ type StateTransition struct {
 	data            []byte
 	state           vm.StateDB
 	evm             *vm.EVM
-	gcWl            *GasCurrencyWhitelist
 	gasPriceMinimum *big.Int
 	infraFraction   *InfrastructureFraction
 	infraAddress    *common.Address
@@ -137,7 +136,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) *StateTransition {
 	return &StateTransition{
 		gp:              gp,
 		evm:             evm,
@@ -146,7 +145,6 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 		value:           msg.Value(),
 		data:            msg.Data(),
 		state:           evm.StateDB,
-		gcWl:            gcWl,
 		gasPriceMinimum: gasPriceMinimum,
 		infraFraction:   infraFraction,
 		infraAddress:    infraAddress,
@@ -160,8 +158,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gasPriceMinimum, infraFraction, infraAddress).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -184,7 +182,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
-	if st.msg.GasCurrency() != nil && (st.gcWl == nil || !st.gcWl.IsWhitelisted(*st.msg.GasCurrency())) {
+	if st.msg.GasCurrency() != nil && (!CurrencyIsWhitelisted(*st.msg.GasCurrency(), nil, nil)) {
 		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.GasCurrency())
 		return errNonWhitelistedGasCurrency
 	}

@@ -40,7 +40,6 @@ type Backend interface {
 	AccountManager() *accounts.Manager
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
-	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 }
 
 // Miner creates blocks

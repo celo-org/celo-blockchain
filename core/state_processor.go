@@ -39,7 +39,6 @@ type StateProcessor struct {
 	engine consensus.Engine    // Consensus engine used for block rewards
 
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
-	gcWl   *GasCurrencyWhitelist
 	random *Random
 }
 
@@ -50,10 +49,6 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		bc:     bc,
 		engine: engine,
 	}
-}
-
-func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
-	p.gcWl = gcWl
 }
 
 func (p *StateProcessor) SetRandom(random *Random) {
@@ -91,7 +86,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		infraFraction, _ := GetGasPriceMinimumInfrastructureFraction(statedb, header)
 		gasPriceMinimum, _ := GetGasPriceMinimum(tx.GasCurrency(), statedb, header)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, gasPriceMinimum, infraFraction)
+		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, gasPriceMinimum, infraFraction)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -108,15 +103,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) (*types.Receipt, uint64, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
-	}
-
-	// Refresh the currency whitelist right before processing the transaction
-	if gcWl != nil {
-		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
 	}
 
 	// Create a new context to be used in the EVM environment
@@ -137,7 +127,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}
 
 	// Apply the transaction to the current state (included in the env)
-	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress)
+	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
 		return nil, 0, err
 	}

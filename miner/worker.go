@@ -526,11 +526,6 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				// Refresh the gas currency whitelist cache before processing transaction batch
-				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-					wl.RefreshWhitelistAtCurrentHeader()
-				}
-
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				w.commitTransactions(txset, coinbase, nil)
 				w.updateSnapshot()
@@ -760,7 +755,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	snap := w.current.state.Snapshot()
 
 	infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(w.current.state, w.current.header)
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -990,11 +985,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	w.updateSnapshot()
-
-	// Refresh the gas currency whitelist cache before processing the pending transactions
-	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-		wl.RefreshWhitelistAtCurrentHeader()
-	}
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && w.random != nil && w.random.Running() {

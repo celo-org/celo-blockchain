@@ -246,13 +246,12 @@ type TxPool struct {
 
 	homestead bool
 
-	co   *CurrencyOperator
-	gcWl *GasCurrencyWhitelist
+	co *CurrencyOperator
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator, gcWl *GasCurrencyWhitelist) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -269,7 +268,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
 		co:          co,
-		gcWl:        gcWl,
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -628,8 +626,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasCurrency() != nil && // Non native gas in the tx
-		(pool.gcWl == nil ||
-			!pool.gcWl.IsWhitelisted(*tx.GasCurrency())) { // The tx currency is not white listed
+		!CurrencyIsWhitelisted(*tx.GasCurrency(), nil, nil) { // The tx currency is not white listed
 		return ErrNonWhitelistedGasCurrency
 	}
 

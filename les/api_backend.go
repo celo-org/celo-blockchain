@@ -212,10 +212,6 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.gcWl
-}
-
 func (b *LesApiBackend) GasFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
 }
