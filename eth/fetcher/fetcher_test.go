@@ -646,46 +646,6 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int) {
 	verifyImportDone(t, imported)
 }
 
-// Tests that if a block is empty (i.e. header only), no body request should be
-// made, and instead the header should be assembled into a whole block in itself.
-func TestEmptyBlockShortCircuit62(t *testing.T) { testEmptyBlockShortCircuit(t, 62) }
-func TestEmptyBlockShortCircuit63(t *testing.T) { testEmptyBlockShortCircuit(t, 63) }
-func TestEmptyBlockShortCircuit64(t *testing.T) { testEmptyBlockShortCircuit(t, 64) }
-
-func testEmptyBlockShortCircuit(t *testing.T, protocol int) {
-	// Create a chain of blocks to import
-	hashes, blocks := makeChain(32, 0, genesis)
-
-	tester := newTester()
-	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0)
-
-	// Add a monitoring hook for all internal events
-	fetching := make(chan []common.Hash)
-	tester.fetcher.fetchingHook = func(hashes []common.Hash) { fetching <- hashes }
-
-	completing := make(chan []common.Hash)
-	tester.fetcher.completingHook = func(hashes []common.Hash) { completing <- hashes }
-
-	imported := make(chan *types.Block)
-	tester.fetcher.importedHook = func(block *types.Block) { imported <- block }
-
-	// Iteratively announce blocks until all are imported
-	for i := len(hashes) - 2; i >= 0; i-- {
-		tester.fetcher.Notify("valid", hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
-
-		// All announces should fetch the header
-		verifyFetchingEvent(t, fetching, true)
-
-		// Only blocks with data contents should request bodies
-		verifyCompletingEvent(t, completing, len(blocks[hashes[i]].Transactions()) > 0 || len(blocks[hashes[i]].Uncles()) > 0)
-
-		// Irrelevant of the construct, import should succeed
-		verifyImportEvent(t, imported, true)
-	}
-	verifyImportDone(t, imported)
-}
-
 // Tests that a peer is unable to use unbounded memory with sending infinite
 // block announcements to a node, but that even in the face of such an attack,
 // the fetcher remains operational.

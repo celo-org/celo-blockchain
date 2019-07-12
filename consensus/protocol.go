@@ -45,6 +45,8 @@ type Protocol struct {
 	Versions []uint
 	// Number of implemented message corresponding to different protocol versions.
 	Lengths []uint64
+	// Whether this should be the primary form of communication between nodes that support this protocol.
+	Primary bool
 }
 
 // Broadcaster defines the interface to enqueue blocks to fetcher and find peer
