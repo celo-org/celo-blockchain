@@ -74,12 +74,15 @@ func sendSms(phoneNumber string, message string, account common.Address, issuer 
 
 func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
 	for _, receipt := range receipts {
+		var wallet Wallet
+		account := accounts.Account{Address: coinbase}
 		for _, request := range receipt.AttestationRequests {
-			account := accounts.Account{Address: coinbase}
-			wallet, err := accountManager.Find(account)
-			if err != nil {
-				log.Error("[Celo] Failed to get account for sms attestation", "err", err)
-				return
+			if wallet == nil {
+				wallet, err := accountManager.Find(account)
+				if err != nil {
+					log.Error("[Celo] Failed to get account for sms attestation", "err", err)
+					return
+				}
 			}
 
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
