@@ -171,19 +171,19 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceSuggestion(nil, nil, nil)
+	return core.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return core.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+	return core.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
 func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
-	return b.eth.gpm.GetInfrastructureFraction(nil, nil)
+	return core.GetGasPriceMinimumInfrastructureFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -218,8 +218,4 @@ func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 
 func (b *LesApiBackend) GasFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
-}
-
-func (b *LesApiBackend) GasPriceMinimum() *core.GasPriceMinimum {
-	return b.eth.gpm
 }

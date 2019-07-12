@@ -75,7 +75,6 @@ type LightEthereum struct {
 	netRPCService *ethapi.PublicNetAPI
 
 	gcWl *core.GasCurrencyWhitelist
-	gpm  *core.GasPriceMinimum
 
 	wg sync.WaitGroup
 }
@@ -153,7 +152,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	leth.gcWl = core.NewGasCurrencyWhitelist()
-	leth.gpm = core.NewGasPriceMinimum()
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)

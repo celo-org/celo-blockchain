@@ -480,7 +480,7 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	updatedGasPriceMinimum, err := sb.gpm.UpdateGasPriceMinimum(header, state)
+	updatedGasPriceMinimum, err := core.UpdateGasPriceMinimum(header, state)
 
 	if err != nil {
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
@@ -661,10 +661,6 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 		Service:   &API{chain: chain, istanbul: sb},
 		Public:    true,
 	}}
-}
-
-func (sb *Backend) SetGasPriceMinimum(gpm consensus.ConsensusGasPriceMinimum) {
-	sb.gpm = gpm
 }
 
 func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {

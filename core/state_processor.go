@@ -40,7 +40,6 @@ type StateProcessor struct {
 
 	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
 	gcWl   *GasCurrencyWhitelist
-	gpm    *GasPriceMinimum
 	random *Random
 }
 
@@ -55,10 +54,6 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 
 func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
 	p.gcWl = gcWl
-}
-
-func (p *StateProcessor) SetGasPriceMinimum(gpm *GasPriceMinimum) {
-	p.gpm = gpm
 }
 
 func (p *StateProcessor) SetRandom(random *Random) {
@@ -94,8 +89,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		infraFraction, _ := p.gpm.GetInfrastructureFraction(statedb, header)
-		gasPriceMinimum, _ := p.gpm.GetGasPriceMinimum(tx.GasCurrency(), statedb, header)
+		infraFraction, _ := GetGasPriceMinimumInfrastructureFraction(statedb, header)
+		gasPriceMinimum, _ := GetGasPriceMinimum(tx.GasCurrency(), statedb, header)
 		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, gasPriceMinimum, infraFraction)
 		if err != nil {
 			return nil, nil, 0, err

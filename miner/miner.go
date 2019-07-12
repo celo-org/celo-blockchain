@@ -41,7 +41,6 @@ type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
-	GasPriceMinimum() *core.GasPriceMinimum
 }
 
 // Miner creates blocks

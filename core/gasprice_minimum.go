@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/userspace_communication"
 )
@@ -111,21 +110,12 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
-type GasPriceMinimum struct {
-}
-
-func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(currency, state, header)
+func GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
+	gasPriceMinimum, err := GetGasPriceMinimum(currency, state, header)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
 }
 
-func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
-
-	if gpm == nil {
-		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
-		return FallbackGasPriceMinimum, errors.New("nil addressRegistry")
-	}
-
+func GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
 	var currencyAddress *common.Address
 	var err error
 
@@ -158,7 +148,7 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 	return gasPriceMinimum, err
 }
 
-func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
+func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
 	_, err := userspace_communication.MakeCall(
@@ -180,12 +170,8 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
+func GetGasPriceMinimumInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
-
-	if gpm == nil {
-		return FallbackInfraFraction, errors.New("nil gpm")
-	}
 
 	_, err := userspace_communication.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
@@ -202,10 +188,4 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 	}
 
 	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
-}
-
-func NewGasPriceMinimum() *GasPriceMinimum {
-	gpm := &GasPriceMinimum{}
-
-	return gpm
 }

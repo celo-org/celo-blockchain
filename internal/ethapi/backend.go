@@ -72,7 +72,6 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
-	GasPriceMinimum() *core.GasPriceMinimum
 	GasFeeRecipient() common.Address
 }
 

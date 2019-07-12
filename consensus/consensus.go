@@ -150,9 +150,6 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	// Setter functions
-	SetGasPriceMinimum(gpm ConsensusGasPriceMinimum)
-
 	SetChain(chain ChainReader, currentBlock func() *types.Block)
 
 	// Start starts the engine

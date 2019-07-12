@@ -196,11 +196,11 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(nil, nil, nil)
+	return core.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return core.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -232,8 +232,4 @@ func (b *EthAPIBackend) GasFeeRecipient() common.Address {
 
 func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
 	return b.eth.GasCurrencyWhitelist()
-}
-
-func (b *EthAPIBackend) GasPriceMinimum() *core.GasPriceMinimum {
-	return b.eth.GasPriceMinimum()
 }
