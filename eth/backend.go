@@ -186,10 +186,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	co := core.NewCurrencyOperator()
 	random := core.NewRandom()
 
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain)
 	eth.blockchain.Processor().SetRandom(random)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
@@ -201,7 +200,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
 	}
 
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, random, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth}

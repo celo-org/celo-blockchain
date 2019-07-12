@@ -20,7 +20,6 @@ import (
 	"errors"
 	"math/big"
 	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -111,26 +110,10 @@ type exchangeRate struct {
 	Denominator *big.Int
 }
 
-type CurrencyOperator struct {
-	exchangeRates      map[common.Address]*exchangeRate // indexedCurrency:CeloGold exchange rate
-	currencyOperatorMu sync.RWMutex
-}
 
-func (co *CurrencyOperator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
-	if currency == nil {
-		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
-	} else {
-		co.currencyOperatorMu.RLock()
-		defer co.currencyOperatorMu.RUnlock()
-		if exchangeRate, ok := co.exchangeRates[*currency]; !ok {
-			return nil, errExchangeRateCacheMiss
-		} else {
-			return exchangeRate, nil
-		}
-	}
-}
+//TODO: Jarmg - clean up these CO functions
 
-func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
+func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress, err := userspace_communication.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
 	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
@@ -138,14 +121,14 @@ func (co *CurrencyOperator) ConvertToGold(val *big.Int, currencyFrom *common.Add
 	} else if err != nil {
 		log.Error(err.Error())
 	}
-	return co.Convert(val, currencyFrom, celoGoldAddress)
+	return Convert(val, currencyFrom, celoGoldAddress)
 }
 
 // NOTE (jarmg 4/24/18): values are rounded down which can cause
 // an estimate to be off by 1 (at most)
-func (co *CurrencyOperator) Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
-	exchangeRateFrom, err1 := co.getExchangeRate(currencyFrom)
-	exchangeRateTo, err2 := co.getExchangeRate(currencyTo)
+func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
+	exchangeRateFrom, err1 := getExchangeRate(currencyFrom)
+	exchangeRateTo, err2 := getExchangeRate(currencyTo)
 
 	if err1 != nil || err2 != nil {
 		log.Error("CurrencyOperator.Convert - Error in retreiving currency exchange rates")
@@ -164,13 +147,13 @@ func (co *CurrencyOperator) Convert(val *big.Int, currencyFrom *common.Address, 
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
-func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	if currency1 == currency2 {
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := co.getExchangeRate(currency1)
-	exchangeRate2, err2 := co.getExchangeRate(currency2)
+	exchangeRate1, err1 := getExchangeRate(currency1)
+	exchangeRate2, err2 := getExchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -193,7 +176,8 @@ func (co *CurrencyOperator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *
 	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Numerator, exchangeRate1.Denominator))
 	return leftSide.Cmp(rightSide)
 }
-func getExchangeRate(currencyAddress common.Address) (*exchangeRate, error) {
+
+func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	var (
 		returnArray [2]*big.Int
 		leftoverGas uint64
@@ -210,18 +194,6 @@ func getExchangeRate(currencyAddress common.Address) (*exchangeRate, error) {
 	}
 	log.Trace("medianRate invocation success", "gasCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
 	return &exchangeRate{returnArray[0], returnArray[1]}, nil
-}
-
-// TODO (jarmg 5/30/18): Change this to cache based on block number
-
-func NewCurrencyOperator() *CurrencyOperator {
-	exchangeRates := make(map[common.Address]*exchangeRate)
-
-	co := &CurrencyOperator{
-		exchangeRates: exchangeRates,
-	}
-
-	return co
 }
 
 // This function will retrieve the balance of an ERC20 token.
