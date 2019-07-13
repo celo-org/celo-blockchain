@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/scrypt"
 	"net/http"
 	"regexp"
 	"time"
@@ -29,9 +30,33 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var ScryptParams = struct {
+	salt  []byte
+	N     int
+	r     int
+	p     int
+	dkLen int
+}{
+	[]byte("nNWKc3l0a1fAj0r35BLGB8kn"),
+	512,
+	16,
+	1,
+	32,
+}
+
+func hashPhoneNumber(phoneNumber []byte) ([]byte, error) {
+	return scrypt.Key(
+		phoneNumber,
+		ScryptParams.salt,
+		ScryptParams.N,
+		ScryptParams.r,
+		ScryptParams.p,
+		ScryptParams.dkLen,
+	)
+}
 
 func decryptPhoneNumber(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
 	phoneNumber, err := wallet.Decrypt(account, request.EncryptedPhone, nil, nil)
@@ -40,7 +65,13 @@ func decryptPhoneNumber(request types.AttestationRequest, account accounts.Accou
 	}
 	// TODO(asa): Better validation of phone numbers
 	r, _ := regexp.Compile(`^\+[0-9]{8,15}$`)
-	if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
+
+	hashedPhone, err := hashPhoneNumber(phoneNumber)
+	if err != nil {
+		return "Hashing phone number failed", err
+	}
+
+	if !bytes.Equal(hashedPhone, request.PhoneHash.Bytes()) {
 		return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
 	} else if !r.MatchString(string(phoneNumber)) {
 		return string(phoneNumber), fmt.Errorf("Decrypted phone number invalid: %s", string(phoneNumber))
