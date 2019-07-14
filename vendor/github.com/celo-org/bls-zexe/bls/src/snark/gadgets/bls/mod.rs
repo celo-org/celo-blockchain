@@ -103,6 +103,7 @@ mod test {
             };
 
             g.alloc(cs.ns(|| "verify sig")).unwrap();
+            println!("number of constraints: {}", cs.num_constraints());
 
             assert!(cs.is_satisfied());
         }

@@ -75,7 +75,7 @@ fn get_point_from_x<P: Bls12Parameters>(
     })
 }
 impl<'a, H: PRF> HashToG2 for TryAndIncrement<'a, H> {
-    fn hash<P: Bls12Parameters>(&self, message: &[u8]) -> Result<G2Projective<P>, Error> {
+    fn hash<P: Bls12Parameters>(&self, domain: &[u8], message: &[u8]) -> Result<G2Projective<P>, Error> {
         const NUM_TRIES: usize = 10000;
         const EXTRA_BITS: usize = 135;
         const EXPECTED_TOTAL_BITS: usize = 1024;
@@ -90,7 +90,7 @@ impl<'a, H: PRF> HashToG2 for TryAndIncrement<'a, H> {
             (&mut counter[..]).write_u32::<LittleEndian>(c as u32)?;
             let hash = self
                 .hasher
-                .prf(&[&counter, message_hash.as_slice()].concat(), num_bits)?;
+                .prf(domain, &[&counter, message_hash.as_slice()].concat(), num_bits)?;
             let possible_x = {
                 let possible_x_0 = bytes_to_fp::<P>(&hash[..hash.len() / 2]);
                 let possible_x_1 = bytes_to_fp::<P>(&hash[hash.len() / 2..]);
@@ -128,6 +128,6 @@ mod test {
     fn test_hash_to_curve() {
         let composite_hasher = CompositeHasher::new().unwrap();
         let try_and_increment = TryAndIncrement::new(&composite_hasher);
-        let _g: G2Projective = try_and_increment.hash::<Bls12_377Parameters>(&[]).unwrap();
+        let _g: G2Projective = try_and_increment.hash::<Bls12_377Parameters>(&[], &[]).unwrap();
     }
 }

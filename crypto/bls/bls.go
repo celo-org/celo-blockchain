@@ -12,6 +12,8 @@ import (
 )
 
 const MODULUS377 = "8444461749428370424248824938781546531375899335154063827935233455917409239041"
+const PUBLICKEYBYTES = 96
+const SIGNATUREBYTES = 192
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	modulus := big.NewInt(0)
@@ -38,7 +40,7 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 		privateKeyBytes[i], privateKeyBytes[opp] = privateKeyBytes[opp], privateKeyBytes[i]
 	}
 
-	privateKeyBLS, err := ultralight.DeserializePrivateKey(privateKeyBytes)
+	privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +55,7 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 }
 
 func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
-	privateKey, err := ultralight.DeserializePrivateKey(privateKeyBytes)
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}

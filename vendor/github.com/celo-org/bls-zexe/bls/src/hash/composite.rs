@@ -1,6 +1,7 @@
 extern crate hex;
 
 use crate::hash::PRF;
+use super::direct::DirectHasher;
 
 use algebra::{bytes::ToBytes, curves::edwards_sw6::EdwardsAffine as Edwards};
 use blake2s_simd::Params;
@@ -11,7 +12,7 @@ use dpc::crypto_primitives::crh::{
 use failure::Error;
 use rand::{chacha::ChaChaRng, Rng, SeedableRng};
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 type CRH = PedersenCRH<Edwards, Window>;
 type CRHParameters = PedersenParameters<Edwards>;
@@ -26,15 +27,16 @@ impl PedersenWindow for Window {
 
 pub struct CompositeHasher {
     parameters: CRHParameters,
+    direct_hasher: DirectHasher,
 }
 
 impl CompositeHasher {
     pub fn new() -> Result<CompositeHasher, Error> {
         Ok(CompositeHasher {
             parameters: CompositeHasher::setup_crh()?,
+            direct_hasher: DirectHasher{},
         })
     }
-    // what does the hash
     fn prng() -> Result<impl Rng, Error> {
         let hash_result = Params::new()
             .hash_length(32)
@@ -69,49 +71,13 @@ impl PRF for CompositeHasher {
 
     }
 
-    fn prf(&self, hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
-        let num_hashes = (output_size_in_bits + 256 - 1) / 256;
-        let last_bits_to_keep = match output_size_in_bits % 256 {
-            0 => 256,
-            x => x,
-        };
-        let last_byte_position = last_bits_to_keep / 8;
-        let last_byte_mask = (1 << (last_bits_to_keep % 8)) - 1;
-        let mut counter: [u8; 4] = [0; 4];
-
-        let mut result = vec![];
-        for i in 0..num_hashes {
-            (&mut counter[..]).write_u32::<LittleEndian>(i as u32)?;
-
-            let mut hash_result = Params::new()
-                .hash_length(32)
-                .personal(b"ULforprf")
-                .to_state()
-                .update(&counter)
-                .update(hashed_message)
-                .finalize()
-                .as_ref()
-                .to_vec();
-            if i == num_hashes - 1 {
-                let mut current_index = 0;
-                for j in hash_result.iter_mut() {
-                    if current_index == last_byte_position {
-                        *j = *j & last_byte_mask;
-                    } else if current_index > last_byte_position {
-                        *j = 0;
-                    }
-                    current_index += 1;
-                }
-            }
-            result.append(&mut hash_result);
-
-        }
-
-        Ok(result)
+    fn prf(&self, domain: &[u8], hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+        self.direct_hasher.prf(domain, hashed_message, output_size_in_bits)
     }
-    fn hash(&self, message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
-        let hashed_message = self.crh(message)?;
-        self.prf(&hashed_message, output_size_in_bits)
+
+    fn hash(&self, domain: &[u8], message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+        let prepared_message = self.crh(message)?;
+        self.prf(domain, &prepared_message, output_size_in_bits)
     }
 }
 
@@ -152,7 +118,7 @@ mod test {
             *i = rng.gen();
         }
         let result = hasher.crh(&msg).unwrap();
-        let _prf_result = hasher.prf(&result, 768).unwrap();
+        let _prf_result = hasher.prf(b"ULforprf", &result, 768).unwrap();
     }
 
     #[test]
@@ -164,7 +130,7 @@ mod test {
             *i = rng.gen();
         }
         let result = hasher.crh(&msg).unwrap();
-        let _prf_result = hasher.prf(&result, 769).unwrap();
+        let _prf_result = hasher.prf(b"ULforprf", &result, 769).unwrap();
     }
 
     #[test]
@@ -176,7 +142,7 @@ mod test {
             *i = rng.gen();
         }
         let result = hasher.crh(&msg).unwrap();
-        let _prf_result = hasher.prf(&result, 760).unwrap();
+        let _prf_result = hasher.prf(b"ULforprf", &result, 760).unwrap();
     }
 
     #[test]
@@ -187,7 +153,7 @@ mod test {
         for i in msg.iter_mut() {
             *i = rng.gen();
         }
-        let _result = hasher.hash(&msg, 760).unwrap();
+        let _result = hasher.hash(b"ULforprf", &msg, 760).unwrap();
     }
 
     #[test]
@@ -199,7 +165,7 @@ mod test {
         for i in msg.iter_mut() {
             *i = rng.gen();
         }
-        let _result = hasher.hash(&msg, 760).unwrap();
+        let _result = hasher.hash(b"ULforprf", &msg, 760).unwrap();
     }
 
     #[test]

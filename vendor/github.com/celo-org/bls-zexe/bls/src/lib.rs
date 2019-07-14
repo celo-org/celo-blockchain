@@ -13,7 +13,10 @@ pub mod snark;
 use crate::{
     bls::keys::{PrivateKey, PublicKey, Signature},
     curve::hash::try_and_increment::TryAndIncrement,
-    hash::composite::CompositeHasher,
+    hash::{
+        direct::DirectHasher,
+        composite::CompositeHasher
+    },
 };
 use algebra::{FromBytes, ToBytes};
 use rand::thread_rng;
@@ -26,8 +29,16 @@ lazy_static! {
         let composite_hasher = CompositeHasher::new().unwrap();
         composite_hasher
     };
-    static ref HASH_TO_G2: TryAndIncrement<'static, CompositeHasher> = {
+    static ref DIRECT_HASHER: DirectHasher = {
+        let direct_hasher = DirectHasher::new().unwrap();
+        direct_hasher
+    };
+    static ref COMPOSITE_HASH_TO_G2: TryAndIncrement<'static, CompositeHasher> = {
         let try_and_increment = TryAndIncrement::new(&*COMPOSITE_HASHER);
+        try_and_increment
+    };
+    static ref DIRECT_HASH_TO_G2: TryAndIncrement<'static, DirectHasher> = {
+        let try_and_increment = TryAndIncrement::new(&*DIRECT_HASHER);
         try_and_increment
     };
 }
@@ -35,7 +46,7 @@ lazy_static! {
 fn convert_result_to_bool<T, E: Display, F: Fn() -> Result<T, E>>(f: F) -> bool {
     match f() {
         Err(e) => {
-            error!("ultralight library error: {}", e.to_string());
+            error!("BLS library error: {}", e.to_string());
             false
         }
         _ => true,
@@ -44,7 +55,8 @@ fn convert_result_to_bool<T, E: Display, F: Fn() -> Result<T, E>>(f: F) -> bool 
 
 #[no_mangle]
 pub extern "C" fn init() {
-    &*HASH_TO_G2;
+    &*COMPOSITE_HASH_TO_G2;
+    &*DIRECT_HASH_TO_G2;
 }
 
 #[no_mangle]
@@ -129,12 +141,33 @@ pub extern "C" fn sign_message(
     in_private_key: *const PrivateKey,
     in_message: *const u8,
     in_message_len: c_int,
+    should_use_composite: bool,
     out_signature: *mut *mut Signature,
 ) -> bool {
     convert_result_to_bool::<_, failure::Error, _>(|| {
         let private_key = unsafe { &*in_private_key };
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
-        let signature = private_key.sign(&message, &*HASH_TO_G2)?;
+        let signature = if should_use_composite {
+            private_key.sign(&message, &*COMPOSITE_HASH_TO_G2)?
+        } else {
+            private_key.sign(&message, &*DIRECT_HASH_TO_G2)?
+        };
+        unsafe {
+            *out_signature = Box::into_raw(Box::new(signature));
+        }
+
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn sign_pop(
+    in_private_key: *const PrivateKey,
+    out_signature: *mut *mut Signature,
+) -> bool {
+    convert_result_to_bool::<_, failure::Error, _>(|| {
+        let private_key = unsafe { &*in_private_key };
+        let signature = private_key.sign_pop( &*DIRECT_HASH_TO_G2)?;
         unsafe {
             *out_signature = Box::into_raw(Box::new(signature));
         }
@@ -211,13 +244,35 @@ pub extern "C" fn verify_signature(
     in_message: *const u8,
     in_message_len: c_int,
     in_signature: *const Signature,
+    should_use_composite: bool,
     out_verified: *mut bool,
 ) -> bool {
     convert_result_to_bool::<_, std::io::Error, _>(|| {
         let public_key = unsafe { &*in_public_key };
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
         let signature = unsafe { &*in_signature };
-        unsafe { *out_verified = public_key.verify(message, signature, &*HASH_TO_G2).is_ok() };
+        let verified = if should_use_composite {
+            public_key.verify(message, signature, &*COMPOSITE_HASH_TO_G2).is_ok()
+        } else {
+            public_key.verify(message, signature, &*DIRECT_HASH_TO_G2).is_ok()
+        };
+        unsafe { *out_verified = verified };
+
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn verify_pop(
+    in_public_key: *const PublicKey,
+    in_signature: *const Signature,
+    out_verified: *mut bool,
+) -> bool {
+    convert_result_to_bool::<_, std::io::Error, _>(|| {
+        let public_key = unsafe { &*in_public_key };
+        let signature = unsafe { &*in_signature };
+        let verified = public_key.verify_pop(signature, &*DIRECT_HASH_TO_G2).is_ok();
+        unsafe { *out_verified = verified };
 
         Ok(())
     })

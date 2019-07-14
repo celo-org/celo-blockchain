@@ -16,10 +16,10 @@ geth: bls-zexe
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-bls-zexe: vendor/github.com/celo-org/bls-zexe/ultralight/target/release/libbls_zexe.a
+bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 
-vendor/github.com/celo-org/bls-zexe/ultralight/target/release/libbls_zexe.a:
-	cd vendor/github.com/celo-org/bls-zexe/ultralight && cargo build --release
+vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
+	cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release && cargo build --release --example pop
 
 swarm:
 	build/env.sh go run build/ci.go install ./cmd/swarm

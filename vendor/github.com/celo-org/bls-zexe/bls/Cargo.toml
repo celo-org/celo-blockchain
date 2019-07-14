@@ -34,5 +34,9 @@ harness = false
 name = "simple_signature"
 path = "examples/simple_signature.rs"
 
+[[example]]
+name = "pop"
+path = "examples/pop.rs"
+
 [lib]
 crate-type = ["lib", "staticlib"]

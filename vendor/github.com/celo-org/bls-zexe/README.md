@@ -3,6 +3,11 @@
 Implements BLS signatures as described in [BDN18].
 
 ## Using the code
+
+The BLS library code resides in the `bls` directory. The following commands assumed this is your current directory.
+
+A Go package consuming the library exists in the `go` directory.
+
 ### Quick start
 
 The `simple_signature` program shows how to generate keys, sign and aggregate signatures.
@@ -15,16 +20,16 @@ To run it with debug logging enabled, execute:
 
 To build the project, you must use the nightly version. This is because [ZEXE](https://github.com/scipr-lab/zexe) uses the `const_fn` feature.
 
-`cargo +nightly build` 
+`cargo +nightly build`
 
-or 
+or
 
 `cargo +nightly build --release`
 
 ### Running tests
 
 Most of the modules have tests.
- 
+
  You should run tests in release mode, as some of the cryptographic operations are slow in debug mode.
 
 `cargo +nightly test`
@@ -37,7 +42,7 @@ Secret keys are elements of the scalar field *Fr*.
 
 We would like to minimize the public key size, since we expect many of them to be communicated. Therefore, public keys are in *G1* and signatures are in *G2*.
 
-To hash a message to *G2*, we currently use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Pedersen hash over $E_{Ed/CP}$ from [BCGMMW18] and SHA256. First, the Pedersen hash is applied to the message, and then the try-and-increment methods attempts incrementing counters over the hashed message using SHA256.
+To hash a message to *G2*, we currently use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Pedersen hash over $E_{Ed/CP}$ from [BCGMMW18] and Blake2s. First, the Pedersen hash is applied to the message, and then the try-and-increment methods attempts incrementing counters over the hashed message using Blake2s.
 
 We implement fast cofactor multiplication, as the *G2* cofactor is large.
 
@@ -52,3 +57,5 @@ We implement fast cofactor multiplication, as the *G2* cofactor is large.
 [pairings] Costello, C. . [Pairings for beginners](http://www.craigcostello.com.au/pairings/PairingsForBeginners.pdf).
 
 [BP17] Budroni, A., & Pintore, F. (2017). [Efficient hash maps to G2 on BLS curves](https://eprint.iacr.org/2017/419.pdf). Cryptology ePrint Archive, Report 2017/419.
+
+[RY07] Ristenpart, T., & Yilek, S. (2007, May). The power of proofs-of-possession: Securing multiparty signatures against rogue-key attacks. In Annual International Conference on the Theory and Applications of Cryptographic Techniques (pp. 228-245). Springer, Berlin, Heidelberg.

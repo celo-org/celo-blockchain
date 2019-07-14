@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -54,6 +56,7 @@ var CeloPrecompiledContractsAddressOffset = byte(0xff)
 var requestAttestationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
+var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -71,6 +74,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	requestAttestationAddress: &requestAttestation{},
 	transferAddress:           &transfer{},
 	fractionMulExpAddress:     &fractionMulExp{},
+	proofOfPossessionAddress:  &proofOfPossession{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -549,4 +553,38 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	denominatorPadded := common.LeftPadBytes(denominatorDecimalAdjusted, 32)
 
 	return append(numeratorPadded, denominatorPadded...), gas, nil
+}
+
+type proofOfPossession struct{}
+
+func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
+	return params.ProofOfPossessionGas
+}
+
+func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	publicKeyBytes := input[:blscrypto.PUBLICKEYBYTES]
+	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
+	if err != nil {
+		return nil, gas, err
+	}
+	defer publicKey.Destroy()
+
+	signatureBytes := input[blscrypto.PUBLICKEYBYTES : blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
+	signature, err := bls.DeserializeSignature(signatureBytes)
+	if err != nil {
+		return nil, gas, err
+	}
+	defer signature.Destroy()
+
+	err = publicKey.VerifyPoP(signature)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	return true32Byte, gas, nil
 }

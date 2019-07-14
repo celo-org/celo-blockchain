@@ -1,8 +1,8 @@
-package ultralight
+package bls
 
 /*
-#cgo LDFLAGS: -L../ultralight/target/release -lbls_zexe -ldl -lm
-#include "ultralight.h"
+#cgo LDFLAGS: -L../bls/target/release -lbls_zexe -ldl -lm
+#include "bls.h"
 */
 import "C"
 
@@ -72,9 +72,19 @@ func (self *PrivateKey) ToPublic() (*PublicKey, error) {
 	return publicKey, nil
 }
 
-func (self *PrivateKey) SignMessage(message []byte) (*Signature, error) {
+func (self *PrivateKey) SignMessage(message []byte, shouldUseCompositeHasher bool) (*Signature, error) {
 	signature := &Signature{}
-	success := C.sign_message(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), &signature.ptr)
+	success := C.sign_message(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), C.bool(shouldUseCompositeHasher), &signature.ptr)
+	if !success {
+		return nil, GeneralError
+	}
+
+	return signature, nil
+}
+
+func (self *PrivateKey) SignPoP() (*Signature, error) {
+	signature := &Signature{}
+	success := C.sign_pop(self.ptr, &signature.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -112,9 +122,22 @@ func (self *PublicKey) Destroy() {
 	C.destroy_public_key(self.ptr)
 }
 
-func (self *PublicKey) VerifySignature(message []byte, signature *Signature) error {
+func (self *PublicKey) VerifySignature(message []byte, signature *Signature, shouldUseCompositeHasher bool) error {
 	var verified C.bool
-	success := C.verify_signature(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), signature.ptr, &verified)
+	success := C.verify_signature(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), signature.ptr, C.bool(shouldUseCompositeHasher), &verified)
+	if !success {
+		return GeneralError
+	}
+	if !verified {
+		return NotVerifiedError
+	}
+
+	return nil
+}
+
+func (self *PublicKey) VerifyPoP(signature *Signature) error {
+	var verified C.bool
+	success := C.verify_pop(self.ptr, signature.ptr, &verified)
 	if !success {
 		return GeneralError
 	}

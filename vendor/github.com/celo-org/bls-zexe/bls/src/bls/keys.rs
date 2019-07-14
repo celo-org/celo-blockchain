@@ -16,6 +16,9 @@ use algebra::{
 use failure::Error;
 use rand::Rng;
 
+static SIG_DOMAIN: &'static [u8] = b"ULforprf";
+static POP_DOMAIN: &'static [u8] = b"ULforpop";
+
 /// Implements BLS signatures as specified in https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html.
 use std::{
     io::{Read, Result as IoResult, Write},
@@ -40,9 +43,22 @@ impl PrivateKey {
     }
 
     pub fn sign<H: HashToG2>(&self, message: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
+        self.sign_message(SIG_DOMAIN, message, hash_to_g2)
+    }
+
+    pub fn sign_pop<H: HashToG2>(&self, hash_to_g2: &H) -> Result<Signature, Error> {
+        let pubkey = self.to_public();
+        let mut pubkey_bytes = vec![];
+        pubkey.write(&mut pubkey_bytes)?;
+
+        self.sign_message(POP_DOMAIN, &pubkey_bytes, hash_to_g2)
+    }
+
+
+    fn sign_message<H: HashToG2>(&self, domain: &[u8], message: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
         Ok(Signature::from_sig(
             &hash_to_g2
-                .hash::<Bls12_377Parameters>(message)?
+                .hash::<Bls12_377Parameters>(domain, message)?
                 .mul(&self.sk),
         ))
     }
@@ -101,6 +117,27 @@ impl PublicKey {
         signature: &Signature,
         hash_to_g2: &H,
     ) -> Result<(), Error> {
+        self.verify_sig(SIG_DOMAIN, message, signature, hash_to_g2)
+    }
+
+    pub fn verify_pop<H: HashToG2>(
+        &self,
+        signature: &Signature,
+        hash_to_g2: &H,
+    ) -> Result<(), Error> {
+        let mut pubkey_bytes = vec![];
+        self.write(&mut pubkey_bytes)?;
+        self.verify_sig(POP_DOMAIN, &pubkey_bytes, signature, hash_to_g2)
+    }
+
+
+    fn verify_sig<H: HashToG2>(
+        &self,
+        domain: &[u8],
+        message: &[u8],
+        signature: &Signature,
+        hash_to_g2: &H,
+    ) -> Result<(), Error> {
         let pairing = Bls12_377::product_of_pairings(&vec![
             (
                 &G1Affine::prime_subgroup_generator().neg().prepare(),
@@ -109,7 +146,7 @@ impl PublicKey {
             (
                 &self.pk.into_affine().prepare(),
                 &hash_to_g2
-                    .hash::<Bls12_377Parameters>(message)?
+                    .hash::<Bls12_377Parameters>(domain, message)?
                     .into_affine()
                     .prepare(),
             ),
@@ -179,7 +216,10 @@ impl FromBytes for Signature {
 mod test {
     use super::*;
     use crate::{
-        curve::hash::try_and_increment::TryAndIncrement, hash::composite::CompositeHasher,
+        curve::hash::try_and_increment::TryAndIncrement, hash::{
+            direct::DirectHasher,
+            composite::CompositeHasher,
+        },
     };
     use rand::thread_rng;
 
@@ -209,6 +249,49 @@ mod test {
             pk.verify(&message2[..], &sig, &try_and_increment)
                 .unwrap_err();
         }
+    }
+
+    #[test]
+    fn test_simple_sig_non_composite() {
+        init();
+
+        let rng = &mut thread_rng();
+        let direct_hasher = DirectHasher::new().unwrap();
+        let try_and_increment = TryAndIncrement::new(&direct_hasher);
+
+        for _ in 0..10 {
+            let mut message: Vec<u8> = vec![];
+            for _ in 0..32 {
+                message.push(rng.gen());
+            }
+            let sk = PrivateKey::generate(rng);
+
+            let sig = sk.sign(&message[..], &try_and_increment).unwrap();
+            let pk = sk.to_public();
+            pk.verify(&message[..], &sig, &try_and_increment).unwrap();
+            let message2 = b"goodbye";
+            pk.verify(&message2[..], &sig, &try_and_increment)
+                .unwrap_err();
+        }
+    }
+
+        #[test]
+    fn test_pop() {
+        init();
+
+        let rng = &mut thread_rng();
+        let direct_hasher = DirectHasher::new().unwrap();
+        let try_and_increment = TryAndIncrement::new(&direct_hasher);
+
+        let sk = PrivateKey::generate(rng);
+        let sk2 = PrivateKey::generate(rng);
+
+        let sig = sk.sign_pop(&try_and_increment).unwrap();
+        let pk = sk.to_public();
+        let pk2 = sk2.to_public();
+        pk.verify_pop(&sig, &try_and_increment).unwrap();
+        pk2.verify_pop(&sig, &try_and_increment)
+            .unwrap_err();
     }
 
     #[test]
