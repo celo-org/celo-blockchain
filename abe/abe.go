@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-//	"errors"
+	//	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-//	"github.com/ethereum/go-ethereum/crypto"
+	//	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -43,7 +43,7 @@ func decryptPhoneNumber(request types.AttestationRequest, account accounts.Accou
 	// if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
 	//	return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
 	//} else
-  if !r.MatchString(string(phoneNumber)) {
+	if !r.MatchString(string(phoneNumber)) {
 		return string(phoneNumber), fmt.Errorf("Decrypted phone number invalid: %s", string(phoneNumber))
 	}
 	return string(phoneNumber), nil
