@@ -182,13 +182,17 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 		leftoverGas uint64
 	)
 
-	if leftoverGas, err := userspace_communication.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-		if err == ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err)
-			return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
-		} else {
-			log.Error("medianRate invocation error", "gasCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
-			return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+	if currencyAddress == nil {
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
+	} else {
+		if leftoverGas, err := userspace_communication.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+			if err == ErrSmartContractNotDeployed {
+				log.Warn("Registry address lookup failed", "err", err)
+				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+			} else {
+				log.Error("medianRate invocation error", "gasCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
+				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+			}
 		}
 	}
 	log.Trace("medianRate invocation success", "gasCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
