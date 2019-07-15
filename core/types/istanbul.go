@@ -30,8 +30,9 @@ var (
 	// to identify whether the block is from Istanbul consensus engine
 	IstanbulDigest = common.HexToHash("0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365")
 
-	IstanbulExtraVanity = 32                       // Fixed number of extra-data bytes reserved for validator vanity
-	IstanbulExtraSeal   = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal
+	IstanbulExtraVanity    = 32                       // Fixed number of extra-data bytes reserved for validator vanity
+	IstanbulExtraSeal      = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal
+	IstanbulExtraBlockSeal = 65                       // Fixed number of extra-data bytes reserved for validator seal
 
 	// ErrInvalidIstanbulHeaderExtra is returned if the length of extra-data is less than 32 bytes
 	ErrInvalidIstanbulHeaderExtra = errors.New("invalid istanbul header extra-data")
@@ -108,6 +109,7 @@ func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 		istanbulExtra.Seal = []byte{}
 	}
 	istanbulExtra.CommittedSeal = []byte{}
+	istanbulExtra.Bitmap = []byte{}
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {

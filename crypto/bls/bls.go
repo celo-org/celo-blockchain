@@ -97,6 +97,7 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []
 	}
 	defer signatureObj.Destroy()
 
+	log.Info("VerifyAggregatedSignature", "message", hex.EncodeToString(message))
 	err = apk.VerifySignature(message, signatureObj, shouldUseCompositeHasher)
 	if err != nil {
 		return err

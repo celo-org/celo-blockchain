@@ -86,11 +86,13 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address          common.Address    // Ethereum address of the signing key
-	signFn           istanbul.SignerFn // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.SignerFn // Signer function to authorize hashes using BLS with
-	signMessageBLSFn istanbul.SignerFn // Signer function to authorize messages using BLS with
-	signFnMu         sync.RWMutex      // Protects the signer fields
+	address            common.Address    // Ethereum address of the signing key
+	signFn             istanbul.SignerFn // Signer function to authorize hashes with
+	signHashBLSFn      istanbul.SignerFn // Signer function to authorize hashes using BLS with
+	verifyHashBLSFn    istanbul.VerifierFn
+	signMessageBLSFn   istanbul.SignerFn // Signer function to authorize messages using BLS with
+	verifyMessageBLSFn istanbul.VerifierFn
+	signFnMu           sync.RWMutex // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -139,7 +141,9 @@ func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, s
 	sb.address = address
 	sb.signFn = signFn
 	sb.signHashBLSFn = signHashBLSFn
+	sb.verifyHashBLSFn = verifyHashBLSFn
 	sb.signMessageBLSFn = signMessageBLSFn
+	sb.verifyMessageBLSFn = verifyMessageBLSFn
 	sb.core.SetAddress(address)
 }
 
@@ -392,6 +396,17 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
+}
+
+func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
+	if sb.signHashBLSFn == nil {
+		return nil, errInvalidSigningFn
+	}
+	//hashData := crypto.Keccak256(data)
+	sb.signFnMu.RLock()
+	defer sb.signFnMu.RUnlock()
+	//return sb.signHashBLSFn(accounts.Account{Address: sb.address}, hashData)
+	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

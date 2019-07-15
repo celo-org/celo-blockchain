@@ -18,6 +18,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/hex"
 	"math"
 	"math/big"
 	"sync"
@@ -96,6 +97,7 @@ type core struct {
 
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
+	c.logger = log.New("address", address)
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
@@ -108,7 +110,7 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
 	if msg.Code == msgCommit && c.current.Proposal() != nil {
 		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.Sign(seal)
+		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
 		if err != nil {
 			return nil, err
 		}
@@ -169,18 +171,28 @@ func (c *core) commit() {
 
 	proposal := c.current.Proposal()
 	bitmap := make([]byte, c.current.Commits.ValSetSize())
+	publicKeys := [][]byte{}
 	if proposal != nil {
 		committedSeals := make([][]byte, c.current.Commits.Size())
-		for _, v := range c.current.Commits.Values() {
-			i, err := c.current.Commits.GetAddressIndex(v.Address)
+		for i, v := range c.current.Commits.Values() {
+			committedSeals[i] = make([]byte, types.IstanbulExtraSeal)
+			copy(committedSeals[i][:], v.CommittedSeal[:])
+			j, err := c.current.Commits.GetAddressIndex(v.Address)
 			if err != nil {
 				c.current.UnlockHash() //Unlock block when insertion fails
 				c.sendNextRoundChange()
 				return
 			}
-			committedSeals[i] = make([]byte, types.IstanbulExtraSeal)
-			copy(committedSeals[i][:], v.CommittedSeal[:])
-			bitmap[i] = 1
+			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
+			if err != nil {
+				c.current.UnlockHash() //Unlock block when insertion fails
+				c.sendNextRoundChange()
+				return
+			}
+
+			publicKeys = append(publicKeys, publicKey)
+
+			bitmap[j] = 1
 		}
 		asig, err := blscrypto.AggregateSignatures(committedSeals)
 		if err != nil {
@@ -188,6 +200,7 @@ func (c *core) commit() {
 			c.sendNextRoundChange()
 			return
 		}
+		log.Info("aggregating sigs", "committedSeals", committedSeals, "asig", asig, "bitmap", bitmap, "publicKeys", publicKeys)
 
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.current.UnlockHash() //Unlock block when insertion fails
@@ -356,5 +369,7 @@ func PrepareCommittedSeal(hash common.Hash) []byte {
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
 	buf.Write([]byte{byte(msgCommit)})
-	return buf.Bytes()
+	b := buf.Bytes()
+	log.Info("PrepareCommittedSeal", "hash", hex.EncodeToString(b))
+	return b
 }

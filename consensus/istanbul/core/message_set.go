@@ -75,6 +75,18 @@ func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
 	return uint64(i), nil
 }
 
+func (ms *messageSet) GetAddressPublicKey(addr common.Address) ([]byte, error) {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
+	_, v := ms.valSet.GetByAddress(addr)
+	if v == nil {
+		return nil, istanbul.ErrUnauthorizedAddress
+	}
+
+	return v.BLSPublicKey(), nil
+}
+
 func (ms *messageSet) ValSetSize() uint64 {
 	return uint64(ms.valSet.Size())
 }
