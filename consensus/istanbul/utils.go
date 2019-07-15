@@ -107,14 +107,24 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	return firstBlockNum + (epochSize - 1)
 }
 
-func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([]common.Address, []common.Address) {
+func ValidatorSetDiff(oldValSet []common.Address, oldValSetPublicKeys [][]byte, newValSet []common.Address, newValSetPublicKeys [][]byte) ([]common.Address, [][]byte, []common.Address, [][]byte) {
 	valSetMap := make(map[common.Address]bool)
+
+	oldValSetToPubKey := make(map[common.Address][]byte)
+	for i := range oldValSet {
+		oldValSetToPubKey[oldValSet[i]] = oldValSetPublicKeys[i]
+	}
+	newValSetToPubKey := make(map[common.Address][]byte)
+	for i := range newValSet {
+		newValSetToPubKey[newValSet[i]] = newValSetPublicKeys[i]
+	}
 
 	for _, oldVal := range oldValSet {
 		valSetMap[oldVal] = true
 	}
 
 	var addedValidators []common.Address
+	var addedValidatorsPublicKeys [][]byte
 	for _, newVal := range newValSet {
 		if _, ok := valSetMap[newVal]; ok {
 			// We found a common validator.  Pop from the map
@@ -122,23 +132,32 @@ func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([
 		} else {
 			// We found a new validator that is not in the old validator set
 			addedValidators = append(addedValidators, newVal)
+			addedValidatorsPublicKeys = append(addedValidatorsPublicKeys, newValSetToPubKey[newVal])
 		}
 	}
 	sort.Slice(addedValidators, func(i, j int) bool {
 		return strings.Compare(addedValidators[i].String(), addedValidators[j].String()) < 0
 	})
+	sort.Slice(addedValidatorsPublicKeys, func(i, j int) bool {
+		return strings.Compare(addedValidators[i].String(), addedValidators[j].String()) < 0
+	})
 
 	// Any remaining validators in the map are the removed validators
 	removedValidators := make([]common.Address, 0, len(valSetMap))
+	var removedValidatorsPublicKeys [][]byte
 	for rmVal := range valSetMap {
 		removedValidators = append(removedValidators, rmVal)
+		removedValidatorsPublicKeys = append(removedValidatorsPublicKeys, oldValSetToPubKey[rmVal])
 	}
 
 	sort.Slice(removedValidators, func(i, j int) bool {
 		return strings.Compare(removedValidators[i].String(), removedValidators[j].String()) < 0
 	})
+	sort.Slice(removedValidatorsPublicKeys, func(i, j int) bool {
+		return strings.Compare(removedValidators[i].String(), removedValidators[j].String()) < 0
+	})
 
-	return addedValidators, removedValidators
+	return addedValidators, addedValidatorsPublicKeys, removedValidators, removedValidatorsPublicKeys
 }
 
 // This function assumes that valSet1 and valSet2 are sorted

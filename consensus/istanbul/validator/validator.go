@@ -21,14 +21,15 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func New(addr common.Address) istanbul.Validator {
+func New(addr common.Address, blsPublicKey []byte) istanbul.Validator {
 	return &defaultValidator{
-		address: addr,
+		address:      addr,
+		blsPublicKey: blsPublicKey,
 	}
 }
 
-func NewSet(addrs []common.Address, policy istanbul.ProposerPolicy) istanbul.ValidatorSet {
-	return newDefaultSet(addrs, policy)
+func NewSet(addrs []common.Address, blsPublicKeys [][]byte, policy istanbul.ProposerPolicy) istanbul.ValidatorSet {
+	return newDefaultSet(addrs, blsPublicKeys, policy)
 }
 
 func ExtractValidators(extraData []byte) []common.Address {

@@ -26,6 +26,8 @@ type Validator interface {
 	// Address returns address
 	Address() common.Address
 
+	BLSPublicKey() []byte
+
 	// String representation of Validator
 	String() string
 }
@@ -64,7 +66,7 @@ type ValidatorSet interface {
 	// Check whether the validator with given address is a proposer
 	IsProposer(address common.Address) bool
 	// Add validators
-	AddValidators(address []common.Address) bool
+	AddValidators(address []common.Address, blsPublicKeys [][]byte) bool
 	// Remove validators
 	RemoveValidators(address []common.Address) bool
 	// Copy validator set

@@ -107,6 +107,34 @@ func (w *keystoreWallet) SignHash(account accounts.Account, hash []byte) ([]byte
 	return w.keystore.SignHash(account, hash)
 }
 
+func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
+	// Make sure the requested account is contained within
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.SignHashBLS(account, hash)
+}
+
+func (w *keystoreWallet) VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error {
+	return w.keystore.VerifyHashBLS(publicKey, hash, signature)
+}
+
+func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte) ([]byte, error) {
+	// Make sure the requested account is contained within
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.SignMessageBLS(account, msg)
+}
+
+func (w *keystoreWallet) VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error {
+	return w.keystore.VerifyMessageBLS(publicKey, msg, signature)
+}
+
 // SignTx implements accounts.Wallet, attempting to sign the given transaction
 // with the given account. If the wallet does not wrap this particular account,
 // an error is returned to avoid account leakage (even though in theory we may

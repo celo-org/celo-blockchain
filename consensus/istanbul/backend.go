@@ -29,6 +29,7 @@ import (
 // SignerFn is a signer callback function to request a hash to be signed by a
 // backing account.
 type SignerFn func(accounts.Account, []byte) ([]byte, error)
+type VerifierFn func([]byte, []byte, []byte) error
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -52,7 +53,7 @@ type Backend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, seals [][]byte) error
+	Commit(proposal Proposal, bitmap []byte, seals []byte) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -93,5 +94,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, verifyHashBLSFn VerifierFn, signMessageBLSFn SignerFn, verifyMessageBLSFn VerifierFn)
 }

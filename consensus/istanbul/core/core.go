@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -167,14 +168,28 @@ func (c *core) commit() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
+	bitmap := make([]byte, c.current.Commits.ValSetSize())
 	if proposal != nil {
 		committedSeals := make([][]byte, c.current.Commits.Size())
-		for i, v := range c.current.Commits.Values() {
+		for _, v := range c.current.Commits.Values() {
+			i, err := c.current.Commits.GetAddressIndex(v.Address)
+			if err != nil {
+				c.current.UnlockHash() //Unlock block when insertion fails
+				c.sendNextRoundChange()
+				return
+			}
 			committedSeals[i] = make([]byte, types.IstanbulExtraSeal)
 			copy(committedSeals[i][:], v.CommittedSeal[:])
+			bitmap[i] = 1
+		}
+		asig, err := blscrypto.AggregateSignatures(committedSeals)
+		if err != nil {
+			c.current.UnlockHash() //Unlock block when insertion fails
+			c.sendNextRoundChange()
+			return
 		}
 
-		if err := c.backend.Commit(proposal, committedSeals); err != nil {
+		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.current.UnlockHash() //Unlock block when insertion fails
 			c.sendNextRoundChange()
 			return

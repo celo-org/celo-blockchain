@@ -27,11 +27,16 @@ import (
 )
 
 type defaultValidator struct {
-	address common.Address
+	address      common.Address
+	blsPublicKey []byte
 }
 
 func (val *defaultValidator) Address() common.Address {
 	return val.address
+}
+
+func (val *defaultValidator) BLSPublicKey() []byte {
+	return val.blsPublicKey
 }
 
 func (val *defaultValidator) String() string {
@@ -49,14 +54,14 @@ type defaultSet struct {
 	selector    istanbul.ProposalSelector
 }
 
-func newDefaultSet(addrs []common.Address, policy istanbul.ProposerPolicy) *defaultSet {
+func newDefaultSet(addrs []common.Address, blsPublicKeys [][]byte, policy istanbul.ProposerPolicy) *defaultSet {
 	valSet := &defaultSet{}
 
 	valSet.policy = policy
 	// init validators
 	valSet.validators = make([]istanbul.Validator, len(addrs))
 	for i, addr := range addrs {
-		valSet.validators[i] = New(addr)
+		valSet.validators[i] = New(addr, blsPublicKeys[i])
 	}
 	// sort validator
 	sort.Sort(valSet.validators)
@@ -157,12 +162,14 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 	return valSet.GetByIndex(pick)
 }
 
-func (valSet *defaultSet) AddValidators(addresses []common.Address) bool {
+func (valSet *defaultSet) AddValidators(addresses []common.Address, blsPublicKeys [][]byte) bool {
 	newValidators := make([]istanbul.Validator, 0, len(addresses))
 	newAddressesMap := make(map[common.Address]bool)
-	for _, address := range addresses {
+	for i := range addresses {
+		address := addresses[i]
+		blsPublicKey := blsPublicKeys[i]
 		newAddressesMap[address] = true
-		newValidators = append(newValidators, New(address))
+		newValidators = append(newValidators, New(address, blsPublicKey))
 	}
 
 	valSet.validatorMu.Lock()
@@ -222,10 +229,12 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	defer valSet.validatorMu.RUnlock()
 
 	addresses := make([]common.Address, 0, len(valSet.validators))
+	publicKeys := make([][]byte, 0, len(valSet.validators))
 	for _, v := range valSet.validators {
 		addresses = append(addresses, v.Address())
+		publicKeys = append(publicKeys, v.BLSPublicKey())
 	}
-	return NewSet(addresses, valSet.policy)
+	return NewSet(addresses, publicKeys, valSet.policy)
 }
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }

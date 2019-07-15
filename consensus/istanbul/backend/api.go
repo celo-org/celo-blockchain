@@ -71,7 +71,8 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	if err != nil {
 		return nil, err
 	}
-	return snap.validators(), nil
+	validators, _ := snap.validators()
+	return validators, nil
 }
 
 // GetValidatorsAtHash retrieves the state snapshot at a given block.
@@ -84,5 +85,6 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	if err != nil {
 		return nil, err
 	}
-	return snap.validators(), nil
+	validators, _ := snap.validators()
+	return validators, nil
 }

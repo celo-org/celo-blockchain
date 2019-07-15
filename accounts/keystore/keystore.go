@@ -33,11 +33,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	_ "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 )
@@ -282,6 +283,104 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	}
 	// Sign the hash using plain ECDSA operations
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
+}
+
+func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignMessage(hash, false)
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return signatureBytes, nil
+}
+
+func (ks *KeyStore) VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error {
+	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+	if err != nil {
+		return err
+	}
+	defer publicKeyObj.Destroy()
+	signatureObj, err := bls.DeserializeSignature(signature)
+	if err != nil {
+		return err
+	}
+	defer signatureObj.Destroy()
+
+	return publicKeyObj.VerifySignature(hash, signatureObj, false)
+}
+
+func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignMessage(msg, true)
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return signatureBytes, nil
+}
+
+func (ks *KeyStore) VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error {
+	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+	if err != nil {
+		return err
+	}
+	defer publicKeyObj.Destroy()
+	signatureObj, err := bls.DeserializeSignature(signature)
+	if err != nil {
+		return err
+	}
+	defer signatureObj.Destroy()
+
+	return publicKeyObj.VerifySignature(msg, signatureObj, true)
 }
 
 // SignTx signs the given transaction with the requested account.

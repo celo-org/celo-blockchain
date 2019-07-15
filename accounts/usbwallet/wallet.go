@@ -505,6 +505,22 @@ func (w *wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error)
 	return nil, accounts.ErrNotSupported
 }
 
+func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (w *wallet) VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error {
+	return accounts.ErrNotSupported
+}
+
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (w *wallet) VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error {
+	return accounts.ErrNotSupported
+}
+
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger
 // wallet to request a confirmation from the user. It returns either the signed
 // transaction or a failure if the user denied the transaction.

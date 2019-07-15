@@ -18,7 +18,7 @@ func AppendValidatorsToGenesisBlock(genesis *core.Genesis, addrs []common.Addres
 	ist := &types.IstanbulExtra{
 		AddedValidators: addrs,
 		Seal:            []byte{},
-		CommittedSeal:   [][]byte{},
+		CommittedSeal:   []byte{},
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

@@ -102,6 +102,10 @@ type Wallet interface {
 	// the needed details via SignHashWithPassphrase, or by other means (e.g. unlock
 	// the account in a keystore).
 	SignHash(account Account, hash []byte) ([]byte, error)
+	SignHashBLS(account Account, hash []byte) ([]byte, error)
+	VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error
+	SignMessageBLS(account Account, msg []byte) ([]byte, error)
+	VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error
 
 	// SignTx requests the wallet to sign the given transaction.
 	//

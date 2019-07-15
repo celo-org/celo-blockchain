@@ -74,3 +74,58 @@ func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
 
 	return pubKeyBytes, nil
 }
+
+func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []byte, shouldUseCompositeHasher bool) error {
+	publicKeyObjs := []*bls.PublicKey{}
+	for _, publicKey := range publicKeys {
+		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+		if err != nil {
+			return err
+		}
+		defer publicKeyObj.Destroy()
+		publicKeyObjs = append(publicKeyObjs, publicKeyObj)
+	}
+	apk, err := bls.AggregatePublicKeys(publicKeyObjs)
+	if err != nil {
+		return err
+	}
+	defer apk.Destroy()
+
+	signatureObj, err := bls.DeserializeSignature(signature)
+	if err != nil {
+		return err
+	}
+	defer signatureObj.Destroy()
+
+	err = apk.VerifySignature(message, signatureObj, shouldUseCompositeHasher)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func AggregateSignatures(signatures [][]byte) ([]byte, error) {
+	signatureObjs := []*bls.Signature{}
+	for _, signature := range signatures {
+		signatureObj, err := bls.DeserializeSignature(signature)
+		if err != nil {
+			return nil, err
+		}
+		defer signatureObj.Destroy()
+		signatureObjs = append(signatureObjs, signatureObj)
+	}
+
+	asig, err := bls.AggregateSignatures(signatureObjs)
+	if err != nil {
+		return nil, err
+	}
+	defer asig.Destroy()
+
+	asigBytes, err := asig.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return asigBytes, nil
+}
