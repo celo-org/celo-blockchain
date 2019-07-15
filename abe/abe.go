@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
+	//	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	//	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -40,9 +40,10 @@ func decryptPhoneNumber(request types.AttestationRequest, account accounts.Accou
 	}
 	// TODO(asa): Better validation of phone numbers
 	r, _ := regexp.Compile(`^\+[0-9]{8,15}$`)
-	if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
-		return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
-	} else if !r.MatchString(string(phoneNumber)) {
+	// if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
+	//	return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
+	//} else
+	if !r.MatchString(string(phoneNumber)) {
 		return string(phoneNumber), fmt.Errorf("Decrypted phone number invalid: %s", string(phoneNumber))
 	}
 	return string(phoneNumber), nil
@@ -74,14 +75,18 @@ func sendSms(phoneNumber string, message string, account common.Address, issuer 
 
 func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
 	account := accounts.Account{Address: coinbase}
-	wallet, err := accountManager.Find(account)
-	if err != nil {
-		log.Warn("[Celo] Failed to get account for sms attestation", "err", err)
-		return
-	}
-
+	var wallet accounts.Wallet
+	var err error
 	for _, receipt := range receipts {
 		for _, request := range receipt.AttestationRequests {
+			if wallet == nil {
+				wallet, err = accountManager.Find(account)
+				if err != nil {
+					log.Error("[Celo] Failed to get account for sms attestation", "err", err)
+					return
+				}
+			}
+
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
 				continue
 			}
