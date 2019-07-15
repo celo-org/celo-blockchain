@@ -18,7 +18,6 @@ package core
 
 import (
 	"bytes"
-	"encoding/hex"
 	"math"
 	"math/big"
 	"sync"
@@ -200,7 +199,6 @@ func (c *core) commit() {
 			c.sendNextRoundChange()
 			return
 		}
-		log.Info("aggregating sigs", "committedSeals", committedSeals, "asig", asig, "bitmap", bitmap, "publicKeys", publicKeys)
 
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.current.UnlockHash() //Unlock block when insertion fails
@@ -370,6 +368,5 @@ func PrepareCommittedSeal(hash common.Hash) []byte {
 	buf.Write(hash.Bytes())
 	buf.Write([]byte{byte(msgCommit)})
 	b := buf.Bytes()
-	log.Info("PrepareCommittedSeal", "hash", hex.EncodeToString(b))
 	return b
 }

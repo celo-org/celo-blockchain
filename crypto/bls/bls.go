@@ -2,13 +2,11 @@ package blscrypto
 
 import (
 	"crypto/ecdsa"
-	"encoding/hex"
 	"errors"
 	"math/big"
 
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 const MODULUS377 = "8444461749428370424248824938781546531375899335154063827935233455917409239041"
@@ -49,7 +47,6 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("ECDSAToBLS", "bytes", hex.EncodeToString(privateKeyBLSBytes))
 
 	return privateKeyBLSBytes, nil
 }
@@ -97,7 +94,6 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []
 	}
 	defer signatureObj.Destroy()
 
-	log.Info("VerifyAggregatedSignature", "message", hex.EncodeToString(message))
 	err = apk.VerifySignature(message, signatureObj, shouldUseCompositeHasher)
 	if err != nil {
 		return err
