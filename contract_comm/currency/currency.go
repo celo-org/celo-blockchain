@@ -17,7 +17,6 @@
 package currency
 
 import (
-	"errors"
 	"math/big"
 	"strings"
 
@@ -101,8 +100,6 @@ var (
 	medianRateFuncABI, _   = abi.JSON(strings.NewReader(medianRateABI))
 	balanceOfFuncABI, _    = abi.JSON(strings.NewReader(balanceOfABI))
 	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
-
-	errExchangeRateCacheMiss = errors.New("exchange rate cache miss")
 )
 
 type exchangeRate struct {
