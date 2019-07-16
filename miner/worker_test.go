@@ -32,11 +32,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 var (
@@ -121,7 +121,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
-	userspace_communication.SetInternalEVMHandler(chain)
+	contract_comm.SetInternalEVMHandler(chain)
 
 	gcWl := core.NewGasCurrencyWhitelist()
 	gpm := core.NewGasPriceMinimum()

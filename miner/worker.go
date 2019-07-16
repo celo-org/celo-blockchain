@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -318,7 +319,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return core.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return currency.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.

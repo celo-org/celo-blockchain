@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -182,7 +183,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
-	if st.msg.GasCurrency() != nil && (!CurrencyIsWhitelisted(*st.msg.GasCurrency(), nil, nil)) {
+	if st.msg.GasCurrency() != nil && (!currency.IsWhitelisted(*st.msg.GasCurrency(), nil, nil)) {
 		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.GasCurrency())
 		return errNonWhitelistedGasCurrency
 	}
@@ -204,7 +205,7 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, st.evm, params.MaxGasToReadErc20Balance)
+	balanceOf, _, err := currency.GetBalanceOf(accountOwner, *gasCurrency, st.evm, params.MaxGasToReadErc20Balance)
 	if err != nil {
 		return false
 	}

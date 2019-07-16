@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package currency
 
 import (
 	"errors"
@@ -23,12 +23,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 const (
@@ -113,8 +113,8 @@ type exchangeRate struct {
 //TODO: Jarmg - clean up these CO functions
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := userspace_communication.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
-	if err == ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
+	celoGoldAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
+	if err == contract_comm.ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, nil
 	} else if err != nil {
@@ -185,8 +185,8 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		if leftoverGas, err := userspace_communication.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			if err == ErrSmartContractNotDeployed {
+		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+			if err == contract_comm.ErrSmartContractNotDeployed {
 				log.Warn("Registry address lookup failed", "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
 			} else {
@@ -210,7 +210,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 	if evm != nil {
 		leftoverGas, err = evm.StaticCallFromSystem(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 	} else {
-		leftoverGas, err = userspace_communication.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
+		leftoverGas, err = contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
 	}
 
 	if err != nil {
@@ -229,9 +229,9 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 //-------------------------------
 func retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
 	returnList := []common.Address{}
-	gasCurrencyWhiteListAddress, err := userspace_communication.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
+	gasCurrencyWhiteListAddress, err := contract_comm.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
-		if err == ErrSmartContractNotDeployed {
+		if err == contract_comm.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else {
 			log.Error("Registry address lookup failed", "err", err)
@@ -239,11 +239,11 @@ func retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Add
 		return returnList, err
 	}
 
-	_, err = userspace_communication.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	_, err = contract_comm.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
 	return returnList, err
 }
 
-func CurrencyIsWhitelisted(currencyAddress common.Address, state *state.StateDB, header *types.Header) bool {
+func IsWhitelisted(currencyAddress common.Address, state *state.StateDB, header *types.Header) bool {
 	whitelist, err := retrieveWhitelist(state, header)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)

@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -36,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
@@ -98,7 +98,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		}
 	}
 
-	userspace_communication.SetInternalEVMHandler(blockchain)
+	contract_comm.SetInternalEVMHandler(blockchain)
 
 	return blockchain, b
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -42,7 +43,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/params"
 	rpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 type LightEthereum struct {
@@ -146,7 +146,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	}
 
 	//jarmg - this should become the only signature
-	userspace_communication.SetInternalEVMHandler(leth.blockchain)
+	contract_comm.SetInternalEVMHandler(leth.blockchain)
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)

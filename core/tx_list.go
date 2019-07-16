@@ -23,6 +23,7 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -487,7 +488,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 			continue
 		}
 
-		if Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, nil) >= 0 {
+		if currency.Cmp(tx.GasPrice(), tx.GasCurrency(), cgThreshold, nil) >= 0 {
 			save = append(save, tx)
 			break
 		}
@@ -529,7 +530,7 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	}
 
 	cheapest := l.getMinPricedTx()
-	return Cmp(cheapest.GasPrice(), cheapest.GasCurrency(), tx.GasPrice(), tx.GasCurrency()) >= 0
+	return currency.Cmp(cheapest.GasPrice(), cheapest.GasCurrency(), tx.GasPrice(), tx.GasCurrency()) >= 0
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
@@ -572,7 +573,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
 			} else {
 				txn := []*types.Transaction(*priceHeap)[0]
-				if Cmp(cheapestTxn.GasPrice(), cheapestTxn.GasCurrency(), txn.GasPrice(), txn.GasCurrency()) < 0 {
+				if currency.Cmp(cheapestTxn.GasPrice(), cheapestTxn.GasCurrency(), txn.GasPrice(), txn.GasCurrency()) < 0 {
 					cheapestHeap = priceHeap
 				}
 			}

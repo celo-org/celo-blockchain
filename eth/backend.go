@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -50,7 +51,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 type LesServer interface {
@@ -181,7 +181,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
 
 	//jarmg - this should become the only signature
-	userspace_communication.SetInternalEVMHandler(eth.blockchain)
+	contract_comm.SetInternalEVMHandler(eth.blockchain)
 
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 

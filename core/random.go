@@ -6,12 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 const (
@@ -99,8 +99,8 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 }
 
 func address() *common.Address {
-	randomAddress, err := userspace_communication.GetContractAddress(params.RandomRegistryId, nil, nil)
-	if err == ErrSmartContractNotDeployed {
+	randomAddress, err := contract_comm.GetContractAddress(params.RandomRegistryId, nil, nil)
+	if err == contract_comm.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
@@ -119,7 +119,7 @@ func Running() bool {
 // database.
 func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state *state.StateDB) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	_, err := userspace_communication.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
 		//jarmg error check
 		log.Error("Failed to get last commitment", "err", err)
@@ -154,7 +154,7 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state *state.State
 	}
 	randomness := common.BytesToHash(randomBytes[:])
 	// TODO(asa): Make an issue to not have to do this via StaticCall
-	_, err = userspace_communication.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	_, err = contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
 	//jarmg check error
 	if err != nil {
@@ -169,6 +169,6 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state *state.State
 func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state *state.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	_, err := userspace_communication.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
+	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
 	return err
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -42,7 +43,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 const (
@@ -506,7 +506,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
 		gasPriceMinimum, _ := core.GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
 		infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(statedb, block.Header())
-		infraAddress, _ := userspace_communication.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
+		infraAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
 		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), gasPriceMinimum, infraFraction, infraAddress); err != nil {
 			failed = err
 			break
@@ -607,7 +607,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vmConf)
 		gasPriceMinimum, _ := core.GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
 		infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(statedb, block.Header())
-		infraAddress, err := userspace_communication.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
+		infraAddress, err := contract_comm.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
 		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), gasPriceMinimum, infraFraction, infraAddress)
 
 		if dump != nil {
@@ -760,7 +760,7 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	gasPriceMinimum, _ := core.GetGasPriceMinimum(message.GasCurrency(), statedb, nil)
 	infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(statedb, nil)
 
-	infraAddress, err := userspace_communication.GetContractAddress(params.GovernanceRegistryId, nil, nil)
+	infraAddress, err := contract_comm.GetContractAddress(params.GovernanceRegistryId, nil, nil)
 	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), gasPriceMinimum, infraFraction, infraAddress)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %v", err)
@@ -812,7 +812,7 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		vmenv := vm.NewEVM(ctx, statedb, api.config, vm.Config{})
 		gasPriceMinimum, _ := core.GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
 		infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(statedb, block.Header())
-		infraAddress, _ := userspace_communication.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
+		infraAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, block.Header(), statedb)
 		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), gasPriceMinimum, infraFraction, infraAddress); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}

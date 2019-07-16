@@ -23,10 +23,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
 
 // TODO (jarmg 5/22/19): Store ABIs in a central location
@@ -120,7 +120,7 @@ func GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = userspace_communication.GetContractAddress(params.GoldTokenRegistryId, header, state)
+		currencyAddress, err = contract_comm.GetContractAddress(params.GoldTokenRegistryId, header, state)
 
 		if err != nil {
 			return FallbackGasPriceMinimum, errors.New("no goldtoken contract address found")
@@ -130,7 +130,7 @@ func GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *
 	}
 
 	var gasPriceMinimum *big.Int
-	_, err = userspace_communication.MakeStaticCall(
+	_, err = contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
@@ -151,7 +151,7 @@ func GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *
 func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
-	_, err := userspace_communication.MakeCall(
+	_, err := contract_comm.MakeCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
@@ -173,7 +173,7 @@ func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int
 func GetGasPriceMinimumInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	_, err := userspace_communication.MakeStaticCall(
+	_, err := contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"infrastructureFraction",

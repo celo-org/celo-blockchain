@@ -22,14 +22,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/userspace_communication"
 )
-
-// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-var ErrSmartContractNotDeployed = errors.New("registered contract not deployed")
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
@@ -75,9 +72,9 @@ type RegisteredAddresses struct {
 
 func (ra *RegisteredAddresses) getRegisteredAddress(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error) {
 	var contractAddress common.Address
-	_, err := userspace_communication.MakeStaticCallWithAddress(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
+	_, err := contract_comm.MakeStaticCallWithAddress(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000, header, state)
 	if (contractAddress == common.Address{}) {
-		return nil, ErrSmartContractNotDeployed
+		return nil, contract_comm.ErrSmartContractNotDeployed
 	}
 	return &contractAddress, err
 }
