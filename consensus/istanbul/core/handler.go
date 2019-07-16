@@ -101,7 +101,7 @@ func (c *core) handleEvents() {
 				}
 			case istanbul.MessageEvent:
 				if err := c.handleMsg(ev.Payload); err != nil {
-					c.logger.Error("Error in handling istanbul message", "err", err)
+					c.logger.Debug("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
