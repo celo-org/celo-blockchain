@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -69,8 +70,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	if Running() {
-		err := RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
+	if random.IsRunning() {
+		err := random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
 			return nil, nil, 0, err
 		}

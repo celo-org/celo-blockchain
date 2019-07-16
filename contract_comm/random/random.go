@@ -1,4 +1,4 @@
-package core
+package random
 
 import (
 	"crypto/rand"
@@ -108,7 +108,7 @@ func address() *common.Address {
 	return randomAddress
 }
 
-func Running() bool {
+func IsRunning() bool {
 	randomAddress := address()
 	return randomAddress != nil && *randomAddress != common.ZeroAddress
 }

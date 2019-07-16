@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -983,20 +984,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.updateSnapshot()
 
 	// Play our part in generating the random beacon.
-	if w.isRunning() && core.Running() {
-		lastRandomness, err := core.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
+	if w.isRunning() && random.IsRunning() {
+		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
 		}
 
-		commitment, err := core.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
+		commitment, err := random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db)
 		if err != nil {
 			log.Error("Failed to generate randomness commitment", "err", err)
 			return
 		}
 
-		err = core.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
