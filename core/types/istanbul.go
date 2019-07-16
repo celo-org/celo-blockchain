@@ -19,6 +19,7 @@ package types
 import (
 	"errors"
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/bls"
@@ -44,8 +45,9 @@ type IstanbulExtra struct {
 	RemovedValidators           []common.Address
 	RemovedValidatorsPublicKeys [][]byte
 	Seal                        []byte
-	Bitmap                      []byte
+	Bitmap                      *big.Int
 	CommittedSeal               []byte
+	EpochData                   []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -58,6 +60,7 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.Seal,
 		ist.Bitmap,
 		ist.CommittedSeal,
+		ist.EpochData,
 	})
 }
 
@@ -69,13 +72,14 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		RemovedValidators           []common.Address
 		RemovedValidatorsPublicKeys [][]byte
 		Seal                        []byte
-		Bitmap                      []byte
+		Bitmap                      *big.Int
 		CommittedSeal               []byte
+		EpochData                   []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.RemovedValidatorsPublicKeys, ist.Seal, ist.Bitmap, ist.CommittedSeal = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.RemovedValidatorsPublicKeys, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.RemovedValidatorsPublicKeys, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.RemovedValidatorsPublicKeys, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
 	return nil
 }
 
@@ -109,7 +113,7 @@ func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 		istanbulExtra.Seal = []byte{}
 	}
 	istanbulExtra.CommittedSeal = []byte{}
-	istanbulExtra.Bitmap = []byte{}
+	istanbulExtra.Bitmap = big.NewInt(0)
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {

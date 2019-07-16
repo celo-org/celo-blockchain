@@ -169,7 +169,7 @@ func (c *core) commit() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
-	bitmap := make([]byte, c.current.Commits.ValSetSize())
+	bitmap := big.NewInt(0)
 	publicKeys := [][]byte{}
 	if proposal != nil {
 		committedSeals := make([][]byte, c.current.Commits.Size())
@@ -191,7 +191,7 @@ func (c *core) commit() {
 
 			publicKeys = append(publicKeys, publicKey)
 
-			bitmap[j] = 1
+			bitmap.SetBit(bitmap, int(j), 1)
 		}
 		asig, err := blscrypto.AggregateSignatures(committedSeals)
 		if err != nil {
