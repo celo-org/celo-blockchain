@@ -460,17 +460,6 @@ func (f *Fetcher) loop() {
 						announce.header = header
 						announce.time = task.time
 
-						// If the block is empty (header only), short circuit into the final import queue
-						if header.TxHash == types.DeriveSha(types.Transactions{}) && header.UncleHash == types.CalcUncleHash([]*types.Header{}) {
-							log.Trace("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
-
-							block := types.NewBlockWithHeader(header)
-							block.ReceivedAt = task.time
-
-							complete = append(complete, block)
-							f.completing[hash] = announce
-							continue
-						}
 						// Otherwise add to the list of blocks needing completion
 						incomplete = append(incomplete, announce)
 					} else {

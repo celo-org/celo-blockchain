@@ -21,6 +21,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -159,6 +161,7 @@ func (am *Manager) Find(account Account) (Wallet, error) {
 			return wallet, nil
 		}
 	}
+	log.Warn("Failed to find the account", "account", account.Address, "account url", account.URL)
 	return nil, ErrUnknownAccount
 }
 

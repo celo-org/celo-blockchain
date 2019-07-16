@@ -809,7 +809,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
 		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum")
+			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 			break
 		}
 		// Error may be ignored here. The error has already been checked

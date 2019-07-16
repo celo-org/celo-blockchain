@@ -740,10 +740,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-
 	gasPriceMinimum, err := gpm.GetGasPriceMinimum(args.GasCurrency, state, header)
 	infraFraction, err := gpm.GetInfrastructureFraction(state, header)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, gasPriceMinimum, infraFraction, nil)
+  infraAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, state, header)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, gasPriceMinimum, infraFraction, infraAddress)
+
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
