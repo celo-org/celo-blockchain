@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -740,8 +741,8 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	gasPriceMinimum, err := core.GetGasPriceMinimum(args.GasCurrency, state, header)
-	infraFraction, err := core.GetGasPriceMinimumInfrastructureFraction(state, header)
+	gasPriceMinimum, err := gpm.GetGasPriceMinimum(args.GasCurrency, state, header)
+	infraFraction, err := gpm.GetInfrastructureFraction(state, header)
 	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, gasPriceMinimum, infraFraction, nil)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err

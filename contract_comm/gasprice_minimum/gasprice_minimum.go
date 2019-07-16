@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package gasprice_minimum
 
 import (
 	"errors"
@@ -170,7 +170,7 @@ func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetGasPriceMinimumInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
+func GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(

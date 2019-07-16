@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -749,7 +750,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, gasPriceMinimum *big.Int) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	infraFraction, _ := core.GetGasPriceMinimumInfrastructureFraction(w.current.state, w.current.header)
+	infraFraction, _ := gpm.GetInfrastructureFraction(w.current.state, w.current.header)
 	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
@@ -805,7 +806,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
-		gasPriceMinimum, _ := core.GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum")
 			break

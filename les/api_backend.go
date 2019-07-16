@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -171,19 +172,19 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return core.GetGasPriceSuggestion(nil, nil, nil)
+	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceMinimum(currencyAddress, nil, nil)
+	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
-func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
-	return core.GetGasPriceMinimumInfrastructureFraction(nil, nil)
+func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*gpm.InfrastructureFraction, error) {
+	return gpm.GetInfrastructureFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

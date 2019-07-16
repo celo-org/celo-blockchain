@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -196,11 +197,11 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return core.GetGasPriceSuggestion(nil, nil, nil)
+	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return core.GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

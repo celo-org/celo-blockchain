@@ -31,6 +31,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -480,7 +481,7 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	updatedGasPriceMinimum, err := core.UpdateGasPriceMinimum(header, state)
+	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
 
 	if err != nil {
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
