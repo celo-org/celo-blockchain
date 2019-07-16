@@ -90,8 +90,6 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
-	gcWl           *core.GasCurrencyWhitelist
-	gpm            *core.GasPriceMinimum
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -123,15 +121,10 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 	contract_comm.SetInternalEVMHandler(chain)
 
-	gcWl := core.NewGasCurrencyWhitelist()
-	gpm := core.NewGasPriceMinimum()
-	co := core.NewCurrencyOperator(gcWl)
-
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
 	// If istanbul engine used, set the objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetGasPriceMinimum(gpm)
 		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
 
@@ -160,8 +153,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		chain:          chain,
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
-		gcWl:           gcWl,
-		gpm:            gpm,
 	}
 }
 
@@ -171,17 +162,13 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
-func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
-func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	co := core.NewCurrencyOperator(nil, nil)
-	random := core.NewRandom()
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }

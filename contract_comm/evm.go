@@ -17,6 +17,7 @@
 package contract_comm
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -176,6 +177,9 @@ func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
 	log.Trace("createEVM called")
+	if IevmHSingleton == nil {
+		return nil, errors.New("No IevmHSingleton set for contract communication")
+	}
 
 	if header == nil {
 		header = IevmHSingleton.chain.CurrentHeader()

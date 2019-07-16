@@ -62,9 +62,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	gpm := core.NewGasPriceMinimum()
-
-	b.SetGasPriceMinimum(gpm)
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 
 	b.Start(blockchain.HasBadBlock,
