@@ -1,8 +1,11 @@
 package blscrypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -10,45 +13,62 @@ import (
 )
 
 const MODULUS377 = "8444461749428370424248824938781546531375899335154063827935233455917409239041"
+const MODULUSBITS = 253
+const MODULUSMASK = 31 // == 2**(253-(256-8)) - 1
 const PUBLICKEYBYTES = 96
 const SIGNATUREBYTES = 192
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
-	modulus := big.NewInt(0)
-	modulus, ok := modulus.SetString(MODULUS377, 10)
-	if !ok {
-		return nil, errors.New("can't parse modulus")
+	for i := 0; i < 256; i++ {
+		modulus := big.NewInt(0)
+		modulus, ok := modulus.SetString(MODULUS377, 10)
+		if !ok {
+			return nil, errors.New("can't parse modulus")
+		}
+		privateKeyECDSABytes := crypto.FromECDSA(privateKeyECDSA)
+
+		keyBytes := []byte("ecdsatobls")
+		keyBytes = append(keyBytes, uint8(i))
+		keyBytes = append(keyBytes, privateKeyECDSABytes...)
+
+		privateKeyBLSBytes := crypto.Keccak256(keyBytes)
+		privateKeyBLSBytes[0] &= MODULUSMASK
+		privateKeyBLSBig := big.NewInt(0)
+		privateKeyBLSBig.SetBytes(privateKeyBLSBytes)
+		if privateKeyBLSBig.Cmp(modulus) >= 0 {
+			continue
+		}
+
+		privateKeyBytes := privateKeyBLSBig.Bytes()
+		for len(privateKeyBytes) < len(privateKeyBLSBytes) {
+			privateKeyBytes = append([]byte{0x00}, privateKeyBytes...)
+		}
+		if !bytes.Equal(privateKeyBLSBytes, privateKeyBytes) {
+			return nil, errors.New(fmt.Sprintf("private key bytes should have been the same: %s, %s", hex.EncodeToString(privateKeyBLSBytes), hex.EncodeToString(privateKeyBytes)))
+		}
+		// reverse order, as the BLS library expects little endian
+		for i := len(privateKeyBytes)/2 - 1; i >= 0; i-- {
+			opp := len(privateKeyBytes) - 1 - i
+			privateKeyBytes[i], privateKeyBytes[opp] = privateKeyBytes[opp], privateKeyBytes[i]
+		}
+
+		privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKeyBLS.Destroy()
+		privateKeyBLSBytesFromLib, err := privateKeyBLS.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		if !bytes.Equal(privateKeyBytes, privateKeyBLSBytesFromLib) {
+			return nil, errors.New("private key bytes from library should have been the same")
+		}
+
+		return privateKeyBLSBytesFromLib, nil
 	}
-	privateKeyECDSABytes := crypto.FromECDSA(privateKeyECDSA)
 
-	part1Bytes := []byte{0x1}
-	part1Bytes = append(part1Bytes, privateKeyECDSABytes...)
-	part2Bytes := []byte{0x2}
-	part2Bytes = append(part2Bytes, privateKeyECDSABytes...)
-
-	privateKeyBLSBytesBeforeMod := crypto.Keccak256(part1Bytes)
-	privateKeyBLSBytesBeforeMod = append(privateKeyBLSBytesBeforeMod, crypto.Keccak256(part2Bytes)...)
-	privateKeyBLSBig := big.NewInt(0)
-	privateKeyBLSBig.SetBytes(privateKeyBLSBytesBeforeMod)
-	privateKeyBLSBig.Mod(privateKeyBLSBig, modulus)
-	privateKeyBytes := privateKeyBLSBig.Bytes()
-
-	for i := len(privateKeyBytes)/2 - 1; i >= 0; i-- {
-		opp := len(privateKeyBytes) - 1 - i
-		privateKeyBytes[i], privateKeyBytes[opp] = privateKeyBytes[opp], privateKeyBytes[i]
-	}
-
-	privateKeyBLS, err := bls.DeserializePrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer privateKeyBLS.Destroy()
-	privateKeyBLSBytes, err := privateKeyBLS.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	return privateKeyBLSBytes, nil
+	return nil, errors.New("couldn't derive a BLS key from an ECDSA key")
 }
 
 func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {

@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -54,18 +55,22 @@ func TestExtractToIstanbul(t *testing.T) {
 		{
 			// normal case
 			bytes.Repeat([]byte{0x00}, IstanbulExtraVanity),
-			hexutil.MustDecode("0xf858ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b44080c0"),
+			hexutil.MustDecode("0xf85cea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c0ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080808080"),
 			&IstanbulExtra{
 				AddedValidators: []common.Address{
 					common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 					common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 				},
+				AddedValidatorsPublicKeys: [][]byte{},
 				RemovedValidators: []common.Address{
 					common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 					common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 				},
-				Seal:          []byte{},
-				CommittedSeal: [][]byte{},
+				RemovedValidatorsPublicKeys: [][]byte{},
+				Bitmap:                      big.NewInt(0),
+				Seal:                        []byte{},
+				CommittedSeal:               []byte{},
+				EpochData:                   []byte{},
 			},
 			nil,
 		},

@@ -9,16 +9,17 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func AppendValidatorsToGenesisBlock(genesis *core.Genesis, addrs []common.Address) {
+func AppendValidatorsToGenesisBlock(genesis *core.Genesis, addrs []common.Address, publicKeys [][]byte) {
 	if len(genesis.ExtraData) < types.IstanbulExtraVanity {
 		genesis.ExtraData = append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...)
 	}
 	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
 
 	ist := &types.IstanbulExtra{
-		AddedValidators: addrs,
-		Seal:            []byte{},
-		CommittedSeal:   []byte{},
+		AddedValidators:           addrs,
+		AddedValidatorsPublicKeys: publicKeys,
+		Seal:                      []byte{},
+		CommittedSeal:             []byte{},
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)
