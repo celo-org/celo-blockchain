@@ -539,7 +539,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 
 func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.StaticCall(caller, address, transactionData, gas)
+		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
 
 	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
@@ -547,7 +547,7 @@ func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abi.ABI
 
 func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.Call(caller, address, transactionData, gas, value)
+		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
@@ -562,11 +562,11 @@ func (evm *EVM) handleABICall(abi abi.ABI, funcName string, args []interface{}, 
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		log.Error("Error in calling the EVM", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "err", err)
+		log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
 		return leftoverGas, err
 	}
 
-	log.Trace("EVM call successful", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
+	log.Trace("EVM call successful", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {

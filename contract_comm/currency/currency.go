@@ -127,7 +127,7 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 	exchangeRateTo, err2 := getExchangeRate(currencyTo)
 
 	if err1 != nil || err2 != nil {
-		log.Error("CurrencyOperator.Convert - Error in retreiving currency exchange rates")
+		log.Error("Convert - Error in retreiving currency exchange rates")
 		if err1 != nil {
 			return nil, err1
 		}
