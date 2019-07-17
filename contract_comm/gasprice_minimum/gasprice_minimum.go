@@ -17,7 +17,6 @@
 package gasprice_minimum
 
 import (
-	"errors"
 	"math/big"
 	"strings"
 
