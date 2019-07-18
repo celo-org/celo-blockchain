@@ -30,7 +30,7 @@ Celo project comes with several wrappers/executables found in the `cmd` director
 
 ## Running Celo
 
-Please see the [docs page](docs.celo.org) for more instructions on how to run a Celo node conencted to the Alfajores testnet.
+Please see the [docs page](https://docs.celo.org) for more instructions on how to run a Celo node conencted to the Alfajores testnet.
 
 ### Configuration
 
