@@ -125,7 +125,7 @@ type InternalEVMHandler struct {
 
 func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
 		log.Warn("Waiting for contract deployment")
 		return 0, err
 	}
@@ -139,7 +139,7 @@ func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []in
 
 func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
 		log.Warn("Waiting for contract deployment")
 		return 0, err
 	}
