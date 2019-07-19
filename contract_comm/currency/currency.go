@@ -109,11 +109,16 @@ type exchangeRate struct {
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
-	if err == contract_comm.ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {
+	if err == contract_comm.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
-		return val, nil
+		return val, err
+	}
+
+	if currencyFrom == celoGoldAddress {
+		return val, err
 	} else if err != nil {
 		log.Error(err.Error())
+		return val, err
 	}
 	return Convert(val, currencyFrom, celoGoldAddress)
 }
@@ -158,7 +163,7 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 		if currency2 != nil {
 			currency2Output = currency2.Hex()
 		}
-		log.Warn("Error in retrieving cached exchange rate.  Will do comparison of two values without exchange rate conversion.", "currency1", currency1Output, "err1", err1, "currency2", currency2Output, "err2", err2)
+		log.Warn("Error in retrieving exchange rate.  Will do comparison of two values without exchange rate conversion.", "currency1", currency1Output, "err1", err1, "currency2", currency2Output, "err2", err2)
 		return val1.Cmp(val2)
 	}
 

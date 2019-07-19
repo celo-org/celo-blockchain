@@ -20,7 +20,6 @@ package consensus
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -49,21 +48,6 @@ type ChainReader interface {
 
 	// GetBlock retrieves a block from the database by hash and number.
 	GetBlock(hash common.Hash, number uint64) *types.Block
-}
-
-type ConsensusIEvmH interface {
-	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
-	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
-}
-
-type ConsensusRegAdd interface {
-	GetRegisteredAddressAtStateAndHeader(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error)
-	GetRegisteredAddressAtCurrentHeader(registryId string) (*common.Address, error)
-	GetRegisteredAddressMapAtStateAndHeader(state *state.StateDB, header *types.Header) map[string]*common.Address
-}
-
-type ConsensusGasPriceMinimum interface {
-	UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error)
 }
 
 // Engine is an algorithm agnostic consensus engine.
