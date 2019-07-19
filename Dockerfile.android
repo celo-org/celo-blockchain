@@ -24,6 +24,12 @@ ENV PATH=/go/bin:$PATH
 ENV GOROOT=/go
 ENV GOPATH=$HOME/go
 
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH=$PATH:~/.cargo/bin
+RUN rustup install nightly
+RUN rustup default nightly
+
+
 ## Using node installation from https://raw.githubusercontent.com/nodejs/docker-node/170ed2092d4925971f9cd3ad5dfc416e820f90fd/10/stretch/Dockerfile
 
 RUN groupadd --gid 1000 node \
