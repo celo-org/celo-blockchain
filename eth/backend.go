@@ -177,13 +177,9 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Set the blockcahin for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-
-	//jarmg - this should become the only signature
 	contract_comm.SetInternalEVMHandler(eth.blockchain)
-
-	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain)
 

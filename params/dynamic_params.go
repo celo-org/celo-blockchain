@@ -40,9 +40,6 @@ var (
 
 	// TODO(kevjue) - Re-Enable caching of the retrieved registered address
 	// See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-	// See the changes in the dynamic_params.go file.
-	// regAddrCache   = make(map[string]*regAddrCacheEntry)
-	// regAddrCacheMu sync.RWMutex
 )
 
 type StateDB interface {
