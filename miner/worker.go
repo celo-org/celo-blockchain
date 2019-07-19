@@ -751,8 +751,8 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, gasPriceMinimum *big.Int) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	infraFraction, _ := gpm.GetInfrastructureFraction(w.current.state, w.current.header)
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), gasPriceMinimum, infraFraction)
+	infraFraction, _ := gpm.GetInfrastructureFraction(w.current.header, w.current.state)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.header, w.current.state, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), gasPriceMinimum, infraFraction)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -807,7 +807,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 			break

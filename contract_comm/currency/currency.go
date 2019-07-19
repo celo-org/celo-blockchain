@@ -107,8 +107,6 @@ type exchangeRate struct {
 	Denominator *big.Int
 }
 
-//TODO: Jarmg - clean up these CO functions
-
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
 	if err == contract_comm.ErrSmartContractNotDeployed || currencyFrom == celoGoldAddress {

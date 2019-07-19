@@ -109,12 +109,12 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
-func GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
-	gasPriceMinimum, err := GetGasPriceMinimum(currency, state, header)
+func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
+	gasPriceMinimum, err := GetGasPriceMinimum(currency, header, state)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
 }
 
-func GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
+func GetGasPriceMinimum(currency *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
 	var currencyAddress *common.Address
 	var err error
 
@@ -169,7 +169,7 @@ func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
+func GetInfrastructureFraction(header *types.Header, state *state.StateDB) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(
