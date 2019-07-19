@@ -82,7 +82,7 @@ func testNormalValSet(t *testing.T) {
 	val1 := New(addr1, []byte{})
 	val2 := New(addr2, []byte{})
 
-	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{[]byte{}, []byte{}})
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
 	valSet := newDefaultSet(validators, istanbul.RoundRobin)
 	if valSet == nil {
 		t.Errorf("the format of validator set is invalid")
@@ -143,7 +143,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet := NewSet(ExtractValidators([]byte{}), istanbul.RoundRobin)
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte(string(2))),
 				[]byte{},
 			},
@@ -153,7 +153,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	}
 	if valSet.AddValidators(
 		[]istanbul.ValidatorData{
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte(string(2))),
 				[]byte{},
 			},
@@ -163,11 +163,11 @@ func testAddAndRemoveValidator(t *testing.T) {
 	}
 	valSet.AddValidators(
 		[]istanbul.ValidatorData{
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte(string(1))),
 				[]byte{},
 			},
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte(string(0))),
 				[]byte{},
 			},
@@ -211,7 +211,7 @@ func testStickyProposer(t *testing.T) {
 	val1 := New(addr1, []byte{})
 	val2 := New(addr2, []byte{})
 
-	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{[]byte{}, []byte{}})
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
 	valSet := newDefaultSet(validators, istanbul.Sticky)
 
 	// test get proposer

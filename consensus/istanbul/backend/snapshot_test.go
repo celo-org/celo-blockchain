@@ -381,11 +381,11 @@ func TestSaveAndLoad(t *testing.T) {
 		Number: 10,
 		Hash:   common.HexToHash("1234567890"),
 		ValSet: validator.NewSet([]istanbul.ValidatorData{
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte("1234567894")),
 				nil,
 			},
-			istanbul.ValidatorData{
+			{
 				common.BytesToAddress([]byte("1234567895")),
 				nil,
 			},

@@ -44,7 +44,7 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 			privateKeyBytes = append([]byte{0x00}, privateKeyBytes...)
 		}
 		if !bytes.Equal(privateKeyBLSBytes, privateKeyBytes) {
-			return nil, errors.New(fmt.Sprintf("private key bytes should have been the same: %s, %s", hex.EncodeToString(privateKeyBLSBytes), hex.EncodeToString(privateKeyBytes)))
+			return nil, fmt.Errorf("private key bytes should have been the same: %s, %s", hex.EncodeToString(privateKeyBLSBytes), hex.EncodeToString(privateKeyBytes))
 		}
 		// reverse order, as the BLS library expects little endian
 		for i := len(privateKeyBytes)/2 - 1; i >= 0; i-- {
@@ -115,11 +115,7 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []
 	defer signatureObj.Destroy()
 
 	err = apk.VerifySignature(message, signatureObj, shouldUseCompositeHasher)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func AggregateSignatures(signatures [][]byte) ([]byte, error) {

@@ -267,7 +267,7 @@ func TestVerifyPrepare(t *testing.T) {
 	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
 	valSet := validator.NewSet([]istanbul.ValidatorData{
-		istanbul.ValidatorData{
+		{
 			peer.Address(),
 			blsPublicKey,
 		},

@@ -178,7 +178,6 @@ var (
 	errInvalidCommittedSeals = errors.New("invalid committed seals")
 	// errEmptyCommittedSeals is returned if the field of committed seals is zero.
 	errEmptyCommittedSeals = errors.New("zero committed seals")
-	errBitmapWrongSize     = errors.New("bitmap has wrong size")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errValidatorsContractNotRegistered is returned if there is no registered "Validators" address.
