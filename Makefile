@@ -13,20 +13,22 @@ GO ?= latest
 NDK_VERSION=android-ndk-r19c
 ANDROID_NDK_HOME=ndk_bundle
 
-
-
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
-bls-zexe-android:
+ndk-download: ndk_bundle/android-ndk-r19c/NOTICE
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
 	mkdir $(ANDROID_NDK_HOME) && \
 	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
 	rm /tmp/$(NDK_VERSION).zip
+
+bls-zexe-android: #ndk-download
+	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=aarch64-linux-android --lib
+	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=armv7-linux-androideabi --lib
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
 	cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release && cargo build --release --example pop
@@ -39,7 +41,7 @@ swarm:
 all:
 	build/env.sh go run build/ci.go install
 
-android:
+android: bls-zexe-android
 	build/env.sh go run build/ci.go aar --local
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
