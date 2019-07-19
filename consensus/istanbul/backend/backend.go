@@ -86,13 +86,11 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address            common.Address    // Ethereum address of the signing key
-	signFn             istanbul.SignerFn // Signer function to authorize hashes with
-	signHashBLSFn      istanbul.SignerFn // Signer function to authorize hashes using BLS with
-	verifyHashBLSFn    istanbul.VerifierFn
-	signMessageBLSFn   istanbul.SignerFn // Signer function to authorize messages using BLS with
-	verifyMessageBLSFn istanbul.VerifierFn
-	signFnMu           sync.RWMutex // Protects the signer fields
+	address          common.Address    // Ethereum address of the signing key
+	signFn           istanbul.SignerFn // Signer function to authorize hashes with
+	signHashBLSFn    istanbul.SignerFn // Signer function to authorize hashes using BLS with
+	signMessageBLSFn istanbul.SignerFn // Signer function to authorize messages using BLS with
+	signFnMu         sync.RWMutex      // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -134,16 +132,14 @@ type Backend struct {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, verifyHashBLSFn istanbul.VerifierFn, signMessageBLSFn istanbul.SignerFn, verifyMessageBLSFn istanbul.VerifierFn) {
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.SignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
 	sb.address = address
 	sb.signFn = signFn
 	sb.signHashBLSFn = signHashBLSFn
-	sb.verifyHashBLSFn = verifyHashBLSFn
 	sb.signMessageBLSFn = signMessageBLSFn
-	sb.verifyMessageBLSFn = verifyMessageBLSFn
 	sb.core.SetAddress(address)
 }
 
@@ -354,7 +350,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	newValSetWithPublicKeys, err := sb.getValSet(block.Header(), state)
+	newValSet, err := sb.getValSet(block.Header(), state)
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
@@ -362,24 +358,29 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 			return errInvalidValidatorSetDiff
 		}
 	} else {
-		newValSet := []common.Address{}
-		newValSetPublicKeys := [][]byte{}
-		for addr := range newValSetWithPublicKeys {
-			newValSet = append(newValSet, addr)
-			newValSetPublicKeys = append(newValSetPublicKeys, newValSetWithPublicKeys[addr])
-		}
 		parentValidators := sb.ParentValidators(proposal)
-		oldValSet := make([]common.Address, 0, parentValidators.Size())
+		oldValSet := make([]istanbul.ValidatorData, 0, parentValidators.Size())
 
-		oldValSetPublicKeys := [][]byte{}
 		for _, val := range parentValidators.List() {
-			oldValSet = append(oldValSet, val.Address())
-			oldValSetPublicKeys = append(oldValSetPublicKeys, val.BLSPublicKey())
+			oldValSet = append(oldValSet, istanbul.ValidatorData{
+				val.Address(),
+				val.BLSPublicKey(),
+			})
 		}
 
-		addedValidators, _, removedValidators, _ := istanbul.ValidatorSetDiff(oldValSet, oldValSetPublicKeys, newValSet, newValSetPublicKeys)
+		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
-		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
+		addedValidatorsAddresses := make([]common.Address, len(addedValidators))
+		for _, val := range addedValidators {
+			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
+		}
+
+		removedValidatorsAddresses := make([]common.Address, len(removedValidators))
+		for _, val := range removedValidators {
+			removedValidatorsAddresses = append(removedValidatorsAddresses, val.Address)
+		}
+
+		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidatorsAddresses, istExtra.RemovedValidators) {
 			return errInvalidValidatorSetDiff
 		}
 	}
@@ -442,13 +443,13 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 	if block, ok := proposal.(*types.Block); ok {
 		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
 	}
-	return validator.NewSet(nil, nil, sb.config.ProposerPolicy)
+	return validator.NewSet(nil, sb.config.ProposerPolicy)
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
-		return validator.NewSet(nil, nil, sb.config.ProposerPolicy)
+		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}
 	return snap.ValSet
 }

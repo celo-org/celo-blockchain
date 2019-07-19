@@ -117,10 +117,6 @@ func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]b
 	return w.keystore.SignHashBLS(account, hash)
 }
 
-func (w *keystoreWallet) VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error {
-	return w.keystore.VerifyHashBLS(publicKey, hash, signature)
-}
-
 func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte) ([]byte, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
@@ -129,10 +125,6 @@ func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte) ([
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignMessageBLS(account, msg)
-}
-
-func (w *keystoreWallet) VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error {
-	return w.keystore.VerifyMessageBLS(publicKey, msg, signature)
 }
 
 // SignTx implements accounts.Wallet, attempting to sign the given transaction

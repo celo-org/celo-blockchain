@@ -54,14 +54,14 @@ type defaultSet struct {
 	selector    istanbul.ProposalSelector
 }
 
-func newDefaultSet(addrs []common.Address, blsPublicKeys [][]byte, policy istanbul.ProposerPolicy) *defaultSet {
+func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.ProposerPolicy) *defaultSet {
 	valSet := &defaultSet{}
 
 	valSet.policy = policy
 	// init validators
-	valSet.validators = make([]istanbul.Validator, len(addrs))
-	for i, addr := range addrs {
-		valSet.validators[i] = New(addr, blsPublicKeys[i])
+	valSet.validators = make([]istanbul.Validator, len(validators))
+	for i, validator := range validators {
+		valSet.validators[i] = New(validator.Address, validator.BLSPublicKey)
 	}
 	// sort validator
 	sort.Sort(valSet.validators)
@@ -162,12 +162,13 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 	return valSet.GetByIndex(pick)
 }
 
-func (valSet *defaultSet) AddValidators(addresses []common.Address, blsPublicKeys [][]byte) bool {
-	newValidators := make([]istanbul.Validator, 0, len(addresses))
+func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) bool {
+	newValidators := make([]istanbul.Validator, 0, len(validators))
 	newAddressesMap := make(map[common.Address]bool)
-	for i := range addresses {
-		address := addresses[i]
-		blsPublicKey := blsPublicKeys[i]
+	for i := range validators {
+		address := validators[i].Address
+		blsPublicKey := validators[i].BLSPublicKey
+
 		newAddressesMap[address] = true
 		newValidators = append(newValidators, New(address, blsPublicKey))
 	}
@@ -228,13 +229,14 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 
-	addresses := make([]common.Address, 0, len(valSet.validators))
-	publicKeys := make([][]byte, 0, len(valSet.validators))
+	validators := make([]istanbul.ValidatorData, 0, len(valSet.validators))
 	for _, v := range valSet.validators {
-		addresses = append(addresses, v.Address())
-		publicKeys = append(publicKeys, v.BLSPublicKey())
+		validators = append(validators, istanbul.ValidatorData{
+			v.Address(),
+			v.BLSPublicKey(),
+		})
 	}
-	return NewSet(addresses, publicKeys, valSet.policy)
+	return NewSet(validators, valSet.policy)
 }
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }

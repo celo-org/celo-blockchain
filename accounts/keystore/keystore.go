@@ -319,21 +319,6 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error)
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) VerifyHashBLS(publicKey []byte, hash []byte, signature []byte) error {
-	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
-	if err != nil {
-		return err
-	}
-	defer publicKeyObj.Destroy()
-	signatureObj, err := bls.DeserializeSignature(signature)
-	if err != nil {
-		return err
-	}
-	defer signatureObj.Destroy()
-
-	return publicKeyObj.VerifySignature(hash, signatureObj, false)
-}
-
 func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
@@ -366,21 +351,6 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, erro
 	}
 
 	return signatureBytes, nil
-}
-
-func (ks *KeyStore) VerifyMessageBLS(publicKey []byte, msg []byte, signature []byte) error {
-	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
-	if err != nil {
-		return err
-	}
-	defer publicKeyObj.Destroy()
-	signatureObj, err := bls.DeserializeSignature(signature)
-	if err != nil {
-		return err
-	}
-	defer signatureObj.Destroy()
-
-	return publicKeyObj.VerifySignature(msg, signatureObj, true)
 }
 
 // SignTx signs the given transaction with the requested account.

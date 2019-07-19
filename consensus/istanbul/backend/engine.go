@@ -448,8 +448,8 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	return nil
 }
 
-func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) (map[common.Address][]byte, error) {
-	var newValSet map[common.Address][]byte
+func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
+	var newValSet []istanbul.ValidatorData
 	var newValSetAddresses []common.Address
 	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtStateAndHeader(params.ValidatorsRegistryId, state, header)
 	if err == core.ErrSmartContractNotDeployed {
@@ -485,7 +485,10 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) (map[co
 				return nil, fmt.Errorf("length of pubKeysDataBytes incorrect. Expected %d, got %d", expectedLength, len(pubKeysDataBytes))
 			}
 			blsPublicKey := pubKeysDataBytes[64 : 64+blscrypto.PUBLICKEYBYTES]
-			newValSet[addr] = blsPublicKey
+			newValSet = append(newValSet, istanbul.ValidatorData{
+				addr,
+				blsPublicKey,
+			})
 		}
 		return newValSet, nil
 	}
@@ -496,16 +499,10 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		newValSetWithPublicKeys, err := sb.getValSet(header, state)
+		newValSet, err := sb.getValSet(header, state)
 		if err != nil {
 			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {
-			newValSet := []common.Address{}
-			newValSetPublicKeys := [][]byte{}
-			for addr := range newValSetWithPublicKeys {
-				newValSet = append(newValSet, addr)
-				newValSetPublicKeys = append(newValSetPublicKeys, newValSetWithPublicKeys[addr])
-			}
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 			if err != nil {
@@ -513,8 +510,8 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 
 			// add validators in snapshot to extraData's validators section
-			validators, validatorsPublicKeys := snap.validators()
-			extra, err := assembleExtra(header, validators, validatorsPublicKeys, newValSet, newValSetPublicKeys)
+			validators := snap.validators()
+			extra, err := assembleExtra(header, validators, newValSet)
 			if err != nil {
 				return err
 			}
@@ -523,7 +520,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
-	extra, err := assembleExtra(header, []common.Address{}, [][]byte{}, []common.Address{}, [][]byte{})
+	extra, err := assembleExtra(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 	if err != nil {
 		return err
 	}
@@ -881,7 +878,12 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			return nil, errInvalidValidatorSetDiff
 		}
 
-		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, sb.config.ProposerPolicy))
+		validators, err := istanbul.CombineIstanbulExtraToValidatorData(istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys)
+		if err != nil {
+			log.Error("Cannot construct validators data from istanbul extra")
+			return nil, errInvalidValidatorSetDiff
+		}
+		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(validators, sb.config.ProposerPolicy))
 
 		if err := snap.store(sb.db); err != nil {
 			log.Error("Unable to store snapshot", "err", err)
@@ -978,7 +980,7 @@ func ecrecover(header *types.Header) (common.Address, error) {
 }
 
 // assembleExtra returns a extra-data of the given header and validators
-func assembleExtra(header *types.Header, oldValSet []common.Address, oldValSetPublicKeys [][]byte, newValSet []common.Address, newValSetPublicKeys [][]byte) ([]byte, error) {
+func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
@@ -987,17 +989,22 @@ func assembleExtra(header *types.Header, oldValSet []common.Address, oldValSetPu
 	}
 	buf.Write(header.Extra[:types.IstanbulExtraVanity])
 
-	addedValidators, addedValidatorsPublicKeys, removedValidators, removedValidatorsPublicKeys := istanbul.ValidatorSetDiff(oldValSet, oldValSetPublicKeys, newValSet, newValSetPublicKeys)
+	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
+
+	oldValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(oldValSet)
+	newValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(newValSet)
+	addedValidatorsAddresses, addedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
+	removedValidatorsAddresses, removedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(removedValidators)
 
 	if len(addedValidators) > 0 || len(removedValidators) > 0 {
-		log.Debug("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
-			"addedValidators", common.ConvertToStringSlice(addedValidators), "removedValidators", common.ConvertToStringSlice(removedValidators))
+		log.Debug("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValidatorsAddresses), "newValSet", common.ConvertToStringSlice(newValidatorsAddresses),
+			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", common.ConvertToStringSlice(removedValidatorsAddresses))
 	}
 
 	ist := &types.IstanbulExtra{
-		AddedValidators:             addedValidators,
+		AddedValidators:             addedValidatorsAddresses,
 		AddedValidatorsPublicKeys:   addedValidatorsPublicKeys,
-		RemovedValidators:           removedValidators,
+		RemovedValidators:           removedValidatorsAddresses,
 		RemovedValidatorsPublicKeys: removedValidatorsPublicKeys,
 		Seal:                        []byte{},
 		CommittedSeal:               []byte{},

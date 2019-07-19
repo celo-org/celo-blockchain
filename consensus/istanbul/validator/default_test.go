@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var (
@@ -47,10 +48,13 @@ func testNewValidatorSet(t *testing.T) {
 	b := []byte{}
 	for i := 0; i < ValCnt; i++ {
 		key, _ := crypto.GenerateKey()
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		val := New(addr)
+		val := New(addr, blsPublicKey)
 		validators = append(validators, val)
 		b = append(b, val.Address().Bytes()...)
+		b = append(b, blsPublicKey...)
 	}
 
 	// Create ValidatorSet
@@ -75,10 +79,11 @@ func testNormalValSet(t *testing.T) {
 	b2 := common.Hex2Bytes(testAddress2)
 	addr1 := common.BytesToAddress(b1)
 	addr2 := common.BytesToAddress(b2)
-	val1 := New(addr1)
-	val2 := New(addr2)
+	val1 := New(addr1, []byte{})
+	val2 := New(addr2, []byte{})
 
-	valSet := newDefaultSet([]common.Address{addr1, addr2}, istanbul.RoundRobin)
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{[]byte{}, []byte{}})
+	valSet := newDefaultSet(validators, istanbul.RoundRobin)
 	if valSet == nil {
 		t.Errorf("the format of validator set is invalid")
 		t.FailNow()
@@ -136,13 +141,38 @@ func testEmptyValSet(t *testing.T) {
 
 func testAddAndRemoveValidator(t *testing.T) {
 	valSet := NewSet(ExtractValidators([]byte{}), istanbul.RoundRobin)
-	if !valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if !valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte(string(2))),
+				[]byte{},
+			},
+		},
+	) {
 		t.Error("the validator should be added")
 	}
-	if valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte(string(2))),
+				[]byte{},
+			},
+		},
+	) {
 		t.Error("the existing validator should not be added")
 	}
-	valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(1))), common.BytesToAddress([]byte(string(0)))})
+	valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte(string(1))),
+				[]byte{},
+			},
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte(string(0))),
+				[]byte{},
+			},
+		},
+	)
 	if len(valSet.List()) != 3 {
 		t.Error("the size of validator set should be 3")
 	}
@@ -178,10 +208,11 @@ func testStickyProposer(t *testing.T) {
 	b2 := common.Hex2Bytes(testAddress2)
 	addr1 := common.BytesToAddress(b1)
 	addr2 := common.BytesToAddress(b2)
-	val1 := New(addr1)
-	val2 := New(addr2)
+	val1 := New(addr1, []byte{})
+	val2 := New(addr2, []byte{})
 
-	valSet := newDefaultSet([]common.Address{addr1, addr2}, istanbul.Sticky)
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{[]byte{}, []byte{}})
+	valSet := newDefaultSet(validators, istanbul.Sticky)
 
 	// test get proposer
 	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {

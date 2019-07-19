@@ -17,7 +17,6 @@
 package core
 
 import (
-	"bytes"
 	"math/big"
 	"testing"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestHandleCommit(t *testing.T) {
@@ -207,15 +207,12 @@ OUTER:
 
 		// check signatures large than 2F+1
 		signedCount := 0
-		committedSeals := v0.committedMsgs[0].committedSeals
-		for _, validator := range r0.valSet.List() {
-			for _, seal := range committedSeals {
-				if bytes.Equal(validator.Address().Bytes(), seal[:common.AddressLength]) {
-					signedCount++
-					break
-				}
+		for i := 0; i < r0.valSet.Size(); i++ {
+			if v0.committedMsgs[0].bitmap.Bit(i) == 1 {
+				signedCount++
 			}
 		}
+
 		if signedCount <= 2*r0.valSet.F() {
 			t.Errorf("the expected signed count should be larger than %v, but got %v", 2*r0.valSet.F(), signedCount)
 		}
@@ -229,8 +226,15 @@ OUTER:
 func TestVerifyCommit(t *testing.T) {
 	// for log purpose
 	privateKey, _ := crypto.GenerateKey()
-	peer := validator.New(getPublicKeyAddress(privateKey))
-	valSet := validator.NewSet([]common.Address{peer.Address()}, istanbul.RoundRobin)
+	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
+	valSet := validator.NewSet([]istanbul.ValidatorData{
+		istanbul.ValidatorData{
+			peer.Address(),
+			blsPublicKey,
+		},
+	}, istanbul.RoundRobin)
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 

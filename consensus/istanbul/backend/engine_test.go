@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -34,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -51,8 +53,60 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
 
+	signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		key := nodeKeys[0]
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(data, false)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
+	signerBLSMessageFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		key := nodeKeys[0]
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(data, true)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, signerFn)
+	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
 
@@ -98,7 +152,57 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			b.Authorize(address, signerFn)
+			signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+				privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+				if err != nil {
+					return nil, err
+				}
+
+				privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+				if err != nil {
+					return nil, err
+				}
+				defer privateKey.Destroy()
+
+				signature, err := privateKey.SignMessage(data, false)
+				if err != nil {
+					return nil, err
+				}
+				defer signature.Destroy()
+				signatureBytes, err := signature.Serialize()
+				if err != nil {
+					return nil, err
+				}
+
+				return signatureBytes, nil
+			}
+
+			signerBLSMessageFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+				privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+				if err != nil {
+					return nil, err
+				}
+
+				privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+				if err != nil {
+					return nil, err
+				}
+				defer privateKey.Destroy()
+
+				signature, err := privateKey.SignMessage(data, true)
+				if err != nil {
+					return nil, err
+				}
+				defer signature.Destroy()
+				signatureBytes, err := signature.Serialize()
+				if err != nil {
+					return nil, err
+				}
+
+				return signatureBytes, nil
+			}
+
+			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 		}
 	}
 
@@ -108,10 +212,16 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
-	var addrs = make([]common.Address, n)
+	validators := make([]istanbul.ValidatorData, n)
 	for i := 0; i < n; i++ {
 		nodeKeys[i], _ = crypto.GenerateKey()
-		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(nodeKeys[i])
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		validators[i] = istanbul.ValidatorData{
+			crypto.PubkeyToAddress(nodeKeys[i].PublicKey),
+			blsPublicKey,
+		}
+
 	}
 
 	// generate genesis block
@@ -127,7 +237,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	genesis.Nonce = emptyNonce.Uint64()
 	genesis.Mixhash = types.IstanbulDigest
 
-	AppendValidatorsToGenesisBlock(genesis, addrs)
+	AppendValidatorsToGenesisBlock(genesis, validators)
 	return genesis, nodeKeys
 }
 
@@ -235,7 +345,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 		if !ok {
 			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 		}
-		engine.Commit(otherBlock, [][]byte{})
+		engine.Commit(otherBlock, big.NewInt(0), []byte{})
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
@@ -369,7 +479,7 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil)
+	engine.Authorize(common.Address{}, nil, nil, nil)
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -500,15 +610,28 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 }
 
 func TestPrepareExtra(t *testing.T) {
-	oldValidators := make([]common.Address, 2)
-	oldValidators[0] = common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a"))
-	oldValidators[1] = common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212"))
-	newValidators := make([]common.Address, 2)
-	newValidators[0] = common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"))
-	newValidators[1] = common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440"))
+	oldValidators := make([]istanbul.ValidatorData, 2)
+	oldValidators[0] = istanbul.ValidatorData{
+		common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
+		make([]byte, blscrypto.PUBLICKEYBYTES),
+	}
+	oldValidators[1] = istanbul.ValidatorData{
+		common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+		make([]byte, blscrypto.PUBLICKEYBYTES),
+	}
+
+	newValidators := make([]istanbul.ValidatorData, 2)
+	newValidators[0] = istanbul.ValidatorData{
+		common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
+		make([]byte, blscrypto.PUBLICKEYBYTES),
+	}
+	newValidators[1] = istanbul.ValidatorData{
+		common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+		make([]byte, blscrypto.PUBLICKEYBYTES),
+	}
 
 	vanity := make([]byte, types.IstanbulExtraVanity)
-	expectedResult := append(vanity, hexutil.MustDecode("0xf858ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440ea94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f82129444add0ec310f115a0e603b2d7db9f067778eaf8a80c0")...)
+	expectedResult := append(vanity, hexutil.MustDecode("0xf901e6ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440f8c4b860000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b860000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ea94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f82129444add0ec310f115a0e603b2d7db9f067778eaf8af8c4b860000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b86000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080808080")...)
 
 	h := &types.Header{
 		Extra: vanity,
@@ -518,6 +641,7 @@ func TestPrepareExtra(t *testing.T) {
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
+
 	if !reflect.DeepEqual(payload, expectedResult) {
 		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
 	}
@@ -533,19 +657,23 @@ func TestPrepareExtra(t *testing.T) {
 
 func TestWriteSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf858ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f821280c0")
-	expectedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	istRawData := hexutil.MustDecode("0xf89eea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c0ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c0b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
+	expectedSeal := make([]byte, types.IstanbulExtraBlockSeal)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
+		AddedValidatorsPublicKeys: [][]byte{},
 		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 		},
-		Seal:          expectedSeal,
-		CommittedSeal: [][]byte{},
+		RemovedValidatorsPublicKeys: [][]byte{},
+		Seal:                        expectedSeal,
+		Bitmap:                      big.NewInt(0),
+		CommittedSeal:               []byte{},
+		EpochData:                   []byte{},
 	}
 	var expectedErr error
 
@@ -578,19 +706,23 @@ func TestWriteSeal(t *testing.T) {
 
 func TestWriteCommittedSeals(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf858ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f821280c0")
+	istRawData := hexutil.MustDecode("0xf9011dea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c0ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c08080b8c001020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080")
 	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
+		AddedValidatorsPublicKeys: [][]byte{},
 		RemovedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 		},
-		Seal:          []byte{},
-		CommittedSeal: [][]byte{expectedCommittedSeal},
+		RemovedValidatorsPublicKeys: [][]byte{},
+		Bitmap:                      big.NewInt(0),
+		Seal:                        []byte{},
+		CommittedSeal:               expectedCommittedSeal,
+		EpochData:                   []byte{},
 	}
 	var expectedErr error
 
@@ -599,7 +731,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 	}
 
 	// normal case
-	err := writeCommittedSeals(h, [][]byte{expectedCommittedSeal})
+	err := writeCommittedSeals(h, big.NewInt(0), expectedCommittedSeal)
 	if err != expectedErr {
 		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
 	}
@@ -615,7 +747,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 
 	// invalid seal
 	unexpectedCommittedSeal := append(expectedCommittedSeal, make([]byte, 1)...)
-	err = writeCommittedSeals(h, [][]byte{unexpectedCommittedSeal})
+	err = writeCommittedSeals(h, big.NewInt(0), unexpectedCommittedSeal)
 	if err != errInvalidCommittedSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidCommittedSeals)
 	}

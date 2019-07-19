@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
@@ -50,14 +51,15 @@ type testSystemBackend struct {
 
 type testCommittedMsgs struct {
 	commitProposal istanbul.Proposal
-	committedSeals [][]byte
+	bitmap         *big.Int
+	committedSeals []byte
 }
 
 // ==============================================
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.SignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -97,10 +99,16 @@ func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []by
 	return nil
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
+func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+	testLogger.Warn("not sign any data")
+	return data, nil
+}
+
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []byte) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal: proposal,
+		bitmap:         bitmap,
 		committedSeals: seals,
 	})
 
@@ -196,11 +204,16 @@ func newTestSystem(n uint64) *testSystem {
 	}
 }
 
-func generateValidators(n int) []common.Address {
-	vals := make([]common.Address, 0)
+func generateValidators(n int) []istanbul.ValidatorData {
+	vals := make([]istanbul.ValidatorData, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
-		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		vals = append(vals, istanbul.ValidatorData{
+			crypto.PubkeyToAddress(privateKey.PublicKey),
+			blsPublicKey,
+		})
 	}
 	return vals
 }

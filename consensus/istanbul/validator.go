@@ -17,10 +17,46 @@
 package istanbul
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+var (
+	errInvalidValidatorSetDiffSize = errors.New("istanbul extra validator set data has different size")
+)
+
+func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
+	if len(addrs) != len(blsPublicKeys) {
+		return nil, errInvalidValidatorSetDiffSize
+	}
+	validators := []ValidatorData{}
+	for i := range addrs {
+		validators = append(validators, ValidatorData{
+			Address:      addrs[i],
+			BLSPublicKey: blsPublicKeys[i],
+		})
+	}
+
+	return validators, nil
+}
+
+func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
+	addrs := []common.Address{}
+	pubKeys := [][]byte{}
+	for i := range validators {
+		addrs = append(addrs, validators[i].Address)
+		pubKeys = append(pubKeys, validators[i].BLSPublicKey)
+	}
+
+	return addrs, pubKeys
+}
+
+type ValidatorData struct {
+	Address      common.Address
+	BLSPublicKey []byte
+}
 
 type Validator interface {
 	// Address returns address
@@ -66,7 +102,7 @@ type ValidatorSet interface {
 	// Check whether the validator with given address is a proposer
 	IsProposer(address common.Address) bool
 	// Add validators
-	AddValidators(address []common.Address, blsPublicKeys [][]byte) bool
+	AddValidators(validators []ValidatorData) bool
 	// Remove validators
 	RemoveValidators(address []common.Address) bool
 	// Copy validator set

@@ -95,5 +95,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, verifyHashBLSFn VerifierFn, signMessageBLSFn SignerFn, verifyMessageBLSFn VerifierFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn SignerFn)
 }

@@ -113,11 +113,14 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		copy(gspec.ExtraData[52:], testBankAddress[:])
 	case *ethash.Ethash:
 	case *istanbulBackend.Backend:
-		addrs := []common.Address{testBankAddress}
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
-		publicKeys := [][]byte{blsPublicKey}
-		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, addrs, publicKeys)
+		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, []istanbul.ValidatorData{
+			istanbul.ValidatorData{
+				Address:      testBankAddress,
+				BLSPublicKey: blsPublicKey,
+			},
+		})
 
 		gspec.Mixhash = types.IstanbulDigest
 		gspec.Difficulty = big.NewInt(1)
@@ -238,21 +241,6 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	verifyHashBLSFn := func(publicKey []byte, hash []byte, signature []byte) error {
-		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
-		if err != nil {
-			return err
-		}
-		defer publicKeyObj.Destroy()
-		signatureObj, err := bls.DeserializeSignature(signature)
-		if err != nil {
-			return err
-		}
-		defer signatureObj.Destroy()
-
-		return publicKeyObj.VerifySignature(hash, signatureObj, false)
-	}
-
 	signMessageBLSFn := func(_ accounts.Account, msg []byte) ([]byte, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
@@ -278,23 +266,8 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	verifyMessageBLSFn := func(publicKey []byte, hash []byte, signature []byte) error {
-		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
-		if err != nil {
-			return err
-		}
-		defer publicKeyObj.Destroy()
-		signatureObj, err := bls.DeserializeSignature(signature)
-		if err != nil {
-			return err
-		}
-		defer signatureObj.Destroy()
-
-		return publicKeyObj.VerifySignature(hash, signatureObj, true)
-	}
-
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, verifyHashBLSFn, signMessageBLSFn, verifyMessageBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
 

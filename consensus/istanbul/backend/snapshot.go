@@ -128,7 +128,13 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 			return nil, err
 		}
 
-		if !snap.ValSet.AddValidators(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys) {
+		validators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
+		if err != nil {
+			log.Error("Error in combining addresses and public keys")
+			return nil, errInvalidValidatorSetDiff
+		}
+
+		if !snap.ValSet.AddValidators(validators) {
 			log.Error("Error in adding the header's AddedValidators")
 			return nil, errInvalidValidatorSetDiff
 		}
@@ -148,22 +154,22 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 }
 
 // validators retrieves the list of authorized validators in ascending order.
-func (s *Snapshot) validators() ([]common.Address, [][]byte) {
-	validators := make([]common.Address, 0, s.ValSet.Size())
-	validatorsPublicKeys := make([][]byte, 0, s.ValSet.Size())
+func (s *Snapshot) validators() []istanbul.ValidatorData {
+	validators := make([]istanbul.ValidatorData, 0, s.ValSet.Size())
 	for _, validator := range s.ValSet.List() {
-		validators = append(validators, validator.Address())
-		validatorsPublicKeys = append(validatorsPublicKeys, validator.BLSPublicKey())
+		validators = append(validators, istanbul.ValidatorData{
+			validator.Address(),
+			validator.BLSPublicKey(),
+		})
 	}
 	for i := 0; i < len(validators); i++ {
 		for j := i + 1; j < len(validators); j++ {
-			if bytes.Compare(validators[i][:], validators[j][:]) > 0 {
+			if bytes.Compare(validators[i].Address[:], validators[j].Address[:]) > 0 {
 				validators[i], validators[j] = validators[j], validators[i]
-				validatorsPublicKeys[i], validatorsPublicKeys[j] = validatorsPublicKeys[j], validatorsPublicKeys[i]
 			}
 		}
 	}
-	return validators, validatorsPublicKeys
+	return validators
 }
 
 type snapshotJSON struct {
@@ -172,20 +178,19 @@ type snapshotJSON struct {
 	Hash   common.Hash `json:"hash"`
 
 	// for validator set
-	Validators           []common.Address        `json:"validators"`
-	ValidatorsPublicKeys [][]byte                `json:"validatorspublickeys"`
-	Policy               istanbul.ProposerPolicy `json:"policy"`
+	Validators []istanbul.ValidatorData `json:"validators"`
+	Policy     istanbul.ProposerPolicy  `json:"policy"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
-	validators, validatorsPublicKeys := s.validators()
+	validators := s.validators()
+	istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
 	return &snapshotJSON{
-		Epoch:                s.Epoch,
-		Number:               s.Number,
-		Hash:                 s.Hash,
-		Validators:           validators,
-		ValidatorsPublicKeys: validatorsPublicKeys,
-		Policy:               s.ValSet.Policy(),
+		Epoch:      s.Epoch,
+		Number:     s.Number,
+		Hash:       s.Hash,
+		Validators: validators,
+		Policy:     s.ValSet.Policy(),
 	}
 }
 
@@ -199,7 +204,8 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.ValSet = validator.NewSet(j.Validators, j.ValidatorsPublicKeys, j.Policy)
+
+	s.ValSet = validator.NewSet(j.Validators, j.Policy)
 	return nil
 }
 

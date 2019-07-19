@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/celo-org/bls-zexe/go"
 	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -193,15 +195,18 @@ func TestValSetChange(t *testing.T) {
 		// Create the account pool and generate the initial set of validators
 		accounts := newTesterAccountPool()
 
-		validators := make([]common.Address, len(tt.validators))
+		validators := make([]istanbul.ValidatorData, len(tt.validators))
 		for j, validator := range tt.validators {
-			validators[j] = accounts.address(validator)
+			validators[j] = istanbul.ValidatorData{
+				accounts.address(validator),
+				nil,
+			}
 		}
 
 		// Sort the validators
 		for j := 0; j < len(validators); j++ {
 			for k := j + 1; k < len(validators); k++ {
-				if bytes.Compare(validators[j][:], validators[k][:]) > 0 {
+				if bytes.Compare(validators[j].Address[:], validators[k].Address[:]) > 0 {
 					validators[j], validators[k] = validators[k], validators[j]
 				}
 			}
@@ -214,7 +219,7 @@ func TestValSetChange(t *testing.T) {
 			Config:     params.TestChainConfig,
 		}
 		b := genesis.ToBlock(nil)
-		extra, _ := assembleExtra(b.Header(), []common.Address{}, validators)
+		extra, _ := assembleExtra(b.Header(), []istanbul.ValidatorData{}, validators)
 		genesis.ExtraData = extra
 		db := ethdb.NewMemDatabase()
 
@@ -234,7 +239,60 @@ func TestValSetChange(t *testing.T) {
 		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
 			return crypto.Sign(data, privateKey)
 		}
-		engine.Authorize(address, signerFn)
+
+		signerBLSHashFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+			key := privateKey
+			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+			if err != nil {
+				return nil, err
+			}
+
+			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+			if err != nil {
+				return nil, err
+			}
+			defer privateKey.Destroy()
+
+			signature, err := privateKey.SignMessage(data, false)
+			if err != nil {
+				return nil, err
+			}
+			defer signature.Destroy()
+			signatureBytes, err := signature.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			return signatureBytes, nil
+		}
+
+		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+			key := privateKey
+			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+			if err != nil {
+				return nil, err
+			}
+
+			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+			if err != nil {
+				return nil, err
+			}
+			defer privateKey.Destroy()
+
+			signature, err := privateKey.SignMessage(data, true)
+			if err != nil {
+				return nil, err
+			}
+			defer signature.Destroy()
+			signatureBytes, err := signature.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			return signatureBytes, nil
+		}
+
+		engine.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 
@@ -253,10 +311,14 @@ func TestValSetChange(t *testing.T) {
 			buf.Write(bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity))
 
 			ist := &types.IstanbulExtra{
-				AddedValidators:   convertValNames(accounts, valsetdiff.addedValidators),
-				RemovedValidators: convertValNames(accounts, valsetdiff.removedValidators),
-				Seal:              []byte{},
-				CommittedSeal:     [][]byte{},
+				AddedValidators:             convertValNames(accounts, valsetdiff.addedValidators),
+				AddedValidatorsPublicKeys:   make([][]byte, len(valsetdiff.addedValidators)),
+				RemovedValidators:           convertValNames(accounts, valsetdiff.removedValidators),
+				RemovedValidatorsPublicKeys: make([][]byte, len(valsetdiff.removedValidators)),
+				Bitmap:                      big.NewInt(0),
+				Seal:                        []byte{},
+				CommittedSeal:               []byte{},
+				EpochData:                   []byte{},
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
@@ -286,13 +348,16 @@ func TestValSetChange(t *testing.T) {
 		}
 
 		// Verify the final list of validators against the expected ones
-		validators = make([]common.Address, len(tt.results))
+		validators = make([]istanbul.ValidatorData, len(tt.results))
 		for j, validator := range tt.results {
-			validators[j] = accounts.address(validator)
+			validators[j] = istanbul.ValidatorData{
+				accounts.address(validator),
+				nil,
+			}
 		}
 		for j := 0; j < len(validators); j++ {
 			for k := j + 1; k < len(validators); k++ {
-				if bytes.Compare(validators[j][:], validators[k][:]) > 0 {
+				if bytes.Compare(validators[j].Address[:], validators[k].Address[:]) > 0 {
 					validators[j], validators[k] = validators[k], validators[j]
 				}
 			}
@@ -303,7 +368,7 @@ func TestValSetChange(t *testing.T) {
 			continue
 		}
 		for j := 0; j < len(result); j++ {
-			if !bytes.Equal(result[j][:], validators[j][:]) {
+			if !bytes.Equal(result[j].Address[:], validators[j].Address[:]) {
 				t.Errorf("test %d, validator %d: validator mismatch: have %x, want %x", i, j, result[j], validators[j])
 			}
 		}
@@ -315,9 +380,15 @@ func TestSaveAndLoad(t *testing.T) {
 		Epoch:  5,
 		Number: 10,
 		Hash:   common.HexToHash("1234567890"),
-		ValSet: validator.NewSet([]common.Address{
-			common.BytesToAddress([]byte("1234567894")),
-			common.BytesToAddress([]byte("1234567895")),
+		ValSet: validator.NewSet([]istanbul.ValidatorData{
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte("1234567894")),
+				nil,
+			},
+			istanbul.ValidatorData{
+				common.BytesToAddress([]byte("1234567895")),
+				nil,
+			},
 		}, istanbul.RoundRobin),
 	}
 	db := ethdb.NewMemDatabase()

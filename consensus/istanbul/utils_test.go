@@ -113,10 +113,26 @@ func TestValSetDiff(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		addedVals, removedVals := ValidatorSetDiff(tt.inputOldValset, tt.inputNewValset)
+		convertedInputOldValSet := []ValidatorData{}
+		for _, addr := range tt.inputOldValset {
+			convertedInputOldValSet = append(convertedInputOldValSet, ValidatorData{
+				addr,
+				[]byte{},
+			})
+		}
+		convertedInputNewValSet := []ValidatorData{}
+		for _, addr := range tt.inputNewValset {
+			convertedInputNewValSet = append(convertedInputNewValSet, ValidatorData{
+				addr,
+				[]byte{},
+			})
+		}
+		addedVals, removedVals := ValidatorSetDiff(convertedInputOldValSet, convertedInputNewValSet)
+		addedValsAddresses, _ := SeparateValidatorDataIntoIstanbulExtra(addedVals)
+		removedValsAddresses, _ := SeparateValidatorDataIntoIstanbulExtra(removedVals)
 
-		if !CompareValidatorSlices(addedVals, tt.expectedAddedVals) || !CompareValidatorSlices(removedVals, tt.expectedRemovedVals) {
-			t.Errorf("test %d failed - have: addedVals %v, removedVals %v; want: addedVals %v, removedVals %v", i, addedVals, removedVals, tt.expectedAddedVals, tt.expectedRemovedVals)
+		if !CompareValidatorSlices(addedValsAddresses, tt.expectedAddedVals) || !CompareValidatorSlices(removedValsAddresses, tt.expectedRemovedVals) {
+			t.Errorf("test %d failed - have: addedVals %v, removedVals %v; want: addedVals %v, removedVals %v", i, addedValsAddresses, removedValsAddresses, tt.expectedAddedVals, tt.expectedRemovedVals)
 		}
 	}
 
