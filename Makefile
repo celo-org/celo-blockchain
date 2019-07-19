@@ -10,6 +10,10 @@
 
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
+NDK_VERSION=android-ndk-r19c
+ANDROID_NDK_HOME=ndk_bundle
+
+
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -17,6 +21,12 @@ geth: bls-zexe
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
+bls-zexe-android:
+	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
+		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
+	mkdir $(ANDROID_NDK_HOME) && \
+	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
+	rm /tmp/$(NDK_VERSION).zip
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
 	cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release && cargo build --release --example pop

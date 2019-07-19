@@ -80,9 +80,9 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b kobigurk/bls
             cd ${CELO_MONOREPO_DIR}/packages
-            # TODO(ashishb): Delete unnecessary packages to speed up build time. 
+            # TODO(ashishb): Delete unnecessary packages to speed up build time.
             # It would be better whitelist certain packages and delete the rest.
             # Deletion does not work right now and yarn fails with weird errors.
             # This will be enabled and resolved later.
