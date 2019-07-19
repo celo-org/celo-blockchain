@@ -53,11 +53,9 @@ jobs:
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
             cd ${CELO_MONOREPO_DIR}/packages
-            # TODO(ashishb): Delete unnecessary packages to speed up build time. 
-            # It would be better whitelist certain packages and delete the rest.
-            # Deletion does not work right now and yarn fails with weird errors.
-            # This will be enabled and resolved later.
-            # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
+            # Delete unnecessary packages to speed up build time.
+            # TODO(ashishb): It would be better whitelist certain packages and delete the rest.
+            rm -rf analytics blockchain-api docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn || yarn
       - persist_to_workspace:
@@ -115,9 +113,10 @@ workflows:
   version: 2
   build:
     jobs:
-      - lint
-      - unit-tests
-      - coverage
+      # TODO(ashishb): testing only
+      # - lint
+      # - unit-tests
+      # - coverage
       - end-to-end-checkout
 
       - end-to-end-transfer-test:
