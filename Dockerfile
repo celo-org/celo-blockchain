@@ -12,17 +12,18 @@
 # docker push gcr.io/celo-testnet/geth:$TAG
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
+FROM ekidd/rust-musl-builder:nightly-2019-07-08
+ADD . /go-ethereum
+RUN sudo chown -R rust:rust /go-ethereum
+RUN cd /go-ethereum && make bls-zexe
+
 # Build Geth in a stock Go builder container
 FROM golang:1.11-alpine as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers
-
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-ENV PATH=$PATH:$HOME/.cargo/bin
-RUN rustup install nightly
-RUN rustup default nightly
-
 ADD . /go-ethereum
+RUN mkdir -p /go-ethereum/vendor/github.com/celo-org/bls-zexe/target/release
+COPY --from=builder /go-ethereum/vendor/github.com/celo-org/bls-zexe/target/release/libbls_zexe.a vendor/github.com/celo-org/bls-zexe/target/release
 RUN cd /go-ethereum && make geth
 
 # Pull Geth into a second stage deploy alpine container
