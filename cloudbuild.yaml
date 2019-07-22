@@ -2,9 +2,11 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA', '.' ]
   waitFor: ["-"]
+  timeout: 45m
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA', '-f', 'Dockerfile.alltools', '.' ]
   waitFor: ["-"]
+  timeout: 45m
 images:
 - 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA'
 - 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA'
