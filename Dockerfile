@@ -16,6 +16,7 @@ FROM ubuntu:16.04 as rustbuilder
 ADD . /go-ethereum
 RUN sudo chown -R rust:rust /go-ethereum
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH=$PATH:$HOME/.cargo/bin
 RUN rustup target add x86_64-unknown-linux-musl && cargo build --target x86_64-unknown-linux-musl --release
 RUN cd /go-ethereum && make bls-zexe
 
