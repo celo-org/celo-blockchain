@@ -28,8 +28,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -38,6 +38,7 @@ import (
 )
 
 const (
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 	getValidatorPublicKeyABI = `[{
 		"constant": true,
 		"inputs": [
@@ -198,7 +199,7 @@ func (sb *Backend) sendIstAnnounce() error {
 	view := sb.core.CurrentView()
 
 	useValidatorContract := true
-	var g core.Genesis
+	var g consensus.Genesis
 	regVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -211,10 +212,10 @@ func (sb *Backend) sendIstAnnounce() error {
 			regVals[val.Address()] = true
 		}
 		useValidatorContract = false
-		genesisJSON, err := sb.db.Get(core.DBGenesisKey)
-		err = g.UnmarshalJSON(genesisJSON)
+		err = g.UnmarshalFromDB(sb.db)
 		if err != nil {
 			log.Error("Unable to retrieve genesis from db", "err", err)
+			return err
 		}
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
@@ -240,7 +241,7 @@ func (sb *Backend) sendIstAnnounce() error {
 				return err
 			}
 		} else {
-			pubKeyBytes = g.Alloc[addr].PublicKey
+			pubKeyBytes = g.GetAlloc()[addr].GetPublicKey()
 		}
 		pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
 		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)

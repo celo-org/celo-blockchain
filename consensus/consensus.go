@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -124,6 +125,18 @@ type Engine interface {
 	Close() error
 	// Protocol returns the protocol for this consensus
 	Protocol() Protocol
+}
+
+type Genesis interface {
+	GetAlloc() GenesisAlloc
+
+	UnmarshalFromDB(db ethdb.Database) error
+}
+
+type GenesisAlloc map[common.Address]GenesisAccount
+
+type GenesisAccount interface{
+	GetPublicKey() []byte
 }
 
 // Handler should be implemented if the consensus needs to handle and send peer messages

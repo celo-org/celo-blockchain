@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -98,7 +99,11 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			b.Authorize(address, nil, signerFn)
+			decrypterFn := func(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
+				return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
+			}
+
+			b.Authorize(address, decrypterFn, signerFn)
 		}
 	}
 

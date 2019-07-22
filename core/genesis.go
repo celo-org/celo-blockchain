@@ -69,6 +69,19 @@ type Genesis struct {
 // GenesisAlloc specifies the initial state that is part of the genesis block.
 type GenesisAlloc map[common.Address]GenesisAccount
 
+func (g *Genesis) GetAlloc() GenesisAlloc { return g.Alloc }
+
+func (g *Genesis) UnmarshalFromDB(db ethdb.Database) error {
+	genesisJSON, err := db.Get(DBGenesisKey)
+	if err == nil {
+		err = g.UnmarshalJSON(genesisJSON)
+	}
+	if err != nil {
+		log.Error("Unable to retrieve genesis from db", "err", err)
+	}
+	return err
+}
+
 func (ga *GenesisAlloc) UnmarshalJSON(data []byte) error {
 	m := make(map[common.UnprefixedAddress]GenesisAccount)
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -90,6 +103,8 @@ type GenesisAccount struct {
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
 	PublicKey  []byte                      `json:"publicKey,omitempty"`
 }
+
+func (ga *GenesisAccount) GetPublicKey() []byte { return ga.PublicKey }
 
 // field type overrides for gencodec
 type genesisSpecMarshaling struct {

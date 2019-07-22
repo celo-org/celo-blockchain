@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 func TestSign(t *testing.T) {
@@ -196,11 +197,16 @@ func getAddress() common.Address {
 }
 
 func getInvalidAddress() common.Address {
-	return common.HexToAddress("0x9535b2e7faaba5288511d89341d94a38063a349b")
+	return common.HexToAddress("0xc63597005f0da07a9ea85b5052a77c3b0261bdca")
 }
 
 func generatePrivateKey() (*ecdsa.PrivateKey, error) {
 	key := "bb047e5940b6d83354d9432db7c449ac8fca2248008aaa7271369880f9f11cc1"
+	return crypto.HexToECDSA(key)
+}
+
+func generateInvalidPrivateKey() (*ecdsa.PrivateKey, error) {
+	key := "1049c0e0b99eeea3465a1e83a52900dc27c652f39abb3aed3b868dee68ff1d2c"
 	return crypto.HexToECDSA(key)
 }
 
@@ -237,10 +243,33 @@ func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
 	return crypto.Sign(data, key)
 }
 
+func decrypterFn(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
+	key, _ := generatePrivateKey()
+	return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
+}
+
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), nil, signerFn)
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), decrypterFn, signerFn)
+	return
+}
+
+func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generateInvalidPrivateKey()
+	return crypto.Sign(data, key)
+}
+
+func decrypterFnInvalid(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
+	key, _ := generateInvalidPrivateKey()
+	return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
+}
+
+func invalidBackend() (b *Backend) {
+	_, b = newBlockChain(4, true)
+
+	key, _ := generateInvalidPrivateKey()
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), decrypterFnInvalid, signerFnInvalid)
 	return
 }
