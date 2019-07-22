@@ -1,4 +1,5 @@
 FROM ubuntu:16.04 as rustbuilder
+RUN apt install curl musl-tools
 ADD . /go-ethereum
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 RUN $HOME/.cargo/bin/rustup install nightly && $HOME/.cargo/bin/rustup default nightly && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release

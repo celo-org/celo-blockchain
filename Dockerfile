@@ -13,6 +13,7 @@
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 FROM ubuntu:16.04 as rustbuilder
+RUN apt install curl musl-tools
 ADD . /go-ethereum
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH=$PATH:~/.cargo/bin
