@@ -26,7 +26,7 @@ FROM golang:1.11-alpine as builder
 RUN apk add --no-cache make gcc musl-dev linux-headers
 ADD . /go-ethereum
 RUN mkdir -p /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
-COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_zexe.a vendor/github.com/celo-org/bls-zexe/bls/target/release
+COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_zexe.a /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
 RUN cd /go-ethereum && make geth
 
 # Pull Geth into a second stage deploy alpine container
