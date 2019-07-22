@@ -15,9 +15,9 @@
 FROM ubuntu:16.04 as rustbuilder
 ADD . /go-ethereum
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-ENV PATH=$PATH:$HOME/.cargo/bin
-RUN rustup install nightly && rustup default nightly && rustup target add x86_64-unknown-linux-musl && cargo build --target x86_64-unknown-linux-musl --release
-RUN cd /go-ethereum && make bls-zexe
+ENV PATH=$PATH:~/.cargo/bin
+RUN $HOME/.cargo/bin/rustup install nightly && $HOME/.cargo/bin/rustup default nightly && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
+RUN cd /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls && cargo build --target x86_64-unknown-linux-musl --release
 
 # Build Geth in a stock Go builder container
 FROM golang:1.11-alpine as builder
