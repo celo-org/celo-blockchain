@@ -10,9 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 func TestHandleIstAnnounce(t *testing.T) {
-	b := newBackend()
-	ib := invalidBackend()
-	enodeUrl := "wow"
+	_, b := newBlockChain(4, true)
+	enodeUrl := "enodeurl"
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
 	pubKey := getPublicKey()
@@ -25,16 +24,17 @@ func TestHandleIstAnnounce(t *testing.T) {
 	}
 
 	encryptedEnodeData, err := json.Marshal(encryptedEnodeUrls)
+	validatorAddr := b.Address()
 
 	msg := &announceMessage{
-		Address:            getInvalidAddress(),
+		Address:            validatorAddr,
 		EncryptedEnodeData: encryptedEnodeData,
 		View:               b.core.CurrentView(),
 	}
 
-	if err := msg.Sign(ib.Sign); err != nil {
+	if err := msg.Sign(b.Sign); err != nil {
 		b.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		t.Errorf("error test %v", err)
+		t.Errorf("error sign %v", err)
 	}
 
 	payload, err := msg.Payload()
@@ -43,17 +43,27 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("error test %v", err)
 	}
 
-	err = b.handleIstAnnounce(payload)
+	b.Authorize(getInvalidAddress(), decrypterFnInvalid, signerFnInvalid)
 
-	if err != nil {
+	if err = b.handleIstAnnounce(payload); err != nil {
 		t.Errorf("error %v", err)
-		t.Errorf("error test %v", err)
 	}
 
-	t.Errorf("asdf %v", b.lastAnnounceGossiped[getInvalidAddress()])
+	if b.valEnodeTable.valEnodeTable[validatorAddr] != nil {
+		t.Errorf("Expected can't decrypt, got %v instead", b.valEnodeTable.valEnodeTable[validatorAddr])
+	}
 
-	
-	t.Errorf("error mismatch: have %v, want nil", b.valEnodeTable.valEnodeTable[getInvalidAddress()])
+	b.Authorize(getAddress(), decrypterFn, signerFn)
+
+	if err = b.handleIstAnnounce(payload); err != nil {
+		t.Errorf("error %v", err)
+	}
+
+	if b.valEnodeTable.valEnodeTable[validatorAddr] != nil {
+		if b.valEnodeTable.valEnodeTable[validatorAddr].enodeURL != enodeUrl {
+			t.Errorf("Should have been able to decrypt")
+		}
+	}
 }
 
 func getPublicKey() ecies.PublicKey {

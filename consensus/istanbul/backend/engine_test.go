@@ -48,12 +48,16 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
+
+	decrypterFn := func(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
+		return ecies.ImportECDSA(nodeKeys[0]).Decrypt(c, s1, s2)
+	}
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, nil, signerFn)
+	b.Authorize(address, decrypterFn, signerFn)
 
 	genesis.MustCommit(memDB)
 
@@ -102,8 +106,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			decrypterFn := func(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
 				return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
 			}
-
-			b.Authorize(address, decrypterFn, signerFn)
+			b.Authorize(addr, decrypterFn, signerFn)
+			break
 		}
 	}
 
