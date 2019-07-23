@@ -234,7 +234,7 @@ func TestValSetChange(t *testing.T) {
 		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
 			return crypto.Sign(data, privateKey)
 		}
-		engine.Authorize(address, nil, signerFn)
+		engine.Authorize(address, signerFn)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

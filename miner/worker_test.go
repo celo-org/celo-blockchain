@@ -209,7 +209,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	}
 
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), nil, signerFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn)
 	return engine
 }
 

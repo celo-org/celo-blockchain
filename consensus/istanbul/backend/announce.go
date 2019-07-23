@@ -17,7 +17,7 @@
 package backend
 
 import (
-	"crypto/rand"
+	// "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -28,12 +28,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
+	// "github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
+	// "github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/params"
+	// "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -192,7 +191,6 @@ func (sb *Backend) sendIstAnnounce() error {
 	// fmt.Printf("sk, %v", sb.broadcaster.server.PrivateKey)
 	enode := sb.Enode()
 
-	log.Error("enode, %s", "asfd", enode.String())
 	if enode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
 		return nil
@@ -200,9 +198,9 @@ func (sb *Backend) sendIstAnnounce() error {
 
 	enodeUrl := enode.String()
 	view := sb.core.CurrentView()
+	log.Error("enode, %s", "asfd", strings.Index(enodeUrl, "@"))
 
-	useValidatorContract := true
-	var g consensus.Genesis
+	// useValidatorContract := true
 	regVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -214,46 +212,38 @@ func (sb *Backend) sendIstAnnounce() error {
 		for _, val := range valSet.List() {
 			regVals[val.Address()] = true
 		}
-		useValidatorContract = false
-		err = g.UnmarshalFromDB(sb.db)
-		if err != nil {
-			log.Error("Unable to retrieve genesis from db", "err", err)
-			return err
-		}
+		// useValidatorContract = false
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return err
 	}
 
-	validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
-	if err != nil {
-		log.Warn("Registry address lookup failed", "err", err)
-	}
+	// validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
-	for addr := range regVals {
-		var pubKeyBytes []byte
-		if useValidatorContract {
-			state, err := sb.stateAt(block.Header().ParentHash)
-			if err != nil {
-				log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-				return err
-			}
-			if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorPublicKeyFuncABI, "getValidatorPublicKey", []interface{}{addr}, &pubKeyBytes, uint64(1000000), block.Header(), state); err != nil {
-				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
-				return err
-			}
-		} else {
-			pubKeyBytes = g.GetAlloc()[addr].GetPublicKey()
-		}
-		pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
-		encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
-		if err != nil {
-			log.Error("Unable to unmarshal public key", "err", err)
-		} else {
-			encryptedEnodeUrls[addr] = encryptedEnodeUrl
-		}
-	}
+	// for addr := range regVals {
+	// 	var pubKeyBytes []byte
+	// 	if useValidatorContract {
+	// 		state, err := sb.stateAt(block.Header().ParentHash)
+	// 		if err != nil {
+	// 			log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
+	// 			return err
+	// 		}
+	// 		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorPublicKeyFuncABI, "getValidatorPublicKey", []interface{}{addr}, &pubKeyBytes, uint64(1000000), block.Header(), state); err != nil {
+	// 			log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
+	// 			return err
+	// 		}
+	// 	} else {
+	// 		pubKeyBytes = g.GetAlloc()[addr].GetPublicKey()
+	// 	}
+	// 	pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
+	// 	encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
+	// 	if err != nil {
+	// 		log.Error("Unable to unmarshal public key", "err", err)
+	// 	} else {
+	// 		encryptedEnodeUrls[addr] = encryptedEnodeUrl
+	// 	}
+	// }
 
 	encryptedEnodeData, err := json.Marshal(encryptedEnodeUrls)
 	if err != nil {
@@ -266,10 +256,6 @@ func (sb *Backend) sendIstAnnounce() error {
 		EnodeURL:           enodeUrl,
 		EncryptedEnodeData: encryptedEnodeData,
 		View:               view,
-	}
-
-	if useValidatorContract {
-		log.Info("wowow", "msg", msg.EncryptedEnodeData)
 	}
 
 	// Sign the announce message

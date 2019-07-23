@@ -41,7 +41,6 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBGenesisKey       = []byte("genesis object data")
 	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
@@ -69,19 +68,6 @@ type Genesis struct {
 // GenesisAlloc specifies the initial state that is part of the genesis block.
 type GenesisAlloc map[common.Address]GenesisAccount
 
-func (g *Genesis) GetAlloc() GenesisAlloc { return g.Alloc }
-
-func (g *Genesis) UnmarshalFromDB(db ethdb.Database) error {
-	genesisJSON, err := db.Get(DBGenesisKey)
-	if err == nil {
-		err = g.UnmarshalJSON(genesisJSON)
-	}
-	if err != nil {
-		log.Error("Unable to retrieve genesis from db", "err", err)
-	}
-	return err
-}
-
 func (ga *GenesisAlloc) UnmarshalJSON(data []byte) error {
 	m := make(map[common.UnprefixedAddress]GenesisAccount)
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -101,10 +87,7 @@ type GenesisAccount struct {
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
-	PublicKey  []byte                      `json:"publicKey,omitempty"`
 }
-
-func (ga *GenesisAccount) GetPublicKey() []byte { return ga.PublicKey }
 
 // field type overrides for gencodec
 type genesisSpecMarshaling struct {
@@ -124,7 +107,6 @@ type genesisAccountMarshaling struct {
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
 	PrivateKey hexutil.Bytes
-	PublicKey  hexutil.Bytes
 }
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
@@ -314,13 +296,6 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
 	if err := g.StoreGenesisSupply(db); err != nil {
 		log.Error("Unable to store genesisSupply in db", "err", err)
-		return nil, err
-	}
-
-	genesisJSON, err := g.MarshalJSON()
-	err = db.Put(DBGenesisKey, genesisJSON)
-	if err != nil {
-		log.Error("Unable to store genesis in db", "err", err)
 		return nil, err
 	}
 

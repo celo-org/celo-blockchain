@@ -11,6 +11,8 @@ import (
 )
 func TestHandleIstAnnounce(t *testing.T) {
 	_, b := newBlockChain(4, true)
+
+	b.sendIstAnnounce()
 	enodeUrl := "enodeurl"
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
@@ -43,7 +45,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("error test %v", err)
 	}
 
-	b.Authorize(getInvalidAddress(), decrypterFnInvalid, signerFnInvalid)
+	b.Authorize(getInvalidAddress(), signerFnInvalid)
 
 	if err = b.handleIstAnnounce(payload); err != nil {
 		t.Errorf("error %v", err)
@@ -53,7 +55,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("Expected can't decrypt, got %v instead", b.valEnodeTable.valEnodeTable[validatorAddr])
 	}
 
-	b.Authorize(getAddress(), decrypterFn, signerFn)
+	b.Authorize(getAddress(), signerFn)
 
 	if err = b.handleIstAnnounce(payload); err != nil {
 		t.Errorf("error %v", err)

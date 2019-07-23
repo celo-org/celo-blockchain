@@ -49,15 +49,12 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 
-	decrypterFn := func(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
-		return ecies.ImportECDSA(nodeKeys[0]).Decrypt(c, s1, s2)
-	}
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, decrypterFn, signerFn)
+	b.Authorize(address, signerFn)
 
 	genesis.MustCommit(memDB)
 
@@ -103,10 +100,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			decrypterFn := func(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
-				return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
-			}
-			b.Authorize(addr, decrypterFn, signerFn)
+			b.Authorize(addr, signerFn)
 			break
 		}
 	}

@@ -46,8 +46,7 @@ const (
 
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
-	errInvalidDecryptingFn = errors.New("invalid decrypting function for istanbul messages")
-	errInvalidSigningFn    = errors.New("invalid signing function for istanbul messages")
+	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
 // Entries for the recent announce messages
@@ -87,11 +86,9 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address     common.Address       // Ethereum address of the signing key
-	signFn      istanbul.SignerFn    // Signer function to authorize hashes with
-	signFnMu    sync.RWMutex         // Protects the signer fields
-	decryptFn   istanbul.DecrypterFn // Decrypter function
-	decryptFnMu sync.RWMutex         // Protects the decrypter fields
+	address  common.Address    // Ethereum address of the signing key
+	signFn   istanbul.SignerFn // Signer function to authorize hashes with
+	signFnMu sync.RWMutex      // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -133,14 +130,11 @@ type Backend struct {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, decryptFn istanbul.DecrypterFn, signFn istanbul.SignerFn) {
-	sb.decryptFnMu.Lock()
-	defer sb.decryptFnMu.Unlock()
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
 	sb.address = address
-	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.core.SetAddress(address)
 }
@@ -375,16 +369,6 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	}
 
 	return nil
-}
-
-// Sign implements istanbul.Backend.Decrypt
-func (sb *Backend) Decrypt(data []byte) ([]byte, error) {
-	if sb.decryptFn == nil {
-		return nil, errInvalidDecryptingFn
-	}
-	sb.decryptFnMu.RLock()
-	defer sb.decryptFnMu.RUnlock()
-	return sb.decryptFn(accounts.Account{Address: sb.address}, data, nil, nil)
 }
 
 // Sign implements istanbul.Backend.Sign
