@@ -353,6 +353,40 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, erro
 	return signatureBytes, nil
 }
 
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignPoP()
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return signatureBytes, nil
+}
+
 // SignTx signs the given transaction with the requested account.
 func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	// Look up the key to sign with and abort if it cannot be found

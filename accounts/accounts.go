@@ -104,6 +104,7 @@ type Wallet interface {
 	SignHash(account Account, hash []byte) ([]byte, error)
 	SignHashBLS(account Account, hash []byte) ([]byte, error)
 	SignMessageBLS(account Account, msg []byte) ([]byte, error)
+	GenerateProofOfPossession(account Account) ([]byte, error)
 
 	// SignTx requests the wallet to sign the given transaction.
 	//

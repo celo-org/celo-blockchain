@@ -127,6 +127,16 @@ func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte) ([
 	return w.keystore.SignMessageBLS(account, msg)
 }
 
+func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {
+	// Make sure the requested account is contained within
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.GenerateProofOfPossession(account)
+}
+
 // SignTx implements accounts.Wallet, attempting to sign the given transaction
 // with the given account. If the wallet does not wrap this particular account,
 // an error is returned to avoid account leakage (even though in theory we may

@@ -88,6 +88,7 @@ type Ethereum struct {
 	miner     *miner.Miner
 	gasPrice  *big.Int
 	etherbase common.Address
+	blsbase   common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
@@ -142,6 +143,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		networkID:      config.NetworkId,
 		gasPrice:       config.MinerGasPrice,
 		etherbase:      config.Etherbase,
+		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, fullHeaderChainAvailable),
 	}
@@ -378,6 +380,18 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
 }
 
+func (s *Ethereum) BLSbase() (eb common.Address, err error) {
+	s.lock.RLock()
+	blsbase := s.blsbase
+	s.lock.RUnlock()
+
+	if blsbase != (common.Address{}) {
+		return blsbase, nil
+	}
+
+	return s.Etherbase()
+}
+
 // isLocalBlock checks whether the specified block is mined
 // by local miner accounts.
 //
@@ -470,6 +484,11 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
+		blsbase, err := s.BLSbase()
+		if err != nil {
+			log.Error("Cannot start mining without blsbase", "err", err)
+			return fmt.Errorf("blsbase missing: %v", err)
+		}
 		clique, isClique := s.engine.(*clique.Clique)
 		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
 		if isIstanbul || isClique {
@@ -478,11 +497,16 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
+			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
+			if blswallet == nil || err != nil {
+				log.Error("BLSbase account unavailable locally", "err", err)
+				return fmt.Errorf("BLS signer missing: %v", err)
+			}
 			if isClique {
 				clique.Authorize(eb, wallet.SignHash)
 			}
 			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignHash, wallet.SignHashBLS, wallet.SignMessageBLS)
+				istanbul.Authorize(eb, wallet.SignHash, blswallet.SignHashBLS, blswallet.SignMessageBLS)
 			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism

@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 
@@ -97,6 +98,19 @@ Make sure you backup your keys regularly.`,
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
+				},
+				Description: `
+Print a short summary of all accounts`,
+			},
+			{
+				Name:   "proof-of-possession",
+				Usage:  "Generate a proof-of-possession for the given account",
+				Action: utils.MigrateFlags(accountProofOfPossession),
+				Flags: []cli.Flag{
+					utils.DataDirFlag,
+					utils.KeyStoreDirFlag,
+					utils.PasswordFileFlag,
+					utils.LightKDFFlag,
 				},
 				Description: `
 Print a short summary of all accounts`,
@@ -201,6 +215,25 @@ func accountList(ctx *cli.Context) error {
 			index++
 		}
 	}
+	return nil
+}
+
+func accountProofOfPossession(ctx *cli.Context) error {
+	if len(ctx.Args()) == 0 {
+		utils.Fatalf("No accounts specified to update")
+	}
+	stack, _ := makeConfigNode(ctx)
+	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+
+	for _, addr := range ctx.Args() {
+		account, _ := unlockAccount(ctx, ks, addr, 0, nil)
+		pop, err := ks.GenerateProofOfPossession(account)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Account {%x}: %s\n", account.Address, hex.EncodeToString(pop))
+	}
+
 	return nil
 }
 
