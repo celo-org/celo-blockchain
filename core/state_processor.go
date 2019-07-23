@@ -22,6 +22,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -110,12 +112,9 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 
-	addressLookupEMV := vm.NewEVM(context, statedb, config, cfg)
-	//addressLookupEMV.DontMeterGas = true
-	infraAddress, err := params.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, addressLookupEMV)
-	//addressLookupEMV.DontMeterGas = false
+	infraAddress, err := contract_comm.GetContractAddress(params.GovernanceRegistryId, nil, statedb)
 
-	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		infraAddress = nil
 	} else if err != nil {
 		return nil, 0, err

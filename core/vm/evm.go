@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -188,7 +189,7 @@ func (evm *EVM) Interpreter() Interpreter {
 	return evm.interpreter
 }
 
-func (evm *EVM) GetStateDB() params.StateDB {
+func (evm *EVM) GetStateDB() StateDB {
 	return evm.StateDB
 }
 
@@ -504,11 +505,9 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	evm.DontMeterGas = true
-	reserveAddress, err := params.GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-	evm.DontMeterGas = false
+	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 
-	if err != nil && err != params.ErrSmartContractNotDeployed && err != params.ErrRegistryContractNotDeployed {
+	if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
 		log.Trace("Error in tobin transfer", "error", err)
 		return gas, err
 	}

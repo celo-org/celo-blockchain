@@ -31,6 +31,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -426,7 +427,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 
-	if err == params.ErrSmartContractNotDeployed {
+	if err == contract_errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return newValSet, errValidatorsContractNotRegistered
 	} else if err != nil {
@@ -488,7 +489,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	goldTokenAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, header, state)
-	if err == params.ErrSmartContractNotDeployed {
+	if err == contract_errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
@@ -499,7 +500,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := contract_comm.GetContractAddress(params.GovernanceRegistryId, header, state)
-		if err == params.ErrSmartContractNotDeployed {
+		if err == contract_errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
@@ -512,7 +513,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := contract_comm.GetContractAddress(params.BondedDepositsRegistryId, header, state)
-		if err == params.ErrSmartContractNotDeployed {
+		if err == contract_errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())

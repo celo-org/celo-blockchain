@@ -435,9 +435,7 @@ func (c *requestAttestation) Run(input []byte, caller common.Address, evm *EVM, 
 		return nil, gas, err
 	}
 
-	evm.DontMeterGas = true
-	abeAddress, err := params.GetRegisteredAddressWithEvm(params.AttestationsRegistryId, evm)
-	evm.DontMeterGas = false
+	abeAddress, err := GetRegisteredAddressWithEvm(params.AttestationsRegistryId, evm)
 
 	if err != nil {
 		return nil, gas, err
@@ -463,9 +461,7 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	evm.DontMeterGas = true
-	celoGoldAddress, err := params.GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
-	evm.DontMeterGas = false
+	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
 
 	if err != nil {
 		return nil, gas, err

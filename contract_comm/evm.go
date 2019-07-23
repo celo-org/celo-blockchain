@@ -17,12 +17,12 @@
 package contract_comm
 
 import (
-	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -125,7 +125,7 @@ type InternalEVMHandler struct {
 
 func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Waiting for contract deployment")
 		return 0, err
 	}
@@ -139,7 +139,7 @@ func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []in
 
 func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Waiting for contract deployment")
 		return 0, err
 	}
@@ -163,7 +163,7 @@ func GetContractAddress(registryId string, header *types.Header, state *state.St
 	if err != nil {
 		return nil, err
 	}
-	scAddress, err := params.GetRegisteredAddressWithEvm(registryId, vmevm)
+	scAddress, err := vm.GetRegisteredAddressWithEvm(registryId, vmevm)
 	return scAddress, err
 }
 
@@ -174,7 +174,7 @@ func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
 	// will be non nil.
 	log.Trace("createEVM called")
 	if IevmHSingleton == nil {
-		return nil, errors.New("No IevmHSingleton set for contract communication")
+		return nil, errors.ErrNoIevmHSingleton
 	}
 
 	if header == nil {

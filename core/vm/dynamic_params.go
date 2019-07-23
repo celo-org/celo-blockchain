@@ -1,12 +1,13 @@
-package params
+package vm
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -31,27 +32,10 @@ const (
                              }]`
 )
 
-var (
-	getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
+var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
-	// ErrSmartContractNotDeployed is returned when the RegisteredAddresses mapping does not contain the specified contract
-	ErrSmartContractNotDeployed    = errors.New("registered contract not deployed")
-	ErrRegistryContractNotDeployed = errors.New("contract registry not deployed")
-
-	// TODO(kevjue) - Re-Enable caching of the retrieved registered address
-	// See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-)
-
-type StateDB interface {
-	GetCodeHash(addr common.Address) common.Hash
-	GetCodeSize(addr common.Address) int
-	GetStorageRoot(addr common.Address) common.Hash
-}
-
-type EVM interface {
-	StaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-	GetStateDB() StateDB
-}
+// TODO(kevjue) - Re-Enable caching of the retrieved registered address
+// See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 
 type regAddrCacheEntry struct {
 	address             *common.Address
@@ -59,23 +43,26 @@ type regAddrCacheEntry struct {
 	registryCodeHash    common.Hash
 }
 
-func GetRegisteredAddressWithEvm(registryId string, evm EVM) (*common.Address, error) {
-	if evm.GetStateDB().GetCodeSize(registrySmartContractAddress) == 0 {
-		return nil, ErrRegistryContractNotDeployed
+func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, error) {
+	evm.DontMeterGas = true
+	defer func() { evm.DontMeterGas = false }()
+
+	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+		return nil, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
-	_, err := evm.StaticCallFromSystem(registrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
+	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
 	if err == abi.ErrEmptyOutput {
 		log.Trace("Registry contract not deployed")
-		return nil, ErrRegistryContractNotDeployed
+		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err
 	}
 
 	if contractAddress == common.ZeroAddress {
-		return nil, ErrSmartContractNotDeployed
+		return nil, errors.ErrSmartContractNotDeployed
 	}
 
 	return &contractAddress, nil

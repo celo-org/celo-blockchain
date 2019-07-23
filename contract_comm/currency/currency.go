@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -109,7 +110,7 @@ type exchangeRate struct {
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
 	celoGoldAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
-	if err == params.ErrSmartContractNotDeployed || err == params.ErrRegistryContractNotDeployed {
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, err
 	}
@@ -186,7 +187,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
 		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
-			if err == params.ErrSmartContractNotDeployed {
+			if err == errors.ErrSmartContractNotDeployed {
 				log.Warn("Registry address lookup failed", "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
 			} else {
@@ -231,7 +232,7 @@ func retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Add
 	returnList := []common.Address{}
 	gasCurrencyWhiteListAddress, err := contract_comm.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
-		if err == params.ErrSmartContractNotDeployed {
+		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else {
 			log.Error("Registry address lookup failed", "err", err)
