@@ -358,6 +358,10 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 			sb.logger.Error("not a valid address", "err", err)
 			return errInvalidSignature
 		}
+
+		if addr == sb.Address() {
+			sb.logger.Debug("Our backend participated in consensus", "number", number)
+		}
 		// Every validator can have only one seal. If more than one seals are signed by a
 		// validator, the validator cannot be found and errInvalidCommittedSeals is returned.
 		if validators.RemoveValidators([]common.Address{addr}) {
@@ -428,7 +432,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 		return newValSet, err
 	} else {
 		// Get the new epoch's validator set
-		maxGasForGetValidators := uint64(1000000)
+		maxGasForGetValidators := uint64(10000000)
 		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 		_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
