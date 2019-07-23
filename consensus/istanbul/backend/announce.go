@@ -189,7 +189,10 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 func (sb *Backend) sendIstAnnounce() error {
 	block := sb.currentBlock()
+	// fmt.Printf("sk, %v", sb.broadcaster.server.PrivateKey)
 	enode := sb.Enode()
+
+	log.Error("enode, %s", "asfd", enode.String())
 	if enode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
 		return nil
