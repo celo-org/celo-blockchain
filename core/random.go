@@ -170,7 +170,7 @@ func (r *Random) GenerateNewRandomnessAndCommitment(header *types.Header, state 
 	_, err := r.iEvmH.MakeStaticCall(*r.address(), computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
-		log.Error("Failed to save last block proposed to the database", "err", err)
+		log.Error("Failed to save last block parentHash to the database", "err", err)
 	}
 
 	return commitment, err
