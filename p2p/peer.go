@@ -347,6 +347,17 @@ outer:
 			}
 		}
 	}
+
+	// If a primary protocol matched, return only that protocol.
+	for _, proto := range protocols {
+		if proto.Primary {
+			if _, ok := result[proto.Name]; ok {
+				primary := make(map[string]*protoRW)
+				primary[proto.Name] = result[proto.Name]
+				return primary
+			}
+		}
+	}
 	return result
 }
 
