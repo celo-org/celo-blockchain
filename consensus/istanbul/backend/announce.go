@@ -17,7 +17,7 @@
 package backend
 
 import (
-	// "crypto/rand"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -26,41 +26,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	// "github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	// "github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	// "github.com/ethereum/go-ethereum/params"
+	// "github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-)
-
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
-	getValidatorPublicKeyABI = `[{
-		"constant": true,
-		"inputs": [
-		  {
-			"name": "account",
-			"type": "address"
-		  }
-		],
-		"name": "getValidatorPublicKey",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "bytes"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
-)
-
-var (
-	getValidatorPublicKeyFuncABI, _ = abi.JSON(strings.NewReader(getValidatorPublicKeyABI))
 )
 
 // ==============================================
@@ -69,14 +42,14 @@ var (
 
 type announceMessage struct {
 	Address            common.Address
-	EnodeURL           string //TODO(nguo) remove this field
-	EncryptedEnodeData []byte
+	IncompleteEnodeURL string //TODO(nguo) remove this field
+	EncryptedIPData    []byte
 	View               *istanbul.View
 	Signature          []byte
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{Address: %s, View: %v, EnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.EnodeURL, hex.EncodeToString(am.Signature))
+	return fmt.Sprintf("{Address: %s, View: %v, IncompleteEnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.IncompleteEnodeURL, hex.EncodeToString(am.Signature))
 }
 
 // ==============================================
@@ -85,15 +58,15 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.EncryptedEnodeData, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedIPData, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address            common.Address
-		EnodeURL           string
-		EncryptedEnodeData []byte
+		IncompleteEnodeURL           string
+		EncryptedIPData []byte
 		View               *istanbul.View
 		Signature          []byte
 	}
@@ -101,7 +74,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.EnodeURL, am.EncryptedEnodeData, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.EncryptedEnodeData, msg.View, msg.Signature
+	am.Address, am.IncompleteEnodeURL, am.EncryptedIPData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedIPData, msg.View, msg.Signature
 	return nil
 }
 
@@ -123,8 +96,8 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
-		EnodeURL:           am.EnodeURL,
-		EncryptedEnodeData: am.EncryptedEnodeData,
+		IncompleteEnodeURL:           am.IncompleteEnodeURL,
+		EncryptedIPData: am.EncryptedIPData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -140,8 +113,8 @@ func (am *announceMessage) VerifySig() error {
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
-		EnodeURL:           am.EnodeURL,
-		EncryptedEnodeData: am.EncryptedEnodeData,
+		IncompleteEnodeURL:           am.IncompleteEnodeURL,
+		EncryptedIPData: am.EncryptedIPData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -188,19 +161,19 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 func (sb *Backend) sendIstAnnounce() error {
 	block := sb.currentBlock()
-	// fmt.Printf("sk, %v", sb.broadcaster.server.PrivateKey)
-	enode := sb.Enode()
 
-	if enode == nil {
+	selfEnode := sb.Enode()
+
+	if selfEnode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
 		return nil
 	}
 
-	enodeUrl := enode.String()
+	enodeUrl := selfEnode.String()
 	view := sb.core.CurrentView()
-	log.Error("enode, %s", "asfd", strings.Index(enodeUrl, "@"))
+	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
+	ipData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
-	// useValidatorContract := true
 	regVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -212,40 +185,26 @@ func (sb *Backend) sendIstAnnounce() error {
 		for _, val := range valSet.List() {
 			regVals[val.Address()] = true
 		}
-		// useValidatorContract = false
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return err
 	}
 
-	// validatorsAddress, err := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
+	encryptedIPs := make(map[common.Address][]byte)
+	for addr := range regVals {
+		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
+			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
+			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
+			encryptedIP, err := ecies.Encrypt(rand.Reader, pubKey, []byte(ipData), nil, nil)
+			if err != nil {
+				log.Warn("Unable to unmarshal public key", "err", err)
+			} else {
+				encryptedIPs[addr] = encryptedIP
+			}
+		}
+	}
 
-	encryptedEnodeUrls := make(map[common.Address][]byte)
-	// for addr := range regVals {
-	// 	var pubKeyBytes []byte
-	// 	if useValidatorContract {
-	// 		state, err := sb.stateAt(block.Header().ParentHash)
-	// 		if err != nil {
-	// 			log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-	// 			return err
-	// 		}
-	// 		if _, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorPublicKeyFuncABI, "getValidatorPublicKey", []interface{}{addr}, &pubKeyBytes, uint64(1000000), block.Header(), state); err != nil {
-	// 			log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
-	// 			return err
-	// 		}
-	// 	} else {
-	// 		pubKeyBytes = g.GetAlloc()[addr].GetPublicKey()
-	// 	}
-	// 	pubKey, err := p2p.ImportPublicKey(pubKeyBytes)
-	// 	encryptedEnodeUrl, err := ecies.Encrypt(rand.Reader, pubKey, []byte(enodeUrl), nil, nil)
-	// 	if err != nil {
-	// 		log.Error("Unable to unmarshal public key", "err", err)
-	// 	} else {
-	// 		encryptedEnodeUrls[addr] = encryptedEnodeUrl
-	// 	}
-	// }
-
-	encryptedEnodeData, err := json.Marshal(encryptedEnodeUrls)
+	encryptedIPData, err := json.Marshal(encryptedIPs)
 	if err != nil {
 		sb.logger.Error("Error in marshaling encrypted enode data", "err", err)
 		return err
@@ -253,8 +212,8 @@ func (sb *Backend) sendIstAnnounce() error {
 
 	msg := &announceMessage{
 		Address:            sb.Address(),
-		EnodeURL:           enodeUrl,
-		EncryptedEnodeData: encryptedEnodeData,
+		IncompleteEnodeURL:           incompleteEnodeUrl,
+		EncryptedIPData: encryptedIPData,
 		View:               view,
 	}
 
@@ -288,6 +247,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		sb.logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
+
+	log.Error("Handling an IstanbulAnnounce message", "actual", msg.IncompleteEnodeURL)
 
 	// Verify message signature
 	if err := msg.VerifySig(); err != nil {
@@ -326,27 +287,26 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// Decrypt the EnodeURL
-	encryptedEnodeData := msg.EncryptedEnodeData
-	var encryptedEnodeUrls map[common.Address][]byte
-	json.Unmarshal(encryptedEnodeData, &encryptedEnodeUrls)
-	encryptedEnodeUrl := encryptedEnodeUrls[sb.Address()]
-	enodeUrlBytes, err := sb.Decrypt(encryptedEnodeUrl)
-	enodeUrl := string(enodeUrlBytes)
+	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
+
+	var encryptedIPs map[common.Address][]byte
+	json.Unmarshal(msg.EncryptedIPData, &encryptedIPs)
+	encryptedIP := encryptedIPs[sb.Address()]
+	IPBytes, err := nodeKey.Decrypt(encryptedIP, nil, nil)
+	log.Debug("ip data", "asdf", string(IPBytes))
+	enodeUrl := msg.IncompleteEnodeURL + string(IPBytes)
+
+	log.Error("Handling an IstanbulAnnounce message", "actual", msg.IncompleteEnodeURL, "lol", enodeUrl)
 
 	// Save in the valEnodeTable if mining
-	if sb.coreStarted && enodeUrl != "" {
+	if sb.coreStarted {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
-		if enodeUrl != msg.EnodeURL {
-			log.Info("Should fail here") //TODO(nguo) remove this
-		} else {
-			log.Info("yayyyy")
-		}
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
 			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
+			log.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
 		}
 	}

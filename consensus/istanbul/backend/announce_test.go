@@ -12,7 +12,6 @@ import (
 func TestHandleIstAnnounce(t *testing.T) {
 	_, b := newBlockChain(4, true)
 
-	b.sendIstAnnounce()
 	enodeUrl := "enodeurl"
 
 	encryptedEnodeUrls := make(map[common.Address][]byte)
@@ -47,9 +46,9 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	b.Authorize(getInvalidAddress(), signerFnInvalid)
 
-	if err = b.handleIstAnnounce(payload); err != nil {
-		t.Errorf("error %v", err)
-	}
+	// if err = b.handleIstAnnounce(payload); err != nil {
+	// 	t.Errorf("error %v", err)
+	// }
 
 	if b.valEnodeTable.valEnodeTable[validatorAddr] != nil {
 		t.Errorf("Expected can't decrypt, got %v instead", b.valEnodeTable.valEnodeTable[validatorAddr])
@@ -57,9 +56,12 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	b.Authorize(getAddress(), signerFn)
 
-	if err = b.handleIstAnnounce(payload); err != nil {
-		t.Errorf("error %v", err)
-	}
+	t.Errorf("nodekey %v", b.GetNodeKey())
+	t.Errorf("payloada %v", payload)
+
+	// if err = b.handleIstAnnounce(payload); err != nil {
+	// 	t.Errorf("error %v", err)
+	// }
 
 	if b.valEnodeTable.valEnodeTable[validatorAddr] != nil {
 		if b.valEnodeTable.valEnodeTable[validatorAddr].enodeURL != enodeUrl {
