@@ -228,7 +228,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 // ------------------------------
 // GasCurrencyWhiteList Functions
 //-------------------------------
-func retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
+func retrieveWhitelist(header *types.Header, state *state.StateDB)  ([]common.Address, error) {
 	returnList := []common.Address{}
 	gasCurrencyWhiteListAddress, err := contract_comm.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
@@ -244,8 +244,8 @@ func retrieveWhitelist(state *state.StateDB, header *types.Header) ([]common.Add
 	return returnList, err
 }
 
-func IsWhitelisted(currencyAddress common.Address, state *state.StateDB, header *types.Header) bool {
-	whitelist, err := retrieveWhitelist(state, header)
+func IsWhitelisted(currencyAddress common.Address, header *types.Header, state *state.StateDB) bool {
+	whitelist, err := retrieveWhitelist(header, state)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)
 		return true
@@ -262,8 +262,8 @@ func containsCurrency(currencyAddr common.Address, currencyList []common.Address
 	return false
 }
 
-func CurrencyWhitelist(state *state.StateDB, header *types.Header) ([]common.Address, error) {
-	whitelist, err := retrieveWhitelist(state, header)
+func CurrencyWhitelist(header *types.Header, state *state.StateDB) ([]common.Address, error) {
+	whitelist, err := retrieveWhitelist(header, state)
 	if err != nil {
 		log.Warn("Failed to get gas currency whitelist", "err", err)
 	}
