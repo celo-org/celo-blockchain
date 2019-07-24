@@ -126,27 +126,24 @@ type InternalEVMHandler struct {
 func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		log.Warn("Waiting for contract deployment")
+		log.Warn("Contract deployment in progress")
 		return 0, err
 	}
 	if err != nil {
 		return 0, err
 	}
-
-	//jarmg Need to check errors here
 	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
 func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		log.Warn("Waiting for contract deployment")
+		log.Warn("Contract deployment in progress")
 		return 0, err
 	}
 	if err != nil {
 		return 0, err
 	}
-	//jarmg Need to check errors here
 	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 

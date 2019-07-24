@@ -122,7 +122,6 @@ func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *type
 	lastCommitment := common.Hash{}
 	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
 	if err != nil {
-		//jarmg error check
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err
 	}
@@ -157,7 +156,6 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state *state.State
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err = contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), randomness[:])
-	//jarmg check error
 	if err != nil {
 		log.Error("Failed to save randomness to the database", "err", err)
 	}
