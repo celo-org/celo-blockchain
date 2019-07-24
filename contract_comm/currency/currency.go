@@ -228,7 +228,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 // ------------------------------
 // GasCurrencyWhiteList Functions
 //-------------------------------
-func retrieveWhitelist(header *types.Header, state *state.StateDB)  ([]common.Address, error) {
+func retrieveWhitelist(header *types.Header, state *state.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
 	gasCurrencyWhiteListAddress, err := contract_comm.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
