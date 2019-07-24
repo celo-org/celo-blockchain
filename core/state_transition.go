@@ -184,7 +184,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
-	if st.msg.GasCurrency() != nil && (!currency.IsWhitelisted(*st.msg.GasCurrency(), nil, nil)) {
+	if st.msg.GasCurrency() != nil && (!currency.IsWhitelisted(*st.msg.GasCurrency(), nil, st.state)) {
 		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.GasCurrency())
 		return errNonWhitelistedGasCurrency
 	}
