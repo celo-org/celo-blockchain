@@ -19,7 +19,7 @@ package consensus
 
 import (
 	"crypto/ecdsa"
-	
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -60,7 +60,7 @@ type Broadcaster interface {
 	// GetLocalNode retrieves the node's local node
 	GetLocalNode() *enode.Node
 	// GetNodeKey retrieves the node's private key
-	GetNodeKey() *ecdsa.PrivateKey 
+	GetNodeKey() *ecdsa.PrivateKey
 	// Add a new validator peer
 	AddValidatorPeer(enodeURL string) error
 	// Remove a validator peer

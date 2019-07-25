@@ -135,7 +135,7 @@ type Genesis interface {
 
 type GenesisAlloc map[common.Address]GenesisAccount
 
-type GenesisAccount interface{
+type GenesisAccount interface {
 	GetPublicKey() []byte
 }
 

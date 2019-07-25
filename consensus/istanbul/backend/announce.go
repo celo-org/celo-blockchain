@@ -65,8 +65,8 @@ func (am *announceMessage) EncodeRLP(w io.Writer) error {
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address            common.Address
-		IncompleteEnodeURL           string
-		EncryptedIPData []byte
+		IncompleteEnodeURL string
+		EncryptedIPData    []byte
 		View               *istanbul.View
 		Signature          []byte
 	}
@@ -96,8 +96,8 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
-		IncompleteEnodeURL:           am.IncompleteEnodeURL,
-		EncryptedIPData: am.EncryptedIPData,
+		IncompleteEnodeURL: am.IncompleteEnodeURL,
+		EncryptedIPData:    am.EncryptedIPData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -113,8 +113,8 @@ func (am *announceMessage) VerifySig() error {
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:            am.Address,
-		IncompleteEnodeURL:           am.IncompleteEnodeURL,
-		EncryptedIPData: am.EncryptedIPData,
+		IncompleteEnodeURL: am.IncompleteEnodeURL,
+		EncryptedIPData:    am.EncryptedIPData,
 		View:               am.View,
 		Signature:          []byte{},
 	})
@@ -212,8 +212,8 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	msg := &announceMessage{
 		Address:            sb.Address(),
-		IncompleteEnodeURL:           incompleteEnodeUrl,
-		EncryptedIPData: encryptedIPData,
+		IncompleteEnodeURL: incompleteEnodeUrl,
+		EncryptedIPData:    encryptedIPData,
 		View:               view,
 	}
 

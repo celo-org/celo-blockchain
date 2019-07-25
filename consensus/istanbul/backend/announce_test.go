@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-type MockBroadcaster struct{
+type MockBroadcaster struct {
 	privateKey *ecdsa.PrivateKey
 }
 
