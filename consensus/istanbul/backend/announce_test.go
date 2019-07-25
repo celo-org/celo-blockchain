@@ -30,7 +30,6 @@ func (mb *MockBroadcaster) GetNodeKey() *ecdsa.PrivateKey {
 }
 
 func (mb *MockBroadcaster) Enqueue(id string, block *types.Block) {
-	return
 }
 
 func (mb *MockBroadcaster) FindPeers(map[common.Address]bool) map[common.Address]consensus.Peer {
