@@ -201,9 +201,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 }
 
 // This function will retrieve the balance of an ERC20 token.
-//
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
-
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
 	var leftoverGas uint64

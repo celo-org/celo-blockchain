@@ -111,8 +111,8 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
 
-	addressLookupEMV := vm.NewEVM(context, statedb, config, cfg)
-	infraAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, addressLookupEMV)
+	addressLookupEVM := vm.NewEVM(context, statedb, config, cfg)
+	infraAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, addressLookupEVM)
 
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		infraAddress = nil

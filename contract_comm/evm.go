@@ -37,12 +37,12 @@ var (
 
 // TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
 // ChainContext supports retrieving chain data and consensus parameters
-// from the block chain to be used during transaction processing.
+// from the blockchain to be used during transaction processing.
 type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
-	// GetHeader returns the hash corresponding to their hash.
+	// GetHeader returns the current header.
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetVMConfig returns the node's vm configuration
@@ -106,8 +106,8 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	}
 }
 
-// CanTransfer checks whether there are enough funds in the address' account to make a transfer.
-// This does not take the necessary gas in to account to make the transfer valid.
+// CanTransfer checks whether there are enough funds in the address's account to make a transfer.
+// This does not take the necessary gas into account to make the transfer valid.
 func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
 }
@@ -125,10 +125,16 @@ type InternalEVMHandler struct {
 
 func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		log.Warn("Contract deployment in progress")
+	if err == errors.ErrSmartContractNotDeployed {
+		log.Warn("Contract not yet deployed", "contractId", scRegistryId)
 		return 0, err
 	}
+
+	if err == errors.ErrRegistryContractNotDeployed {
+		log.Warn("Contract Address Registry not yet deployed")
+		return 0, err
+	}
+
 	if err != nil {
 		return 0, err
 	}
@@ -169,7 +175,7 @@ func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	log.Trace("createEVM called")
+	log.Trace("createVMEVM called")
 	if IevmHSingleton == nil {
 		return nil, errors.ErrNoIevmHSingleton
 	}
