@@ -353,7 +353,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	// 1. Get committed seals from current header
 	myValidatorIndex, myValidator := validators.GetByAddress(sb.Address())
 	publicKeys := [][]byte{}
-	for i := 0; i < snap.ValSet.Size(); i++ {
+	for i := 0; i < snap.ValSet.PaddedSize(); i++ {
 		if extra.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
 			if myValidatorIndex >= 0 && bytes.Equal(pubKey, myValidator.BLSPublicKey()) {
