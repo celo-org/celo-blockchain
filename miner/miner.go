@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -42,9 +43,10 @@ type Backend interface {
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
 	RegisteredAddresses() *core.RegisteredAddresses
 	InternalEVMHandler() *core.InternalEVMHandler
+	GasPriceMinimum() *core.GasPriceMinimum
 }
 
-// Miner creates blocks and searches for proof-of-work values.
+// Miner creates blocks
 type Miner struct {
 	mux      *event.TypeMux
 	worker   *worker
@@ -57,13 +59,13 @@ type Miner struct {
 	shouldStart int32 // should start indicates whether we should start after sync
 }
 
-func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(block *types.Block) bool, verificationService string, verificationRewards common.Address, pc *core.PriceComparator) *Miner {
+func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(block *types.Block) bool, verificationService string, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *Miner {
 	miner := &Miner{
 		eth:      eth,
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),
-		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock, verificationService, verificationRewards, pc),
+		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock, verificationService, co, random, db),
 		canStart: 1,
 	}
 	go miner.update()

@@ -479,6 +479,19 @@ func (ks *KeyStore) importKey(key *Key, passphrase string) (accounts.Account, er
 	return a, nil
 }
 
+func (ks *KeyStore) SetNodeKey(a accounts.Account, passphrase string, nodekeyPath string) error {
+	a, key, err := ks.getDecryptedKey(a, passphrase)
+
+	if err != nil {
+		fmt.Println(fmt.Sprintf("Failed to decyrpt node key: %v", err))
+	}
+
+	if err := crypto.SaveECDSA(nodekeyPath, key.PrivateKey); err != nil {
+		fmt.Println(fmt.Sprintf("Failed to persist node key: %v", err))
+	}
+	return nil
+}
+
 // Update changes the passphrase of an existing account.
 func (ks *KeyStore) Update(a accounts.Account, passphrase, newPassphrase string) error {
 	a, key, err := ks.getDecryptedKey(a, passphrase)

@@ -127,7 +127,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 		// Include transactions to the miner to make blocks more interesting.
 		if parent == tc.genesis && i%22 == 0 {
 			signer := types.MakeSigner(params.TestChainConfig, block.Number())
-			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil), signer, testKey)
+			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil), signer, testKey)
 			if err != nil {
 				panic(err)
 			}
@@ -199,16 +199,18 @@ func (tc *testChain) receipts(hashes []common.Hash) [][]*types.Receipt {
 }
 
 // bodies returns the block bodies of the given block hashes.
-func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, [][]*types.Header) {
+func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, [][]*types.Header, []*types.Randomness) {
 	transactions := make([][]*types.Transaction, 0, len(hashes))
 	uncles := make([][]*types.Header, 0, len(hashes))
+	randomness := make([]*types.Randomness, 0, len(hashes))
 	for _, hash := range hashes {
 		if block, ok := tc.blockm[hash]; ok {
 			transactions = append(transactions, block.Transactions())
 			uncles = append(uncles, block.Uncles())
+			randomness = append(randomness, block.Randomness())
 		}
 	}
-	return transactions, uncles
+	return transactions, uncles, randomness
 }
 
 func (tc *testChain) hashToNumber(target common.Hash) (uint64, bool) {

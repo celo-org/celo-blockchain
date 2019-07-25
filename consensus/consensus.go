@@ -52,11 +52,18 @@ type ChainReader interface {
 }
 
 type ConsensusIEvmH interface {
-	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+	MakeStaticCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error)
+	MakeCall(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error)
 }
 
 type ConsensusRegAdd interface {
-	GetRegisteredAddress(registryId string) *common.Address
+	GetRegisteredAddressAtStateAndHeader(registryId string, state *state.StateDB, header *types.Header) (*common.Address, error)
+	GetRegisteredAddressAtCurrentHeader(registryId string) (*common.Address, error)
+	GetRegisteredAddressMapAtStateAndHeader(state *state.StateDB, header *types.Header) map[string]*common.Address
+}
+
+type ConsensusGasPriceMinimum interface {
+	UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error)
 }
 
 // Engine is an algorithm agnostic consensus engine.
@@ -94,7 +101,7 @@ type Engine interface {
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
 	Finalize(chain ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-		uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error)
+		uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error)
 
 	// Seal generates a new sealing request for the given input block and pushes
 	// the result into the given channel.
@@ -143,12 +150,19 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// Setter functions
+	SetInternalEVMHandler(iEvmH ConsensusIEvmH)
+
+	SetRegisteredAddresses(regAdd ConsensusRegAdd)
+
+	SetGasPriceMinimum(gpm ConsensusGasPriceMinimum)
+
+	SetChain(chain ChainReader, currentBlock func() *types.Block)
+
 	// Start starts the engine
-	Start(chain ChainReader, currentBlock func() *types.Block, hasBadBlock func(common.Hash) bool,
+	Start(hasBadBlock func(common.Hash) bool,
 		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-		iEvmH ConsensusIEvmH,
-		regAdd ConsensusRegAdd) error
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// Stop stops the engine
 	Stop() error

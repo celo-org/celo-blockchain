@@ -38,7 +38,7 @@ var (
 	testKey, _   = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	testAddress  = crypto.PubkeyToAddress(testKey.PublicKey)
 	genesis      = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000))
-	unknownBlock = types.NewBlock(&types.Header{GasLimit: params.GenesisGasLimit}, nil, nil, nil)
+	unknownBlock = types.NewBlock(&types.Header{GasLimit: params.GenesisGasLimit}, nil, nil, nil, nil)
 )
 
 // makeChain creates a chain of n blocks starting at and including parent.
@@ -52,7 +52,7 @@ func makeChain(n int, seed byte, parent *types.Block) ([]common.Hash, map[common
 		// If the block number is multiple of 3, send a bonus transaction to the miner
 		if parent == genesis && i%3 == 0 {
 			signer := types.MakeSigner(params.TestChainConfig, block.Number())
-			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil), signer, testKey)
+			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil), signer, testKey)
 			if err != nil {
 				panic(err)
 			}
@@ -184,15 +184,17 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 		// Gather the block bodies to return
 		transactions := make([][]*types.Transaction, 0, len(hashes))
 		uncles := make([][]*types.Header, 0, len(hashes))
+		randomness := make([]*types.Randomness, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
 				transactions = append(transactions, block.Transactions())
 				uncles = append(uncles, block.Uncles())
+				randomness = append(randomness, block.Randomness())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, transactions, uncles, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, time.Now().Add(drift))
 
 		return nil
 	}
@@ -640,46 +642,6 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int) {
 
 	if dropped {
 		t.Fatalf("peer with valid numbered announcement dropped")
-	}
-	verifyImportDone(t, imported)
-}
-
-// Tests that if a block is empty (i.e. header only), no body request should be
-// made, and instead the header should be assembled into a whole block in itself.
-func TestEmptyBlockShortCircuit62(t *testing.T) { testEmptyBlockShortCircuit(t, 62) }
-func TestEmptyBlockShortCircuit63(t *testing.T) { testEmptyBlockShortCircuit(t, 63) }
-func TestEmptyBlockShortCircuit64(t *testing.T) { testEmptyBlockShortCircuit(t, 64) }
-
-func testEmptyBlockShortCircuit(t *testing.T, protocol int) {
-	// Create a chain of blocks to import
-	hashes, blocks := makeChain(32, 0, genesis)
-
-	tester := newTester()
-	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0)
-
-	// Add a monitoring hook for all internal events
-	fetching := make(chan []common.Hash)
-	tester.fetcher.fetchingHook = func(hashes []common.Hash) { fetching <- hashes }
-
-	completing := make(chan []common.Hash)
-	tester.fetcher.completingHook = func(hashes []common.Hash) { completing <- hashes }
-
-	imported := make(chan *types.Block)
-	tester.fetcher.importedHook = func(block *types.Block) { imported <- block }
-
-	// Iteratively announce blocks until all are imported
-	for i := len(hashes) - 2; i >= 0; i-- {
-		tester.fetcher.Notify("valid", hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
-
-		// All announces should fetch the header
-		verifyFetchingEvent(t, fetching, true)
-
-		// Only blocks with data contents should request bodies
-		verifyCompletingEvent(t, completing, len(blocks[hashes[i]].Transactions()) > 0 || len(blocks[hashes[i]].Uncles()) > 0)
-
-		// Irrelevant of the construct, import should succeed
-		verifyImportEvent(t, imported, true)
 	}
 	verifyImportDone(t, imported)
 }

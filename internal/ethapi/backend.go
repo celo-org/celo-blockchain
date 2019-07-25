@@ -41,6 +41,7 @@ type Backend interface {
 	Downloader() *downloader.Downloader
 	ProtocolVersion() int
 	SuggestPrice(ctx context.Context) (*big.Int, error)
+	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	ChainDb() ethdb.Database
 	EventMux() *event.TypeMux
 	AccountManager() *accounts.Manager
@@ -71,6 +72,9 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	GasCurrencyWhitelist() *core.GasCurrencyWhitelist
+	RegisteredAddresses() *core.RegisteredAddresses
+	GasPriceMinimum() *core.GasPriceMinimum
+	GasFeeRecipient() common.Address
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

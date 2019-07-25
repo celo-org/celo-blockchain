@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -213,7 +214,7 @@ func (bc *LightChain) Genesis() *types.Block {
 
 // State returns a new mutable state based on the current HEAD block.
 func (bc *LightChain) State() (*state.StateDB, error) {
-	return nil, errors.New("not implemented, needs client/server interface split")
+	return NewState(context.Background(), bc.CurrentHeader(), bc.odr), nil // TODO: Any issues with using context.Background() here?
 }
 
 // GetBody retrieves a block body (transactions and uncles) from the database
@@ -325,7 +326,7 @@ func (self *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable b
 
 		if head := self.hc.CurrentHeader(); head.Hash() == hash {
 			parentHeader := self.GetHeader(head.ParentHash, head.Number.Uint64()-1)
-			// In all sync modes except CeloLatestSync, a complete header chain is available.
+			// In all sync modes except CeloLatestSync and UltraLightSync, a complete header chain is available.
 			// Maintain the old behavior in those cases.
 			if fullHeaderChainAvailable || parentHeader != nil {
 				self.hc.SetCurrentHeader(parentHeader)
@@ -363,9 +364,9 @@ func (self *LightChain) postChainEvents(events []interface{}) {
 //
 // In the case of a light chain, InsertHeaderChain also creates and posts light
 // chain events when necessary.
-func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
+func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
 	start := time.Now()
-	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
+	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq, contiguousHeaders); err != nil {
 		log.Error(fmt.Sprintf("Failed to validate the header chain at %d due to \"%v\"", i, err))
 		return i, err
 	}
@@ -473,6 +474,10 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 		return header, nil
 	}
 	return GetHeaderByNumber(ctx, self.odr, number)
+}
+
+func (self *LightChain) GetVMConfig() *vm.Config {
+	return &vm.Config{}
 }
 
 // Config retrieves the header chain's chain configuration.

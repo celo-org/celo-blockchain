@@ -20,14 +20,23 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+// SignerFn is a signer callback function to request a hash to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, []byte) ([]byte, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
+
+	// Enode returns the owner's enode
+	Enode() *enode.Node
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
@@ -39,7 +48,7 @@ type Backend interface {
 	Broadcast(valSet ValidatorSet, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte) error
+	Gossip(valSet ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -47,7 +56,7 @@ type Backend interface {
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(Proposal) (time.Duration, error)
+	Verify(Proposal, Validator) (time.Duration, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
@@ -73,4 +82,19 @@ type Backend interface {
 
 	// IsKnownMessage returns whether the message has been seen before
 	IsKnownMessage(msg Message) bool
+
+	// AddValidatorPeer adds a validator peer
+	AddValidatorPeer(enodeURL string)
+
+	// RemoveValidatorPeer removes a validator peer
+	RemoveValidatorPeer(enodeURL string)
+
+	// Get's all of the validator peers' enodeURL
+	GetValidatorPeers() []string
+
+	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
+	RefreshValPeers(valset ValidatorSet)
+
+	// Authorize injects a private key into the consensus engine.
+	Authorize(address common.Address, signFn SignerFn)
 }

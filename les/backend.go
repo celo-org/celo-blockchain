@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/light"
@@ -74,6 +73,11 @@ type LightEthereum struct {
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
 
+	regAdd *core.RegisteredAddresses
+	iEvmH  *core.InternalEVMHandler
+	gcWl   *core.GasCurrencyWhitelist
+	gpm    *core.GasPriceMinimum
+
 	wg sync.WaitGroup
 }
 
@@ -86,6 +90,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		fullChainAvailable = true
 	} else if syncMode == downloader.CeloLatestSync {
 		chainName = "celolatestchaindata"
+		fullChainAvailable = false
+	} else if syncMode == downloader.UltraLightSync {
+		chainName = "ultralightchaindata"
 		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
@@ -121,6 +128,12 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
 	}
 
+	if syncMode == downloader.UltraLightSync && chainConfig.Istanbul == nil {
+		msg := fmt.Sprintf(
+			"To use UltraLightSync sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
+		panic(msg)
+	}
+
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)
 	leth.serverPool = newServerPool(chainDb, quitSync, &leth.wg)
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
@@ -135,6 +148,17 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if leth.blockchain, err = light.NewLightChain(leth.odr, leth.chainConfig, leth.engine); err != nil {
 		return nil, err
 	}
+
+	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Note: that this should NOT be used when executing smart contract calls done via end user transactions.
+	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
+
+	// Object used to retrieve and cache registered addresses from the Registry smart contract.
+	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
+	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
+	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd, leth.iEvmH)
+	leth.gpm = core.NewGasPriceMinimum(leth.iEvmH, leth.regAdd)
+
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
 	leth.chtIndexer.Start(leth.blockchain)
@@ -147,16 +171,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
-	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg); err != nil {
+	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay, leth.iEvmH)
+	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg, config.Etherbase); err != nil {
 		return nil, err
 	}
-	leth.ApiBackend = &LesApiBackend{leth, nil}
-	gpoParams := config.GPO
-	if gpoParams.Default == nil {
-		gpoParams.Default = config.MinerGasPrice
-	}
-	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
+	leth.ApiBackend = &LesApiBackend{leth}
 	return leth, nil
 }
 
@@ -251,6 +270,10 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 	s.serverPool.start(srvr, lesTopic(s.blockchain.Genesis().Hash(), protocolVersion))
 	s.protocolManager.Start(s.config.LightPeers)
 	return nil
+}
+
+func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
+	return s.peers.randomPeerEtherbase()
 }
 
 // Stop implements node.Service, terminating all internal goroutines used by the

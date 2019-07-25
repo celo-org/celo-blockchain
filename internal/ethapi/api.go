@@ -46,10 +46,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-const (
-	defaultGasPrice = uint64(0) // Always free gas
-)
-
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -675,13 +671,14 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
-	From        common.Address  `json:"from"`
-	To          *common.Address `json:"to"`
-	Gas         hexutil.Uint64  `json:"gas"`
-	GasPrice    hexutil.Big     `json:"gasPrice"`
-	GasCurrency *common.Address `json:"gasCurrency"`
-	Value       hexutil.Big     `json:"value"`
-	Data        hexutil.Bytes   `json:"data"`
+	From            common.Address  `json:"from"`
+	To              *common.Address `json:"to"`
+	Gas             hexutil.Uint64  `json:"gas"`
+	GasPrice        hexutil.Big     `json:"gasPrice"`
+	GasCurrency     *common.Address `json:"gasCurrency"`
+	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
+	Value           hexutil.Big     `json:"value"`
+	Data            hexutil.Bytes   `json:"data"`
 }
 
 func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration) ([]byte, uint64, bool, error) {
@@ -705,12 +702,15 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	if gas == 0 {
 		gas = math.MaxUint64 / 2
 	}
-	if gasPrice.Sign() == 0 {
-		gasPrice = new(big.Int).SetUint64(defaultGasPrice)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.GasCurrency, args.Data, false)
+	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.GasCurrency, args.GasFeeRecipient, args.Data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -723,6 +723,9 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// Make sure the context is cancelled when the call has completed
 	// this makes sure resources are cleaned up.
 	defer cancel()
+
+	// Needed so that the values returned by estimate gas, view functions, are correct.
+	s.b.GasCurrencyWhitelist().RefreshWhitelistAtStateAndHeader(state, header)
 
 	// Get a new instance of the EVM.
 	evm, vmError, err := s.b.GetEVM(ctx, msg, state, header)
@@ -740,7 +743,10 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist())
+	gasPriceMinimum, err := s.b.GasPriceMinimum().GetGasPriceMinimum(args.GasCurrency, state, header)
+	infraFraction, err := s.b.GasPriceMinimum().GetInfrastructureFraction(state, header)
+	infraAddress, _ := s.b.RegisteredAddresses().GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
@@ -888,7 +894,10 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"timestamp":        (*hexutil.Big)(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
-		"signature":        hexutil.Bytes(common.CopyBytes(head.Signature[:])),
+	}
+	fields["randomness"] = map[string]interface{}{
+		"revealed":  hexutil.Bytes(b.Randomness().Revealed.Bytes()),
+		"committed": hexutil.Bytes(b.Randomness().Committed.Bytes()),
 	}
 
 	if inclTx {
@@ -939,6 +948,8 @@ type RPCTransaction struct {
 	From             common.Address  `json:"from"`
 	Gas              hexutil.Uint64  `json:"gas"`
 	GasPrice         *hexutil.Big    `json:"gasPrice"`
+	GasCurrency      *common.Address `json:"gasCurrency"`
+	GasFeeRecipient  *common.Address `json:"gasFeeRecipient"`
 	Hash             common.Hash     `json:"hash"`
 	Input            hexutil.Bytes   `json:"input"`
 	Nonce            hexutil.Uint64  `json:"nonce"`
@@ -961,17 +972,19 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	v, r, s := tx.RawSignatureValues()
 
 	result := &RPCTransaction{
-		From:     from,
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: (*hexutil.Big)(tx.GasPrice()),
-		Hash:     tx.Hash(),
-		Input:    hexutil.Bytes(tx.Data()),
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		To:       tx.To(),
-		Value:    (*hexutil.Big)(tx.Value()),
-		V:        (*hexutil.Big)(v),
-		R:        (*hexutil.Big)(r),
-		S:        (*hexutil.Big)(s),
+		From:            from,
+		Gas:             hexutil.Uint64(tx.Gas()),
+		GasPrice:        (*hexutil.Big)(tx.GasPrice()),
+		GasCurrency:     tx.GasCurrency(),
+		GasFeeRecipient: tx.GasFeeRecipient(),
+		Hash:            tx.Hash(),
+		Input:           hexutil.Bytes(tx.Data()),
+		Nonce:           hexutil.Uint64(tx.Nonce()),
+		To:              tx.To(),
+		Value:           (*hexutil.Big)(tx.Value()),
+		V:               (*hexutil.Big)(v),
+		R:               (*hexutil.Big)(r),
+		S:               (*hexutil.Big)(s),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -1194,13 +1207,14 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	From        common.Address  `json:"from"`
-	To          *common.Address `json:"to"`
-	Gas         *hexutil.Uint64 `json:"gas"`
-	GasPrice    *hexutil.Big    `json:"gasPrice"`
-	GasCurrency *common.Address `json:"gasCurrency"`
-	Value       *hexutil.Big    `json:"value"`
-	Nonce       *hexutil.Uint64 `json:"nonce"`
+	From            common.Address  `json:"from"`
+	To              *common.Address `json:"to"`
+	Gas             *hexutil.Uint64 `json:"gas"`
+	GasPrice        *hexutil.Big    `json:"gasPrice"`
+	GasCurrency     *common.Address `json:"gasCurrency"`
+	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
+	Value           *hexutil.Big    `json:"value"`
+	Nonce           *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1211,10 +1225,20 @@ type SendTxArgs struct {
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
-		*(*uint64)(args.Gas) = 90000
+		defaultGas := uint64(90000)
+		if args.GasCurrency == nil {
+			*(*uint64)(args.Gas) = defaultGas
+		} else {
+			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
+			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
+			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
+		}
 	}
-	if args.GasPrice == nil {
-		price, err := b.SuggestPrice(ctx)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err
 		}
@@ -1245,6 +1269,13 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			return errors.New(`contract creation without any data provided`)
 		}
 	}
+
+	if args.GasFeeRecipient == nil {
+		recipient := b.GasFeeRecipient()
+		if (recipient != common.Address{}) {
+			args.GasFeeRecipient = &recipient
+		}
+	}
 	return nil
 }
 
@@ -1256,9 +1287,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.

@@ -30,8 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -50,16 +48,11 @@ var DefaultConfig = Config{
 	TrieTimeout:                 60 * time.Minute,
 	MinerGasFloor:               8000000,
 	MinerGasCeil:                8000000,
-	MinerGasPrice:               big.NewInt(params.GWei),
+	MinerGasPrice:               big.NewInt(1),
 	MinerRecommit:               3 * time.Second,
 	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
 
 	TxPool: core.DefaultTxPoolConfig,
-	GPO: gasprice.Config{
-		Blocks:     20,
-		Percentile: 60,
-		AlwaysZero: false,
-	},
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -96,6 +89,9 @@ type Config struct {
 	// Light client options
 	LightServ  int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
 	LightPeers int `toml:",omitempty"` // Maximum number of LES client peers
+	// The GasFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	// Also the coinbase used for mining.
+	Etherbase common.Address `toml:",omitempty"`
 
 	// Database options
 	SkipBcVersionCheck bool `toml:"-"`
@@ -106,25 +102,20 @@ type Config struct {
 	TrieTimeout        time.Duration
 
 	// Mining-related options
-	Etherbase                   common.Address `toml:",omitempty"`
-	MinerNotify                 []string       `toml:",omitempty"`
-	MinerExtraData              []byte         `toml:",omitempty"`
+	MinerNotify                 []string `toml:",omitempty"`
+	MinerExtraData              []byte   `toml:",omitempty"`
 	MinerGasFloor               uint64
 	MinerGasCeil                uint64
 	MinerGasPrice               *big.Int
 	MinerRecommit               time.Duration
 	MinerNoverify               bool
 	MinerVerificationServiceUrl string
-	MinerVerificationRewards    common.Address
 
 	// Ethash options
 	Ethash ethash.Config
 
 	// Transaction pool options
 	TxPool core.TxPoolConfig
-
-	// Gas Price Oracle options
-	GPO gasprice.Config
 
 	// Enables tracking of SHA3 preimages in the VM
 	EnablePreimageRecording bool

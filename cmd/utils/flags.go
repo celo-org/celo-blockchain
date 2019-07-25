@@ -42,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/dashboard"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethstats"
 	"github.com/ethereum/go-ethereum/les"
@@ -197,6 +196,11 @@ var (
 	WhitelistFlag = cli.StringFlag{
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
+	}
+	EtherbaseFlag = cli.StringFlag{
+		Name:  "etherbase",
+		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+		Value: "0",
 	}
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
@@ -372,16 +376,6 @@ var (
 		Usage: "Minimum gas price for mining a transaction (deprecated, use --miner.gasprice)",
 		Value: eth.DefaultConfig.MinerGasPrice,
 	}
-	MinerEtherbaseFlag = cli.StringFlag{
-		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
-		Value: "0",
-	}
-	MinerLegacyEtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --miner.etherbase)",
-		Value: "0",
-	}
 	MinerExtraDataFlag = cli.StringFlag{
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
@@ -401,14 +395,8 @@ var (
 	}
 	MinerVerificationServiceUrlFlag = cli.StringFlag{
 		Name:  "miner.verificationpool",
-		Usage: "URL to the verification service to be used by the miner to verify users' phone numbers",
+		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
 		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
-	}
-	MinerVerificationRewardsFlag = cli.StringFlag{
-		Name:  "miner.verificationrewards",
-		Usage: "Account address to which to send the verification rewards.",
-		// TODO(sklanje): Update this to Celo verification pool address.
-		Value: "0xfeE1a22F43BeeCB912B5a4912ba87527682ef0fC",
 	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
@@ -574,17 +562,6 @@ var (
 		Value: ".",
 	}
 
-	// Gas price oracle settings
-	GpoBlocksFlag = cli.IntFlag{
-		Name:  "gpoblocks",
-		Usage: "Number of recent blocks to check for gas prices",
-		Value: eth.DefaultConfig.GPO.Blocks,
-	}
-	GpoPercentileFlag = cli.IntFlag{
-		Name:  "gpopercentile",
-		Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
-		Value: eth.DefaultConfig.GPO.Percentile,
-	}
 	WhisperEnabledFlag = cli.BoolFlag{
 		Name:  "shh",
 		Usage: "Enable Whisper",
@@ -916,37 +893,16 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current etherbase, new flag overriding legacy one
 	var etherbase string
-	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
+		etherbase = ctx.GlobalString(EtherbaseFlag.Name)
 	}
 	// Convert the etherbase into an address and configure it
 	if etherbase != "" {
 		account, err := MakeAddress(ks, etherbase)
 		if err != nil {
-			Fatalf("Invalid miner etherbase: %v", err)
+			Fatalf("Invalid etherbase: %v", err)
 		}
 		cfg.Etherbase = account.Address
-	}
-}
-
-// setVerificationRewards retrieves the verificationrewards either from the directly specified
-// command line flags or from the keystore if CLI indexed.
-func setVerificationRewards(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current verificationrewards
-	var verificationrewards string
-	if ctx.GlobalIsSet(MinerVerificationRewardsFlag.Name) {
-		verificationrewards = ctx.GlobalString(MinerVerificationRewardsFlag.Name)
-	}
-	// Convert the verificationrewards into an address and configure it
-	if verificationrewards != "" {
-		account, err := MakeAddress(ks, verificationrewards)
-		if err != nil {
-			Fatalf("Invalid miner verificationrewards: %v", err)
-		}
-		cfg.MinerVerificationRewards = account.Address
 	}
 }
 
@@ -1069,15 +1025,6 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
 	case ctx.GlobalBool(OttomanFlag.Name):
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ottoman")
-	}
-}
-
-func setGPO(ctx *cli.Context, cfg *gasprice.Config) {
-	if ctx.GlobalIsSet(GpoBlocksFlag.Name) {
-		cfg.Blocks = ctx.GlobalInt(GpoBlocksFlag.Name)
-	}
-	if ctx.GlobalIsSet(GpoPercentileFlag.Name) {
-		cfg.Percentile = ctx.GlobalInt(GpoPercentileFlag.Name)
 	}
 }
 
@@ -1239,8 +1186,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	setEtherbase(ctx, ks, cfg)
-	setVerificationRewards(ctx, ks, cfg)
-	setGPO(ctx, &cfg.GPO)
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 	setWhitelist(ctx, cfg)
@@ -1388,7 +1333,7 @@ func SetDashboardConfig(ctx *cli.Context, cfg *dashboard.Config) {
 // RegisterEthService adds an Ethereum client to the stack.
 func RegisterEthService(stack *node.Node, cfg *eth.Config) {
 	var err error
-	if cfg.SyncMode == downloader.LightSync || cfg.SyncMode == downloader.CeloLatestSync {
+	if !cfg.SyncMode.SyncFullBlockChain() {
 		err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 			return les.New(ctx, cfg)
 		})
@@ -1489,6 +1434,8 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 		name = "lightchaindata"
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
 		name = "celolatestchaindata"
+	} else if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
+		name = "ultralightchaindata"
 	}
 	chainDb, err := stack.OpenDatabase(name, cache, handles)
 	if err != nil {

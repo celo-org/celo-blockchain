@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
+	//	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -29,36 +29,36 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	//	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func decryptPhoneNumber(request types.VerificationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+func decryptPhoneNumber(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
 	phoneNumber, err := wallet.Decrypt(account, request.EncryptedPhone, nil, nil)
 	if err != nil {
 		return "", err
 	}
 	// TODO(asa): Better validation of phone numbers
 	r, _ := regexp.Compile(`^\+[0-9]{8,15}$`)
-	if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
-		return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
-	} else if !r.MatchString(string(phoneNumber)) {
+	// if !bytes.Equal(crypto.Keccak256(phoneNumber), request.PhoneHash.Bytes()) {
+	//	return string(phoneNumber), errors.New("Phone hash doesn't match decrypted phone number")
+	//} else
+	if !r.MatchString(string(phoneNumber)) {
 		return string(phoneNumber), fmt.Errorf("Decrypted phone number invalid: %s", string(phoneNumber))
 	}
 	return string(phoneNumber), nil
 }
 
-func createVerificationMessage(request types.VerificationRequest, verificationRewardsAddress common.Address, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	unsignedMessage := crypto.Keccak256(append(request.CodeHash.Bytes(), verificationRewardsAddress.Bytes()...))
-	signature, err := wallet.SignHash(account, unsignedMessage)
+func createAttestationMessage(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
+	signature, err := wallet.SignHash(account, request.CodeHash.Bytes())
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s:%d:%d:%s", base64.URLEncoding.EncodeToString(signature), request.RequestIndex, request.VerificationIndex, base64.URLEncoding.EncodeToString(verificationRewardsAddress.Bytes())), nil
+	return base64.URLEncoding.EncodeToString(signature), nil
 }
 
-func sendSms(phoneNumber string, message string, account common.Address, verificationServiceURL string) error {
-	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes())}
+func sendSms(phoneNumber string, message string, account common.Address, issuer common.Address, verificationServiceURL string) error {
+	values := map[string]string{"phoneNumber": phoneNumber, "message": message, "account": base64.URLEncoding.EncodeToString(account.Bytes()), "issuer": base64.URLEncoding.EncodeToString(issuer.Bytes())}
 	jsonValue, _ := json.Marshal(values)
 	var err error
 
@@ -73,16 +73,20 @@ func sendSms(phoneNumber string, message string, account common.Address, verific
 	return err
 }
 
-func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string, verificationRewardsAddress common.Address) {
+func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
 	account := accounts.Account{Address: coinbase}
-	wallet, err := accountManager.Find(account)
-	if err != nil {
-		log.Error("[Celo] Failed to get account for sms verification", "err", err)
-		return
-	}
-
+	var wallet accounts.Wallet
+	var err error
 	for _, receipt := range receipts {
-		for _, request := range receipt.VerificationRequests {
+		for _, request := range receipt.AttestationRequests {
+			if wallet == nil {
+				wallet, err = accountManager.Find(account)
+				if err != nil {
+					log.Error("[Celo] Failed to get account for sms attestation", "err", err)
+					return
+				}
+			}
+
 			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
 				continue
 			}
@@ -92,14 +96,14 @@ func SendVerificationMessages(receipts []*types.Receipt, block *types.Block, coi
 				continue
 			}
 
-			message, err := createVerificationMessage(request, verificationRewardsAddress, account, wallet)
+			message, err := createAttestationMessage(request, account, wallet)
 			if err != nil {
-				log.Error("[Celo] Failed to create verification message", "err", err)
+				log.Error("[Celo] Failed to create attestation message", "err", err)
 				continue
 			}
 
-			log.Debug(fmt.Sprintf("[Celo] Sending verification message: \"%s\"", message), nil, nil)
-			err = sendSms(phoneNumber, message, request.Account, verificationServiceURL)
+			log.Debug(fmt.Sprintf("[Celo] Sending attestation message: \"%s\"", message), nil, nil)
+			err = sendSms(phoneNumber, message, request.Account, account.Address, verificationServiceURL)
 			if err != nil {
 				log.Error("[Celo] Failed to send SMS", "err", err)
 			}

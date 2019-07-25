@@ -43,9 +43,6 @@ type (
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
-	// GetCoinbaseFunc returns the nth block coinbase in the blockchain
-	// and is used by the Celo Precompiled Contract.
-	GetCoinbaseFunc func(uint64) common.Address
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -85,8 +82,6 @@ type Context struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
-	// GetCoinbase returns the coinbase corresponding to n
-	GetCoinbase GetCoinbaseFunc
 
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN
@@ -150,9 +145,9 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-	// Maintains a queue of Celo Address Based Encryption verification requests
+	// Maintains a queue of Celo attestation requests
 	// TODO(asa): Save this in StateDB
-	VerificationRequests []types.VerificationRequest
+	AttestationRequests []types.AttestationRequest
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -241,7 +236,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
 	if err != nil {
-		log.Debug("Failed to transfer with tobin tax", "err", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, gas, err
 	}
 	// Initialise a new contract and set the code that is to be used by the EVM.
@@ -428,7 +423,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
 	if err != nil {
-		log.Error("TobinTransfer failed", "error", err)
+		log.Error("Failed to transfer with tobin tax", "err", err)
 		return nil, address, gas, err
 	}
 
@@ -541,25 +536,42 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 }
 
 func (evm *EVM) ABIStaticCall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
+		return evm.StaticCall(caller, address, transactionData, gas)
+	}
+
+	return evm.handleABICall(caller, abi, funcName, args, returnObj, staticCall)
+}
+
+func (evm *EVM) ABICall(caller ContractRef, address common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	call := func(transactionData []byte) ([]byte, uint64, error) {
+		return evm.Call(caller, address, transactionData, gas, value)
+	}
+
+	return evm.handleABICall(caller, abi, funcName, args, returnObj, call)
+}
+
+func (evm *EVM) handleABICall(caller ContractRef, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
 		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
 		return 0, err
 	}
-	log.Trace("Calling evm", "caller", caller, "transactionData", hexutil.Encode(transactionData))
 
-	ret, leftoverGas, err := evm.StaticCall(caller, address, transactionData, gas)
+	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		log.Error("Error in calling the EVM", "err", err)
+		log.Error("Error in calling the EVM", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "err", err)
 		return leftoverGas, err
 	}
 
-	log.Trace("EVM call successful", "ret", ret, "leftoverGas", leftoverGas)
+	log.Trace("EVM call successful", "funcName", funcName, "caller", caller.Address().Hex(), "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
 
-	if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-		log.Error("Error in unpacking EVM call return bytes", "err", err)
-		return leftoverGas, err
+	if returnObj != nil {
+		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
+			log.Error("Error in unpacking EVM call return bytes", "err", err)
+			return leftoverGas, err
+		}
 	}
 
 	return leftoverGas, nil

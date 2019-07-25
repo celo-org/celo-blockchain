@@ -20,6 +20,7 @@ package consensus
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // Constants to match up protocol versions and messages
@@ -44,6 +45,8 @@ type Protocol struct {
 	Versions []uint
 	// Number of implemented message corresponding to different protocol versions.
 	Lengths []uint64
+	// Whether this should be the primary form of communication between nodes that support this protocol.
+	Primary bool
 }
 
 // Broadcaster defines the interface to enqueue blocks to fetcher and find peer
@@ -52,6 +55,14 @@ type Broadcaster interface {
 	Enqueue(id string, block *types.Block)
 	// FindPeers retrives peers by addresses
 	FindPeers(map[common.Address]bool) map[common.Address]Peer
+	// GetLocalNode retrieves the node's local node
+	GetLocalNode() *enode.Node
+	// Add a new validator peer
+	AddValidatorPeer(enodeURL string) error
+	// Remove a validator peer
+	RemoveValidatorPeer(enodeURL string) error
+	// Gets all of the validator peers' enodeURL
+	GetValidatorPeers() []string
 }
 
 // Peer defines the interface to communicate with peer

@@ -51,6 +51,10 @@ func (self *testTxRelay) Discard(hashes []common.Hash) {
 	self.discard <- len(hashes)
 }
 
+func (self *testTxRelay) HasPeerWithEtherbase(common.Address) error {
+	return nil
+}
+
 const poolTestTxs = 1000
 const poolTestBlocks = 100
 
@@ -77,7 +81,7 @@ func txPoolTestChainGen(i int, block *core.BlockGen) {
 
 func TestTxPool(t *testing.T) {
 	for i := range testTx {
-		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	}
 
 	var (
@@ -102,7 +106,7 @@ func TestTxPool(t *testing.T) {
 	}
 	lightchain, _ := NewLightChain(odr, params.TestChainConfig, ethash.NewFullFaker())
 	txPermanent = 50
-	pool := NewTxPool(params.TestChainConfig, lightchain, relay)
+	pool := NewTxPool(params.TestChainConfig, lightchain, relay, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -119,7 +123,7 @@ func TestTxPool(t *testing.T) {
 			}
 		}
 
-		if _, err := lightchain.InsertHeaderChain([]*types.Header{block.Header()}, 1); err != nil {
+		if _, err := lightchain.InsertHeaderChain([]*types.Header{block.Header()}, 1, true); err != nil {
 			panic(err)
 		}
 

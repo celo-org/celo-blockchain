@@ -1,21 +1,131 @@
 version: 2
-jobs:
-  build:
-    docker:
-      - image: circleci/golang:1.11
 
-    working_directory: /go/src/github.com/celo-org/geth
+defaults: &defaults
+  docker:
+    - image: circleci/golang:1.12
+  working_directory: /go/src/github.com/celo-org/geth
+
+end-to-end-defaults: &end-to-end-defaults
+  docker:
+    - image: celohq/node8:gcloud
+  working_directory: ~/geth
+
+jobs:
+  unit-tests:
+    <<: *defaults
     steps:
       - checkout
       - run: build/env.sh go run build/ci.go lint
+      - run: build/env.sh go run build/ci.go test
+
+  coverage:
+    <<: *defaults
+    steps:
+      - checkout
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
-  end-to-end-test:
-    docker:
-      - image: circleci/golang:1.11
-
-    working_directory: /go/src/github.com/celo-org/geth
+  lint:
+    <<: *defaults
     steps:
       - checkout
-      - run: ./geth_end_to_end_test.sh checkout a2b5418ebf8f3eefea24323fadf0b9c3e47e3230 ${PWD}
+      - run: build/env.sh go run build/ci.go lint
+
+  end-to-end-checkout:
+    <<: *end-to-end-defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Setup Go language
+          command: |
+            set -euo pipefail
+            GO_LANG_DIR="./golang"
+            mkdir -p ${GO_LANG_DIR}
+            wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
+            tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
+            ${GO_LANG_DIR}/go/bin/go version
+      - run:
+          name: Setup celo-monorepo
+          command: |
+            set -euo pipefail
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            cd ${CELO_MONOREPO_DIR}/packages
+            # TODO(ashishb): Delete unnecessary packages to speed up build time. 
+            # It would be better whitelist certain packages and delete the rest.
+            # Deletion does not work right now and yarn fails with weird errors.
+            # This will be enabled and resolved later.
+            # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            yarn || yarn
+      - persist_to_workspace:
+          root: .
+          paths: .
+
+  end-to-end-transfer-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth transfer test
+          no_output_timeout: 15m
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_transfers.sh local ~/geth
+
+  end-to-end-sync-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth sync with a standalone node test
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_sync.sh local ~/geth
+
+  end-to-end-geth-governance-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth goverenance with a standalone node
+          no_output_timeout: "1200s"
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_governance.sh local ~/geth
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - lint
+      - unit-tests
+      - coverage
+      - end-to-end-checkout
+
+      - end-to-end-transfer-test:
+          requires:
+            - end-to-end-checkout
+      - end-to-end-sync-test:
+          requires:
+            - end-to-end-checkout
+      - end-to-end-geth-governance-test:
+          requires:
+            - end-to-end-checkout

@@ -19,6 +19,7 @@ package light
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -68,6 +69,7 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	homestead bool
+	iEvmH     *core.InternalEVMHandler
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -83,10 +85,11 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
+	HasPeerWithEtherbase(etherbase common.Address) error
 }
 
 // NewTxPool creates a new light transaction pool
-func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend) *TxPool {
+func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend, iEvmH *core.InternalEVMHandler) *TxPool {
 	pool := &TxPool{
 		config:      config,
 		signer:      types.NewEIP155Signer(config.ChainID),
@@ -101,6 +104,7 @@ func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBacke
 		chainDb:     chain.Odr().Database(),
 		head:        chain.CurrentHeader().Hash(),
 		clearIdx:    chain.CurrentHeader().Number.Uint64(),
+		iEvmH:       iEvmH,
 	}
 	// Subscribe events from blockchain
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
@@ -373,18 +377,51 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
-	if b := currentState.GetBalance(from); b.Cmp(tx.Cost()) < 0 {
+
+	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		log.Debug("Insufficient funds",
+			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "gas currency", tx.GasCurrency())
 		return core.ErrInsufficientFunds
+	} else if tx.GasCurrency() != nil {
+		gasCurrencyBalance, _, err := core.GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, params.MaxGasToReadErc20Balance)
+
+		if err != nil {
+			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
+			return err
+		}
+
+		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
+			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
+			return core.ErrInsufficientFunds
+		}
+
+		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
+			return core.ErrInsufficientFunds
+		}
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency())
 	if err != nil {
 		return err
 	}
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
 	}
+
+	// Should have a peer that will accept and broadcast our transaction
+	if tx.GasFeeRecipient() == nil {
+		err = pool.relay.HasPeerWithEtherbase(common.Address{})
+	} else {
+		err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
+	}
+	if err != nil {
+		return err
+	}
+
 	return currentState.Error()
 }
 
@@ -436,7 +473,7 @@ func (self *TxPool) Add(ctx context.Context, tx *types.Transaction) error {
 	if err := self.add(ctx, tx); err != nil {
 		return err
 	}
-	//fmt.Println("Send", tx.Hash())
+
 	self.relay.Send(types.Transactions{tx})
 
 	self.chainDb.Put(tx.Hash().Bytes(), data)

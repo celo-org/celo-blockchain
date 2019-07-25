@@ -338,6 +338,9 @@ func (tg taskgen) addStatic(*enode.Node) {
 }
 func (tg taskgen) removeStatic(*enode.Node) {
 }
+func (tg taskgen) isStatic(*enode.Node) bool {
+	return true
+}
 
 type testTask struct {
 	index  int

@@ -29,15 +29,9 @@ import (
 )
 
 var (
-	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-
-	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
-
-	// This is the amount of gas a single debitFrom or creditTo request can use.
-	// This prevents arbitrary computation to be performed in these functions.
-	// During testing, I noticed that a single invocation of debit gas consumes 7649 gas
-	// and a single invocation of creditGas consumes 7943 gas.
-	maxGasForDebitAndCreditTransactions uint64 = 10 * 1000
+	errInsufficientBalanceForGas    = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency    = errors.New("non-whitelisted gas currency address")
+	errGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
 )
 
 /*
@@ -58,16 +52,19 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp         *GasPool
-	msg        Message
-	gas        uint64
-	gasPrice   *big.Int
-	initialGas uint64
-	value      *big.Int
-	data       []byte
-	state      vm.StateDB
-	evm        *vm.EVM
-	gcWl       *GasCurrencyWhitelist
+	gp              *GasPool
+	msg             Message
+	gas             uint64
+	gasPrice        *big.Int
+	initialGas      uint64
+	value           *big.Int
+	data            []byte
+	state           vm.StateDB
+	evm             *vm.EVM
+	gcWl            *GasCurrencyWhitelist
+	gasPriceMinimum *big.Int
+	infraFraction   *InfrastructureFraction
+	infraAddress    *common.Address
 }
 
 // Message represents a message sent to a contract.
@@ -81,6 +78,7 @@ type Message interface {
 	// nil correspond to Celo Gold (native currency).
 	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	GasCurrency() *common.Address
+	GasFeeRecipient() *common.Address
 	Value() *big.Int
 
 	Nonce() uint64
@@ -89,7 +87,7 @@ type Message interface {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *common.Address) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation && homestead {
@@ -120,20 +118,38 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error)
 		}
 		gas += z * params.TxDataZeroGas
 	}
+
+	// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
+	// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
+	// non-native currency at the end and the other covers for the user refund at the end.
+	// A user might or might not have a gas refund at the end and even if they do the gas refund might
+	// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
+	// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
+	// have to expect the user to estimate the mining fee right or else end up losing
+	// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
+	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
+	// keeping it consistent.
+	if gasCurrency != nil {
+		gas += params.AdditionalGasForNonGoldCurrencies
+	}
+
 	return gas, nil
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) *StateTransition {
 	return &StateTransition{
-		gp:       gp,
-		evm:      evm,
-		msg:      msg,
-		gasPrice: msg.GasPrice(),
-		value:    msg.Value(),
-		data:     msg.Data(),
-		state:    evm.StateDB,
-		gcWl:     gcWl,
+		gp:              gp,
+		evm:             evm,
+		msg:             msg,
+		gasPrice:        msg.GasPrice(),
+		value:           msg.Value(),
+		data:            msg.Data(),
+		state:           evm.StateDB,
+		gcWl:            gcWl,
+		gasPriceMinimum: gasPriceMinimum,
+		infraFraction:   infraFraction,
+		infraAddress:    infraAddress,
 	}
 }
 
@@ -144,8 +160,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction, infraAddress *common.Address) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -169,148 +185,91 @@ func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
 	if st.msg.GasCurrency() != nil && (st.gcWl == nil || !st.gcWl.IsWhitelisted(*st.msg.GasCurrency())) {
-		log.Trace("Gas currency not whitelisted",
-			"gas currency address", st.msg.GasCurrency())
+		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.GasCurrency())
 		return errNonWhitelistedGasCurrency
 	}
-	// gasConsumedToDetermineBalance = Charge to determine user's balance in native or non-native currency
-	hasSufficientGas, gasConsumedToDetermineBalance := st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency())
-	if !hasSufficientGas {
+
+	if !st.canBuyGas(st.msg.From(), mgval, st.msg.GasCurrency()) {
 		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
 	}
-	st.gas += st.msg.Gas()
-	gasCurrency := st.msg.GasCurrency()
 
-	// Users are not charged an extra fee for transactions where gas is paid in native currency.
-	// Users are charged an extra fee for non-native gas currency transactions for the overhead
-	// of the EVM transactions.
-	if gasCurrency != nil {
-		// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
-		// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
-		// non-native currency at the end and the other covers for the user refund at the end.
-		// A user might or might not have a gas refund at the end and even if they do the gas refund might
-		// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
-		// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
-		// have to expect the user to estimate the mining fee right or else end up losing
-		// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
-		// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
-		// keeping it consistent.
-		gasToDebitAndCreditGas := 3 * maxGasForDebitAndCreditTransactions
-		upfrontGasCharges := gasConsumedToDetermineBalance + gasToDebitAndCreditGas
-		if st.gas < upfrontGasCharges {
-			log.Debug("Gas too low during buy gas",
-				"gas left", st.gas,
-				"gasConsumedToDetermineBalance", gasConsumedToDetermineBalance,
-				"maxGasForDebitAndCreditTransactions", gasToDebitAndCreditGas)
-			return errInsufficientBalanceForGas
-		}
-		st.gas -= upfrontGasCharges
-		log.Trace("buyGas before debitGas", "upfrontGasCharges", upfrontGasCharges, "available gas", st.gas, "initial gas", st.initialGas, "gasCurrency", gasCurrency)
-	}
 	st.initialGas = st.msg.Gas()
-	err := st.debitGas(mgval, gasCurrency)
+	st.gas += st.msg.Gas()
+	err := st.debitGas(st.msg.From(), mgval, st.msg.GasCurrency())
 	return err
 }
 
-func (st *StateTransition) canBuyGas(
-	accountOwner common.Address,
-	gasNeeded *big.Int,
-	gasCurrency *common.Address) (hasSufficientGas bool, gasUsed uint64) {
+func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big.Int, gasCurrency *common.Address) bool {
 	if gasCurrency == nil {
-		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0, 0
+		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, gasUsed, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, st.gas+st.msg.Gas())
-	log.Debug("getBalanceOf balance", "account", accountOwner.Hash(), "Balance", balanceOf.String(),
-		"gas used", gasUsed, "error", err)
+	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, params.MaxGasToReadErc20Balance)
 	if err != nil {
-		return false, gasUsed
+		return false
 	}
-	return balanceOf.Cmp(gasNeeded) > 0, gasUsed
+	return balanceOf.Cmp(gasNeeded) > 0
 }
 
-func (st *StateTransition) debitOrCreditErc20Balance(
-	functionSelector []byte, address common.Address, amount *big.Int,
-	gasCurrency *common.Address, logTag string) (err error) {
+func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
-		log.Trace(logTag + " successful: nothing to debit or credit")
 		return nil
 	}
-
-	log.Debug(logTag, "amount", amount, "gasCurrency", gasCurrency.String())
 	evm := st.evm
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	maxGasForCall := st.gas
-	// Limit the gas used by these calls to prevent a gas stealing attack.
-	if maxGasForCall > maxGasForDebitAndCreditTransactions {
-		maxGasForCall = maxGasForDebitAndCreditTransactions
-	}
-	log.Trace(logTag, "rootCaller", rootCaller, "customTokenContractAddress",
-		*gasCurrency, "gas", maxGasForCall, "value", 0, "transactionData", hexutil.Encode(transactionData))
-	// We will not charge the user directly for this call. The caller should charge the payer, which might
-	// or might not be this user, for "maxGasForDebitAndCreditTransactions" amount of gas.
-	ret, leftoverGas, err := evm.Call(
-		rootCaller, *gasCurrency, transactionData, maxGasForCall, big.NewInt(0))
-	if err != nil {
-		log.Debug(logTag+" failed", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
-		return err
-	}
-
-	log.Debug(logTag+" successful", "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas)
-	return nil
-}
-
-func (st *StateTransition) debitGas(amount *big.Int, gasCurrency *common.Address) (err error) {
-	// native currency
-	if gasCurrency == nil {
-		st.state.SubBalance(st.msg.From(), amount)
-		return nil
-	}
-
-	return st.debitOrCreditErc20Balance(
-		getDebitFromFunctionSelector(),
-		st.msg.From(),
-		amount,
-		gasCurrency,
-		"debitGas",
-	)
-}
-
-func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	// native currency
-	if gasCurrency == nil {
-		st.state.AddBalance(to, amount)
-		return nil
-	}
-
-	return st.debitOrCreditErc20Balance(
-		getCreditToFunctionSelector(),
-		to,
-		amount,
-		gasCurrency,
-		"creditGas")
-}
-
-func getDebitFromFunctionSelector() []byte {
 	// Function is "debitFrom(address from, uint256 value)"
 	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
 	// Source:
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x362a5f80")
+	functionSelector := hexutil.MustDecode("0x362a5f80")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
+	return err
 }
 
-func getCreditToFunctionSelector() []byte {
+func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
+	if amount.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+	evm := st.evm
 	// Function is "creditTo(address from, uint256 value)"
 	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
 	// Source:
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x9951b90c")
+	functionSelector := hexutil.MustDecode("0x9951b90c")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
+	return err
+}
+
+func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
+	log.Debug("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
+	// native currency
+	if gasCurrency == nil {
+		st.state.SubBalance(from, amount)
+		return nil
+	} else {
+		return st.debitFrom(from, amount, gasCurrency)
+	}
+}
+
+func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
+	log.Debug("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
+	// native currency
+	if gasCurrency == nil {
+		st.state.AddBalance(to, amount)
+		return nil
+	} else {
+		return st.creditTo(to, amount, gasCurrency)
+	}
 }
 
 func (st *StateTransition) preCheck() error {
@@ -323,14 +282,23 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
-	return st.buyGas()
+
+	// Make sure this transaction's gas price is valid.
+	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
+		log.Error("Tx gas price does not exceed minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+		return errGasPriceDoesNotExceedMinimum
+	}
+
+	return nil
 }
 
 // TransitionDb will transition the state by applying the current message and
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
+	// Check that the transaction nonce is correct
 	if err = st.preCheck(); err != nil {
+		log.Error("Transaction failed precheck", "err", err)
 		return
 	}
 	msg := st.msg
@@ -338,18 +306,32 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-	// Pay intrinsic gas
-	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
+	// Calculate intrinsic gas.
+	gas, err := IntrinsicGas(st.data, contractCreation, homestead, msg.GasCurrency())
 	if err != nil {
 		return nil, 0, false, err
 	}
+
+	// If the intrinsic gas is more than provided in the tx, return without failing.
+	if gas > st.msg.Gas() {
+		log.Error("Transaction failed provide intrinsic gas", "err", err, "gas", gas)
+		return nil, 0, false, vm.ErrOutOfGas
+	}
+
+	err = st.buyGas()
+	if err != nil {
+		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
+		return nil, 0, false, err
+	}
+
 	if err = st.useGas(gas); err != nil {
+		log.Error("Transaction failed to use gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
 	var (
 		evm = st.evm
-		// vm errors do not effect consensus and are therefor
+		// vm errors do not effect consensus and are therefore
 		// not assigned to err, except for insufficient balance
 		// error.
 		vmerr error
@@ -370,24 +352,47 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, false, vmerr
 		}
 	}
-	st.refundGas()
-	gasFeesForMiner := st.gasUsed()
-	// Pay gas fee to Coinbase chosen by the miner
-	minerFee := new(big.Int).Mul(new(big.Int).SetUint64(gasFeesForMiner), st.gasPrice)
-	log.Trace("Paying gas fees to miner",
-		"gas used", st.gasUsed(), "gasFeesForMiner", gasFeesForMiner,
-		"miner Fee", minerFee)
-	log.Trace("Paying gas fees to miner", "miner", st.evm.Coinbase,
-		"minerFee", minerFee, "gas Currency", st.msg.GasCurrency())
-	st.creditGas(
-		st.evm.Coinbase,
-		minerFee,
-		st.msg.GasCurrency())
+
+	// Distribute transaction fees
+	err = st.refundGas()
+	if err != nil {
+		log.Error("Failed to refund gas", "err", err)
+		return nil, 0, false, err
+	}
+	gasUsed := st.gasUsed()
+
+	// Pay tx fee to tx fee recipient and Infrastructure fund
+	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
+
+	var recipientTxFee *big.Int
+	if st.infraAddress != nil {
+		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
+		err = st.creditGas(*st.infraAddress, infraTxFee, msg.GasCurrency())
+	} else {
+		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		recipientTxFee = totalTxFee
+	}
+
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	txFeeRecipient := msg.GasFeeRecipient()
+	if txFeeRecipient == nil {
+		sender := msg.From()
+		txFeeRecipient = &sender
+	}
+	err = st.creditGas(*txFeeRecipient, recipientTxFee, msg.GasCurrency())
+
+	if err != nil {
+		return nil, 0, false, err
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
-func (st *StateTransition) refundGas() {
+func (st *StateTransition) refundGas() error {
 	refund := st.state.GetRefund()
 	// Apply refund counter, capped to half of the used gas.
 	if refund > st.gasUsed()/2 {
@@ -397,13 +402,11 @@ func (st *StateTransition) refundGas() {
 	st.gas += refund
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-
-	log.Trace("Refunding gas to sender", "sender", st.msg.From(),
-		"refundAmount", remaining, "gas Currency", st.msg.GasCurrency())
-	st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
+	err := st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
 	st.gp.AddGas(st.gas)
+	return err
 }
 
 // gasUsed returns the amount of gas used up by the state transition.
