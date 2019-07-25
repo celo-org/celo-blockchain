@@ -591,7 +591,8 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	if sb.badBlock() {
 		// Generate bad transactions
 		tx := types.NewTransaction(100, common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, nil, nil)
-		block.WithBody([]*types.Transaction{tx}, nil)
+		// TODO: third parameter is randomness
+		block.WithBody([]*types.Transaction{tx}, nil, nil)
 	}
 
 	// wait for the timestamp of header, use this to adjust the block period
