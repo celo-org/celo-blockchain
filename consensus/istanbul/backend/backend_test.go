@@ -20,7 +20,6 @@ import (
 	//"bytes"
 	"crypto/ecdsa"
 	"math/big"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -223,7 +222,6 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 		}
 	}
 	vset := validator.NewSet(validators, istanbul.RoundRobin)
-	sort.Sort(keys) //Keys need to be sorted by its public key address
 	return vset, keys
 }
 

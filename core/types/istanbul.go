@@ -40,14 +40,13 @@ var (
 )
 
 type IstanbulExtra struct {
-	AddedValidators             []common.Address
-	AddedValidatorsPublicKeys   [][]byte
-	RemovedValidators           []common.Address
-	RemovedValidatorsPublicKeys [][]byte
-	Seal                        []byte
-	Bitmap                      *big.Int
-	CommittedSeal               []byte
-	EpochData                   []byte
+	AddedValidators           []common.Address
+	AddedValidatorsPublicKeys [][]byte
+	RemovedValidators         *big.Int
+	Seal                      []byte
+	Bitmap                    *big.Int
+	CommittedSeal             []byte
+	EpochData                 []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -56,7 +55,6 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.AddedValidators,
 		ist.AddedValidatorsPublicKeys,
 		ist.RemovedValidators,
-		ist.RemovedValidatorsPublicKeys,
 		ist.Seal,
 		ist.Bitmap,
 		ist.CommittedSeal,
@@ -67,19 +65,18 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the istanbul fields from a RLP stream.
 func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 	var istanbulExtra struct {
-		AddedValidators             []common.Address
-		AddedValidatorsPublicKeys   [][]byte
-		RemovedValidators           []common.Address
-		RemovedValidatorsPublicKeys [][]byte
-		Seal                        []byte
-		Bitmap                      *big.Int
-		CommittedSeal               []byte
-		EpochData                   []byte
+		AddedValidators           []common.Address
+		AddedValidatorsPublicKeys [][]byte
+		RemovedValidators         *big.Int
+		Seal                      []byte
+		Bitmap                    *big.Int
+		CommittedSeal             []byte
+		EpochData                 []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.RemovedValidatorsPublicKeys, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.RemovedValidatorsPublicKeys, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
 	return nil
 }
 

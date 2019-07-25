@@ -353,8 +353,8 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	newValSet, err := sb.getValSet(block.Header(), state)
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
-		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", common.ConvertToStringSlice(istExtra.RemovedValidators))
+		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", istExtra.RemovedValidators.Text(16))
 			return errInvalidValidatorSetDiff
 		}
 	} else {
@@ -375,12 +375,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
 		}
 
-		removedValidatorsAddresses := make([]common.Address, len(removedValidators))
-		for _, val := range removedValidators {
-			removedValidatorsAddresses = append(removedValidatorsAddresses, val.Address)
-		}
-
-		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidatorsAddresses, istExtra.RemovedValidators) {
+		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || removedValidators.Cmp(istExtra.RemovedValidators) != 0 {
 			return errInvalidValidatorSetDiff
 		}
 	}

@@ -17,8 +17,8 @@
 package validator
 
 import (
+	"math/big"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -62,15 +62,6 @@ func testNewValidatorSet(t *testing.T) {
 	if valSet == nil {
 		t.Errorf("the validator byte array cannot be parsed")
 		t.FailNow()
-	}
-
-	// Check validators sorting: should be in ascending order
-	for i := 0; i < ValCnt-1; i++ {
-		val := valSet.GetByIndex(uint64(i))
-		nextVal := valSet.GetByIndex(uint64(i + 1))
-		if strings.Compare(val.String(), nextVal.String()) >= 0 {
-			t.Errorf("validator set is not sorted in ascending order")
-		}
 	}
 }
 
@@ -144,7 +135,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(2))),
+				common.BytesToAddress([]byte(string(3))),
 				[]byte{},
 			},
 		},
@@ -154,7 +145,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(2))),
+				common.BytesToAddress([]byte(string(3))),
 				[]byte{},
 			},
 		},
@@ -164,41 +155,42 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(1))),
+				common.BytesToAddress([]byte(string(2))),
 				[]byte{},
 			},
 			{
-				common.BytesToAddress([]byte(string(0))),
+				common.BytesToAddress([]byte(string(1))),
 				[]byte{},
 			},
 		},
 	)
-	if len(valSet.List()) != 3 {
+	if valSet.Size() != 3 {
 		t.Error("the size of validator set should be 3")
 	}
 
+	expectedOrder := []int{3, 2, 1}
 	for i, v := range valSet.List() {
-		expected := common.BytesToAddress([]byte(string(i)))
+		expected := common.BytesToAddress([]byte(string(expectedOrder[i])))
 		if v.Address() != expected {
 			t.Errorf("the order of validators is wrong: have %v, want %v", v.Address().Hex(), expected.Hex())
 		}
 	}
 
-	if !valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if !valSet.RemoveValidators(big.NewInt(1)) { // remove first falidator
 		t.Error("the validator should be removed")
 	}
-	if valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if valSet.RemoveValidators(big.NewInt(1)) {
 		t.Error("the non-existing validator should not be removed")
 	}
-	if len(valSet.List()) != 2 {
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 2 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 2")
 	}
-	valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(1)))})
-	if len(valSet.List()) != 1 {
+	valSet.RemoveValidators(big.NewInt(2))                                                          // remove second validator
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 1 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 1")
 	}
-	valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(0)))})
-	if len(valSet.List()) != 0 {
+	valSet.RemoveValidators(big.NewInt(4))                                                          // remove third validator
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 0 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 0")
 	}
 }

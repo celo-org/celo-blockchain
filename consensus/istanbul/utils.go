@@ -18,8 +18,7 @@ package istanbul
 
 import (
 	"errors"
-	"sort"
-	"strings"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -107,18 +106,25 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	return firstBlockNum + (epochSize - 1)
 }
 
-func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, []ValidatorData) {
+func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
 
 	for _, oldVal := range oldValSet {
-		valSetMap[oldVal.Address] = true
+		if (oldVal.Address != common.Address{}) {
+			valSetMap[oldVal.Address] = true
+		}
 	}
 
 	oldValSetToPubKey := make(map[common.Address][]byte)
-	for i := range oldValSet {
-		oldValSetToPubKey[oldValSet[i].Address] = oldValSet[i].BLSPublicKey
+	for i, oldVal := range oldValSet {
+		if (oldVal.Address != common.Address{}) {
+			oldValSetToPubKey[oldValSet[i].Address] = oldValSet[i].BLSPublicKey
+		}
 	}
 
+	oldValSetMap := BuildValidatorAddressMap(oldValSet)
+
+	removedValidatorsBitmap := big.NewInt(0)
 	var addedValidators []ValidatorData
 	for _, newVal := range newValSet {
 		if _, ok := valSetMap[newVal.Address]; ok {
@@ -132,24 +138,12 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 			})
 		}
 	}
-	sort.Slice(addedValidators, func(i, j int) bool {
-		return strings.Compare(addedValidators[i].Address.String(), addedValidators[j].Address.String()) < 0
-	})
 
-	// Any remaining validators in the map are the removed validators
-	removedValidators := make([]ValidatorData, 0, len(valSetMap))
 	for rmVal := range valSetMap {
-		removedValidators = append(removedValidators, ValidatorData{
-			rmVal,
-			oldValSetToPubKey[rmVal],
-		})
+		removedValidatorsBitmap = removedValidatorsBitmap.SetBit(removedValidatorsBitmap, oldValSetMap[rmVal], 1)
 	}
 
-	sort.Slice(removedValidators, func(i, j int) bool {
-		return strings.Compare(removedValidators[i].Address.String(), removedValidators[j].Address.String()) < 0
-	})
-
-	return addedValidators, removedValidators
+	return addedValidators, removedValidatorsBitmap
 }
 
 // This function assumes that valSet1 and valSet2 are sorted
@@ -175,4 +169,15 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 
 	id := node.ID()
 	return &id, nil
+}
+
+func BuildValidatorAddressMap(validators []ValidatorData) map[common.Address]int {
+	addressMap := make(map[common.Address]int)
+	for i := range validators {
+		if (validators[i].Address != common.Address{}) {
+			addressMap[validators[i].Address] = i
+		}
+	}
+
+	return addressMap
 }

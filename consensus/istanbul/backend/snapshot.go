@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -134,12 +133,12 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 			return nil, errInvalidValidatorSetDiff
 		}
 
-		if !snap.ValSet.AddValidators(validators) {
-			log.Error("Error in adding the header's AddedValidators")
-			return nil, errInvalidValidatorSetDiff
-		}
 		if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
 			log.Error("Error in removing the header's RemovedValidators")
+			return nil, errInvalidValidatorSetDiff
+		}
+		if !snap.ValSet.AddValidators(validators) {
+			log.Error("Error in adding the header's AddedValidators")
 			return nil, errInvalidValidatorSetDiff
 		}
 
@@ -153,22 +152,15 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 	return snap, nil
 }
 
-// validators retrieves the list of authorized validators in ascending order.
 func (s *Snapshot) validators() []istanbul.ValidatorData {
-	validators := make([]istanbul.ValidatorData, 0, s.ValSet.Size())
+	validators := make([]istanbul.ValidatorData, 0, s.ValSet.PaddedSize())
 	for _, validator := range s.ValSet.List() {
 		validators = append(validators, istanbul.ValidatorData{
 			validator.Address(),
 			validator.BLSPublicKey(),
 		})
 	}
-	for i := 0; i < len(validators); i++ {
-		for j := i + 1; j < len(validators); j++ {
-			if bytes.Compare(validators[i].Address[:], validators[j].Address[:]) > 0 {
-				validators[i], validators[j] = validators[j], validators[i]
-			}
-		}
-	}
+
 	return validators
 }
 
@@ -184,7 +176,6 @@ type snapshotJSON struct {
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
 	validators := s.validators()
-	istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
 	return &snapshotJSON{
 		Epoch:      s.Epoch,
 		Number:     s.Number,

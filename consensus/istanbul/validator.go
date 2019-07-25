@@ -18,7 +18,7 @@ package istanbul
 
 import (
 	"errors"
-	"strings"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -72,24 +72,13 @@ type Validator interface {
 
 type Validators []Validator
 
-func (slice Validators) Len() int {
-	return len(slice)
-}
-
-func (slice Validators) Less(i, j int) bool {
-	return strings.Compare(slice[i].String(), slice[j].String()) < 0
-}
-
-func (slice Validators) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
 	// Calculate the proposer
 	CalcProposer(lastProposer common.Address, round uint64)
 	// Return the validator size
+	PaddedSize() int
 	Size() int
 	// Return the validator array
 	List() []Validator
@@ -104,7 +93,7 @@ type ValidatorSet interface {
 	// Add validators
 	AddValidators(validators []ValidatorData) bool
 	// Remove validators
-	RemoveValidators(address []common.Address) bool
+	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
 	// Get the maximum number of faulty nodes

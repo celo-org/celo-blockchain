@@ -21,8 +21,6 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"reflect"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -72,11 +70,36 @@ func (ap *testerAccountPool) sign(header *types.Header, validator string) {
 
 func (ap *testerAccountPool) address(account string) common.Address {
 	// Ensure we have a persistent key for the account
+	if account == "" {
+		return common.Address{}
+	}
 	if ap.accounts[account] == nil {
 		ap.accounts[account], _ = crypto.GenerateKey()
 	}
 	// Resolve and return the Ethereum address
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
+}
+
+func indexOf(element string, data []string) int {
+	for k, v := range data {
+		if element == v {
+			return k
+		}
+	}
+	return -1 //not found.
+}
+
+func convertValNamesToRemovedValidators(accounts *testerAccountPool, oldVals []istanbul.ValidatorData, valNames []string) *big.Int {
+	bitmap := big.NewInt(0)
+	for _, v := range valNames {
+		for j := range oldVals {
+			if accounts.address(v) == oldVals[j].Address {
+				bitmap = bitmap.SetBit(bitmap, j, 1)
+			}
+		}
+	}
+
+	return bitmap
 }
 
 func convertValNames(accounts *testerAccountPool, valNames []string) []common.Address {
@@ -86,9 +109,19 @@ func convertValNames(accounts *testerAccountPool, valNames []string) []common.Ad
 		returnArray[i] = accounts.address(valName)
 	}
 
-	sort.Slice(returnArray, func(i, j int) bool {
-		return strings.Compare(returnArray[i].String(), returnArray[j].String()) < 0
-	})
+	return returnArray
+}
+
+func convertValNamesToValidatorsData(accounts *testerAccountPool, valNames []string) []istanbul.ValidatorData {
+	returnArray := make([]istanbul.ValidatorData, len(valNames))
+
+	for i, valName := range valNames {
+		returnArray[i] = istanbul.ValidatorData{
+			accounts.address(valName),
+			nil,
+		}
+	}
+
 	return returnArray
 }
 
@@ -154,7 +187,7 @@ func TestValSetChange(t *testing.T) {
 			epoch:       1,
 			validators:  []string{"A", "B"},
 			valsetdiffs: []testerValSetDiff{{proposer: "B", addedValidators: []string{}, removedValidators: []string{"A", "B"}}},
-			results:     []string{},
+			results:     []string{"", ""},
 			err:         nil,
 		}, {
 			// Three validator, add two validators and remove two validators
@@ -177,7 +210,7 @@ func TestValSetChange(t *testing.T) {
 			validators: []string{"A", "B", "C"},
 			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
 				{proposer: "E", addedValidators: []string{"F"}, removedValidators: []string{"A", "D"}}},
-			results: []string{"E", "F"},
+			results: []string{"F", "", "E"},
 			err:     nil,
 		}, {
 			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.  The first header will
@@ -186,7 +219,7 @@ func TestValSetChange(t *testing.T) {
 			validators: []string{"A", "B", "C"},
 			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
 				{proposer: "A", addedValidators: []string{"F"}, removedValidators: []string{"A", "B"}}},
-			results: []string{"C", "F"},
+			results: []string{"F", "", "C"},
 			err:     nil,
 		},
 	}
@@ -200,15 +233,6 @@ func TestValSetChange(t *testing.T) {
 			validators[j] = istanbul.ValidatorData{
 				accounts.address(validator),
 				nil,
-			}
-		}
-
-		// Sort the validators
-		for j := 0; j < len(validators); j++ {
-			for k := j + 1; k < len(validators); k++ {
-				if bytes.Compare(validators[j].Address[:], validators[k].Address[:]) > 0 {
-					validators[j], validators[k] = validators[k], validators[j]
-				}
 			}
 		}
 
@@ -298,6 +322,8 @@ func TestValSetChange(t *testing.T) {
 
 		// Assemble a chain of headers from header validator set diffs
 		var prevHeader *types.Header
+		var currentVals []istanbul.ValidatorData
+		var snap *Snapshot
 		for j, valsetdiff := range tt.valsetdiffs {
 			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
@@ -310,15 +336,21 @@ func TestValSetChange(t *testing.T) {
 
 			buf.Write(bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity))
 
+			var oldVals []istanbul.ValidatorData
+			if currentVals == nil {
+				oldVals = convertValNamesToValidatorsData(accounts, tests[i].validators)
+			} else {
+				oldVals = currentVals
+			}
+
 			ist := &types.IstanbulExtra{
-				AddedValidators:             convertValNames(accounts, valsetdiff.addedValidators),
-				AddedValidatorsPublicKeys:   make([][]byte, len(valsetdiff.addedValidators)),
-				RemovedValidators:           convertValNames(accounts, valsetdiff.removedValidators),
-				RemovedValidatorsPublicKeys: make([][]byte, len(valsetdiff.removedValidators)),
-				Bitmap:                      big.NewInt(0),
-				Seal:                        []byte{},
-				CommittedSeal:               []byte{},
-				EpochData:                   []byte{},
+				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
+				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
+				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
+				Bitmap:                    big.NewInt(0),
+				Seal:                      []byte{},
+				CommittedSeal:             []byte{},
+				EpochData:                 []byte{},
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
@@ -336,13 +368,17 @@ func TestValSetChange(t *testing.T) {
 			chain.AddHeader(uint64(j+1), header)
 
 			prevHeader = header
-		}
-		snap, err := engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash(), nil)
-		if err != tt.err {
-			t.Errorf("test %d: error mismatch:  have %v, want %v", i, err, tt.err)
-			continue
-		}
+			snap, err = engine.snapshot(chain, prevHeader.Number.Uint64(), prevHeader.Hash(), nil)
+			if err != tt.err {
+				t.Errorf("test %d: error mismatch:  have %v, want %v", i, err, tt.err)
+			}
 
+			if err != nil {
+				continue
+			}
+
+			currentVals = snap.validators()
+		}
 		if tt.err != nil {
 			continue
 		}
@@ -355,18 +391,12 @@ func TestValSetChange(t *testing.T) {
 				nil,
 			}
 		}
-		for j := 0; j < len(validators); j++ {
-			for k := j + 1; k < len(validators); k++ {
-				if bytes.Compare(validators[j].Address[:], validators[k].Address[:]) > 0 {
-					validators[j], validators[k] = validators[k], validators[j]
-				}
-			}
-		}
 		result := snap.validators()
 		if len(result) != len(validators) {
 			t.Errorf("test %d: validators mismatch: have %x, want %x", i, result, validators)
 			continue
 		}
+
 		for j := 0; j < len(result); j++ {
 			if !bytes.Equal(result[j].Address[:], validators[j].Address[:]) {
 				t.Errorf("test %d, validator %d: validator mismatch: have %x, want %x", i, j, result[j], validators[j])

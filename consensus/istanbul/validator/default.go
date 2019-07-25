@@ -18,8 +18,8 @@ package validator
 
 import (
 	"math"
+	"math/big"
 	"reflect"
-	"sort"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -63,8 +63,6 @@ func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.Proposer
 	for i, validator := range validators {
 		valSet.validators[i] = New(validator.Address, validator.BLSPublicKey)
 	}
-	// sort validator
-	sort.Sort(valSet.validators)
 	// init proposer
 	if valSet.Size() > 0 {
 		valSet.proposer = valSet.GetByIndex(0)
@@ -80,6 +78,20 @@ func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.Proposer
 func (valSet *defaultSet) Size() int {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
+
+	size := 0
+	for i := range valSet.validators {
+		if (valSet.validators[i].Address() != common.Address{}) {
+			size++
+		}
+	}
+	return size
+}
+
+func (valSet *defaultSet) PaddedSize() int {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+
 	return len(valSet.validators)
 }
 
@@ -183,15 +195,24 @@ func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) boo
 		}
 	}
 
-	valSet.validators = append(valSet.validators, newValidators...)
-	// TODO: we may not need to re-sort it again
-	// sort validator
-	sort.Sort(valSet.validators)
+	currentValidatorIndex := 0
+	for i, v := range valSet.validators {
+		if currentValidatorIndex == len(newValidators) {
+			break
+		}
+		if (v.Address() == common.Address{}) {
+			valSet.validators[i] = New(newValidators[currentValidatorIndex].Address(), newValidators[currentValidatorIndex].BLSPublicKey())
+			currentValidatorIndex++
+		}
+	}
+	if currentValidatorIndex < len(newValidators) {
+		valSet.validators = append(valSet.validators, newValidators[currentValidatorIndex:]...)
+	}
 	return true
 }
 
-func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
-	if len(addresses) == 0 {
+func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
+	if removedValidators.BitLen() == 0 {
 		return true
 	}
 
@@ -199,22 +220,20 @@ func (valSet *defaultSet) RemoveValidators(addresses []common.Address) bool {
 	defer valSet.validatorMu.Unlock()
 
 	removeAddressesMap := make(map[common.Address]bool)
-	for _, address := range addresses {
-		removeAddressesMap[address] = true
+	removeAddressesIndexMap := make(map[common.Address]int)
+	for i, v := range valSet.validators {
+		if removedValidators.Bit(i) == 1 {
+			removeAddressesIndexMap[v.Address()] = i
+			removeAddressesMap[v.Address()] = true
+		}
 	}
 
-	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
-	// new memory will be allocated
-	tempList := valSet.validators[:0]
-	defer func() {
-		valSet.validators = tempList
-	}()
-
 	for _, v := range valSet.validators {
-		if _, ok := removeAddressesMap[v.Address()]; !ok {
-			tempList = append(tempList, v)
-		} else {
-			delete(removeAddressesMap, v.Address())
+		if _, ok := removeAddressesMap[v.Address()]; ok {
+			if (v.Address() != common.Address{}) {
+				delete(removeAddressesMap, v.Address())
+				valSet.validators[removeAddressesIndexMap[v.Address()]] = New(common.Address{}, nil)
+			}
 		}
 	}
 
@@ -236,6 +255,7 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 			v.BLSPublicKey(),
 		})
 	}
+
 	return NewSet(validators, valSet.policy)
 }
 

@@ -872,7 +872,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		// The genesis block should have an empty RemovedValidators set.  If not, throw an error
-		if len(istanbulExtra.RemovedValidators) > 0 {
+		if istanbulExtra.RemovedValidators.BitLen() != 0 {
 			log.Error("Genesis block has a non empty RemovedValidators set")
 			return nil, errInvalidValidatorSetDiff
 		}
@@ -993,20 +993,18 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 	oldValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(oldValSet)
 	newValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(newValSet)
 	addedValidatorsAddresses, addedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
-	removedValidatorsAddresses, removedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(removedValidators)
 
-	if len(addedValidators) > 0 || len(removedValidators) > 0 {
+	if len(addedValidators) > 0 || removedValidators.BitLen() > 0 {
 		log.Debug("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValidatorsAddresses), "newValSet", common.ConvertToStringSlice(newValidatorsAddresses),
-			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", common.ConvertToStringSlice(removedValidatorsAddresses))
+			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
 	ist := &types.IstanbulExtra{
-		AddedValidators:             addedValidatorsAddresses,
-		AddedValidatorsPublicKeys:   addedValidatorsPublicKeys,
-		RemovedValidators:           removedValidatorsAddresses,
-		RemovedValidatorsPublicKeys: removedValidatorsPublicKeys,
-		Seal:                        []byte{},
-		CommittedSeal:               []byte{},
+		AddedValidators:           addedValidatorsAddresses,
+		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
+		RemovedValidators:         removedValidators,
+		Seal:                      []byte{},
+		CommittedSeal:             []byte{},
 	}
 
 	payload, err := rlp.EncodeToBytes(&ist)

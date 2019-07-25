@@ -11,7 +11,7 @@
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
 NDK_VERSION=android-ndk-r19c
-ANDROID_NDK_HOME=ndk_bundle
+ANDROID_NDK_HOME=$(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -19,14 +19,14 @@ geth: bls-zexe
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
-ndk-download: ndk_bundle/android-ndk-r19c/NOTICE
+
+ndk_bundle/android-ndk-r19c/NOTICE:
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
 	mkdir $(ANDROID_NDK_HOME) && \
 	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
 	rm /tmp/$(NDK_VERSION).zip
-
-bls-zexe-android: ndk-download
+bls-zexe-android: ndk_bundle/android-ndk-r19c/NOTICE
 	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=aarch64-linux-android --lib
 	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=armv7-linux-androideabi --lib
 
