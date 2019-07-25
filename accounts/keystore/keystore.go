@@ -306,7 +306,7 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error)
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(hash, false)
+	signature, err := privateKey.SignMessage(hash, []byte{}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error)
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, error) {
+func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -340,7 +340,7 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte) ([]byte, erro
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(msg, true)
+	signature, err := privateKey.SignMessage(msg, extraData, true)
 	if err != nil {
 		return nil, err
 	}

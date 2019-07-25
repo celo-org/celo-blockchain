@@ -509,7 +509,7 @@ func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, err
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte) ([]byte, error) {
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
 	return nil, accounts.ErrNotSupported
 }
 

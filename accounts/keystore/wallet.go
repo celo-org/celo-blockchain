@@ -117,14 +117,14 @@ func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]b
 	return w.keystore.SignHashBLS(account, hash)
 }
 
-func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte) ([]byte, error) {
+func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
 		return nil, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
-	return w.keystore.SignMessageBLS(account, msg)
+	return w.keystore.SignMessageBLS(account, msg, extraData)
 }
 
 func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {

@@ -1,27 +1,26 @@
 use crate::curve::hash::HashToG2;
-use algebra::{
-    bytes::{FromBytes, ToBytes},
-    curves::{
-        bls12_377::{
-            Bls12_377, Bls12_377Parameters, G1Affine, G1Projective, G2Affine, G2Projective,
-        },
-        AffineCurve, PairingCurve, PairingEngine, ProjectiveCurve,
+use algebra::{bytes::{FromBytes, ToBytes}, curves::{
+    bls12_377::{
+        Bls12_377, Bls12_377Parameters, g1::Bls12_377G1Parameters, G1Affine, G1Projective, G2Affine, G2Projective,
     },
-    fields::{
-        bls12_377::{Fq12, Fr},
-        Field,
-    },
-};
+    AffineCurve, PairingCurve, PairingEngine, ProjectiveCurve,
+    models::SWModelParameters,
+}, fields::{
+    bls12_377::{Fq12, Fq, Fr},
+    Field,
+    PrimeField,
+}, SquareRootField};
 
 use failure::Error;
 use rand::Rng;
 
+static PRF_KEY: &'static [u8] = b"096b36a5804bfacef1691e173c366a47ff5ba84a44f26ddd7e8d9f79d5b42df0";
 static SIG_DOMAIN: &'static [u8] = b"ULforprf";
 static POP_DOMAIN: &'static [u8] = b"ULforpop";
 
 /// Implements BLS signatures as specified in https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html.
 use std::{
-    io::{Read, Result as IoResult, Write},
+    io::{self, Read, Result as IoResult, Write},
     ops::{Mul, Neg},
 };
 
@@ -42,8 +41,8 @@ impl PrivateKey {
         self.sk.clone()
     }
 
-    pub fn sign<H: HashToG2>(&self, message: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
-        self.sign_message(SIG_DOMAIN, message, hash_to_g2)
+    pub fn sign<H: HashToG2>(&self, message: &[u8], extra_data: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
+        self.sign_message(PRF_KEY, SIG_DOMAIN, message, extra_data, hash_to_g2)
     }
 
     pub fn sign_pop<H: HashToG2>(&self, hash_to_g2: &H) -> Result<Signature, Error> {
@@ -51,14 +50,14 @@ impl PrivateKey {
         let mut pubkey_bytes = vec![];
         pubkey.write(&mut pubkey_bytes)?;
 
-        self.sign_message(POP_DOMAIN, &pubkey_bytes, hash_to_g2)
+        self.sign_message(PRF_KEY, POP_DOMAIN, &pubkey_bytes, &[], hash_to_g2)
     }
 
 
-    fn sign_message<H: HashToG2>(&self, domain: &[u8], message: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
+    fn sign_message<H: HashToG2>(&self, key: &[u8], domain: &[u8], message: &[u8], extra_data: &[u8], hash_to_g2: &H) -> Result<Signature, Error> {
         Ok(Signature::from_sig(
             &hash_to_g2
-                .hash::<Bls12_377Parameters>(domain, message)?
+                .hash::<Bls12_377Parameters>(key, domain, message, extra_data)?
                 .mul(&self.sk),
         ))
     }
@@ -114,10 +113,11 @@ impl PublicKey {
     pub fn verify<H: HashToG2>(
         &self,
         message: &[u8],
+        extra_data: &[u8],
         signature: &Signature,
         hash_to_g2: &H,
     ) -> Result<(), Error> {
-        self.verify_sig(SIG_DOMAIN, message, signature, hash_to_g2)
+        self.verify_sig(PRF_KEY, SIG_DOMAIN, message, extra_data, signature, hash_to_g2)
     }
 
     pub fn verify_pop<H: HashToG2>(
@@ -127,14 +127,16 @@ impl PublicKey {
     ) -> Result<(), Error> {
         let mut pubkey_bytes = vec![];
         self.write(&mut pubkey_bytes)?;
-        self.verify_sig(POP_DOMAIN, &pubkey_bytes, signature, hash_to_g2)
+        self.verify_sig(PRF_KEY, POP_DOMAIN, &pubkey_bytes, &[], signature, hash_to_g2)
     }
 
 
     fn verify_sig<H: HashToG2>(
         &self,
+        key: &[u8],
         domain: &[u8],
         message: &[u8],
+        extra_data: &[u8],
         signature: &Signature,
         hash_to_g2: &H,
     ) -> Result<(), Error> {
@@ -146,7 +148,7 @@ impl PublicKey {
             (
                 &self.pk.into_affine().prepare(),
                 &hash_to_g2
-                    .hash::<Bls12_377Parameters>(domain, message)?
+                    .hash::<Bls12_377Parameters>(key, domain, message, extra_data)?
                     .into_affine()
                     .prepare(),
             ),
@@ -162,14 +164,38 @@ impl PublicKey {
 impl ToBytes for PublicKey {
     #[inline]
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
-        self.pk.into_affine().write(&mut writer)
+        let affine = self.pk.into_affine();
+        let mut x_bytes: Vec<u8> = vec![];
+        let y_big = affine.y.into_repr();
+        let half = Fq::modulus_minus_one_div_two();
+        affine.x.write(&mut x_bytes)?;
+        if y_big >= half {
+            let num_x_bytes = x_bytes.len();
+            x_bytes[num_x_bytes - 1] |= 0x80;
+        }
+        writer.write(&x_bytes)?;
+        Ok(())
     }
 }
 
 impl FromBytes for PublicKey {
     #[inline]
     fn read<R: Read>(mut reader: R) -> IoResult<Self> {
-        let pk = G1Affine::read(&mut reader)?;
+        let mut x_bytes_with_y: Vec<u8> = vec![];
+        reader.read_to_end(&mut x_bytes_with_y)?;
+        let x_bytes_with_y_len = x_bytes_with_y.len();
+        let y_over_half = (x_bytes_with_y[x_bytes_with_y_len - 1] & 0x80) == 0x80;
+        x_bytes_with_y[x_bytes_with_y_len - 1] &= 0xFF - 0x80;
+        let x = Fq::read(x_bytes_with_y.as_slice())?;
+        let x3b = <Bls12_377G1Parameters as SWModelParameters>::add_b(
+            &((x.square() * &x) + &<Bls12_377G1Parameters as SWModelParameters>::mul_by_a(&x)),
+        );
+        let y = x3b.sqrt().ok_or(
+            io::Error::new(io::ErrorKind::NotFound, "couldn't find square root for x")
+        )?;
+        let negy = -y;
+        let chosen_y = if (y < negy) ^ y_over_half { y } else { negy };
+        let pk = G1Affine::new(x, chosen_y, false);
         Ok(PublicKey::from_pk(&pk.into_projective()))
     }
 }
@@ -242,11 +268,11 @@ mod test {
             }
             let sk = PrivateKey::generate(rng);
 
-            let sig = sk.sign(&message[..], &try_and_increment).unwrap();
+            let sig = sk.sign(&message[..], &[], &try_and_increment).unwrap();
             let pk = sk.to_public();
-            pk.verify(&message[..], &sig, &try_and_increment).unwrap();
+            pk.verify(&message[..], &[], &sig, &try_and_increment).unwrap();
             let message2 = b"goodbye";
-            pk.verify(&message2[..], &sig, &try_and_increment)
+            pk.verify(&message2[..], &[], &sig, &try_and_increment)
                 .unwrap_err();
         }
     }
@@ -266,11 +292,11 @@ mod test {
             }
             let sk = PrivateKey::generate(rng);
 
-            let sig = sk.sign(&message[..], &try_and_increment).unwrap();
+            let sig = sk.sign(&message[..], &[], &try_and_increment).unwrap();
             let pk = sk.to_public();
-            pk.verify(&message[..], &sig, &try_and_increment).unwrap();
+            pk.verify(&message[..], &[], &sig, &try_and_increment).unwrap();
             let message2 = b"goodbye";
-            pk.verify(&message2[..], &sig, &try_and_increment)
+            pk.verify(&message2[..], &[], &sig, &try_and_increment)
                 .unwrap_err();
         }
     }
@@ -304,19 +330,33 @@ mod test {
         let sk1 = PrivateKey::generate(rng);
         let sk2 = PrivateKey::generate(rng);
 
-        let sig1 = sk1.sign(&message[..], &try_and_increment).unwrap();
-        let sig2 = sk2.sign(&message[..], &try_and_increment).unwrap();
+        let sig1 = sk1.sign(&message[..], &[], &try_and_increment).unwrap();
+        let sig2 = sk2.sign(&message[..], &[], &try_and_increment).unwrap();
 
         let apk = PublicKey::aggregate(&[&sk1.to_public(), &sk2.to_public()]);
         let asig = Signature::aggregate(&[&sig1, &sig2]);
-        apk.verify(&message[..], &asig, &try_and_increment).unwrap();
-        apk.verify(&message[..], &sig1, &try_and_increment)
+        apk.verify(&message[..], &[], &asig, &try_and_increment).unwrap();
+        apk.verify(&message[..], &[], &sig1, &try_and_increment)
             .unwrap_err();
         sk1.to_public()
-            .verify(&message[..], &asig, &try_and_increment)
+            .verify(&message[..], &[], &asig, &try_and_increment)
             .unwrap_err();
         let message2 = b"goodbye";
-        apk.verify(&message2[..], &asig, &try_and_increment)
+        apk.verify(&message2[..], &[], &asig, &try_and_increment)
             .unwrap_err();
+    }
+
+    #[test]
+    fn test_public_key_serialization() {
+        let rng = &mut thread_rng();
+        for _i in 0..100 {
+            let sk = PrivateKey::generate(rng);
+            let pk = sk.to_public();
+            let mut pk_bytes = vec![];
+            pk.write(&mut pk_bytes).unwrap();
+            let pk2 = PublicKey::read(pk_bytes.as_slice()).unwrap();
+            assert_eq!(pk.get_pk().into_affine().x, pk2.get_pk().into_affine().x);
+            assert_eq!(pk.get_pk().into_affine().y, pk2.get_pk().into_affine().y);
+        }
     }
 }

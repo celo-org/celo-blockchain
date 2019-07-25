@@ -32,6 +32,10 @@ fn main() {
     pop.write(&mut pop_bytes).unwrap();
 
     let pk = sk.to_public();
+    let mut pk_bytes = vec![];
+    pk.write(&mut pk_bytes).unwrap();
+    println!("{}", hex::encode(&pk_bytes));
+
     pk.verify_pop(&pop, &try_and_increment).unwrap();
 
     let pop_hex = hex::encode(&pop_bytes);

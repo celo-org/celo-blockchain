@@ -29,6 +29,7 @@ import (
 // SignerFn is a signer callback function to request a hash to be signed by a
 // backing account.
 type SignerFn func(accounts.Account, []byte) ([]byte, error)
+type MessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
 type VerifierFn func([]byte, []byte, []byte) error
 
 // Backend provides application specific functions for Istanbul core
@@ -95,5 +96,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn SignerFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
 }

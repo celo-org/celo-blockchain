@@ -86,11 +86,11 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address          common.Address    // Ethereum address of the signing key
-	signFn           istanbul.SignerFn // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.SignerFn // Signer function to authorize hashes using BLS with
-	signMessageBLSFn istanbul.SignerFn // Signer function to authorize messages using BLS with
-	signFnMu         sync.RWMutex      // Protects the signer fields
+	address          common.Address           // Ethereum address of the signing key
+	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
+	signHashBLSFn    istanbul.SignerFn        // Signer function to authorize hashes using BLS with
+	signMessageBLSFn istanbul.MessageSignerFn // Signer function to authorize messages using BLS with
+	signFnMu         sync.RWMutex             // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -132,7 +132,7 @@ type Backend struct {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.SignerFn) {
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 

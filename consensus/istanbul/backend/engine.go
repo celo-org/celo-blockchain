@@ -367,7 +367,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	if len(publicKeys) <= 2*snap.ValSet.F() {
 		return errInvalidCommittedSeals
 	}
-	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, extra.CommittedSeal, false)
+	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, extra.CommittedSeal, false)
 	if err != nil {
 		sb.logger.Error("couldn't verify aggregated signature", "err", err)
 		return errInvalidSignature

@@ -141,16 +141,19 @@ pub extern "C" fn sign_message(
     in_private_key: *const PrivateKey,
     in_message: *const u8,
     in_message_len: c_int,
+    in_extra_data: *const u8,
+    in_extra_data_len: c_int,
     should_use_composite: bool,
     out_signature: *mut *mut Signature,
 ) -> bool {
     convert_result_to_bool::<_, failure::Error, _>(|| {
         let private_key = unsafe { &*in_private_key };
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
+        let extra_data = unsafe { slice::from_raw_parts(in_extra_data, in_extra_data_len as usize) };
         let signature = if should_use_composite {
-            private_key.sign(&message, &*COMPOSITE_HASH_TO_G2)?
+            private_key.sign(message, extra_data, &*COMPOSITE_HASH_TO_G2)?
         } else {
-            private_key.sign(&message, &*DIRECT_HASH_TO_G2)?
+            private_key.sign(message, extra_data, &*DIRECT_HASH_TO_G2)?
         };
         unsafe {
             *out_signature = Box::into_raw(Box::new(signature));
@@ -243,6 +246,8 @@ pub extern "C" fn verify_signature(
     in_public_key: *const PublicKey,
     in_message: *const u8,
     in_message_len: c_int,
+    in_extra_data: *const u8,
+    in_extra_data_len: c_int,
     in_signature: *const Signature,
     should_use_composite: bool,
     out_verified: *mut bool,
@@ -250,11 +255,12 @@ pub extern "C" fn verify_signature(
     convert_result_to_bool::<_, std::io::Error, _>(|| {
         let public_key = unsafe { &*in_public_key };
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
+        let extra_data = unsafe { slice::from_raw_parts(in_extra_data, in_extra_data_len as usize) };
         let signature = unsafe { &*in_signature };
         let verified = if should_use_composite {
-            public_key.verify(message, signature, &*COMPOSITE_HASH_TO_G2).is_ok()
+            public_key.verify(message, extra_data, signature, &*COMPOSITE_HASH_TO_G2).is_ok()
         } else {
-            public_key.verify(message, signature, &*DIRECT_HASH_TO_G2).is_ok()
+            public_key.verify(message, extra_data, signature, &*DIRECT_HASH_TO_G2).is_ok()
         };
         unsafe { *out_verified = verified };
 
@@ -295,6 +301,34 @@ pub extern "C" fn aggregate_public_keys(
         let aggregated_public_key = PublicKey::aggregate(&public_keys[..]);
         unsafe {
             *out_public_key = Box::into_raw(Box::new(aggregated_public_key));
+        }
+
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn aggregate_public_keys_subtract(
+    in_aggregated_public_key: *const PublicKey,
+    in_public_keys: *const *const PublicKey,
+    in_public_keys_len: c_int,
+    out_public_key: *mut *mut PublicKey,
+) -> bool {
+    convert_result_to_bool::<_, std::io::Error, _>(|| {
+        let aggregated_public_key = unsafe { &*in_aggregated_public_key };
+        let public_keys_ptrs =
+            unsafe { slice::from_raw_parts(in_public_keys, in_public_keys_len as usize) };
+        let public_keys = public_keys_ptrs
+            .to_vec()
+            .into_iter()
+            .map(|pk| unsafe { &*pk })
+            .collect::<Vec<&PublicKey>>();
+        let aggregated_public_key_to_subtract = PublicKey::aggregate(&public_keys[..]);
+        let prepared_aggregated_public_key = PublicKey::from_pk(
+            &(aggregated_public_key.get_pk() - &aggregated_public_key_to_subtract.get_pk())
+        );
+        unsafe {
+            *out_public_key = Box::into_raw(Box::new(prepared_aggregated_public_key));
         }
 
         Ok(())

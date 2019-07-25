@@ -92,7 +92,7 @@ func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
-func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
 		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
@@ -114,7 +114,7 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, signature []
 	}
 	defer signatureObj.Destroy()
 
-	err = apk.VerifySignature(message, signatureObj, shouldUseCompositeHasher)
+	err = apk.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
 	return err
 }
 

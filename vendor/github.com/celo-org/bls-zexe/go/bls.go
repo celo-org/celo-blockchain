@@ -1,7 +1,6 @@
 package bls
 
 /*
-#cgo LDFLAGS: -L../bls/target/release -lbls_zexe -ldl -lm
 #include "bls.h"
 */
 import "C"
@@ -72,9 +71,9 @@ func (self *PrivateKey) ToPublic() (*PublicKey, error) {
 	return publicKey, nil
 }
 
-func (self *PrivateKey) SignMessage(message []byte, shouldUseCompositeHasher bool) (*Signature, error) {
+func (self *PrivateKey) SignMessage(message []byte, extraData []byte, shouldUseCompositeHasher bool) (*Signature, error) {
 	signature := &Signature{}
-	success := C.sign_message(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), C.bool(shouldUseCompositeHasher), &signature.ptr)
+	success := C.sign_message(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&extraData[0])), C.int(len(extraData)), C.bool(shouldUseCompositeHasher), &signature.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -122,9 +121,9 @@ func (self *PublicKey) Destroy() {
 	C.destroy_public_key(self.ptr)
 }
 
-func (self *PublicKey) VerifySignature(message []byte, signature *Signature, shouldUseCompositeHasher bool) error {
+func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signature *Signature, shouldUseCompositeHasher bool) error {
 	var verified C.bool
-	success := C.verify_signature(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), signature.ptr, C.bool(shouldUseCompositeHasher), &verified)
+	success := C.verify_signature(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&extraData[0])), C.int(len(extraData)), signature.ptr, C.bool(shouldUseCompositeHasher), &verified)
 	if !success {
 		return GeneralError
 	}
@@ -185,6 +184,20 @@ func AggregatePublicKeys(publicKeys []*PublicKey) (*PublicKey, error) {
 	}
 
 	return aggregatedPublicKey, nil
+}
+
+func AggregatePublicKeysSubtract(aggregatedPublicKey *PublicKey, publicKeys []*PublicKey) (*PublicKey, error) {
+	publicKeysPtrs := []*C.struct_PublicKey{}
+	for _, pk := range publicKeys {
+		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
+	}
+	subtractedPublicKey := &PublicKey{}
+	success := C.aggregate_public_keys_subtract(aggregatedPublicKey.ptr, (**C.struct_PublicKey)(unsafe.Pointer(&publicKeysPtrs[0])), C.int(len(publicKeysPtrs)), &subtractedPublicKey.ptr)
+	if !success {
+		return nil, GeneralError
+	}
+
+	return subtractedPublicKey, nil
 }
 
 func AggregateSignatures(signatures []*Signature) (*Signature, error) {
