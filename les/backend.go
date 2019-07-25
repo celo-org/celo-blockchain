@@ -76,6 +76,7 @@ type LightEthereum struct {
 	regAdd *core.RegisteredAddresses
 	iEvmH  *core.InternalEVMHandler
 	gcWl   *core.GasCurrencyWhitelist
+	gpm    *core.GasPriceMinimum
 
 	wg sync.WaitGroup
 }
@@ -89,6 +90,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		fullChainAvailable = true
 	} else if syncMode == downloader.CeloLatestSync {
 		chainName = "celolatestchaindata"
+		fullChainAvailable = false
+	} else if syncMode == downloader.UltraLightSync {
+		chainName = "ultralightchaindata"
 		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
@@ -124,6 +128,12 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
 	}
 
+	if syncMode == downloader.UltraLightSync && chainConfig.Istanbul == nil {
+		msg := fmt.Sprintf(
+			"To use UltraLightSync sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
+		panic(msg)
+	}
+
 	leth.relay = NewLesTxRelay(peers, leth.reqDist)
 	leth.serverPool = newServerPool(chainDb, quitSync, &leth.wg)
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
@@ -146,8 +156,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	// Object used to retrieve and cache registered addresses from the Registry smart contract.
 	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
 	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
-	leth.regAdd.RefreshAddresses()
 	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd, leth.iEvmH)
+	leth.gpm = core.NewGasPriceMinimum(leth.iEvmH, leth.regAdd)
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
@@ -161,7 +171,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
+	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay, leth.iEvmH)
 	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg, config.Etherbase); err != nil {
 		return nil, err
 	}

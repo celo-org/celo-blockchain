@@ -90,22 +90,22 @@ const (
 
 	// Celo precompiled contracts
 	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	VerificationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
-	GetCoinbaseGas         uint64 = 20   // Equivalent to the cost of the BLOCKHASH op
+	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	AddressBasedEncryptionRegistryId = "AddressBasedEncryption"
-	BondedDepositsRegistryId         = "BondedDeposits"
-	GasCurrencyWhitelistRegistryId   = "GasCurrencyWhitelist"
-	GasPriceOracleRegistryId         = "GasPriceOracle"
-	GoldTokenRegistryId              = "GoldToken"
-	GovernanceRegistryId             = "Governance"
-	ReserveRegistryId                = "Reserve"
-	SortedOraclesRegistryId          = "SortedOracles"
-	ValidatorsRegistryId             = "Validators"
+	AttestationsRegistryId         = "Attestations"
+	BondedDepositsRegistryId       = "BondedDeposits"
+	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
+	GasPriceMinimumRegistryId      = "GasPriceMinimum"
+	GoldTokenRegistryId            = "GoldToken"
+	GovernanceRegistryId           = "Governance"
+	ReserveRegistryId              = "Reserve"
+	RandomRegistryId               = "Random"
+	SortedOraclesRegistryId        = "SortedOracles"
+	ValidatorsRegistryId           = "Validators"
 )
 
 var (
@@ -116,5 +116,18 @@ var (
 )
 
 const (
-	VerificationExpirySeconds uint64 = 86400 // One day. The AddressBasedEncryption contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
+)
+
+const (
+	// TODO(asa): Make these operations less expensive by charging only what is used.
+	// The problem is we don't know how much to refund until the refund is complete.
+	// If these values are changed, "setDefaults" will need updating.
+	MaxGasForDebitFromTransactions      uint64 = 50 * 1000
+	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
+	MaxGasForCreditToTransactions       uint64 = 30 * 1000
+	MaxGasToReadErc20Balance            uint64 = 10 * 1000
+	MaxGasToReadTobinTax                uint64 = 50 * 1000
+	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
+	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
 )

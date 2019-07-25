@@ -63,12 +63,15 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 
 	iEvmH := core.NewInternalEVMHandler(blockchain)
 	regAdd := core.NewRegisteredAddresses(iEvmH)
+	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
 	iEvmH.SetRegisteredAddresses(regAdd)
 
 	b.SetInternalEVMHandler(iEvmH)
 	b.SetRegisteredAddresses(regAdd)
+	b.SetGasPriceMinimum(gpm)
+	b.SetChain(blockchain, blockchain.CurrentBlock)
 
-	b.Start(blockchain, blockchain.CurrentBlock, blockchain.HasBadBlock,
+	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
 			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
 			return blockchain.StateAt(parentStateRoot)
@@ -153,7 +156,7 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
 	state, _ := chain.StateAt(parent.Root())
-	block, _ := engine.Finalize(chain, header, state, nil, nil, nil)
+	block, _ := engine.Finalize(chain, header, state, nil, nil, nil, nil)
 	return block
 }
 

@@ -423,7 +423,7 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 		for hash, n := range fp.nodeByHash {
 			if !f.checkKnownNode(p, n) && !n.requested && (bestTd == nil || n.td.Cmp(bestTd) >= 0) {
 				amount := f.requestAmount(p, n)
-				if bestTd == nil || n.td.Cmp(bestTd) > 0 || amount < bestAmount {
+				if bestTd == nil || n.td.Cmp(bestTd) > 0 || (amount < bestAmount && f.pm.downloader.Mode.SyncFullHeaderChain()) {
 					bestHash = hash
 					bestAmount = amount
 					bestTd = n.td
@@ -434,6 +434,8 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 	}
 	if bestTd == f.maxConfirmedTd {
 		return nil, 0, false
+	} else {
+		log.Trace("nextRequest", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 	}
 
 	var rq *distReq
@@ -522,7 +524,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 	for i, header := range resp.headers {
 		headers[int(req.amount)-1-i] = header
 	}
-	if _, err := f.chain.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := f.chain.InsertHeaderChain(headers, 1, f.pm.downloader.Mode.SyncFullHeaderChain()); err != nil {
 		if err == consensus.ErrFutureBlock {
 			return true
 		}
@@ -551,12 +553,15 @@ func (f *lightFetcher) newHeaders(headers []*types.Header, tds []*big.Int) {
 			p.Log().Debug("Inconsistent announcement")
 			go f.pm.removePeer(p.id)
 		}
+		log.Trace("newHeaders", "fp.confirmedTd", fp.confirmedTd, "maxTd", maxTd)
 		if fp.confirmedTd != nil && (maxTd == nil || maxTd.Cmp(fp.confirmedTd) > 0) {
 			maxTd = fp.confirmedTd
 		}
 	}
 	if maxTd != nil {
 		f.updateMaxConfirmedTd(maxTd)
+	} else {
+		log.Trace("newHeaders maxTd is nil")
 	}
 }
 
@@ -574,10 +579,6 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 	)
 
 	for i := len(headers) - 1; ; i-- {
-		// In latest block only mode, we only have the latest header
-		if f.pm.downloader.Mode == downloader.CeloLatestSync && i < len(headers) {
-			return true
-		}
 		if i < 0 {
 			if n == nil {
 				// no more headers and nothing to match
@@ -613,12 +614,14 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 				} else {
 					n.hash = hash
 					n.td = td
+					log.Debug("checkAnnouncedHeaders setting n.td", "n.td", n.td)
 					fp.nodeByHash[hash] = n
 				}
 			}
 			// check if it matches the header
-			if n.hash != hash || n.number != number || n.td.Cmp(td) != 0 {
+			if n.hash != hash || n.number != number || (n.td.Cmp(td) != 0) {
 				// peer has previously made an invalid announcement
+				log.Trace("checkAnnouncedHeaders", "hash", hash, "number", number, "td", td, "n.hash", n.hash, "n.number", n.number, "n.td", n.td)
 				return false
 			}
 			if n.known {
@@ -651,8 +654,13 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	var td *big.Int
 
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
-	// Disable this in Latest block only mode since we are not fetching the full chain
-	// now n is the latest downloaded header after syncing
+	// Disable this in Latest block only mode since we are not fetching the full chain now n is the
+	// latest downloaded header after syncing.
+	// Ultralightsync mode handles this behavior properly because it will download the latest
+	// announced header before completing the sync.
+	//
+	// Check for the latest announced header in our chain. If it is present, then move on, otherwise,
+	// move through the parents until we find a header that we have downloaded.
 	if f.pm.downloader.Mode != downloader.CeloLatestSync {
 		for n != nil {
 			if td = f.chain.GetTd(n.hash, n.number); td != nil {
@@ -661,6 +669,7 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 			n = n.parent
 		}
 	}
+	// Now n is the latest announced block by this peer that exists in our chain.
 	if n == nil {
 		p.Log().Debug("Synchronisation failed")
 		go f.pm.removePeer(p.id)

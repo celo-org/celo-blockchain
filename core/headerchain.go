@@ -148,12 +148,10 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else {
-			// Ancestors would be missing if the full header chain is not available.
-			// Therefore, we cannot calculate the difficulty level, assume the difficulty of
-			// a block to be its block number for now. Later on, we will add some verification,
-			// so that, malicious blocks cannot be inserted.
-			totalDifficulty := big.NewInt(int64(number))
-			log.Debug(fmt.Sprintf("Previous header difficulty is not available, setting it to %v", totalDifficulty))
+			// In IBFT, it seems that the announced td (total difficulty) is 1 + block number.
+			totalDifficulty := big.NewInt(int64(number + 1))
+			log.Debug(fmt.Sprintf("Previous header for %d difficulty is not available, setting its difficulty to %v",
+				number, totalDifficulty))
 			localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
 			externTd = externTd.Add(externTd, totalDifficulty)
 		}
@@ -192,9 +190,9 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
 			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
 
+			// In some sync modes we do not have all headers.
 			if !hc.config.FullHeaderChainAvailable {
 				if headHeader == nil {
-					// An issue in the celolatest mode where existing blocks are missing.
 					log.Debug("WriteHeader/nil head header encountered")
 					break
 				}
@@ -231,16 +229,18 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 // header writes should be protected by the parent chain mutex individually.
 type WhCallback func(*types.Header) error
 
-func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
+func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
 	// Do a sanity check that the provided chain is actually ordered and linked
-	for i := 1; i < len(chain); i++ {
-		if chain[i].Number.Uint64() != chain[i-1].Number.Uint64()+1 || chain[i].ParentHash != chain[i-1].Hash() {
-			// Chain broke ancestry, log a message (programming error) and skip insertion
-			log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", chain[i].Hash(),
-				"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", chain[i-1].Hash())
+	if contiguousHeaders {
+		for i := 1; i < len(chain); i++ {
+			if chain[i].Number.Uint64() != chain[i-1].Number.Uint64()+1 || chain[i].ParentHash != chain[i-1].Hash() {
+				// Chain broke ancestry, log a message (programming error) and skip insertion
+				log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", chain[i].Hash(),
+					"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", chain[i-1].Hash())
 
-			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].Number,
-				chain[i-1].Hash().Bytes()[:4], i, chain[i].Number, chain[i].Hash().Bytes()[:4], chain[i].ParentHash[:4])
+				return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].Number,
+					chain[i-1].Hash().Bytes()[:4], i, chain[i].Number, chain[i].Hash().Bytes()[:4], chain[i].ParentHash[:4])
+			}
 		}
 	}
 

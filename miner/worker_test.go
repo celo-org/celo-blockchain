@@ -53,9 +53,7 @@ var (
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
 
-	testVerificationService        = ""
-	testVerificationRewardsKey, _  = crypto.GenerateKey()
-	testVerificationRewardsAddress = crypto.PubkeyToAddress(testVerificationRewardsKey.PublicKey)
+	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -94,6 +92,7 @@ type testWorkerBackend struct {
 	iEvmH          *core.InternalEVMHandler
 	regAdd         *core.RegisteredAddresses
 	gcWl           *core.GasCurrencyWhitelist
+	gpm            *core.GasPriceMinimum
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -128,6 +127,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	regAdd := core.NewRegisteredAddresses(iEvmH)
 	iEvmH.SetRegisteredAddresses(regAdd)
 	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
+	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
 	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
@@ -136,6 +136,8 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
 		istanbul.SetInternalEVMHandler(iEvmH)
 		istanbul.SetRegisteredAddresses(regAdd)
+		istanbul.SetGasPriceMinimum(gpm)
+		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
 
 	// Generate a small n-block chain and an uncle block for it
@@ -157,12 +159,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	var backends []accounts.Backend
 	accountManager := accounts.NewManager(backends...)
 
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
-	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(nil)
-		istanbul.SetRegisteredAddresses(nil)
-	}
-
 	return &testWorkerBackend{
 		accountManager: accountManager,
 		db:             db,
@@ -172,6 +168,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		iEvmH:          iEvmH,
 		gcWl:           gcWl,
 		regAdd:         regAdd,
+		gpm:            gpm,
 	}
 }
 
@@ -184,6 +181,7 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
 func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
 func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return b.iEvmH }
+func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
@@ -191,7 +189,8 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	co := core.NewCurrencyOperator(nil, nil, nil)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, testVerificationRewardsAddress, co)
+	random := core.NewRandom(backend.regAdd, backend.iEvmH)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -244,8 +243,8 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
-	// TODO(asaj): Fix this
-	t.Skip("Disabled due to flakiness")
+	// TODO(nambrot): Fix this
+	t.Skip("Disabled due to flakyness")
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
 }
@@ -256,7 +255,7 @@ func TestEmptyWorkClique(t *testing.T) {
 
 func TestEmptyWorkIstanbul(t *testing.T) {
 	// TODO(nambrot): Fix this
-	t.Skip("Disabled due to flakiness")
+	t.Skip("Disabled due to flakyness")
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), false, true)
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), true, false)
 }
@@ -397,9 +396,6 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 // that potentially increase the fee revenue for the sealer. In Istanbul, that is not possible and even counter productive
 // as proposing another block after having already done so is clearly byzantine behavior.
 func TestRegenerateMiningBlockIstanbul(t *testing.T) {
-	// TODO(ashishb): Fix this
-	t.Skip("Disabled due to flakiness")
-
 	chainConfig := istanbulChainConfig
 	engine := getAuthorizedIstanbulEngine()
 

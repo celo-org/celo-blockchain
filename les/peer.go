@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -615,6 +617,7 @@ func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error)
 		}
 	}
 	if pid == "" {
+		log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", etherbase)
 		return nil, errNoPeerWithEtherbaseFound
 	}
 	peer := ps.peers[pid]

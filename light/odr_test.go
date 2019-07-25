@@ -198,7 +198,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		context := core.NewEVMContext(msg, header, chain, nil, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
-		ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil)
+		ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil, core.FallbackGasPriceMinimum, core.FallbackInfraFraction, nil)
 		res = append(res, ret...)
 		if st.Error() != nil {
 			return res, st.Error()
@@ -272,7 +272,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	for i, block := range gchain {
 		headers[i] = block.Header()
 	}
-	if _, err := lightchain.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
 		t.Fatal(err)
 	}
 

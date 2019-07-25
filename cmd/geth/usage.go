@@ -198,14 +198,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerRecommitIntervalFlag,
 			utils.MinerNoVerfiyFlag,
 			utils.MinerVerificationServiceUrlFlag,
-			utils.MinerVerificationRewardsFlag,
-		},
-	},
-	{
-		Name: "GAS PRICE ORACLE",
-		Flags: []cli.Flag{
-			utils.GpoBlocksFlag,
-			utils.GpoPercentileFlag,
 		},
 	},
 	{

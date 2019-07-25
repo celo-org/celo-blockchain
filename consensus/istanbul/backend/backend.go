@@ -35,7 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -49,6 +49,12 @@ var (
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
+// Entries for the recent announce messages
+type AnnounceGossipTimestamp struct {
+	enodeURL  string
+	timestamp time.Time
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -56,17 +62,21 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
 	knownMessages, _ := lru.NewARC(inmemoryMessages)
 	backend := &Backend{
-		config:           config,
-		istanbulEventMux: new(event.TypeMux),
-		logger:           log.New(),
-		db:               db,
-		commitCh:         make(chan *types.Block, 1),
-		recents:          recents,
-		coreStarted:      false,
-		recentMessages:   recentMessages,
-		knownMessages:    knownMessages,
+		config:               config,
+		istanbulEventMux:     new(event.TypeMux),
+		logger:               log.New(),
+		db:                   db,
+		commitCh:             make(chan *types.Block, 1),
+		recents:              recents,
+		coreStarted:          false,
+		recentMessages:       recentMessages,
+		knownMessages:        knownMessages,
+		announceWg:           new(sync.WaitGroup),
+		announceQuit:         make(chan struct{}),
+		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
+	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
 	return backend
 }
 
@@ -109,6 +119,14 @@ type Backend struct {
 
 	iEvmH  consensus.ConsensusIEvmH
 	regAdd consensus.ConsensusRegAdd
+	gpm    consensus.ConsensusGasPriceMinimum
+
+	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
+
+	valEnodeTable *validatorEnodeTable
+
+	announceWg   *sync.WaitGroup
+	announceQuit chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -138,7 +156,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 // Broadcast implements istanbul.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload)
+	sb.Gossip(valSet, payload, istanbulMsg, false)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -148,39 +166,57 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte) error {
-	hash := istanbul.RLPHash(payload)
-	sb.knownMessages.Add(hash, true)
+func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+	var hash common.Hash
+	if !ignoreCache {
+		hash = istanbul.RLPHash(payload)
+		sb.knownMessages.Add(hash, true)
+	}
 
-	targets := make(map[common.Address]bool)
-	for _, val := range valSet.List() {
-		if val.Address() != sb.Address() {
-			targets[val.Address()] = true
+	var targets map[common.Address]bool = nil
+
+	if valSet != nil {
+		targets = make(map[common.Address]bool)
+		for _, val := range valSet.List() {
+			if val.Address() != sb.Address() {
+				targets[val.Address()] = true
+			}
 		}
 	}
 
-	if sb.broadcaster != nil && len(targets) > 0 {
+	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
+
 		for addr, p := range ps {
-			ms, ok := sb.recentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-				if _, k := m.Get(hash); k {
-					// This peer had this event, skip it
-					continue
+			if !ignoreCache {
+				ms, ok := sb.recentMessages.Get(addr)
+				var m *lru.ARCCache
+				if ok {
+					m, _ = ms.(*lru.ARCCache)
+					if _, k := m.Get(hash); k {
+						// This peer had this event, skip it
+						continue
+					}
+				} else {
+					m, _ = lru.NewARC(inmemoryMessages)
 				}
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
+
+				m.Add(hash, true)
+				sb.recentMessages.Add(addr, m)
 			}
 
-			m.Add(hash, true)
-			sb.recentMessages.Add(addr, m)
-
-			go p.Send(istanbulMsg, payload)
+			go p.Send(msgCode, payload)
 		}
 	}
 	return nil
+}
+
+func (sb *Backend) Enode() *enode.Node {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetLocalNode()
+	} else {
+		return nil
+	}
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -227,7 +263,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -252,6 +288,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// verify the header of proposed block
+	if block.Header().Coinbase != src.Address() {
+		return 0, errInvalidCoinbase
+	}
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
@@ -307,15 +346,14 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	validatorElectionAddress := sb.regAdd.GetRegisteredAddress(params.ValidatorsRegistryId)
-
-	if validatorElectionAddress != nil {
-		var newValSet []common.Address
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorElectionAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, 20000, header, state); err != nil {
-			log.Error("verifyValSetDiff - Error in getting the validator set from the validators smart contract")
-			return err
+	newValSet, err := sb.getValSet(block.Header(), state)
+	if err != nil {
+		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
+		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
+			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", common.ConvertToStringSlice(istExtra.RemovedValidators))
+			return errInvalidValidatorSetDiff
 		}
-
+	} else {
 		parentValidators := sb.ParentValidators(proposal)
 		oldValSet := make([]common.Address, 0, parentValidators.Size())
 
@@ -326,13 +364,6 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
 		if !istanbul.CompareValidatorSlices(addedValidators, istExtra.AddedValidators) || !istanbul.CompareValidatorSlices(removedValidators, istExtra.RemovedValidators) {
-			return errInvalidValidatorSetDiff
-		}
-	} else {
-		// The validator election smart contract is not registered yet, so the validator set diff should be empty
-
-		if len(istExtra.AddedValidators) != 0 || len(istExtra.RemovedValidators) != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", istExtra.AddedValidators, "removedValidators", istExtra.RemovedValidators)
 			return errInvalidValidatorSetDiff
 		}
 	}
@@ -417,4 +448,44 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 		return false
 	}
 	return sb.hasBadBlock(hash)
+}
+
+func (sb *Backend) AddValidatorPeer(enodeURL string) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.AddValidatorPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.RemoveValidatorPeer(enodeURL)
+	}
+}
+
+func (sb *Backend) GetValidatorPeers() []string {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetValidatorPeers()
+	} else {
+		return nil
+	}
+}
+
+// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// peers that are not part of the valset.
+// It will also disconnect all validator connections if this node is not a validator.
+// Note that adding and removing validators are idempotent operations.  If the validator
+// being added or removed is already added or removed, then a no-op will be done.
+func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
+	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+
+	currentValPeers := sb.GetValidatorPeers()
+
+	// Disconnect all validator peers if this node is not in the valset
+	if _, val := valset.GetByAddress(sb.Address()); val == nil {
+		for _, peerEnodeURL := range currentValPeers {
+			sb.RemoveValidatorPeer(peerEnodeURL)
+		}
+	} else {
+		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
+	}
 }

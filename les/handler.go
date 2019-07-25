@@ -75,7 +75,7 @@ type BlockChain interface {
 	CurrentHeader() *types.Header
 	GetTd(hash common.Hash, number uint64) *big.Int
 	State() (*state.StateDB, error)
-	InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error)
+	InsertHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error)
 	Rollback(chain []common.Hash, fullHeaderChainAvailable bool)
 	GetHeaderByNumber(number uint64) *types.Header
 	GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64)
@@ -125,8 +125,12 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
-func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
-	lightSync := syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync
+func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig,
+	syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine,
+	peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database,
+	odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{},
+	wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
+	lightSync := !syncMode.SyncFullBlockChain()
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		lightSync:   lightSync,
@@ -157,7 +161,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 		removePeer = func(id string) {}
 	}
 
-	if syncMode == downloader.LightSync || syncMode == downloader.CeloLatestSync {
+	if lightSync {
 		manager.downloader = downloader.New(syncMode, chainDb, manager.eventMux, nil, blockchain, removePeer)
 		manager.peers.notify((*downloaderPeerNotify)(manager))
 		manager.fetcher = newLightFetcher(manager)
@@ -1176,6 +1180,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
 		pm.peers.setEtherbase(p, resp.Etherbase)
 
 	default:
