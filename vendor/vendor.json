@@ -63,10 +63,10 @@
 			"revisionTime": "2017-11-28T15:02:46Z"
 		},
 		{
-			"checksumSHA1": "i7PLf/Uq28ih3HH1tyk+KEVug+Q=",
+			"checksumSHA1": "WwAQtjrpaAU+Bro1ga/cPt+z26k=",
 			"path": "github.com/celo-org/bls-zexe",
-			"revision": "976374b519dc13c2330b83758f423e0581c28508",
-			"revisionTime": "2019-07-25T16:20:12Z",
+			"revision": "080666c40171890175bb670fa20d5fddeccce6dc",
+			"revisionTime": "2019-07-25T18:30:28Z",
 			"tree": true
 		},
 		{
