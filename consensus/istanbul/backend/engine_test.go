@@ -100,6 +100,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				return crypto.Sign(data, key)
 			}
 			b.Authorize(addr, signerFn)
+			b.SetBroadcaster(&MockBroadcaster{privateKey: key})
 			break
 		}
 	}
@@ -115,6 +116,9 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		nodeKeys[i], _ = crypto.GenerateKey()
 		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
 	}
+
+	nodeKeys[0], _ = generatePrivateKey()
+	addrs[0] = getAddress()
 
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()

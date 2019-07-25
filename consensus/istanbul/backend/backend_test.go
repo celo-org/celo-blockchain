@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 func TestSign(t *testing.T) {
@@ -243,11 +242,6 @@ func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
 	return crypto.Sign(data, key)
 }
 
-func decrypterFn(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
-	key, _ := generatePrivateKey()
-	return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
-}
-
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
@@ -259,11 +253,6 @@ func newBackend() (b *Backend) {
 func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
 	key, _ := generateInvalidPrivateKey()
 	return crypto.Sign(data, key)
-}
-
-func decrypterFnInvalid(_ accounts.Account, c []byte, s1 []byte, s2 []byte) ([]byte, error) {
-	key, _ := generateInvalidPrivateKey()
-	return ecies.ImportECDSA(key).Decrypt(c, s1, s2)
 }
 
 func invalidBackend() (b *Backend) {

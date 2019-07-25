@@ -159,14 +159,14 @@ func (sb *Backend) sendAnnounceMsgs() {
 	}
 }
 
-func (sb *Backend) sendIstAnnounce() error {
+func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	block := sb.currentBlock()
 
 	selfEnode := sb.Enode()
 
 	if selfEnode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
-		return nil
+		return nil, nil
 	}
 
 	enodeUrl := selfEnode.String()
@@ -187,7 +187,7 @@ func (sb *Backend) sendIstAnnounce() error {
 		}
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
-		return err
+		return nil, err
 	}
 
 	encryptedIPs := make(map[common.Address][]byte)
@@ -207,7 +207,7 @@ func (sb *Backend) sendIstAnnounce() error {
 	encryptedIPData, err := json.Marshal(encryptedIPs)
 	if err != nil {
 		sb.logger.Error("Error in marshaling encrypted enode data", "err", err)
-		return err
+		return nil, err
 	}
 
 	msg := &announceMessage{
@@ -220,17 +220,30 @@ func (sb *Backend) sendIstAnnounce() error {
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return err
+		return nil, err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
 		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
-		return err
+		return nil, err
 	}
 
 	sb.logger.Trace("Broadcasting an announce message", "AnnounceMsg", msg)
+
+	return payload, nil
+}
+
+func (sb *Backend) sendIstAnnounce() error {
+	payload, err := sb.generateIstAnnounce()
+	if err != nil {
+		return err
+	}
+
+	if payload == nil {
+		return nil
+	}
 
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
@@ -293,7 +306,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	json.Unmarshal(msg.EncryptedIPData, &encryptedIPs)
 	encryptedIP := encryptedIPs[sb.Address()]
 	IPBytes, err := nodeKey.Decrypt(encryptedIP, nil, nil)
-	log.Debug("ip data", "asdf", string(IPBytes))
+	if err != nil {
+		sb.logger.Warn("Error in decrypting ip", "err", err)
+	}
 	enodeUrl := msg.IncompleteEnodeURL + string(IPBytes)
 
 	log.Error("Handling an IstanbulAnnounce message", "actual", msg.IncompleteEnodeURL, "lol", enodeUrl)
@@ -306,7 +321,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
 			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
-			log.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
 		}
 	}
