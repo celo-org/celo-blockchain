@@ -156,7 +156,7 @@ func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanb
 	// Handle the PREPARED certificate if present.
 	var num int
 	if rc.HasPreparedCertificate() {
-		if err := c.handlePreparedCertificate(rc.PreparedCertificate); err != nil {
+		if err := c.handlePreparedCertificate(rc.PreparedCertificate, src); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 			return err
 		}
