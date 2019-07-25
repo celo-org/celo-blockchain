@@ -352,10 +352,15 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	validSeal := 0
 	proposalSeal := istanbulCore.PrepareCommittedSeal(header.Hash())
 	// 1. Get committed seals from current header
+	myValidatorIndex, myValidator := validators.GetByAddress(sb.Address())
 	publicKeys := [][]byte{}
 	for i := 0; i < snap.ValSet.Size(); i++ {
 		if extra.Bitmap.Bit(i) == 1 {
-			publicKeys = append(publicKeys, validators.GetByIndex(uint64(i)).BLSPublicKey())
+			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
+			if myValidatorIndex >= 0 && bytes.Equal(pubKey, myValidator.BLSPublicKey()) {
+				sb.logger.Debug("Our backend participated in consensus", "number", number)
+			}
+			publicKeys = append(publicKeys, pubKey)
 		}
 	}
 
