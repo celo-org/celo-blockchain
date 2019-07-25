@@ -66,7 +66,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(data, false)
+		signature, err := privateKey.SignMessage(data, []byte{}, false)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return signatureBytes, nil
 	}
 
-	signerBLSMessageFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+	signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
 		key := nodeKeys[0]
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 		if err != nil {
@@ -92,7 +92,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(data, true)
+		signature, err := privateKey.SignMessage(data, extraData, true)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +164,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				}
 				defer privateKey.Destroy()
 
-				signature, err := privateKey.SignMessage(data, false)
+				signature, err := privateKey.SignMessage(data, []byte{}, false)
 				if err != nil {
 					return nil, err
 				}
@@ -177,7 +177,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				return signatureBytes, nil
 			}
 
-			signerBLSMessageFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+			signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
 				privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 				if err != nil {
 					return nil, err
@@ -189,7 +189,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				}
 				defer privateKey.Destroy()
 
-				signature, err := privateKey.SignMessage(data, true)
+				signature, err := privateKey.SignMessage(data, extraData, true)
 				if err != nil {
 					return nil, err
 				}

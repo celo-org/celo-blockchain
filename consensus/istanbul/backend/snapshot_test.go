@@ -277,7 +277,7 @@ func TestValSetChange(t *testing.T) {
 			}
 			defer privateKey.Destroy()
 
-			signature, err := privateKey.SignMessage(data, false)
+			signature, err := privateKey.SignMessage(data, []byte{}, false)
 			if err != nil {
 				return nil, err
 			}
@@ -290,7 +290,7 @@ func TestValSetChange(t *testing.T) {
 			return signatureBytes, nil
 		}
 
-		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) ([]byte, error) {
 			key := privateKey
 			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 			if err != nil {
@@ -303,7 +303,7 @@ func TestValSetChange(t *testing.T) {
 			}
 			defer privateKey.Destroy()
 
-			signature, err := privateKey.SignMessage(data, true)
+			signature, err := privateKey.SignMessage(data, extraData, true)
 			if err != nil {
 				return nil, err
 			}

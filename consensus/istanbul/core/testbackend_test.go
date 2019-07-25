@@ -59,7 +59,7 @@ type testCommittedMsgs struct {
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.SignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.MessageSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }

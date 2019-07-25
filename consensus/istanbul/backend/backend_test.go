@@ -257,7 +257,7 @@ func signerBLSHashFn(_ accounts.Account, data []byte) ([]byte, error) {
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(data, false)
+	signature, err := privateKey.SignMessage(data, []byte{}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func signerBLSHashFn(_ accounts.Account, data []byte) ([]byte, error) {
 	return signatureBytes, nil
 }
 
-func signerBLSMessageFn(_ accounts.Account, data []byte) ([]byte, error) {
+func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 	if err != nil {
@@ -283,7 +283,7 @@ func signerBLSMessageFn(_ accounts.Account, data []byte) ([]byte, error) {
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(data, true)
+	signature, err := privateKey.SignMessage(data, extraData, true)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,14 @@ import (
 var GeneralError = errors.New("General error")
 var NotVerifiedError = errors.New("Not verified")
 
+func sliceToPtr(slice []byte) (*C.uchar, C.int) {
+	if len(slice) == 0 {
+		return nil, 0
+	} else {
+		return (*C.uchar)(unsafe.Pointer(&slice[0])), C.int(len(slice))
+	}
+}
+
 type PrivateKey struct {
 	ptr *C.struct_PrivateKey
 }
@@ -73,7 +81,10 @@ func (self *PrivateKey) ToPublic() (*PublicKey, error) {
 
 func (self *PrivateKey) SignMessage(message []byte, extraData []byte, shouldUseCompositeHasher bool) (*Signature, error) {
 	signature := &Signature{}
-	success := C.sign_message(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&extraData[0])), C.int(len(extraData)), C.bool(shouldUseCompositeHasher), &signature.ptr)
+	messagePtr, messageLen := sliceToPtr(message)
+	extraDataPtr, extraDataLen := sliceToPtr(extraData)
+
+	success := C.sign_message(self.ptr, messagePtr, messageLen, extraDataPtr, extraDataLen, C.bool(shouldUseCompositeHasher), &signature.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -123,7 +134,11 @@ func (self *PublicKey) Destroy() {
 
 func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signature *Signature, shouldUseCompositeHasher bool) error {
 	var verified C.bool
-	success := C.verify_signature(self.ptr, (*C.uchar)(unsafe.Pointer(&message[0])), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&extraData[0])), C.int(len(extraData)), signature.ptr, C.bool(shouldUseCompositeHasher), &verified)
+
+	messagePtr, messageLen := sliceToPtr(message)
+	extraDataPtr, extraDataLen := sliceToPtr(extraData)
+
+	success := C.verify_signature(self.ptr, messagePtr, messageLen, extraDataPtr, extraDataLen, signature.ptr, C.bool(shouldUseCompositeHasher), &verified)
 	if !success {
 		return GeneralError
 	}

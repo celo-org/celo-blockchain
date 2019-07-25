@@ -228,7 +228,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(data, false)
+		signature, err := privateKey.SignMessage(data, []byte{}, false)
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +241,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	signMessageBLSFn := func(_ accounts.Account, msg []byte) ([]byte, error) {
+	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
 			return nil, err
@@ -253,7 +253,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(msg, true)
+		signature, err := privateKey.SignMessage(msg, extraData, true)
 		if err != nil {
 			return nil, err
 		}
