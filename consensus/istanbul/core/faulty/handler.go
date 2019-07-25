@@ -44,6 +44,10 @@ func (c *core) Stop() error {
 	return nil
 }
 
+func (c *core) CurrentView() *istanbul.View {
+	return c.currentView()
+}
+
 // ----------------------------------------------------------------------------
 
 // Subscribe both internal and external events
@@ -97,7 +101,8 @@ func (c *core) handleEvents() {
 				}
 			case istanbul.MessageEvent:
 				if err := c.handleMsg(ev.Payload); err == nil {
-					c.backend.Gossip(c.valSet, ev.Payload)
+					// Third parameter is msgCode. Should be per message.
+					c.backend.Gossip(c.valSet, ev.Payload, uint64(0), false)
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
@@ -107,7 +112,8 @@ func (c *core) handleEvents() {
 						c.logger.Warn("Get message payload failed", "err", err)
 						continue
 					}
-					c.backend.Gossip(c.valSet, p)
+					// Third parameter is msgCode. Should be per message.
+					c.backend.Gossip(c.valSet, p, uint64(0), false)
 				}
 			}
 		case _, ok := <-c.timeoutSub.Chan():
