@@ -25,7 +25,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -141,7 +140,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 
 				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, gpm.FallbackGasPriceMinimum, gpm.FallbackInfraFraction, nil)
+				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
 				res = append(res, ret...)
 			}
 		} else {
@@ -152,7 +151,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
-			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, gpm.FallbackGasPriceMinimum, gpm.FallbackInfraFraction, nil)
+			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
 			if state.Error() == nil {
 				res = append(res, ret...)
 			}

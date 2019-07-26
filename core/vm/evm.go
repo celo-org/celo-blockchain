@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -41,9 +42,9 @@ var systemCaller = AccountRef(common.HexToAddress("0x0"))
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
-	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
+	CanTransferFunc func(*state.StateDB, common.Address, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	TransferFunc func(*state.StateDB, common.Address, common.Address, *big.Int)
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
@@ -97,6 +98,8 @@ type Context struct {
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
+
+	Header *types.Header
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -111,8 +114,9 @@ type Context struct {
 type EVM struct {
 	// Context provides auxiliary blockchain related information
 	Context
-	// StateDB gives access to the underlying state
-	StateDB StateDB
+	// state.StateDB gives access to the underlying state
+	StateDB *state.StateDB
+
 	// Depth is the current call stack
 	depth int
 
@@ -143,7 +147,7 @@ type EVM struct {
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
-func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
+func NewEVM(ctx Context, statedb *state.StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
 	evm := &EVM{
 		Context:      ctx,
 		StateDB:      statedb,
@@ -189,8 +193,12 @@ func (evm *EVM) Interpreter() Interpreter {
 	return evm.interpreter
 }
 
-func (evm *EVM) GetStateDB() StateDB {
+func (evm *EVM) GetStateDB() *state.StateDB {
 	return evm.StateDB
+}
+
+func (evm *EVM) GetHeader() *types.Header {
+	return evm.Context.Header
 }
 
 // Call executes the contract associated with the addr with the given input as
@@ -504,7 +512,7 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 }
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
-func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+func (evm *EVM) TobinTransfer(db *state.StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
 	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 
 	if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {

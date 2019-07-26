@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -199,7 +198,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		context := core.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
-		ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, gpm.FallbackGasPriceMinimum, gpm.FallbackInfraFraction, nil)
+		ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
 		res = append(res, ret...)
 		if st.Error() != nil {
 			return res, st.Error()
