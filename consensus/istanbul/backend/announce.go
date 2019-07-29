@@ -296,7 +296,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	encryptedIP := []byte("")
 	for _, entry := range msg.EncryptedIPData {
-		if bytes.Compare(entry[0], sb.Address().Bytes()) == 0 {
+		if bytes.Equal(entry[0], sb.Address().Bytes()) {
 			encryptedIP = entry[1]
 		}
 	}
