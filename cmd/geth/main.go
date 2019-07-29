@@ -111,6 +111,7 @@ var (
 		utils.MinerRecommitIntervalFlag,
 		utils.MinerNoVerfiyFlag,
 		utils.MinerVerificationServiceUrlFlag,
+		utils.AttestationsDecryptionAccount,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,
