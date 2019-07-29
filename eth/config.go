@@ -42,15 +42,16 @@ var DefaultConfig = Config{
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	},
-	NetworkId:                   1,
-	LightPeers:                  100,
-	DatabaseCache:               768,
-	TrieTimeout:                 60 * time.Minute,
-	MinerGasFloor:               8000000,
-	MinerGasCeil:                8000000,
-	MinerGasPrice:               big.NewInt(1),
-	MinerRecommit:               3 * time.Second,
-	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
+	NetworkId:                    1,
+	LightPeers:                   100,
+	DatabaseCache:                768,
+	TrieTimeout:                  60 * time.Minute,
+	MinerGasFloor:                8000000,
+	MinerGasCeil:                 8000000,
+	MinerGasPrice:                big.NewInt(1),
+	MinerRecommit:                3 * time.Second,
+	MinerVerificationServiceUrl:  "https://mining-pool.celo.org/v0.1/sms",
+	AttestationDecryptionAccount: common.Address{},
 
 	TxPool: core.DefaultTxPoolConfig,
 
@@ -110,6 +111,8 @@ type Config struct {
 	MinerRecommit               time.Duration
 	MinerNoverify               bool
 	MinerVerificationServiceUrl string
+
+	AttestationDecryptionAccount common.Address
 
 	// Ethash options
 	Ethash ethash.Config

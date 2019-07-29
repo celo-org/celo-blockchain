@@ -398,6 +398,11 @@ var (
 		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
 		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
 	}
+	AttestationsDecryptionAccount = cli.StringFlag{
+		Name:  "attestations.decryptionaccount",
+		Usage: "Account to use to decrypt users' phone numbers",
+		Value: "",
+	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -906,6 +911,24 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	}
 }
 
+// setAttestationDecryptionAccount retrieves the etherbase either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+func setAttestationDecryptionAccount(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current etherbase, new flag overriding legacy one
+	var decryptionAccount string
+	if ctx.GlobalIsSet(AttestationsDecryptionAccount.Name) {
+		decryptionAccount = ctx.GlobalString(AttestationsDecryptionAccount.Name)
+	}
+	// Convert the decryptionAccount into an address and configure it
+	if decryptionAccount != "" {
+		account, err := MakeAddress(ks, decryptionAccount)
+		if err != nil {
+			Fatalf("Invalid decryptionAccount: %v", err)
+		}
+		cfg.AttestationDecryptionAccount = account.Address
+	}
+}
+
 // MakePasswordList reads password lines from the file specified by the global --password flag.
 func MakePasswordList(ctx *cli.Context) []string {
 	path := ctx.GlobalString(PasswordFileFlag.Name)
@@ -1186,6 +1209,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	setEtherbase(ctx, ks, cfg)
+	setAttestationDecryptionAccount(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 	setWhitelist(ctx, cfg)

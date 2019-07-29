@@ -73,8 +73,8 @@ func sendSms(phoneNumber string, message string, account common.Address, issuer 
 	return err
 }
 
-func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coinbase common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
-	account := accounts.Account{Address: coinbase}
+func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, decryptionAccount common.Address, accountManager *accounts.Manager, verificationServiceURL string) {
+	account := accounts.Account{Address: decryptionAccount}
 	var wallet accounts.Wallet
 	var err error
 	for _, receipt := range receipts {
@@ -87,7 +87,7 @@ func SendAttestationMessages(receipts []*types.Receipt, block *types.Block, coin
 				}
 			}
 
-			if !bytes.Equal(coinbase.Bytes(), request.Verifier.Bytes()) {
+			if !bytes.Equal(decryptionAccount.Bytes(), request.Verifier.Bytes()) {
 				continue
 			}
 			phoneNumber, err := decryptPhoneNumber(request, account, wallet)

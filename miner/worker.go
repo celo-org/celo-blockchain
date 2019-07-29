@@ -181,9 +181,10 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
 	// Verification Service
-	verificationService string
-	verificationMu      sync.RWMutex
-	lastBlockVerified   uint64
+	verificationService          string
+	verificationMu               sync.RWMutex
+	lastBlockVerified            uint64
+	attestationDecryptionAccount common.Address
 
 	// Transaction processing
 	co     *core.CurrencyOperator
@@ -193,34 +194,35 @@ type worker struct {
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, attestationDecryptionAccount common.Address, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
 	worker := &worker{
-		config:              config,
-		engine:              engine,
-		eth:                 eth,
-		mux:                 mux,
-		chain:               eth.BlockChain(),
-		gasFloor:            gasFloor,
-		gasCeil:             gasCeil,
-		isLocalBlock:        isLocalBlock,
-		verificationService: verificationService,
-		localUncles:         make(map[common.Hash]*types.Block),
-		remoteUncles:        make(map[common.Hash]*types.Block),
-		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:        make(map[common.Hash]*task),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:           make(chan *newWorkReq),
-		taskCh:              make(chan *task),
-		resultCh:            make(chan *types.Block, resultQueueSize),
-		exitCh:              make(chan struct{}),
-		startCh:             make(chan struct{}, 1),
-		resubmitIntervalCh:  make(chan time.Duration),
-		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		co:                  co,
-		random:              random,
-		db:                  db,
+		config:                       config,
+		engine:                       engine,
+		eth:                          eth,
+		mux:                          mux,
+		chain:                        eth.BlockChain(),
+		gasFloor:                     gasFloor,
+		gasCeil:                      gasCeil,
+		isLocalBlock:                 isLocalBlock,
+		verificationService:          verificationService,
+		attestationDecryptionAccount: attestationDecryptionAccount,
+		localUncles:                  make(map[common.Hash]*types.Block),
+		remoteUncles:                 make(map[common.Hash]*types.Block),
+		unconfirmed:                  newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:                 make(map[common.Hash]*task),
+		txsCh:                        make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:                  make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:                  make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:                    make(chan *newWorkReq),
+		taskCh:                       make(chan *task),
+		resultCh:                     make(chan *types.Block, resultQueueSize),
+		exitCh:                       make(chan struct{}),
+		startCh:                      make(chan struct{}, 1),
+		resubmitIntervalCh:           make(chan time.Duration),
+		resubmitAdjustCh:             make(chan *intervalAdjust, resubmitAdjustChanSize),
+		co:                           co,
+		random:                       random,
+		db:                           db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -400,7 +402,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					block := w.chain.GetBlockByNumber(number)
 					if now := time.Now().Unix(); block.Time().Uint64()+params.AttestationExpirySeconds >= uint64(now) {
 						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
+						abe.SendAttestationMessages(receipts, block, w.attestationDecryptionAccount, w.eth.AccountManager(), w.verificationService)
 					} else {
 						break
 					}

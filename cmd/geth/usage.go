@@ -201,6 +201,12 @@ var AppHelpFlagGroups = []flagGroup{
 		},
 	},
 	{
+		Name: "ATTESTATIONS",
+		Flags: []cli.Flag{
+			utils.AttestationsDecryptionAccount,
+		},
+	},
+	{
 		Name: "VIRTUAL MACHINE",
 		Flags: []cli.Flag{
 			utils.VMEnableDebugFlag,
