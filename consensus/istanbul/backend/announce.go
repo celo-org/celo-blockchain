@@ -17,9 +17,9 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	mrand "math/rand"
@@ -27,11 +27,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	// "github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	// "github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -43,7 +41,7 @@ import (
 type announceMessage struct {
 	Address            common.Address
 	IncompleteEnodeURL string //TODO(nguo) remove this field
-	EncryptedIPData    []byte
+	EncryptedIPData    [][][]byte
 	View               *istanbul.View
 	Signature          []byte
 }
@@ -66,7 +64,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address            common.Address
 		IncompleteEnodeURL string
-		EncryptedIPData    []byte
+		EncryptedIPData    [][][]byte
 		View               *istanbul.View
 		Signature          []byte
 	}
@@ -190,7 +188,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		return nil, err
 	}
 
-	encryptedIPs := make(map[common.Address][]byte)
+	encryptedIPs := make([][][]byte, 0)
 	for addr := range regVals {
 		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
 			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
@@ -199,21 +197,15 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 			if err != nil {
 				log.Warn("Unable to unmarshal public key", "err", err)
 			} else {
-				encryptedIPs[addr] = encryptedIP
+				encryptedIPs = append(encryptedIPs, [][]byte{addr.Bytes(), encryptedIP})
 			}
 		}
-	}
-
-	encryptedIPData, err := json.Marshal(encryptedIPs)
-	if err != nil {
-		sb.logger.Error("Error in marshaling encrypted enode data", "err", err)
-		return nil, err
 	}
 
 	msg := &announceMessage{
 		Address:            sb.Address(),
 		IncompleteEnodeURL: incompleteEnodeUrl,
-		EncryptedIPData:    encryptedIPData,
+		EncryptedIPData:    encryptedIPs,
 		View:               view,
 	}
 
@@ -302,9 +294,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// Decrypt the EnodeURL
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
-	var encryptedIPs map[common.Address][]byte
-	json.Unmarshal(msg.EncryptedIPData, &encryptedIPs)
-	encryptedIP := encryptedIPs[sb.Address()]
+	encryptedIP := []byte("")
+	for _, entry := range msg.EncryptedIPData {
+		if bytes.Compare(entry[0], sb.Address().Bytes()) == 0 {
+			encryptedIP = entry[1]
+		}
+	}
 	IPBytes, err := nodeKey.Decrypt(encryptedIP, nil, nil)
 	if err != nil {
 		sb.logger.Warn("Error in decrypting ip", "err", err)

@@ -2,8 +2,6 @@ package backend
 
 import (
 	"crypto/ecdsa"
-	// "crypto/rand"
-	// "encoding/json"
 	"net"
 	"strings"
 	"testing"
@@ -11,8 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
-	// "github.com/ethereum/go-ethereum/crypto/ecies"
-	// "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 

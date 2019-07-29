@@ -254,11 +254,3 @@ func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
 	key, _ := generateInvalidPrivateKey()
 	return crypto.Sign(data, key)
 }
-
-func invalidBackend() (b *Backend) {
-	_, b = newBlockChain(4, true)
-
-	key, _ := generateInvalidPrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFnInvalid)
-	return
-}
