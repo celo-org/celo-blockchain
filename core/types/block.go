@@ -384,6 +384,16 @@ func (b *Block) WithSeal(header *Header) *Block {
 		randomness:   b.randomness,
 	}
 }
+// WithRandomness returns a new block with the given randomness.
+func (b *Block) WithRandomness(randomness *Randomness) *Block {
+	block := &Block{
+		header:       b.header,
+		transactions: b.transactions,
+		uncles:       b.uncles,
+		randomness:   randomness,
+	}
+	return block
+}
 
 // WithBody returns a new block with the given transaction and uncle contents.
 func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomness *Randomness) *Block {

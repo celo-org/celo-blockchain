@@ -162,7 +162,8 @@ func EmptyPreparedCertificate() PreparedCertificate {
 		GasUsed:    0,
 		Time:       big.NewInt(0),
 	}
-	block := types.Block{}
+	block := &types.Block{}
+	block = block.WithRandomness(&types.EmptyRandomness)
 
 	return PreparedCertificate{
 		Proposal:                block.WithSeal(emptyHeader),
