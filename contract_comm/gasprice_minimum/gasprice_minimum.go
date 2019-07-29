@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
-	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -109,12 +109,12 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
-func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
+func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(currency, header, state)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
 }
 
-func GetGasPriceMinimum(currency *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
+func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var currencyAddress *common.Address
 	var err error
 
@@ -147,7 +147,7 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state *s
 	return gasPriceMinimum, err
 }
 
-func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
+func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
 	_, err := contract_comm.MakeCall(
@@ -169,7 +169,7 @@ func UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetInfrastructureFraction(header *types.Header, state *state.StateDB) (*InfrastructureFraction, error) {
+func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(

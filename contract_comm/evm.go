@@ -23,9 +23,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -109,12 +109,12 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 
 // CanTransfer checks whether there are enough funds in the address's account to make a transfer.
 // This does not take the necessary gas into account to make the transfer valid.
-func CanTransfer(db *state.StateDB, addr common.Address, amount *big.Int) bool {
+func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
 }
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db *state.StateDB, sender, recipient common.Address, amount *big.Int) {
+func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 }
@@ -124,7 +124,7 @@ type InternalEVMHandler struct {
 	chain ChainContext
 }
 
-func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Contract not yet deployed", "contractId", scRegistryId)
@@ -142,7 +142,7 @@ func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []in
 	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
-func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
+func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
 	scAddress, err := GetContractAddress(scRegistryId, header, state)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Contract deployment in progress")
@@ -154,15 +154,15 @@ func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interfac
 	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
-func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state *state.StateDB) (uint64, error) {
+func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
-func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB) (uint64, error) {
+func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
 	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
-func GetContractAddress(registryId string, header *types.Header, state *state.StateDB) (*common.Address, error) {
+func GetContractAddress(registryId string, header *types.Header, state vm.StateDB) (*common.Address, error) {
 	vmevm, err := createVMEVM(header, state)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func GetContractAddress(registryId string, header *types.Header, state *state.St
 	return scAddress, err
 }
 
-func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
+func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
@@ -202,7 +202,7 @@ func createVMEVM(header *types.Header, state *state.StateDB) (*vm.EVM, error) {
 	return evm, nil
 }
 
-func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state *state.StateDB, mutateState bool) (uint64, error) {
+func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, mutateState bool) (uint64, error) {
 	vmevm, err := createVMEVM(header, state)
 	if err != nil {
 		return 0, err
