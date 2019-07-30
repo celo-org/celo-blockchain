@@ -361,6 +361,10 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 			sb.logger.Error("not a valid address", "err", err)
 			return errInvalidSignature
 		}
+
+		if addr == sb.Address() {
+			sb.logger.Debug("Our backend participated in consensus", "number", number)
+		}
 		// Every validator can have only one seal. If more than one seals are signed by a
 		// validator, the validator cannot be found and errInvalidCommittedSeals is returned.
 		if validators.RemoveValidators([]common.Address{addr}) {
