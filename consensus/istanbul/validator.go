@@ -73,6 +73,8 @@ type ValidatorSet interface {
 	F() int
 	// Get proposer policy
 	Policy() ProposerPolicy
+	// Get the minimum quorum size
+	MinQuorumSize() int
 }
 
 // ----------------------------------------------------------------------------
