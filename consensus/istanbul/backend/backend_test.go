@@ -177,10 +177,7 @@ func TestCommit(t *testing.T) {
 func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlock(chain, engine, chain.Genesis())
-	_,err := chain.InsertChain(types.Blocks{block})
-	if (err != nil) {
-	   t.Errorf("Failed in inserting into chain.  err: %v", err)
-	}
+	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)
 	actual := engine.Address()
 	if actual != expected {
