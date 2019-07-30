@@ -191,8 +191,8 @@ OUTER:
 			if r0.state != StatePrepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePrepared)
 			}
-			if r0.current.Commits.Size() > 2*r0.valSet.F() {
-				t.Errorf("the size of commit messages should be less than %v", 2*r0.valSet.F()+1)
+			if r0.current.Commits.Size() > r0.valSet.MinQuorumSize() {
+				t.Errorf("the size of commit messages should be less than %v", r0.valSet.MinQuorumSize())
 			}
 			if r0.current.IsHashLocked() {
 				t.Errorf("block should not be locked")
@@ -200,12 +200,12 @@ OUTER:
 			continue
 		}
 
-		// core should have 2F+1 prepare messages
-		if r0.current.Commits.Size() <= 2*r0.valSet.F() {
-			t.Errorf("the size of commit messages should be larger than 2F+1: size %v", r0.current.Commits.Size())
+		// core should have min quorum size prepare messages
+		if r0.current.Commits.Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits.Size())
 		}
 
-		// check signatures large than 2F+1
+		// check signatures large than MinQuorumSize
 		signedCount := 0
 		committedSeals := v0.committedMsgs[0].committedSeals
 		for _, validator := range r0.valSet.List() {
@@ -216,8 +216,8 @@ OUTER:
 				}
 			}
 		}
-		if signedCount <= 2*r0.valSet.F() {
-			t.Errorf("the expected signed count should be larger than %v, but got %v", 2*r0.valSet.F(), signedCount)
+		if signedCount < r0.valSet.MinQuorumSize() {
+			t.Errorf("the expected signed count should be greater than or equal to %v, but got %v", r0.valSet.MinQuorumSize(), signedCount)
 		}
 		if !r0.current.IsHashLocked() {
 			t.Errorf("block should be locked")
