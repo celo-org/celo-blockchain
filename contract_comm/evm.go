@@ -164,7 +164,7 @@ func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string,
 }
 
 func GetContractAddress(registryId string, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	vmevm, err := createVMEVM(header, state)
+	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -172,12 +172,12 @@ func GetContractAddress(registryId string, header *types.Header, state vm.StateD
 	return scAddress, err
 }
 
-func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
+func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	log.Trace("createVMEVM called")
+	log.Trace("createEVM called")
 	if internalEvmHandlerSingleton == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
@@ -204,7 +204,7 @@ func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 }
 
 func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, mutateState bool) (uint64, error) {
-	vmevm, err := createVMEVM(header, state)
+	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}

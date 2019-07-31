@@ -55,18 +55,18 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp              *GasPool
-	msg             Message
-	gas             uint64
-	gasPrice        *big.Int
-	initialGas      uint64
-	value           *big.Int
-	data            []byte
-	state           vm.StateDB
-	evm             *vm.EVM
-	gasPriceMinimum *big.Int
-	infraFraction   *gpm.InfrastructureFraction
-	infraAddress    *common.Address
+	gp                           *GasPool
+	msg                          Message
+	gas                          uint64
+	gasPrice                     *big.Int
+	initialGas                   uint64
+	value                        *big.Int
+	data                         []byte
+	state                        vm.StateDB
+	evm                          *vm.EVM
+	gasPriceMinimum              *big.Int
+	infraFraction                *gpm.InfrastructureFraction
+	infrastructureAccountAddress *common.Address
 }
 
 // Message represents a message sent to a contract.
@@ -142,19 +142,19 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.GasCurrency(), evm.GetHeader(), evm.GetStateDB())
 	infraFraction, _ := gpm.GetInfrastructureFraction(evm.GetHeader(), evm.GetStateDB())
-	infraAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, evm.GetHeader(), evm.GetStateDB())
+	infrastructureAccountAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, evm.GetHeader(), evm.GetStateDB())
 
 	return &StateTransition{
-		gp:              gp,
-		evm:             evm,
-		msg:             msg,
-		gasPrice:        msg.GasPrice(),
-		value:           msg.Value(),
-		data:            msg.Data(),
-		state:           evm.StateDB,
-		gasPriceMinimum: gasPriceMinimum,
-		infraFraction:   infraFraction,
-		infraAddress:    infraAddress,
+		gp:                           gp,
+		evm:                          evm,
+		msg:                          msg,
+		gasPrice:                     msg.GasPrice(),
+		value:                        msg.Value(),
+		data:                         msg.Data(),
+		state:                        evm.StateDB,
+		gasPriceMinimum:              gasPriceMinimum,
+		infraFraction:                infraFraction,
+		infrastructureAccountAddress: infrastructureAccountAddress,
 	}
 }
 
@@ -370,10 +370,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
 
 	var recipientTxFee *big.Int
-	if st.infraAddress != nil {
+	if st.infrastructureAccountAddress != nil {
 		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
-		err = st.creditGas(*st.infraAddress, infraTxFee, msg.GasCurrency())
+		err = st.creditGas(*st.infrastructureAccountAddress, infraTxFee, msg.GasCurrency())
 	} else {
 		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
 		recipientTxFee = totalTxFee
