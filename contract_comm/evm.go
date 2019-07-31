@@ -231,5 +231,5 @@ func makeCallWithContractId(scRegistryId string, abi abi.ABI, funcName string, a
 		}
 	}
 
-	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, nil, header, state, shouldMutate)
+	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
 }
