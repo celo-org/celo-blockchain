@@ -18,6 +18,7 @@ package contract_comm
 
 import (
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -185,7 +186,7 @@ func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 		header = IevmHSingleton.chain.CurrentHeader()
 	}
 
-	if state == nil {
+	if state == nil || reflect.ValueOf(state).IsNil() {
 		var err error
 		state, err = IevmHSingleton.chain.State()
 		if err != nil {

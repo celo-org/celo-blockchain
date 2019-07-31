@@ -432,7 +432,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 
 	if err == contract_errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
+		log.Warn("Registry address lookup failed", "err", err, "contract id", params.ValidatorsRegistryId)
 		return newValSet, errValidatorsContractNotRegistered
 	} else if err != nil {
 		log.Error(err.Error())
@@ -518,7 +518,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		stakerBlockReward := big.NewInt(params.Ether)
 		bondedDepositsAddress, err := contract_comm.GetContractAddress(params.BondedDepositsRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err)
+			log.Warn("Registry address lookup failed", "err", err, "contract id", params.BondedDepositsRegistryId)
 		} else if err != nil {
 			log.Error(err.Error())
 		}

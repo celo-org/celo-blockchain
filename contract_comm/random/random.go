@@ -102,7 +102,7 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 func address() *common.Address {
 	randomAddress, err := contract_comm.GetContractAddress(params.RandomRegistryId, nil, nil)
 	if err == errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
+		log.Warn("Registry address lookup failed", "err", err, "contract id", params.RandomRegistryId)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
