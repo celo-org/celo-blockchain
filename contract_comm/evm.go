@@ -126,33 +126,11 @@ type InternalEVMHandler struct {
 }
 
 func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == errors.ErrSmartContractNotDeployed {
-		log.Warn("Contract not yet deployed", "contractId", scRegistryId)
-		return 0, err
-	}
-
-	if err == errors.ErrRegistryContractNotDeployed {
-		log.Warn("Contract Address Registry not yet deployed")
-		return 0, err
-	}
-
-	if err != nil {
-		return 0, err
-	}
-	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, nil, header, state, false)
+	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
 func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
-	scAddress, err := GetContractAddress(scRegistryId, header, state)
-	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		log.Warn("Contract deployment in progress")
-		return 0, err
-	}
-	if err != nil {
-		return 0, err
-	}
-	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
+	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
@@ -236,4 +214,22 @@ func SetInternalEVMHandler(chain ChainContext) {
 		}
 		internalEvmHandlerSingleton = &internalEvmHandler
 	}
+}
+
+func makeCallWithContractId(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
+	scAddress, err := GetContractAddress(scRegistryId, header, state)
+
+	if err != nil {
+		if err == errors.ErrSmartContractNotDeployed {
+			log.Warn("Contract not yet deployed", "contractId", scRegistryId)
+			return 0, err
+		} else if err == errors.ErrRegistryContractNotDeployed {
+			log.Warn("Contract Address Registry not yet deployed")
+			return 0, err
+		} else {
+			return 0, err
+		}
+	}
+
+	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, nil, header, state, shouldMutate)
 }
