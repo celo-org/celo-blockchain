@@ -32,8 +32,8 @@ import (
 )
 
 var (
-	emptyMessage   = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
-	IevmHSingleton *InternalEVMHandler
+	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
+	internalEvmHandlerSingleton *InternalEVMHandler
 )
 
 // TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
@@ -178,17 +178,17 @@ func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
 	log.Trace("createVMEVM called")
-	if IevmHSingleton == nil {
-		return nil, errors.ErrNoIevmHSingleton
+	if internalEvmHandlerSingleton == nil {
+		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
 
 	if header == nil {
-		header = IevmHSingleton.chain.CurrentHeader()
+		header = internalEvmHandlerSingleton.chain.CurrentHeader()
 	}
 
 	if state == nil || reflect.ValueOf(state).IsNil() {
 		var err error
-		state, err = IevmHSingleton.chain.State()
+		state, err = internalEvmHandlerSingleton.chain.State()
 		if err != nil {
 			log.Error("Error in retrieving the state from the blockchain", "err", err)
 			return nil, err
@@ -197,8 +197,8 @@ func createVMEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := NewEVMContext(emptyMessage, header, IevmHSingleton.chain, nil)
-	evm := vm.NewEVM(context, state, IevmHSingleton.chain.Config(), *IevmHSingleton.chain.GetVMConfig())
+	context := NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil
 }
@@ -229,11 +229,11 @@ func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, 
 }
 
 func SetInternalEVMHandler(chain ChainContext) {
-	if IevmHSingleton == nil {
+	if internalEvmHandlerSingleton == nil {
 		log.Trace("Setting the InternalEVMHandler Singleton")
-		iEvmH := InternalEVMHandler{
+		internalEvmHandler := InternalEVMHandler{
 			chain: chain,
 		}
-		IevmHSingleton = &iEvmH
+		internalEvmHandlerSingleton = &internalEvmHandler
 	}
 }
