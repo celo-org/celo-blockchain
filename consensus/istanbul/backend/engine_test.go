@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -61,14 +62,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	iEvmH := core.NewInternalEVMHandler(blockchain)
-	regAdd := core.NewRegisteredAddresses(iEvmH)
-	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
-	iEvmH.SetRegisteredAddresses(regAdd)
-
-	b.SetInternalEVMHandler(iEvmH)
-	b.SetRegisteredAddresses(regAdd)
-	b.SetGasPriceMinimum(gpm)
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 
 	b.Start(blockchain.HasBadBlock,
@@ -101,6 +94,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			b.Authorize(address, signerFn)
 		}
 	}
+
+	contract_comm.SetInternalEVMHandler(blockchain)
 
 	return blockchain, b
 }

@@ -117,10 +117,6 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	iEvmH  consensus.ConsensusIEvmH
-	regAdd consensus.ConsensusRegAdd
-	gpm    consensus.ConsensusGasPriceMinimum
-
 	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
 
 	valEnodeTable *validatorEnodeTable

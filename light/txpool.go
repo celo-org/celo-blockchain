@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -69,7 +70,6 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	homestead bool
-	iEvmH     *core.InternalEVMHandler
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -89,7 +89,7 @@ type TxRelayBackend interface {
 }
 
 // NewTxPool creates a new light transaction pool
-func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend, iEvmH *core.InternalEVMHandler) *TxPool {
+func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend) *TxPool {
 	pool := &TxPool{
 		config:      config,
 		signer:      types.NewEIP155Signer(config.ChainID),
@@ -104,7 +104,6 @@ func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBacke
 		chainDb:     chain.Odr().Database(),
 		head:        chain.CurrentHeader().Hash(),
 		clearIdx:    chain.CurrentHeader().Number.Uint64(),
-		iEvmH:       iEvmH,
 	}
 	// Subscribe events from blockchain
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
@@ -385,7 +384,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 			"value", tx.Value(), "gas currency", tx.GasCurrency())
 		return core.ErrInsufficientFunds
 	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := core.GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, params.MaxGasToReadErc20Balance)
+		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
 
 		if err != nil {
 			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)

@@ -19,8 +19,11 @@ package abi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // The ABI holds information about a contract's context and available
@@ -31,6 +34,8 @@ type ABI struct {
 	Methods     map[string]Method
 	Events      map[string]Event
 }
+
+var ErrEmptyOutput = errors.New("abi: unmarshalling empty output")
 
 // JSON returns a parsed ABI interface and error if it failed.
 func JSON(reader io.Reader) (ABI, error) {
@@ -74,7 +79,8 @@ func (abi ABI) Pack(name string, args ...interface{}) ([]byte, error) {
 // Unpack output in v according to the abi specification
 func (abi ABI) Unpack(v interface{}, name string, output []byte) (err error) {
 	if len(output) == 0 {
-		return fmt.Errorf("abi: unmarshalling empty output")
+		log.Trace("Returning empty output error from abi unpacking")
+		return ErrEmptyOutput
 	}
 	// since there can't be naming collisions with contracts and events,
 	// we need to decide whether we're calling a method or an event
