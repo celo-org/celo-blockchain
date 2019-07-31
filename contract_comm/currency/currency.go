@@ -200,16 +200,10 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 }
 
 // This function will retrieve the balance of an ERC20 token.
-func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, evm *vm.EVM, gas uint64) (result *big.Int, gasUsed uint64, err error) {
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
-	var leftoverGas uint64
-
-	if evm != nil {
-		leftoverGas, err = evm.StaticCallFromSystem(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
-	} else {
-		leftoverGas, err = contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, nil, nil)
-	}
+	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)

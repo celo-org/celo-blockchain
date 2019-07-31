@@ -211,7 +211,7 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, _, err := currency.GetBalanceOf(accountOwner, *gasCurrency, st.evm, params.MaxGasToReadErc20Balance)
+	balanceOf, _, err := currency.GetBalanceOf(accountOwner, *gasCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
 	if err != nil {
 		return false
 	}
