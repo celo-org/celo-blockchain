@@ -141,7 +141,7 @@ func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string,
 	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
-func GetContractAddress(registryId string, header *types.Header, state vm.StateDB) (*common.Address, error) {
+func GetRegisteredAddress(registryId string, header *types.Header, state vm.StateDB) (*common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ func SetInternalEVMHandler(chain ChainContext) {
 }
 
 func makeCallWithContractId(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
-	scAddress, err := GetContractAddress(scRegistryId, header, state)
+	scAddress, err := GetRegisteredAddress(scRegistryId, header, state)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {

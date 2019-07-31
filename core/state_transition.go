@@ -142,7 +142,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.GasCurrency(), evm.GetHeader(), evm.GetStateDB())
 	infraFraction, _ := gpm.GetInfrastructureFraction(evm.GetHeader(), evm.GetStateDB())
-	infrastructureAccountAddress, _ := contract_comm.GetContractAddress(params.GovernanceRegistryId, evm.GetHeader(), evm.GetStateDB())
+	infrastructureAccountAddress, _ := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, evm.GetHeader(), evm.GetStateDB())
 
 	return &StateTransition{
 		gp:                           gp,

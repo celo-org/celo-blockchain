@@ -492,7 +492,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
-	goldTokenAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, header, state)
+	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 	if err == contract_errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
@@ -503,7 +503,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		totalBlockRewards := big.NewInt(0)
 
 		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := contract_comm.GetContractAddress(params.GovernanceRegistryId, header, state)
+		governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else if err != nil {
@@ -516,7 +516,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress, err := contract_comm.GetContractAddress(params.BondedDepositsRegistryId, header, state)
+		bondedDepositsAddress, err := contract_comm.GetRegisteredAddress(params.BondedDepositsRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err, "contract id", params.BondedDepositsRegistryId)
 		} else if err != nil {

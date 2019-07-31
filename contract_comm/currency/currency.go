@@ -108,7 +108,7 @@ type exchangeRate struct {
 }
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := contract_comm.GetContractAddress(params.GoldTokenRegistryId, nil, nil)
+	celoGoldAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, nil, nil)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, err
@@ -227,7 +227,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, e
 //-------------------------------
 func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
-	gasCurrencyWhiteListAddress, err := contract_comm.GetContractAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
+	gasCurrencyWhiteListAddress, err := contract_comm.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
