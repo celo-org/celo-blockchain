@@ -171,12 +171,12 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
 	ipData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
-	regVals, err := sb.retrieveRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
-		regVals = make(map[common.Address]bool)
+	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
+		regAndActiveVals = make(map[common.Address]bool)
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return nil, err
@@ -185,11 +185,11 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	// Add active validators regardless
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 	for _, val := range valSet.List() {
-		regVals[val.Address()] = true
+		regAndActiveVals[val.Address()] = true
 	}
 
 	encryptedIPs := make([][][]byte, 0)
-	for addr := range regVals {
+	for addr := range regAndActiveVals {
 		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
 			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
@@ -253,8 +253,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
-	log.Error("Handling an IstanbulAnnounce message", "actual", msg.IncompleteEnodeURL)
-
 	// Verify message signature
 	if err := msg.VerifySig(); err != nil {
 		sb.logger.Error("Error in verifying the signature of an Istanbul Announce message", "err", err, "AnnounceMsg", msg.String())
@@ -268,13 +266,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regVals, err := sb.retrieveRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredValidators()
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
-		regVals = make(map[common.Address]bool)
+	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
+		regAndActiveVals = make(map[common.Address]bool)
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return err
@@ -284,11 +282,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 	for _, val := range valSet.List() {
-		regVals[val.Address()] = true
+		regAndActiveVals[val.Address()] = true
 	}
 
-	if !regVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regVals, "err", err)
+	if !regAndActiveVals[msg.Address] {
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -306,8 +304,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		sb.logger.Warn("Error in decrypting ip", "err", err)
 	}
 	enodeUrl := msg.IncompleteEnodeURL + string(IPBytes)
-
-	log.Error("Handling an IstanbulAnnounce message", "actual", msg.IncompleteEnodeURL, "lol", enodeUrl)
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
@@ -337,13 +333,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {
 		for remoteAddress := range sb.lastAnnounceGossiped {
-			if !regVals[remoteAddress] {
+			if !regAndActiveVals[remoteAddress] {
 				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 				delete(sb.lastAnnounceGossiped, remoteAddress)
 			}
 		}
 
-		sb.valEnodeTable.pruneEntries(regVals)
+		sb.valEnodeTable.pruneEntries(regAndActiveVals)
 	}
 
 	return nil

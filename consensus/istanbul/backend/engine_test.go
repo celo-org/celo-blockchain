@@ -47,7 +47,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
-
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
