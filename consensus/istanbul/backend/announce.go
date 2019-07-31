@@ -39,11 +39,11 @@ import (
 // define the istanbul announce message
 
 type announceMessage struct {
-	Address            common.Address
-	IncompleteEnodeURL string //TODO(nguo) remove this field
-	EncryptedIPData    [][][]byte
-	View               *istanbul.View
-	Signature          []byte
+	Address               common.Address
+	IncompleteEnodeURL    string
+	encryptedEndpointData [][][]byte
+	View                  *istanbul.View
+	Signature             []byte
 }
 
 func (am *announceMessage) String() string {
@@ -56,23 +56,23 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedIPData, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.encryptedEndpointData, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address            common.Address
-		IncompleteEnodeURL string
-		EncryptedIPData    [][][]byte
-		View               *istanbul.View
-		Signature          []byte
+		Address               common.Address
+		IncompleteEnodeURL    string
+		encryptedEndpointData [][][]byte
+		View                  *istanbul.View
+		Signature             []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.IncompleteEnodeURL, am.EncryptedIPData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedIPData, msg.View, msg.Signature
+	am.Address, am.IncompleteEnodeURL, am.encryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.encryptedEndpointData, msg.View, msg.Signature
 	return nil
 }
 
@@ -93,11 +93,11 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:            am.Address,
-		IncompleteEnodeURL: am.IncompleteEnodeURL,
-		EncryptedIPData:    am.EncryptedIPData,
-		View:               am.View,
-		Signature:          []byte{},
+		Address:               am.Address,
+		IncompleteEnodeURL:    am.IncompleteEnodeURL,
+		encryptedEndpointData: am.encryptedEndpointData,
+		View:                  am.View,
+		Signature:             []byte{},
 	})
 	if err != nil {
 		return err
@@ -110,11 +110,11 @@ func (am *announceMessage) VerifySig() error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:            am.Address,
-		IncompleteEnodeURL: am.IncompleteEnodeURL,
-		EncryptedIPData:    am.EncryptedIPData,
-		View:               am.View,
-		Signature:          []byte{},
+		Address:               am.Address,
+		IncompleteEnodeURL:    am.IncompleteEnodeURL,
+		encryptedEndpointData: am.encryptedEndpointData,
+		View:                  am.View,
+		Signature:             []byte{},
 	})
 	if err != nil {
 		return err
@@ -188,25 +188,25 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		regAndActiveVals[val.Address()] = true
 	}
 
-	encryptedIPs := make([][][]byte, 0)
+	encryptedEndpoints := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
 		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
 			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
-			encryptedIP, err := ecies.Encrypt(rand.Reader, pubKey, []byte(ipData), nil, nil)
+			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(ipData), nil, nil)
 			if err != nil {
 				log.Warn("Unable to unmarshal public key", "err", err)
 			} else {
-				encryptedIPs = append(encryptedIPs, [][]byte{addr.Bytes(), encryptedIP})
+				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
 			}
 		}
 	}
 
 	msg := &announceMessage{
-		Address:            sb.Address(),
-		IncompleteEnodeURL: incompleteEnodeUrl,
-		EncryptedIPData:    encryptedIPs,
-		View:               view,
+		Address:               sb.Address(),
+		IncompleteEnodeURL:    incompleteEnodeUrl,
+		encryptedEndpointData: encryptedEndpoints,
+		View:                  view,
 	}
 
 	// Sign the announce message
@@ -293,13 +293,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// Decrypt the EnodeURL
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
-	encryptedIP := []byte("")
-	for _, entry := range msg.EncryptedIPData {
+	encryptedEndpoint := []byte("")
+	for _, entry := range msg.encryptedEndpointData {
 		if bytes.Equal(entry[0], sb.Address().Bytes()) {
-			encryptedIP = entry[1]
+			encryptedEndpoint = entry[1]
 		}
 	}
-	IPBytes, err := nodeKey.Decrypt(encryptedIP, nil, nil)
+	IPBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
 	if err != nil {
 		sb.logger.Warn("Error in decrypting ip", "err", err)
 	}
