@@ -41,7 +41,7 @@ import (
 type announceMessage struct {
 	Address               common.Address
 	IncompleteEnodeURL    string
-	encryptedEndpointData [][][]byte
+	EncryptedEndpointData [][][]byte
 	View                  *istanbul.View
 	Signature             []byte
 }
@@ -56,7 +56,7 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.encryptedEndpointData, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -64,7 +64,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address               common.Address
 		IncompleteEnodeURL    string
-		encryptedEndpointData [][][]byte
+		EncryptedEndpointData [][][]byte
 		View                  *istanbul.View
 		Signature             []byte
 	}
@@ -72,7 +72,7 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.IncompleteEnodeURL, am.encryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.encryptedEndpointData, msg.View, msg.Signature
+	am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View, msg.Signature
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:               am.Address,
 		IncompleteEnodeURL:    am.IncompleteEnodeURL,
-		encryptedEndpointData: am.encryptedEndpointData,
+		EncryptedEndpointData: am.EncryptedEndpointData,
 		View:                  am.View,
 		Signature:             []byte{},
 	})
@@ -112,7 +112,7 @@ func (am *announceMessage) VerifySig() error {
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
 		Address:               am.Address,
 		IncompleteEnodeURL:    am.IncompleteEnodeURL,
-		encryptedEndpointData: am.encryptedEndpointData,
+		EncryptedEndpointData: am.EncryptedEndpointData,
 		View:                  am.View,
 		Signature:             []byte{},
 	})
@@ -169,7 +169,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	enodeUrl := selfEnode.String()
 	view := sb.core.CurrentView()
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
-	ipData := enodeUrl[strings.Index(enodeUrl, "@"):]
+	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
 	regAndActiveVals, err := sb.retrieveRegisteredValidators()
 	// The validator contract may not be deployed yet.
@@ -193,7 +193,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
 			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
-			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(ipData), nil, nil)
+			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
 			if err != nil {
 				log.Warn("Unable to unmarshal public key", "err", err)
 			} else {
@@ -205,7 +205,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	msg := &announceMessage{
 		Address:               sb.Address(),
 		IncompleteEnodeURL:    incompleteEnodeUrl,
-		encryptedEndpointData: encryptedEndpoints,
+		EncryptedEndpointData: encryptedEndpoints,
 		View:                  view,
 	}
 
@@ -294,16 +294,16 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
 	encryptedEndpoint := []byte("")
-	for _, entry := range msg.encryptedEndpointData {
+	for _, entry := range msg.EncryptedEndpointData {
 		if bytes.Equal(entry[0], sb.Address().Bytes()) {
 			encryptedEndpoint = entry[1]
 		}
 	}
-	IPBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
+	endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
 	if err != nil {
-		sb.logger.Warn("Error in decrypting ip", "err", err)
+		sb.logger.Warn("Error in decrypting endpoint", "err", err)
 	}
-	enodeUrl := msg.IncompleteEnodeURL + string(IPBytes)
+	enodeUrl := msg.IncompleteEnodeURL + string(endpointBytes)
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
