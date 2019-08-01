@@ -40,13 +40,20 @@ var (
 )
 
 type IstanbulExtra struct {
-	AddedValidators           []common.Address
+	// AddedValidators are the validators that have been added in the block
+	AddedValidators []common.Address
+	// AddedValidatorsPublicKeys are the BLS public keys for the validators added in the block
 	AddedValidatorsPublicKeys [][]byte
-	RemovedValidators         *big.Int
-	Seal                      []byte
-	Bitmap                    *big.Int
-	CommittedSeal             []byte
-	EpochData                 []byte
+	// RemovedValidators is a bitmap having an active bit for each removed validator in the block
+	RemovedValidators *big.Int
+	// Seal is an ECDSA signature by the proposer
+	Seal []byte
+	// Bitmap is a bitmap having an active bit for each validator that signed this block
+	Bitmap *big.Int
+	// CommittedSeal is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	CommittedSeal []byte
+	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
+	EpochData []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
