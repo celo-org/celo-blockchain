@@ -29,8 +29,10 @@ import (
 // SignerFn is a signer callback function to request a hash to be signed by a
 // backing account.
 type SignerFn func(accounts.Account, []byte) ([]byte, error)
+
+// MessageSignerFn is a signer callback function to request a raw message to
+// be signed by a backing account.
 type MessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
-type VerifierFn func([]byte, []byte, []byte) error
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
