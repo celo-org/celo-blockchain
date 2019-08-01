@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendCommit() {
@@ -63,6 +64,11 @@ func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
 	}
 
 	if err := c.verifyCommit(commit, src); err != nil {
+		return err
+	}
+
+	err = blscrypto.IsValidSignature(msg.Signature)
+	if err != nil {
 		return err
 	}
 

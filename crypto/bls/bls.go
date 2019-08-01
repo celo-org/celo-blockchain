@@ -142,3 +142,13 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 
 	return asigBytes, nil
 }
+
+func IsValidSignature(signature []byte) error {
+	signatureObj, err := bls.DeserializeSignature(signature)
+	if err != nil {
+		return err
+	}
+	defer signatureObj.Destroy()
+
+	return nil
+}

@@ -18,6 +18,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -178,15 +180,11 @@ func (c *core) commit() {
 			copy(committedSeals[i][:], v.CommittedSeal[:])
 			j, err := c.current.Commits.GetAddressIndex(v.Address)
 			if err != nil {
-				c.current.UnlockHash() //Unlock block when insertion fails
-				c.sendNextRoundChange()
-				return
+				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
 			}
 			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
 			if err != nil {
-				c.current.UnlockHash() //Unlock block when insertion fails
-				c.sendNextRoundChange()
-				return
+				panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
 			}
 
 			publicKeys = append(publicKeys, publicKey)
@@ -195,9 +193,7 @@ func (c *core) commit() {
 		}
 		asig, err := blscrypto.AggregateSignatures(committedSeals)
 		if err != nil {
-			c.current.UnlockHash() //Unlock block when insertion fails
-			c.sendNextRoundChange()
-			return
+			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
 		}
 
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {

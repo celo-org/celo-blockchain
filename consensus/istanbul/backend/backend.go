@@ -398,10 +398,8 @@ func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
 	if sb.signHashBLSFn == nil {
 		return nil, errInvalidSigningFn
 	}
-	//hashData := crypto.Keccak256(data)
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	//return sb.signHashBLSFn(accounts.Account{Address: sb.address}, hashData)
 	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
 }
 
