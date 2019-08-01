@@ -61,7 +61,34 @@ const (
 			      "payable": false,
 			      "stateMutability": "view",
 			      "type": "function"
-			     }]`
+			     }, {
+					  "name": "getValidator",
+						"outputs": [
+										{
+										"name": "",
+										"type": "string"
+										},
+										{
+										"name": "",
+										"type": "string"
+										},
+										{
+										"name": "",
+										"type": "string"
+										},
+										{
+										"name": "",
+										"type": "bytes"
+										},
+										{
+										"name": "",
+										"type": "address"
+										}
+						],
+						"payable": false,
+						"stateMutability": "view",
+						"type": "function"
+						}]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
 	setCumulativeRewardWeightABI = `[{"constant": false,
