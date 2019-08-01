@@ -467,7 +467,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]ista
 
 		for _, addr := range newValSetAddresses {
 			var validator []interface{}
-			_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidator", []interface{}{}, &validator, maxGasForGetValidators, header, state)
+			_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
 			if err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
 				return nil, err
