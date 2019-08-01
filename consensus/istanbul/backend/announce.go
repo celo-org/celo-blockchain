@@ -328,6 +328,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
+	sb.lastAnnounceGossipedMu.Lock()
+	defer sb.lastAnnounceGossipedMu.Unlock()
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
