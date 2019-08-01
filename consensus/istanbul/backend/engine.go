@@ -63,7 +63,10 @@ const (
 			      "type": "function"
 			     }, {
 					  "name": "getValidator",
-						"outputs": [
+						"inputs": [{
+										"name": "addr",
+										"type": "address[]"
+				   }], "outputs": [
 										{
 										"name": "",
 										"type": "string"
