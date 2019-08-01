@@ -469,17 +469,20 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]ista
 		}
 
 		for _, addr := range newValSetAddresses {
-			validator := make([]interface{}, 5)
+			var validator struct {
+				Identifier     string
+				Name           string
+				Url            string
+				PublicKeysData []byte
+				Affiliation    common.Address
+			}
 			_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
 			if err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
 				return nil, err
 			}
-			pubKeysDataBytes, success := validator[3].([]byte)
-			if !success {
-				log.Error(err.Error())
-				return nil, fmt.Errorf("couldn't parse pubKeysDataBytes")
-			}
+			pubKeysDataBytes := validator.PublicKeysData
+
 			expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
 			if len(pubKeysDataBytes) != expectedLength {
 				return nil, fmt.Errorf("length of pubKeysDataBytes incorrect. Expected %d, got %d", expectedLength, len(pubKeysDataBytes))
