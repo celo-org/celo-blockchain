@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -50,15 +51,10 @@ var (
 func (sb *Backend) retrieveRegisteredValidators() (map[common.Address]bool, error) {
 	var regVals []common.Address
 
-	validatorAddress, _ := sb.regAdd.GetRegisteredAddressAtCurrentHeader(params.ValidatorsRegistryId)
-	if validatorAddress == nil {
-		return nil, errValidatorsContractNotRegistered
-	} else {
-		// Get the new epoch's validator set
-		maxGasForGetRegisteredValidators := uint64(1000000)
-		if _, err := sb.iEvmH.MakeStaticCall(*validatorAddress, getRegisteredValidatorsFuncABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, nil, nil); err != nil {
-			return nil, err
-		}
+	// Get the new epoch's validator set
+	maxGasForGetRegisteredValidators := uint64(1000000)
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, getRegisteredValidatorsFuncABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, nil, nil); err != nil {
+		return nil, err
 	}
 
 	returnMap := make(map[common.Address]bool)

@@ -196,11 +196,16 @@ func getAddress() common.Address {
 }
 
 func getInvalidAddress() common.Address {
-	return common.HexToAddress("0x9535b2e7faaba5288511d89341d94a38063a349b")
+	return common.HexToAddress("0xc63597005f0da07a9ea85b5052a77c3b0261bdca")
 }
 
 func generatePrivateKey() (*ecdsa.PrivateKey, error) {
 	key := "bb047e5940b6d83354d9432db7c449ac8fca2248008aaa7271369880f9f11cc1"
+	return crypto.HexToECDSA(key)
+}
+
+func generateInvalidPrivateKey() (*ecdsa.PrivateKey, error) {
+	key := "1049c0e0b99eeea3465a1e83a52900dc27c652f39abb3aed3b868dee68ff1d2c"
 	return crypto.HexToECDSA(key)
 }
 
@@ -243,4 +248,9 @@ func newBackend() (b *Backend) {
 	key, _ := generatePrivateKey()
 	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn)
 	return
+}
+
+func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generateInvalidPrivateKey()
+	return crypto.Sign(data, key)
 }

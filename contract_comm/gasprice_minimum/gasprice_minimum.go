@@ -14,18 +14,17 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package gasprice_minimum
 
 import (
-	"errors"
 	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -110,28 +109,17 @@ type InfrastructureFraction struct {
 	Denominator *big.Int
 }
 
-type GasPriceMinimum struct {
-	regAdd *RegisteredAddresses
-	iEvmH  *InternalEVMHandler
-}
-
-func (gpm *GasPriceMinimum) GetGasPriceSuggestion(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(currency, state, header)
+func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
+	gasPriceMinimum, err := GetGasPriceMinimum(currency, header, state)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
 }
 
-func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *state.StateDB, header *types.Header) (*big.Int, error) {
-
-	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
-		log.Error("gasprice.GetGasPriceMinimum - nil parameters. Returning default gasprice min of 0")
-		return FallbackGasPriceMinimum, errors.New("nil iEvmH or addressRegistry")
-	}
-
+func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var currencyAddress *common.Address
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GoldTokenRegistryId, state, header)
+		currencyAddress, err = contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 
 		if err != nil {
 			return FallbackGasPriceMinimum, nil
@@ -141,14 +129,8 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 	}
 
 	var gasPriceMinimum *big.Int
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-
-	if err != nil {
-		return FallbackGasPriceMinimum, err
-	}
-
-	_, err = gpm.iEvmH.MakeStaticCall(
-		*gasPriceMinimumAddress,
+	_, err = contract_comm.MakeStaticCall(
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
 		[]interface{}{currencyAddress},
@@ -157,20 +139,19 @@ func (gpm *GasPriceMinimum) GetGasPriceMinimum(currency *common.Address, state *
 		header,
 		state,
 	)
+
+	if err != nil {
+		return FallbackGasPriceMinimum, err
+	}
+
 	return gasPriceMinimum, err
 }
 
-func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *state.StateDB) (*big.Int, error) {
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-
-	if err != nil {
-		return nil, err
-	}
-
+func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
-	_, err = gpm.iEvmH.MakeCall(
-		*gasPriceMinimumAddress,
+	_, err := contract_comm.MakeCall(
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
@@ -181,24 +162,18 @@ func (gpm *GasPriceMinimum) UpdateGasPriceMinimum(header *types.Header, state *s
 		header,
 		state,
 	)
+	if err != nil {
+		return nil, err
+	}
 	return updatedGasPriceMinimum, err
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, header *types.Header) (*InfrastructureFraction, error) {
+func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*InfrastructureFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
-	if gpm == nil || gpm.iEvmH == nil || gpm.regAdd == nil {
-		return FallbackInfraFraction, errors.New("nil iEvmH or addressRegistry")
-	}
-
-	gasPriceMinimumAddress, err := gpm.regAdd.GetRegisteredAddressAtStateAndHeader(params.GasPriceMinimumRegistryId, state, header)
-	if err != nil {
-		return FallbackInfraFraction, err
-	}
-
-	_, err = gpm.iEvmH.MakeStaticCall(
-		*gasPriceMinimumAddress,
+	_, err := contract_comm.MakeStaticCall(
+		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"infrastructureFraction",
 		[]interface{}{},
@@ -207,15 +182,9 @@ func (gpm *GasPriceMinimum) GetInfrastructureFraction(state *state.StateDB, head
 		header,
 		state,
 	)
-
-	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
-}
-
-func NewGasPriceMinimum(iEvmH *InternalEVMHandler, regAdd *RegisteredAddresses) *GasPriceMinimum {
-	gpm := &GasPriceMinimum{
-		iEvmH:  iEvmH,
-		regAdd: regAdd,
+	if err != nil {
+		return FallbackInfraFraction, err
 	}
 
-	return gpm
+	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
 }

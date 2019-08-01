@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -61,14 +62,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	iEvmH := core.NewInternalEVMHandler(blockchain)
-	regAdd := core.NewRegisteredAddresses(iEvmH)
-	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
-	iEvmH.SetRegisteredAddresses(regAdd)
-
-	b.SetInternalEVMHandler(iEvmH)
-	b.SetRegisteredAddresses(regAdd)
-	b.SetGasPriceMinimum(gpm)
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 
 	b.Start(blockchain.HasBadBlock,
@@ -98,9 +91,13 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			b.Authorize(address, signerFn)
+			b.Authorize(addr, signerFn)
+			b.SetBroadcaster(&MockBroadcaster{privateKey: key})
+			break
 		}
 	}
+
+	contract_comm.SetInternalEVMHandler(blockchain)
 
 	return blockchain, b
 }
@@ -113,6 +110,9 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		nodeKeys[i], _ = crypto.GenerateKey()
 		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
 	}
+
+	nodeKeys[0], _ = generatePrivateKey()
+	addrs[0] = getAddress()
 
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()

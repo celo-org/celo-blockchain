@@ -30,6 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -191,15 +194,11 @@ type worker struct {
 	verificationMu      sync.RWMutex
 	lastBlockVerified   uint64
 
-	// Transaction processing
-	co     *core.CurrencyOperator
-	random *core.Random
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -224,8 +223,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		co:                  co,
-		random:              random,
 		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -330,7 +327,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return w.co.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return currency.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -530,11 +527,6 @@ func (w *worker) mainLoop() {
 				for _, tx := range ev.Txs {
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], tx)
-				}
-
-				// Refresh the gas currency whitelist cache before processing transaction batch
-				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-					wl.RefreshWhitelistAtCurrentHeader()
 				}
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
@@ -762,11 +754,10 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, gasPriceMinimum *big.Int) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	infraFraction, _ := w.eth.GasPriceMinimum().GetInfrastructureFraction(w.current.state, w.current.header)
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses(), gasPriceMinimum, infraFraction)
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.header, w.current.state, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -821,7 +812,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
-		gasPriceMinimum, _ := w.eth.GasPriceMinimum().GetGasPriceMinimum(tx.GasCurrency(), w.current.state, w.current.header)
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 			break
@@ -842,7 +833,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, coinbase, gasPriceMinimum)
+		logs, err := w.commitTransaction(tx, coinbase)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -997,13 +988,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
-	// Refresh the gas currency whitelist cache before processing the pending transactions
-	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-		wl.RefreshWhitelistAtCurrentHeader()
-	}
-
 	// Play our part in generating the random beacon.
-	if w.isRunning() && w.random != nil && w.random.Running() {
+	if w.isRunning() && random.IsRunning() {
 		if randomSeed == nil {
 			account := accounts.Account{Address: w.coinbase}
 			wallet, err := w.eth.AccountManager().Find(account)
@@ -1016,19 +1002,19 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 
-		lastRandomness, err := w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
 		}
 
-		commitment, err := w.random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
+		commitment, err := random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
 		if err != nil {
 			log.Error("Failed to generate randomness commitment", "err", err)
 			return
 		}
 
-		err = w.random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
