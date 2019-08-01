@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/hex"
 	"math/big"
 	"testing"
 
@@ -165,6 +166,8 @@ OUTER:
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
 
+		exampleSignature, _ := hex.DecodeString("8e30602b136996ec19761aabef852fd0ea4a9df63a43da052bedb82f1618ce2b907bbc70e02070224da34d688fa16101907e919aa92788f754640c318a1c970632237f2a4f6256bbd8cbe76215c37b606517bdb11b526a3ab098a03571e3fe00cb9c1e9dea40b9cac7cd2574b529e78d0088fd18df8d174b837671c58f84c9dd57e27573c5de6e723af4e937867fbe00e21c609c7d748c8094514759dd55f753e491b30ccfa762a53400d1e4837925aa508fe87e0eb0c238155325324ef38200")
+
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
@@ -173,7 +176,7 @@ OUTER:
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
-				CommittedSeal: validator.Address().Bytes(), // small hack
+				CommittedSeal: exampleSignature, // small hack
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)

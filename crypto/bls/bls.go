@@ -12,16 +12,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-const MODULUS377 = "8444461749428370424248824938781546531375899335154063827935233455917409239041"
-const MODULUSBITS = 253
-const MODULUSMASK = 31 // == 2**(253-(256-8)) - 1
-const PUBLICKEYBYTES = 48
-const SIGNATUREBYTES = 192
+var (
+	PUBLICKEYBYTES = bls.PUBLICKEYBYTES
+	SIGNATUREBYTES = bls.SIGNATUREBYTES
+)
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	for i := 0; i < 256; i++ {
 		modulus := big.NewInt(0)
-		modulus, ok := modulus.SetString(MODULUS377, 10)
+		modulus, ok := modulus.SetString(bls.MODULUS377, 10)
 		if !ok {
 			return nil, errors.New("can't parse modulus")
 		}
@@ -32,7 +31,7 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 		keyBytes = append(keyBytes, privateKeyECDSABytes...)
 
 		privateKeyBLSBytes := crypto.Keccak256(keyBytes)
-		privateKeyBLSBytes[0] &= MODULUSMASK
+		privateKeyBLSBytes[0] &= bls.MODULUSMASK
 		privateKeyBLSBig := big.NewInt(0)
 		privateKeyBLSBig.SetBytes(privateKeyBLSBytes)
 		if privateKeyBLSBig.Cmp(modulus) >= 0 {

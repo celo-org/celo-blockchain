@@ -15,4 +15,8 @@ func TestECDSAToBLS(t *testing.T) {
 	publicKeyBLS, _ := privateKeyBLS.ToPublic()
 	publicKeyBLSBytes, _ := publicKeyBLS.Serialize()
 	t.Logf("public key: %x", publicKeyBLSBytes)
+
+	pop, _ := privateKeyBLS.SignPoP()
+	popBytes, _ := pop.Serialize()
+	t.Logf("pop: %x", popBytes)
 }

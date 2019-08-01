@@ -67,7 +67,7 @@ func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
-	err = blscrypto.IsValidSignature(msg.Signature)
+	err = blscrypto.IsValidSignature(msg.CommittedSeal)
 	if err != nil {
 		return err
 	}

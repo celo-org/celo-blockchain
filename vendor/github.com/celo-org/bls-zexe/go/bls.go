@@ -10,8 +10,41 @@ import (
 	"unsafe"
 )
 
+const MODULUS377 = "8444461749428370424248824938781546531375899335154063827935233455917409239041"
+const MODULUSBITS = 253
+const MODULUSMASK = 31 // == 2**(253-(256-8)) - 1
+const PRIVATEKEYBYTES = 32
+const PUBLICKEYBYTES = 48
+const SIGNATUREBYTES = 192
+
 var GeneralError = errors.New("General error")
 var NotVerifiedError = errors.New("Not verified")
+var IncorrectSizeError = errors.New("Input had incorrect size")
+
+func validatePrivateKey(privateKey []byte) error {
+	if len(privateKey) != PRIVATEKEYBYTES {
+		return IncorrectSizeError
+	}
+
+	return nil
+}
+
+func validatePublicKey(publicKey []byte) error {
+	if len(publicKey) != PUBLICKEYBYTES {
+		return IncorrectSizeError
+	}
+
+	return nil
+}
+
+func validateSignature(signature []byte) error {
+	if len(signature) != SIGNATUREBYTES {
+		return IncorrectSizeError
+	}
+
+	return nil
+
+}
 
 func sliceToPtr(slice []byte) (*C.uchar, C.int) {
 	if len(slice) == 0 {
@@ -48,6 +81,11 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 }
 
 func DeserializePrivateKey(privateKeyBytes []byte) (*PrivateKey, error) {
+	err := validatePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	privateKey := &PrivateKey{}
 	success := C.deserialize_private_key((*C.uchar)(unsafe.Pointer(&privateKeyBytes[0])), C.int(len(privateKeyBytes)), &privateKey.ptr)
 	if !success {
@@ -107,6 +145,11 @@ func (self *PrivateKey) Destroy() {
 }
 
 func DeserializePublicKey(publicKeyBytes []byte) (*PublicKey, error) {
+	err := validatePublicKey(publicKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	publicKey := &PublicKey{}
 	success := C.deserialize_public_key((*C.uchar)(unsafe.Pointer(&publicKeyBytes[0])), C.int(len(publicKeyBytes)), &publicKey.ptr)
 	if !success {
@@ -163,6 +206,11 @@ func (self *PublicKey) VerifyPoP(signature *Signature) error {
 }
 
 func DeserializeSignature(signatureBytes []byte) (*Signature, error) {
+	err := validateSignature(signatureBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	signature := &Signature{}
 	success := C.deserialize_signature((*C.uchar)(unsafe.Pointer(&signatureBytes[0])), C.int(len(signatureBytes)), &signature.ptr)
 	if !success {
