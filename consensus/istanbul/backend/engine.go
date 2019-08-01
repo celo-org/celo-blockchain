@@ -65,7 +65,7 @@ const (
 					  "name": "getValidator",
 						"inputs": [{
 										"name": "addr",
-										"type": "address[]"
+										"type": "address"
 				   }], "outputs": [
 										{
 										"name": "",
