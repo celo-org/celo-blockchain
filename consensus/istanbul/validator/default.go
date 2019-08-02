@@ -101,6 +101,20 @@ func (valSet *defaultSet) List() []istanbul.Validator {
 	return valSet.validators
 }
 
+func (valSet *defaultSet) FilteredList() []istanbul.Validator {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+
+	filteredList := []istanbul.Validator{}
+	for i := 0; i < valSet.PaddedSize(); i++ {
+		currentValidator := valSet.GetByIndex(uint64(i))
+		if (currentValidator.Address() != common.Address{}) {
+			filteredList = append(filteredList, currentValidator)
+		}
+	}
+	return filteredList
+}
+
 func (valSet *defaultSet) GetByIndex(i uint64) istanbul.Validator {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
@@ -157,13 +171,7 @@ func roundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, r
 		seed = calcSeed(valSet, proposer, round) + 1
 	}
 
-	filteredList := []istanbul.Validator{}
-	for i := 0; i < valSet.PaddedSize(); i++ {
-		currentValidator := valSet.GetByIndex(uint64(i))
-		if (currentValidator.Address() != common.Address{}) {
-			filteredList = append(filteredList, currentValidator)
-		}
-	}
+	filteredList := valSet.FilteredList()
 	pick := seed % uint64(valSet.Size())
 	return filteredList[pick]
 }
@@ -179,13 +187,7 @@ func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 		seed = calcSeed(valSet, proposer, round)
 	}
 
-	filteredList := []istanbul.Validator{}
-	for i := 0; i < valSet.PaddedSize(); i++ {
-		currentValidator := valSet.GetByIndex(uint64(i))
-		if (currentValidator.Address() != common.Address{}) {
-			filteredList = append(filteredList, currentValidator)
-		}
-	}
+	filteredList := valSet.FilteredList()
 	pick := seed % uint64(valSet.Size())
 	return filteredList[pick]
 }

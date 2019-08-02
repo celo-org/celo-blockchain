@@ -109,21 +109,16 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
-
-	for _, oldVal := range oldValSet {
-		if (oldVal.Address != common.Address{}) {
-			valSetMap[oldVal.Address] = true
-		}
-	}
-
 	oldValSetToPubKey := make(map[common.Address][]byte)
+	oldValSetMap := make(map[common.Address]int)
+
 	for i, oldVal := range oldValSet {
 		if (oldVal.Address != common.Address{}) {
+			valSetMap[oldVal.Address] = true
 			oldValSetToPubKey[oldValSet[i].Address] = oldValSet[i].BLSPublicKey
+			oldValSetMap[oldValSet[i].Address] = i
 		}
 	}
-
-	oldValSetMap := BuildValidatorAddressMap(oldValSet)
 
 	removedValidatorsBitmap := big.NewInt(0)
 	var addedValidators []ValidatorData
@@ -184,15 +179,4 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 
 	id := node.ID()
 	return &id, nil
-}
-
-func BuildValidatorAddressMap(validators []ValidatorData) map[common.Address]int {
-	addressMap := make(map[common.Address]int)
-	for i := range validators {
-		if (validators[i].Address != common.Address{}) {
-			addressMap[validators[i].Address] = i
-		}
-	}
-
-	return addressMap
 }
