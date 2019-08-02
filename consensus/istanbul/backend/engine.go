@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -49,21 +50,6 @@ const (
 	inmemoryPeers                 = 40
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
-	getValidatorsABI = `[{"constant": true,
-		              "inputs": [],
-			      "name": "getValidators",
-			      "outputs": [
-				   {
-				        "name": "",
-					"type": "address[]"
-				   }
-			      ],
-			      "payable": false,
-			      "stateMutability": "view",
-			      "type": "function"
-			     }]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
 	setCumulativeRewardWeightABI = `[{"constant": false,
@@ -147,8 +133,6 @@ var (
 	errEmptyCommittedSeals = errors.New("zero committed seals")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
-	// errValidatorsContractNotRegistered is returned if there is no registered "Validators" address.
-	errValidatorsContractNotRegistered = errors.New("no registered `Validators` address")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
 	// errOldMessage is returned when the received announce message's block number is earlier
@@ -168,7 +152,6 @@ var (
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
-	getValidatorsFuncABI, _             = abi.JSON(strings.NewReader(getValidatorsABI))
 	increaseSupplyFuncABI, _            = abi.JSON(strings.NewReader(increaseSupplyABI))
 	totalSupplyFuncABI, _               = abi.JSON(strings.NewReader(totalSupplyABI))
 	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
@@ -424,29 +407,12 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	return nil
 }
 
-func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]common.Address, error) {
-	var newValSet []common.Address
-	// Get the new epoch's validator set
-	maxGasForGetValidators := uint64(1000000)
-	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
-
-	if err == contract_errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err, "contract id", params.ValidatorsRegistryId)
-		return newValSet, errValidatorsContractNotRegistered
-	} else if err != nil {
-		log.Error(err.Error())
-		return newValSet, err
-	}
-	return newValSet, err
-}
-
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		newValSet, err := sb.getValSet(header, state)
+		newValSet, err := validators.GetValidatorSet(header, state)
 		if err != nil {
 			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {

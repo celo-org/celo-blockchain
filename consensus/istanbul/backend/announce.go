@@ -25,6 +25,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
+	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -203,11 +205,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regVals, err := sb.retrieveRegisteredValidators()
+	regVals, err := validators.RetrieveRegisteredValidators(nil, nil)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
+	if err == contract_errors.ErrSmartContractNotDeployed || len(regVals) == 0 {
 		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
