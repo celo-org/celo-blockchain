@@ -363,6 +363,5 @@ func PrepareCommittedSeal(hash common.Hash) []byte {
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
 	buf.Write([]byte{byte(msgCommit)})
-	b := buf.Bytes()
-	return b
+	return buf.Bytes()
 }

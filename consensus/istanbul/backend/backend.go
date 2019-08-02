@@ -380,7 +380,12 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
 		}
 
-		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || removedValidators.Cmp(istExtra.RemovedValidators) != 0 {
+		addedValidatorsPublicKeys := make([][]byte, len(addedValidators))
+		for _, val := range addedValidators {
+			addedValidatorsPublicKeys = append(addedValidatorsPublicKeys, val.BLSPublicKey)
+		}
+
+		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || removedValidators.Cmp(istExtra.RemovedValidators) != 0 || !istanbul.CompareValidatorPublicKeySlices(addedValidatorsPublicKeys, istExtra.AddedValidatorsPublicKeys) {
 			return errInvalidValidatorSetDiff
 		}
 	}

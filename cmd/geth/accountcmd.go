@@ -113,7 +113,8 @@ Print a short summary of all accounts`,
 					utils.LightKDFFlag,
 				},
 				Description: `
-Print a short summary of all accounts`,
+Print a proof-of-possession signature for the given account.
+`,
 			},
 			{
 				Name:   "new",

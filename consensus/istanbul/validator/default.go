@@ -228,32 +228,22 @@ func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) boo
 }
 
 func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
-	if removedValidators.BitLen() == 0 {
+	if removedValidators.BitLen() == 0 || (removedValidators.BitLen() > len(valSet.validators)) {
 		return true
 	}
 
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
-	removeAddressesMap := make(map[common.Address]bool)
-	removeAddressesIndexMap := make(map[common.Address]int)
+	hadRemoval := false
 	for i, v := range valSet.validators {
-		if removedValidators.Bit(i) == 1 {
-			removeAddressesIndexMap[v.Address()] = i
-			removeAddressesMap[v.Address()] = true
+		if removedValidators.Bit(i) == 1 && (v.Address() != common.Address{}) {
+			hadRemoval = true
+			valSet.validators[i] = New(common.Address{}, nil)
 		}
 	}
 
-	for _, v := range valSet.validators {
-		if _, ok := removeAddressesMap[v.Address()]; ok {
-			if (v.Address() != common.Address{}) {
-				delete(removeAddressesMap, v.Address())
-				valSet.validators[removeAddressesIndexMap[v.Address()]] = New(common.Address{}, nil)
-			}
-		}
-	}
-
-	if len(removeAddressesMap) > 0 {
+	if !hadRemoval {
 		return false
 	} else {
 		return true

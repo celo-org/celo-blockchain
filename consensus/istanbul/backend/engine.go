@@ -517,8 +517,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 
 			// add validators in snapshot to extraData's validators section
-			validators := snap.validators()
-			extra, err := assembleExtra(header, validators, newValSet)
+			extra, err := assembleExtra(header, snap.validators(), newValSet)
 			if err != nil {
 				return err
 			}
@@ -985,11 +984,11 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 
 	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
-	oldValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(oldValSet)
-	newValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(newValSet)
 	addedValidatorsAddresses, addedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
 
 	if len(addedValidators) > 0 || removedValidators.BitLen() > 0 {
+		oldValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(oldValSet)
+		newValidatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(newValSet)
 		log.Debug("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValidatorsAddresses), "newValSet", common.ConvertToStringSlice(newValidatorsAddresses),
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}

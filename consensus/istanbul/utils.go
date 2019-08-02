@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
 
@@ -146,7 +147,7 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	return addedValidators, removedValidatorsBitmap
 }
 
-// This function assumes that valSet1 and valSet2 are sorted
+// This function assumes that valSet1 and valSet2 are ordered in the same way
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
@@ -154,6 +155,20 @@ func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) 
 
 	for i := 0; i < len(valSet1); i++ {
 		if valSet1[i] != valSet2[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func CompareValidatorPublicKeySlices(valSet1 [][]byte, valSet2 [][]byte) bool {
+	if len(valSet1) != len(valSet2) {
+		return false
+	}
+
+	for i := 0; i < len(valSet1); i++ {
+		if !bytes.Equal(valSet1[i], valSet2[i]) {
 			return false
 		}
 	}
