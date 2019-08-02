@@ -8,4 +8,4 @@ steps:
 images:
 - 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA'
 - 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA'
-timeout: 45m
+timeout: 2700s

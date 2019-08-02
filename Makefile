@@ -26,6 +26,7 @@ ndk_bundle/android-ndk-r19c/NOTICE:
 	mkdir $(ANDROID_NDK_HOME) && \
 	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
 	rm /tmp/$(NDK_VERSION).zip
+
 bls-zexe-android: ndk_bundle/android-ndk-r19c/NOTICE
 	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=aarch64-linux-android --lib
 	PATH="$$PATH:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/llvm/prebuilt/linux-x86_64/bin:$(PWD)/ndk_bundle/android-ndk-r19c/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo +nightly build --release --target=armv7-linux-androideabi --lib
