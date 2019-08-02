@@ -662,7 +662,7 @@ func TestPrepareExtra(t *testing.T) {
 func TestWriteSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istRawData := hexutil.MustDecode("0xf873ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
-	expectedSeal := make([]byte, types.IstanbulExtraBlockSeal)
+	expectedSeal := make([]byte, types.IstanbulExtraSeal)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
@@ -707,7 +707,7 @@ func TestWriteSeal(t *testing.T) {
 func TestWriteCommittedSeals(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istRawData := hexutil.MustDecode("0xf8f2ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c8080b8c001020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080")
-	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraCommittedSeal-3)...)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),

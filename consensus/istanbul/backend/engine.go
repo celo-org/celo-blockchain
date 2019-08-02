@@ -1012,7 +1012,7 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 
 // writeSeal writes the extra-data field of the given header with the given seals.
 func writeSeal(h *types.Header, seal []byte) error {
-	if len(seal)%types.IstanbulExtraBlockSeal != 0 {
+	if len(seal)%types.IstanbulExtraSeal != 0 {
 		return errInvalidSignature
 	}
 
@@ -1037,7 +1037,7 @@ func writeCommittedSeals(h *types.Header, bitmap *big.Int, committedSeals []byte
 		return errInvalidCommittedSeals
 	}
 
-	if len(committedSeals) != types.IstanbulExtraSeal {
+	if len(committedSeals) != types.IstanbulExtraCommittedSeal {
 		return errInvalidCommittedSeals
 	}
 
