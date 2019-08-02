@@ -473,13 +473,13 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]ista
 		}
 
 		for _, addr := range newValSetAddresses {
-			var validator struct {
+			validator := struct {
 				Identifier     string
 				Name           string
 				Url            string
 				PublicKeysData []byte
 				Affiliation    common.Address
-			}
+			}{}
 			_, err := contract_comm.MakeStaticCallWithAddress(*validatorsAddress, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
 			if err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
