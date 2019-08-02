@@ -160,7 +160,6 @@ func (s *Snapshot) validators() []istanbul.ValidatorData {
 			validator.BLSPublicKey(),
 		})
 	}
-
 	return validators
 }
 
@@ -195,7 +194,6 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-
 	s.ValSet = validator.NewSet(j.Validators, j.Policy)
 	return nil
 }
