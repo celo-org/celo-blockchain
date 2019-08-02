@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -123,12 +124,11 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(blockHash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	registeredAddressesMap := b.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, registeredAddressesMap)
+	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
@@ -197,11 +197,11 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(nil, nil, nil)
+	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.GasPriceMinimum().GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -229,16 +229,4 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 
 func (b *EthAPIBackend) GasFeeRecipient() common.Address {
 	return b.eth.GasFeeRecipient()
-}
-
-func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.GasCurrencyWhitelist()
-}
-
-func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.RegisteredAddresses()
-}
-
-func (b *EthAPIBackend) GasPriceMinimum() *core.GasPriceMinimum {
-	return b.eth.GasPriceMinimum()
 }

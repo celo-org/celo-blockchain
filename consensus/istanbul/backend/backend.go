@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"math/big"
 	"sync"
@@ -119,10 +120,6 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	iEvmH  consensus.ConsensusIEvmH
-	regAdd consensus.ConsensusRegAdd
-	gpm    consensus.ConsensusGasPriceMinimum
-
 	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
 
 	valEnodeTable *validatorEnodeTable
@@ -218,6 +215,14 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 func (sb *Backend) Enode() *enode.Node {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetLocalNode()
+	} else {
+		return nil
+	}
+}
+
+func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetNodeKey()
 	} else {
 		return nil
 	}

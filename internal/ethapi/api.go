@@ -724,11 +724,8 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// this makes sure resources are cleaned up.
 	defer cancel()
 
-	// Needed so that the values returned by estimate gas, view functions, are correct.
-	s.b.GasCurrencyWhitelist().RefreshWhitelistAtStateAndHeader(state, header)
-
 	// Get a new instance of the EVM.
-	evm, vmError, err := s.b.GetEVM(ctx, msg, state, header)
+	evm, vmError, err := s.b.GetEVM(ctx, msg, header, state)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -742,11 +739,8 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp)
 
-	gasPriceMinimum, err := s.b.GasPriceMinimum().GetGasPriceMinimum(args.GasCurrency, state, header)
-	infraFraction, err := s.b.GasPriceMinimum().GetInfrastructureFraction(state, header)
-	infraAddress, _ := s.b.RegisteredAddresses().GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, state, header)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}

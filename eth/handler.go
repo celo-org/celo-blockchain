@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -903,4 +904,8 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {
 	return pm.server.Self()
+}
+
+func (pm *ProtocolManager) GetNodeKey() *ecdsa.PrivateKey {
+	return pm.server.PrivateKey
 }
