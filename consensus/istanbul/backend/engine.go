@@ -65,32 +65,34 @@ const (
 			      "stateMutability": "view",
 			      "type": "function"
 			     }, {
-					  "name": "getValidator",
-						"inputs": [{
-										"name": "addr",
-										"type": "address"
-				   }], "outputs": [
-										{
-										"name": "",
-										"type": "string"
-										},
-										{
-										"name": "",
-										"type": "string"
-										},
-										{
-										"name": "",
-										"type": "string"
-										},
-										{
-										"name": "",
-										"type": "bytes"
-										},
-										{
-										"name": "",
-										"type": "address"
-										}
+						"name": "getValidator",
+						"inputs": [
+							{
+								"name": "account",
+								"type": "address"
+							}
 						],
+						"outputs": [
+							{
+								"name": "identifier",
+								"type": "string"
+							},
+							{
+								"name": "name",
+								"type": "string"
+							},
+							{
+								"name": "url",
+								"type": "string"
+							},
+							{
+								"name": "publicKeysData",
+								"type": "bytes"
+							},
+							{
+								"name": "affiliation",
+								"type": "address"
+						}],
 						"payable": false,
 						"stateMutability": "view",
 						"type": "function"
