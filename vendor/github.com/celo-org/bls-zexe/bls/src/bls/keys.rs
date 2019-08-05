@@ -1,12 +1,12 @@
 use crate::curve::hash::HashToG2;
 use algebra::{bytes::{FromBytes, ToBytes}, curves::{
     bls12_377::{
-        Bls12_377, Bls12_377Parameters, g1::Bls12_377G1Parameters, G1Affine, G1Projective, G2Affine, G2Projective,
+        Bls12_377, Bls12_377Parameters, g1::Bls12_377G1Parameters, g2::Bls12_377G2Parameters, G1Affine, G1Projective, G2Affine, G2Projective,
     },
     AffineCurve, PairingCurve, PairingEngine, ProjectiveCurve,
     models::SWModelParameters,
 }, fields::{
-    bls12_377::{Fq12, Fq, Fr},
+    bls12_377::{Fq12, Fq, Fq2, Fr},
     Field,
     PrimeField,
 }, SquareRootField};
@@ -169,7 +169,7 @@ impl ToBytes for PublicKey {
         let y_big = affine.y.into_repr();
         let half = Fq::modulus_minus_one_div_two();
         affine.x.write(&mut x_bytes)?;
-        if y_big >= half {
+        if y_big > half {
             let num_x_bytes = x_bytes.len();
             x_bytes[num_x_bytes - 1] |= 0x80;
         }
@@ -194,7 +194,7 @@ impl FromBytes for PublicKey {
             io::Error::new(io::ErrorKind::NotFound, "couldn't find square root for x")
         )?;
         let negy = -y;
-        let chosen_y = if (y < negy) ^ y_over_half { y } else { negy };
+        let chosen_y = if (y <= negy) ^ y_over_half { y } else { negy };
         let pk = G1Affine::new(x, chosen_y, false);
         Ok(PublicKey::from_pk(&pk.into_projective()))
     }
@@ -226,14 +226,57 @@ impl Signature {
 impl ToBytes for Signature {
     #[inline]
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
-        self.sig.into_affine().write(&mut writer)
+        let affine = self.sig.into_affine();
+        let mut x_bytes: Vec<u8> = vec![];
+        let y_c0_big = affine.y.c0.into_repr();
+        let y_c1_big = affine.y.c1.into_repr();
+        let half = Fq::modulus_minus_one_div_two();
+        affine.x.write(&mut x_bytes)?;
+        let num_x_bytes = x_bytes.len();
+        if y_c1_big > half {
+            x_bytes[num_x_bytes - 1] |= 0x80;
+        } else if y_c1_big == half && y_c0_big > half {
+            x_bytes[num_x_bytes - 1] |= 0x80;
+        }
+        writer.write(&x_bytes)?;
+        Ok(())
     }
 }
 
 impl FromBytes for Signature {
     #[inline]
     fn read<R: Read>(mut reader: R) -> IoResult<Self> {
-        let sig = G2Affine::read(&mut reader)?;
+        let mut x_bytes_with_y: Vec<u8> = vec![];
+        reader.read_to_end(&mut x_bytes_with_y)?;
+        let x_bytes_with_y_len = x_bytes_with_y.len();
+        let y_over_half = (x_bytes_with_y[x_bytes_with_y_len - 1] & 0x80) == 0x80;
+        x_bytes_with_y[x_bytes_with_y_len - 1] &= 0xFF - 0x80;
+        let x = Fq2::read(x_bytes_with_y.as_slice())?;
+        let x3b = <Bls12_377G2Parameters as SWModelParameters>::add_b(
+            &((x.square() * &x) + &<Bls12_377G2Parameters as SWModelParameters>::mul_by_a(&x)),
+        );
+        let y = x3b.sqrt().ok_or(
+            io::Error::new(io::ErrorKind::NotFound, "couldn't find square root for x")
+        )?;
+
+        let y_c0_big = y.c0.into_repr();
+        let y_c1_big = y.c1.into_repr();
+
+        let negy = -y;
+
+        let (bigger, smaller) = {
+            let half = Fq::modulus_minus_one_div_two();
+            if y_c1_big > half {
+                (y, negy)
+            } else if y_c1_big == half && y_c0_big > half {
+                (y, negy)
+            } else {
+                (negy, y)
+            }
+        };
+
+        let chosen_y = if y_over_half { bigger } else { smaller };
+        let sig = G2Affine::new(x, chosen_y, false);
         Ok(Signature::from_sig(&sig.into_projective()))
     }
 }

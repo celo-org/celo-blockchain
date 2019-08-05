@@ -15,7 +15,7 @@ const MODULUSBITS = 253
 const MODULUSMASK = 31 // == 2**(253-(256-8)) - 1
 const PRIVATEKEYBYTES = 32
 const PUBLICKEYBYTES = 48
-const SIGNATUREBYTES = 192
+const SIGNATUREBYTES = 96
 
 var GeneralError = errors.New("General error")
 var NotVerifiedError = errors.New("Not verified")
