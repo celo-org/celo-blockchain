@@ -458,7 +458,12 @@ web3._extend({
 			call: 'eth_chainId',
 			params: 0
 		}),
-		new web3._extend.Method({
+    new web3._extend.Method({
+      name: 'minimumGasPricet,
+      call: 'eth_minimumGasPrice',
+      params: 0
+    }),
+    new web3._extend.Method({
 			name: 'sign',
 			call: 'eth_sign',
 			params: 2,

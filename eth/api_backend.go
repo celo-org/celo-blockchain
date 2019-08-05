@@ -196,6 +196,14 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 	return b.eth.EthVersion()
 }
 
+func (b *EthAPIBackend) GasPriceMinimum(ctx context.Context) (*big.Int, error) {
+	return gpm.GetGasPriceMinimum(nil, nil, nil)
+}
+
+func (b *EthAPIBackend) GasPriceMinimumInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+}
+
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
