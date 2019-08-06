@@ -86,13 +86,22 @@ const (
 								"type": "string"
 							},
 							{
-								"name": "publicKeysData",
+								"name": "publicKey",
+								"type": "bytes"
+							},
+							{
+								"name": "BLSPublicKey",
+								"type": "bytes"
+							},
+							{
+								"name": "BLSProofOfPossession",
 								"type": "bytes"
 							},
 							{
 								"name": "affiliation",
 								"type": "address"
-						}],
+							}
+						],
 						"payable": false,
 						"stateMutability": "view",
 						"type": "function"
@@ -476,27 +485,26 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]ista
 
 		for _, addr := range newValSetAddresses {
 			validator := struct {
-				Identifier     string
-				Name           string
-				Url            string
-				PublicKeysData []byte
-				Affiliation    common.Address
+				Identifier           string
+				Name                 string
+				Url                  string
+				PublicKey            []byte
+				BLSPublicKey         []byte
+				BLSProofOfPossession []byte
+				Affiliation          common.Address
 			}{}
 			_, err := contract_comm.MakeStaticCallWithAddress(*validatorsAddress, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
 			if err != nil {
 				log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
 				return nil, err
 			}
-			pubKeysDataBytes := validator.PublicKeysData
-
-			expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-			if len(pubKeysDataBytes) != expectedLength {
-				return nil, fmt.Errorf("length of pubKeysDataBytes incorrect. Expected %d, got %d", expectedLength, len(pubKeysDataBytes))
+			expectedLength := blscrypto.PUBLICKEYBYTES
+			if len(validator.BLSPublicKey) != expectedLength {
+				return nil, fmt.Errorf("length of BLSPublicKey incorrect. Expected %d, got %d", expectedLength, len(validator.BLSPublicKey))
 			}
-			blsPublicKey := pubKeysDataBytes[64 : 64+blscrypto.PUBLICKEYBYTES]
 			newValSet = append(newValSet, istanbul.ValidatorData{
 				addr,
-				blsPublicKey,
+				validator.BLSPublicKey,
 			})
 		}
 		return newValSet, nil
