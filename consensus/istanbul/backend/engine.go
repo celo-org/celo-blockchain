@@ -490,7 +490,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]ista
 			}
 			expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
 			if len(validator.PublicKeysData) != expectedLength {
-				return nil, fmt.Errorf("length of BLSPublicKey incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+				return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
 			}
 			blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
 			newValSet = append(newValSet, istanbul.ValidatorData{
