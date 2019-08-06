@@ -290,15 +290,15 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 	// The author should be the first person to propose the block to ensure that randomness matches up.
 	addr, err := sb.Author(block.Header())
 	if err != nil {
-		logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err)
+		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
 		return 0, errInvalidProposal
 	} else if addr != block.Header().Coinbase {
-		logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase)
+		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
 		return 0, errInvalidCoinbase
 	}
 
 
-	err := sb.VerifyHeader(sb.chain, block.Header(), false)
+	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
 	if err != nil && err != errEmptyCommittedSeals {
