@@ -17,10 +17,10 @@
 package core
 
 import (
-	"encoding/hex"
 	"math/big"
 	"testing"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -166,17 +166,23 @@ OUTER:
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
 
-		exampleSignature, _ := hex.DecodeString("8e30602b136996ec19761aabef852fd0ea4a9df63a43da052bedb82f1618ce2b907bbc70e02070224da34d688fa16101907e919aa92788f754640c318a1c970632237f2a4f6256bbd8cbe76215c37b606517bdb11b526a3ab098a03571e3fe00")
-
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
+
+			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
+			defer privateKey.Destroy()
+
+			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash())
+			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
+			defer signature.Destroy()
+			signatureBytes, _ := signature.Serialize()
 			m, _ := Encode(v.engine.(*core).current.Subject())
 			if err := r0.handleCommit(&message{
 				Code:          msgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
-				CommittedSeal: exampleSignature, // small hack
+				CommittedSeal: signatureBytes,
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
