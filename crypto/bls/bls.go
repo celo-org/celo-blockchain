@@ -142,12 +142,16 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	return asigBytes, nil
 }
 
-func IsValidSignature(signature []byte) error {
+func VerifySignature(publicKey []byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+	defer publicKeyObj.Destroy()
+
 	signatureObj, err := bls.DeserializeSignature(signature)
 	if err != nil {
 		return err
 	}
 	defer signatureObj.Destroy()
 
-	return nil
+	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
+	return err
 }

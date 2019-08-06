@@ -41,4 +41,7 @@ var (
 	errFailedDecodePrepare = errors.New("failed to decode PREPARE")
 	// errFailedDecodeCommit is returned when the COMMIT message is malformed.
 	errFailedDecodeCommit = errors.New("failed to decode COMMIT")
+	// errInvalidValidatorAddress is returned when the COMMIT message address doesn't
+	// correspond to a validator in the current set.
+	errInvalidValidatorAddress = errors.New("failed to find an existing validator by address")
 )
