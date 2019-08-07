@@ -80,7 +80,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b a0b734629461fe4ed4cef392c1557382b0bf1300
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b kobigurk/bls
             cd ${CELO_MONOREPO_DIR}/packages
             # TODO(ashishb): Delete unnecessary packages to speed up build time.
             # It would be better whitelist certain packages and delete the rest.
