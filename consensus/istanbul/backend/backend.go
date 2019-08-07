@@ -120,7 +120,8 @@ type Backend struct {
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
-	lastAnnounceGossiped map[common.Address]*AnnounceGossipTimestamp
+	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
+	lastAnnounceGossipedMu sync.RWMutex
 
 	valEnodeTable *validatorEnodeTable
 
