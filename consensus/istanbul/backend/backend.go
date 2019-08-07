@@ -375,8 +375,8 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
-		addedValidatorsAddresses := make([]common.Address, len(addedValidators))
-		addedValidatorsPublicKeys := make([][]byte, len(addedValidators))
+		addedValidatorsAddresses := make([]common.Address, 0, len(addedValidators))
+		addedValidatorsPublicKeys := make([][]byte, 0, len(addedValidators))
 		for _, val := range addedValidators {
 			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
 			addedValidatorsPublicKeys = append(addedValidatorsPublicKeys, val.BLSPublicKey)

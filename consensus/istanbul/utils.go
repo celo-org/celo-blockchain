@@ -127,12 +127,10 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 			delete(valSetMap, newVal.Address)
 		} else {
 			// We found a new validator that is not in the old validator set
-			if (newVal.Address != common.Address{}) {
-				addedValidators = append(addedValidators, ValidatorData{
-					newVal.Address,
-					newVal.BLSPublicKey,
-				})
-			}
+			addedValidators = append(addedValidators, ValidatorData{
+				newVal.Address,
+				newVal.BLSPublicKey,
+			})
 		}
 	}
 
