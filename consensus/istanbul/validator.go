@@ -84,6 +84,8 @@ type ValidatorSet interface {
 	List() []Validator
 	// Return the validator array without holes
 	FilteredList() []Validator
+	// Return the validator index in the filtered list
+	GetFilteredIndex(addr common.Address) int
 	// Get validator by index
 	GetByIndex(i uint64) Validator
 	// Get validator by given address

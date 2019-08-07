@@ -133,6 +133,15 @@ func (valSet *defaultSet) GetByAddress(addr common.Address) (int, istanbul.Valid
 	return -1, nil
 }
 
+func (valSet *defaultSet) GetFilteredIndex(addr common.Address) int {
+	for i, val := range valSet.FilteredList() {
+		if addr == val.Address() {
+			return i
+		}
+	}
+	return -1
+}
+
 func (valSet *defaultSet) GetProposer() istanbul.Validator {
 	return valSet.proposer
 }
@@ -150,7 +159,7 @@ func (valSet *defaultSet) CalcProposer(lastProposer common.Address, round uint64
 
 func calcSeed(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) uint64 {
 	offset := 0
-	if idx, val := valSet.GetByAddress(proposer); val != nil {
+	if idx := valSet.GetFilteredIndex(proposer); idx >= 0 {
 		offset = idx
 	}
 	return uint64(offset) + round
