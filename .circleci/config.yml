@@ -47,8 +47,8 @@ jobs:
           name: Setup Rust language
           command: |
             set -euo pipefail
-            rustup install nightly
-            rustup default nightly
+            rustup install 1.36.0
+            rustup default 1.36.0
       - run:
           name: Compile bls-zexe
           command: |
