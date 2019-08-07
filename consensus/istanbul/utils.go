@@ -18,6 +18,7 @@ package istanbul
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"math/big"
 
@@ -109,13 +110,11 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
-	oldValSetToPubKey := make(map[common.Address][]byte)
 	oldValSetMap := make(map[common.Address]int)
 
 	for i, oldVal := range oldValSet {
 		if (oldVal.Address != common.Address{}) {
 			valSetMap[oldVal.Address] = true
-			oldValSetToPubKey[oldValSet[i].Address] = oldValSet[i].BLSPublicKey
 			oldValSetMap[oldValSet[i].Address] = i
 		}
 	}
@@ -128,10 +127,12 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 			delete(valSetMap, newVal.Address)
 		} else {
 			// We found a new validator that is not in the old validator set
-			addedValidators = append(addedValidators, ValidatorData{
-				newVal.Address,
-				newVal.BLSPublicKey,
-			})
+			if (newVal.Address != common.Address{}) {
+				addedValidators = append(addedValidators, ValidatorData{
+					newVal.Address,
+					newVal.BLSPublicKey,
+				})
+			}
 		}
 	}
 
@@ -169,6 +170,15 @@ func CompareValidatorPublicKeySlices(valSet1 [][]byte, valSet2 [][]byte) bool {
 	}
 
 	return true
+}
+
+func ConvertPublicKeysToStringSlice(publicKeys [][]byte) []string {
+	publicKeyStrs := []string{}
+	for i := 0; i < len(publicKeys); i++ {
+		publicKeyStrs = append(publicKeyStrs, hex.EncodeToString(publicKeys[i]))
+	}
+
+	return publicKeyStrs
 }
 
 func GetNodeID(enodeURL string) (*enode.ID, error) {
