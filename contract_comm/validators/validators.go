@@ -130,7 +130,7 @@ func GetValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.Val
 			PublicKeysData []byte
 			Affiliation    common.Address
 		}{}
-		_, err := contract_comm.MakeStaticCallWithAddress(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
+		_, err := contract_comm.MakeStaticCallWithAddress(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
 		if err != nil {
 			log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
 			return nil, err
