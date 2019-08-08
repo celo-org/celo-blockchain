@@ -19,6 +19,7 @@ package backend
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -71,7 +72,9 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	if err != nil {
 		return nil, err
 	}
-	return snap.validators(), nil
+	validators := snap.validators()
+	validatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
+	return validatorsAddresses, nil
 }
 
 // GetValidatorsAtHash retrieves the state snapshot at a given block.
@@ -84,5 +87,7 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	if err != nil {
 		return nil, err
 	}
-	return snap.validators(), nil
+	validators := snap.validators()
+	validatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
+	return validatorsAddresses, nil
 }

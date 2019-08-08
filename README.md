@@ -4,8 +4,9 @@ Official golang implementation of the Celo Blockchain, based off of the [officia
 
 ## Building the source
 
-Building Celo requires both a Go (version 1.9 or later) and a C compiler.
-You can install them using your favourite package manager.
+Building Celo requires both a Go (version 1.9 or later), a C compiler and a recent nigthly Rust toolchain.
+You can install them using your favourite package manager. You may also consult the relevant sections in the [Celo Engineering Setup](https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md) guide.
+
 Once the dependencies are installed, run
 
     make geth

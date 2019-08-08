@@ -59,7 +59,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	payload, err := b.generateIstAnnounce()
 
-	b.Authorize(getInvalidAddress(), signerFnInvalid)
+	b.Authorize(getInvalidAddress(), signerFnInvalid, signerBLSHashFn, signerBLSMessageFn)
 	invalidPrivateKey, _ := generateInvalidPrivateKey()
 	b.SetBroadcaster(&MockBroadcaster{privateKey: invalidPrivateKey})
 
@@ -76,7 +76,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	}
 	delete(b.valEnodeTable.valEnodeTable, validatorAddr)
 
-	b.Authorize(getAddress(), signerFn)
+	b.Authorize(getAddress(), signerFn, signerBLSHashFn, signerBLSMessageFn)
 	b.SetBroadcaster(broadcaster)
 
 	if err = b.handleIstAnnounce(payload); err != nil {
