@@ -320,16 +320,21 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
+	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
+			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
 	}
+	sb.lastAnnounceGossipedMu.RUnlock()
 
 	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
+	sb.lastAnnounceGossipedMu.Lock()
+	defer sb.lastAnnounceGossipedMu.Unlock()
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled

@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestHandlePrepare(t *testing.T) {
@@ -262,8 +263,15 @@ OUTER:
 func TestVerifyPrepare(t *testing.T) {
 	// for log purpose
 	privateKey, _ := crypto.GenerateKey()
-	peer := validator.New(getPublicKeyAddress(privateKey))
-	valSet := validator.NewSet([]common.Address{peer.Address()}, istanbul.RoundRobin)
+	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
+	valSet := validator.NewSet([]istanbul.ValidatorData{
+		{
+			peer.Address(),
+			blsPublicKey,
+		},
+	}, istanbul.RoundRobin)
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 
