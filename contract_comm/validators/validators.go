@@ -20,11 +20,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
@@ -111,42 +111,39 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[c
 	return returnMap, nil
 }
 
-
 func (sb *Backend) GetValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
 	var newValSet []istanbul.ValidatorData
 	var newValSetAddresses []common.Address
-  // Get the new epoch's validator set
-  maxGasForGetValidators := uint64(10000000)
-  // TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+	// Get the new epoch's validator set
+	maxGasForGetValidators := uint64(10000000)
+	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidators", []interface{}{}, &newValSetAddresses, maxGasForGetValidators, header, state)
-  if err != nil {
-    return nil, err
-  }
+	if err != nil {
+		return nil, err
+	}
 
-  for _, addr := range newValSetAddresses {
-    validator := struct {
-      Identifier     string
-      Name           string
-      Url            string
-      PublicKeysData []byte
-      Affiliation    common.Address
-    }{}
-    _, err := contract_comm.MakeStaticCallWithAddress(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
-    if err != nil {
-      log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
-      return nil, err
-    }
-    expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-    if len(validator.PublicKeysData) != expectedLength {
-      return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
-    }
-    blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
-    newValSet = append(newValSet, istanbul.ValidatorData{
-      addr,
-      blsPublicKey,
-    })
-  }
-  return newValSet, nil
+	for _, addr := range newValSetAddresses {
+		validator := struct {
+			Identifier     string
+			Name           string
+			Url            string
+			PublicKeysData []byte
+			Affiliation    common.Address
+		}{}
+		_, err := contract_comm.MakeStaticCallWithAddress(params.ValidatorsRegistryId, getValidatorsFuncABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
+		if err != nil {
+			log.Error("Unable to retrieve Validator Account from Validator smart contract", "err", err)
+			return nil, err
+		}
+		expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
+		if len(validator.PublicKeysData) != expectedLength {
+			return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+		}
+		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
+		newValSet = append(newValSet, istanbul.ValidatorData{
+			addr,
+			blsPublicKey,
+		})
+	}
+	return newValSet, nil
 }
-
-
