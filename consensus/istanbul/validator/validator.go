@@ -19,26 +19,30 @@ package validator
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
-func New(addr common.Address) istanbul.Validator {
+func New(addr common.Address, blsPublicKey []byte) istanbul.Validator {
 	return &defaultValidator{
-		address: addr,
+		address:      addr,
+		blsPublicKey: blsPublicKey,
 	}
 }
 
-func NewSet(addrs []common.Address, policy istanbul.ProposerPolicy) istanbul.ValidatorSet {
-	return newDefaultSet(addrs, policy)
+func NewSet(validators []istanbul.ValidatorData, policy istanbul.ProposerPolicy) istanbul.ValidatorSet {
+	return newDefaultSet(validators, policy)
 }
 
-func ExtractValidators(extraData []byte) []common.Address {
+func ExtractValidators(extraData []byte) []istanbul.ValidatorData {
 	// get the validator addresses
-	addrs := make([]common.Address, (len(extraData) / common.AddressLength))
-	for i := 0; i < len(addrs); i++ {
-		copy(addrs[i][:], extraData[i*common.AddressLength:])
+	validatorLength := common.AddressLength + blscrypto.PUBLICKEYBYTES
+	validators := make([]istanbul.ValidatorData, (len(extraData) / validatorLength))
+	for i := 0; i < len(validators); i++ {
+		copy(validators[i].Address[:], extraData[i*validatorLength:i*validatorLength+common.AddressLength])
+		copy(validators[i].BLSPublicKey[:], extraData[i*validatorLength+common.AddressLength:])
 	}
 
-	return addrs
+	return validators
 }
 
 // Check whether the extraData is presented in prescribed form
