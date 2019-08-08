@@ -384,7 +384,20 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error
 		return nil, err
 	}
 
-	return signatureBytes, nil
+	publicKey, err := privateKey.ToPublic()
+	if err != nil {
+		return nil, err
+	}
+	defer publicKey.Destroy()
+	publicKeyBytes, err := publicKey.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	popBytes := []byte{}
+	popBytes = append(popBytes, publicKeyBytes...)
+	popBytes = append(popBytes, signatureBytes...)
+
+	return popBytes, nil
 }
 
 // SignTx signs the given transaction with the requested account.
