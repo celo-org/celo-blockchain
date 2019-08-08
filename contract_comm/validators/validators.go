@@ -111,7 +111,7 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[c
 	return returnMap, nil
 }
 
-func (sb *Backend) GetValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
+func GetValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
 	var newValSet []istanbul.ValidatorData
 	var newValSetAddresses []common.Address
 	// Get the new epoch's validator set
