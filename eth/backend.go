@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -88,14 +89,10 @@ type Ethereum struct {
 	miner     *miner.Miner
 	gasPrice  *big.Int
 	etherbase common.Address
+	blsbase   common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
-
-	gcWl   *core.GasCurrencyWhitelist
-	regAdd *core.RegisteredAddresses
-	iEvmH  *core.InternalEVMHandler
-	gpm    *core.GasPriceMinimum
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -142,6 +139,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		networkID:      config.NetworkId,
 		gasPrice:       config.MinerGasPrice,
 		etherbase:      config.Etherbase,
+		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, fullHeaderChainAvailable),
 	}
@@ -181,41 +179,22 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
+	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	eth.iEvmH = core.NewInternalEVMHandler(eth.blockchain)
+	contract_comm.SetInternalEVMHandler(eth.blockchain)
 
-	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	eth.regAdd = core.NewRegisteredAddresses(eth.iEvmH)
-	eth.iEvmH.SetRegisteredAddresses(eth.regAdd)
-
-	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
-	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
-	eth.gpm = core.NewGasPriceMinimum(eth.iEvmH, eth.regAdd)
-
-	// Object used to compare two different prices using any of the whitelisted gas currencies.
-	co := core.NewCurrencyOperator(eth.gcWl, eth.regAdd, eth.iEvmH)
-	random := core.NewRandom(eth.regAdd, eth.iEvmH)
-
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl, eth.iEvmH)
-	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
-	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
-	eth.blockchain.Processor().SetGasPriceMinimum(eth.gpm)
-	eth.blockchain.Processor().SetRandom(random)
+	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain)
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
 		return nil, err
 	}
 
-	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
+	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
-		istanbul.SetInternalEVMHandler(eth.iEvmH)
-		istanbul.SetRegisteredAddresses(eth.regAdd)
-		istanbul.SetGasPriceMinimum(eth.gpm)
 	}
 
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth}
@@ -378,6 +357,18 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
 }
 
+func (s *Ethereum) BLSbase() (eb common.Address, err error) {
+	s.lock.RLock()
+	blsbase := s.blsbase
+	s.lock.RUnlock()
+
+	if blsbase != (common.Address{}) {
+		return blsbase, nil
+	}
+
+	return s.Etherbase()
+}
+
 // isLocalBlock checks whether the specified block is mined
 // by local miner accounts.
 //
@@ -470,6 +461,11 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
+		blsbase, err := s.BLSbase()
+		if err != nil {
+			log.Error("Cannot start mining without blsbase", "err", err)
+			return fmt.Errorf("blsbase missing: %v", err)
+		}
 		clique, isClique := s.engine.(*clique.Clique)
 		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
 		if isIstanbul || isClique {
@@ -478,11 +474,16 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
+			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
+			if blswallet == nil || err != nil {
+				log.Error("BLSbase account unavailable locally", "err", err)
+				return fmt.Errorf("BLS signer missing: %v", err)
+			}
 			if isClique {
 				clique.Authorize(eb, wallet.SignHash)
 			}
 			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignHash)
+				istanbul.Authorize(eb, wallet.SignHash, blswallet.SignHashBLS, blswallet.SignMessageBLS)
 			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism
@@ -511,21 +512,17 @@ func (s *Ethereum) StopMining() {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager                { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain                     { return s.blockchain }
-func (s *Ethereum) TxPool() *core.TxPool                             { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux                         { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine                         { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database                          { return s.chainDb }
-func (s *Ethereum) IsListening() bool                                { return true } // Always listening
-func (s *Ethereum) EthVersion() int                                  { return int(s.protocolManager.SubProtocols[0].Version) }
-func (s *Ethereum) NetVersion() uint64                               { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader               { return s.protocolManager.downloader }
-func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.gcWl }
-func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
-func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
-func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
-func (s *Ethereum) GasPriceMinimum() *core.GasPriceMinimum           { return s.gpm }
+func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
+func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
+func (s *Ethereum) IsListening() bool                  { return true } // Always listening
+func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
+func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
+func (s *Ethereum) GasFeeRecipient() common.Address    { return s.config.Etherbase }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

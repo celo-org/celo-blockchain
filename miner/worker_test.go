@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -31,7 +32,9 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -89,10 +92,6 @@ type testWorkerBackend struct {
 	chain          *core.BlockChain
 	testTxFeed     event.Feed
 	uncleBlock     *types.Block
-	iEvmH          *core.InternalEVMHandler
-	regAdd         *core.RegisteredAddresses
-	gcWl           *core.GasCurrencyWhitelist
-	gpm            *core.GasPriceMinimum
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -111,8 +110,14 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		copy(gspec.ExtraData[52:], testBankAddress[:])
 	case *ethash.Ethash:
 	case *istanbulBackend.Backend:
-		addrs := []common.Address{testBankAddress}
-		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, addrs)
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, []istanbul.ValidatorData{
+			{
+				Address:      testBankAddress,
+				BLSPublicKey: blsPublicKey,
+			},
+		})
 
 		gspec.Mixhash = types.IstanbulDigest
 		gspec.Difficulty = big.NewInt(1)
@@ -122,21 +127,12 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	contract_comm.SetInternalEVMHandler(chain)
 
-	iEvmH := core.NewInternalEVMHandler(chain)
-	regAdd := core.NewRegisteredAddresses(iEvmH)
-	iEvmH.SetRegisteredAddresses(regAdd)
-	gcWl := core.NewGasCurrencyWhitelist(regAdd, iEvmH)
-	gpm := core.NewGasPriceMinimum(iEvmH, regAdd)
-	co := core.NewCurrencyOperator(gcWl, regAdd, iEvmH)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, co, nil, nil)
-
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
+	// If istanbul engine used, set the objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(iEvmH)
-		istanbul.SetRegisteredAddresses(regAdd)
-		istanbul.SetGasPriceMinimum(gpm)
 		istanbul.SetChain(chain, chain.CurrentBlock)
 	}
 
@@ -165,10 +161,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		chain:          chain,
 		txPool:         txpool,
 		uncleBlock:     blocks[0],
-		iEvmH:          iEvmH,
-		gcWl:           gcWl,
-		regAdd:         regAdd,
-		gpm:            gpm,
 	}
 }
 
@@ -178,19 +170,13 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
-func (b *testWorkerBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return b.gcWl }
-func (b *testWorkerBackend) RegisteredAddresses() *core.RegisteredAddresses   { return b.regAdd }
-func (b *testWorkerBackend) InternalEVMHandler() *core.InternalEVMHandler     { return b.iEvmH }
-func (b *testWorkerBackend) GasPriceMinimum() *core.GasPriceMinimum           { return b.gpm }
 
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	co := core.NewCurrencyOperator(nil, nil, nil)
-	random := core.NewRandom(backend.regAdd, backend.iEvmH)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, co, random, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -208,8 +194,58 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return crypto.Sign(data, testBankKey)
 	}
 
+	signHashBLSFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(data, []byte{}, false)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
+	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(msg, extraData, true)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
 

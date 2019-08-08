@@ -17,11 +17,10 @@
 package core
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -37,12 +36,6 @@ type StateProcessor struct {
 	config *params.ChainConfig // Chain configuration options
 	bc     *BlockChain         // Canonical block chain
 	engine consensus.Engine    // Consensus engine used for block rewards
-
-	// The state processor will need to refresh the cache for the gas currency white list and registered addresses right before it processes a block
-	gcWl   *GasCurrencyWhitelist
-	regAdd *RegisteredAddresses
-	gpm    *GasPriceMinimum
-	random *Random
 }
 
 // NewStateProcessor initialises a new StateProcessor.
@@ -52,22 +45,6 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		bc:     bc,
 		engine: engine,
 	}
-}
-
-func (p *StateProcessor) SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist) {
-	p.gcWl = gcWl
-}
-
-func (p *StateProcessor) SetRegisteredAddresses(regAdd *RegisteredAddresses) {
-	p.regAdd = regAdd
-}
-
-func (p *StateProcessor) SetGasPriceMinimum(gpm *GasPriceMinimum) {
-	p.gpm = gpm
-}
-
-func (p *StateProcessor) SetRandom(random *Random) {
-	p.random = random
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -90,8 +67,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	if p.random != nil && p.random.Running() {
-		err := p.random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
+	if random.IsRunning() {
+		err := random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -99,9 +76,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		infraFraction, _ := p.gpm.GetInfrastructureFraction(statedb, header)
-		gasPriceMinimum, _ := p.gpm.GetGasPriceMinimum(tx.GasCurrency(), statedb, header)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, p.gcWl, p.regAdd, gasPriceMinimum, infraFraction)
+		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, header, statedb, tx, usedGas, cfg)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -118,26 +93,20 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, gcWl *GasCurrencyWhitelist, regAdd *RegisteredAddresses, gasPriceMinimum *big.Int, infraFraction *InfrastructureFraction) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, header *types.Header, statedb *state.StateDB, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, uint64, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Refresh the currency whitelist right before processing the transaction
-	if gcWl != nil {
-		gcWl.RefreshWhitelistAtStateAndHeader(statedb, header)
-	}
-
-	registeredAddressesMap := regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, header)
 	// Create a new context to be used in the EVM environment
-	context := NewEVMContext(msg, header, bc, author, registeredAddressesMap)
+	context := NewEVMContext(msg, header, bc, author)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
-	infraAddress := registeredAddressesMap[params.GovernanceRegistryId]
+
 	// Apply the transaction to the current state (included in the env)
-	_, gas, failed, err := ApplyMessage(vmenv, msg, gp, gcWl, gasPriceMinimum, infraFraction, infraAddress)
+	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {
 		return nil, 0, err
 	}

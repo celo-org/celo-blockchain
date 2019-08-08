@@ -17,15 +17,20 @@
 package backend
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	mrand "math/rand"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -34,14 +39,15 @@ import (
 // define the istanbul announce message
 
 type announceMessage struct {
-	Address   common.Address
-	EnodeURL  string
-	View      *istanbul.View
-	Signature []byte
+	Address               common.Address
+	IncompleteEnodeURL    string
+	EncryptedEndpointData [][][]byte
+	View                  *istanbul.View
+	Signature             []byte
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{Address: %s, View: %v, EnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.EnodeURL, hex.EncodeToString(am.Signature))
+	return fmt.Sprintf("{Address: %s, View: %v, IncompleteEnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.IncompleteEnodeURL, hex.EncodeToString(am.Signature))
 }
 
 // ==============================================
@@ -50,22 +56,23 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.EnodeURL, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address   common.Address
-		EnodeURL  string
-		View      *istanbul.View
-		Signature []byte
+		Address               common.Address
+		IncompleteEnodeURL    string
+		EncryptedEndpointData [][][]byte
+		View                  *istanbul.View
+		Signature             []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.EnodeURL, am.View, am.Signature = msg.Address, msg.EnodeURL, msg.View, msg.Signature
+	am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View, msg.Signature
 	return nil
 }
 
@@ -85,10 +92,13 @@ func (am *announceMessage) Payload() ([]byte, error) {
 func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
-	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{Address: am.Address,
-		EnodeURL:  am.EnodeURL,
-		View:      am.View,
-		Signature: []byte{}})
+	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
+		Address:               am.Address,
+		IncompleteEnodeURL:    am.IncompleteEnodeURL,
+		EncryptedEndpointData: am.EncryptedEndpointData,
+		View:                  am.View,
+		Signature:             []byte{},
+	})
 	if err != nil {
 		return err
 	}
@@ -100,10 +110,12 @@ func (am *announceMessage) VerifySig() error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:   am.Address,
-		EnodeURL:  am.EnodeURL,
-		View:      am.View,
-		Signature: []byte{}})
+		Address:               am.Address,
+		IncompleteEnodeURL:    am.IncompleteEnodeURL,
+		EncryptedEndpointData: am.EncryptedEndpointData,
+		View:                  am.View,
+		Signature:             []byte{},
+	})
 	if err != nil {
 		return err
 	}
@@ -145,34 +157,85 @@ func (sb *Backend) sendAnnounceMsgs() {
 	}
 }
 
-func (sb *Backend) sendIstAnnounce() error {
-	enode := sb.Enode()
-	if enode == nil {
+func (sb *Backend) generateIstAnnounce() ([]byte, error) {
+	block := sb.currentBlock()
+	selfEnode := sb.Enode()
+
+	if selfEnode == nil {
 		sb.logger.Error("Enode is nil in sendIstAnnounce")
-		return nil
+		return nil, nil
 	}
 
-	enodeUrl := enode.String()
+	enodeUrl := selfEnode.String()
 	view := sb.core.CurrentView()
+	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
+	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
-	msg := &announceMessage{Address: sb.Address(),
-		EnodeURL: enodeUrl,
-		View:     view}
+	regAndActiveVals, err := sb.retrieveRegisteredValidators()
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
+		regAndActiveVals = make(map[common.Address]bool)
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return nil, err
+	}
+
+	// Add active validators regardless
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	for _, val := range valSet.List() {
+		regAndActiveVals[val.Address()] = true
+	}
+
+	encryptedEndpoints := make([][][]byte, 0)
+	for addr := range regAndActiveVals {
+		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
+			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
+			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
+			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
+			if err != nil {
+				log.Warn("Unable to unmarshal public key", "err", err)
+			} else {
+				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
+			}
+		}
+	}
+
+	msg := &announceMessage{
+		Address:               sb.Address(),
+		IncompleteEnodeURL:    incompleteEnodeUrl,
+		EncryptedEndpointData: encryptedEndpoints,
+		View:                  view,
+	}
 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return err
+		return nil, err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
 		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
-		return err
+		return nil, err
 	}
 
 	sb.logger.Trace("Broadcasting an announce message", "AnnounceMsg", msg)
+
+	return payload, nil
+}
+
+func (sb *Backend) sendIstAnnounce() error {
+	payload, err := sb.generateIstAnnounce()
+	if err != nil {
+		return err
+	}
+
+	if payload == nil {
+		return nil
+	}
 
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
@@ -203,35 +266,51 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regVals, err := sb.retrieveRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredValidators()
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regVals) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regVals", regVals)
-		block := sb.currentBlock()
-		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
-		regVals = make(map[common.Address]bool)
-		for _, val := range valSet.List() {
-			regVals[val.Address()] = true
-		}
+	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
+		regAndActiveVals = make(map[common.Address]bool)
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)
 		return err
 	}
 
-	if !regVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String())
+	// Add active validators regardless
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	for _, val := range valSet.List() {
+		regAndActiveVals[val.Address()] = true
+	}
+
+	if !regAndActiveVals[msg.Address] {
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
+
+	// Decrypt the EnodeURL
+	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
+
+	encryptedEndpoint := []byte("")
+	for _, entry := range msg.EncryptedEndpointData {
+		if bytes.Equal(entry[0], sb.Address().Bytes()) {
+			encryptedEndpoint = entry[1]
+		}
+	}
+	endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
+	if err != nil {
+		sb.logger.Warn("Error in decrypting endpoint", "err", err)
+	}
+	enodeUrl := msg.IncompleteEnodeURL + string(endpointBytes)
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		newValEnode := &validatorEnode{enodeURL: msg.EnodeURL, view: msg.View}
+		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
 			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
@@ -239,28 +318,33 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
+	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == msg.EnodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
+			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
 	}
+	sb.lastAnnounceGossipedMu.RUnlock()
 
 	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: msg.EnodeURL, timestamp: time.Now()}
+	sb.lastAnnounceGossipedMu.Lock()
+	defer sb.lastAnnounceGossipedMu.Unlock()
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
-	if (rand.Int() % 100) <= 5 {
+	if (mrand.Int() % 100) <= 5 {
 		for remoteAddress := range sb.lastAnnounceGossiped {
-			if !regVals[remoteAddress] {
+			if !regAndActiveVals[remoteAddress] {
 				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 				delete(sb.lastAnnounceGossiped, remoteAddress)
 			}
 		}
 
-		sb.valEnodeTable.pruneEntries(regVals)
+		sb.valEnodeTable.pruneEntries(regAndActiveVals)
 	}
 
 	return nil

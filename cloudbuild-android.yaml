@@ -7,4 +7,4 @@ steps:
   args: [ 'build', '--build-arg', 'commit_sha=$SHORT_SHA', '--build-arg', 'NPM_TOKEN', '-f', 'Dockerfile.androidbuild', '.' ]
   secretEnv: ['NPM_TOKEN']
   waitFor: ["-"]
-timeout: 900s
+timeout: 2700s

@@ -27,8 +27,8 @@ import (
 )
 
 func TestRoundChangeSet(t *testing.T) {
-	addresses, _ := generateValidators(4)
-	vset := validator.NewSet(addresses, istanbul.RoundRobin)
+	vals, _ := generateValidators(4)
+	vset := validator.NewSet(vals, istanbul.RoundRobin)
 	rc := newRoundChangeSet(vset)
 
 	view := &istanbul.View{

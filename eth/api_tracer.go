@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
@@ -207,8 +206,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer)
-					registeredAddressesMap := api.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, task.block.Header())
-					vmctx := core.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, nil, registeredAddressesMap)
+					vmctx := core.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, nil)
 
 					res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 					if err != nil {
@@ -482,8 +480,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer)
-				registeredAddressesMap := api.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, block.Header())
-				vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, registeredAddressesMap)
+				vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 
 				res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 				if err != nil {
@@ -502,14 +499,10 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer)
-		registeredAddressesMap := api.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, block.Header())
-		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, registeredAddressesMap)
+		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{})
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
-		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
-		infraAddress, _ := api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress); err != nil {
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
 			failed = err
 			break
 		}
@@ -580,9 +573,8 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 	for i, tx := range block.Transactions() {
 		// Prepare the trasaction for un-traced execution
 		var (
-			msg, _                 = tx.AsMessage(signer)
-			registeredAddressesMap = api.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, block.Header())
-			vmctx                  = core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, registeredAddressesMap)
+			msg, _ = tx.AsMessage(signer)
+			vmctx  = core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 
 			vmConf vm.Config
 			dump   *os.File
@@ -608,10 +600,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		}
 		// Execute the transaction and flush any traces to disk
 		vmenv := vm.NewEVM(vmctx, statedb, api.config, vmConf)
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
-		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
-		infraAddress, err := api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
-		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
+		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()))
 
 		if dump != nil {
 			dump.Close()
@@ -760,11 +749,7 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	// Run the transaction with tracing enabled.
 	vmenv := vm.NewEVM(vmctx, statedb, api.config, vm.Config{Debug: true, Tracer: tracer})
 
-	gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(message.GasCurrency(), statedb, nil)
-	infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, nil)
-
-	infraAddress, err := api.eth.regAdd.GetRegisteredAddressAtCurrentHeader(params.GovernanceRegistryId)
-	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress)
+	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %v", err)
 	}
@@ -807,17 +792,13 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := tx.AsMessage(signer)
-		registeredAddressesMap := api.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(statedb, block.Header())
-		ctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil, registeredAddressesMap)
+		ctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 		if idx == txIndex {
 			return msg, ctx, statedb, nil
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(ctx, statedb, api.config, vm.Config{})
-		gasPriceMinimum, _ := api.eth.APIBackend.GasPriceMinimum().GetGasPriceMinimum(msg.GasCurrency(), statedb, block.Header())
-		infraFraction, _ := api.eth.APIBackend.GasPriceMinimum().GetInfrastructureFraction(statedb, block.Header())
-		infraAddress, _ := api.eth.regAdd.GetRegisteredAddressAtStateAndHeader(params.GovernanceRegistryId, statedb, block.Header())
-		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), api.eth.GasCurrencyWhitelist(), gasPriceMinimum, infraFraction, infraAddress); err != nil {
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state

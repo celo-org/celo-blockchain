@@ -41,7 +41,6 @@ var (
 	errFailedDecodePrepare = errors.New("failed to decode PREPARE")
 	// errFailedDecodeCommit is returned when the COMMIT message is malformed.
 	errFailedDecodeCommit = errors.New("failed to decode COMMIT")
-
 	// errInvalidPreparedCertificateProposal is returned when the PREPARED certificate has an invalid proposal.
 	errInvalidPreparedCertificateProposal = errors.New("invalid proposal in PREPARED certificate")
 	// errInvalidPreparedCertificateNumMsgs is returned when the PREPARED certificate has an incorrect number of messages.
@@ -78,4 +77,7 @@ var (
 	errFailedCreateRoundChangeCertificate = errors.New("failed to create ROUND CHANGE certficate")
 	// errInvalidProposal is returned when a PREPARED certificate exists for proposal A in the ROUND CHANGE certificate for a PREPREPARE with proposal B.
 	errInvalidProposal = errors.New("invalid proposal in PREPREPARE")
+	// errInvalidValidatorAddress is returned when the COMMIT message address doesn't
+	// correspond to a validator in the current set.
+	errInvalidValidatorAddress = errors.New("failed to find an existing validator by address")
 )

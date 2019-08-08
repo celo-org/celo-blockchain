@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
@@ -45,21 +47,22 @@ type testSystemBackend struct {
 	committedMsgs []testCommittedMsgs
 	sentMsgs      [][]byte // store the message when Send is called by core
 
-	address    common.Address
-	privateKey ecdsa.PrivateKey
-	db         ethdb.Database
+	key     []byte
+	address common.Address
+	db      ethdb.Database
 }
 
 type testCommittedMsgs struct {
 	commitProposal istanbul.Proposal
-	committedSeals [][]byte
+	bitmap         *big.Int
+	committedSeals []byte
 }
 
 // ==============================================
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.MessageSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -99,10 +102,22 @@ func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []by
 	return nil
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, seals [][]byte) error {
+func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+	privateKey, _ := bls.DeserializePrivateKey(self.key)
+	defer privateKey.Destroy()
+
+	signature, _ := privateKey.SignMessage(data, []byte{}, false)
+	defer signature.Destroy()
+	signatureBytes, _ := signature.Serialize()
+
+	return signatureBytes, nil
+}
+
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []byte) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal: proposal,
+		bitmap:         bitmap,
 		committedSeals: seals,
 	})
 
@@ -264,38 +279,45 @@ func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 // define the struct that need to be provided for integration tests.
 
 type testSystem struct {
-	backends []*testSystemBackend
-	f        uint64
+	backends       []*testSystemBackend
+	f              uint64
+	validatorsKeys [][]byte
 
 	queuedMessage chan istanbul.MessageEvent
 	quit          chan struct{}
 }
 
-func newTestSystem(n, f uint64) *testSystem {
+func newTestSystem(n uint64, f uint64 keys [][]byte) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
-		backends: make([]*testSystemBackend, n),
-		f:        f,
+		backends:       make([]*testSystemBackend, n),
+		validatorsKeys: keys,
+		f:              f,
 
 		queuedMessage: make(chan istanbul.MessageEvent),
 		quit:          make(chan struct{}),
 	}
 }
 
-func generateValidators(n int) ([]common.Address, []ecdsa.PrivateKey) {
-	vals := make([]common.Address, 0)
-	privateKeys := make([]ecdsa.PrivateKey, 0)
+func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte) {
+	vals := make([]istanbul.ValidatorData, 0)
+	keys := make([][]byte, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
-		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
-		privateKeys = append(privateKeys, *privateKey)
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		vals = append(vals, istanbul.ValidatorData{
+			crypto.PubkeyToAddress(privateKey.PublicKey),
+			blsPublicKey,
+		})
+		keys = append(keys, blsPrivateKey)
 	}
-	return vals, privateKeys
+	return vals, keys
 }
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
-	addresses, _ := generateValidators(n)
-	return validator.NewSet(addresses, istanbul.RoundRobin)
+	validators, _ := generateValidators(n)
+	return validator.NewSet(validators, istanbul.RoundRobin)
 }
 
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
@@ -313,8 +335,8 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) *roundState) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
-	addrs, privateKeys := generateValidators(int(n))
-	sys := newTestSystem(n, f)
+	validators, keys := generateValidators(int(n))
+	sys := newTestSystem(n, f, keys)
 	config := istanbul.DefaultConfig
 	// Addresses are sorted in the validator set, we make a mapping here
 	// so we can fetch the private key for each validator.
@@ -324,11 +346,11 @@ func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState fun
 	}
 
 	for i := uint64(0); i < n; i++ {
-		vset := validator.NewSet(addrs, istanbul.RoundRobin)
+		vset := validator.NewSet(validators, istanbul.RoundRobin)
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
-		backend.privateKey = privateKeyMap[backend.address]
+		backend.key = keys[i]
 
 		core := New(backend, config).(*core)
 		core.state = StateAcceptRequest

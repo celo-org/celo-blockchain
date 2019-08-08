@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendCommit() {
@@ -66,7 +67,14 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return err
 	}
 
-	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, src); err != nil {
+	_, validator := c.valSet.GetByAddress(msg.Address)
+	if validator == nil {
+		return errInvalidValidatorAddress
+	}
+
+	seal := PrepareCommittedSeal(c.current.Proposal().Hash())
+	err = blscrypto.VerifySignature(validator.BLSPublicKey(), seal, []byte{}, msg.CommittedSeal, false)
+	if err != nil {
 		return err
 	}
 

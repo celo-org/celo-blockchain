@@ -18,6 +18,8 @@ package params
 
 import (
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -93,6 +95,8 @@ const (
 	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
+	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
+	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
@@ -113,6 +117,8 @@ var (
 	GenesisDifficulty      = big.NewInt(131072) // Difficulty of the Genesis block.
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
+
+	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 )
 
 const (
