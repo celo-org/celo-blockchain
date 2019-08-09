@@ -164,12 +164,12 @@ func TestHandlePreprepare(t *testing.T) {
 					c.valSet = backend.peers
 					c.state = StatePreprepared
 					c.current.SetRound(big.NewInt(1))
-					c.current.SetPreprepare(&istanbul.Preprepare {
-						View: &istanbul.View {
-							Round: big.NewInt(1),
+					c.current.SetPreprepare(&istanbul.Preprepare{
+						View: &istanbul.View{
+							Round:    big.NewInt(1),
 							Sequence: big.NewInt(0),
 						},
-						Proposal: makeBlock(2),
+						Proposal:               makeBlock(2),
 						RoundChangeCertificate: istanbul.RoundChangeCertificate{},
 					})
 				}

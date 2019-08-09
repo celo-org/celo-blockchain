@@ -31,13 +31,11 @@ import (
 	elog "github.com/ethereum/go-ethereum/log"
 )
 
-
-
 func TestCheckMessage(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
 		logger: testLogger,
-		state: StateAcceptRequest,
+		state:  StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
@@ -188,8 +186,8 @@ func TestStoreBacklog(t *testing.T) {
 	}
 	prepreparePayload, _ := Encode(preprepare)
 	m := &istanbul.Message{
-		Code: istanbul.MsgPreprepare,
-		Msg:  prepreparePayload,
+		Code:    istanbul.MsgPreprepare,
+		Msg:     prepreparePayload,
 		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
@@ -206,8 +204,8 @@ func TestStoreBacklog(t *testing.T) {
 	subjectPayload, _ := Encode(subject)
 
 	m = &istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgPrepare,
+		Msg:     subjectPayload,
 		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
@@ -218,8 +216,8 @@ func TestStoreBacklog(t *testing.T) {
 
 	// push commit msg
 	m = &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgCommit,
+		Msg:     subjectPayload,
 		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
@@ -230,8 +228,8 @@ func TestStoreBacklog(t *testing.T) {
 
 	// push roundChange msg
 	m = &istanbul.Message{
-		Code: istanbul.MsgRoundChange,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgRoundChange,
+		Msg:     subjectPayload,
 		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
@@ -311,24 +309,23 @@ func TestProcessBacklog(t *testing.T) {
 
 	msgs := []*istanbul.Message{
 		{
-			Code: istanbul.MsgPreprepare,
-			Msg:  prepreparePayload,
-			Address: address,
-
-		},
-		{
-			Code: istanbul.MsgPrepare,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgPreprepare,
+			Msg:     prepreparePayload,
 			Address: address,
 		},
 		{
-			Code: istanbul.MsgCommit,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgPrepare,
+			Msg:     subjectPayload,
 			Address: address,
 		},
 		{
-			Code: istanbul.MsgRoundChange,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgCommit,
+			Msg:     subjectPayload,
+			Address: address,
+		},
+		{
+			Code:    istanbul.MsgRoundChange,
+			Msg:     subjectPayload,
 			Address: address,
 		},
 	}
