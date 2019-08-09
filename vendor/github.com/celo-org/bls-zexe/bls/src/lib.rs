@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate lazy_static;
 
 pub mod bls;
@@ -20,9 +18,13 @@ use crate::{
 };
 use algebra::{FromBytes, ToBytes};
 use rand::thread_rng;
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    error::Error,
+};
 use std::os::raw::c_int;
 use std::slice;
+
 
 lazy_static! {
     static ref COMPOSITE_HASHER: CompositeHasher = {
@@ -146,7 +148,7 @@ pub extern "C" fn sign_message(
     should_use_composite: bool,
     out_signature: *mut *mut Signature,
 ) -> bool {
-    convert_result_to_bool::<_, failure::Error, _>(|| {
+    convert_result_to_bool::<_, Box<Error>, _>(|| {
         let private_key = unsafe { &*in_private_key };
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
         let extra_data = unsafe { slice::from_raw_parts(in_extra_data, in_extra_data_len as usize) };
@@ -168,7 +170,7 @@ pub extern "C" fn sign_pop(
     in_private_key: *const PrivateKey,
     out_signature: *mut *mut Signature,
 ) -> bool {
-    convert_result_to_bool::<_, failure::Error, _>(|| {
+    convert_result_to_bool::<_, Box<Error>, _>(|| {
         let private_key = unsafe { &*in_private_key };
         let signature = private_key.sign_pop( &*DIRECT_HASH_TO_G2)?;
         unsafe {

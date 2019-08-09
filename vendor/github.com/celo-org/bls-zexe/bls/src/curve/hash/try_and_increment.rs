@@ -6,7 +6,6 @@ use crate::{
     hash::PRF,
 };
 use byteorder::WriteBytesExt;
-use failure::Error;
 use hex;
 
 use algebra::{
@@ -20,6 +19,7 @@ use algebra::{
     fields::{Field, Fp2, FpParameters, PrimeField, SquareRootField},
     bytes::FromBytes,
 };
+use std::error::Error;
 
 #[allow(dead_code)]
 fn bytes_to_fp<P: Bls12Parameters>(bytes: &[u8]) -> P::Fp {
@@ -77,7 +77,7 @@ fn get_point_from_x<P: Bls12Parameters>(
     })
 }
 impl<'a, H: PRF> HashToG2 for TryAndIncrement<'a, H> {
-    fn hash<P: Bls12Parameters>(&self, key: &[u8], domain: &[u8], message: &[u8], extra_data: &[u8]) -> Result<G2Projective<P>, Error> {
+    fn hash<P: Bls12Parameters>(&self, key: &[u8], domain: &[u8], message: &[u8], extra_data: &[u8]) -> Result<G2Projective<P>, Box<dyn Error>> {
         const NUM_TRIES: usize = 256;
         const EXPECTED_TOTAL_BITS: usize = 384*2;
         const LAST_BYTE_MASK: u8 = 1;
