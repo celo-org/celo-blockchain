@@ -17,13 +17,14 @@
 package validator
 
 import (
+	"math/big"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var (
@@ -47,10 +48,13 @@ func testNewValidatorSet(t *testing.T) {
 	b := []byte{}
 	for i := 0; i < ValCnt; i++ {
 		key, _ := crypto.GenerateKey()
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		val := New(addr)
+		val := New(addr, blsPublicKey)
 		validators = append(validators, val)
 		b = append(b, val.Address().Bytes()...)
+		b = append(b, blsPublicKey...)
 	}
 
 	// Create ValidatorSet
@@ -59,15 +63,6 @@ func testNewValidatorSet(t *testing.T) {
 		t.Errorf("the validator byte array cannot be parsed")
 		t.FailNow()
 	}
-
-	// Check validators sorting: should be in ascending order
-	for i := 0; i < ValCnt-1; i++ {
-		val := valSet.GetByIndex(uint64(i))
-		nextVal := valSet.GetByIndex(uint64(i + 1))
-		if strings.Compare(val.String(), nextVal.String()) >= 0 {
-			t.Errorf("validator set is not sorted in ascending order")
-		}
-	}
 }
 
 func testNormalValSet(t *testing.T) {
@@ -75,10 +70,11 @@ func testNormalValSet(t *testing.T) {
 	b2 := common.Hex2Bytes(testAddress2)
 	addr1 := common.BytesToAddress(b1)
 	addr2 := common.BytesToAddress(b2)
-	val1 := New(addr1)
-	val2 := New(addr2)
+	val1 := New(addr1, []byte{})
+	val2 := New(addr2, []byte{})
 
-	valSet := newDefaultSet([]common.Address{addr1, addr2}, istanbul.RoundRobin)
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
+	valSet := newDefaultSet(validators, istanbul.RoundRobin)
 	if valSet == nil {
 		t.Errorf("the format of validator set is invalid")
 		t.FailNow()
@@ -136,39 +132,65 @@ func testEmptyValSet(t *testing.T) {
 
 func testAddAndRemoveValidator(t *testing.T) {
 	valSet := NewSet(ExtractValidators([]byte{}), istanbul.RoundRobin)
-	if !valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if !valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			{
+				common.BytesToAddress([]byte(string(3))),
+				[]byte{},
+			},
+		},
+	) {
 		t.Error("the validator should be added")
 	}
-	if valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			{
+				common.BytesToAddress([]byte(string(3))),
+				[]byte{},
+			},
+		},
+	) {
 		t.Error("the existing validator should not be added")
 	}
-	valSet.AddValidators([]common.Address{common.BytesToAddress([]byte(string(1))), common.BytesToAddress([]byte(string(0)))})
-	if len(valSet.List()) != 3 {
+	valSet.AddValidators(
+		[]istanbul.ValidatorData{
+			{
+				common.BytesToAddress([]byte(string(2))),
+				[]byte{},
+			},
+			{
+				common.BytesToAddress([]byte(string(1))),
+				[]byte{},
+			},
+		},
+	)
+	if valSet.Size() != 3 {
 		t.Error("the size of validator set should be 3")
 	}
 
+	expectedOrder := []int{3, 2, 1}
 	for i, v := range valSet.List() {
-		expected := common.BytesToAddress([]byte(string(i)))
+		expected := common.BytesToAddress([]byte(string(expectedOrder[i])))
 		if v.Address() != expected {
 			t.Errorf("the order of validators is wrong: have %v, want %v", v.Address().Hex(), expected.Hex())
 		}
 	}
 
-	if !valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if !valSet.RemoveValidators(big.NewInt(1)) { // remove first falidator
 		t.Error("the validator should be removed")
 	}
-	if valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(2)))}) {
+	if valSet.RemoveValidators(big.NewInt(1)) {
 		t.Error("the non-existing validator should not be removed")
 	}
-	if len(valSet.List()) != 2 {
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 2 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 2")
 	}
-	valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(1)))})
-	if len(valSet.List()) != 1 {
+	valSet.RemoveValidators(big.NewInt(2))                                                          // remove second validator
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 1 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 1")
 	}
-	valSet.RemoveValidators([]common.Address{common.BytesToAddress([]byte(string(0)))})
-	if len(valSet.List()) != 0 {
+	valSet.RemoveValidators(big.NewInt(4))                                                          // remove third validator
+	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 0 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 0")
 	}
 }
@@ -178,10 +200,11 @@ func testStickyProposer(t *testing.T) {
 	b2 := common.Hex2Bytes(testAddress2)
 	addr1 := common.BytesToAddress(b1)
 	addr2 := common.BytesToAddress(b2)
-	val1 := New(addr1)
-	val2 := New(addr2)
+	val1 := New(addr1, []byte{})
+	val2 := New(addr2, []byte{})
 
-	valSet := newDefaultSet([]common.Address{addr1, addr2}, istanbul.Sticky)
+	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
+	valSet := newDefaultSet(validators, istanbul.Sticky)
 
 	// test get proposer
 	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {
