@@ -72,9 +72,7 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return errInvalidValidatorAddress
 	}
 
-	seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-	err = blscrypto.VerifySignature(validator.BLSPublicKey(), seal, []byte{}, msg.CommittedSeal, false)
-	if err != nil {
+	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
 		return err
 	}
 
@@ -109,14 +107,11 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(commit *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
-	subjectSeal := PrepareCommittedSeal(commit.Digest)
-	signer, err := c.validateFn(subjectSeal, committedSeal)
+func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(digest)
+	err := blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
 	if err != nil {
 		return err
-	}
-	if signer != src.Address() {
-		return errInvalidCommittedSeal
 	}
 	return nil
 }
