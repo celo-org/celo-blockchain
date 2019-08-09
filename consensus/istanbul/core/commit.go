@@ -109,11 +109,7 @@ func (c *core) verifyCommit(commit *istanbul.Subject) error {
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
 func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src istanbul.Validator) error {
 	seal := PrepareCommittedSeal(digest)
-	err := blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
-	if err != nil {
-		return err
-	}
-	return nil
+	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
 }
 
 func (c *core) acceptCommit(msg *istanbul.Message) error {
