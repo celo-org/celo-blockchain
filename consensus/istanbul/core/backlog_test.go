@@ -28,11 +28,15 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
+	elog "github.com/ethereum/go-ethereum/log"
 )
 
+
+
 func TestCheckMessage(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
+		logger: testLogger,
 		state: StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
@@ -166,8 +170,9 @@ func TestCheckMessage(t *testing.T) {
 }
 
 func TestStoreBacklog(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 	}
@@ -185,6 +190,7 @@ func TestStoreBacklog(t *testing.T) {
 	m := &istanbul.Message{
 		Code: istanbul.MsgPreprepare,
 		Msg:  prepreparePayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg := c.backlogs[p].PopItem()
@@ -202,6 +208,7 @@ func TestStoreBacklog(t *testing.T) {
 	m = &istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  subjectPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -213,6 +220,7 @@ func TestStoreBacklog(t *testing.T) {
 	m = &istanbul.Message{
 		Code: istanbul.MsgCommit,
 		Msg:  subjectPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -224,6 +232,7 @@ func TestStoreBacklog(t *testing.T) {
 	m = &istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  subjectPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -236,8 +245,9 @@ func TestProcessFutureBacklog(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 		backend:    backend,
@@ -297,23 +307,29 @@ func TestProcessBacklog(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 	subjectPayload, _ := Encode(subject)
+	address := common.BytesToAddress([]byte("0xce10ce10"))
 
 	msgs := []*istanbul.Message{
 		{
 			Code: istanbul.MsgPreprepare,
 			Msg:  prepreparePayload,
+			Address: address,
+
 		},
 		{
 			Code: istanbul.MsgPrepare,
 			Msg:  subjectPayload,
+			Address: address,
 		},
 		{
 			Code: istanbul.MsgCommit,
 			Msg:  subjectPayload,
+			Address: address,
 		},
 		{
 			Code: istanbul.MsgRoundChange,
 			Msg:  subjectPayload,
+			Address: address,
 		},
 	}
 	for i := 0; i < len(msgs); i++ {
@@ -327,8 +343,9 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		events: new(event.TypeMux),
 		peers:  vset,
 	}
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 		backend:    backend,
