@@ -123,7 +123,7 @@ func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error)
 	return Convert(val, currencyFrom, celoGoldAddress)
 }
 
-// NOTE (jarmg 4/24/18): values are rounded down which can cause
+// NOTE (jarmg 4/24/19): values are rounded down which can cause
 // an estimate to be off by 1 (at most)
 func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Address) (*big.Int, error) {
 	exchangeRateFrom, err1 := getExchangeRate(currencyFrom)
