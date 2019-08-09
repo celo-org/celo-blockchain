@@ -73,7 +73,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	}
 
 	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
-		return err
+		return errInvalidCommittedSeal
 	}
 
 	c.acceptCommit(msg)
