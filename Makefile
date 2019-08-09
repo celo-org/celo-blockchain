@@ -30,10 +30,11 @@ check_android_env:
 
 ndk_bundle: check_android_env
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
+	mkdir -p $(ANDROID_NDK_HOME)
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
 	mkdir $(ANDROID_NDK_HOME) && \
-	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
+	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME)/.. && \
 	rm /tmp/$(NDK_VERSION).zip
 
 bls-zexe-android: check_android_env
