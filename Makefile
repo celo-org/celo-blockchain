@@ -12,6 +12,7 @@ GOBIN = $(shell pwd)/build/bin
 GO ?= latest
 
 CARGO_exists := $(shell command -v cargo 2> /dev/null)
+RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
 
 # example NDK values
 #NDK_VERSION=android-ndk-r19c
@@ -36,6 +37,9 @@ ndk_bundle: check_android_env
 	rm /tmp/$(NDK_VERSION).zip
 
 bls-zexe-android: check_android_env
+ifeq ("$(RUSTUP_exists)","")
+	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+else
 	rustup target add aarch64-linux-android
 	rustup target add armv7-linux-androideabi
 	rustup target add i686-linux-android
@@ -44,6 +48,7 @@ bls-zexe-android: check_android_env
 	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
 	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android16-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
 	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
+endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
 ifeq ("$(CARGO_exists)","")
