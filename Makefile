@@ -16,7 +16,7 @@ RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
 
 # example NDK values
 #NDK_VERSION=android-ndk-r19c
-#ANDROID_NDK_HOME=$(PWD)/ndk_bundle/$(NDK_VERSION)
+#ANDROID_NDK=$(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -26,15 +26,16 @@ geth: bls-zexe
 bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 
 check_android_env:
-	@test $${ANDROID_NDK_HOME?Please set environment variable ANDROID_NDK_HOME}
+	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
+	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
 
 ndk_bundle: check_android_env
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
-	mkdir -p $(ANDROID_NDK_HOME)
+	mkdir -p $(ANDROID_NDK)
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
-	mkdir $(ANDROID_NDK_HOME) && \
-	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME)/.. && \
+	mkdir $(ANDROID_NDK) && \
+	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
 	rm /tmp/$(NDK_VERSION).zip
 
 bls-zexe-android: check_android_env
@@ -45,10 +46,10 @@ else
 	rustup target add armv7-linux-androideabi
 	rustup target add i686-linux-android
 	rustup target add x86_64-linux-android
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android16-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK)/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android16-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
 endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
