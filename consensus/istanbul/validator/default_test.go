@@ -230,13 +230,20 @@ func testStickyProposer(t *testing.T) {
 	}
 }
 
-func generateValidators(n int) []common.Address {
-	vals := make([]common.Address, 0)
+func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte) {
+	vals := make([]istanbul.ValidatorData, 0)
+	keys := make([][]byte, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
-		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		vals = append(vals, istanbul.ValidatorData{
+			crypto.PubkeyToAddress(privateKey.PublicKey),
+			blsPublicKey,
+		})
+		keys = append(keys, blsPrivateKey)
 	}
-	return vals
+	return vals, keys
 }
 
 func testQuorumSizes(t *testing.T) {
@@ -254,7 +261,7 @@ func testQuorumSizes(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		vals := generateValidators(testCase.validatorSetSize)
+		vals, _ := generateValidators(testCase.validatorSetSize)
 		valSet := newDefaultSet(vals, istanbul.RoundRobin)
 
 		if valSet.MinQuorumSize() != testCase.expectedMinQuorumSize {
