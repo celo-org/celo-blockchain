@@ -51,7 +51,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	})
 }
 
-func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error {
+func (c *core) handleCommit(msg *istanbul.Message) error {
 	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
@@ -63,7 +63,7 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return err
 	}
 
-	if err := c.verifyCommit(commit, src); err != nil {
+	if err := c.verifyCommit(commit); err != nil {
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return err
 	}
 
-	c.acceptCommit(msg, src)
+	c.acceptCommit(msg)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
@@ -94,8 +94,8 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) verifyCommit(commit *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state)
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(commit, sub) {
@@ -116,8 +116,8 @@ func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src
 	return nil
 }
 
-func (c *core) acceptCommit(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) acceptCommit(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state)
 
 	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {

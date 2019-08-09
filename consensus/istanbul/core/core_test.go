@@ -47,6 +47,7 @@ func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
 		Time:       big.NewInt(0),
 	}
 	block := &types.Block{}
+	block = block.WithRandomness(&types.EmptyRandomness)
 	return block.WithSeal(header)
 }
 

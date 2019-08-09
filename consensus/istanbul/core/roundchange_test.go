@@ -27,7 +27,7 @@ import (
 )
 
 func TestRoundChangeSet(t *testing.T) {
-	vals, _ := generateValidators(4)
+	vals, _, _ := generateValidators(4)
 	vset := validator.NewSet(vals, istanbul.RoundRobin)
 	rc := newRoundChangeSet(vset)
 
@@ -142,6 +142,7 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 			c := backend.engine.(*core)
 			certificate := test.getCertificate(sys)
 			err := c.handleRoundChangeCertificate(certificate)
+
 			if err != test.expectedErr {
 				t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
 			}
@@ -248,13 +249,13 @@ OUTER:
 			c := v.engine.(*core)
 
 			m, _ := Encode(roundChange)
-			_, val := r0.valSet.GetByAddress(v0.Address())
+
 			// run each backends and verify handlePreprepare function.
 			err := c.handleRoundChange(&istanbul.Message{
 				Code:    istanbul.MsgRoundChange,
 				Msg:     m,
 				Address: v0.Address(),
-			}, val)
+			})
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -445,6 +446,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			// TODO(asa): Do something with proposer here
 			committed, _ := b.LastProposal()
 			// We expect to commit the block proposed by the first proposer.
+			// TODO(joshua): This can be flaky in my local tests.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())

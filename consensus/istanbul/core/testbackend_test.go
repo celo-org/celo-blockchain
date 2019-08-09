@@ -127,7 +127,7 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.In
 	return nil
 }
 
-func (self *testSystemBackend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
+func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, nil
 }
 

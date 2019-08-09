@@ -105,7 +105,7 @@ func (c *core) handleEvents() {
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
-				if err := c.handleCheckedMsg(ev.msg, ev.src); err != nil {
+				if err := c.handleCheckedMsg(ev.msg, nil); err != nil {
 					c.logger.Error("Error in handling istanbul message that was sent from a backlog event", "err", err)
 				}
 			}
@@ -152,7 +152,7 @@ func (c *core) handleMsg(payload []byte) error {
 }
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("address", c.address, "from", src)
+	logger := c.logger.New("address", c.address, "from", msg.Address)
 
 	// Store the message if it's a future message
 	testBacklog := func(err error) error {
@@ -165,13 +165,13 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
-		return testBacklog(c.handlePreprepare(msg, src))
+		return testBacklog(c.handlePreprepare(msg))
 	case istanbul.MsgPrepare:
-		return testBacklog(c.handlePrepare(msg, src))
+		return testBacklog(c.handlePrepare(msg))
 	case istanbul.MsgCommit:
-		return testBacklog(c.handleCommit(msg, src))
+		return testBacklog(c.handleCommit(msg))
 	case istanbul.MsgRoundChange:
-		return testBacklog(c.handleRoundChange(msg, src))
+		return testBacklog(c.handleRoundChange(msg))
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}

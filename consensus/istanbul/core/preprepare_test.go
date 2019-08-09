@@ -164,6 +164,14 @@ func TestHandlePreprepare(t *testing.T) {
 					c.valSet = backend.peers
 					c.state = StatePreprepared
 					c.current.SetRound(big.NewInt(1))
+					c.current.SetPreprepare(&istanbul.Preprepare {
+						View: &istanbul.View {
+							Round: big.NewInt(1),
+							Sequence: big.NewInt(0),
+						},
+						Proposal: makeBlock(2),
+						RoundChangeCertificate: istanbul.RoundChangeCertificate{},
+					})
 				}
 				return sys
 			}(),
@@ -203,13 +211,12 @@ OUTER:
 			c := v.engine.(*core)
 
 			m, _ := Encode(preprepare)
-			_, val := r0.valSet.GetByAddress(v0.Address())
 			// run each backends and verify handlePreprepare function.
 			if err := c.handlePreprepare(&istanbul.Message{
 				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
 				Address: v0.Address(),
-			}, val); err != nil {
+			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

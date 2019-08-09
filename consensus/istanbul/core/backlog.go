@@ -76,9 +76,9 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", src, "state", c.state)
+	logger := c.logger.New("from", msg.Address, "state", c.state)
 
-	if src.Address() == c.Address() {
+	if msg.Address == c.Address() {
 		logger.Warn("Backlog from self")
 		return
 	}
@@ -163,7 +163,6 @@ func (c *core) processBacklog() {
 			logger.Trace("Post backlog event", "msg", msg)
 
 			go c.sendEvent(backlogEvent{
-				src: src,
 				msg: msg,
 			})
 		}

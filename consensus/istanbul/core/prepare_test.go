@@ -254,7 +254,7 @@ OUTER:
 				Code:    istanbul.MsgPrepare,
 				Msg:     m,
 				Address: validator.Address(),
-			}, validator); err != nil {
+			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -405,7 +405,7 @@ func TestVerifyPrepare(t *testing.T) {
 		c := sys.backends[0].engine.(*core)
 		c.current = test.roundState
 
-		if err := c.verifyPrepare(test.prepare, peer); err != nil {
+		if err := c.verifyPrepare(test.prepare); err != nil {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}

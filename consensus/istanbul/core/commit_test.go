@@ -176,13 +176,13 @@ OUTER:
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&message{
-				Code:          msgCommit,
+			if err := r0.handleCommit(&istanbul.Message{
+				Code:          istanbul.MsgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
 				CommittedSeal: signatureBytes,
-			}, validator); err != nil {
+			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -319,7 +319,7 @@ func TestVerifyCommit(t *testing.T) {
 		c := sys.backends[0].engine.(*core)
 		c.current = test.roundState
 
-		if err := c.verifyCommit(test.commit, peer); err != nil {
+		if err := c.verifyCommit(test.commit); err != nil {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}

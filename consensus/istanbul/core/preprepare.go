@@ -47,8 +47,8 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) handlePreprepare(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state)
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare
@@ -79,7 +79,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 			// Broadcast COMMIT if it is an existing block
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
-			if valSet.IsProposer(src.Address()) && c.backend.HasProposal(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+			if valSet.IsProposer(msg.Address) && c.backend.HasProposal(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
 				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil
 			}
@@ -88,7 +88,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 	}
 
 	// Check if the message comes from current proposer
-	if !c.valSet.IsProposer(src.Address()) {
+	if !c.valSet.IsProposer(msg.Address) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
 	}
@@ -105,14 +105,13 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 	}
 
 	// Verify the proposal we received
-	if duration, err := c.backend.Verify(preprepare.Proposal, src); err != nil {
+	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
 		if err == consensus.ErrFutureBlock {
 			c.stopFuturePreprepareTimer()
 			c.futurePreprepareTimer = time.AfterFunc(duration, func() {
 				c.sendEvent(backlogEvent{
-					src: src,
 					msg: msg,
 				})
 			})

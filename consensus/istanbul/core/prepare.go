@@ -38,11 +38,11 @@ func (c *core) sendPrepare() {
 	})
 }
 
-func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate, src istanbul.Validator) error {
-	logger := c.logger.New("state", c.state)
+func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	logger := c.logger.New("state", c.state, "func", "handlePreparedCertificate")
 
 	// Validate the attached proposal
-	if _, err := c.backend.Verify(preparedCertificate.Proposal, src); err != nil {
+	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
 		return errInvalidPreparedCertificateProposal
 	}
 
@@ -109,7 +109,7 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 	return nil
 }
 
-func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) error {
+func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
@@ -121,11 +121,11 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 		return err
 	}
 
-	if err := c.verifyPrepare(prepare, src); err != nil {
+	if err := c.verifyPrepare(prepare); err != nil {
 		return err
 	}
 
-	c.acceptPrepare(msg, src)
+	c.acceptPrepare(msg)
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
@@ -141,8 +141,8 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 }
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
-func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state)
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
@@ -153,8 +153,8 @@ func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) 
 	return nil
 }
 
-func (c *core) acceptPrepare(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) acceptPrepare(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state)
 
 	// Add the PREPARE message to current round state
 	if err := c.current.Prepares.Add(msg); err != nil {
