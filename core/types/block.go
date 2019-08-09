@@ -384,6 +384,7 @@ func (b *Block) WithSeal(header *Header) *Block {
 		randomness:   b.randomness,
 	}
 }
+
 // WithRandomness returns a new block with the given randomness.
 func (b *Block) WithRandomness(randomness *Randomness) *Block {
 	block := &Block{
