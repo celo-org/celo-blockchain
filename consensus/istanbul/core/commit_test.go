@@ -17,14 +17,15 @@
 package core
 
 import (
-	"bytes"
 	"math/big"
 	"testing"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestHandleCommit(t *testing.T) {
@@ -167,13 +168,21 @@ OUTER:
 
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
+
+			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
+			defer privateKey.Destroy()
+
+			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash())
+			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
+			defer signature.Destroy()
+			signatureBytes, _ := signature.Serialize()
 			m, _ := Encode(v.engine.(*core).current.Subject())
 			if err := r0.handleCommit(&message{
 				Code:          msgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
-				CommittedSeal: validator.Address().Bytes(), // small hack
+				CommittedSeal: signatureBytes,
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
@@ -207,13 +216,9 @@ OUTER:
 
 		// check signatures large than MinQuorumSize
 		signedCount := 0
-		committedSeals := v0.committedMsgs[0].committedSeals
-		for _, validator := range r0.valSet.List() {
-			for _, seal := range committedSeals {
-				if bytes.Equal(validator.Address().Bytes(), seal[:common.AddressLength]) {
-					signedCount++
-					break
-				}
+		for i := 0; i < r0.valSet.Size(); i++ {
+			if v0.committedMsgs[0].bitmap.Bit(i) == 1 {
+				signedCount++
 			}
 		}
 		if signedCount < r0.valSet.MinQuorumSize() {
@@ -229,8 +234,15 @@ OUTER:
 func TestVerifyCommit(t *testing.T) {
 	// for log purpose
 	privateKey, _ := crypto.GenerateKey()
-	peer := validator.New(getPublicKeyAddress(privateKey))
-	valSet := validator.NewSet([]common.Address{peer.Address()}, istanbul.RoundRobin)
+	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
+	valSet := validator.NewSet([]istanbul.ValidatorData{
+		{
+			peer.Address(),
+			blsPublicKey,
+		},
+	}, istanbul.RoundRobin)
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 

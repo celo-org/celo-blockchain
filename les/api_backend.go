@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -103,11 +104,10 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 
-	registeredAddressesMap := b.eth.regAdd.GetRegisteredAddressMapAtStateAndHeader(state, header)
-	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil, registeredAddressesMap)
+	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 
@@ -172,19 +172,19 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceSuggestion(nil, nil, nil)
+	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
+	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return b.eth.gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
-func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*core.InfrastructureFraction, error) {
-	return b.eth.gpm.GetInfrastructureFraction(nil, nil)
+func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*gpm.InfrastructureFraction, error) {
+	return gpm.GetInfrastructureFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -213,18 +213,6 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *LesApiBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.gcWl
-}
-
 func (b *LesApiBackend) GasFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
-}
-
-func (b *LesApiBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.regAdd
-}
-
-func (b *LesApiBackend) GasPriceMinimum() *core.GasPriceMinimum {
-	return b.eth.gpm
 }

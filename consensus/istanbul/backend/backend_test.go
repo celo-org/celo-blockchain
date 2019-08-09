@@ -17,19 +17,21 @@
 package backend
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/ecdsa"
-	"sort"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestSign(t *testing.T) {
@@ -119,13 +121,13 @@ func TestCommit(t *testing.T) {
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr       error
-		expectedSignature [][]byte
+		expectedSignature []byte
 		expectedBlock     func() *types.Block
 	}{
 		{
 			// normal case
 			nil,
-			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			make([]byte, types.IstanbulExtraCommittedSeal),
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -154,7 +156,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, test.expectedSignature); err != nil {
+		if err := backend.Commit(expBlock, big.NewInt(0), test.expectedSignature); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -196,7 +198,7 @@ func getAddress() common.Address {
 }
 
 func getInvalidAddress() common.Address {
-	return common.HexToAddress("0x9535b2e7faaba5288511d89341d94a38063a349b")
+	return common.HexToAddress("0xc63597005f0da07a9ea85b5052a77c3b0261bdca")
 }
 
 func generatePrivateKey() (*ecdsa.PrivateKey, error) {
@@ -204,17 +206,26 @@ func generatePrivateKey() (*ecdsa.PrivateKey, error) {
 	return crypto.HexToECDSA(key)
 }
 
+func generateInvalidPrivateKey() (*ecdsa.PrivateKey, error) {
+	key := "1049c0e0b99eeea3465a1e83a52900dc27c652f39abb3aed3b868dee68ff1d2c"
+	return crypto.HexToECDSA(key)
+}
+
 func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 	// generate validators
 	keys := make(Keys, n)
-	addrs := make([]common.Address, n)
+	validators := make([]istanbul.ValidatorData, n)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		keys[i] = privateKey
-		addrs[i] = crypto.PubkeyToAddress(privateKey.PublicKey)
+		validators[i] = istanbul.ValidatorData{
+			crypto.PubkeyToAddress(privateKey.PublicKey),
+			blsPublicKey,
+		}
 	}
-	vset := validator.NewSet(addrs, istanbul.RoundRobin)
-	sort.Sort(keys) //Keys need to be sorted by its public key address
+	vset := validator.NewSet(validators, istanbul.RoundRobin)
 	return vset, keys
 }
 
@@ -237,10 +248,67 @@ func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
 	return crypto.Sign(data, key)
 }
 
+func signerBLSHashFn(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generatePrivateKey()
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignMessage(data, []byte{}, false)
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return signatureBytes, nil
+}
+
+func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
+	key, _ := generatePrivateKey()
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignMessage(data, extraData, true)
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return signatureBytes, nil
+}
+
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn)
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn, signerBLSHashFn, signerBLSMessageFn)
 	return
+}
+
+func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
+	key, _ := generateInvalidPrivateKey()
+	return crypto.Sign(data, key)
 }

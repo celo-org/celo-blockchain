@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -72,11 +73,6 @@ type LightEthereum struct {
 
 	networkId     uint64
 	netRPCService *ethapi.PublicNetAPI
-
-	regAdd *core.RegisteredAddresses
-	iEvmH  *core.InternalEVMHandler
-	gcWl   *core.GasCurrencyWhitelist
-	gpm    *core.GasPriceMinimum
 
 	wg sync.WaitGroup
 }
@@ -149,15 +145,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		return nil, err
 	}
 
-	// Create an internalEVMHandler handler object that geth can use to make calls to smart contracts.
-	// Note: that this should NOT be used when executing smart contract calls done via end user transactions.
-	leth.iEvmH = core.NewInternalEVMHandler(leth.blockchain)
-
-	// Object used to retrieve and cache registered addresses from the Registry smart contract.
-	leth.regAdd = core.NewRegisteredAddresses(leth.iEvmH)
-	leth.iEvmH.SetRegisteredAddresses(leth.regAdd)
-	leth.gcWl = core.NewGasCurrencyWhitelist(leth.regAdd, leth.iEvmH)
-	leth.gpm = core.NewGasPriceMinimum(leth.iEvmH, leth.regAdd)
+	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
+	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
+	contract_comm.SetInternalEVMHandler(leth.blockchain)
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
@@ -171,7 +161,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay, leth.iEvmH)
+	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
 	if leth.protocolManager, err = NewProtocolManager(leth.chainConfig, light.DefaultClientIndexerConfig, syncMode, config.NetworkId, leth.eventMux, leth.engine, leth.peers, leth.blockchain, nil, chainDb, leth.odr, leth.relay, leth.serverPool, quitSync, &leth.wg, config.Etherbase); err != nil {
 		return nil, err
 	}

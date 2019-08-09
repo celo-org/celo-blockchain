@@ -38,9 +38,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/scrypt"
@@ -183,12 +185,32 @@ func EncryptDataV3(data, auth []byte, scryptN, scryptP int) (CryptoJSON, error) 
 // blob that can be decrypted later on.
 func EncryptKey(key *Key, auth string, scryptN, scryptP int) ([]byte, error) {
 	keyBytes := math.PaddedBigBytes(key.PrivateKey.D, 32)
+	blsPrivateKeyBytes, err := blscrypto.ECDSAToBLS(key.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	privateKey, err := bls.DeserializePrivateKey(blsPrivateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+	publicKey, err := privateKey.ToPublic()
+	if err != nil {
+		return nil, err
+	}
+	defer publicKey.Destroy()
+	publicKeyBytes, err := publicKey.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
 	cryptoStruct, err := EncryptDataV3(keyBytes, []byte(auth), scryptN, scryptP)
 	if err != nil {
 		return nil, err
 	}
 	encryptedKeyJSONV3 := encryptedKeyJSONV3{
 		hex.EncodeToString(key.Address[:]),
+		hex.EncodeToString(publicKeyBytes),
 		cryptoStruct,
 		key.Id.String(),
 		version,

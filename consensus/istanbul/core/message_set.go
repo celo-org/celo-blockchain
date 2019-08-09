@@ -63,6 +63,34 @@ func (ms *messageSet) Add(msg *message) error {
 	return ms.addVerifiedMessage(msg)
 }
 
+func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
+	i, v := ms.valSet.GetByAddress(addr)
+	if v == nil {
+		return 0, istanbul.ErrUnauthorizedAddress
+	}
+
+	return uint64(i), nil
+}
+
+func (ms *messageSet) GetAddressPublicKey(addr common.Address) ([]byte, error) {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
+	_, v := ms.valSet.GetByAddress(addr)
+	if v == nil {
+		return nil, istanbul.ErrUnauthorizedAddress
+	}
+
+	return v.BLSPublicKey(), nil
+}
+
+func (ms *messageSet) ValSetSize() uint64 {
+	return uint64(ms.valSet.Size())
+}
+
 func (ms *messageSet) Values() (result []*message) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()

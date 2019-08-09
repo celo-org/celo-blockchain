@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -245,15 +246,11 @@ type TxPool struct {
 	wg sync.WaitGroup // for shutdown sync
 
 	homestead bool
-
-	co    *CurrencyOperator
-	gcWl  *GasCurrencyWhitelist
-	iEvmH *InternalEVMHandler
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, co *CurrencyOperator, gcWl *GasCurrencyWhitelist, iEvmH *InternalEVMHandler) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -269,16 +266,13 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		all:         newTxLookup(),
 		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
-		co:          co,
-		gcWl:        gcWl,
-		iEvmH:       iEvmH,
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newTxPricedList(pool.all, pool.co)
+	pool.priced = newTxPricedList(pool.all)
 
 	pool.reset(nil, chain.CurrentBlock().Header())
 
@@ -630,14 +624,13 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasCurrency() != nil && // Non native gas in the tx
-		(pool.gcWl == nil ||
-			!pool.gcWl.IsWhitelisted(*tx.GasCurrency())) { // The tx currency is not white listed
+		!currency.IsWhitelisted(*tx.GasCurrency(), nil, nil) { // The tx currency is not white listed
 		return ErrNonWhitelistedGasCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.co.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
+	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -648,7 +641,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(), "from", from.Hex(), "txn cost", tx.Cost().String())
 		return ErrInsufficientFunds
 	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := GetBalanceOf(from, *tx.GasCurrency(), pool.iEvmH, nil, params.MaxGasToReadErc20Balance)
+		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
 
 		if err != nil {
 			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)

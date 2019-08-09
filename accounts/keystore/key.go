@@ -65,10 +65,11 @@ type plainKeyJSON struct {
 }
 
 type encryptedKeyJSONV3 struct {
-	Address string     `json:"address"`
-	Crypto  CryptoJSON `json:"crypto"`
-	Id      string     `json:"id"`
-	Version int        `json:"version"`
+	Address      string     `json:"address"`
+	BLSPublicKey string     `json:"blspublickey"`
+	Crypto       CryptoJSON `json:"crypto"`
+	Id           string     `json:"id"`
+	Version      int        `json:"version"`
 }
 
 type encryptedKeyJSONV1 struct {
