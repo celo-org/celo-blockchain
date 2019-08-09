@@ -13,14 +13,13 @@ GO ?= latest
 
 CARGO_exists := $(shell command -v cargo 2> /dev/null)
 RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
+LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
 OS :=
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-	OS = linux
-endif
-ifeq ($(UNAME_S),Darwin)
+ifeq ("$(LSB_exists)","")
 	OS = darwin
+else
+	OS = linux
 endif
 
 # example NDK values
