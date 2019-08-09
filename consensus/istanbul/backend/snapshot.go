@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -128,12 +127,18 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 			return nil, err
 		}
 
-		if !snap.ValSet.AddValidators(istExtra.AddedValidators) {
-			log.Error("Error in adding the header's AddedValidators")
+		validators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
+		if err != nil {
+			log.Error("Error in combining addresses and public keys")
 			return nil, errInvalidValidatorSetDiff
 		}
+
 		if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
 			log.Error("Error in removing the header's RemovedValidators")
+			return nil, errInvalidValidatorSetDiff
+		}
+		if !snap.ValSet.AddValidators(validators) {
+			log.Error("Error in adding the header's AddedValidators")
 			return nil, errInvalidValidatorSetDiff
 		}
 
@@ -147,18 +152,13 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 	return snap, nil
 }
 
-// validators retrieves the list of authorized validators in ascending order.
-func (s *Snapshot) validators() []common.Address {
-	validators := make([]common.Address, 0, s.ValSet.Size())
+func (s *Snapshot) validators() []istanbul.ValidatorData {
+	validators := make([]istanbul.ValidatorData, 0, s.ValSet.PaddedSize())
 	for _, validator := range s.ValSet.List() {
-		validators = append(validators, validator.Address())
-	}
-	for i := 0; i < len(validators); i++ {
-		for j := i + 1; j < len(validators); j++ {
-			if bytes.Compare(validators[i][:], validators[j][:]) > 0 {
-				validators[i], validators[j] = validators[j], validators[i]
-			}
-		}
+		validators = append(validators, istanbul.ValidatorData{
+			validator.Address(),
+			validator.BLSPublicKey(),
+		})
 	}
 	return validators
 }
@@ -169,16 +169,17 @@ type snapshotJSON struct {
 	Hash   common.Hash `json:"hash"`
 
 	// for validator set
-	Validators []common.Address        `json:"validators"`
-	Policy     istanbul.ProposerPolicy `json:"policy"`
+	Validators []istanbul.ValidatorData `json:"validators"`
+	Policy     istanbul.ProposerPolicy  `json:"policy"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
+	validators := s.validators()
 	return &snapshotJSON{
 		Epoch:      s.Epoch,
 		Number:     s.Number,
 		Hash:       s.Hash,
-		Validators: s.validators(),
+		Validators: validators,
 		Policy:     s.ValSet.Policy(),
 	}
 }

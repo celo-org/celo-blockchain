@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -108,8 +110,14 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		copy(gspec.ExtraData[52:], testBankAddress[:])
 	case *ethash.Ethash:
 	case *istanbulBackend.Backend:
-		addrs := []common.Address{testBankAddress}
-		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, addrs)
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, []istanbul.ValidatorData{
+			{
+				Address:      testBankAddress,
+				BLSPublicKey: blsPublicKey,
+			},
+		})
 
 		gspec.Mixhash = types.IstanbulDigest
 		gspec.Difficulty = big.NewInt(1)
@@ -186,8 +194,58 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return crypto.Sign(data, testBankKey)
 	}
 
+	signHashBLSFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(data, []byte{}, false)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
+	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		defer privateKey.Destroy()
+
+		signature, err := privateKey.SignMessage(msg, extraData, true)
+		if err != nil {
+			return nil, err
+		}
+		defer signature.Destroy()
+		signatureBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		return signatureBytes, nil
+	}
+
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
 

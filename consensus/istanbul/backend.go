@@ -30,6 +30,10 @@ import (
 // backing account.
 type SignerFn func(accounts.Account, []byte) ([]byte, error)
 
+// MessageSignerFn is a signer callback function to request a raw message to
+// be signed by a backing account.
+type MessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
+
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
 	// Address returns the owner's address
@@ -52,7 +56,7 @@ type Backend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, seals [][]byte) error
+	Commit(proposal Proposal, bitmap *big.Int, seals []byte) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -60,6 +64,7 @@ type Backend interface {
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
+	SignBlockHeader([]byte) ([]byte, error)
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator
@@ -93,5 +98,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
 }
