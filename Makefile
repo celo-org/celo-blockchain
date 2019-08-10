@@ -39,10 +39,11 @@ check_android_env:
 
 ndk_bundle: check_android_env
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
-	mkdir -p $(ANDROID_NDK)
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-$(OS)-x86_64.zip && \
-	mkdir $(ANDROID_NDK) && \
+
+	rm -rf $(ANDROID_NDK) && \
+	mkdir -p $(ANDROID_NDK) && \
 	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
 	rm /tmp/$(NDK_VERSION).zip
 
@@ -54,10 +55,23 @@ else
 	rustup target add armv7-linux-androideabi
 	rustup target add i686-linux-android
 	rustup target add x86_64-linux-android
-	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/aarch64-linux-android21-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(OS)-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/armv7a-linux-androideabi16-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/armv7a-linux-androideabi-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
-	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/i686-linux-android16-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/i686-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin"; ln -s $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/x86_64-linux-android21-clang $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin/x86_64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
+	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
+		(test ! -f $(PWD)/aarch64-linux-android-clang || ln -s $(PWD)/aarch64-linux-android21-clang $(PWD)/aarch64-linux-android-clang) && \
+		(test ! -f $(PWD)/armv7a-linux-androideabi-clang || ln -s $(PWD)/armv7a-linux-androideabi16-clang $(PWD)/armv7a-linux-androideabi-clang) && \
+		(test ! -f $(PWD)/i686-linux-android-clang || ln -s $(PWD)/i686-linux-android16-clang $(PWD)/i686-linux-android16-clang) && \
+		(test ! -f $(PWD)/x86_64-linux-android21-clang || ln -s $(PWD)/x86_64-linux-android21-clang $(PWD)/x86_64-linux-android-clang)
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
 endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
