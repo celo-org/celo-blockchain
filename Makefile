@@ -62,7 +62,7 @@ else
 	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
 		ln -s aarch64-linux-android21-clang aarch64-linux-android-clang; test aarch64-linux-android-clang && \
 		ln -s armv7a-linux-androideabi16-clang arm-linux-androideabi-clang; test arm-linux-androideabi-clang && \
-		ln -s i686-linux-android16-clang i686-linux-android16-clang; test i686-linux-android16-clang && \
+		ln -s i686-linux-android16-clang i686-linux-android-clang; test i686-linux-android-clang && \
 		ln -s x86_64-linux-android21-clang x86_64-linux-android-clang; test x86_64-linux-android-clang
 
 	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
