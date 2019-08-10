@@ -61,7 +61,7 @@ else
 	rustup target add x86_64-linux-android
 	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
 		(test ! -f $(PWD)/aarch64-linux-android-clang || ln -s $(PWD)/aarch64-linux-android21-clang $(PWD)/aarch64-linux-android-clang) && \
-		(test ! -f $(PWD)/armv7a-linux-androideabi-clang || ln -s $(PWD)/armv7a-linux-androideabi16-clang $(PWD)/arm-linux-androideabi-clang) && \
+		(test ! -f $(PWD)/arm-linux-androideabi-clang || ln -s $(PWD)/armv7a-linux-androideabi16-clang $(PWD)/arm-linux-androideabi-clang) && \
 		(test ! -f $(PWD)/i686-linux-android-clang || ln -s $(PWD)/i686-linux-android16-clang $(PWD)/i686-linux-android16-clang) && \
 		(test ! -f $(PWD)/x86_64-linux-android21-clang || ln -s $(PWD)/x86_64-linux-android21-clang $(PWD)/x86_64-linux-android-clang)
 
