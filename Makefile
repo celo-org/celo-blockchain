@@ -38,14 +38,18 @@ check_android_env:
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
 
 ndk_bundle: check_android_env
+ifneq ("$(wildcard $(ANDROID_NDK))","")
+	$(error "NDK already exists at $(ANDROID_NDK). Remove the directory if you want to re-download it")
+else
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-$(OS)-x86_64.zip && \
+		rm -rf $(ANDROID_NDK) && \
+		mkdir -p $(ANDROID_NDK) && \
+		unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
+		rm /tmp/$(NDK_VERSION).zip
+endif
 
-	rm -rf $(ANDROID_NDK) && \
-	mkdir -p $(ANDROID_NDK) && \
-	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
-	rm /tmp/$(NDK_VERSION).zip
 
 bls-zexe-android: check_android_env
 ifeq ("$(RUSTUP_exists)","")
