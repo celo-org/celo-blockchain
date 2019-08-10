@@ -60,10 +60,16 @@ else
 	rustup target add i686-linux-android
 	rustup target add x86_64-linux-android
 	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
-		(test ! -f $(PWD)/aarch64-linux-android-clang || ln -s $(PWD)/aarch64-linux-android21-clang $(PWD)/aarch64-linux-android-clang) && \
-		(test ! -f $(PWD)/arm-linux-androideabi-clang || ln -s $(PWD)/armv7a-linux-androideabi16-clang $(PWD)/arm-linux-androideabi-clang) && \
-		(test ! -f $(PWD)/i686-linux-android-clang || ln -s $(PWD)/i686-linux-android16-clang $(PWD)/i686-linux-android16-clang) && \
-		(test ! -f $(PWD)/x86_64-linux-android21-clang || ln -s $(PWD)/x86_64-linux-android21-clang $(PWD)/x86_64-linux-android-clang)
+		ln -s aarch64-linux-android21-clang aarch64-linux-android-clang; test aarch64-linux-android-clang && \
+		ln -s armv7a-linux-androideabi16-clang arm-linux-androideabi-clang; test arm-linux-androideabi-clang && \
+		ln -s i686-linux-android16-clang i686-linux-android16-clang; test i686-linux-android16-clang && \
+		ln -s x86_64-linux-android21-clang x86_64-linux-android-clang; test x86_64-linux-android-clang
+
+	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
+		test -f aarch64-linux-android-clang && \
+		test -f arm-linux-androideabi-clang && \
+		test -f i686-linux-android-clang && \
+		test -f x86_64-linux-android-clang
 
 	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
 			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
