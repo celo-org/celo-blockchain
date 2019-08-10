@@ -188,9 +188,10 @@ geth-linux-arm-7:
 
 geth-linux-arm64:
 	# requires an arm64 compiler, on Ubuntu: sudo apt-get install gcc-aarch64-linux-gnu	g++-aarch64-linux-gnu
-	# seems to fail with a problem in the cloudflare library
 	rustup target add aarch64-unknown-linux-gnu
-	cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --target=aarch64-unknown-linux-gnu --release
+	cd vendor/github.com/celo-org/bls-zexe/bls && \
+		test target/aarch64-unknown-linux-gnu/release/libbls_zexe.a || \
+		cargo build --target=aarch64-unknown-linux-gnu --release
 	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm64 -v ./cmd/geth
 	@echo "Linux ARM64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm64
