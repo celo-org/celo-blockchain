@@ -9,11 +9,11 @@ snark-gadgets = { path = "../zexe/snark-gadgets" }
 snark = { path = "../zexe/snark" }
 algebra = { path = "../zexe/algebra" }
 dpc = { path = "../zexe/dpc" }
+bench-utils = { path = "../zexe/bench-utils" }
 rand_chacha = { version = "0.1.1" }
 rand_core = { version = "0.4" }
 rand = { version = "0.4" }
 sha2 = "0.8"
-failure = "0.1.5"
 byteorder = "1.3.1"
 hex = "0.3.2"
 clap = "2.33.0"
@@ -26,6 +26,9 @@ lazy_static = "1.3.0"
 [dev-dependencies]
 criterion = "0.2"
 
+[features]
+timer = [ "bench-utils/timer" ]
+
 [[bench]]
 name = "cofactor"
 harness = false
@@ -37,6 +40,10 @@ path = "examples/simple_signature.rs"
 [[example]]
 name = "pop"
 path = "examples/pop.rs"
+
+[[example]]
+name = "pop_csv"
+path = "examples/pop_csv.rs"
 
 [lib]
 crate-type = ["lib", "staticlib"]
