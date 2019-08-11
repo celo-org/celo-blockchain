@@ -1,7 +1,7 @@
 secrets:
 - kmsKeyName: projects/celo-testnet/locations/global/keyRings/celo-keyring/cryptoKeys/github-key
   secretEnv:
-    NPM_TOKEN: CiQAW8JnkilowpBhyESvNfF0vSagXd8Q9eEQLyJz9V4zx/5mBp4STQAZggEuSvsdYbFftiTHSalxCxVRx6I44ptSkGaZJdsvO5vydci0G7fM8cOk5QBTOTPFlaWtmZnHnNekJuCf2LtSWrilSXqy/BP1FUNb
+    NPM_TOKEN: CiQAW8JnkhGXb5SuIgpWBeDft/uw+35thzUbMAIQvM+gVl2Di5wSTgAZggEugqlAKFxv9XiJQspzW3f+pLeoQ2zFyA/bmXP8vUv0XB1HjKjfD8s273teZfF7202VnDFgP3I7Og/NAGLf29MBL5VW1mwPWahoaQ==
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '--build-arg', 'commit_sha=$SHORT_SHA', '--build-arg', 'NPM_TOKEN', '-f', 'Dockerfile.androidbuild', '.' ]

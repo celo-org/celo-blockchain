@@ -12,10 +12,19 @@ GOBIN = $(shell pwd)/build/bin
 GO ?= latest
 
 CARGO_exists := $(shell command -v cargo 2> /dev/null)
+RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
+LSB_exists := $(shell command -v lsb_release 2> /dev/null)
+
+OS :=
+ifeq ("$(LSB_exists)","")
+	OS = darwin
+else
+	OS = linux
+endif
 
 # example NDK values
 #NDK_VERSION=android-ndk-r19c
-#ANDROID_NDK_HOME=$(PWD)/ndk_bundle/$(NDK_VERSION)
+#ANDROID_NDK=$(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -25,21 +34,55 @@ geth: bls-zexe
 bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 
 check_android_env:
-	@test $${ANDROID_NDK_HOME?Please set environment variable ANDROID_NDK_HOME}
-	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
+	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
+	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
 
 ndk_bundle: check_android_env
+ifneq ("$(wildcard $(ANDROID_NDK))","")
+	$(error "NDK already exists at $(ANDROID_NDK). Remove the directory if you want to re-download it")
+else
+	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
-		https://dl.google.com/android/repository/$(NDK_VERSION)-linux-x86_64.zip && \
-	mkdir $(ANDROID_NDK_HOME) && \
-	unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK_HOME) && \
-	rm /tmp/$(NDK_VERSION).zip
+		https://dl.google.com/android/repository/$(NDK_VERSION)-$(OS)-x86_64.zip && \
+		rm -rf $(ANDROID_NDK) && \
+		mkdir -p $(ANDROID_NDK) && \
+		unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
+		rm /tmp/$(NDK_VERSION).zip
+endif
+
 
 bls-zexe-android: check_android_env
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin"; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android16-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
-	PATH="$$PATH:$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin:$(ANDROID_NDK_HOME)/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin"; ln -s $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android-clang; cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
+ifeq ("$(RUSTUP_exists)","")
+	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+else
+	rustup target add aarch64-linux-android
+	rustup target add armv7-linux-androideabi
+	rustup target add i686-linux-android
+	rustup target add x86_64-linux-android
+	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
+		ln -s aarch64-linux-android21-clang aarch64-linux-android-clang; test aarch64-linux-android-clang && \
+		ln -s armv7a-linux-androideabi16-clang arm-linux-androideabi-clang; test arm-linux-androideabi-clang && \
+		ln -s i686-linux-android16-clang i686-linux-android-clang; test i686-linux-android-clang && \
+		ln -s x86_64-linux-android21-clang x86_64-linux-android-clang; test x86_64-linux-android-clang
+
+	cd $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin && \
+		test -f aarch64-linux-android-clang && \
+		test -f arm-linux-androideabi-clang && \
+		test -f i686-linux-android-clang && \
+		test -f x86_64-linux-android-clang
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=aarch64-linux-android --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=armv7-linux-androideabi --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=i686-linux-android --lib
+
+	PATH="$$PATH:$(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64/bin:$(ANDROID_NDK)/toolchains/aarch64-linux-android-4.9/prebuilt/$(OS)-x86_64/bin" && \
+			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
+endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
 ifeq ("$(CARGO_exists)","")
@@ -57,7 +100,7 @@ all:
 	build/env.sh go run build/ci.go install
 
 android: bls-zexe-android
-	build/env.sh go run build/ci.go aar --local
+	ANDROID_NDK_HOME=$(ANDROID_NDK) build/env.sh go run build/ci.go aar --local
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
@@ -145,7 +188,6 @@ geth-linux-arm-7:
 
 geth-linux-arm64:
 	# requires an arm64 compiler, on Ubuntu: sudo apt-get install gcc-aarch64-linux-gnu	g++-aarch64-linux-gnu
-	# seems to fail with a problem in the cloudflare library
 	rustup target add aarch64-unknown-linux-gnu
 	cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --target=aarch64-unknown-linux-gnu --release
 	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm64 -v ./cmd/geth

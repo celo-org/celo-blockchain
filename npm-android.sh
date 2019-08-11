@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-make android
+make android || exit 1
 
 rm README.md
-rm README.celo.md
+
 VERSION=$(npm show @celo/client version)
 a=( ${VERSION//./ } )
 ((a[2]++))
