@@ -21,6 +21,7 @@ import (
 )
 
 type backlogEvent struct {
+	src istanbul.Validator
 	msg *istanbul.Message
 }
 
