@@ -3,22 +3,21 @@ extern crate hex;
 use crate::hash::PRF;
 
 use blake2s_simd::Params;
-use failure::Error;
-
 use byteorder::WriteBytesExt;
+use std::error::Error;
 
 pub struct DirectHasher {
 }
 
 impl DirectHasher {
-    pub fn new() -> Result<DirectHasher, Error> {
+    pub fn new() -> Result<DirectHasher, Box<dyn Error>> {
         Ok(DirectHasher {})
     }
 
 }
 
 impl PRF for DirectHasher {
-    fn crh(&self, message: &[u8]) -> Result<Vec<u8>, Error> {
+    fn crh(&self, message: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         let hash_result = Params::new()
             .hash_length(32)
             .to_state()
@@ -29,9 +28,9 @@ impl PRF for DirectHasher {
         return Ok(hash_result.to_vec());
     }
 
-    fn prf(&self, key: &[u8], domain: &[u8], hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+    fn prf(&self, key: &[u8], domain: &[u8], hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Box<dyn Error>> {
         if domain.len() > 8 {
-            return Err(format_err!("domain length is too large: {}", domain.len()));
+            return Err(format!("domain length is too large: {}", domain.len()).into());
         }
         let num_hashes = (output_size_in_bits + 256 - 1) / 256;
         let last_bits_to_keep = match output_size_in_bits % 256 {
@@ -74,7 +73,7 @@ impl PRF for DirectHasher {
         Ok(result)
     }
 
-    fn hash(&self, key: &[u8], domain: &[u8], message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+    fn hash(&self, key: &[u8], domain: &[u8], message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Box<dyn Error>> {
         let prepared_message = self.crh(message)?;
         self.prf(key, domain, &prepared_message, output_size_in_bits)
     }

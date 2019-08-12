@@ -4,6 +4,10 @@ FROM celohq/android-client
 ARG commit_sha
 ARG NPM_TOKEN
 
+ENV NDK_VERSION=android-ndk-r19c
+ENV ANDROID_NDK=/opt/android/${NDK_VERSION}
+ENV ANDROID_HOME=/opt/android/sdk
+
 COPY . /go-ethereum
 WORKDIR /go-ethereum
 

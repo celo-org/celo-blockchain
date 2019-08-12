@@ -49,4 +49,4 @@ profile.cov
 
 **/yarn-error.log
 
-
+vendor/**/Cargo.lock

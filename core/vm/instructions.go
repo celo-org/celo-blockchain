@@ -335,7 +335,7 @@ func opSHL(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory *
 		return nil, nil
 	}
 	n := uint(shift.Uint64())
-	math.U256(value.Lsh(value, n))
+	value.SetBytes(math.U256(new(big.Int).Lsh(value, n)).Bytes())
 
 	return nil, nil
 }
