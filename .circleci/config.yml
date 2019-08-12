@@ -89,7 +89,7 @@ jobs:
             # cd ${CELO_MONOREPO_DIR}/packages/celotool
             cd ${CELO_MONOREPO_DIR}            
             yarn install || yarn install
-            yarn build --scope @celo/contractkit --scope @celo/celotool
+            yarn build --scope @celo/util --scope @celo/contractkit --scope @celo/verification-pool-api --scope @celo/celotool
       - persist_to_workspace:
           root: .
           paths: .
