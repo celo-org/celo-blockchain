@@ -119,6 +119,10 @@ clean:
 	./build/clean_go_build_cache.sh
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
+clean-bls-zexe:
+	rm -rf vendor/github.com/celo-org/bls-zexe/bls/target
+
+
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.
 
