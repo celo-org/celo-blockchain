@@ -514,6 +514,11 @@ var (
 		Usage: "Network listening port",
 		Value: 30303,
 	}
+	ProxyListenPortFlag = cli.IntFlag{
+		Name:  "proxyport",
+		Usage: "Proxy Network listening port",
+		Value: 30503,
+	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
 		Usage: "Comma separated enode URLs for P2P discovery bootstrap (set v4+v5 instead for light servers)",
@@ -766,8 +771,11 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 // setListenAddress creates a TCP listening address string from set command
 // line flags.
 func setListenAddress(ctx *cli.Context, cfg *p2p.Config) {
-	if ctx.GlobalIsSet(ListenPortFlag.Name) {
+	if !cfg.IsProxy && ctx.GlobalIsSet(ListenPortFlag.Name) {
 		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ListenPortFlag.Name))
+	}
+	if cfg.IsProxy && ctx.GlobalIsSet(ProxyListenPortFlag.Name) {
+		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ProxyListenPortFlag.Name))
 	}
 }
 
@@ -994,6 +1002,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 // SetNodeConfig applies node-related command line flags to the config.
 func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	SetP2PConfig(ctx, &cfg.P2P)
+	SetP2PConfig(ctx, &cfg.ProxyP2P)
 	setIPC(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setWS(ctx, cfg)

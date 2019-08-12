@@ -105,14 +105,15 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	server *p2p.Server
+	server      *p2p.Server
+	proxyServer *p2p.Server
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
 	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
-	whitelist map[uint64]common.Hash, server *p2p.Server) (*ProtocolManager, error) {
+	whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -129,6 +130,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		quitSync:    make(chan struct{}),
 		engine:      engine,
 		server:      server,
+		proxyServer: proxyServer,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {

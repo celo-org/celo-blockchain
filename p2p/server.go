@@ -149,6 +149,9 @@ type Config struct {
 
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
+
+	// Flag for whether a server instance is a proxy
+	IsProxy bool
 }
 
 // Server manages all peer connections.
