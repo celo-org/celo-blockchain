@@ -25,7 +25,7 @@ import (
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
@@ -39,7 +39,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			logger.Error("Failed to encode", "view", curView)
 			return
 		}
-
+		logger.Trace("Sending preprepare")
 		c.broadcast(&istanbul.Message{
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
@@ -48,7 +48,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state)
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare", "tag", "handleMsg")
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare
@@ -80,6 +80,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
 			if valSet.IsProposer(msg.Address) && c.backend.HasProposal(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
 				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil
 			}
@@ -123,6 +124,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 
 	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
+		logger.Trace("Accepted preprepare", "tag", "stateTransition")
 		c.acceptPreprepare(preprepare)
 		c.setState(StatePreprepared)
 		c.sendPrepare()

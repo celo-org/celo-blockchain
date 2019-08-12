@@ -25,6 +25,8 @@ import (
 )
 
 func (c *core) sendCommit() {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendCommit")
+	logger.Trace("Sending commit")
 	sub := c.current.Subject()
 	c.broadcastCommit(sub)
 }
@@ -52,6 +54,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCommit", "tag", "handleMsg")
 	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
@@ -77,12 +80,14 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	}
 
 	c.acceptCommit(msg)
+	logger.Trace("Accepted commit", "Number of commits", c.current.Commits.Size())
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
 	if c.current.Commits.Size() > 2*c.valSet.F() && c.state.Cmp(StateCommitted) < 0 {
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() > 2*c.valSet.F() && c.state.Cmp(StatePrepared) < 0 {
 		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
@@ -95,7 +100,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
 func (c *core) verifyCommit(commit *istanbul.Subject) error {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyCommit")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(commit, sub) {
@@ -113,7 +118,7 @@ func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src
 }
 
 func (c *core) acceptCommit(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state)
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptCommit")
 
 	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {

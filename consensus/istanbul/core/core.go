@@ -207,9 +207,9 @@ func (c *core) commit() {
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
 	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0)
+		logger = c.logger.New("old_round", -1, "old_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
+		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	roundChange := false
@@ -289,7 +289,7 @@ func (c *core) startNewRound(round *big.Int) {
 }
 
 func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer())
+	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer(), "func", "catchUpRound")
 
 	if view.Round.Cmp(c.current.Round()) > 0 {
 		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())

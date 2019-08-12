@@ -32,11 +32,11 @@ func (c *core) sendNextRoundChange() {
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
 
 	cv := c.currentView()
 	if cv.Round.Cmp(round) >= 0 {
-		logger.Error("Cannot send out the round change", "current round", cv.Round, "target round", round)
+		logger.Error("Cannot send out the round change")
 		return
 	}
 
@@ -58,7 +58,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 		logger.Error("Failed to encode ROUND CHANGE", "rc", rc, "err", err)
 		return
 	}
-
+	logger.Trace("Sending round change message", "rcs", c.roundChangeSet)
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
@@ -66,7 +66,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 }
 
 func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChangeCertificate")
 
 	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
 		return errInvalidRoundChangeCertificateNumMsgs
@@ -130,7 +130,7 @@ func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.Roun
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address)
+	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
@@ -140,6 +140,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	}
 
 	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
+		logger.Info("Check round change message failed", "err", err)
 		return err
 	}
 
@@ -147,7 +148,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 }
 
 func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanbul.RoundChange) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address, "func", "handleDecodedCheckedRoundChange")
+	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleDecodedCheckedRoundChange", "tag", "handleMsg")
 
 	cv := c.currentView()
 	roundView := rc.View
