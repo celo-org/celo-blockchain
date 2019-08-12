@@ -9,10 +9,10 @@ use dpc::crypto_primitives::crh::{
     pedersen::{PedersenCRH, PedersenParameters, PedersenWindow},
     FixedLengthCRH,
 };
-use failure::Error;
 use rand::{chacha::ChaChaRng, Rng, SeedableRng};
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::error::Error;
 
 type CRH = PedersenCRH<Edwards, Window>;
 type CRHParameters = PedersenParameters<Edwards>;
@@ -31,13 +31,13 @@ pub struct CompositeHasher {
 }
 
 impl CompositeHasher {
-    pub fn new() -> Result<CompositeHasher, Error> {
+    pub fn new() -> Result<CompositeHasher, Box<dyn Error>> {
         Ok(CompositeHasher {
             parameters: CompositeHasher::setup_crh()?,
             direct_hasher: DirectHasher{},
         })
     }
-    fn prng() -> Result<impl Rng, Error> {
+    fn prng() -> Result<impl Rng, Box<dyn Error>> {
         let hash_result = Params::new()
             .hash_length(32)
             .personal(b"UL_prngs") // personalization
@@ -55,14 +55,14 @@ impl CompositeHasher {
         Ok(ChaChaRng::from_seed(&seed))
     }
 
-    fn setup_crh() -> Result<CRHParameters, Error> {
+    fn setup_crh() -> Result<CRHParameters, Box<dyn Error>> {
         let mut rng = CompositeHasher::prng()?;
         CRH::setup::<_>(&mut rng)
     }
 }
 
 impl PRF for CompositeHasher {
-    fn crh(&self, message: &[u8]) -> Result<Vec<u8>, Error> {
+    fn crh(&self, message: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         let h = CRH::evaluate(&self.parameters, message)?;
         let mut res = vec![];
         h.x.write(&mut res)?;
@@ -71,11 +71,11 @@ impl PRF for CompositeHasher {
 
     }
 
-    fn prf(&self, key: &[u8], domain: &[u8], hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+    fn prf(&self, key: &[u8], domain: &[u8], hashed_message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Box<dyn Error>> {
         self.direct_hasher.prf(key, domain, hashed_message, output_size_in_bits)
     }
 
-    fn hash(&self, key: &[u8], domain: &[u8], message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Error> {
+    fn hash(&self, key: &[u8], domain: &[u8], message: &[u8], output_size_in_bits: usize) -> Result<Vec<u8>, Box<dyn Error>> {
         let prepared_message = self.crh(message)?;
         self.prf(key, domain, &prepared_message, output_size_in_bits)
     }
