@@ -38,6 +38,7 @@ func TestValidatorSet(t *testing.T) {
 	testEmptyValSet(t)
 	testStickyProposer(t)
 	testAddAndRemoveValidator(t)
+	testQuorumSizes(t)
 }
 
 func testNewValidatorSet(t *testing.T) {
@@ -226,5 +227,45 @@ func testStickyProposer(t *testing.T) {
 	valSet.CalcProposer(lastProposer, uint64(3))
 	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val2) {
 		t.Errorf("proposer mismatch: have %v, want %v", val, val2)
+	}
+}
+
+func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte) {
+	vals := make([]istanbul.ValidatorData, 0)
+	keys := make([][]byte, 0)
+	for i := 0; i < n; i++ {
+		privateKey, _ := crypto.GenerateKey()
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		vals = append(vals, istanbul.ValidatorData{
+			crypto.PubkeyToAddress(privateKey.PublicKey),
+			blsPublicKey,
+		})
+		keys = append(keys, blsPrivateKey)
+	}
+	return vals, keys
+}
+
+func testQuorumSizes(t *testing.T) {
+	testCases := []struct {
+		validatorSetSize      int
+		expectedMinQuorumSize int
+	}{
+		{validatorSetSize: 1, expectedMinQuorumSize: 1},
+		{validatorSetSize: 2, expectedMinQuorumSize: 2},
+		{validatorSetSize: 3, expectedMinQuorumSize: 2},
+		{validatorSetSize: 4, expectedMinQuorumSize: 3},
+		{validatorSetSize: 5, expectedMinQuorumSize: 4},
+		{validatorSetSize: 6, expectedMinQuorumSize: 4},
+		{validatorSetSize: 7, expectedMinQuorumSize: 5},
+	}
+
+	for _, testCase := range testCases {
+		vals, _ := generateValidators(testCase.validatorSetSize)
+		valSet := newDefaultSet(vals, istanbul.RoundRobin)
+
+		if valSet.MinQuorumSize() != testCase.expectedMinQuorumSize {
+			t.Errorf("error mismatch quorum size for valset of size %d: have %d, want %d", valSet.Size(), valSet.MinQuorumSize(), testCase.expectedMinQuorumSize)
+		}
 	}
 }
