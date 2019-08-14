@@ -86,7 +86,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
-	if c.current.Commits.Size() > 2*c.valSet.F() && c.state.Cmp(StateCommitted) < 0 {
+	if c.current.Commits.Size() >= c.valSet.MinQuorumSize() && c.state.Cmp(StateCommitted) < 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() > 2*c.valSet.F() && c.state.Cmp(StatePrepared) < 0 {

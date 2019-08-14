@@ -351,7 +351,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	}
 
 	// The length of validSeal should be larger than number of faulty node + 1
-	if len(publicKeys) <= 2*snap.ValSet.F() {
+	if len(publicKeys) < snap.ValSet.MinQuorumSize() {
 		return errInvalidCommittedSeals
 	}
 	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, extra.CommittedSeal, false)

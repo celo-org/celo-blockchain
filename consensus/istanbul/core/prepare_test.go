@@ -268,16 +268,16 @@ OUTER:
 			if r0.state != StatePreprepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
 			}
-			if r0.current.Prepares.Size() > 2*r0.valSet.F() {
-				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.F()+1)
+			if r0.current.Prepares.Size() >= r0.valSet.MinQuorumSize() {
+				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
 			}
 
 			continue
 		}
 
-		// core should have 2F+1 PREPARE messages
-		if r0.current.Prepares.Size() <= 2*r0.valSet.F() {
-			t.Errorf("the size of PREPARE messages should be larger than 2F+1: size %v", r0.current.Commits.Size())
+		// core should have MinQuorumSize PREPARE messages
+		if r0.current.Prepares.Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares.Size())
 		}
 
 		// a message will be delivered to backend if 2F+1
