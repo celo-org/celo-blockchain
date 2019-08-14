@@ -17,11 +17,16 @@
 package les
 
 import (
+	"math"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+)
+
+const (
+	numRelayPeers = 3 // number of full nodes a tx is sent to
 )
 
 type ltrInfo struct {
@@ -30,7 +35,7 @@ type ltrInfo struct {
 }
 
 type LesTxRelay struct {
-	txSent    map[common.Hash]*ltrInfo
+	txSent    map[common.Hash][]*ltrInfo
 	txPending map[common.Hash]struct{}
 	ps        *peerSet
 	peerList  []*peer
@@ -41,7 +46,7 @@ type LesTxRelay struct {
 
 func NewLesTxRelay(ps *peerSet, reqDist *requestDistributor) *LesTxRelay {
 	r := &LesTxRelay{
-		txSent:    make(map[common.Hash]*ltrInfo),
+		txSent:    make(map[common.Hash][]*ltrInfo),
 		txPending: make(map[common.Hash]struct{}),
 		ps:        ps,
 		reqDist:   reqDist,
@@ -76,22 +81,32 @@ func (self *LesTxRelay) send(txs types.Transactions) {
 
 	for _, tx := range txs {
 		hash := tx.Hash()
-		ltr, ok := self.txSent[hash]
+		_, ok := self.txSent[hash]
 		if !ok {
-			p, err := self.ps.getPeerWithEtherbase(*tx.GasFeeRecipient())
-			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
-			// We rely on transactions to be rejected in light/txpool validateTx to prevent transactions
-			// with GasFeeRecipient != one of our peers from making it to the relayer.
-			if err != nil {
-				log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gasFeeRecipient", tx.GasFeeRecipient())
-				continue
+			ltrs := make([]*ltrInfo, 0)
+
+			for i := 0; i < int(math.Min(numRelayPeers, float64(len(self.peerList)))); i++ {
+				// TODO(henryzhang) make a deep copy of this transaction
+				newTx := types.Transaction(*tx)
+
+				// TODO(henryzhang) assign the copy with a new gas fee recipient
+				p, err := self.ps.getPeerWithEtherbase(*newTx.GasFeeRecipient())
+				// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
+				// We rely on transactions to be rejected in light/txpool validateTx to prevent transactions
+				// with GasFeeRecipient != one of our peers from making it to the relayer.
+				if err != nil {
+					log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gasFeeRecipient", tx.GasFeeRecipient())
+					continue
+				}
+				sendTo[p] = append(sendTo[p], &newTx)
+				ltr := &ltrInfo{
+					tx:     &newTx,
+					sentTo: make(map[*peer]struct{}),
+				}
+				ltrs = append(ltrs, ltr)
 			}
-			sendTo[p] = append(sendTo[p], tx)
-			ltr = &ltrInfo{
-				tx:     tx,
-				sentTo: make(map[*peer]struct{}),
-			}
-			self.txSent[hash] = ltr
+
+			self.txSent[hash] = ltrs
 			self.txPending[hash] = struct{}{}
 		}
 	}
@@ -140,11 +155,11 @@ func (self *LesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback 
 	}
 
 	if len(self.txPending) > 0 {
-		txs := make(types.Transactions, len(self.txPending))
-		i := 0
+		txs := make(types.Transactions, 0)
 		for hash := range self.txPending {
-			txs[i] = self.txSent[hash].tx
-			i++
+			for _, ltr := range self.txSent[hash] {
+				txs = append(txs, ltr.tx)
+			}
 		}
 		self.send(txs)
 	}
