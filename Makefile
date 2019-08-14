@@ -23,8 +23,8 @@ else
 endif
 
 # example NDK values
-#NDK_VERSION=android-ndk-r19c
-#ANDROID_NDK=$(PWD)/ndk_bundle/$(NDK_VERSION)
+export NDK_VERSION ?= android-ndk-r19c
+export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -54,7 +54,7 @@ else
 endif
 
 
-bls-zexe-android: check_android_env
+bls-zexe-android: check_android_env ndk_bundle
 ifeq ("$(RUSTUP_exists)","")
 	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
 else
@@ -99,7 +99,7 @@ swarm:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
 
-all:
+all: bls-zexe
 	build/env.sh go run build/ci.go install
 
 android: bls-zexe-android
