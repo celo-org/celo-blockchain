@@ -249,7 +249,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 
 		var err error
-		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.F())
+		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
 			return
