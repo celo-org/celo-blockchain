@@ -89,8 +89,8 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	if c.current.Commits.Size() >= c.valSet.MinQuorumSize() && c.state.Cmp(StateCommitted) < 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
-	} else if c.current.GetPrepareOrCommitSize() > 2*c.valSet.F() && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
+	} else if c.current.GetPrepareOrCommitSize() >= c.valSet.MinQuorumSize() && c.state.Cmp(StatePrepared) < 0 {
+		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.MinQuorumSize()); err != nil {
 			return err
 		}
 	}

@@ -68,7 +68,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChangeCertificate")
 
-	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < 2*c.valSet.F()+1 {
+	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < c.valSet.MinQuorumSize() {
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 

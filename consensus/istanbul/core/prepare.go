@@ -47,7 +47,7 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 		return errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < 2*c.valSet.F()+1 {
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.valSet.MinQuorumSize() {
 		return errInvalidPreparedCertificateNumMsgs
 	}
 
@@ -133,7 +133,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
 	if (c.current.GetPrepareOrCommitSize() >= c.valSet.MinQuorumSize()) && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
+		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.MinQuorumSize()); err != nil {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)

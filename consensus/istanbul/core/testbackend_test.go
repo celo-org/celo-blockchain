@@ -423,13 +423,18 @@ func (t *testSystem) F() uint64 {
 	return t.f
 }
 
+func (t *testSystem) MinQuorumSize() uint64 {
+	// TODO(joshua) Fix this to be based off of total number of validators.
+	return 2*t.f + 1;
+}
+
 func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
 	}
 	for i, backend := range sys.backends {
-		if uint64(i) == 2*sys.F()+1 {
+		if uint64(i) == sys.MinQuorumSize() {
 			break
 		}
 		var err error
@@ -450,7 +455,7 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, 
 func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
-		if uint64(i) == 2*sys.F()+1 {
+		if uint64(i) == sys.MinQuorumSize() {
 			break
 		}
 		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)

@@ -140,12 +140,12 @@ func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.Prepare
 	s.preparedCertificate = preparedCertificate
 }
 
-func (s *roundState) CreateAndSetPreparedCertificate(f int) error {
+func (s *roundState) CreateAndSetPreparedCertificate(quorumSize int) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	prepareOrCommitSize := s.GetPrepareOrCommitSize()
-	if prepareOrCommitSize > 2*f {
+	if prepareOrCommitSize >= quorumSize {
 		messages := make([]istanbul.Message, prepareOrCommitSize)
 		i := 0
 		for _, message := range s.Prepares.Values() {
