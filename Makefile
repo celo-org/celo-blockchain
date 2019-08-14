@@ -36,6 +36,9 @@ bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 check_android_env:
 	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
+ifeq ("$(wildcard $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64)","")
+	$(error "NDK doesn't contain an llvm cross-compilation toolchain. Consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+endif
 
 ndk_bundle: check_android_env
 ifneq ("$(wildcard $(ANDROID_NDK))","")
