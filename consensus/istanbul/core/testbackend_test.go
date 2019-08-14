@@ -425,7 +425,7 @@ func (t *testSystem) F() uint64 {
 
 func (t *testSystem) MinQuorumSize() uint64 {
 	// TODO(joshua) Fix this to be based off of total number of validators.
-	return 2*t.f + 1;
+	return 2*t.f + 1
 }
 
 func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
