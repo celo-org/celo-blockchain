@@ -18,6 +18,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -27,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -95,6 +98,7 @@ type core struct {
 
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
+	c.logger = log.New("address", address)
 }
 
 func (c *core) finalizeMessage(msg *message) ([]byte, error) {
@@ -107,7 +111,7 @@ func (c *core) finalizeMessage(msg *message) ([]byte, error) {
 	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
 	if msg.Code == msgCommit && c.current.Proposal() != nil {
 		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.Sign(seal)
+		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
 		if err != nil {
 			return nil, err
 		}
@@ -167,14 +171,32 @@ func (c *core) commit() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
+	bitmap := big.NewInt(0)
+	publicKeys := [][]byte{}
 	if proposal != nil {
 		committedSeals := make([][]byte, c.current.Commits.Size())
 		for i, v := range c.current.Commits.Values() {
-			committedSeals[i] = make([]byte, types.IstanbulExtraSeal)
+			committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
 			copy(committedSeals[i][:], v.CommittedSeal[:])
+			j, err := c.current.Commits.GetAddressIndex(v.Address)
+			if err != nil {
+				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+			}
+			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
+			if err != nil {
+				panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
+			}
+
+			publicKeys = append(publicKeys, publicKey)
+
+			bitmap.SetBit(bitmap, int(j), 1)
+		}
+		asig, err := blscrypto.AggregateSignatures(committedSeals)
+		if err != nil {
+			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
 		}
 
-		if err := c.backend.Commit(proposal, committedSeals); err != nil {
+		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.current.UnlockHash() //Unlock block when insertion fails
 			c.sendNextRoundChange()
 			return

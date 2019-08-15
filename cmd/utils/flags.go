@@ -42,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/dashboard"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethstats"
 	"github.com/ethereum/go-ethereum/les"
@@ -201,6 +200,11 @@ var (
 	EtherbaseFlag = cli.StringFlag{
 		Name:  "etherbase",
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+		Value: "0",
+	}
+	BLSbaseFlag = cli.StringFlag{
+		Name:  "blsbase",
+		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
 	// Dashboard settings
@@ -563,17 +567,6 @@ var (
 		Value: ".",
 	}
 
-	// Gas price oracle settings
-	GpoBlocksFlag = cli.IntFlag{
-		Name:  "gpoblocks",
-		Usage: "Number of recent blocks to check for gas prices",
-		Value: eth.DefaultConfig.GPO.Blocks,
-	}
-	GpoPercentileFlag = cli.IntFlag{
-		Name:  "gpopercentile",
-		Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
-		Value: eth.DefaultConfig.GPO.Percentile,
-	}
 	WhisperEnabledFlag = cli.BoolFlag{
 		Name:  "shh",
 		Usage: "Enable Whisper",
@@ -918,6 +911,24 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	}
 }
 
+// setBLSbase retrieves the blsbase either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current etherbase, new flag overriding legacy one
+	var blsbase string
+	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
+		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
+	}
+	// Convert the etherbase into an address and configure it
+	if blsbase != "" {
+		account, err := MakeAddress(ks, blsbase)
+		if err != nil {
+			Fatalf("Invalid blsbase: %v", err)
+		}
+		cfg.BLSbase = account.Address
+	}
+}
+
 // MakePasswordList reads password lines from the file specified by the global --password flag.
 func MakePasswordList(ctx *cli.Context) []string {
 	path := ctx.GlobalString(PasswordFileFlag.Name)
@@ -1037,15 +1048,6 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
 	case ctx.GlobalBool(OttomanFlag.Name):
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ottoman")
-	}
-}
-
-func setGPO(ctx *cli.Context, cfg *gasprice.Config) {
-	if ctx.GlobalIsSet(GpoBlocksFlag.Name) {
-		cfg.Blocks = ctx.GlobalInt(GpoBlocksFlag.Name)
-	}
-	if ctx.GlobalIsSet(GpoPercentileFlag.Name) {
-		cfg.Percentile = ctx.GlobalInt(GpoPercentileFlag.Name)
 	}
 }
 
@@ -1207,7 +1209,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	setEtherbase(ctx, ks, cfg)
-	setGPO(ctx, &cfg.GPO)
+	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 	setWhitelist(ctx, cfg)

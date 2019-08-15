@@ -201,13 +201,6 @@ var AppHelpFlagGroups = []flagGroup{
 		},
 	},
 	{
-		Name: "GAS PRICE ORACLE",
-		Flags: []cli.Flag{
-			utils.GpoBlocksFlag,
-			utils.GpoPercentileFlag,
-		},
-	},
-	{
 		Name: "VIRTUAL MACHINE",
 		Flags: []cli.Flag{
 			utils.VMEnableDebugFlag,

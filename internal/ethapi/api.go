@@ -46,10 +46,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-const (
-	defaultGasPrice = uint64(0) // Always free gas
-)
-
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -706,8 +702,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	if gas == 0 {
 		gas = math.MaxUint64 / 2
 	}
-	if gasPrice.Sign() == 0 {
-		gasPrice = new(big.Int).SetUint64(defaultGasPrice)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 	}
 
 	// Create new call message
@@ -726,7 +725,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	evm, vmError, err := s.b.GetEVM(ctx, msg, state, header)
+	evm, vmError, err := s.b.GetEVM(ctx, msg, header, state)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -740,8 +739,8 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	res, gas, failed, err := core.ApplyMessage(evm, msg, gp)
 
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp, s.b.GasCurrencyWhitelist())
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
 	}
@@ -889,7 +888,10 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"timestamp":        (*hexutil.Big)(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
-		"signature":        hexutil.Bytes(common.CopyBytes(head.Signature[:])),
+	}
+	fields["randomness"] = map[string]interface{}{
+		"revealed":  hexutil.Bytes(b.Randomness().Revealed.Bytes()),
+		"committed": hexutil.Bytes(b.Randomness().Committed.Bytes()),
 	}
 
 	if inclTx {
@@ -1223,11 +1225,14 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		} else {
 			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
 			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
-			*(*uint64)(args.Gas) = defaultGas + 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
 		}
 	}
-	if args.GasPrice == nil {
-		price, err := b.SuggestPrice(ctx)
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
 		if err != nil {
 			return err
 		}

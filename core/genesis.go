@@ -40,7 +40,10 @@ import (
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
-var errGenesisNoConfig = errors.New("genesis has no chain configuration")
+var (
+	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
+	errGenesisNoConfig = errors.New("genesis has no chain configuration")
+)
 
 // Genesis specifies the header fields, state of a genesis block. It also defines hard
 // fork switch-over blocks through the chain configuration.
@@ -167,6 +170,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, constant
 			log.Info("Writing custom genesis block")
 		}
 		block, err := genesis.Commit(db)
+		log.Info("HASH2", "hash", block.Hash())
 		return genesis.Config, block.Hash(), err
 	}
 
@@ -262,7 +266,20 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
 
-	return types.NewBlock(head, nil, nil, nil)
+	return types.NewBlock(head, nil, nil, nil, nil)
+}
+
+// StoreGenesisSupply computes the total supply of the genesis block and stores
+// it in the db.
+func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
+	if db == nil {
+		db = ethdb.NewMemDatabase()
+	}
+	genesisSupply := big.NewInt(0)
+	for _, account := range g.Alloc {
+		genesisSupply.Add(genesisSupply, account.Balance)
+	}
+	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
 }
 
 // Commit writes the block and state of a genesis specification to the database.
@@ -278,6 +295,10 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeadBlockHash(db, block.Hash())
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
+	if err := g.StoreGenesisSupply(db); err != nil {
+		log.Error("Unable to store genesisSupply in db", "err", err)
+		return nil, err
+	}
 
 	config := g.Config
 	if config == nil {

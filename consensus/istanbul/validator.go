@@ -17,14 +17,52 @@
 package istanbul
 
 import (
-	"strings"
+	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var (
+	errInvalidValidatorSetDiffSize = errors.New("istanbul extra validator set data has different size")
+)
+
+func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
+	if len(addrs) != len(blsPublicKeys) {
+		return nil, errInvalidValidatorSetDiffSize
+	}
+	validators := []ValidatorData{}
+	for i := range addrs {
+		validators = append(validators, ValidatorData{
+			Address:      addrs[i],
+			BLSPublicKey: blsPublicKeys[i],
+		})
+	}
+
+	return validators, nil
+}
+
+func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
+	addrs := []common.Address{}
+	pubKeys := [][]byte{}
+	for i := range validators {
+		addrs = append(addrs, validators[i].Address)
+		pubKeys = append(pubKeys, validators[i].BLSPublicKey)
+	}
+
+	return addrs, pubKeys
+}
+
+type ValidatorData struct {
+	Address      common.Address
+	BLSPublicKey []byte
+}
+
 type Validator interface {
 	// Address returns address
 	Address() common.Address
+
+	BLSPublicKey() []byte
 
 	// String representation of Validator
 	String() string
@@ -34,27 +72,20 @@ type Validator interface {
 
 type Validators []Validator
 
-func (slice Validators) Len() int {
-	return len(slice)
-}
-
-func (slice Validators) Less(i, j int) bool {
-	return strings.Compare(slice[i].String(), slice[j].String()) < 0
-}
-
-func (slice Validators) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
 	// Calculate the proposer
 	CalcProposer(lastProposer common.Address, round uint64)
 	// Return the validator size
+	PaddedSize() int
 	Size() int
 	// Return the validator array
 	List() []Validator
+	// Return the validator array without holes
+	FilteredList() []Validator
+	// Return the validator index in the filtered list
+	GetFilteredIndex(addr common.Address) int
 	// Get validator by index
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
@@ -64,15 +95,17 @@ type ValidatorSet interface {
 	// Check whether the validator with given address is a proposer
 	IsProposer(address common.Address) bool
 	// Add validators
-	AddValidators(address []common.Address) bool
+	AddValidators(validators []ValidatorData) bool
 	// Remove validators
-	RemoveValidators(address []common.Address) bool
+	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
 	// Get the maximum number of faulty nodes
 	F() int
 	// Get proposer policy
 	Policy() ProposerPolicy
+	// Get the minimum quorum size
+	MinQuorumSize() int
 }
 
 // ----------------------------------------------------------------------------

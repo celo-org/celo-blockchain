@@ -23,13 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -39,7 +39,6 @@ import (
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
 	eth *Ethereum
-	gpo *gasprice.Oracle
 }
 
 // ChainConfig returns the active chain configuration.
@@ -125,11 +124,11 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(blockHash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil, b.eth.regAdd)
+	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
@@ -198,7 +197,11 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gasprice.GetGasPrice(ctx, b.eth.iEvmH, b.eth.regAdd)
+	return gpm.GetGasPriceSuggestion(nil, nil, nil)
+}
+
+func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -226,12 +229,4 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 
 func (b *EthAPIBackend) GasFeeRecipient() common.Address {
 	return b.eth.GasFeeRecipient()
-}
-
-func (b *EthAPIBackend) GasCurrencyWhitelist() *core.GasCurrencyWhitelist {
-	return b.eth.GasCurrencyWhitelist()
-}
-
-func (b *EthAPIBackend) RegisteredAddresses() *core.RegisteredAddresses {
-	return b.eth.RegisteredAddresses()
 }

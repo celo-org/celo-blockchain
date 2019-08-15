@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	istanbulMsg = 0x11
+	istanbulMsg         = 0x11
+	istanbulAnnounceMsg = 0x12
 )
 
 var (
@@ -40,7 +41,8 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{18},
+		Lengths:  []uint64{19},
+		Primary:  true,
 	}
 }
 
@@ -49,8 +51,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if msg.Code == istanbulMsg {
-		if !sb.coreStarted {
+	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) {
+		if !sb.coreStarted && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -78,9 +80,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 		}
 		sb.knownMessages.Add(hash, true)
 
-		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-			Payload: data,
-		})
+		if msg.Code == istanbulMsg {
+			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+				Payload: data,
+			})
+		} else if msg.Code == istanbulAnnounceMsg {
+			go sb.handleIstAnnounce(data)
+		}
 
 		return true, nil
 	}
@@ -98,6 +104,16 @@ func (sb *Backend) NewChainHead() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
+
+	// If the last block of the epoch has just been added to the blockchain, then
+	// establish 'validator' type connections to all validators in the upcoming epoch
+	// and disconnect from the ones that are no longer in the val set.
+	currentBlock := sb.currentBlock()
+	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
+		sb.logger.Trace("At end of epoch and going to refresh validator peers", "current block number", currentBlock.Number().Uint64())
+		go sb.RefreshValPeers(sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash()))
+	}
+
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }

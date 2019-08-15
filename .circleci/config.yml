@@ -5,6 +5,11 @@ defaults: &defaults
     - image: circleci/golang:1.12
   working_directory: /go/src/github.com/celo-org/geth
 
+rust-defaults: &rust-defaults
+  docker:
+    - image: circleci/rust:1.36.0
+  working_directory: ~/geth
+
 end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node8:gcloud
@@ -14,22 +19,46 @@ jobs:
   unit-tests:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go lint
       - run: build/env.sh go run build/ci.go test
 
   coverage:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
   lint:
     <<: *defaults
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
       - run: build/env.sh go run build/ci.go lint
+
+  bls-zexe:
+    <<: *rust-defaults
+    steps:
+      - checkout
+      - run:
+          name: Setup Rust language
+          command: |
+            set -euo pipefail
+            rustup install 1.36.0
+            rustup default 1.36.0
+      - run:
+          name: Compile bls-zexe
+          command: |
+            set -euo pipefail
+            export PATH=$PATH:$HOME/.cargo/bin
+            cd ~/geth
+            make bls-zexe
+      - persist_to_workspace:
+          root: .
+          paths: .
 
   end-to-end-checkout:
     <<: *end-to-end-defaults
@@ -50,23 +79,16 @@ jobs:
           name: Setup celo-monorepo
           command: |
             set -euo pipefail
-            # Use -p since it does not fail if the dir exists. It fails if the directory does not exist and
-            # it fails to create the directory though.
-            mkdir -p ~/.ssh/
-            echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
-            export CELO_MONOREPO_DIR="./celo-monorepo"
-            git clone --depth 1 https://${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
-            # Change these paths to use https login since the SSH key does not have access to these repositories.
-            # Once we open source this code, these modifications can be eliminated. 
-            # These environment variables are configured at https://circleci.com/gh/celo-org/geth/edit#env-vars
-            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
-            sed -i "s#git+ssh#git+https#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
-            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
-            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/protocol/package.json
-            sed -i "s#git@github.com:#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
-            sed -i "s#git@github.com/#${GH_AUTH_USERNAME}:${GH_AUTH_TOKEN}@github.com/#" ${CELO_MONOREPO_DIR}/packages/sdk/package.json
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            cd ${CELO_MONOREPO_DIR}/packages
+            # TODO(ashishb): Delete unnecessary packages to speed up build time.
+            # It would be better whitelist certain packages and delete the rest.
+            # Deletion does not work right now and yarn fails with weird errors.
+            # This will be enabled and resolved later.
+            # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            yarn
+            yarn || yarn
       - persist_to_workspace:
           root: .
           paths: .
@@ -78,7 +100,7 @@ jobs:
           at: ~/geth
       - run:
           name: Geth transfer test
-          no_output_timeout: 900
+          no_output_timeout: 15m
           command: |
             GO_LANG_DIR="$HOME/geth/golang"
             ${GO_LANG_DIR}/go/bin/go version
@@ -102,18 +124,46 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/geth
 
+  end-to-end-geth-governance-test:
+    <<: *end-to-end-defaults
+    steps:
+      - attach_workspace:
+          at: ~/geth
+      - run:
+          name: Geth goverenance with a standalone node
+          no_output_timeout: "1200s"
+          command: |
+            GO_LANG_DIR="$HOME/geth/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_governance.sh local ~/geth
+
 workflows:
   version: 2
   build:
     jobs:
-      - lint
-      - unit-tests
-      - coverage
-      - end-to-end-checkout
-      
+      - bls-zexe
+      - lint:
+          requires:
+            - bls-zexe
+      - unit-tests:
+          requires:
+            - bls-zexe
+      - coverage:
+          requires:
+            - bls-zexe
+      - end-to-end-checkout:
+          requires:
+            - bls-zexe
+
       - end-to-end-transfer-test:
           requires:
             - end-to-end-checkout
       - end-to-end-sync-test:
+          requires:
+            - end-to-end-checkout
+      - end-to-end-geth-governance-test:
           requires:
             - end-to-end-checkout

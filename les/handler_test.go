@@ -226,7 +226,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 					block := bc.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles()})
+						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness()})
 					}
 					break
 				}
@@ -236,7 +236,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 			hashes = append(hashes, hash)
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := bc.GetBlockByHash(hash)
-				bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles()})
+				bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness()})
 			}
 		}
 		reqID++
@@ -498,8 +498,7 @@ func TestTransactionStatusLes2(t *testing.T) {
 	chain := pm.blockchain.(*core.BlockChain)
 	config := core.DefaultTxPoolConfig
 	config.Journal = ""
-	co := core.NewCurrencyOperator(nil, nil, nil)
-	txpool := core.NewTxPool(config, params.TestChainConfig, chain, co, nil, nil)
+	txpool := core.NewTxPool(config, params.TestChainConfig, chain)
 	pm.txpool = txpool
 	peer, _ := newTestPeer(t, "peer", 2, pm, true)
 	defer peer.close()

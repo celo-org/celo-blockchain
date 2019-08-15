@@ -1,0 +1,20 @@
+# celohq/android-client
+
+FROM circleci/rust:1.36.0-buster
+
+USER root
+
+RUN apt update && \
+    apt-get install gcc-aarch64-linux-gnu && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN rustup target add aarch64-unknown-linux-gnu
+RUN wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz && \
+    tar xf go1.11.5.linux-amd64.tar.gz -C /usr/local
+
+COPY . /go-ethereum
+WORKDIR /go-ethereum
+
+ENV PATH $PATH:/usr/local/go/bin
+
+CMD /bin/bash

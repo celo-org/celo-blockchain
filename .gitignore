@@ -15,6 +15,7 @@
 */**/*dapps*
 build/_vendor/pkg
 *.swp
+target
 
 #*
 .#*
@@ -48,4 +49,4 @@ profile.cov
 
 **/yarn-error.log
 
-
+vendor/**/Cargo.lock

@@ -1,0 +1,16 @@
+# Build a docker image for users to run full nodes/validators
+# Takes a build arg called celo_env to pre-download genesis block and static nodes
+# docker build . -f Dockerfile.celo-node --build-arg celo_env=alfajoresstaging -t us.gcr.io/celo-testnet/celo-node:alfajoresstaging
+# docker push us.gcr.io/celo-testnet/celo-node:alfajoresstaging
+FROM us.gcr.io/celo-testnet/geth:71dee525f1bfaac3a5b432386393bb94d768ecab
+
+ARG celo_env
+
+RUN apk add curl
+
+RUN mkdir /celo
+
+RUN curl https://www.googleapis.com/storage/v1/b/genesis_blocks/o/${celo_env}?alt=media > /celo/genesis.json
+
+RUN curl https://www.googleapis.com/storage/v1/b/static_nodes/o/${celo_env}?alt=media > /celo/static-nodes.json
+

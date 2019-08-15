@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendCommit() {
@@ -66,13 +67,24 @@ func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
 		return err
 	}
 
+	_, validator := c.valSet.GetByAddress(msg.Address)
+	if validator == nil {
+		return errInvalidValidatorAddress
+	}
+
+	seal := PrepareCommittedSeal(c.current.Proposal().Hash())
+	err = blscrypto.VerifySignature(validator.BLSPublicKey(), seal, []byte{}, msg.CommittedSeal, false)
+	if err != nil {
+		return err
+	}
+
 	c.acceptCommit(msg, src)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
-	if c.current.Commits.Size() > 2*c.valSet.F() && c.state.Cmp(StateCommitted) < 0 {
+	if c.current.Commits.Size() >= c.valSet.MinQuorumSize() && c.state.Cmp(StateCommitted) < 0 {
 		// Still need to call LockHash here since state can skip Prepared state and jump directly to the Committed state.
 		c.current.LockHash()
 		c.commit()

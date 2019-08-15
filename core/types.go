@@ -43,7 +43,4 @@ type Validator interface {
 // failed.
 type Processor interface {
 	Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error)
-	SetGasCurrencyWhitelist(gcWl *GasCurrencyWhitelist)
-	SetRegisteredAddresses(regAdd *RegisteredAddresses)
-	SetRandom(random *Random)
 }

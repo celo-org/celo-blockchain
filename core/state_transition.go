@@ -23,15 +23,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
-	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
-
-	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
+	errInsufficientBalanceForGas    = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency    = errors.New("non-whitelisted gas currency address")
+	errGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
 )
 
 /*
@@ -52,16 +55,18 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp         *GasPool
-	msg        Message
-	gas        uint64
-	gasPrice   *big.Int
-	initialGas uint64
-	value      *big.Int
-	data       []byte
-	state      vm.StateDB
-	evm        *vm.EVM
-	gcWl       *GasCurrencyWhitelist
+	gp                           *GasPool
+	msg                          Message
+	gas                          uint64
+	gasPrice                     *big.Int
+	initialGas                   uint64
+	value                        *big.Int
+	data                         []byte
+	state                        vm.StateDB
+	evm                          *vm.EVM
+	gasPriceMinimum              *big.Int
+	infraFraction                *gpm.InfrastructureFraction
+	infrastructureAccountAddress *common.Address
 }
 
 // Message represents a message sent to a contract.
@@ -127,23 +132,29 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if gasCurrency != nil {
-		gas += 3*params.MaxGasForDebitAndCreditTransactions + params.MaxGasToReadErc20Balance
+		gas += params.AdditionalGasForNonGoldCurrencies
 	}
 
 	return gas, nil
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.GasCurrency(), evm.GetHeader(), evm.GetStateDB())
+	infraFraction, _ := gpm.GetInfrastructureFraction(evm.GetHeader(), evm.GetStateDB())
+	infrastructureAccountAddress, _ := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, evm.GetHeader(), evm.GetStateDB())
+
 	return &StateTransition{
-		gp:       gp,
-		evm:      evm,
-		msg:      msg,
-		gasPrice: msg.GasPrice(),
-		value:    msg.Value(),
-		data:     msg.Data(),
-		state:    evm.StateDB,
-		gcWl:     gcWl,
+		gp:                           gp,
+		evm:                          evm,
+		msg:                          msg,
+		gasPrice:                     msg.GasPrice(),
+		value:                        msg.Value(),
+		data:                         msg.Data(),
+		state:                        evm.StateDB,
+		gasPriceMinimum:              gasPriceMinimum,
+		infraFraction:                infraFraction,
+		infrastructureAccountAddress: infrastructureAccountAddress,
 	}
 }
 
@@ -154,8 +165,8 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrency
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, gcWl *GasCurrencyWhitelist) ([]byte, uint64, bool, error) {
-	return NewStateTransition(evm, msg, gp, gcWl).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
+	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -178,7 +189,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
-	if st.msg.GasCurrency() != nil && (st.gcWl == nil || !st.gcWl.IsWhitelisted(*st.msg.GasCurrency())) {
+	if st.msg.GasCurrency() != nil && (!currency.IsWhitelisted(*st.msg.GasCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
 		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.GasCurrency())
 		return errNonWhitelistedGasCurrency
 	}
@@ -200,29 +211,48 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, _, err := GetBalanceOf(accountOwner, *gasCurrency, nil, st.evm, params.MaxGasToReadErc20Balance)
+	balanceOf, _, err := currency.GetBalanceOf(accountOwner, *gasCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
 	if err != nil {
 		return false
 	}
 	return balanceOf.Cmp(gasNeeded) > 0
 }
 
-func (st *StateTransition) debitOrCreditErc20Balance(functionSelector []byte, address common.Address, amount *big.Int, gasCurrency *common.Address) error {
+func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
 	}
 	evm := st.evm
+	// Function is "debitFrom(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
+	functionSelector := hexutil.MustDecode("0x362a5f80")
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	ret, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitAndCreditTransactions, big.NewInt(0))
-	if err != nil {
-		log.Error("failed to debit or credit ERC20 balance", "functionSelector", functionSelector, "ret", hexutil.Encode(ret), "leftoverGas", leftoverGas, "err", err)
-		return err
-	}
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
+	return err
+}
 
-	return nil
+func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gasCurrency *common.Address) error {
+	if amount.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+	evm := st.evm
+	// Function is "creditTo(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
+	functionSelector := hexutil.MustDecode("0x9951b90c")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
+	return err
 }
 
 func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
@@ -231,9 +261,9 @@ func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCur
 	if gasCurrency == nil {
 		st.state.SubBalance(from, amount)
 		return nil
+	} else {
+		return st.debitFrom(from, amount, gasCurrency)
 	}
-
-	return st.debitOrCreditErc20Balance(getDebitFromFunctionSelector(), from, amount, gasCurrency)
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
@@ -242,27 +272,9 @@ func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurr
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
 		return nil
+	} else {
+		return st.creditTo(to, amount, gasCurrency)
 	}
-
-	return st.debitOrCreditErc20Balance(getCreditToFunctionSelector(), to, amount, gasCurrency)
-}
-
-func getDebitFromFunctionSelector() []byte {
-	// Function is "debitFrom(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x362a5f80")
-}
-
-func getCreditToFunctionSelector() []byte {
-	// Function is "creditTo(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
-	return hexutil.MustDecode("0x9951b90c")
 }
 
 func (st *StateTransition) preCheck() error {
@@ -275,6 +287,13 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
+
+	// Make sure this transaction's gas price is valid.
+	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
+		log.Error("Tx gas price does not exceed minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+		return errGasPriceDoesNotExceedMinimum
+	}
+
 	return nil
 }
 
@@ -339,21 +358,37 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
+	// Distribute transaction fees
 	err = st.refundGas()
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)
 		return nil, 0, false, err
 	}
-
 	gasUsed := st.gasUsed()
-	// Pay gas fee to gas fee recipient
-	gasFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
-	// TODO(asa): Revisit this when paying gas fees partially to infra fund.
-	if msg.GasFeeRecipient() == nil {
-		err = st.creditGas(msg.From(), gasFee, msg.GasCurrency())
+
+	// Pay tx fee to tx fee recipient and Infrastructure fund
+	totalTxFee := new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), st.gasPrice)
+
+	var recipientTxFee *big.Int
+	if st.infrastructureAccountAddress != nil {
+		infraTxFee := new(big.Int).Div(new(big.Int).Mul(new(big.Int).SetUint64(gasUsed), new(big.Int).Mul(st.gasPriceMinimum, st.infraFraction.Numerator)), st.infraFraction.Denominator)
+		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
+		err = st.creditGas(*st.infrastructureAccountAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		err = st.creditGas(*msg.GasFeeRecipient(), gasFee, msg.GasCurrency())
+		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		recipientTxFee = totalTxFee
 	}
+
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	txFeeRecipient := msg.GasFeeRecipient()
+	if txFeeRecipient == nil {
+		sender := msg.From()
+		txFeeRecipient = &sender
+	}
+	err = st.creditGas(*txFeeRecipient, recipientTxFee, msg.GasCurrency())
 
 	if err != nil {
 		return nil, 0, false, err

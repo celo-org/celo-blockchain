@@ -135,12 +135,12 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 
 				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, data, false)}
 
-				context := core.NewEVMContext(msg, header, bc, nil, nil)
+				context := core.NewEVMContext(msg, header, bc, nil)
 				vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 
 				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil)
+				ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
 				res = append(res, ret...)
 			}
 		} else {
@@ -148,10 +148,10 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			state := light.NewState(ctx, header, lc.Odr())
 			state.SetBalance(testBankAddress, math.MaxBig256)
 			msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, data, false)}
-			context := core.NewEVMContext(msg, header, lc, nil, nil)
+			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
-			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp, nil)
+			ret, _, _, _ := core.ApplyMessage(vmenv, msg, gp)
 			if state.Error() == nil {
 				res = append(res, ret...)
 			}

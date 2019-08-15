@@ -18,7 +18,6 @@ package miner
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"math/big"
 	"sync"
@@ -31,6 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -80,6 +82,11 @@ const (
 	staleThreshold = 7
 )
 
+var (
+	randomSeedString = []byte("Randomness seed string")
+	randomSeed       []byte
+)
+
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
 	signer types.Signer
@@ -91,11 +98,10 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header   *types.Header
-	txs      []*types.Transaction
-	receipts []*types.Receipt
-
-	randomness [32]byte
+	header     *types.Header
+	txs        []*types.Transaction
+	receipts   []*types.Receipt
+	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -188,15 +194,11 @@ type worker struct {
 	verificationMu      sync.RWMutex
 	lastBlockVerified   uint64
 
-	// Transaction processing
-	co     *core.CurrencyOperator
-	random *core.Random
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, co *core.CurrencyOperator, random *core.Random, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		engine:              engine,
@@ -221,8 +223,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		co:                  co,
-		random:              random,
 		db:                  db,
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -235,12 +235,6 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	if recommit < minRecommitInterval {
 		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
 		recommit = minRecommitInterval
-	}
-
-	// If istanbul engine used, set the iEvmH and regAddr objects in that engine
-	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetInternalEVMHandler(eth.InternalEVMHandler())
-		istanbul.SetRegisteredAddresses(eth.RegisteredAddresses())
 	}
 
 	go worker.mainLoop()
@@ -298,7 +292,7 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain, w.chain.CurrentBlock, w.chain.HasBadBlock,
+		istanbul.Start(w.chain.HasBadBlock,
 			func(parentHash common.Hash) (*state.StateDB, error) {
 				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
 				return w.chain.StateAt(parentStateRoot)
@@ -333,7 +327,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return w.co.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return currency.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -533,16 +527,6 @@ func (w *worker) mainLoop() {
 				for _, tx := range ev.Txs {
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], tx)
-				}
-
-				// Refresh the registered address cache before processing transaction batch
-				if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-					regAdd.RefreshAddresses()
-				}
-
-				// Refresh the gas currency whitelist cache before processing transaction batch
-				if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-					wl.RefreshWhitelist()
 				}
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
@@ -764,6 +748,7 @@ func (w *worker) updateSnapshot() {
 		w.current.txs,
 		uncles,
 		w.current.receipts,
+		w.current.randomness,
 	)
 
 	w.snapshotState = w.current.state.Copy()
@@ -772,7 +757,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.eth.GasCurrencyWhitelist(), w.eth.RegisteredAddresses())
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.header, w.current.state, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -781,57 +766,6 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	w.current.receipts = append(w.current.receipts, receipt)
 
 	return receipt.Logs, nil
-}
-
-func (w *worker) getLastRandomness() ([32]byte, error) {
-	if w.current.randomness != [32]byte{} {
-		return w.current.randomness, nil
-	} else {
-		return w.random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state)
-	}
-}
-
-func (w *worker) commitRandomTransaction() error {
-	randomness, err := w.getLastRandomness()
-	if err != nil {
-		log.Error("Failed to get last randomness", "err", err)
-		return err
-	}
-
-	newRandomness := [32]byte{}
-	_, err = rand.Read(newRandomness[0:32])
-	if err != nil {
-		log.Error("Failed to generate randomness", "err", err)
-		return err
-	}
-
-	w.current.randomness = newRandomness
-
-	newCommitment, err := w.random.ComputeCommitment(newRandomness, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to compute commitment to randomness", "err", err)
-		return err
-	}
-
-	w.random.StoreCommitment(newRandomness, newCommitment, w.db)
-
-	callData := make([]byte, 64)
-	copy(callData[0:], randomness[:])
-	copy(callData[32:], newCommitment[:])
-
-	receipt, err := w.random.RevealAndCommit(randomness, newCommitment, w.coinbase, w.current.header, w.current.state)
-	if err != nil {
-		log.Error("Failed to reveal and commit randomness", "err", err)
-		return err
-	}
-
-	tx := types.NewTransaction(0, common.ZeroAddress, big.NewInt(0), 0, big.NewInt(0), nil, nil, callData)
-
-	w.current.tcount++
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
-
-	return nil
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -875,6 +809,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
+			break
+		}
+		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
+		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
+			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 			break
 		}
 		// Error may be ignored here. The error has already been checked
@@ -980,19 +920,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 		header.Coinbase = w.coinbase
-		// TODO(asa): Set signature in the consensus engine, verify elsewhere
-		wallet, err := w.eth.AccountManager().Find(accounts.Account{Address: w.coinbase})
-		if err != nil {
-			log.Error("[Celo] Failed to get account for block signature", "err", err)
-		} else {
-			code, err := wallet.SignHash(accounts.Account{Address: w.coinbase}, header.ParentHash.Bytes())
-			if err != nil {
-				log.Error("[Celo] Failed to sign block hash", "err", err)
-			} else {
-				// TODO(asa): Verify the signature when doing block verification
-				copy(header.Signature[:], code[:])
-			}
-		}
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -1061,14 +988,41 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
-	// Refresh the registered address cache before processing transaction batch
-	if regAdd := w.eth.RegisteredAddresses(); regAdd != nil {
-		regAdd.RefreshAddresses()
-	}
+	// Play our part in generating the random beacon.
+	if w.isRunning() && random.IsRunning() {
+		if randomSeed == nil {
+			account := accounts.Account{Address: w.coinbase}
+			wallet, err := w.eth.AccountManager().Find(account)
+			if err == nil {
+				randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
+			}
+			if err != nil {
+				log.Error("Unable to create random seed", "err", err)
+				return
+			}
+		}
 
-	// Refresh the gas currency whitelist cache before processing the pending transactions
-	if wl := w.eth.GasCurrencyWhitelist(); wl != nil {
-		wl.RefreshWhitelist()
+		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		if err != nil {
+			log.Error("Failed to get last randomness", "err", err)
+			return
+		}
+
+		commitment, err := random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
+		if err != nil {
+			log.Error("Failed to generate randomness commitment", "err", err)
+			return
+		}
+
+		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
+			return
+		}
+
+		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
+	} else {
+		w.current.randomness = &types.EmptyRandomness
 	}
 
 	// Fill the block with all available pending transactions.
@@ -1080,17 +1034,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	if w.random != nil && w.random.Running() {
-		err := w.commitRandomTransaction()
-		if err != nil {
-			log.Error("Failed to commit randomness transaction", "err", err)
-			return
-		}
-	} else if len(pending) == 0 {
+	// Short circuit if there is no available pending transactions
+	if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return
 	}
-
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
@@ -1132,7 +1080,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
 		return err
 	}

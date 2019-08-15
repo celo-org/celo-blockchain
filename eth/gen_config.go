@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
 var _ = (*configMarshaling)(nil)
@@ -42,7 +41,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		MinerNoverify           bool
 		Ethash                  ethash.Config
 		TxPool                  core.TxPoolConfig
-		GPO                     gasprice.Config
 		EnablePreimageRecording bool
 		DocRoot                 string `toml:"-"`
 		EWASMInterpreter        string
@@ -72,7 +70,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.MinerNoverify = c.MinerNoverify
 	enc.Ethash = c.Ethash
 	enc.TxPool = c.TxPool
-	enc.GPO = c.GPO
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
 	enc.Istanbul = c.Istanbul
 	enc.DocRoot = c.DocRoot
@@ -106,7 +103,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		MinerNoverify           *bool
 		Ethash                  *ethash.Config
 		TxPool                  *core.TxPoolConfig
-		GPO                     *gasprice.Config
 		EnablePreimageRecording *bool
 		DocRoot                 *string `toml:"-"`
 		EWASMInterpreter        *string
@@ -182,9 +178,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.TxPool != nil {
 		c.TxPool = *dec.TxPool
-	}
-	if dec.GPO != nil {
-		c.GPO = *dec.GPO
 	}
 	if dec.EnablePreimageRecording != nil {
 		c.EnablePreimageRecording = *dec.EnablePreimageRecording

@@ -17,13 +17,15 @@
 package istanbul
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
-	"sort"
-	"strings"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
@@ -106,41 +108,40 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	return firstBlockNum + (epochSize - 1)
 }
 
-func ValidatorSetDiff(oldValSet []common.Address, newValSet []common.Address) ([]common.Address, []common.Address) {
+func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
+	oldValSetMap := make(map[common.Address]int)
 
-	for _, oldVal := range oldValSet {
-		valSetMap[oldVal] = true
-	}
-
-	var addedValidators []common.Address
-	for _, newVal := range newValSet {
-		if _, ok := valSetMap[newVal]; ok {
-			// We found a common validator.  Pop from the map
-			delete(valSetMap, newVal)
-		} else {
-			// We found a new validator that is not in the old validator set
-			addedValidators = append(addedValidators, newVal)
+	for i, oldVal := range oldValSet {
+		if (oldVal.Address != common.Address{}) {
+			valSetMap[oldVal.Address] = true
+			oldValSetMap[oldValSet[i].Address] = i
 		}
 	}
-	sort.Slice(addedValidators, func(i, j int) bool {
-		return strings.Compare(addedValidators[i].String(), addedValidators[j].String()) < 0
-	})
 
-	// Any remaining validators in the map are the removed validators
-	removedValidators := make([]common.Address, 0, len(valSetMap))
-	for rmVal := range valSetMap {
-		removedValidators = append(removedValidators, rmVal)
+	removedValidatorsBitmap := big.NewInt(0)
+	var addedValidators []ValidatorData
+	for _, newVal := range newValSet {
+		if _, ok := valSetMap[newVal.Address]; ok {
+			// We found a common validator.  Pop from the map
+			delete(valSetMap, newVal.Address)
+		} else {
+			// We found a new validator that is not in the old validator set
+			addedValidators = append(addedValidators, ValidatorData{
+				newVal.Address,
+				newVal.BLSPublicKey,
+			})
+		}
 	}
 
-	sort.Slice(removedValidators, func(i, j int) bool {
-		return strings.Compare(removedValidators[i].String(), removedValidators[j].String()) < 0
-	})
+	for rmVal := range valSetMap {
+		removedValidatorsBitmap = removedValidatorsBitmap.SetBit(removedValidatorsBitmap, oldValSetMap[rmVal], 1)
+	}
 
-	return addedValidators, removedValidators
+	return addedValidators, removedValidatorsBitmap
 }
 
-// This function assumes that valSet1 and valSet2 are sorted
+// This function assumes that valSet1 and valSet2 are ordered in the same way
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
@@ -153,4 +154,37 @@ func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) 
 	}
 
 	return true
+}
+
+func CompareValidatorPublicKeySlices(valSet1 [][]byte, valSet2 [][]byte) bool {
+	if len(valSet1) != len(valSet2) {
+		return false
+	}
+
+	for i := 0; i < len(valSet1); i++ {
+		if !bytes.Equal(valSet1[i], valSet2[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func ConvertPublicKeysToStringSlice(publicKeys [][]byte) []string {
+	publicKeyStrs := []string{}
+	for i := 0; i < len(publicKeys); i++ {
+		publicKeyStrs = append(publicKeyStrs, hex.EncodeToString(publicKeys[i]))
+	}
+
+	return publicKeyStrs
+}
+
+func GetNodeID(enodeURL string) (*enode.ID, error) {
+	node, err := enode.ParseV4(enodeURL)
+	if err != nil {
+		return nil, err
+	}
+
+	id := node.ID()
+	return &id, nil
 }

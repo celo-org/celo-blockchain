@@ -18,6 +18,8 @@ package params
 
 import (
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -93,13 +95,15 @@ const (
 	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
+	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
+	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
 
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = "Attestations"
 	BondedDepositsRegistryId       = "BondedDeposits"
 	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
-	GasPriceOracleRegistryId       = "GasPriceOracle"
+	GasPriceMinimumRegistryId      = "GasPriceMinimum"
 	GoldTokenRegistryId            = "GoldToken"
 	GovernanceRegistryId           = "Governance"
 	ReserveRegistryId              = "Reserve"
@@ -113,6 +117,8 @@ var (
 	GenesisDifficulty      = big.NewInt(131072) // Difficulty of the Genesis block.
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
+
+	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 )
 
 const (
@@ -120,10 +126,14 @@ const (
 )
 
 const (
-	// This is the amount of gas a single debitFrom or creditTo request can use.
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
-	MaxGasForDebitAndCreditTransactions uint64 = 30 * 1000
-	MaxGasToReadErc20Balance            uint64 = 3 * 1000
+	MaxGasForDebitFromTransactions      uint64 = 50 * 1000
+	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
+	MaxGasForCreditToTransactions       uint64 = 30 * 1000
+	MaxGasToReadErc20Balance            uint64 = 10 * 1000
+	MaxGasToReadTobinTax                uint64 = 50 * 1000
+	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
+	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
 )
