@@ -45,21 +45,21 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	c.broadcast(&message{
-		Code: msgCommit,
+	c.broadcast(&istanbul.Message{
+		Code: istanbul.MsgCommit,
 		Msg:  encodedSubject,
 	})
 }
 
-func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
-	// Decode COMMIT message
+func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error {
+	// Decode COMMIT istanbul.Message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
 	if err != nil {
 		return errFailedDecodeCommit
 	}
 
-	if err := c.checkMessage(msgCommit, commit.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgCommit, commit.View); err != nil {
 		return err
 	}
 
@@ -93,7 +93,7 @@ func (c *core) handleCommit(msg *message, src istanbul.Validator) error {
 	return nil
 }
 
-// verifyCommit verifies if the received COMMIT message is equivalent to our subject
+// verifyCommit verifies if the received COMMIT istanbul.Message is equivalent to our subject
 func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
@@ -106,10 +106,10 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 	return nil
 }
 
-func (c *core) acceptCommit(msg *message, src istanbul.Validator) error {
+func (c *core) acceptCommit(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
-	// Add the COMMIT message to current round state
+	// Add the COMMIT istanbul.Message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
 		return err

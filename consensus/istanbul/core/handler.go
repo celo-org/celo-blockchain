@@ -135,7 +135,7 @@ func (c *core) handleMsg(payload []byte) error {
 	logger := c.logger.New()
 
 	// Decode message and check its signature
-	msg := new(message)
+	msg := new(istanbul.Message)
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Error("Failed to decode message from payload", "err", err)
 		return err
@@ -151,7 +151,7 @@ func (c *core) handleMsg(payload []byte) error {
 	return c.handleCheckedMsg(msg, src)
 }
 
-func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
+func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("address", c.address, "from", src)
 
 	// Store the message if it's a future message
@@ -164,13 +164,13 @@ func (c *core) handleCheckedMsg(msg *message, src istanbul.Validator) error {
 	}
 
 	switch msg.Code {
-	case msgPreprepare:
+	case istanbul.MsgPreprepare:
 		return testBacklog(c.handlePreprepare(msg, src))
-	case msgPrepare:
+	case istanbul.MsgPrepare:
 		return testBacklog(c.handlePrepare(msg, src))
-	case msgCommit:
+	case istanbul.MsgCommit:
 		return testBacklog(c.handleCommit(msg, src))
-	case msgRoundChange:
+	case istanbul.MsgRoundChange:
 		return testBacklog(c.handleRoundChange(msg, src))
 	default:
 		logger.Error("Invalid message", "msg", msg)
