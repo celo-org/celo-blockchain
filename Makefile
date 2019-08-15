@@ -13,6 +13,7 @@ GO ?= latest
 
 CARGO_exists := $(shell command -v cargo 2> /dev/null)
 RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
+CARGO_LIPO_exists := $(shell command -v cargo lipo 2> /dev/null)
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
 OS :=
@@ -84,6 +85,16 @@ else
 			 cd vendor/github.com/celo-org/bls-zexe/bls && cargo build --release --target=x86_64-linux-android --lib
 endif
 
+bls-zexe-ios:
+ifeq ("$(RUSTUP_exists)","")
+	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+else ifeq ("$(CARGO_LIPO_exists)","")
+	$(error "No cargo lipo in PATH, run cargo install cargo-CARGO_LIPO_exists")
+else
+	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-darwin i686-apple-darwin
+	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,x86_64-apple-ios,armv7-apple-ios,armv7s-apple-ios
+endif
+
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
 ifeq ("$(CARGO_exists)","")
 	$(error "No cargo in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
@@ -104,7 +115,7 @@ android: bls-zexe-android
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
-ios:
+ios: bls-zexe-ios
 	build/env.sh go run build/ci.go xcode --local
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
