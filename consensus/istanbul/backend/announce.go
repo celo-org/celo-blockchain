@@ -28,6 +28,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
+	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -171,10 +173,10 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
 	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
-	regAndActiveVals, err := sb.retrieveRegisteredValidators()
+	regAndActiveVals, err := validators.RetrieveRegisteredValidators(nil, nil)
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+	if err == contract_errors.ErrSmartContractNotDeployed || len(regAndActiveVals) == 0 {
 		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
 		regAndActiveVals = make(map[common.Address]bool)
 	} else if err != nil {
@@ -266,11 +268,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regAndActiveVals, err := sb.retrieveRegisteredValidators()
+	regAndActiveVals, err := validators.RetrieveRegisteredValidators(nil, nil)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == errValidatorsContractNotRegistered || len(regAndActiveVals) == 0 {
+	if err == contract_errors.ErrSmartContractNotDeployed || len(regAndActiveVals) == 0 {
 		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
 		regAndActiveVals = make(map[common.Address]bool)
 	} else if err != nil {
@@ -318,16 +320,21 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
+	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
+			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
 	}
+	sb.lastAnnounceGossipedMu.RUnlock()
 
 	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
+	sb.lastAnnounceGossipedMu.Lock()
+	defer sb.lastAnnounceGossipedMu.Unlock()
 	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled

@@ -89,6 +89,7 @@ var (
 		utils.LightKDFFlag,
 		utils.WhitelistFlag,
 		utils.EtherbaseFlag,
+		utils.BLSbaseFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
 		utils.CacheTrieFlag,
