@@ -91,8 +91,8 @@ ifeq ("$(RUSTUP_exists)","")
 else ifeq ("$(CARGO_LIPO_exists)","")
 	$(error "No cargo lipo in PATH, run cargo install cargo-CARGO_LIPO_exists")
 else
-	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-darwin i686-apple-darwin
-	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,x86_64-apple-ios,armv7-apple-ios,armv7s-apple-ios
+	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
+	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios,i386-apple-ios
 endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
@@ -121,6 +121,7 @@ ios: bls-zexe-ios
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
 test: all
+
 	build/env.sh go run build/ci.go test
 
 lint: ## Run linters.
