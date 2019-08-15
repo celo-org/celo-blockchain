@@ -177,8 +177,8 @@ OUTER:
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&message{
-				Code:          msgCommit,
+			if err := r0.handleCommit(&istanbul.Message{
+				Code:          istanbul.MsgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
