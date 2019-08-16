@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -127,6 +128,28 @@ func (c *core) CurrentView() *istanbul.View {
 		return nil
 	}
 	return c.current.View()
+}
+
+func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
+	// Add sender address
+	msg.Address = c.address
+
+	if err := msg.Sign(c.backend.Sign); err != nil {
+		return nil, err
+	}
+
+	if c.modifySig() {
+		c.logger.Info("Modify the signature")
+		str := "fake"
+		copy(msg.Signature[:len(str)], []byte(str)[:])
+	}
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		return nil, err
+	}
+
+        return payload, nil
 }
 
 func (c *core) CurrentRoundState() RoundState { return c.current }
@@ -260,9 +283,41 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
-// Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
-	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
+
+	if c.notBroadcast() {
+		logger.Info("Not broadcast message", "message", msg)
+		return
+	}
+
+	if c.sendWrongMsg() {
+		code := uint64(rand.Intn(4))
+		logger.Info("Modify the message code", "old", msg.Code, "new", code)
+		msg.Code = code
+	}
+
+	payload, err := c.finalizeMessage(msg)
+	if err != nil {
+		logger.Error("Failed to finalize message", "msg", msg, "err", err)
+		return
+	}
+
+	// Broadcast payload
+	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
+		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
+		return
+	}
+
+	if c.sendExtraMessages() {
+		extraMsgCount := 20
+		logger.Info("Broadcasting extra copies of the given message", "message", msg, "count", extraMsgCount)
+		for i := 0; i < extraMsgCount; i++ {
+			if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // Send message to a specific address

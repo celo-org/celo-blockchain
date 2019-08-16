@@ -148,6 +148,7 @@ var (
 		utils.IstanbulLookbackWindowFlag,
 		utils.AnnounceGossipPeriodFlag,
 		utils.AnnounceAggressiveGossipOnEnablementFlag,
+		utils.IstanbulFaultyModeFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,
