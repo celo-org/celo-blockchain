@@ -140,6 +140,7 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
 		utils.IstanbulLookbackWindowFlag,
+		utils.IstanbulFaultyModeFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,

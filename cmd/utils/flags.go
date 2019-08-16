@@ -671,6 +671,11 @@ var (
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
+	IstanbulFaultyModeFlag = cli.Uint64Flag{
+		Name:  "istanbul.faultymode",
+		Usage: "0: not faulty, 1: inject random faults, 2+ specific faults (see code)",
+		Value: eth.DefaultConfig.Istanbul.FaultyMode,
+	}
 
 	// Proxy node settings
 	ProxyFlag = cli.BoolFlag{
@@ -1213,6 +1218,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+	}
+	if ctx.GlobalIsSet(IstanbulFaultyModeFlag.Name) {
+		cfg.Istanbul.FaultyMode = ctx.GlobalUint64(IstanbulFaultyModeFlag.Name)
 	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 }

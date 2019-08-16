@@ -27,8 +27,9 @@ import (
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
 	logger := c.newLogger("func", "sendPreprepare")
 
-	// If I'm the proposer and I have the same sequence with the proposal
-	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
+	// If I'm the proposer and I have the same sequence with the proposal OR I'm faulty
+	faultyPropose := c.alwaysPropose()
+	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() || faultyPropose {
 		curView := c.current.View()
 		preprepare, err := Encode(&istanbul.Preprepare{
 			View:                   curView,
@@ -39,6 +40,8 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			logger.Error("Failed to prepare message")
 			return
 		}
+
+		logger.Trace("Sending preprepare", "is_proposer", c.isProposer(), "faultyPropose", faultyPropose)
 
 		msg := &istanbul.Message{
 			Code: istanbul.MsgPreprepare,
