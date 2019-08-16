@@ -156,6 +156,11 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
+func (sb *Backend) GetValidators(proposal istanbul.Proposal) []istanbul.Validator {
+	validatorSet := sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+	return validatorSet.FilteredList()
+}
+
 // Broadcast implements istanbul.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
 	// send to others
