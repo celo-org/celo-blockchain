@@ -29,10 +29,7 @@ import (
 // Construct a new message set to accumulate messages for given sequence/view number.
 func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
 	return &messageSet{
-		view: &istanbul.View{
-			Round:    new(big.Int),
-			Sequence: new(big.Int),
-		},
+		number: new(big.Int),
 		messagesMu: new(sync.Mutex),
 		messages:   make(map[common.Address]*istanbul.Message),
 		valSet:     valSet,
@@ -42,14 +39,14 @@ func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
 // ----------------------------------------------------------------------------
 
 type messageSet struct {
-	view       *istanbul.View
+	number     *big.Int
 	valSet     istanbul.ValidatorSet
 	messagesMu *sync.Mutex
 	messages   map[common.Address]*istanbul.Message
 }
 
-func (ms *messageSet) View() *istanbul.View {
-	return ms.view
+func (ms *messageSet) Number() *big.Int {
+	return ms.number
 }
 
 func (ms *messageSet) Add(msg *istanbul.Message) error {
@@ -122,7 +119,7 @@ func (ms *messageSet) verify(msg *istanbul.Message) error {
 		return istanbul.ErrUnauthorizedAddress
 	}
 
-	// TODO: check view number and sequence number
+	// TODO: check proposal number
 
 	return nil
 }

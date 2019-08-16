@@ -17,14 +17,15 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/common"
+	"math/big"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
 	// Start a new round from last sequence + 1
-	c.startNewRound(common.Big0)
+	// c.startNewRound(common.Big0)
+	// TODO(joshua): Initialize round state here
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -36,7 +37,7 @@ func (c *core) Start() error {
 
 // Stop implements core.Engine.Stop
 func (c *core) Stop() error {
-	c.stopTimer()
+	// c.stopTimer()
 	c.unsubscribeEvents()
 
 	// Make sure the handler goroutine exits
@@ -44,8 +45,8 @@ func (c *core) Stop() error {
 	return nil
 }
 
-func (c *core) CurrentView() *istanbul.View {
-	return c.currentView()
+func (c *core) CurrentNumber() *big.Int {
+	return c.current.Number()
 }
 
 // ----------------------------------------------------------------------------

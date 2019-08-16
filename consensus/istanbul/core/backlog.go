@@ -17,36 +17,28 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
+
+// TODO(Joshua) backlog is seriously wack rn.
 
 // checkMessage checks the message state
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the message number is larger than current number
 // return errOldMessage if the message number is smaller than current number
 // TODO:How does this make sense in hotstuff
-func (c *core) checkMessageNumber(msgCode uint64, number *big.Int) error {
-	if view == nil || view.Sequence == nil || view.Round == nil {
-		return errInvalidMessage
-	}
+func (c *core) checkMessage(number *big.Int) error {
+	// TODO: fix with pointer problems
+	// if number > c.current.Number() {
+	// 	return errFutureMessage
+	// }
 
-	if msgCode == istanbul.MsgRoundChange {
-		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
-			return errFutureMessage
-		} else if view.Cmp(c.currentView()) < 0 {
-			return errOldMessage
-		}
-		return nil
-	}
-
-	if view.Cmp(c.currentView()) > 0 {
-		return errFutureMessage
-	}
-
-	if view.Cmp(c.currentView()) < 0 {
-		return errOldMessage
-	}
+	// if number < c.current.Number() {
+	// 	return errOldMessage
+	// }
 
 	// For states(StatePreprepared, StatePrepared, StateCommitted),
 	// can accept all message types if processing with same view
@@ -54,9 +46,9 @@ func (c *core) checkMessageNumber(msgCode uint64, number *big.Int) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", src, "state", c.state)
+	logger := c.logger.New("from", src)
 
-	if src.Address() == c.Address() {
+	if msg.Address == c.Address() {
 		logger.Warn("Backlog from self")
 		return
 	}
@@ -71,18 +63,17 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 		backlog = prque.New(nil)
 	}
 	switch msg.Code {
-	case istanbul.MsgPreprepare:
-		var p *istanbul.Preprepare
+	case istanbul.MsgPropose:
+		var p *istanbul.Node
 		err := msg.Decode(&p)
 		if err == nil {
-			backlog.Push(msg, toPriority(msg.Code, p.View))
+			backlog.Push(msg, msg.Number.Int64())
 		}
-		// for istanbul.MsgRoundChange, istanbul.MsgPrepare and istanbul.MsgCommit cases
 	default:
-		var p *istanbul.Subject
+		var p *istanbul.Vote
 		err := msg.Decode(&p)
 		if err == nil {
-			backlog.Push(msg, toPriority(msg.Code, p.View))
+			backlog.Push(msg, msg.Number.Int64())
 		}
 	}
 	c.backlogs[src] = backlog
@@ -97,7 +88,7 @@ func (c *core) processBacklog() {
 			continue
 		}
 
-		logger := c.logger.New("from", src, "state", c.state)
+		logger := c.logger.New("from", src)
 		isFuture := false
 
 		// We stop processing if
@@ -106,39 +97,28 @@ func (c *core) processBacklog() {
 		for !(backlog.Empty() || isFuture) {
 			m, prio := backlog.Pop()
 			msg := m.(*istanbul.Message)
-			var view *istanbul.View
 			switch msg.Code {
-			case istanbul.MsgPreprepare:
-				var m *istanbul.Preprepare
-				err := msg.Decode(&m)
-				if err == nil {
-					view = m.View
-				}
-				// for istanbul.MsgRoundChange, istanbul.MsgPrepare and istanbul.MsgCommit cases
+			case istanbul.MsgPropose:
+				var m *istanbul.Node
+				msg.Decode(&m)
 			default:
-				var sub *istanbul.Subject
-				err := msg.Decode(&sub)
-				if err == nil {
-					view = sub.View
-				}
-			}
-			if view == nil {
-				logger.Debug("Nil view", "msg", msg)
-				continue
+				var m *istanbul.Vote
+				msg.Decode(&m)
+				// TODO
 			}
 			// Push back if it's a future message
-			err := c.checkMessage(msg.Code, view)
+			err := c.checkMessage(msg.Number)
 			if err != nil {
 				if err == errFutureMessage {
-					logger.Trace("Stop processing backlog", "msg", msg)
+					logger.Trace("Stop processing backlog", "message", msg)
 					backlog.Push(msg, prio)
 					isFuture = true
 					break
 				}
-				logger.Trace("Skip the backlog event", "msg", msg, "err", err)
+				logger.Trace("Skip the backlog event", "message", msg, "err", err)
 				continue
 			}
-			logger.Trace("Post backlog event", "msg", msg)
+			logger.Trace("Post backlog event", "message", msg)
 
 			go c.sendEvent(backlogEvent{
 				src: src,
@@ -146,15 +126,4 @@ func (c *core) processBacklog() {
 			})
 		}
 	}
-}
-
-func toPriority(msgCode uint64, view *istanbul.View) int64 {
-	if msgCode == istanbul.MsgRoundChange {
-		// For istanbul.MsgRoundChange, set the message priority based on its sequence
-		return -int64(view.Sequence.Uint64() * 1000)
-	}
-	// FIXME: round will be reset as 0 while new sequence
-	// 10 * Round limits the range of message code is from 0 to 9
-	// 1000 * Sequence limits the range of round is from 0 to 99
-	return -int64(view.Sequence.Uint64()*1000 + view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }

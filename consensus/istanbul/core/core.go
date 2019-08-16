@@ -18,18 +18,18 @@ package core
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
-	"math"
-	"math/big"
+	// "encoding/hex"
+	// "fmt"
+	// "math"
+	// "math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	// "github.com/ethereum/go-ethereum/core/types"
+	// "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -40,7 +40,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		state:              StateAcceptRequest,
 		handlerWg:          new(sync.WaitGroup),
 		logger:             log.New("address", backend.Address()),
 		backend:            backend,
@@ -62,7 +61,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 type core struct {
 	config  *istanbul.Config
 	address common.Address
-	state   State
 	logger  log.Logger
 
 	backend               istanbul.Backend
@@ -79,9 +77,6 @@ type core struct {
 
 	current   *roundState
 	handlerWg *sync.WaitGroup
-
-	roundChangeSet   *roundChangeSet
-	roundChangeTimer *time.Timer
 
 	pendingRequests   *prque.Prque
 	pendingRequestsMu *sync.Mutex
@@ -129,7 +124,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New()
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -153,74 +148,68 @@ func (c *core) isProposer() bool {
 }
 
 // TODO: rewrite
-func (c *core) commit() {
-	c.setState(StateCommitted)
+func (c *core) commit(block *istanbul.Node) {
+	// proposal := c.current.Proposal()
+	// bitmap := big.NewInt(0)
+	// publicKeys := [][]byte{}
+	// if proposal != nil {
+	// 	committedSeals := make([][]byte, c.current.Commits.Size())
+	// 	for i, v := range c.current.Commits.Values() {
+	// 		committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
+	// 		copy(committedSeals[i][:], v.CommittedSeal[:])
+	// 		j, err := c.current.Commits.GetAddressIndex(v.Address)
+	// 		if err != nil {
+	// 			panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+	// 		}
+	// 		publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
+	// 		if err != nil {
+	// 			panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
+	// 		}
 
-	proposal := c.current.Proposal()
-	bitmap := big.NewInt(0)
-	publicKeys := [][]byte{}
-	if proposal != nil {
-		committedSeals := make([][]byte, c.current.Commits.Size())
-		for i, v := range c.current.Commits.Values() {
-			committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
-			copy(committedSeals[i][:], v.CommittedSeal[:])
-			j, err := c.current.Commits.GetAddressIndex(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
-			}
-			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
-			}
+	// 		publicKeys = append(publicKeys, publicKey)
 
-			publicKeys = append(publicKeys, publicKey)
+	// 		bitmap.SetBit(bitmap, int(j), 1)
+	// 	}
+	// 	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	// 	if err != nil {
+	// 		panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
+	// 	}
 
-			bitmap.SetBit(bitmap, int(j), 1)
-		}
-		asig, err := blscrypto.AggregateSignatures(committedSeals)
-		if err != nil {
-			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
-		}
-
-		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
-			c.current.UnlockHash() //Unlock block when insertion fails
-			c.sendNextRoundChange()
-			return
-		}
-	}
+	// 	if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
+	// 		c.current.UnlockHash() //Unlock block when insertion fails
+	// 		c.sendNextRoundChange()
+	// 		return
+	// 	}
+	// }
 }
 
 func (c *core) Address() common.Address {
 	return c.address
 }
 
-func (c *core) stopFuturePreprepareTimer() {
-	if c.futurePreprepareTimer != nil {
-		c.futurePreprepareTimer.Stop()
-	}
-}
+// func (c *core) stopFuturePreprepareTimer() {
+// 	if c.futurePreprepareTimer != nil {
+// 		c.futurePreprepareTimer.Stop()
+// 	}
+// }
 
-func (c *core) stopTimer() {
-	c.stopFuturePreprepareTimer()
-	if c.roundChangeTimer != nil {
-		c.roundChangeTimer.Stop()
-	}
-}
+// func (c *core) stopTimer() {
+// 	c.stopFuturePreprepareTimer()
+// 	if c.roundChangeTimer != nil {
+// 		c.roundChangeTimer.Stop()
+// 	}
+// }
 
-func (c *core) newRoundChangeTimer() {
-	c.stopTimer()
+// func (c *core) newRoundChangeTimer() {
+// 	c.stopTimer()
 
-	// set timeout based on the round number
-	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := c.current.Round().Uint64()
-	if round > 0 {
-		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
-	}
+// 	// set timeout based on the round number
+// 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
 
-	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{})
-	})
-}
+// 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
+// 		c.sendEvent(timeoutEvent{})
+// 	})
+// }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.valSet, data, sig)
@@ -230,6 +219,6 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 func PrepareCommittedSeal(hash common.Hash) []byte {
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
+	// buf.Write([]byte{byte(istanbul.MsgCommit)}) : todo: why this here?
 	return buf.Bytes()
 }

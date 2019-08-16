@@ -274,7 +274,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -298,10 +298,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 		return 0, errInvalidUncleHash
 	}
 
-	// verify the header of proposed block
-	if block.Header().Coinbase != src.Address() {
-		return 0, errInvalidCoinbase
-	}
+	// verify the header of proposed block. Randomness fix V2
+	// if block.Header().Coinbase != src.Address() {
+	// 	return 0, errInvalidCoinbase
+	// }
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet

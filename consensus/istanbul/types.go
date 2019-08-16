@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -48,6 +47,7 @@ type Request struct {
 
 // Aggregated certificate for whatever is the hash.
 type QuorumCertificate struct {
+	// TODO: add parent height here
 	BlockHash   common.Hash
 	Bitmap      *big.Int
 	Certificate []byte
@@ -57,9 +57,9 @@ type QuorumCertificate struct {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes m into the Ethereum RLP format.
+// EncodeRLP serializes qc into the Ethereum RLP format.
 func (qc *QuorumCertificate) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{m.BlockHash, m.Bitmap, m.Certificate})
+	return rlp.Encode(w, []interface{}{qc.BlockHash, qc.Bitmap, qc.Certificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
@@ -89,20 +89,20 @@ type Vote struct {
 
 // EncodeRLP serializes m into the Ethereum RLP format.
 func (v *Vote) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{v.Proposal, v.PartialSig})
+	return rlp.Encode(w, []interface{}{v.Block, v.PartialSig})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (v *Vote) DecodeRLP(s *rlp.Stream) error {
 	var vote struct {
-		Proposal   Proposal
+		Block      Proposal
 		PartialSig []byte
 	}
 
 	if err := s.Decode(&vote); err != nil {
 		return err
 	}
-	v.Proposal, v.PartialSig = vote.Proposal, vote.PartialSig
+	v.Block, v.PartialSig = vote.Block, vote.PartialSig
 	return nil
 }
 
@@ -119,20 +119,20 @@ type Node struct {
 
 // EncodeRLP serializes m into the Ethereum RLP format.
 func (n *Node) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{n.Proposal, n.QuorumCertificate})
+	return rlp.Encode(w, []interface{}{n.Block, n.QuorumCertificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (n *Node) DecodeRLP(s *rlp.Stream) error {
 	var nn struct {
-		Proposal          Proposal
+		Block             Proposal
 		QuorumCertificate QuorumCertificate
 	}
 
-	if err := s.Decode(&proposal); err != nil {
+	if err := s.Decode(&nn); err != nil {
 		return err
 	}
-	n.Proposal, n.QuorumCertificate = nn.Proposal, nn.QuorumCertificate
+	n.Block, n.QuorumCertificate = nn.Block, nn.QuorumCertificate
 	return nil
 }
 
@@ -160,7 +160,7 @@ type Message struct {
 
 // EncodeRLP serializes m into the Ethereum RLP format.
 func (m *Message) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal})
+	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.

@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 	mrand "math/rand"
 	"strings"
 	"time"
@@ -44,12 +45,12 @@ type announceMessage struct {
 	Address               common.Address
 	IncompleteEnodeURL    string
 	EncryptedEndpointData [][][]byte
-	View                  *istanbul.View
+	Number                *big.Int
 	Signature             []byte
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{Address: %s, View: %v, IncompleteEnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.IncompleteEnodeURL, hex.EncodeToString(am.Signature))
+	return fmt.Sprintf("{Address: %s, Number: %v, IncompleteEnodeURL: %v, Signature: %v}", am.Address.String(), am.Number, am.IncompleteEnodeURL, hex.EncodeToString(am.Signature))
 }
 
 // ==============================================
@@ -58,7 +59,7 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.Number, am.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -67,14 +68,14 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 		Address               common.Address
 		IncompleteEnodeURL    string
 		EncryptedEndpointData [][][]byte
-		View                  *istanbul.View
+		Number                *big.Int
 		Signature             []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View, msg.Signature
+	am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.Number, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.Number, msg.Signature
 	return nil
 }
 
@@ -98,7 +99,7 @@ func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) err
 		Address:               am.Address,
 		IncompleteEnodeURL:    am.IncompleteEnodeURL,
 		EncryptedEndpointData: am.EncryptedEndpointData,
-		View:                  am.View,
+		Number:                am.Number,
 		Signature:             []byte{},
 	})
 	if err != nil {
@@ -115,7 +116,7 @@ func (am *announceMessage) VerifySig() error {
 		Address:               am.Address,
 		IncompleteEnodeURL:    am.IncompleteEnodeURL,
 		EncryptedEndpointData: am.EncryptedEndpointData,
-		View:                  am.View,
+		Number:                am.Number,
 		Signature:             []byte{},
 	})
 	if err != nil {
@@ -169,7 +170,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	}
 
 	enodeUrl := selfEnode.String()
-	view := sb.core.CurrentView()
+	number := sb.core.CurrentNumber()
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
 	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
@@ -208,7 +209,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		Address:               sb.Address(),
 		IncompleteEnodeURL:    incompleteEnodeUrl,
 		EncryptedEndpointData: encryptedEndpoints,
-		View:                  view,
+		Number:                number,
 	}
 
 	// Sign the announce message
@@ -312,7 +313,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
+		newValEnode := &validatorEnode{enodeURL: enodeUrl, number: msg.Number}
 		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
 			sb.logger.Error("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err

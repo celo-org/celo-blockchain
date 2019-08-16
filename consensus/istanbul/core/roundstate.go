@@ -17,26 +17,18 @@
 package core
 
 import (
-	"io"
 	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
 // lockedHash and preprepare are for round change when lock exists,
 // we need to keep a reference of preprepare in order to propose locked proposal when there is a lock and itself is the proposer
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, lockedHash common.Hash, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(validatorSet istanbul.ValidatorSet, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
-		round:          view.Round,
-		sequence:       view.Sequence,
-		Preprepare:     preprepare,
-		Prepares:       newMessageSet(validatorSet),
-		Commits:        newMessageSet(validatorSet),
-		lockedHash:     lockedHash,
 		mu:             new(sync.RWMutex),
 		pendingRequest: pendingRequest,
 		hasBadProposal: hasBadProposal,
@@ -63,38 +55,45 @@ type roundState struct {
 	hasBadProposal func(hash common.Hash) bool
 }
 
-func (s *roundState) PendingRequest() istanbul.Request {
+func (s *roundState) PendingRequest() *istanbul.Request {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return pendingRequest
+	return s.pendingRequest
 }
 
-func (s *roundState) HighestQC() istanbul.QuorumCertificate {
+func (s *roundState) HighestQC() *istanbul.QuorumCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return highestQC
+	return s.highestQC
 } 
 
 
 // Gets the node referred to by the QC in a given node
-func (s *roundState) QCParentNode(n *istanbul.Node) istanbul.Node {
+func (s *roundState) QCParentNode(n *istanbul.Node) *istanbul.Node {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return localBlocks[n.QuorumCertificate.BlockHash]
+	return s.localBlocks[n.QuorumCertificate.BlockHash]
 }
 
-func (s *roundState) UpdateHighestQC(qc *QuorumCertificate)
-{
+func (s *roundState) UpdateHighestQC(qc *istanbul.QuorumCertificate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if height <= voteHeight {
+	var height *big.Int
+	if  parent := s.localBlocks[qc.BlockHash]; parent != nil {
+		height = parent.Block.Number()
+	} else {
+		// TODO: no failure here
+		return
+	}
+
+	if height.Cmp(s.voteHeight) <= 0 {
 		// TOOD: panic
 		return
 	}
-	voteHeight = height
+	s.voteHeight = height
 }
 
 func (s *roundState) BuildNewHighestQC() {
@@ -109,35 +108,35 @@ func (s *roundState) SafeNode(proposal *istanbul.Node) error {
 	defer s.mu.RUnlock()
 
 	// Verifies that it extends the locked node OR quorum cert can override
-	if (proposal.Block.Number() <= c.current.VoteHeight) {
-		errAlreadyVotedAtOrAboveProposedBlock
+	if proposal.Block.Number().Cmp(s.voteHeight) <= 0 {
+		//return  errAlreadyVotedAtOrAboveProposedBlock
+		return errIgnored
 	}
 	extends := s.ExtendsLockedBlock(proposal)
 	var higher bool
-	if  parent := QCParentNode(proposal); parent != nil {
-		higher = parent.Number() > lockedBlock.Number()
+	if  parent := s.QCParentNode(proposal); parent != nil {
+		higher = parent.Block.Number().Cmp(s.lockedBlock.Block.Number()) > 0
 	} else {
 		higher = false
 	}
 	if extends || higher {
 		return nil
 	}
-	return errNoExtendOrPolka
+	// return errNoExtendOrPolka
+	return errIgnored
 }
 
-func (s *roundState) SetVoteHeight(height *big.Int)
-{
+func (s *roundState) SetVoteHeight(height *big.Int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if height <= voteHeight {
+	if height.Cmp(s.voteHeight) <= 0{
 		// TODO: panic
 		return
 	}
-	voteHeight = height
+	s.voteHeight = height
 }
 
-func (s *roundState) VoteHeight() *big.Int
-{
+func (s *roundState) VoteHeight() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -149,22 +148,22 @@ func (s *roundState) ExtendsLockedBlock(proposal *istanbul.Node) bool {
 	defer s.mu.RUnlock()
 
 	// Follow tree until it finds the locked block or nil. Assuming properly garbage collected.
-	for n := proposal; n != nil; n = localBlocks[n.Block.ParentHash()] {
-		if n.Block.Hash() == lockedBlock.Block.Hash() {
+	for n := proposal; n != nil; n = s.localBlocks[n.Block.ParentHash()] {
+		if n.Block.Hash() == s.lockedBlock.Block.Hash() {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *roundState) SetLockedBlock() {
+func (s *roundState) SetLockedBlock(block *istanbul.Node) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.lockedBlock
+	s.lockedBlock = block
 }
 
-func (s *roundState) LockedBlock() {
+func (s *roundState) LockedBlock() *istanbul.Node {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -188,31 +187,6 @@ func (s *roundState) SetNumber(n *big.Int) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-func (s *roundState) IsHashLocked() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if (s.lockedHash == common.Hash{}) {
-		return false
-	}
-	// TODO: why bad proposal?
-	return !s.hasBadProposal(s.GetLockedHash())
-}
 
 // // The DecodeRLP method should read one value from the given
 // // Stream. It is not forbidden to read less or more, but it might

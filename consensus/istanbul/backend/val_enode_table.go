@@ -18,6 +18,7 @@ package backend
 
 import (
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,11 +29,11 @@ import (
 // Entries for the valEnodeTable
 type validatorEnode struct {
 	enodeURL string
-	view     *istanbul.View
+	number	 *big.Int
 }
 
 func (ve *validatorEnode) String() string {
-	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
+	return fmt.Sprintf("{enodeURL: %v, number: %v}", ve.enodeURL, ve.number)
 }
 
 type validatorEnodeTable struct {
@@ -87,11 +88,11 @@ func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode
 
 	if oldValEnode := vet.getUsingAddress(remoteAddress); oldValEnode != nil {
 		// If it is an old message, ignore it.
-		if newValEnode.view.Cmp(oldValEnode.view) <= 0 {
+		if newValEnode.number.Cmp(oldValEnode.number) <= 0 {
 			return errOldAnnounceMessage
 		} else {
 			// Check if the valEnodeEntry has been changed
-			if (newValEnode.enodeURL != oldValEnode.enodeURL) || (newValEnode.view.Cmp(oldValEnode.view) > 0) {
+			if (newValEnode.enodeURL != oldValEnode.enodeURL) || (newValEnode.number.Cmp(oldValEnode.number) > 0) {
 				if newValEnode.enodeURL != oldValEnode.enodeURL {
 					vet.reverseValEnodeTable[newValEnode.enodeURL] = remoteAddress
 					delete(vet.reverseValEnodeTable, oldValEnode.enodeURL)

@@ -19,7 +19,7 @@ package core
 import "github.com/ethereum/go-ethereum/consensus/istanbul"
 
 func (c *core) handleRequest(request *istanbul.Request) error {
-	logger := c.logger.New("state", c.state, "seq", c.current.sequence)
+	logger := c.logger.New()
 
 	if err := c.checkRequestMsg(request); err != nil {
 		if err == errInvalidMessage {
@@ -32,10 +32,9 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 
 	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
+	// TODO: lock here
 	c.current.pendingRequest = request
-	if c.state == StateAcceptRequest {
-		c.sendPreprepare(request)
-	}
+	// TODO: broadcast
 	return nil
 }
 
@@ -48,7 +47,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 		return errInvalidMessage
 	}
 
-	if c := c.current.sequence.Cmp(request.Proposal.Number()); c > 0 {
+	if c := c.current.Number().Cmp(request.Proposal.Number()); c > 0 {
 		return errOldMessage
 	} else if c < 0 {
 		return errFutureMessage
@@ -58,7 +57,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 }
 
 func (c *core) storeRequestMsg(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New()
 
 	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 

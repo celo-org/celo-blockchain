@@ -17,15 +17,13 @@
 package core
 
 import (
-	"reflect"
+	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendVote(vote *istanbul.Vote) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("func", "sendVote")
 
 	encodedVote, err := Encode(vote)
 	if err != nil {
@@ -39,13 +37,13 @@ func (c *core) sendVote(vote *istanbul.Vote) {
 }
 
 func (c *core) broadcastNextProposal() {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("func", "broadcastNextProposal")
 
 	// TODO: Increment Height somewhere??
 	req := c.current.PendingRequest()
 	proposal := &istanbul.Node{
 		Block: req.Proposal,
-		QuorumCertificate: c.current.HighestQC(),
+		QuorumCertificate: *(c.current.HighestQC()),
 	}
 	encodedProposal, err := Encode(proposal)
 	if err != nil {
@@ -63,14 +61,14 @@ func (c *core) broadcastNextProposal() {
 
 // Handle a new block
 func (c *core) update(block *istanbul.Node) {
-	preCommitBlock := c.QCParentNode(block)        // b'' (Proposal type)
-	commitBlock := c.QCParentNode(preCommitBlock)  // b'
-	decideBlock := c.QCParentNode(commitBlock)     // b
+	preCommitBlock := c.current.QCParentNode(block)        // b'' (Proposal type)
+	commitBlock := c.current.QCParentNode(preCommitBlock)  // b'
+	decideBlock := c.current.QCParentNode(commitBlock)     // b
 
 	// PRE-COMMIT phase b''
 	c.current.UpdateHighestQC(&block.QuorumCertificate)
 	// COMMIT phase on b'
-	if preCommitBlock.Block.Number() > c.current.LockedBlock.Number() {
+	if preCommitBlock.Block.Number().Cmp(c.current.LockedBlock().Block.Number()) > 0 {
 		c.current.SetLockedBlock(commitBlock)
 	}
 	// DECIDE phase on b
@@ -89,7 +87,8 @@ func (c *core) handleVote(msg *istanbul.Message) error {
 	var vote *istanbul.Vote
 	err := msg.Decode(&vote)
 	if err != nil {
-		return errFailedDecodeVote
+		// return errFailedDecodeVote
+		return errInvalidValidatorAddress
 	}
 
 	// TODO: Reject based on number earliers on?
@@ -133,15 +132,16 @@ func (c *core) acceptVote(msg *istanbul.Message) error {
 
 func (c *core) handleProposal(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "func", "handleProposal")
-	var block *istanbul.NewBlock
-	err := msg.Decode(&proposal)
+	var block *istanbul.Node
+	err := msg.Decode(&block)
 	if err != nil {
-		logger.Error("Failed to decode proposal")
-		return errFailedDecodeVote
+		logger.Error("Failed to decode proposed block and QC.")
+		// return errFailedDecodeProposalBlock
+		return errNotFromProposer
 	}
 
 	// TODO: Reject based on number earliers on?
-	if err := c.checkMessage(istanbul.MsgView, msg.Number); err != nil {
+	if err := c.checkMessage(msg.Number); err != nil {
 		return err
 	}
 
@@ -151,31 +151,30 @@ func (c *core) handleProposal(msg *istanbul.Message) error {
 		return errNotFromProposer
 	}
 
-	// Verify the proposal we received
-	if duration, err := c.backend.Verify(preprepare.Proposal, src); err != nil {
+	// Verify the proposal we received. TODO: more checking here.
+	if duration, err := c.backend.Verify(block.Block); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
-		if err == consensus.ErrFutureBlock {
-			c.stopFuturePreprepareTimer()
+		if err == errFutureMessage {
+			// c.stopFuturePreprepareTimer()
 			c.futurePreprepareTimer = time.AfterFunc(duration, func() {
 				c.sendEvent(backlogEvent{
-					src: src,
 					msg: msg,
 				})
 			})
-		} else {
-			c.sendNextRoundChange()
 		}
 		return err
 	}
 
-	// TODO: local update here
+	// TODO: what happens when update is not a safe node
+	c.update(block)
 
-	if err := c.SafeNode(commit); err != nil {
+	if err := c.current.SafeNode(block); err != nil {
 		return err
 	}
 
-	sendVote() // TODO: params here
+	// TODO: generate vote here
+	c.sendVote(nil) // TODO: params here
 
 	return nil
 }
