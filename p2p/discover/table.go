@@ -26,6 +26,7 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	mrand "math/rand"
 	"net"
@@ -722,6 +723,33 @@ func (tab *Table) bumpInBucket(b *bucket, n *node) bool {
 func (tab *Table) deleteInBucket(b *bucket, n *node) {
 	b.entries = deleteNode(b.entries, n)
 	tab.removeIP(b, n.IP())
+}
+
+// GetAllBucketInfo gives information on all the buckets in the Table
+func (tab *Table) GetAllBucketInfo() ([]interface{}, error) {
+	bucketInfo := make([]interface{}, nBuckets)
+	var err error
+	for i := 0; i < nBuckets; i++ {
+		bucketInfo[i], err = tab.GetBucketInfo(i)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bucketInfo, nil
+}
+
+// GetBucketInfo gives information on the bucket at a given index in the Table
+func (tab *Table) GetBucketInfo(index int) (interface{}, error) {
+	if index < 0 || index >= nBuckets {
+		return nil, errors.New("Index out of bounds")
+	}
+	return struct {
+		Entries []*node
+		Replacements []*node
+	}{
+		Entries: tab.buckets[index].entries,
+		Replacements: tab.buckets[index].replacements,
+	}, nil
 }
 
 func contains(ns []*node, id enode.ID) bool {

@@ -400,6 +400,18 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
+// GetAllDiscoveryBucketInfo gets information on all the buckets in the
+// discovery table
+func (srv *Server) GetAllDiscoveryBucketInfo() ([]interface{}, error) {
+	return srv.ntab.GetAllBucketInfo()
+}
+
+// GetDiscoveryBucketInfo gets information on a particular bucket in the
+// discovery table
+func (srv *Server) GetDiscoveryBucketInfo(index int) (interface{}, error) {
+	return srv.ntab.GetBucketInfo(index)
+}
+
 // Stop terminates the server and all active peer connections.
 // It blocks until all active connections have been closed.
 func (srv *Server) Stop() {

@@ -176,6 +176,15 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
+			name: 'getAllDiscoveryBuckets',
+			call: 'admin_getAllDiscoveryBuckets'
+		}),
+		new web3._extend.Method({
+			name: 'getDiscoveryBucket',
+			call: 'admin_getDiscoveryBucket',
+			params: 1
+		}),
+		new web3._extend.Method({
 			name: 'sleepBlocks',
 			call: 'admin_sleepBlocks',
 			params: 2

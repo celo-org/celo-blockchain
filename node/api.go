@@ -260,6 +260,27 @@ func (api *PrivateAdminAPI) StopWS() (bool, error) {
 	return true, nil
 }
 
+// GetAllDiscoveryBuckets gives the content of all buckets in the p2p discovery table
+func (api *PrivateAdminAPI) GetAllDiscoveryBuckets() ([]interface{}, error) {
+	// Make sure the server is running, fail otherwise
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.GetAllDiscoveryBucketInfo()
+}
+
+// GetDiscoveryBucket gives the content of a p2p discovery bucket at a given
+// index in the discovery table
+func (api *PrivateAdminAPI) GetDiscoveryBucket(index int) (interface{}, error) {
+	// Make sure the server is running, fail otherwise
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.GetDiscoveryBucketInfo(index)
+}
+
 // PublicAdminAPI is the collection of administrative API methods exposed over
 // both secure and unsecure RPC channels.
 type PublicAdminAPI struct {
