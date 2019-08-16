@@ -164,14 +164,12 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	}
 
 	switch msg.Code {
-	case istanbul.MsgPreprepare:
-		return testBacklog(c.handlePreprepare(msg, src))
-	case istanbul.MsgPrepare:
-		return testBacklog(c.handlePrepare(msg, src))
-	case istanbul.MsgCommit:
-		return testBacklog(c.handleCommit(msg, src))
-	case istanbul.MsgRoundChange:
-		return testBacklog(c.handleRoundChange(msg, src))
+	case istanbul.MsgPropose:
+		return testBacklog(c.handleProposal(msg))
+	case istanbul.MsgVote:
+		return testBacklog(c.handleVote(msg))
+	case istanbul.MsgNewView:
+		return testBacklog(c.handleNewView(msg))
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}
@@ -180,22 +178,5 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutMsg() {
-	// If we're not waiting for round change yet, we can try to catch up
-	// the max round with F+1 round change message. We only need to catch up
-	// if the max round is larger than current round.
-	if !c.waitingForRoundChange {
-		maxRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-		if maxRound != nil && maxRound.Cmp(c.current.Round()) > 0 {
-			c.sendRoundChange(maxRound)
-			return
-		}
-	}
-
-	lastProposal, _ := c.backend.LastProposal()
-	if lastProposal != nil && lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
-		c.logger.Trace("round change timeout, catch up latest sequence", "number", lastProposal.Number().Uint64())
-		c.startNewRound(common.Big0)
-	} else {
-		c.sendNextRoundChange()
-	}
+	// TODO(Joshua)
 }

@@ -34,6 +34,9 @@ type Proposal interface {
 	// Hash retrieves the hash of this proposal.
 	Hash() common.Hash
 
+	// ParentHash retrieves the hash of the parent of the proposal.
+	ParentHash() common.Hash
+
 	EncodeRLP(w io.Writer) error
 
 	DecodeRLP(s *rlp.Stream) error
@@ -43,121 +46,113 @@ type Request struct {
 	Proposal Proposal
 }
 
-// View includes a round number and a sequence number.
-// Sequence is the block number we'd like to commit.
-// Each round has a number and is composed by 3 steps: preprepare, prepare and commit.
+// Aggregated certificate for whatever is the hash.
+type QuorumCertificate struct {
+	BlockHash   common.Hash
+	Bitmap      *big.Int
+	Certificate []byte
+}
+
+// ==============================================
 //
-// If the given block is not accepted by validators, a round change will occur
-// and the validators start a new round with round+1.
-type View struct {
-	Round    *big.Int
-	Sequence *big.Int
-}
+// define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (v *View) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{v.Round, v.Sequence})
+// EncodeRLP serializes m into the Ethereum RLP format.
+func (qc *QuorumCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{m.BlockHash, m.Bitmap, m.Certificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (v *View) DecodeRLP(s *rlp.Stream) error {
-	var view struct {
-		Round    *big.Int
-		Sequence *big.Int
+func (qc *QuorumCertificate) DecodeRLP(s *rlp.Stream) error {
+	var cert struct {
+		BlockHash   common.Hash  
+		Bitmap      *big.Int
+		Certificate []byte
 	}
 
-	if err := s.Decode(&view); err != nil {
+	if err := s.Decode(&cert); err != nil {
 		return err
 	}
-	v.Round, v.Sequence = view.Round, view.Sequence
+	qc.BlockHash, qc.Bitmap, qc.Certificate = cert.BlockHash, cert.Bitmap, cert.Certificate
 	return nil
 }
 
-func (v *View) String() string {
-	return fmt.Sprintf("{Round: %d, Sequence: %d}", v.Round.Uint64(), v.Sequence.Uint64())
+// Responds to MsgPropose/NewBlock with a partial signature if accepted to the next proposer
+type Vote struct {
+	Block      Proposal
+	PartialSig []byte
 }
 
-// Cmp compares v and y and returns:
-//   -1 if v <  y
-//    0 if v == y
-//   +1 if v >  y
-func (v *View) Cmp(y *View) int {
-	if v.Sequence.Cmp(y.Sequence) != 0 {
-		return v.Sequence.Cmp(y.Sequence)
-	}
-	if v.Round.Cmp(y.Round) != 0 {
-		return v.Round.Cmp(y.Round)
-	}
-	return 0
-}
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
 
-type Preprepare struct {
-	View     *View
-	Proposal Proposal
-}
-
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (b *Preprepare) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.View, b.Proposal})
+// EncodeRLP serializes m into the Ethereum RLP format.
+func (v *Vote) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{v.Proposal, v.PartialSig})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (b *Preprepare) DecodeRLP(s *rlp.Stream) error {
-	var preprepare struct {
-		View     *View
-		Proposal *types.Block
+func (v *Vote) DecodeRLP(s *rlp.Stream) error {
+	var vote struct {
+		Proposal   Proposal
+		PartialSig []byte
 	}
 
-	if err := s.Decode(&preprepare); err != nil {
+	if err := s.Decode(&vote); err != nil {
 		return err
 	}
-	b.View, b.Proposal = preprepare.View, preprepare.Proposal
-
+	v.Proposal, v.PartialSig = vote.Proposal, vote.PartialSig
 	return nil
 }
 
-type Subject struct {
-	View   *View
-	Digest common.Hash
+// Proposal message with the new block and a QC for the highest seen block
+type Node struct {
+	Block             Proposal
+	QuorumCertificate QuorumCertificate
 }
 
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (b *Subject) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.View, b.Digest})
+
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
+
+// EncodeRLP serializes m into the Ethereum RLP format.
+func (n *Node) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{n.Proposal, n.QuorumCertificate})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (b *Subject) DecodeRLP(s *rlp.Stream) error {
-	var subject struct {
-		View   *View
-		Digest common.Hash
+func (n *Node) DecodeRLP(s *rlp.Stream) error {
+	var nn struct {
+		Proposal          Proposal
+		QuorumCertificate QuorumCertificate
 	}
 
-	if err := s.Decode(&subject); err != nil {
+	if err := s.Decode(&proposal); err != nil {
 		return err
 	}
-	b.View, b.Digest = subject.View, subject.Digest
+	n.Proposal, n.QuorumCertificate = nn.Proposal, nn.QuorumCertificate
 	return nil
 }
 
-func (b *Subject) String() string {
-	return fmt.Sprintf("{View: %v, Digest: %v}", b.View, b.Digest.String())
-}
 
 const (
-	MsgPreprepare uint64 = iota
-	MsgPrepare
-	MsgCommit
-	MsgRoundChange
+	MsgPropose uint64 = iota
+	MsgVote
+	MsgNewView
 )
 
+// Messages must be signed & include current view number
 type Message struct {
 	Code          uint64
+	Number        *big.Int
 	Msg           []byte
 	Address       common.Address
 	Signature     []byte
-	CommittedSeal []byte
 }
+
+
 
 // ==============================================
 //
@@ -175,13 +170,12 @@ func (m *Message) DecodeRLP(s *rlp.Stream) error {
 		Msg           []byte
 		Address       common.Address
 		Signature     []byte
-		CommittedSeal []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal = msg.Code, msg.Msg, msg.Address, msg.Signature, msg.CommittedSeal
+	m.Code, m.Msg, m.Address, m.Signature = msg.Code, msg.Msg, msg.Address, msg.Signature
 	return nil
 }
 
@@ -220,7 +214,6 @@ func (m *Message) PayloadNoSig() ([]byte, error) {
 		Msg:           m.Msg,
 		Address:       m.Address,
 		Signature:     []byte{},
-		CommittedSeal: m.CommittedSeal,
 	})
 }
 

@@ -72,7 +72,6 @@ type core struct {
 	futurePreprepareTimer *time.Timer
 
 	valSet                istanbul.ValidatorSet
-	waitingForRoundChange bool
 	validateFn            func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
@@ -87,6 +86,7 @@ type core struct {
 	pendingRequests   *prque.Prque
 	pendingRequestsMu *sync.Mutex
 
+	// TODO: start recording this again
 	consensusTimestamp time.Time
 	// the meter to record the round change rate
 	roundMeter metrics.Meter
@@ -101,21 +101,13 @@ func (c *core) SetAddress(address common.Address) {
 	c.logger = log.New("address", address)
 }
 
+
+
 func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	var err error
-	// Add sender address
+	// Add sender address & current view number.
 	msg.Address = c.Address()
-
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
-		if err != nil {
-			return nil, err
-		}
-	}
+	msg.Number = c.current.Number()
 
 	// Sign message
 	data, err := msg.PayloadNoSig()
@@ -152,13 +144,6 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 }
 
-func (c *core) currentView() *istanbul.View {
-	return &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Set(c.current.Round()),
-	}
-}
-
 func (c *core) isProposer() bool {
 	v := c.valSet
 	if v == nil {
@@ -167,6 +152,7 @@ func (c *core) isProposer() bool {
 	return v.IsProposer(c.backend.Address())
 }
 
+// TODO: rewrite
 func (c *core) commit() {
 	c.setState(StateCommitted)
 
@@ -202,124 +188,6 @@ func (c *core) commit() {
 			return
 		}
 	}
-}
-
-// startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
-func (c *core) startNewRound(round *big.Int) {
-	var logger log.Logger
-	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0)
-	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
-	}
-
-	roundChange := false
-	// Try to get last proposal
-	lastProposal, lastProposer := c.backend.LastProposal()
-	if c.current == nil {
-		logger.Trace("Start to the initial round")
-	} else if lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
-		diff := new(big.Int).Sub(lastProposal.Number(), c.current.Sequence())
-		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
-
-		if !c.consensusTimestamp.IsZero() {
-			c.consensusTimer.UpdateSince(c.consensusTimestamp)
-			c.consensusTimestamp = time.Time{}
-		}
-		logger.Trace("Catch up latest proposal", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
-	} else if lastProposal.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
-		if round.Cmp(common.Big0) == 0 {
-			// same seq and round, don't need to start new round
-			return
-		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
-			return
-		}
-		roundChange = true
-	} else {
-		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastProposal.Number().Int64())
-		return
-	}
-
-	var newView *istanbul.View
-	if roundChange {
-		newView = &istanbul.View{
-			Sequence: new(big.Int).Set(c.current.Sequence()),
-			Round:    new(big.Int).Set(round),
-		}
-	} else {
-		newView = &istanbul.View{
-			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
-			Round:    new(big.Int),
-		}
-		c.valSet = c.backend.Validators(lastProposal)
-	}
-
-	// Update logger
-	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// Clear invalid ROUND CHANGE messages
-	c.roundChangeSet = newRoundChangeSet(c.valSet)
-	// New snapshot for new round
-	c.updateRoundState(newView, c.valSet, roundChange)
-	// Calculate new proposer
-	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForRoundChange = false
-	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil {
-		// If it is locked, propose the old proposal
-		// If we have pending request, propose pending request
-		if c.current.IsHashLocked() {
-			r := &istanbul.Request{
-				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
-			}
-			c.sendPreprepare(r)
-		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest)
-		}
-	}
-	c.newRoundChangeTimer()
-
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
-}
-
-func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer())
-
-	if view.Round.Cmp(c.current.Round()) > 0 {
-		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
-	}
-	c.waitingForRoundChange = true
-
-	// Need to keep block locked for round catching up
-	c.updateRoundState(view, c.valSet, true)
-	c.roundChangeSet.Clear(view.Round)
-	c.newRoundChangeTimer()
-
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
-}
-
-// updateRoundState updates round state by checking if locking block is necessary
-func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
-	// Lock only if both roundChange is true and it is locked
-	if roundChange && c.current != nil {
-		if c.current.IsHashLocked() {
-			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
-		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
-		}
-	} else {
-		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)
-	}
-}
-
-func (c *core) setState(state State) {
-	if c.state != state {
-		c.state = state
-	}
-	if state == StateAcceptRequest {
-		c.processPendingRequests()
-	}
-	c.processBacklog()
 }
 
 func (c *core) Address() common.Address {
