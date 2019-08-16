@@ -19,12 +19,19 @@ package core
 import (
 	"time"
 
+	// "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) sendVote(vote *istanbul.Vote) {
+func (c *core) sendVote(block *istanbul.Proposal) {
 	logger := c.logger.New("func", "sendVote")
-
+	// TODO: figure out how to sign this:
+	sig, err := c.backend.SignBlockHeader(block.Header())
+	vote := &istanbul.Vote {
+		Block: *block,
+		// TODO: double check that block can be cast like this
+		PartialSig: sig,
+	}
 	encodedVote, err := Encode(vote)
 	if err != nil {
 		logger.Error("Failed to encode", "vote", vote)
@@ -173,8 +180,7 @@ func (c *core) handleProposal(msg *istanbul.Message) error {
 		return err
 	}
 
-	// TODO: generate vote here
-	c.sendVote(nil) // TODO: params here
+	c.sendVote(&block.Block)
 
 	return nil
 }
