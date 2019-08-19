@@ -40,7 +40,7 @@ func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	encodedSubject, err := Encode(sub)
 	if err != nil {

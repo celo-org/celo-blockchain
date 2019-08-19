@@ -76,7 +76,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", msg.Address, "state", c.state)
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "storeBacklog")
 
 	if msg.Address == c.Address() {
 		logger.Warn("Backlog from self")
@@ -119,7 +119,7 @@ func (c *core) processBacklog() {
 			continue
 		}
 
-		logger := c.logger.New("from", src, "state", c.state)
+		logger := c.logger.New("from", src, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "processBacklog")
 		isFuture := false
 
 		// We stop processing if

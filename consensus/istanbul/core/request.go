@@ -19,7 +19,12 @@ package core
 import "github.com/ethereum/go-ethereum/consensus/istanbul"
 
 func (c *core) handleRequest(request *istanbul.Request) error {
-	logger := c.logger.New("state", c.state, "seq", c.current.sequence)
+	logger := c.logger.New("state", c.state, "func", "handleRequest")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	if err := c.checkRequestMsg(request); err != nil {
 		if err == errInvalidMessage {
@@ -58,7 +63,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 }
 
 func (c *core) storeRequestMsg(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_seq", c.current.Sequence(), "cur_round", c.current.Round(), "func", "storeRequestMsg")
 
 	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 

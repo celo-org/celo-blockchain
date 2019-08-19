@@ -132,7 +132,12 @@ func (c *core) sendEvent(ev interface{}) {
 }
 
 func (c *core) handleMsg(payload []byte) error {
-	logger := c.logger.New()
+	logger := c.logger.New("func", "handleMsg")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
@@ -152,7 +157,12 @@ func (c *core) handleMsg(payload []byte) error {
 }
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("address", c.address, "from", msg.Address)
+	logger := c.logger.New("address", c.address, "from", msg.Address, "func", "handleCheckedMsg")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	// Store the message if it's a future message
 	testBacklog := func(err error) error {
@@ -181,6 +191,11 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 func (c *core) handleTimeoutMsg() {
 	logger := c.logger.New("func", "handleTimeoutMsg")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 	// If we're not waiting for round change yet, we can try to catch up
 	// the max round with F+1 round change message. We only need to catch up
 	// if the max round is larger than current round.

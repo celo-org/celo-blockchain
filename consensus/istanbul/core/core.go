@@ -137,7 +137,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -207,9 +207,9 @@ func (c *core) commit() {
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
 	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0, "func", "startNewRound", "tag", "stateTransition")
+		logger = c.logger.New("cur_round", -1, "cur_seq", 0, "next_round", 0, "next_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
+		logger = c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	roundChange := false
@@ -231,7 +231,7 @@ func (c *core) startNewRound(round *big.Int) {
 			// same seq and round, don't need to start new round
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
+			logger.Warn("New round should not be smaller than current round", "lastProposalNumber", lastProposal.Number().Int64(), "new_round", round)
 			return
 		}
 		roundChange = true
@@ -251,7 +251,7 @@ func (c *core) startNewRound(round *big.Int) {
 		var err error
 		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "seq", c.current.Sequence(), "new_round", round, "old_round", c.current.Round())
+			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
 			return
 		}
 	} else {
@@ -289,7 +289,7 @@ func (c *core) startNewRound(round *big.Int) {
 }
 
 func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer(), "func", "catchUpRound")
+	logger := c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer(), "func", "catchUpRound")
 
 	if view.Round.Cmp(c.current.Round()) > 0 {
 		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
