@@ -89,6 +89,9 @@ jobs:
             # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn || yarn
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/utils build
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/walletkit build
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/celotool build
       - persist_to_workspace:
           root: .
           paths: .
