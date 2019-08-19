@@ -176,13 +176,13 @@ type conn interface {
 
 // udp implements the discovery v4 UDP wire protocol.
 type udp struct {
-	conn        conn
-	netrestrict *netutil.Netlist
-	priv        *ecdsa.PrivateKey
-	localNode   *enode.LocalNode
-	db          *enode.DB
-	tab         *Table
-	wg          sync.WaitGroup
+	conn             conn
+	netrestrict      *netutil.Netlist
+	priv             *ecdsa.PrivateKey
+	localNode        *enode.LocalNode
+	db               *enode.DB
+	tab              *Table
+	wg               sync.WaitGroup
 	pingIPFromPacket bool
 
 	addReplyMatcher chan *replyMatcher
@@ -242,7 +242,7 @@ type ReadPacket struct {
 type Config struct {
 	// These settings are required and configure the UDP listener:
 	PingIPFromPacket bool
-	PrivateKey *ecdsa.PrivateKey
+	PrivateKey       *ecdsa.PrivateKey
 
 	// These settings are optional:
 	NetRestrict *netutil.Netlist  // network whitelist
@@ -261,15 +261,15 @@ func ListenUDP(c conn, ln *enode.LocalNode, cfg Config) (*Table, error) {
 
 func newUDP(c conn, ln *enode.LocalNode, cfg Config) (*Table, *udp, error) {
 	udp := &udp{
-		conn:            c,
-		priv:            cfg.PrivateKey,
-		netrestrict:     cfg.NetRestrict,
-		localNode:       ln,
-		db:              ln.Database(),
+		conn:             c,
+		priv:             cfg.PrivateKey,
+		netrestrict:      cfg.NetRestrict,
+		localNode:        ln,
+		db:               ln.Database(),
 		pingIPFromPacket: cfg.PingIPFromPacket,
-		closing:         make(chan struct{}),
-		gotreply:        make(chan reply),
-		addReplyMatcher: make(chan *replyMatcher),
+		closing:          make(chan struct{}),
+		gotreply:         make(chan reply),
+		addReplyMatcher:  make(chan *replyMatcher),
 	}
 	tab, err := newTable(udp, ln.Database(), cfg.Bootnodes)
 	if err != nil {

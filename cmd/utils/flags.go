@@ -560,7 +560,7 @@ var (
 		Usage: "Restricts network communication to the given IP networks (CIDR masks)",
 	}
 	PingIPFromPacketFlag = cli.StringFlag{
-		Name: "ping-ip-from-packet",
+		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
 

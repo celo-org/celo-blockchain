@@ -591,10 +591,10 @@ func (srv *Server) setupDiscovery() error {
 		}
 		cfg := discover.Config{
 			PingIPFromPacket: srv.PingIPFromPacket,
-			PrivateKey:  srv.PrivateKey,
-			NetRestrict: srv.NetRestrict,
-			Bootnodes:   srv.BootstrapNodes,
-			Unhandled:   unhandled,
+			PrivateKey:       srv.PrivateKey,
+			NetRestrict:      srv.NetRestrict,
+			Bootnodes:        srv.BootstrapNodes,
+			Unhandled:        unhandled,
 		}
 		ntab, err := discover.ListenUDP(conn, srv.localnode, cfg)
 		if err != nil {
