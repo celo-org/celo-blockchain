@@ -559,7 +559,7 @@ var (
 		Name:  "netrestrict",
 		Usage: "Restricts network communication to the given IP networks (CIDR masks)",
 	}
-	PingIPFromPacketFlag = cli.StringFlag{
+	PingIPFromPacketFlag = cli.BoolFlag{
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
