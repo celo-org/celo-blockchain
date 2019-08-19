@@ -84,15 +84,15 @@ type Table struct {
 }
 
 type bucketInfo struct {
-	Entries			[]*node	`json:"entries"`
-	Replacements 	[]*node	`json:"replacements"`
-	IPs				string	`json:"ips"`
+	Entries      []*node `json:"entries"`
+	Replacements []*node `json:"replacements"`
+	IPs          string  `json:"ips"`
 }
 
 // TableInfo provides information on the discovery table
 type TableInfo struct {
-	Buckets	[nBuckets]*bucketInfo	`json:"buckets"`
-	IPs		string					`json:"ips"`
+	Buckets [nBuckets]*bucketInfo `json:"buckets"`
+	IPs     string                `json:"ips"`
 }
 
 // transport is implemented by the UDP transport.
@@ -741,14 +741,14 @@ func (tab *Table) Info() *TableInfo {
 	var buckets [nBuckets]*bucketInfo
 	for i := 0; i < nBuckets; i++ {
 		buckets[i] = &bucketInfo{
-			Entries: tab.buckets[i].entries,
+			Entries:      tab.buckets[i].entries,
 			Replacements: tab.buckets[i].replacements,
-			IPs: tab.buckets[i].ips.String(),
+			IPs:          tab.buckets[i].ips.String(),
 		}
 	}
 	return &TableInfo{
 		Buckets: buckets,
-		IPs: tab.ips.String(),
+		IPs:     tab.ips.String(),
 	}
 }
 
