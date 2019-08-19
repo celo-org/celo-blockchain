@@ -183,6 +183,7 @@ type udp struct {
 	db          *enode.DB
 	tab         *Table
 	wg          sync.WaitGroup
+	pingIPFromPacket bool
 
 	addReplyMatcher chan *replyMatcher
 	gotreply        chan reply
@@ -240,6 +241,7 @@ type ReadPacket struct {
 // Config holds Table-related settings.
 type Config struct {
 	// These settings are required and configure the UDP listener:
+	PingIPFromPacket bool
 	PrivateKey *ecdsa.PrivateKey
 
 	// These settings are optional:
@@ -264,6 +266,7 @@ func newUDP(c conn, ln *enode.LocalNode, cfg Config) (*Table, *udp, error) {
 		netrestrict:     cfg.NetRestrict,
 		localNode:       ln,
 		db:              ln.Database(),
+		pingIPFromPacket: cfg.PingIPFromPacket,
 		closing:         make(chan struct{}),
 		gotreply:        make(chan reply),
 		addReplyMatcher: make(chan *replyMatcher),
@@ -651,9 +654,11 @@ func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey e
 
 func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) {
 	// Reply.
-	senderFrom := from.IP
-	if req.From.IP != nil && !req.From.IP.IsLoopback() {
-		senderFrom = req.From.IP
+	senderIP := from.IP
+	senderPort := from.Port
+	if req.From.IP != nil && !req.From.IP.IsLoopback() && t.pingIPFromPacket {
+		senderIP = req.From.IP
+		senderPort = int(req.From.UDP)
 	}
 
 	t.send(from, fromID, pongPacket, &pong{
@@ -663,7 +668,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) 
 	})
 
 	// Ping back if our last pong on file is too far in the past.
-	n := wrapNode(enode.NewV4(req.senderKey, senderFrom, int(req.From.TCP), int(req.From.UDP)))
+	n := wrapNode(enode.NewV4(req.senderKey, senderIP, int(req.From.TCP), senderPort))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
 		t.sendPing(fromID, from, func() {
 			t.tab.addVerifiedNode(n)
