@@ -128,12 +128,14 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	}
 
 	c.acceptPrepare(msg)
-	logger.Trace("Accepted prepare", "Number of prepares or commits", c.current.GetPrepareOrCommitSize())
+	preparesAndCommits := c.current.GetPrepareOrCommitSize()
+	minQuorumSize := c.valSet.MinQuorumSize()
+	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
-	if (c.current.GetPrepareOrCommitSize() >= c.valSet.MinQuorumSize()) && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.MinQuorumSize()); err != nil {
+	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
+		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)

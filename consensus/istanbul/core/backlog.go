@@ -78,10 +78,10 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "func", "storeBacklog")
 	if c.current != nil {
-               logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-       } else {
-               logger = logger.New("cur_seq", 0, "cur_round", -1)
-       }
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	if msg.Address == c.Address() {
 		logger.Warn("Backlog from self")
