@@ -104,7 +104,7 @@ type Engine interface {
 	CalcDifficulty(chain ChainReader, time uint64, parent *types.Header) *big.Int
 
 	// GetValidators returns the list of current validators.
-	GetValidators(proposal istanbul.Proposal) []istanbul.Validator
+	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainReader) []rpc.API

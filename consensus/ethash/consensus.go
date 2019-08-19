@@ -81,7 +81,7 @@ func (ethash *Ethash) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
-func (ethash *Ethash) GetValidators(proposal istanbul.Proposal) []istanbul.Validator {
+func (ethash *Ethash) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	return []istanbul.Validator{}
 }
 

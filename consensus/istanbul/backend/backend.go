@@ -156,8 +156,8 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
-func (sb *Backend) GetValidators(proposal istanbul.Proposal) []istanbul.Validator {
-	validatorSet := sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
+	validatorSet := sb.getValidators(blockNumber.Uint64(), headerHash)
 	return validatorSet.FilteredList()
 }
 

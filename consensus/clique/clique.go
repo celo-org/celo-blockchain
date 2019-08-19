@@ -269,7 +269,7 @@ func (c *Clique) Author(header *types.Header) (common.Address, error) {
 	return ecrecover(header, c.signatures)
 }
 
-func (c *Clique) GetValidators(proposal istanbul.Proposal) []istanbul.Validator {
+func (c *Clique) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	return []istanbul.Validator{}
 }
 

@@ -57,6 +57,7 @@ var requestAttestationAddress = common.BytesToAddress(append([]byte{0}, CeloPrec
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
+var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -75,6 +76,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	transferAddress:           &transfer{},
 	fractionMulExpAddress:     &fractionMulExp{},
 	proofOfPossessionAddress:  &proofOfPossession{},
+	getValidatorAddress:       &getValidator{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -587,4 +589,25 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	}
 
 	return true32Byte, gas, nil
+}
+
+type getValidator struct{}
+
+func (c *getValidator) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorGas
+}
+
+func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	index := (&big.Int{}).SetBytes(input[0:32])
+	blockNumber := evm.Context.BlockNumber
+	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	validatorAddress := validators[index.Uint64()].Address()
+	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
+
+	return addressBytes, gas, nil
 }
