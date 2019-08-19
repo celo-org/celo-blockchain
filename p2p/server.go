@@ -400,16 +400,10 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
-// GetAllDiscoveryBucketInfo gets information on all the buckets in the
-// discovery table
-func (srv *Server) GetAllDiscoveryBucketInfo() ([]interface{}, error) {
-	return srv.ntab.GetAllBucketInfo()
-}
-
-// GetDiscoveryBucketInfo gets information on a particular bucket in the
-// discovery table
-func (srv *Server) GetDiscoveryBucketInfo(index int) (interface{}, error) {
-	return srv.ntab.GetBucketInfo(index)
+// DiscoverTableInfo gets information on all the buckets in the
+// discover table
+func (srv *Server) DiscoverTableInfo() *discover.TableInfo {
+	return srv.ntab.Info()
 }
 
 // Stop terminates the server and all active peer connections.

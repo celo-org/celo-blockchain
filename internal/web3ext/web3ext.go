@@ -176,15 +176,6 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'getAllDiscoveryBuckets',
-			call: 'admin_getAllDiscoveryBuckets'
-		}),
-		new web3._extend.Method({
-			name: 'getDiscoveryBucket',
-			call: 'admin_getDiscoveryBucket',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'sleepBlocks',
 			call: 'admin_sleepBlocks',
 			params: 2
@@ -214,6 +205,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'nodeInfo',
 			getter: 'admin_nodeInfo'
+		}),
+		new web3._extend.Property({
+			name: 'discoverTableInfo',
+			getter: 'admin_discoverTableInfo'
 		}),
 		new web3._extend.Property({
 			name: 'peers',

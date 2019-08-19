@@ -26,7 +26,6 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	mrand "math/rand"
 	"net"
@@ -82,6 +81,18 @@ type Table struct {
 	closed    chan struct{}
 
 	nodeAddedHook func(*node) // for testing
+}
+
+type bucketInfo struct {
+	Entries			[]*node	`json:"entries"`
+	Replacements 	[]*node	`json:"replacements"`
+	IPs				string	`json:"ips"`
+}
+
+// TableInfo provides information on the discovery table
+type TableInfo struct {
+	Buckets	[nBuckets]*bucketInfo	`json:"buckets"`
+	IPs		string					`json:"ips"`
 }
 
 // transport is implemented by the UDP transport.
@@ -725,31 +736,20 @@ func (tab *Table) deleteInBucket(b *bucket, n *node) {
 	tab.removeIP(b, n.IP())
 }
 
-// GetAllBucketInfo gives information on all the buckets in the Table
-func (tab *Table) GetAllBucketInfo() ([]interface{}, error) {
-	bucketInfo := make([]interface{}, nBuckets)
-	var err error
+// Info gives information on all the buckets and IPs in the Table
+func (tab *Table) Info() *TableInfo {
+	var buckets [nBuckets]*bucketInfo
 	for i := 0; i < nBuckets; i++ {
-		bucketInfo[i], err = tab.GetBucketInfo(i)
-		if err != nil {
-			return nil, err
+		buckets[i] = &bucketInfo{
+			Entries: tab.buckets[i].entries,
+			Replacements: tab.buckets[i].replacements,
+			IPs: tab.buckets[i].ips.String(),
 		}
 	}
-	return bucketInfo, nil
-}
-
-// GetBucketInfo gives information on the bucket at a given index in the Table
-func (tab *Table) GetBucketInfo(index int) (interface{}, error) {
-	if index < 0 || index >= nBuckets {
-		return nil, errors.New("Index out of bounds")
+	return &TableInfo{
+		Buckets: buckets,
+		IPs: tab.ips.String(),
 	}
-	return struct {
-		Entries []*node
-		Replacements []*node
-	}{
-		Entries: tab.buckets[index].entries,
-		Replacements: tab.buckets[index].replacements,
-	}, nil
 }
 
 func contains(ns []*node, id enode.ID) bool {

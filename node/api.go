@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -260,25 +261,15 @@ func (api *PrivateAdminAPI) StopWS() (bool, error) {
 	return true, nil
 }
 
-// GetAllDiscoveryBuckets gives the content of all buckets in the p2p discovery table
-func (api *PrivateAdminAPI) GetAllDiscoveryBuckets() ([]interface{}, error) {
+// DiscoverTableInfo gives the content of all buckets and ips in the p2p
+// discover table
+func (api *PrivateAdminAPI) DiscoverTableInfo() (*discover.TableInfo, error) {
 	// Make sure the server is running, fail otherwise
 	server := api.node.Server()
 	if server == nil {
 		return nil, ErrNodeStopped
 	}
-	return server.GetAllDiscoveryBucketInfo()
-}
-
-// GetDiscoveryBucket gives the content of a p2p discovery bucket at a given
-// index in the discovery table
-func (api *PrivateAdminAPI) GetDiscoveryBucket(index int) (interface{}, error) {
-	// Make sure the server is running, fail otherwise
-	server := api.node.Server()
-	if server == nil {
-		return nil, ErrNodeStopped
-	}
-	return server.GetDiscoveryBucketInfo(index)
+	return server.DiscoverTableInfo(), nil
 }
 
 // PublicAdminAPI is the collection of administrative API methods exposed over
