@@ -57,7 +57,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errFailedDecodePreprepare
 	}
 
-	// If round > 0, handle the ROUND CHANGE certificate.
+	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
 		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
@@ -66,6 +66,9 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		if err != nil {
 			return err
 		}
+	} else if preprepare.HasRoundChangeCertificate() {
+		logger.Error("Preprepare for round 0 has a round change certificate.")
+		return errInvalidProposal
 	}
 
 	// Ensure we have the same view with the PRE-PREPARE message
