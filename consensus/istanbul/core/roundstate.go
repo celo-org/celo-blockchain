@@ -59,15 +59,7 @@ func (s *roundState) GetPrepareOrCommitSize() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := s.Prepares.Size() + s.Commits.Size()
-
-	// find duplicate one
-	for _, m := range s.Prepares.Values() {
-		if s.Commits.Get(m.Address) != nil {
-			result--
-		}
-	}
-	return result
+	return s.getPrepareOrCommitSize()
 }
 
 func (s *roundState) Subject() *istanbul.Subject {
@@ -134,17 +126,17 @@ func (s *roundState) Sequence() *big.Int {
 }
 
 func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	s.preparedCertificate = preparedCertificate
 }
 
 func (s *roundState) CreateAndSetPreparedCertificate(quorumSize int) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	prepareOrCommitSize := s.GetPrepareOrCommitSize()
+	prepareOrCommitSize := s.getPrepareOrCommitSize()
 	if prepareOrCommitSize >= quorumSize {
 		messages := make([]istanbul.Message, prepareOrCommitSize)
 		i := 0
@@ -166,6 +158,18 @@ func (s *roundState) CreateAndSetPreparedCertificate(quorumSize int) error {
 	} else {
 		return errFailedCreatePreparedCertificate
 	}
+}
+
+func (s *roundState) getPrepareOrCommitSize() int {
+	result := s.Prepares.Size() + s.Commits.Size()
+
+	// find duplicate one
+	for _, m := range s.Prepares.Values() {
+		if s.Commits.Get(m.Address) != nil {
+			result--
+		}
+	}
+	return result
 }
 
 // The DecodeRLP method should read one value from the given
