@@ -302,8 +302,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		}
 	}
 	endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
-	if err != nil {
-		sb.logger.Warn("Error in decrypting endpoint", "err", err)
+	if err != nil && len(encryptedEndpoint) > 0 {
+		sb.logger.Warn("Error in decrypting endpoint", "err", err, "encryptedEndpoint", encryptedEndpoint)
 	}
 	enodeUrl := msg.IncompleteEnodeURL + string(endpointBytes)
 
