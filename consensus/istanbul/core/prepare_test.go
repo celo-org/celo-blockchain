@@ -105,7 +105,6 @@ func TestHandlePreparedCertificate(t *testing.T) {
 	}
 }
 
-// TODO(asa): Test with PREPARED certificate
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
@@ -147,6 +146,74 @@ func TestHandlePrepare(t *testing.T) {
 				return sys
 			}(),
 			nil,
+		},
+		{
+			// normal case with prepared certificate
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				preparedCert := sys.getPreparedCertificate(
+					t,
+					istanbul.View{
+						Round:    big.NewInt(0),
+						Sequence: big.NewInt(1),
+					},
+					proposal)
+
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.current = newTestRoundState(
+						&istanbul.View{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
+						c.valSet,
+					)
+					c.current.preparedCertificate = preparedCert
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.state = StatePreprepared
+					}
+				}
+				return sys
+			}(),
+			nil,
+		},
+		{
+			// Inconsistent subject due to prepared certificate
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				preparedCert := sys.getPreparedCertificate(
+					t,
+					istanbul.View{
+						Round:    big.NewInt(0),
+						Sequence: big.NewInt(10),
+					},
+					proposal)
+
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.current = newTestRoundState(
+						&istanbul.View{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
+						c.valSet,
+					)
+					c.current.preparedCertificate = preparedCert
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.state = StatePreprepared
+					}
+				}
+				return sys
+			}(),
+			errInconsistentSubject,
 		},
 		{
 			// future message
