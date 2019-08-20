@@ -95,8 +95,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// If we have a PREPARED certificate after handling the ROUND CHANGE, the proposal must match. If first round, the PREPARED certificate must be empty.
-	if preprepare.View.Round.Cmp(common.Big0) == 0 && !c.current.preparedCertificate.IsEmpty(){
-			return errInvalidProposal
+	if preprepare.View.Round.Cmp(common.Big0) == 0 && !c.current.preparedCertificate.IsEmpty() {
+		return errInvalidProposal
 	} else {
 		// TODO(asa): Does it make a difference if this PREPARED certificate came from the ROUND CHANGE certificate vs
 		// from seeing PREPARE messages?

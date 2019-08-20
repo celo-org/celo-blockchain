@@ -80,14 +80,15 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	}
 
 	c.acceptCommit(msg)
-	logger.Trace("Accepted commit", "Number of commits", c.current.Commits.Size())
+	numberOfCommits := c.current.Commits.Size()
+	minQuorumSize := c.valSet.MinQuorumSize()
+	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
-	minQuorumSize := c.valSet.MinQuorumSize()
-	if c.current.Commits.Size() >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
+	if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
