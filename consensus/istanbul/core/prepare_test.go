@@ -37,6 +37,7 @@ func TestHandlePreparedCertificate(t *testing.T) {
 		Sequence: big.NewInt(1),
 	}
 	proposal := makeBlock(0)
+	testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, view, proposal))
 
 	testCases := []struct {
 		certificate istanbul.PreparedCertificate
@@ -55,6 +56,15 @@ func TestHandlePreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDuplicate,
+		},
+		{
+			// Invalid PREPARED certificate, includes preprepare message
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateMsgCode,
 		},
 		{
 			// Invalid PREPARED certificate, hash mismatch
