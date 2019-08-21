@@ -92,7 +92,7 @@ type ChainIndexer struct {
 
 	log  log.Logger
 	lock sync.RWMutex
-	// True in all sync modes except CeloLatestSync and UltraLightSync
+	// True in all sync modes except UltraLightSync
 	fullHeaderChainDownloaded bool
 }
 

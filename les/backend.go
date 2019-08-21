@@ -84,9 +84,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if syncMode == downloader.LightSync {
 		chainName = "lightchaindata"
 		fullChainAvailable = true
-	} else if syncMode == downloader.CeloLatestSync {
-		chainName = "celolatestchaindata"
-		fullChainAvailable = false
 	} else if syncMode == downloader.UltraLightSync {
 		chainName = "ultralightchaindata"
 		fullChainAvailable = false

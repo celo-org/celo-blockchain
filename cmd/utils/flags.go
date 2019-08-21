@@ -171,7 +171,7 @@ var (
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",
-		Usage: `Blockchain sync mode ("fast", "full", "light", or "celolatest")`,
+		Usage: `Blockchain sync mode ("fast", "full", "light", or "ultralight")`,
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -1463,8 +1463,6 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	name := "chaindata"
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name = "lightchaindata"
-	} else if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
-		name = "celolatestchaindata"
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
 		name = "ultralightchaindata"
 	}
@@ -1497,7 +1495,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
-	if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
+	if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
 		config.FullHeaderChainAvailable = false
 	}
 	if err != nil {
