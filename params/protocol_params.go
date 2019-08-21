@@ -101,7 +101,7 @@ const (
 	// Celo registered contracts names.
 	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = "Attestations"
-	BondedDepositsRegistryId       = "BondedDeposits"
+	LockedGoldRegistryId           = "LockedGold"
 	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
 	GasPriceMinimumRegistryId      = "GasPriceMinimum"
 	GoldTokenRegistryId            = "GoldToken"
