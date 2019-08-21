@@ -44,6 +44,7 @@ var DefaultConfig = Config{
 	},
 	NetworkId:                   1,
 	LightPeers:                  100,
+	LightServ:                   50,
 	DatabaseCache:               768,
 	TrieTimeout:                 60 * time.Minute,
 	MinerGasFloor:               8000000,
