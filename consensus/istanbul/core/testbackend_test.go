@@ -18,6 +18,7 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -282,6 +283,7 @@ func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 type testSystem struct {
 	backends       []*testSystemBackend
 	f              uint64
+	n              uint64
 	validatorsKeys [][]byte
 
 	queuedMessage chan istanbul.MessageEvent
@@ -294,6 +296,7 @@ func newTestSystem(n uint64, f uint64, keys [][]byte) *testSystem {
 		backends:       make([]*testSystemBackend, n),
 		validatorsKeys: keys,
 		f:              f,
+		n:              n,
 
 		queuedMessage: make(chan istanbul.MessageEvent),
 		quit:          make(chan struct{}),
@@ -424,8 +427,7 @@ func (t *testSystem) F() uint64 {
 }
 
 func (t *testSystem) MinQuorumSize() uint64 {
-	// TODO(joshua) Fix this to be based off of total number of validators.
-	return 2*t.f + 1
+	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
 func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
