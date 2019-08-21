@@ -107,7 +107,7 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if !config.SyncMode.SyncFullBlockChain() {
-		return nil, errors.New("can't run eth.Ethereum in light sync mode, celolatest mode, or ultralight sync mode, use les.LightEthereum")
+		return nil, errors.New("can't run eth.Ethereum in light sync mode or ultralight sync mode, use les.LightEthereum")
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)

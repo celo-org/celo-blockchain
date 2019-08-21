@@ -284,8 +284,6 @@ func (d *Downloader) Progress() ethereum.SyncProgress {
 		current = d.blockchain.CurrentFastBlock().NumberU64()
 	case LightSync:
 		fallthrough
-	case CeloLatestSync:
-		fallthrough
 	case UltraLightSync:
 		current = d.lightchain.CurrentHeader().Number.Uint64()
 	}
@@ -466,15 +464,6 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	origin, err := d.findAncestor(p, latest)
 	if err != nil {
 		return err
-	}
-	if d.Mode == CeloLatestSync {
-		log.Info("Mode is CeloLatestSync, don't download the chain")
-		// There is a convoluted piece of code in gasprices.go:SuggestPrice function
-		// which requires multiple blocks to calculate the gas price and if the blocks are missing
-		// then the code panics. Therefore, we have to fetch more than one block.
-		// Anecodotally, 128 seems to be large enough.
-		origin = height - 128 // Download just the latest set of blocks
-		log.Info(fmt.Sprintf("Mode is CeloLatestSync, latest block is %d, new origin is %d", height, origin))
 	}
 	d.syncStatsLock.Lock()
 	if d.syncStatsChainHeight <= origin || d.syncStatsChainOrigin > origin {
@@ -1486,7 +1475,6 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				// queued for processing when the header download completes. However, as long as the
 				// peer gave us something useful, we're already happy/progressed (above check).
 
-				// Note: This check would fail for CeloLatestSync
 				if d.Mode == FastSync || d.Mode == LightSync {
 					head := d.lightchain.CurrentHeader()
 					if td.Cmp(d.lightchain.GetTd(head.Hash(), head.Number.Uint64())) > 0 {

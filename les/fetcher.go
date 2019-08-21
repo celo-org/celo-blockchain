@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -654,20 +653,13 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 	var td *big.Int
 
 	log.Debug(fmt.Sprintf("Last announced block is %v", n.number))
-	// Disable this in Latest block only mode since we are not fetching the full chain now n is the
-	// latest downloaded header after syncing.
-	// Ultralightsync mode handles this behavior properly because it will download the latest
-	// announced header before completing the sync.
-	//
 	// Check for the latest announced header in our chain. If it is present, then move on, otherwise,
 	// move through the parents until we find a header that we have downloaded.
-	if f.pm.downloader.Mode != downloader.CeloLatestSync {
-		for n != nil {
-			if td = f.chain.GetTd(n.hash, n.number); td != nil {
-				break
-			}
-			n = n.parent
+	for n != nil {
+		if td = f.chain.GetTd(n.hash, n.number); td != nil {
+			break
 		}
+		n = n.parent
 	}
 	// Now n is the latest announced block by this peer that exists in our chain.
 	if n == nil {
