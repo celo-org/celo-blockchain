@@ -184,6 +184,33 @@ func TestHandlePreprepare(t *testing.T) {
 			errInvalidProposal,
 			false,
 		},
+		{
+			// ROUND CHANGE certificate in Pre-prepare has a block that matches the existing PREPARED certificate
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					if i != 0 {
+						c.state = StateAcceptRequest
+					}
+					// Locked prepared certificate at Round 0. Next prepared certificate at round 1.
+					c.current.SetPreparedCertificate(sys.getPreparedCertificate(t, *(backend.engine.(*core).currentView()), makeBlock(0)))
+					c.current.SetRound(big.NewInt(1))
+
+				}
+				return sys
+			}(),
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), makeBlock(0))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				return roundChangeCertificate
+			},
+			makeBlock(0),
+			nil,
+			false,
+		},
 	}
 
 OUTER:
