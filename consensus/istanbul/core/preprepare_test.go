@@ -185,7 +185,7 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			// ROUND CHANGE certificate for second round with valid PREPARED certificate
+			// ROUND CHANGE certificate for second round with valid PREPARED certificates
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
@@ -205,6 +205,29 @@ func TestHandlePreprepare(t *testing.T) {
 				return roundChangeCertificate
 			},
 			makeBlock(0),
+			nil,
+			false,
+		},
+		{
+			// ROUND CHANGE certificate for second round with empty PREPARED certificates
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.current.SetRound(big.NewInt(1))
+					if i != 0 {
+						c.state = StateAcceptRequest
+					}
+				}
+				return sys
+			}(),
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), istanbul.EmptyPreparedCertificate())
+				return roundChangeCertificate
+			},
+			makeBlock(1),
 			nil,
 			false,
 		},
