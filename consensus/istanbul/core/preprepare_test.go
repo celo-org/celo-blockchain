@@ -185,20 +185,17 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			// ROUND CHANGE certificate in Pre-prepare has a block that matches the existing PREPARED certificate
+			// ROUND CHANGE certificate for second round with valid PREPARED certificate
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
+					c.current.SetRound(big.NewInt(1))
 					if i != 0 {
 						c.state = StateAcceptRequest
 					}
-					// Locked prepared certificate at Round 0. Next prepared certificate at round 1.
-					c.current.SetPreparedCertificate(sys.getPreparedCertificate(t, *(backend.engine.(*core).currentView()), makeBlock(0)))
-					c.current.SetRound(big.NewInt(1))
-
 				}
 				return sys
 			}(),
