@@ -159,7 +159,6 @@ func TestHandlePrepare(t *testing.T) {
 					},
 					proposal)
 
-
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
@@ -192,7 +191,6 @@ func TestHandlePrepare(t *testing.T) {
 						Sequence: big.NewInt(10),
 					},
 					proposal)
-
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
