@@ -971,7 +971,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 			cfg.MaxPeers = lightPeers
 		}
 	}
-	if !(lightClient || lightServer) || cfg.MaxPeers == 0 {
+	if !(lightClient || lightServer) {
 		lightPeers = 0
 	}
 	ethPeers := cfg.MaxPeers - lightPeers
