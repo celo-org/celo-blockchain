@@ -189,7 +189,6 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 
 	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
-
 		for addr, p := range ps {
 			if !ignoreCache {
 				ms, ok := sb.recentMessages.Get(addr)

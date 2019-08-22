@@ -184,6 +184,7 @@ func (n *Node) Start() error {
 	if n.proxyServerConfig.NodeDatabase == "" {
 		n.proxyServerConfig.NodeDatabase = n.config.ProxiedNodeDB()
 	}
+
 	proxyRunning := &p2p.Server{Config: n.proxyServerConfig}
 	n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServerConfig.Name)
 	n.log.Info("n.proxyServerConfig", "n.proxyServerConfig", n.proxyServerConfig.ListenAddr)

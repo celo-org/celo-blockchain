@@ -113,6 +113,8 @@ type Peer struct {
 
 	// events receives message send / receive events if set
 	events *event.Feed
+
+	IsProxy bool
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -120,7 +122,7 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	node := enode.SignNull(new(enr.Record), id)
 	conn := &conn{fd: pipe, transport: nil, node: node, caps: caps, name: name}
-	peer := newPeer(conn, nil)
+	peer := newPeer(conn, nil, false)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
 }
@@ -181,7 +183,7 @@ func (p *Peer) Validator() bool {
 	return p.rw.is(validatorConn)
 }
 
-func newPeer(conn *conn, protocols []Protocol) *Peer {
+func newPeer(conn *conn, protocols []Protocol, IsProxy bool) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
 		rw:       conn,
@@ -191,6 +193,7 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
 		closed:   make(chan struct{}),
 		log:      log.New("id", conn.node.ID(), "conn", conn.flags),
+		IsProxy:  IsProxy,
 	}
 	return p
 }

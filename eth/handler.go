@@ -355,6 +355,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			p.Log().Debug("Ethereum message handling failed", "err", err)
 			return err
 		}
+		for _, peer := range pm.peers.peers {
+			log.Info("isproxy", "lol", peer.Peer.IsProxy)
+		}
+		log.Info("isproxy", "lol", pm.peers.peers)
 	}
 }
 

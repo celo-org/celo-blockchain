@@ -283,6 +283,7 @@ var isOldGethResource = map[string]bool{
 	"nodekey":            true,
 	"static-nodes.json":  false, // no warning for these because they have their
 	"trusted-nodes.json": false, // own separate warning.
+	"proxied-nodes.json": false,
 }
 
 // ResolvePath resolves path in the instance directory.
@@ -365,7 +366,7 @@ func (c *Config) TrustedNodes() []*enode.Node {
 	return c.parsePersistentNodes(&c.trustedNodesWarning, c.ResolvePath(datadirTrustedNodes))
 }
 
-// TrustedNodes returns a list of node enode URLs configured as trusted nodes.
+// ProxiedNodes returns a list of node enode URLs configured as trusted nodes.
 func (c *Config) ProxiedNodes() []*enode.Node {
 	return c.parsePersistentNodes(&c.proxiedNodesWarning, c.ResolvePath(datadirProxiedNodes))
 }
