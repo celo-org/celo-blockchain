@@ -273,14 +273,25 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
-		if !c.current.preparedCertificate.IsEmpty() {
-			// If we've seen a PREPARED certificate for a proposal, we need to propose that proposal.
-			r := &istanbul.Request{
-				Proposal: c.current.preparedCertificate.Proposal,
+		// Start with pending request
+		request := c.current.pendingRequest
+		// Search for a valid request in round change messages.
+		// The round change certificate should be generated such that it is consistent in it's proposed subject.
+		for _, message := range roundChangeCertificate.RoundChangeMessages {
+		        var roundChangeMsg *istanbul.RoundChange
+		        if err := message.Decode(&roundChangeMsg); err != nil {
+		                logger.Error("Failed to decode ROUND CHANGE in certificate. Skipping to next ROUND CHANGE message.", "err", err)
+		                continue
 			}
-			c.sendPreprepare(r, roundChangeCertificate)
-		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest, roundChangeCertificate)
+			if roundChangeMsg.HasPreparedCertificate() {
+			        request = &istanbul.Request {
+			                Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+			        }
+			        break
+			}
+		}
+		if request != nil {
+			c.sendPreprepare(request, roundChangeCertificate)
 		}
 	}
 	c.newRoundChangeTimer()
