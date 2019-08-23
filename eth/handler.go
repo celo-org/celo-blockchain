@@ -355,10 +355,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			p.Log().Debug("Ethereum message handling failed", "err", err)
 			return err
 		}
-		for _, peer := range pm.peers.peers {
-			log.Info("isproxy", "lol", peer.Peer.IsProxy)
-		}
-		log.Info("isproxy", "lol", pm.peers.peers)
 	}
 }
 
@@ -374,6 +370,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	defer msg.Discard()
+
+	// Forward message to proxy if message came from outside network
+	if !p.Peer.IsProxy {
+		for _, peer := range pm.peers.peers {
+			if peer.Peer.IsProxy {
+				go peer.Send(msg.Code, msg.Payload)
+			}
+		}
+	}
 
 	// Send messages to the consensus engine first. If they are consensus related,
 	// e.g. for IBFT, let the consensus handler handle the message.
