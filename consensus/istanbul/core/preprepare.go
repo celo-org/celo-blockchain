@@ -62,6 +62,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
+		// TODO(Joshua): Verify the associated proposal against the round change certificate
 		err := c.handleRoundChangeCertificate(preprepare.RoundChangeCertificate)
 		if err != nil {
 			return err
@@ -95,18 +96,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	if !c.valSet.IsProposer(msg.Address) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
-	}
-
-	// TODO: Fix checking preprepare proposal against the round change certificate.
-	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		// If we have a PREPARED certificate after handling the ROUND CHANGE, the proposal must match.
-		// TODO(asa): Does it make a difference if this PREPARED certificate came from the ROUND CHANGE certificate vs
-		// from seeing PREPARE messages?
-		if !c.current.preparedCertificate.IsEmpty() && c.current.preparedCertificate.Proposal.Hash() != preprepare.Proposal.Hash() {
-			// Send round change (TODO(Joshua): why?)
-			// c.sendNextRoundChange()
-			return errInvalidProposal
-		}
 	}
 
 	// Verify the proposal we received
