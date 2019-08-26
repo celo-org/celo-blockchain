@@ -141,7 +141,11 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 		for i, backend := range sys.backends {
 			c := backend.engine.(*core)
 			certificate := test.getCertificate(sys)
-			err := c.handleRoundChangeCertificate(certificate)
+			subject := istanbul.Subject{
+				View: &view,
+				Digest: makeBlock(0).Hash(),
+			}
+			err := c.handleRoundChangeCertificate(subject, certificate)
 
 			if err != test.expectedErr {
 				t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
@@ -280,7 +284,7 @@ func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDis
 				if targets[index] || msg.Address == b.address {
 					go b.EventMux().Post(event)
 				} else {
-					testLogger.Info("ignoring message with code", "code", msg.Code)
+					// testLogger.Info("ignoring message with code", "code", msg.Code)
 				}
 			}
 		}
@@ -387,7 +391,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 
 	// Manually open and close b/c hijacking sys.listen
 	for _, b := range sys.backends {
-		b.engine.Stop() // start Istanbul core
+		b.engine.Stop() // stop Istanbul core
 	}
 	close(sys.quit)
 }

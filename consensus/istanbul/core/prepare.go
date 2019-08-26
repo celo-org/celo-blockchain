@@ -39,8 +39,8 @@ func (c *core) sendPrepare() {
 	})
 }
 
-func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreparedCertificate")
+func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPreparedCertificate")
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
@@ -105,8 +105,6 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 	}
-
-	c.current.SetPreparedCertificate(preparedCertificate)
 	return nil
 }
 

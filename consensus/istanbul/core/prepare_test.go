@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
-func TestHandlePreparedCertificate(t *testing.T) {
+func TestVerifyPreparedCertificate(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
@@ -97,7 +97,7 @@ func TestHandlePreparedCertificate(t *testing.T) {
 	for _, test := range testCases {
 		for _, backend := range sys.backends {
 			c := backend.engine.(*core)
-			err := c.handlePreparedCertificate(test.certificate)
+			err := c.verifyPreparedCertificate(test.certificate)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

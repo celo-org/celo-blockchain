@@ -181,18 +181,19 @@ func TestHandlePreprepare(t *testing.T) {
 				return roundChangeCertificate
 			},
 			makeBlock(1),
-			errInvalidProposal,
+			errInvalidPreparedCertificateDigestMismatch,
 			false,
 		},
 		{
-			// ROUND CHANGE certificate for second round with valid PREPARED certificates
+			// ROUND CHANGE certificate for N+1 round with valid PREPARED certificates
+			// Round is N+1 to match the correct proposer.
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.current.SetRound(big.NewInt(1))
+					c.current.SetRound(big.NewInt(int64(N)))
 					if i != 0 {
 						c.state = StateAcceptRequest
 					}
@@ -209,14 +210,16 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			// ROUND CHANGE certificate for second round with empty PREPARED certificates
+			// ROUND CHANGE certificate for N+1 round with empty PREPARED certificates
+			// Round is N+1 to match the correct proposer.
+
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.current.SetRound(big.NewInt(1))
+					c.current.SetRound(big.NewInt(int64(N)))
 					if i != 0 {
 						c.state = StateAcceptRequest
 					}

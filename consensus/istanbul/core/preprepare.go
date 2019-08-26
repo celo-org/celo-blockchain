@@ -62,11 +62,15 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		if !preprepare.HasRoundChangeCertificate() {
 			return errMissingRoundChangeCertificate
 		}
-		// TODO(Joshua): Verify the associated proposal against the round change certificate
-		err := c.handleRoundChangeCertificate(preprepare.RoundChangeCertificate)
+		subject := istanbul.Subject{
+			View: preprepare.View,
+			Digest: preprepare.Proposal.Hash(),
+		}
+		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
 		if err != nil {
 			return err
 		}
+		// TODO: start new round here. (Sorta done in handle round change certificate)
 	} else if preprepare.HasRoundChangeCertificate() {
 		logger.Error("Preprepare for round 0 has a round change certificate.")
 		return errInvalidProposal
@@ -89,7 +93,10 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 				return nil
 			}
 		}
-		return err
+		// Pre-prepares for rounds > 0 are New-Round messages thus we want to continue. Otherwise return the error.
+		if !(err == errFutureMessage && preprepare.View.Round.Cmp(common.Big0) > 0) {
+			return err
+		}
 	}
 
 	// Check if the message comes from current proposer

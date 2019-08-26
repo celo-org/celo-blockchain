@@ -65,7 +65,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	})
 }
 
-func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.RoundChangeCertificate) error {
+func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChangeCertificate")
 
 	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < c.valSet.MinQuorumSize() {
@@ -108,24 +108,36 @@ func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.Roun
 		}
 
 		// Verify ROUND CHANGE message is for a proper view
-		if err := c.checkMessage(istanbul.MsgRoundChange, roundChange.View); err != nil {
+		if roundChange.View.Cmp(proposal.View) != 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
 		decodedMessages[i] = *roundChange
-	}
+		// TODO: see some prepared certificates proposals but supporting messages.
+		// Store valid round change messages
+		if roundChange.HasPreparedCertificate() {
+			// Verify message for the proper proposal.
+			if proposal.Digest != roundChange.PreparedCertificate.Proposal.Hash() {
+				return errInvalidPreparedCertificateDigestMismatch
+			}
 
-	for i, message := range roundChangeCertificate.RoundChangeMessages {
-		// No need to process ROUND CHANGE messages we've seen before.
-		if !c.backend.IsKnownMessage(message) {
-			err := c.handleDecodedCheckedRoundChange(&message, &decodedMessages[i])
-			// We want to continue to process ROUND CHANGE messages if they're for future rounds.
-			// TODO(asa): Should we just process every message regardless of if there's an error?
-			if err != nil && err != errIgnored {
+			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return err
 			}
 		}
+		// TODO: Check against seen messages (but handled in round change set???)
+		// if c.backend.IsKnownMessage(message) {
+			c.roundChangeSet.Add(roundChange.View.Round, &message)
+		// }
 	}
+
+	// TODO(joshua) Fix this.
+	// On good round change certificate. Don't touch our own prepared certifiacte and start a new round
+	// If the new round fails, we're still free to reject it.
+	// TODO: figure out why byzantine nodes cannot just go to a new seq instead of new round.
+	// Do need to add each round change messge into the round change set.
+	// Can just drop repeated messages in b/c message sets do stuff by addresses.
+	c.startNewRound(proposal.View.Round)
 	return nil
 }
 
@@ -144,29 +156,23 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return err
 	}
 
-	return c.handleDecodedCheckedRoundChange(msg, rc)
-}
-
-func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanbul.RoundChange) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleDecodedCheckedRoundChange", "tag", "handleMsg")
-
-	cv := c.currentView()
-	roundView := rc.View
-
-	// Handle the PREPARED certificate if present.
-	var num int
+	// Verify the PREPARED certificate if present.
 	if rc.HasPreparedCertificate() {
-		if err := c.handlePreparedCertificate(rc.PreparedCertificate); err != nil {
-			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
+		// TODO(Joshua): I don't think we should clobber our own prepared certificate here.
+		// TODO(asa): Should we still accept the round change message without the certificate if this fails?
+		if err := c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
 			return err
 		}
 	}
+
+	cv := c.currentView()
+	roundView := rc.View
 
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.
 	num, err := c.roundChangeSet.Add(roundView.Round, msg)
 	if err != nil {
-		logger.Warn("Failed to add round change message", "from", msg.Address, "message", msg, "err", err)
+		logger.Warn("Failed to add round change message", "message", msg, "err", err)
 		return err
 	}
 
@@ -184,6 +190,7 @@ func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanb
 		c.startNewRound(roundView.Round)
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {
+		// Round of message > current round?
 		// Only gossip the message with current round to other validators.
 		return errIgnored
 	}
@@ -257,7 +264,7 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
-	if rcs.roundChanges[round].Size() >= quorumSize {
+	if rcs.roundChanges[round] != nil && rcs.roundChanges[round].Size() >= quorumSize {
 		messages := make([]istanbul.Message, rcs.roundChanges[round].Size())
 		for i, message := range rcs.roundChanges[round].Values() {
 			messages[i] = *message
