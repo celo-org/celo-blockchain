@@ -300,21 +300,6 @@ func (c *core) startNewRound(round *big.Int) {
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
-func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer(), "func", "catchUpRound")
-
-	if view.Round.Cmp(c.current.Round()) > 0 {
-		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
-	}
-	c.waitingForRoundChange = true
-
-	c.updateRoundState(view, c.valSet, true)
-	c.roundChangeSet.Clear(view.Round)
-	c.newRoundChangeTimer()
-
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
-}
-
 func (c *core) waitForNewRound(view *istanbul.View) {
 	c.waitingRoundView = view
 	c.waitingForNewRound = true
