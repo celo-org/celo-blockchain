@@ -72,7 +72,8 @@ type core struct {
 	futurePreprepareTimer *time.Timer
 
 	valSet                istanbul.ValidatorSet
-	waitingForRoundChange bool
+	waitingForNewRound    bool
+	waitingRoundView      *istanbul.View
 	validateFn            func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
@@ -270,7 +271,7 @@ func (c *core) startNewRound(round *big.Int) {
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForRoundChange = false
+	c.waitingForNewRound = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
 		// Start with pending request
@@ -312,6 +313,11 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	c.newRoundChangeTimer()
 
 	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
+}
+
+func (c *core) waitForNewRound(view *istanbul.View) {
+	c.waitingRoundView = view
+	c.waitingForNewRound = true
 }
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {

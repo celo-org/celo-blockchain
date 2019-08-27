@@ -90,7 +90,7 @@ func TestCheckMessage(t *testing.T) {
 		Sequence: big.NewInt(1),
 		Round:    big.NewInt(0),
 	}
-	c.waitingForRoundChange = true
+	c.waitingForNewRound = true
 	for i := 0; i < len(testStates); i++ {
 		c.state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
@@ -104,7 +104,7 @@ func TestCheckMessage(t *testing.T) {
 			}
 		}
 	}
-	c.waitingForRoundChange = false
+	c.waitingForNewRound = false
 
 	v = c.currentView()
 	// current view, state = StateAcceptRequest

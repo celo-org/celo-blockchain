@@ -40,16 +40,15 @@ func (c *core) sendRoundChange(round *big.Int) {
 		return
 	}
 
-	c.catchUpRound(&istanbul.View{
+	nextView := &istanbul.View{
 		// The round number we'd like to transfer to.
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(cv.Sequence),
-	})
+	}
+	c.waitForNewRound(nextView)
 
-	// Now we have the new round number and sequence number
-	cv = c.currentView()
 	rc := &istanbul.RoundChange{
-		View:                cv,
+		View:                nextView,
 		PreparedCertificate: c.current.preparedCertificate,
 	}
 
@@ -137,12 +136,19 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	// TODO: figure out why byzantine nodes cannot just go to a new seq instead of new round.
 	// Do need to add each round change messge into the round change set.
 	// Can just drop repeated messages in b/c message sets do stuff by addresses.
-	c.startNewRound(proposal.View.Round)
+	logger.Trace("Accepted round change certificate")
+	if c.current.Sequence().Cmp(proposal.View.Sequence) <= 0 && c.current.Round().Cmp(proposal.View.Round) < 0{
+		logger.Trace("Moving to next round based on round change certificate")
+		c.startNewRound(proposal.View.Round)
+	} else {
+		logger.Trace("Theoretically in the round for which the round change certificate wanted to move us to.")
+	}
 	return nil
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
+
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
@@ -179,13 +185,13 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
 	// try to catch up the round number.
-	if c.waitingForRoundChange && num == c.valSet.F()+1 {
+	if c.waitingForNewRound && num == c.valSet.F()+1 {
 		if cv.Round.Cmp(roundView.Round) < 0 {
 			// TODO(asa): If we saw a PREPARED certificate, do we include one in our round change message?
 			c.sendRoundChange(roundView.Round)
 		}
 		return nil
-	} else if num == c.valSet.MinQuorumSize() && (c.waitingForRoundChange || cv.Round.Cmp(roundView.Round) < 0) {
+	} else if num == c.valSet.MinQuorumSize() && (c.waitingForNewRound || cv.Round.Cmp(roundView.Round) < 0) {
 		// We've received the minimum quorum size ROUND CHANGE messages, start a new round immediately.
 		c.startNewRound(roundView.Round)
 		return nil
