@@ -202,7 +202,7 @@ func TestHandleRoundChange(t *testing.T) {
 			func(_ *testSystem) istanbul.PreparedCertificate {
 				return istanbul.EmptyPreparedCertificate()
 			},
-			errIgnored,
+			nil,
 		},
 		{
 			// invalid message for future sequence
@@ -238,9 +238,13 @@ OUTER:
 		r0 := v0.engine.(*core)
 
 		curView := r0.currentView()
+		nextView := &istanbul.View{
+			Round: new(big.Int).Add(curView.Round, common.Big1),
+			Sequence: curView.Sequence,
+		}
 
 		roundChange := &istanbul.RoundChange{
-			View:                curView,
+			View:                nextView,
 			PreparedCertificate: test.getCert(test.system),
 		}
 
