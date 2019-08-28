@@ -45,7 +45,6 @@ func (c *core) sendRoundChange(round *big.Int) {
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(cv.Sequence),
 	}
-	c.waitForNewRound(nextView)
 
 	rc := &istanbul.RoundChange{
 		View:                nextView,
@@ -185,14 +184,15 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
 	// If our round number is smaller than the certificate's round number, we would
 	// try to catch up the round number.
-	if c.waitingForNewRound && num == c.valSet.F()+1 {
-		if cv.Round.Cmp(roundView.Round) < 0 {
-			// TODO(asa): If we saw a PREPARED certificate, do we include one in our round change message?
+	if num == c.valSet.F()+1 {
+		if !c.waitingForNewRound && cv.Round.Cmp(roundView.Round) < 0 {
+			c.waitForNewRound()
 			c.sendRoundChange(roundView.Round)
 		}
 		return nil
-	} else if num == c.valSet.MinQuorumSize() && (c.waitingForNewRound || cv.Round.Cmp(roundView.Round) < 0) {
+	} else if num == c.valSet.MinQuorumSize() {
 		// We've received the minimum quorum size ROUND CHANGE messages, start a new round immediately.
+		// NO?, only if next proposer?
 		c.startNewRound(roundView.Round)
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {

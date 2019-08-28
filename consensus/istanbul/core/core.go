@@ -73,7 +73,6 @@ type core struct {
 
 	valSet                istanbul.ValidatorSet
 	waitingForNewRound    bool
-	waitingRoundView      *istanbul.View
 	validateFn            func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
@@ -300,8 +299,7 @@ func (c *core) startNewRound(round *big.Int) {
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
-func (c *core) waitForNewRound(view *istanbul.View) {
-	c.waitingRoundView = view
+func (c *core) waitForNewRound() {
 	c.waitingForNewRound = true
 }
 
@@ -351,7 +349,7 @@ func (c *core) newRoundChangeTimer() {
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{})
+		c.sendEvent(timeoutEvent{c.currentView()})
 	})
 }
 

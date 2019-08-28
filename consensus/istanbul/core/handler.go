@@ -109,11 +109,14 @@ func (c *core) handleEvents() {
 					c.logger.Error("Error in handling istanbul message that was sent from a backlog event", "err", err)
 				}
 			}
-		case _, ok := <-c.timeoutSub.Chan():
+		case event, ok := <-c.timeoutSub.Chan():
 			if !ok {
 				return
 			}
-			c.handleTimeoutMsg()
+			switch ev := event.Data.(type) {
+			case timeoutEvent:
+				c.handleTimeoutMsg(ev.view)
+			}
 		case event, ok := <-c.finalCommittedSub.Chan():
 			if !ok {
 				return
@@ -189,31 +192,24 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg() {
+func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
 	logger := c.logger.New("func", "handleTimeoutMsg")
 	if c.current != nil {
 		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
 	} else {
 		logger = logger.New("cur_seq", 0, "cur_round", -1)
 	}
-	// If we're not waiting for round change yet, we can try to catch up
-	// the max round with F+1 round change message. We only need to catch up
-	// if the max round is larger than current round.
-	if !c.waitingForNewRound {
-		// maxRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-		logger.Trace("round change timeout, not waiting for round change", "round", c.current.Round())
-		c.sendNextRoundChange()
 
-	} else {
-		logger.Trace("round chage timeout after having already sent a round change message in this round.")
+	if timeoutView.Cmp(c.currentView()) < 0 {
+		// Old timeout
+		return
 	}
-
-	// lastProposal, _ := c.backend.LastProposal()
-	// if lastProposal != nil && lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
-	// 	logger.Trace("round change timeout, catch up latest sequence", "number", lastProposal.Number().Uint64())
-	// 	c.startNewRound(common.Big0)
-	// } else {
-	// 	logger.Trace("round change timeout, send next round change")
-	// 	c.sendNextRoundChange()
-	// }
+	// Bump round if waiting for a round change & we time out
+	if !c.waitingForNewRound {
+		logger.Trace("round change timeout, going to next round", "round", c.current.Round())
+		c.sendNextRoundChange()
+		c.waitingForNewRound = true
+	} else {
+		logger.Trace("round change timeout, waiting for next new round message", "round", c.current.Round())
+	}
 }
