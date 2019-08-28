@@ -66,11 +66,11 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			View:   preprepare.View,
 			Digest: preprepare.Proposal.Hash(),
 		}
+		// This also moves us to the next round if the certificate is valid.
 		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
 		if err != nil {
 			return err
 		}
-		// TODO: start new round here. (Sorta done in handle round change certificate)
 	} else if preprepare.HasRoundChangeCertificate() {
 		logger.Error("Preprepare for round 0 has a round change certificate.")
 		return errInvalidProposal
@@ -93,10 +93,9 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 				return nil
 			}
 		}
-		// Pre-prepares for rounds > 0 are New-Round messages thus we want to continue. Otherwise return the error.
-		if !(err == errFutureMessage && preprepare.View.Round.Cmp(common.Big0) > 0) {
-			return err
-		}
+		// Already in the next round b/c handleRoundChangeCertificate moves us to the next round.
+		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
+		return err
 	}
 
 	// Check if the message comes from current proposer
@@ -117,13 +116,9 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 				})
 			})
 		}
-		// else {
-		// 	c.sendNextRoundChange()
-		// }
 		return err
 	}
 
-	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
 		c.acceptPreprepare(preprepare)

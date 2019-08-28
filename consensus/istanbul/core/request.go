@@ -41,7 +41,7 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
 	c.current.pendingRequest = request
-	// Must go through startNewRound to send a proposal that matches the round change certificate
+	// Must go through startNewRound to send a proposal that matches the round change certificate if not on the first round.
 	if c.state == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
 		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
 	}

@@ -212,7 +212,6 @@ func TestHandlePreprepare(t *testing.T) {
 		{
 			// ROUND CHANGE certificate for N+1 round with empty PREPARED certificates
 			// Round is N+1 to match the correct proposer.
-
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 

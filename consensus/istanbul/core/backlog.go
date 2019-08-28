@@ -40,7 +40,6 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errInvalidMessage
 	}
 
-	// TODO(Joshua): Check pre-prepares here
 	if msgCode == istanbul.MsgRoundChange {
 		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
 			return errFutureMessage
@@ -58,8 +57,8 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errOldMessage
 	}
 
-	// Pre-prepares need to be not rejected here. TODO(joshua): Proper fix.
-	if msgCode != istanbul.MsgPreprepare && c.waitingForNewRound {
+	// Round change messages are already let through.
+	if c.waitingForNewRound {
 		return errFutureMessage
 	}
 

@@ -110,9 +110,6 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
-		decodedMessages[i] = *roundChange
-		// TODO: see some prepared certificates proposals but supporting messages.
-		// Store valid round change messages
 		if roundChange.HasPreparedCertificate() {
 			// Verify message for the proper proposal.
 			if proposal.Digest != roundChange.PreparedCertificate.Proposal.Hash() {
@@ -123,24 +120,19 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 				return err
 			}
 		}
-		// TODO: Check against seen messages (but handled in round change set???)
-		// if c.backend.IsKnownMessage(message) {
+
+		decodedMessages[i] = *roundChange
+		// TODO(joshua): Fix start new round so it doesn't try to make a round change certificate unless it is the next proposer.
+		// It needs these messages to not fail at creating the round change certificate.
 		c.roundChangeSet.Add(roundChange.View.Round, &message)
-		// }
 	}
 
-	// TODO(joshua) Fix this.
-	// On good round change certificate. Don't touch our own prepared certifiacte and start a new round
-	// If the new round fails, we're still free to reject it.
-	// TODO: figure out why byzantine nodes cannot just go to a new seq instead of new round.
-	// Do need to add each round change messge into the round change set.
-	// Can just drop repeated messages in b/c message sets do stuff by addresses.
-	logger.Trace("Accepted round change certificate")
-	if c.current.Sequence().Cmp(proposal.View.Sequence) <= 0 && c.current.Round().Cmp(proposal.View.Round) < 0 {
+	// May have already moved to this round based on quorum round change messages.
+	if c.current.Round().Cmp(proposal.View.Round) < 0 {
 		logger.Trace("Moving to next round based on round change certificate")
 		c.startNewRound(proposal.View.Round)
 	} else {
-		logger.Trace("Theoretically in the round for which the round change certificate wanted to move us to.")
+		logger.Trace("Already in same round as round change certificate.")
 	}
 	return nil
 }
@@ -186,13 +178,13 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// try to catch up the round number.
 	if num == c.valSet.F()+1 {
 		if !c.waitingForNewRound && cv.Round.Cmp(roundView.Round) < 0 {
+			logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
 			c.waitForNewRound()
 			c.sendRoundChange(roundView.Round)
 		}
 		return nil
 	} else if num == c.valSet.MinQuorumSize() {
-		// We've received the minimum quorum size ROUND CHANGE messages, start a new round immediately.
-		// NO?, only if next proposer?
+		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(roundView.Round)
 		return nil
 	} else if cv.Round.Cmp(roundView.Round) < 0 {
