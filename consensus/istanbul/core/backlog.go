@@ -40,10 +40,11 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errInvalidMessage
 	}
 
+	// Round change messages should be in the same sequence but have a larger round.
 	if msgCode == istanbul.MsgRoundChange {
 		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
 			return errFutureMessage
-		} else if view.Cmp(c.currentView()) < 0 {
+		} else if view.Cmp(c.currentView()) <= 0 {
 			return errOldMessage
 		}
 		return nil

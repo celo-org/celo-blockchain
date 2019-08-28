@@ -106,6 +106,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		// Verify ROUND CHANGE message is for a proper view
+		// TODO(joshua): May be able to relax to the proposal is >= than the round change message.
 		if roundChange.View.Cmp(proposal.View) != 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
@@ -122,8 +123,8 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		decodedMessages[i] = *roundChange
-		// TODO(joshua): Fix start new round so it doesn't try to make a round change certificate unless it is the next proposer.
-		// It needs these messages to not fail at creating the round change certificate.
+		// TODO(joshua): startNewRound needs these round change messages to generate a
+		// prepared certificate even if this node is not the next proposer
 		c.roundChangeSet.Add(roundChange.View.Round, &message)
 	}
 
@@ -144,6 +145,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return errInvalidMessage
 	}
 
+	// Must be same sequence and future round.
 	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
 		logger.Info("Check round change message failed", "err", err)
 		return err
@@ -156,7 +158,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		}
 	}
 
-	cv := c.currentView()
 	roundView := rc.View
 
 	// Add the ROUND CHANGE message to its message set and return how many
@@ -167,23 +168,17 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return err
 	}
 
-	// On f+1 round changes 1 honest node has timed out so we immediately send a round change message and wait for the next round.
+	// On f+1 round changes => 1 honest node has timed out so we send a round
+	// change if we haven't already and wait for the next round.
 	// On quorum round change messages we go to the next round immediately.
-	if num == c.valSet.F()+1 {
-		if !c.waitingForNewRound && cv.Round.Cmp(roundView.Round) < 0 {
-			logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
-			c.waitForNewRound()
-			c.sendRoundChange(roundView.Round)
-		}
+	if num == c.valSet.F()+1 && !c.waitingForNewRound {
+		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
+		c.waitForNewRound()
+		c.sendRoundChange(roundView.Round)
 	} else if num == c.valSet.MinQuorumSize() {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(roundView.Round)
 	}
-	// } else if cv.Round.Cmp(roundView.Round) < 0 {
-	// 	// Round of message > current round?
-	// 	// Only gossip the message with current round to other validators.
-	// 	return errIgnored
-	// }
 	return nil
 }
 
