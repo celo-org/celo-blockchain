@@ -379,10 +379,13 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 		}
 		// Wait for all backends to finalize the block.
 		<-time.After(1 * time.Second)
+		expectedCommitted, _ := sys.backends[0].LastProposal()
 		for i, b := range sys.backends {
 			committed, _ := b.LastProposal()
-			// We expect to commit the block proposed by the first proposer.
-			expectedCommitted := makeBlockWithDifficulty(1, 0)
+			// We don't expect any particular block to be committed here. We do expect them to be consistent.
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
 			}
@@ -452,6 +455,9 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			// We expect to commit the block proposed by the first proposer.
 			// TODO(joshua): This can be flaky in my local tests.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
 			}
