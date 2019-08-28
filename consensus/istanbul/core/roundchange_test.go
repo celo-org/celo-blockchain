@@ -142,7 +142,7 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 			c := backend.engine.(*core)
 			certificate := test.getCertificate(sys)
 			subject := istanbul.Subject{
-				View: &view,
+				View:   &view,
 				Digest: makeBlock(0).Hash(),
 			}
 			err := c.handleRoundChangeCertificate(subject, certificate)

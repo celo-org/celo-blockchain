@@ -63,7 +63,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			return errMissingRoundChangeCertificate
 		}
 		subject := istanbul.Subject{
-			View: preprepare.View,
+			View:   preprepare.View,
 			Digest: preprepare.Proposal.Hash(),
 		}
 		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)

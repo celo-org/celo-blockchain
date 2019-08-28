@@ -71,9 +71,9 @@ type core struct {
 	timeoutSub            *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
-	valSet                istanbul.ValidatorSet
-	waitingForNewRound    bool
-	validateFn            func([]byte, []byte) (common.Address, error)
+	valSet             istanbul.ValidatorSet
+	waitingForNewRound bool
+	validateFn         func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
 	backlogsMu *sync.Mutex
@@ -278,16 +278,16 @@ func (c *core) startNewRound(round *big.Int) {
 		// Search for a valid request in round change messages.
 		// The round change certificate should be generated such that it is consistent in it's proposed subject.
 		for _, message := range roundChangeCertificate.RoundChangeMessages {
-		        var roundChangeMsg *istanbul.RoundChange
-		        if err := message.Decode(&roundChangeMsg); err != nil {
-		                logger.Error("Failed to decode ROUND CHANGE in certificate. Skipping to next ROUND CHANGE message.", "err", err)
-		                continue
+			var roundChangeMsg *istanbul.RoundChange
+			if err := message.Decode(&roundChangeMsg); err != nil {
+				logger.Error("Failed to decode ROUND CHANGE in certificate. Skipping to next ROUND CHANGE message.", "err", err)
+				continue
 			}
 			if roundChangeMsg.HasPreparedCertificate() {
-			        request = &istanbul.Request {
-			                Proposal: roundChangeMsg.PreparedCertificate.Proposal,
-			        }
-			        break
+				request = &istanbul.Request{
+					Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+				}
+				break
 			}
 		}
 		if request != nil {

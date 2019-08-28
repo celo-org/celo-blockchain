@@ -125,7 +125,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 		// TODO: Check against seen messages (but handled in round change set???)
 		// if c.backend.IsKnownMessage(message) {
-			c.roundChangeSet.Add(roundChange.View.Round, &message)
+		c.roundChangeSet.Add(roundChange.View.Round, &message)
 		// }
 	}
 
@@ -136,7 +136,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	// Do need to add each round change messge into the round change set.
 	// Can just drop repeated messages in b/c message sets do stuff by addresses.
 	logger.Trace("Accepted round change certificate")
-	if c.current.Sequence().Cmp(proposal.View.Sequence) <= 0 && c.current.Round().Cmp(proposal.View.Round) < 0{
+	if c.current.Sequence().Cmp(proposal.View.Sequence) <= 0 && c.current.Round().Cmp(proposal.View.Round) < 0 {
 		logger.Trace("Moving to next round based on round change certificate")
 		c.startNewRound(proposal.View.Round)
 	} else {
