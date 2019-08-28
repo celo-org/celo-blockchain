@@ -128,12 +128,9 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	}
 
 	// May have already moved to this round based on quorum round change messages.
-	if c.current.Round().Cmp(proposal.View.Round) < 0 {
-		logger.Trace("Moving to next round based on round change certificate")
-		c.startNewRound(proposal.View.Round)
-	} else {
-		logger.Trace("Already in same round as round change certificate.")
-	}
+	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
+	c.startNewRound(proposal.View.Round)
+
 	return nil
 }
 

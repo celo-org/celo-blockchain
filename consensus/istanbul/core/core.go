@@ -228,8 +228,9 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 		logger.Trace("Catch up to the latest proposal.", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
 	} else if lastProposal.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
-		if round.Cmp(common.Big0) == 0 {
-			// same seq and round, don't need to start new round
+		// Working on the block immediately after the last committed block.
+		if round.Cmp(c.current.Round()) == 0 {
+			logger.Trace("Already in the desired round.")
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
 			logger.Warn("New round should not be smaller than current round", "lastProposalNumber", lastProposal.Number().Int64(), "new_round", round)
