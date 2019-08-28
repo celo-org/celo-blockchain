@@ -168,8 +168,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return err
 	}
 
-	// On f+1 round changes => 1 honest node has timed out so we send a round
-	// change if we haven't already and wait for the next round.
+	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if num == c.valSet.F()+1 && !c.waitingForNewRound {
 		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")

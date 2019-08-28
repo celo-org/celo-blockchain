@@ -239,7 +239,7 @@ OUTER:
 
 		curView := r0.currentView()
 		nextView := &istanbul.View{
-			Round: new(big.Int).Add(curView.Round, common.Big1),
+			Round:    new(big.Int).Add(curView.Round, common.Big1),
 			Sequence: curView.Sequence,
 		}
 
