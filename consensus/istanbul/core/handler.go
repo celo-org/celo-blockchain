@@ -204,7 +204,7 @@ func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
 	if timeoutView.Cmp(c.currentView()) < 0 {
 		return
 	}
-	// Send a round change message and transition to a waiting state if we have not already.
+	// Send a round change message and transition to a waiting state if we have not done so already.
 	// Do not move to next round until quorum round change message or valid round change certificate.
 	if !c.waitingForNewRound {
 		logger.Trace("round change timeout, sending round change message", "round", c.current.Round())

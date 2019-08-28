@@ -284,7 +284,7 @@ func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDis
 				if targets[index] || msg.Address == b.address {
 					go b.EventMux().Post(event)
 				} else {
-					// testLogger.Info("ignoring message with code", "code", msg.Code)
+					testLogger.Info("ignoring message with code", "code", msg.Code)
 				}
 			}
 		}
@@ -450,10 +450,8 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 		// Wait for all backends to finalize the block.
 		<-time.After(2 * time.Second)
 		for i, b := range sys.backends {
-			// TODO(asa): Do something with proposer here
 			committed, _ := b.LastProposal()
 			// We expect to commit the block proposed by the first proposer.
-			// TODO(joshua): This can be flaky in my local tests.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())

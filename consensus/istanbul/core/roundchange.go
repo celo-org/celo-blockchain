@@ -137,7 +137,6 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
 
-
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
 	if err := msg.Decode(&rc); err != nil {
@@ -152,8 +151,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	// Verify the PREPARED certificate if present.
 	if rc.HasPreparedCertificate() {
-		// TODO(Joshua): I don't think we should clobber our own prepared certificate here.
-		// TODO(asa): Should we still accept the round change message without the certificate if this fails?
 		if err := c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
 			return err
 		}
@@ -170,25 +167,23 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return err
 	}
 
-	// Once we received f+1 ROUND CHANGE messages, those messages form a weak certificate.
-	// If our round number is smaller than the certificate's round number, we would
-	// try to catch up the round number.
+	// On f+1 round changes 1 honest node has timed out so we immediately send a round change message and wait for the next round.
+	// On quorum round change messages we go to the next round immediately.
 	if num == c.valSet.F()+1 {
 		if !c.waitingForNewRound && cv.Round.Cmp(roundView.Round) < 0 {
 			logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
 			c.waitForNewRound()
 			c.sendRoundChange(roundView.Round)
 		}
-		return nil
 	} else if num == c.valSet.MinQuorumSize() {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(roundView.Round)
-		return nil
-	} else if cv.Round.Cmp(roundView.Round) < 0 {
-		// Round of message > current round?
-		// Only gossip the message with current round to other validators.
-		return errIgnored
 	}
+	// } else if cv.Round.Cmp(roundView.Round) < 0 {
+	// 	// Round of message > current round?
+	// 	// Only gossip the message with current round to other validators.
+	// 	return errIgnored
+	// }
 	return nil
 }
 
