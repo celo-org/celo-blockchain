@@ -42,7 +42,6 @@ var DefaultConfig = Config{
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	},
-	NetworkId:                   1,
 	LightPeers:                  100,
 	DatabaseCache:               768,
 	TrieTimeout:                 60 * time.Minute,

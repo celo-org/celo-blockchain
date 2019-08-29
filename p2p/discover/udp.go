@@ -43,6 +43,7 @@ var (
 	errTimeout          = errors.New("RPC timeout")
 	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
+	errBadNetworkID     = errors.New("bad networkID")
 )
 
 // Timeouts
@@ -72,6 +73,8 @@ type (
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
+		NetworkID  uint64
+
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
@@ -309,6 +312,7 @@ func (t *udp) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) <-ch
 		From:       t.ourEndpoint(),
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
+		NetworkID:  t.localNode.NetworkID(),
 	}
 	packet, hash, err := encodePacket(t.priv, pingPacket, req)
 	if err != nil {
@@ -638,6 +642,9 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 // Packet Handlers
 
 func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey encPubkey) error {
+	if t.localNode.NetworkID() != req.NetworkID {
+		return errBadNetworkID
+	}
 	if expired(req.Expiration) {
 		return errExpired
 	}

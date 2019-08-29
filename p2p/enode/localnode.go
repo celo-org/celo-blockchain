@@ -55,16 +55,19 @@ type LocalNode struct {
 	staticIP    net.IP
 	fallbackIP  net.IP
 	fallbackUDP int
+
+	networkID uint64
 }
 
 // NewLocalNode creates a local node.
-func NewLocalNode(db *DB, key *ecdsa.PrivateKey) *LocalNode {
+func NewLocalNode(db *DB, key *ecdsa.PrivateKey, networkID uint64) *LocalNode {
 	ln := &LocalNode{
-		id:       PubkeyToIDV4(&key.PublicKey),
-		db:       db,
-		key:      key,
-		udpTrack: netutil.NewIPTracker(iptrackWindow, iptrackContactWindow, iptrackMinStatements),
-		entries:  make(map[string]enr.Entry),
+		id:        PubkeyToIDV4(&key.PublicKey),
+		db:        db,
+		key:       key,
+		udpTrack:  netutil.NewIPTracker(iptrackWindow, iptrackContactWindow, iptrackMinStatements),
+		entries:   make(map[string]enr.Entry),
+		networkID: networkID,
 	}
 	ln.seq = db.localSeq(ln.id)
 	ln.invalidate()
@@ -243,4 +246,11 @@ func (ln *LocalNode) sign() {
 func (ln *LocalNode) bumpSeq() {
 	ln.seq++
 	ln.db.storeLocalSeq(ln.id, ln.seq)
+}
+
+func (ln *LocalNode) NetworkID() uint64 {
+	ln.mu.Lock()
+	defer ln.mu.Unlock()
+
+	return ln.networkID
 }

@@ -20,13 +20,14 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	gethnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 )
 
 func newLocalNodeForTesting() (*LocalNode, *DB) {
 	db, _ := OpenDB("")
 	key, _ := crypto.GenerateKey()
-	return NewLocalNode(db, key), db
+	return NewLocalNode(db, key, gethnode.DefaultConfig.P2P.NetworkId), db
 }
 
 func TestLocalNode(t *testing.T) {
@@ -61,7 +62,7 @@ func TestLocalNodeSeqPersist(t *testing.T) {
 	// Create a new instance, it should reload the sequence number.
 	// The number increases just after that because a new record is
 	// created without the "x" entry.
-	ln2 := NewLocalNode(db, ln.key)
+	ln2 := NewLocalNode(db, ln.key, gethnode.DefaultConfig.P2P.NetworkId)
 	if s := ln2.Node().Seq(); s != 3 {
 		t.Fatalf("wrong seq %d on new instance, want 3", s)
 	}
@@ -69,7 +70,7 @@ func TestLocalNodeSeqPersist(t *testing.T) {
 	// Create a new instance with a different node key on the same database.
 	// This should reset the sequence number.
 	key, _ := crypto.GenerateKey()
-	ln3 := NewLocalNode(db, key)
+	ln3 := NewLocalNode(db, key, gethnode.DefaultConfig.P2P.NetworkId)
 	if s := ln3.Node().Seq(); s != 1 {
 		t.Fatalf("wrong seq %d on instance with changed key, want 1", s)
 	}
