@@ -114,6 +114,10 @@ type Config struct {
 	// IP networks contained in the list are considered.
 	NetRestrict *netutil.Netlist `toml:",omitempty"`
 
+	// PingIPFromPacket uses the IP address from p2p discovery ping packet
+	// rather than the UDP header. See https://github.com/celo-org/celo-blockchain/pull/301
+	PingIPFromPacket bool
+
 	// NodeDatabase is the path to the database containing the previously seen
 	// live nodes in the network.
 	NodeDatabase string `toml:",omitempty"`
@@ -589,10 +593,11 @@ func (srv *Server) setupDiscovery() error {
 			sconn = &sharedUDPConn{conn, unhandled}
 		}
 		cfg := discover.Config{
-			PrivateKey:  srv.PrivateKey,
-			NetRestrict: srv.NetRestrict,
-			Bootnodes:   srv.BootstrapNodes,
-			Unhandled:   unhandled,
+			PingIPFromPacket: srv.PingIPFromPacket,
+			PrivateKey:       srv.PrivateKey,
+			NetRestrict:      srv.NetRestrict,
+			Bootnodes:        srv.BootstrapNodes,
+			Unhandled:        unhandled,
 		}
 		ntab, err := discover.ListenUDP(conn, srv.localnode, cfg)
 		if err != nil {
