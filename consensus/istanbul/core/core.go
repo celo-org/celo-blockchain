@@ -298,7 +298,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 	}
 	c.newRoundChangeTimer()
-	// If going into an immediate waiting state, need round change timer for the next round.
+	// If going into an immediate waiting state, need round change timer for the next round & need to send the round change message.
 	if c.waitingForNewRound {
 		c.waitForNewRound()
 	}
@@ -306,12 +306,14 @@ func (c *core) startNewRound(round *big.Int) {
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
+// All actions that occur when transitioning to waiting for round change state.
 func (c *core) waitForNewRound() {
 	nextView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Add(c.current.Round(), common.Big1),
 	}
 	c.newRoundChangeTimerForView(nextView)
+	c.sendRoundChange(nextView.Round)
 	c.waitingForNewRound = true
 }
 

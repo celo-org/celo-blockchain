@@ -174,7 +174,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	if num == c.valSet.F()+1 && !c.waitingForNewRound {
 		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForNewRound()
-		c.sendRoundChange(roundView.Round)
 	} else if num == c.valSet.MinQuorumSize() {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(roundView.Round)
