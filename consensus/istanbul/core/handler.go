@@ -193,7 +193,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
-	logger := c.logger.New("func", "handleTimeoutMsg")
+	logger := c.logger.New("func", "handleTimeoutMsg", "round", timeoutView.Round)
 	if c.current != nil {
 		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
 	} else {
@@ -205,12 +205,17 @@ func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
 		return
 	}
 	// Send a round change message and transition to a waiting state if we have not done so already.
-	// Do not move to next round until quorum round change message or valid round change certificate.
+	// Do not move to next round until quorum round change message or valid round change certificate
+	// or we've timed out again (except immediately go into a waiting state)
 	if !c.waitingForNewRound {
-		logger.Trace("round change timeout, sending round change message", "round", c.current.Round())
+		logger.Trace("round change timeout, sending round change message")
 		c.sendNextRoundChange()
-		c.waitingForNewRound = true
+		c.waitForNewRound()
+	} else if timeoutView.Round.Cmp(c.current.Round()) > 0 {
+		// Start new round will go to a waiting state if it cannot produce a round change certificate.
+		logger.Trace("round change timeout, going into waiting state in next round")
+		c.startNewRound(timeoutView.Round)
 	} else {
-		logger.Trace("round change timeout, already waiting for next round", "round", c.current.Round())
+		logger.Trace("round change timeout, already waiting for next round")
 	}
 }

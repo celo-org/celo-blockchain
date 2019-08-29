@@ -125,7 +125,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		decodedMessages[i] = *roundChange
 		// TODO(joshua): startNewRound needs these round change messages to generate a
 		// prepared certificate even if this node is not the next proposer
-		c.roundChangeSet.Add(roundChange.View.Round, &message)
+		// c.roundChangeSet.Add(roundChange.View.Round, &message)
 	}
 
 	// May have already moved to this round based on quorum round change messages.

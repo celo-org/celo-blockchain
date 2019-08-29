@@ -244,6 +244,8 @@ func (c *core) startNewRound(round *big.Int) {
 
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
+	// Go to waiting state if we can't produce a round change certificate.
+	c.waitingForNewRound = false
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -254,7 +256,7 @@ func (c *core) startNewRound(round *big.Int) {
 		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return
+			c.waitingForNewRound = true
 		}
 	} else {
 		newView = &istanbul.View{
@@ -272,9 +274,8 @@ func (c *core) startNewRound(round *big.Int) {
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForNewRound = false
 	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil {
+	if roundChange && c.isProposer() && c.current != nil && !c.waitingForNewRound {
 		// Start with pending request
 		request := c.current.pendingRequest
 		// Search for a valid request in round change messages.
@@ -302,6 +303,7 @@ func (c *core) startNewRound(round *big.Int) {
 }
 
 func (c *core) waitForNewRound() {
+	// TODO(joshua): Set round change timer here.
 	c.waitingForNewRound = true
 }
 
