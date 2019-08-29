@@ -49,6 +49,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare", "tag", "handleMsg")
+	logger.Trace("Got pre-prepare message")
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare
