@@ -438,11 +438,11 @@ func TestUDP_successfulPing(t *testing.T) {
 		if n.ID() != rid {
 			t.Errorf("node has wrong ID: got %v, want %v", n.ID(), rid)
 		}
-		if !n.IP().Equal(testRemote.IP) {
+		if !n.IP().Equal(test.remoteaddr.IP) {
 			t.Errorf("node has wrong IP: got %v, want: %v", n.IP(), test.remoteaddr.IP)
 		}
-		if int(n.UDP()) != int(testRemote.UDP) {
-			t.Errorf("node has wrong UDP port: got %v, want: %v", n.UDP(), int(testRemote.UDP))
+		if int(n.UDP()) != int(test.remoteaddr.Port) {
+			t.Errorf("node has wrong UDP port: got %v, want: %v", n.UDP(), int(test.remoteaddr.Port))
 		}
 		if n.TCP() != int(testRemote.TCP) {
 			t.Errorf("node has wrong TCP port: got %v, want: %v", n.TCP(), testRemote.TCP)
