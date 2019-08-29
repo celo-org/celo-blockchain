@@ -419,7 +419,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 				// Short circuit if no new transaction arrives.
 				if atomic.LoadInt32(&w.newTxs) == 0 {
 					timer.Reset(recommit)
-					log.Info("Miner has no new txs, not committing new work")
 					continue
 				}
 				commit(true, commitInterruptResubmit)
