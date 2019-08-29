@@ -303,7 +303,11 @@ func (c *core) startNewRound(round *big.Int) {
 }
 
 func (c *core) waitForNewRound() {
-	// TODO(joshua): Set round change timer here.
+	nextView := &istanbul.View{
+		Sequence: new(big.Int).Set(c.current.Sequence()),
+		Round:    new(big.Int).Add(c.current.Round(), common.Big1),
+	}
+	c.newRoundChangeTimerForView(nextView)
 	c.waitingForNewRound = true
 }
 
@@ -343,17 +347,21 @@ func (c *core) stopTimer() {
 }
 
 func (c *core) newRoundChangeTimer() {
+	c.newRoundChangeTimerForView(c.currentView())
+}
+
+func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	c.stopTimer()
 
 	// set timeout based on the round number
 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := c.current.Round().Uint64()
+	round := view.Round.Uint64()
 	if round > 0 {
 		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{c.currentView()})
+		c.sendEvent(timeoutEvent{view})
 	})
 }
 
