@@ -256,7 +256,7 @@ func (c *core) startNewRound(round *big.Int) {
 		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			c.waitForNewRound()
+			c.waitingForNewRound = true
 		}
 	} else {
 		newView = &istanbul.View{
@@ -297,9 +297,10 @@ func (c *core) startNewRound(round *big.Int) {
 			c.sendPreprepare(request, roundChangeCertificate)
 		}
 	}
+	c.newRoundChangeTimer()
 	// If going into an immediate waiting state, need round change timer for the next round.
-	if !c.waitingForNewRound {
-		c.newRoundChangeTimer()
+	if c.waitingForNewRound {
+		c.waitForNewRound()
 	}
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
