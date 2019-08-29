@@ -167,6 +167,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "message", msg, "err", err)
 		return err
 	}
+	logger.Trace("Got round change message", "num", num, "message_round", roundView.Round)
 
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
