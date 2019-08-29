@@ -82,6 +82,7 @@ func TestParitySturebyConverter(t *testing.T) {
 		t.Fatalf("failed creating chainspec: %v", err)
 	}
 
+	// Note: this file has been edited to reflect Celo's larger maxCodeSize
 	expBlob, err := ioutil.ReadFile("testdata/stureby_parity.json")
 	if err != nil {
 		t.Fatalf("could not read file: %v", err)
