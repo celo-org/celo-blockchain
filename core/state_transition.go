@@ -256,7 +256,7 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gas
 }
 
 func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Debug("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
+	// log.Debug("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.SubBalance(from, amount)
@@ -267,7 +267,7 @@ func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCur
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Debug("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
+	// log.Debug("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
@@ -349,7 +349,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
-		log.Debug("VM returned with error", "err", vmerr)
+		// log.Debug("VM returned with error", "err", vmerr)
 		// The only possible consensus-error would be if there wasn't
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.
@@ -375,7 +375,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*st.infrastructureAccountAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		// log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
 		recipientTxFee = totalTxFee
 	}
 

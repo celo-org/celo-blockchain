@@ -415,12 +415,27 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
-			if w.isRunning() && (w.config.Clique == nil || w.config.Clique.Period > 0) && !w.isIstanbulEngine() {
+			if w.isRunning() && (w.config.Clique == nil || w.config.Clique.Period > 0) {
+				// If we've already accepted a preprepare, it is too late to introduce new transactions
+				// into the block for this round.
+				// TODO(asa): Race condition
+				/*
+					if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+						if istanbul.HasAcceptedPreprepare() {
+							log.Info("Miner has already accepted preprepare, not committing new work")
+							continue
+						}
+					}
+				*/
 				// Short circuit if no new transaction arrives.
-				if atomic.LoadInt32(&w.newTxs) == 0 {
-					timer.Reset(recommit)
-					continue
-				}
+				/*
+					if atomic.LoadInt32(&w.newTxs) == 0 {
+						timer.Reset(recommit)
+						log.Info("Miner has no new txs, not committing new work")
+						continue
+					}
+				*/
+				log.Info("Miner committing new work")
 				commit(true, commitInterruptResubmit)
 			}
 
@@ -571,12 +586,14 @@ func (w *worker) taskLoop() {
 	for {
 		select {
 		case task := <-w.taskCh:
+			log.Warn("Received new block in task channel", "hash", task.block.Header().Hash().Hex())
 			if w.newTaskHook != nil {
 				w.newTaskHook(task)
 			}
 			// Reject duplicate sealing work due to resubmitting.
 			sealHash := w.engine.SealHash(task.block.Header())
 			if sealHash == prev {
+				log.Info("Seal hash is equal to prev", "hash", sealHash.Hex())
 				continue
 			}
 			// Interrupt previous sealing operation
@@ -1036,6 +1053,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
+		log.Info("No available pending txs")
 		istanbulEmptyBlockCommit()
 		return
 	}
@@ -1082,12 +1100,14 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
+		log.Info("Error finalizing block", "err", err)
 		return err
 	}
 	if w.isRunning() {
 		if interval != nil {
 			interval()
 		}
+		log.Info("Debugging stuff")
 		select {
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
 			w.unconfirmed.Shift(block.NumberU64() - 1)

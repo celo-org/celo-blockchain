@@ -462,7 +462,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	if err == contract_errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
-		log.Error(err.Error())
+		// log.Error(err.Error())
 	}
 	// Add block rewards only if goldtoken smart contract has been initialized
 	if goldTokenAddress != nil {
@@ -525,6 +525,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+	log.Info("Finalized block with hash", "hash", header.Hash().Hex())
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
@@ -533,6 +534,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
 func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	log.Info("Sealing block with hash", "hash", block.Header().Hash().Hex())
 	// update the block header timestamp and signature and propose the block to core engine
 	header := block.Header()
 	number := header.Number.Uint64()
@@ -555,28 +557,30 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		return err
 	}
 
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
-	select {
-	case <-time.After(delay):
-	case <-stop:
-		return nil
-	}
-
-	// get the proposed block hash and clear it if the seal() is completed.
-	sb.sealMu.Lock()
-	sb.proposedBlockHash = block.Hash()
-	clear := func() {
-		sb.proposedBlockHash = common.Hash{}
-		sb.sealMu.Unlock()
-	}
-
-	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
-
 	go func() {
+		// wait for the timestamp of header, use this to adjust the block period
+		delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
+		select {
+		case <-time.After(delay):
+		case <-stop:
+			log.Info("Received signal to stop sealing", "hash", block.Header().Hash)
+			return
+		}
+
+		// get the proposed block hash and clear it if the seal() is completed.
+		sb.sealMu.Lock()
+		sb.proposedBlockHash = block.Hash()
+		clear := func() {
+			sb.proposedBlockHash = common.Hash{}
+			sb.sealMu.Unlock()
+		}
+
+		log.Info("Posting block to istanbul engine", "hash", block.Header().Hash().Hex())
+		// post block into Istanbul engine
+		go sb.EventMux().Post(istanbul.RequestEvent{
+			Proposal: block,
+		})
+
 		defer clear()
 		for {
 			select {
