@@ -30,7 +30,7 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 		return err
 	}
 
-	logger.Info("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash().Hex())
+	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
 	c.current.pendingRequest = request
 	if c.state == StateAcceptRequest {
@@ -60,7 +60,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 func (c *core) storeRequestMsg(request *istanbul.Request) {
 	logger := c.logger.New("state", c.state)
 
-	logger.Info("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash().Hex())
+	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
 	c.pendingRequestsMu.Lock()
 	defer c.pendingRequestsMu.Unlock()
@@ -90,7 +90,7 @@ func (c *core) processPendingRequests() {
 			c.logger.Trace("Skip the pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash(), "err", err)
 			continue
 		}
-		c.logger.Info("Post pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
+		c.logger.Trace("Post pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
 
 		go c.sendEvent(istanbul.RequestEvent{
 			Proposal: r.Proposal,

@@ -104,7 +104,7 @@ func address() *common.Address {
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err, "contract id", params.RandomRegistryId)
 	} else if err != nil {
-		// log.Error(err.Error())
+		log.Error(err.Error())
 	}
 	return randomAddress
 }
