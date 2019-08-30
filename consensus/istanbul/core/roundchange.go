@@ -170,3 +170,21 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	}
 	return maxRound
 }
+
+func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	round := r.Uint64()
+	if rcs.roundChanges[round] != nil && rcs.roundChanges[round].Size() >= quorumSize {
+		messages := make([]istanbul.Message, rcs.roundChanges[round].Size())
+		for i, message := range rcs.roundChanges[round].Values() {
+			messages[i] = *message
+		}
+		return istanbul.RoundChangeCertificate{
+			RoundChangeMessages: messages,
+		}, nil
+	} else {
+		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
+	}
+}
