@@ -121,19 +121,22 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 		return err
 	}
 
-	// If it is locked, it can only process on the locked block.
-	// Passing verifyPrepare and checkMessage implies it is processing on the locked block since it was verified in the Preprepared state.
-	if err := c.verifyPrepare(prepare, src); err != nil {
+	if err := c.verifyPrepare(prepare); err != nil {
 		return err
 	}
 
-	c.acceptPrepare(msg, src)
+	c.acceptPrepare(msg)
+	preparesAndCommits := c.current.GetPrepareOrCommitSize()
+	minQuorumSize := c.valSet.MinQuorumSize()
+	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
 
-	// Change to Prepared state if we've received enough PREPARE messages or it is locked
-	// and we are in earlier state before Prepared state.
-	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() >= c.valSet.MinQuorumSize()) &&
-		c.state.Cmp(StatePrepared) < 0 {
-		c.current.LockHash()
+	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
+	// before Prepared state.
+	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
+		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+			return err
+		}
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}
@@ -142,8 +145,8 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 }
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
-func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPrepare")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
@@ -154,8 +157,8 @@ func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) 
 	return nil
 }
 
-func (c *core) acceptPrepare(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) acceptPrepare(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
 
 	// Add the PREPARE message to current round state
 	if err := c.current.Prepares.Add(msg); err != nil {
