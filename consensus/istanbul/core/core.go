@@ -197,7 +197,6 @@ func (c *core) commit() {
 		}
 
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
-			c.current.UnlockHash() //Unlock block when insertion fails
 			c.sendNextRoundChange()
 			return
 		}
@@ -208,17 +207,18 @@ func (c *core) commit() {
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
 	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0)
+		logger = c.logger.New("cur_round", -1, "cur_seq", 0, "next_round", 0, "next_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
+		logger = c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	roundChange := false
 	// Try to get last proposal
 	lastProposal, lastProposer := c.backend.LastProposal()
 	if c.current == nil {
-		logger.Trace("Start to the initial round")
+		logger.Trace("Start the initial round")
 	} else if lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
+		// Want to be working on the block 1 beyond the last committed block.
 		diff := new(big.Int).Sub(lastProposal.Number(), c.current.Sequence())
 		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
 
@@ -242,10 +242,19 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 
 	var newView *istanbul.View
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	// Go to waiting state if we can't produce a round change certificate.
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
+		}
+
+		var err error
+		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+		if err != nil {
+			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+			return
 		}
 	} else {
 		newView = &istanbul.View{
@@ -266,15 +275,25 @@ func (c *core) startNewRound(round *big.Int) {
 	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil {
-		// If it is locked, propose the old proposal
-		// If we have pending request, propose pending request
-		if c.current.IsHashLocked() {
-			r := &istanbul.Request{
-				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
+		// Start with pending request
+		request := c.current.pendingRequest
+		// Search for a valid request in round change messages.
+		// The round change certificate should be generated such that it is consistent in it's proposed subject.
+		for _, message := range roundChangeCertificate.RoundChangeMessages {
+			var roundChangeMsg *istanbul.RoundChange
+			if err := message.Decode(&roundChangeMsg); err != nil {
+				logger.Error("Failed to decode ROUND CHANGE in certificate. Skipping to next ROUND CHANGE message.", "err", err)
+				continue
 			}
-			c.sendPreprepare(r)
-		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest)
+			if roundChangeMsg.HasPreparedCertificate() {
+				request = &istanbul.Request{
+					Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+				}
+				break
+			}
+		}
+		if request != nil {
+			c.sendPreprepare(request, roundChangeCertificate)
 		}
 	}
 	c.newRoundChangeTimer()
@@ -298,17 +317,11 @@ func (c *core) catchUpRound(view *istanbul.View) {
 	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
 }
 
-// updateRoundState updates round state by checking if locking block is necessary
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
-	// Lock only if both roundChange is true and it is locked
 	if roundChange && c.current != nil {
-		if c.current.IsHashLocked() {
-			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
-		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
-		}
+		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.backend.HasBadProposal)
 	} else {
-		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.backend.HasBadProposal)
 	}
 }
 
