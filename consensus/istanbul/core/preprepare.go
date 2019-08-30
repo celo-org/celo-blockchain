@@ -19,25 +19,27 @@ package core
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) sendPreprepare(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state)
+func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
 		curView := c.currentView()
 		preprepare, err := Encode(&istanbul.Preprepare{
-			View:     curView,
-			Proposal: request.Proposal,
+			View:                   curView,
+			Proposal:               request.Proposal,
+			RoundChangeCertificate: roundChangeCertificate,
 		})
 		if err != nil {
 			logger.Error("Failed to encode", "view", curView)
 			return
 		}
-
+		logger.Trace("Sending preprepare")
 		c.broadcast(&istanbul.Message{
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
