@@ -30,6 +30,7 @@ import (
 func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
 		round:               view.Round,
+		desiredRound:        new(big.Int).Set(view.Round.Add(common.Big1))
 		sequence:            view.Sequence,
 		Preprepare:          preprepare,
 		Prepares:            newMessageSet(validatorSet),
@@ -44,6 +45,7 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prep
 // roundState stores the consensus state
 type roundState struct {
 	round               *big.Int
+	desiredRound        *big.Int
 	sequence            *big.Int
 	Preprepare          *istanbul.Preprepare
 	Prepares            *messageSet
