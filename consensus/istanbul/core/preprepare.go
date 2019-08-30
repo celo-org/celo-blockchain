@@ -57,6 +57,25 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 		return errFailedDecodePreprepare
 	}
 
+	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
+	if preprepare.View.Round.Cmp(common.Big0) > 0 {
+		if !preprepare.HasRoundChangeCertificate() {
+			return errMissingRoundChangeCertificate
+		}
+		subject := istanbul.Subject{
+			View:   preprepare.View,
+			Digest: preprepare.Proposal.Hash(),
+		}
+		// This also moves us to the next round if the certificate is valid.
+		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
+		if err != nil {
+			return err
+		}
+	} else if preprepare.HasRoundChangeCertificate() {
+		logger.Error("Preprepare for round 0 has a round change certificate.")
+		return errInvalidProposal
+	}
+
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
@@ -100,27 +119,11 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 		return err
 	}
 
-	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {
-		// Send ROUND CHANGE if the locked proposal and the received proposal are different
-		if c.current.IsHashLocked() {
-			if preprepare.Proposal.Hash() == c.current.GetLockedHash() {
-				// Broadcast COMMIT and enters Prepared state directly
-				c.acceptPreprepare(preprepare)
-				c.setState(StatePrepared)
-				c.sendCommit()
-			} else {
-				// Send round change
-				c.sendNextRoundChange()
-			}
-		} else {
-			// Either
-			//   1. the locked proposal and the received proposal match
-			//   2. we have no locked proposal
-			c.acceptPreprepare(preprepare)
-			c.setState(StatePreprepared)
-			c.sendPrepare()
-		}
+		logger.Trace("Accepted preprepare", "tag", "stateTransition")
+		c.acceptPreprepare(preprepare)
+		c.setState(StatePreprepared)
+		c.sendPrepare()
 	}
 
 	return nil
