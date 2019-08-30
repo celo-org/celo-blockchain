@@ -32,11 +32,11 @@ func (c *core) sendNextRoundChange() {
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
 
 	cv := c.currentView()
 	if cv.Round.Cmp(round) >= 0 {
-		logger.Error("Cannot send out the round change", "current round", cv.Round, "target round", round)
+		logger.Error("Cannot send out the round change")
 		return
 	}
 
@@ -46,11 +46,9 @@ func (c *core) sendRoundChange(round *big.Int) {
 		Sequence: new(big.Int).Set(cv.Sequence),
 	})
 
-	// Now we have the new round number and sequence number
-	cv = c.currentView()
-	rc := &istanbul.Subject{
-		View:   cv,
-		Digest: common.Hash{},
+	rc := &istanbul.RoundChange{
+		View:                c.current.View(),
+		PreparedCertificate: c.current.preparedCertificate,
 	}
 
 	payload, err := Encode(rc)
