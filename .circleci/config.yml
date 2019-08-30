@@ -1,46 +1,45 @@
 version: 2
 
-defaults: &defaults
+geth-defaults: &geth-defaults
   docker:
     - image: circleci/golang:1.12
-  working_directory: /go/src/github.com/celo-org/geth
 
 rust-defaults: &rust-defaults
   docker:
     - image: circleci/rust:1.36.0
-  working_directory: ~/geth
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node8:gcloud
-  working_directory: ~/geth
 
 jobs:
   unit-tests:
-    <<: *defaults
+    <<: *geth-defaults
+    working_directory: ~/repos/geth
     steps:
       - attach_workspace:
-          at: .
-      - run: build/env.sh go run build/ci.go lint
+          at: ~/repos
       - run: build/env.sh go run build/ci.go test
 
   coverage:
-    <<: *defaults
+    <<: *geth-defaults
+    working_directory: ~/repos/geth
     steps:
       - attach_workspace:
-          at: .
+          at: ~/repos
       - run: build/env.sh go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
   lint:
-    <<: *defaults
+    <<: *geth-defaults
+    working_directory: ~/repos/geth
     steps:
-      - attach_workspace:
-          at: .
+      - checkout
       - run: build/env.sh go run build/ci.go lint
 
   bls-zexe:
     <<: *rust-defaults
+    working_directory: ~/repos/geth
     steps:
       - checkout
       - run:
@@ -54,32 +53,22 @@ jobs:
           command: |
             set -euo pipefail
             export PATH=$PATH:$HOME/.cargo/bin
-            cd ~/geth
             make bls-zexe
+            
       - persist_to_workspace:
-          root: .
-          paths: .
+          root: ~/repos
+          paths:
+            - geth
 
-  end-to-end-checkout:
+  end-to-end-monorepo-checkout:
     <<: *end-to-end-defaults
+    working_directory: ~/repos/celo-monorepo
     steps:
-      - checkout
-      - attach_workspace:
-          at: ~/geth
-      - run:
-          name: Setup Go language
-          command: |
-            set -euo pipefail
-            GO_LANG_DIR="./golang"
-            mkdir -p ${GO_LANG_DIR}
-            wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
-            tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
-            ${GO_LANG_DIR}/go/bin/go version
       - run:
           name: Setup celo-monorepo
           command: |
             set -euo pipefail
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
+            export CELO_MONOREPO_DIR="$PWD"
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
             cd ${CELO_MONOREPO_DIR}/packages
             # TODO(ashishb): Delete unnecessary packages to speed up build time.
@@ -89,81 +78,99 @@ jobs:
             # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             yarn || yarn
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/utils build
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/walletkit build
+            yarn --cwd=${CELO_MONOREPO_DIR}/packages/celotool build
+
+      - run:
+          name: Setup Go language
+          command: |
+            set -euo pipefail
+            export CELO_MONOREPO_DIR="$PWD"
+            GO_LANG_DIR="${CELO_MONOREPO_DIR}/golang"
+            mkdir -p ${GO_LANG_DIR}
+            wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
+            tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
+            ${GO_LANG_DIR}/go/bin/go version
       - persist_to_workspace:
-          root: .
-          paths: .
+          root: ~/repos
+          paths:
+            - celo-monorepo
 
   end-to-end-transfer-test:
     <<: *end-to-end-defaults
+    working_directory: ~/repos
     steps:
       - attach_workspace:
-          at: ~/geth
+          at: ~/repos
       - run:
           name: Geth transfer test
           no_output_timeout: 15m
           command: |
-            GO_LANG_DIR="$HOME/geth/golang"
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
             ${GO_LANG_DIR}/go/bin/go version
             export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_transfers.sh local ~/geth
+            ./ci_test_transfers.sh local ~/repos/geth
 
   end-to-end-sync-test:
     <<: *end-to-end-defaults
+    working_directory: ~/repos
     steps:
       - attach_workspace:
-          at: ~/geth
+          at: ~/repos
       - run:
           name: Geth sync with a standalone node test
           command: |
-            GO_LANG_DIR="$HOME/geth/golang"
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
             ${GO_LANG_DIR}/go/bin/go version
             export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_sync.sh local ~/geth
+            ./ci_test_sync.sh local ~/repos/geth
 
   end-to-end-geth-governance-test:
     <<: *end-to-end-defaults
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
+    working_directory: ~/repos
     steps:
       - attach_workspace:
-          at: ~/geth
+          at: ~/repos
       - run:
           name: Geth goverenance with a standalone node
           no_output_timeout: "1200s"
           command: |
-            GO_LANG_DIR="$HOME/geth/golang"
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
             ${GO_LANG_DIR}/go/bin/go version
             export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            export CELO_MONOREPO_DIR="$HOME/geth/celo-monorepo"
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_governance.sh local ~/geth
+            ./ci_test_governance.sh local ~/repos/geth
 
 workflows:
   version: 2
   build:
     jobs:
       - bls-zexe
-      - lint:
-          requires:
-            - bls-zexe
+      - lint
+      - end-to-end-monorepo-checkout
       - unit-tests:
           requires:
             - bls-zexe
       - coverage:
           requires:
             - bls-zexe
-      - end-to-end-checkout:
-          requires:
-            - bls-zexe
-
       - end-to-end-transfer-test:
           requires:
-            - end-to-end-checkout
+            - end-to-end-monorepo-checkout
+            - bls-zexe
       - end-to-end-sync-test:
           requires:
-            - end-to-end-checkout
+            - end-to-end-monorepo-checkout
+            - bls-zexe
       - end-to-end-geth-governance-test:
           requires:
-            - end-to-end-checkout
+            - end-to-end-monorepo-checkout
+            - bls-zexe

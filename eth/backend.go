@@ -107,7 +107,7 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if !config.SyncMode.SyncFullBlockChain() {
-		return nil, errors.New("can't run eth.Ethereum in light sync mode, celolatest mode, or ultralight sync mode, use les.LightEthereum")
+		return nil, errors.New("can't run eth.Ethereum in light sync mode or ultralight sync mode, use les.LightEthereum")
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
@@ -545,7 +545,7 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 	// Figure out a max peers count based on the server limits
 	maxPeers := srvr.MaxPeers
 	if s.config.LightServ > 0 {
-		if s.config.LightPeers >= srvr.MaxPeers {
+		if s.config.LightPeers != 0 && s.config.LightPeers >= srvr.MaxPeers {
 			return fmt.Errorf("invalid peer config: light peer count (%d) >= total peer count (%d)", s.config.LightPeers, srvr.MaxPeers)
 		}
 		maxPeers -= s.config.LightPeers
