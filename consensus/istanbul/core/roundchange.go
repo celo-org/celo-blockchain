@@ -47,7 +47,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	})
 
 	rc := &istanbul.RoundChange{
-		View:                c.current.View(),
+		View:                c.currentView(),
 		PreparedCertificate: c.current.preparedCertificate,
 	}
 
@@ -158,6 +158,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	}
 
 	roundView := rc.View
+	cv := c.currentView()
 
 	// Add the ROUND CHANGE message to its message set and return how many
 	// messages we've got with the same round number and sequence number.

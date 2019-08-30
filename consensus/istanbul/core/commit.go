@@ -79,19 +79,15 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 	c.acceptCommit(msg)
 	numberOfCommits := c.current.Commits.Size()
 	minQuorumSize := c.valSet.MinQuorumSize()
-	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
 	if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
-		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
-		logger.Trace("Got enough prepares and commits to generate a PreparedCertificate")
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
 	}
