@@ -25,7 +25,6 @@ const (
 	FullSync       SyncMode = iota // Synchronise the entire blockchain history from full blocks
 	FastSync                       // Quickly download the headers, full sync only at the chain head
 	LightSync                      // Download only the headers and terminate afterwards
-	CeloLatestSync                 // Latest block only (Celo-specific mode)
 	UltraLightSync                 // Synchronise one block per Epoch (Celo-specific mode)
 )
 
@@ -44,8 +43,6 @@ func (mode SyncMode) String() string {
 		return "fast"
 	case LightSync:
 		return "light"
-	case CeloLatestSync:
-		return "celolatest"
 	case UltraLightSync:
 		return ultraLightSyncModeAsString
 	default:
@@ -61,8 +58,6 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("fast"), nil
 	case LightSync:
 		return []byte("light"), nil
-	case CeloLatestSync:
-		return []byte("celolatest"), nil
 	case UltraLightSync:
 		return []byte(ultraLightSyncModeAsString), nil
 	default:
@@ -78,12 +73,10 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FastSync
 	case "light":
 		*mode = LightSync
-	case "celolatest":
-		*mode = CeloLatestSync
 	case ultraLightSyncModeAsString:
 		*mode = UltraLightSync
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", "celolatest", or "%s"`,
+		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "%s"`,
 			text, ultraLightSyncModeAsString)
 	}
 	return nil
@@ -98,8 +91,6 @@ func (mode SyncMode) SyncFullHeaderChain() bool {
 		return true
 	case LightSync:
 		return true
-	case CeloLatestSync:
-		return false
 	case UltraLightSync:
 		return false
 	default:
@@ -116,8 +107,6 @@ func (mode SyncMode) SyncFullBlockChain() bool {
 	case FastSync:
 		return true
 	case LightSync:
-		return false
-	case CeloLatestSync:
 		return false
 	case UltraLightSync:
 		return false

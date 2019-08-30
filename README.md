@@ -54,7 +54,7 @@ $ geth --your-favourite-flags dumpconfig
 Thank you for considering to help out with the source code! We welcome contributions from
 anyone on the internet, and are grateful for even the smallest of fixes!
 
-If you'd like to contribute to go-ethereum, please fork, fix, commit and send a pull request
+If you'd like to contribute to celo-blockchain, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit more
 complex changes though, please check up with the core devs first on [the official Celo forum](https://forum.celo.org/c/protocol)
 to ensure those changes are in line with the general philosophy of the project and/or get some
@@ -68,6 +68,25 @@ Please make sure your contributions adhere to our coding guidelines:
  * Pull requests need to be based on and opened against the `master` branch.
  * Commit messages should be prefixed with the package(s) they modify.
    * E.g. "eth, rpc: make trace configs optional"
+
+### CI Testing and automerge
+
+We run a circle CI test suite on each PR. The following tests are required to
+merge a PR.
+  * Unit tests: `make test` or `./build/env.sh go run build/ci.go test`
+  * Lint: `make lint` (Fix go format errors with `gofmt -s`)
+  * Build: `make`
+  * End to end sync and transfer tests
+
+
+Individual package tests can be run with
+`./build/env.sh go test github.com/ethereum/go-ethereum/$(PATH_TO_GO_PACKAGE)`
+if you don't have `GOPATH` set-up.
+
+
+Once a PR is approved, adding on the `automerge` label will keep it up to date
+and do a squash merge once all the required tests have passed.
+
 
 ## License
 
