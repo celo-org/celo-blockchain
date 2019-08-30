@@ -129,10 +129,10 @@ const (
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
-	MaxGasForDebitFromTransactions      uint64 = 48 * 1000
-	ExpectedGasForDebitFromTransactions uint64 = 32 * 1000
-	MaxGasForCreditToTransactions       uint64 = 38 * 1000
-	MaxGasToReadErc20Balance            uint64 = 25 * 1000
+	MaxGasForDebitFromTransactions      uint64 = 38 * 1000
+	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
+	MaxGasForCreditToTransactions       uint64 = 32 * 1000
+	MaxGasToReadErc20Balance            uint64 = 15 * 1000
 	MaxGasToReadTobinTax                uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
