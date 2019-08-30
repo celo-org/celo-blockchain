@@ -84,8 +84,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if syncMode == downloader.LightSync {
 		chainName = "lightchaindata"
 		fullChainAvailable = true
-	} else if syncMode == downloader.UltraLightSync {
-		chainName = "ultralightchaindata"
+	} else if syncMode == downloader.SyncModeLightestSync {
+		chainName = "lightestchaindata"
 		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
@@ -121,9 +121,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
 	}
 
-	if syncMode == downloader.UltraLightSync && chainConfig.Istanbul == nil {
+	if syncMode == downloader.SyncModeLightestSync && chainConfig.Istanbul == nil {
 		msg := fmt.Sprintf(
-			"To use UltraLightSync sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
+			"To use 'lightest' sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
 		panic(msg)
 	}
 

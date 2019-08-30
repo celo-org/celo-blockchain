@@ -41,7 +41,7 @@ var (
 	MaxHashFetch        = 512 // Amount of hashes to be fetched per retrieval request
 	MaxBlockFetch       = 128 // Amount of blocks to be fetched per retrieval request
 	MaxHeaderFetch      = 192 // Amount of block headers to be fetched per retrieval request
-	MaxEpochHeaderFetch = 192 // Number of epoch block headers to fetch (only used in IBFT consensus + UltraLight sync mode)
+	MaxEpochHeaderFetch = 192 // Number of epoch block headers to fetch (only used in IBFT consensus + Lightest sync mode)
 	MaxSkeletonSize     = 128 // Number of header fetches to need for a skeleton assembly
 	MaxBodyFetch        = 128 // Amount of block bodies to be fetched per retrieval request
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
@@ -284,7 +284,7 @@ func (d *Downloader) Progress() ethereum.SyncProgress {
 		current = d.blockchain.CurrentFastBlock().NumberU64()
 	case LightSync:
 		fallthrough
-	case UltraLightSync:
+	case SyncModeLightestSync:
 		current = d.lightchain.CurrentHeader().Number.Uint64()
 	}
 	log.Debug(fmt.Sprintf("Current head is %v", current))
@@ -916,8 +916,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 	}
 
 	getEpochHeaders := func(fromEpochBlock uint64) {
-		if d.Mode != UltraLightSync {
-			panic("This method should be called only in UltraLightSync mode")
+		if d.Mode != SyncModeLightestSync {
+			panic("This method should be called only in SyncModeLightestSync mode")
 		}
 		if fromEpochBlock%epoch != 0 {
 			panic(fmt.Sprintf(
@@ -946,7 +946,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		nextEpochBlock := (from-1)/epoch*epoch + epoch
 		// If we're still not synced up to the latest epoch, sync only epoch headers.
 		// Otherwise, sync block headers as we would normally in light sync.
-		log.Trace("Getting headers in ultralight sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
+		log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 		if nextEpochBlock < height {
 			getEpochHeaders(nextEpochBlock)
 			return true
@@ -963,9 +963,9 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		}
 	}
 
-	if d.Mode == UltraLightSync {
+	if d.Mode == SyncModeLightestSync {
 		if epoch == 0 {
-			panic("Epoch cannot be 0 in IBFT + UltraLightSync")
+			panic("Epoch cannot be 0 in IBFT + SyncModeLightestSync")
 		}
 		// Don't fetch skeleton, only fetch the headers.
 		skeleton = false
@@ -1068,8 +1068,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					return errCancelHeaderFetch
 				}
 				// In all other sync modes, we fetch the block immediately after the current block.
-				// In the ultralight sync mode, increment the value by epoch instead.
-				if d.Mode == UltraLightSync {
+				// In the lightest sync mode, increment the value by epoch instead.
+				if d.Mode == SyncModeLightestSync {
 					lastFetchedHeaderNumber := headers[len(headers)-1].Number.Uint64()
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
@@ -1091,7 +1091,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				p.log.Trace("All headers delayed, waiting")
 				select {
 				case <-time.After(fsHeaderContCheck):
-					if d.Mode == UltraLightSync {
+					if d.Mode == SyncModeLightestSync {
 						getEpochOrNormalHeaders(from)
 					} else {
 						getHeaders(from)

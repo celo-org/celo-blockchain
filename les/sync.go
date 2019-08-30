@@ -58,8 +58,8 @@ func (pm *ProtocolManager) syncer() {
 func (pm *ProtocolManager) needToSync(peerHead blockInfo, mode downloader.SyncMode) bool {
 	head := pm.blockchain.CurrentHeader()
 	if !mode.SyncFullHeaderChain() {
-		// This is true only for the ultralight sync mode.
-		// In the ultralight mode used for IBFT, each block has a difficulty of 1, so, block number
+		// This is true only for the lightest sync mode.
+		// In the lightest mode used for IBFT, each block has a difficulty of 1, so, block number
 		// corresponds to the difficulty level.
 		currentHead := head.Number.Uint64()
 		log.Debug("needToSync", "currentHead", currentHead, "peerHead", peerHead.Number)
