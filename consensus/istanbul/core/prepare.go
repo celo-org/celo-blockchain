@@ -19,11 +19,12 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 func (c *core) sendPrepare() {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPrepare")
 
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)
@@ -31,13 +32,84 @@ func (c *core) sendPrepare() {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
+	logger.Trace("Sending prepare")
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  encodedSubject,
 	})
 }
 
+func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPreparedCertificate")
+
+	// Validate the attached proposal
+	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+		return errInvalidPreparedCertificateProposal
+	}
+
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.valSet.MinQuorumSize() {
+		return errInvalidPreparedCertificateNumMsgs
+	}
+
+	seen := make(map[common.Address]bool)
+	for _, message := range preparedCertificate.PrepareOrCommitMessages {
+		data, err := message.PayloadNoSig()
+		if err != nil {
+			return err
+		}
+
+		// Verify message signed by a validator
+		signer, err := c.validateFn(data, message.Signature)
+		if err != nil {
+			return err
+		}
+
+		if signer != message.Address {
+			return errInvalidPreparedCertificateMsgSignature
+		}
+
+		// Check for duplicate messages
+		if seen[signer] {
+			return errInvalidPreparedCertificateDuplicate
+		}
+		seen[signer] = true
+
+		// Check that the message is a PREPARE or COMMIT message
+		if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
+			return errInvalidPreparedCertificateMsgCode
+		}
+
+		var subject *istanbul.Subject
+		if err := message.Decode(&subject); err != nil {
+			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+			return err
+		}
+
+		// Verify message for the proper sequence.
+		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+			return errInvalidPreparedCertificateMsgView
+		}
+
+		// Verify message for the proper proposal.
+		if subject.Digest != preparedCertificate.Proposal.Hash() {
+			return errInvalidPreparedCertificateDigestMismatch
+		}
+
+		// If COMMIT message, verify valid committed seal.
+		if message.Code == istanbul.MsgCommit {
+			_, src := c.valSet.GetByAddress(signer)
+			err := c.verifyCommittedSeal(subject.Digest, message.CommittedSeal, src)
+			if err != nil {
+				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
