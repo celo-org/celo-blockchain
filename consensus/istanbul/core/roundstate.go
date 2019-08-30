@@ -27,31 +27,29 @@ import (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-// lockedHash and preprepare are for round change when lock exists,
-// we need to keep a reference of preprepare in order to propose locked proposal when there is a lock and itself is the proposer
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, lockedHash common.Hash, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
-		round:          view.Round,
-		sequence:       view.Sequence,
-		Preprepare:     preprepare,
-		Prepares:       newMessageSet(validatorSet),
-		Commits:        newMessageSet(validatorSet),
-		lockedHash:     lockedHash,
-		mu:             new(sync.RWMutex),
-		pendingRequest: pendingRequest,
-		hasBadProposal: hasBadProposal,
+		round:               view.Round,
+		sequence:            view.Sequence,
+		Preprepare:          preprepare,
+		Prepares:            newMessageSet(validatorSet),
+		Commits:             newMessageSet(validatorSet),
+		mu:                  new(sync.RWMutex),
+		pendingRequest:      pendingRequest,
+		preparedCertificate: preparedCertificate,
+		hasBadProposal:      hasBadProposal,
 	}
 }
 
 // roundState stores the consensus state
 type roundState struct {
-	round          *big.Int
-	sequence       *big.Int
-	Preprepare     *istanbul.Preprepare
-	Prepares       *messageSet
-	Commits        *messageSet
-	lockedHash     common.Hash
-	pendingRequest *istanbul.Request
+	round               *big.Int
+	sequence            *big.Int
+	Preprepare          *istanbul.Preprepare
+	Prepares            *messageSet
+	Commits             *messageSet
+	pendingRequest      *istanbul.Request
+	preparedCertificate istanbul.PreparedCertificate
 
 	mu             *sync.RWMutex
 	hasBadProposal func(hash common.Hash) bool
@@ -61,15 +59,7 @@ func (s *roundState) GetPrepareOrCommitSize() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := s.Prepares.Size() + s.Commits.Size()
-
-	// find duplicate one
-	for _, m := range s.Prepares.Values() {
-		if s.Commits.Get(m.Address) != nil {
-			result--
-		}
-	}
-	return result
+	return s.getPrepareOrCommitSize()
 }
 
 func (s *roundState) Subject() *istanbul.Subject {
@@ -135,37 +125,51 @@ func (s *roundState) Sequence() *big.Int {
 	return s.sequence
 }
 
-func (s *roundState) LockHash() {
+func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.Preprepare != nil {
-		s.lockedHash = s.Preprepare.Proposal.Hash()
-	}
+	s.preparedCertificate = preparedCertificate
 }
 
-func (s *roundState) UnlockHash() {
+func (s *roundState) CreateAndSetPreparedCertificate(quorumSize int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.lockedHash = common.Hash{}
-}
-
-func (s *roundState) IsHashLocked() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if (s.lockedHash == common.Hash{}) {
-		return false
+	prepareOrCommitSize := s.getPrepareOrCommitSize()
+	if prepareOrCommitSize >= quorumSize {
+		messages := make([]istanbul.Message, prepareOrCommitSize)
+		i := 0
+		for _, message := range s.Prepares.Values() {
+			messages[i] = *message
+			i++
+		}
+		for _, message := range s.Commits.Values() {
+			if s.Prepares.Get(message.Address) == nil {
+				messages[i] = *message
+				i++
+			}
+		}
+		s.preparedCertificate = istanbul.PreparedCertificate{
+			Proposal:                s.Preprepare.Proposal,
+			PrepareOrCommitMessages: messages,
+		}
+		return nil
+	} else {
+		return errFailedCreatePreparedCertificate
 	}
-	return !s.hasBadProposal(s.GetLockedHash())
 }
 
-func (s *roundState) GetLockedHash() common.Hash {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *roundState) getPrepareOrCommitSize() int {
+	result := s.Prepares.Size() + s.Commits.Size()
 
-	return s.lockedHash
+	// find duplicate one
+	for _, m := range s.Prepares.Values() {
+		if s.Commits.Get(m.Address) != nil {
+			result--
+		}
+	}
+	return result
 }
 
 // The DecodeRLP method should read one value from the given
@@ -178,7 +182,6 @@ func (s *roundState) DecodeRLP(stream *rlp.Stream) error {
 		Preprepare     *istanbul.Preprepare
 		Prepares       *messageSet
 		Commits        *messageSet
-		lockedHash     common.Hash
 		pendingRequest *istanbul.Request
 	}
 
@@ -190,7 +193,6 @@ func (s *roundState) DecodeRLP(stream *rlp.Stream) error {
 	s.Preprepare = ss.Preprepare
 	s.Prepares = ss.Prepares
 	s.Commits = ss.Commits
-	s.lockedHash = ss.lockedHash
 	s.pendingRequest = ss.pendingRequest
 	s.mu = new(sync.RWMutex)
 
@@ -215,7 +217,6 @@ func (s *roundState) EncodeRLP(w io.Writer) error {
 		s.Preprepare,
 		s.Prepares,
 		s.Commits,
-		s.lockedHash,
 		s.pendingRequest,
 	})
 }
