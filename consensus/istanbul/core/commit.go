@@ -63,7 +63,7 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return err
 	}
 
-	if err := c.verifyCommit(commit, src); err != nil {
+	if err := c.verifyCommit(commit); err != nil {
 		return err
 	}
 
@@ -72,30 +72,36 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 		return errInvalidValidatorAddress
 	}
 
-	seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-	err = blscrypto.VerifySignature(validator.BLSPublicKey(), seal, []byte{}, msg.CommittedSeal, false)
-	if err != nil {
-		return err
+	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+		return errInvalidCommittedSeal
 	}
 
-	c.acceptCommit(msg, src)
+	c.acceptCommit(msg)
+	numberOfCommits := c.current.Commits.Size()
+	minQuorumSize := c.valSet.MinQuorumSize()
+	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
-	if c.current.Commits.Size() >= c.valSet.MinQuorumSize() && c.state.Cmp(StateCommitted) < 0 {
-		// Still need to call LockHash here since state can skip Prepared state and jump directly to the Committed state.
-		c.current.LockHash()
+	if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
+	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
+		logger.Trace("Got enough prepares and commits to generate a PreparedCertificate")
+		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+			logger.Error("Failed to create and set preprared certificate", "err", err)
+			return err
+		}
 	}
 
 	return nil
 }
 
-// verifyCommit verifies if the received COMMIT istanbul.Message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+// verifyCommit verifies if the received COMMIT message is equivalent to our subject
+func (c *core) verifyCommit(commit *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyCommit")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(commit, sub) {
@@ -106,10 +112,16 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 	return nil
 }
 
-func (c *core) acceptCommit(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+// verifyCommittedSeal verifies the commit seal in the received COMMIT message
+func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(digest)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
+}
 
-	// Add the COMMIT istanbul.Message to current round state
+func (c *core) acceptCommit(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptCommit")
+
+	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
 		return err
