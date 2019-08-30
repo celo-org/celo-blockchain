@@ -242,6 +242,7 @@ OUTER:
 
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
+		validator := r0.valSet.GetByIndex(uint64(0))
 
 		curView := r0.currentView()
 
@@ -252,6 +253,7 @@ OUTER:
 		}
 
 		for i, v := range test.system.backends {
+			
 			// i == 0 is primary backend, it is responsible for send PRE-PREPARE messages to others.
 			if i == 0 {
 				continue
@@ -264,8 +266,8 @@ OUTER:
 			if err := c.handlePreprepare(&istanbul.Message{
 				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
-				Address: v0.Address(),
-			}); err != nil {
+				Address: validator.Address(),
+			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

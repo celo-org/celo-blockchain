@@ -249,6 +249,7 @@ OUTER:
 		}
 
 		for i, v := range test.system.backends {
+			validator := r0.valSet.GetByIndex(uint64(i))
 			// i == 0 is primary backend, it is responsible for send ROUND CHANGE messages to others.
 			if i == 0 {
 				continue
@@ -263,7 +264,7 @@ OUTER:
 				Code:    istanbul.MsgRoundChange,
 				Msg:     m,
 				Address: v0.Address(),
-			})
+			}, validator)
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

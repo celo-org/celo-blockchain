@@ -182,7 +182,7 @@ OUTER:
 				Address:       validator.Address(),
 				Signature:     []byte{},
 				CommittedSeal: signatureBytes,
-			}); err != nil {
+			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

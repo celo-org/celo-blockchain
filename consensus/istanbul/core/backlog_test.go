@@ -319,8 +319,6 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	rcPayload, _ := Encode(rc)
 
-	address := common.BytesToAddress([]byte("0xce10ce10"))
-
 	msgs := []*istanbul.Message{
 		{
 			Code: istanbul.MsgPreprepare,

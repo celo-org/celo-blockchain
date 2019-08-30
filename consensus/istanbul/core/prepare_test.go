@@ -341,7 +341,7 @@ OUTER:
 				Code:    istanbul.MsgPrepare,
 				Msg:     m,
 				Address: validator.Address(),
-			}); err != nil {
+			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
