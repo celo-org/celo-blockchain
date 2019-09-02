@@ -24,8 +24,8 @@ else
 endif
 
 # example NDK values
-#NDK_VERSION=android-ndk-r19c
-#ANDROID_NDK=$(PWD)/ndk_bundle/$(NDK_VERSION)
+export NDK_VERSION ?= android-ndk-r19c
+export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -37,6 +37,9 @@ bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 check_android_env:
 	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
+ifeq ("$(wildcard $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64)","")
+	$(error "NDK doesn't contain an llvm cross-compilation toolchain. Consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+endif
 
 ndk_bundle: check_android_env
 ifneq ("$(wildcard $(ANDROID_NDK))","")
@@ -52,7 +55,7 @@ else
 endif
 
 
-bls-zexe-android: check_android_env
+bls-zexe-android: check_android_env ndk_bundle
 ifeq ("$(RUSTUP_exists)","")
 	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
 else
@@ -107,7 +110,7 @@ swarm:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
 
-all:
+all: bls-zexe
 	build/env.sh go run build/ci.go install
 
 android: bls-zexe-android
@@ -127,9 +130,15 @@ test: all
 lint: ## Run linters.
 	build/env.sh go run build/ci.go lint
 
-clean:
+clean-geth:
 	./build/clean_go_build_cache.sh
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
+
+clean-bls-zexe:
+	rm -rf vendor/github.com/celo-org/bls-zexe/bls/target
+
+clean: clean-geth clean-bls-zexe
+
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.

@@ -44,7 +44,10 @@ const SyncModeUnset = 0 // will be treated as SyncModeLightSync
 const SyncModeFullSync = 1
 const SyncModeFastSync = 2
 const SyncModeLightSync = 3
-const SyncModeCeloLatestSync = 4
+
+// Deprecated: This used to be SyncModeCeloLatestSync. Geth will panic if started in this mode.
+// Use UltraLightSync instead.
+const DeprecatedSyncMode = 4
 const UltraLightSync = 5
 
 // NodeConfig represents the collection of configuration values to fine tune the Geth
@@ -226,8 +229,8 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 		// This maintains backward compatibility.
 	case SyncModeLightSync:
 		return downloader.LightSync
-	case SyncModeCeloLatestSync:
-		return downloader.CeloLatestSync
+	case DeprecatedSyncMode:
+		panic("CeloLatestSync mode is no longer supported. Use UltraLightSync instead")
 	case UltraLightSync:
 		return downloader.UltraLightSync
 	default:
