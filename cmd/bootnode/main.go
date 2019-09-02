@@ -46,7 +46,7 @@ func main() {
 		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
 		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
-		networkID   = flag.Uint64("networkID", 0, "network ID")
+		networkId   = flag.Uint64("networkid", 0, "network ID")
 
 		nodeKey *ecdsa.PrivateKey
 		err     error
@@ -84,8 +84,8 @@ func main() {
 		if nodeKey, err = crypto.HexToECDSA(*nodeKeyHex); err != nil {
 			utils.Fatalf("-nodekeyhex: %v", err)
 		}
-	case *networkID == 0:
-		utils.Fatalf("--networkID must be set to non zero number")
+	case *networkId == 0:
+		utils.Fatalf("--networkid must be set to non zero number")
 	case *runv5:
 		utils.Fatalf("Celo networks currently do not support discovery v5")
 	}
@@ -129,7 +129,7 @@ func main() {
 		}
 	} else {
 		db, _ := enode.OpenDB("")
-		ln := enode.NewLocalNode(db, nodeKey, *networkID)
+		ln := enode.NewLocalNode(db, nodeKey, *networkId)
 		cfg := discover.Config{
 			PrivateKey:  nodeKey,
 			NetRestrict: restrictList,

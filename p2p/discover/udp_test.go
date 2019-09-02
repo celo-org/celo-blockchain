@@ -37,7 +37,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	gethnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -53,6 +52,7 @@ var (
 	testRemote         = rpcEndpoint{IP: net.ParseIP("1.1.1.1").To4(), UDP: 1, TCP: 2}
 	testLocalAnnounced = rpcEndpoint{IP: net.ParseIP("2.2.2.2").To4(), UDP: 3, TCP: 4}
 	testLocal          = rpcEndpoint{IP: net.ParseIP("3.3.3.3").To4(), UDP: 5, TCP: 6}
+	testNetworkId      = uint64(1)
 )
 
 type udpTest struct {
@@ -75,7 +75,7 @@ func newUDPTest(t *testing.T) *udpTest {
 		remoteaddr: &net.UDPAddr{IP: net.IP{10, 0, 1, 99}, Port: 30303},
 	}
 	test.db, _ = enode.OpenDB("")
-	ln := enode.NewLocalNode(test.db, test.localkey, gethnode.DefaultConfig.P2P.NetworkId)
+	ln := enode.NewLocalNode(test.db, test.localkey, testNetworkId)
 	test.table, test.udp, _ = newUDP(test.pipe, ln, Config{PrivateKey: test.localkey})
 	// Wait for initial refresh so the table doesn't send unexpected findnode.
 	<-test.table.initDone
@@ -140,10 +140,11 @@ func TestUDP_packetErrors(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.close()
 
-	test.packetIn(errExpired, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4})
+	test.packetIn(errExpired, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, NetworkId: testNetworkId})
 	test.packetIn(errUnsolicitedReply, pongPacket, &pong{ReplyTok: []byte{}, Expiration: futureExp})
 	test.packetIn(errUnknownNode, findnodePacket, &findnode{Expiration: futureExp})
 	test.packetIn(errUnsolicitedReply, neighborsPacket, &neighbors{Expiration: futureExp})
+	test.packetIn(errBadNetworkId, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId + 1})
 }
 
 func TestUDP_pingTimeout(t *testing.T) {
@@ -364,7 +365,7 @@ func TestUDP_pingMatch(t *testing.T) {
 	randToken := make([]byte, 32)
 	crand.Read(randToken)
 
-	test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp})
+	test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
 	test.waitPacketOut(func(*pong) error { return nil })
 	test.waitPacketOut(func(*ping) error { return nil })
 	test.packetIn(errUnsolicitedReply, pongPacket, &pong{ReplyTok: randToken, To: testLocalAnnounced, Expiration: futureExp})
@@ -374,7 +375,7 @@ func TestUDP_pingMatchIP(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.close()
 
-	test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp})
+	test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
 	test.waitPacketOut(func(*pong) error { return nil })
 
 	_, hash, _ := test.waitPacketOut(func(*ping) error { return nil })
@@ -393,7 +394,7 @@ func TestUDP_successfulPing(t *testing.T) {
 	defer test.close()
 
 	// The remote side sends a ping packet to initiate the exchange.
-	go test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp})
+	go test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
 
 	// the ping is replied to.
 	test.waitPacketOut(func(p *pong) {
@@ -457,32 +458,35 @@ var testPackets = []struct {
 	wantPacket interface{}
 }{
 	{
-		input: "71dbda3a79554728d4f94411e42ee1f8b0d561c10e1e5f5893367948c6a7d70bb87b235fa28a77070271b6c164a2dce8c7e13a5739b53b5e96f2e5acb0e458a02902f5965d55ecbeb2ebb6cabb8b2b232896a36b737666c55265ad0a68412f250001ea04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a355",
+		input: "e04089fbeb521b4e6a22622a79389f00c76f7eb93c2c046a0333832d83795363820b24a50e9a92ab6b54c29ec27415e4b1fb2e7221ae54df539e24eb7b0708ec5cd65263edbf18c639658308a5fb6cbe273b11231dc6db1eb8f0e91ebcd52e740101eb04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a35501",
 		wantPacket: &ping{
 			Version:    4,
 			From:       rpcEndpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
 			To:         rpcEndpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
+			NetworkId:  testNetworkId,
 			Rest:       []rlp.RawValue{},
 		},
 	},
 	{
-		input: "e9614ccfd9fc3e74360018522d30e1419a143407ffcce748de3e22116b7e8dc92ff74788c0b6663aaa3d67d641936511c8f8d6ad8698b820a7cf9e1be7155e9a241f556658c55428ec0563514365799a4be2be5a685a80971ddcfa80cb422cdd0101ec04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a3550102",
+		input: "8440de7e3cdca7969688725c0321db2e6afbb96bce09aab2115f46e207500cf963ece5c430d9583ce11f1ef5cf2eaba463d3b0b3dcb48d2989803052eca8189173a60da7d08d5c756d0aad6fc05cecdfa7ab4149be85e4c1e9ee32e34457ca050101ed04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a355010102",
 		wantPacket: &ping{
 			Version:    4,
 			From:       rpcEndpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
 			To:         rpcEndpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
+			NetworkId:  testNetworkId,
 			Rest:       []rlp.RawValue{{0x01}, {0x02}},
 		},
 	},
 	{
-		input: "577be4349c4dd26768081f58de4c6f375a7a22f3f7adda654d1428637412c3d7fe917cadc56d4e5e7ffae1dbe3efffb9849feb71b262de37977e7c7a44e677295680e9e38ab26bee2fcbae207fba3ff3d74069a50b902a82c9903ed37cc993c50001f83e82022bd79020010db83c4d001500000000abcdef12820cfa8215a8d79020010db885a308d313198a2e037073488208ae82823a8443b9a355c5010203040531b9019afde696e582a78fa8d95ea13ce3297d4afb8ba6433e4154caa5ac6431af1b80ba76023fa4090c408f6b4bc3701562c031041d4702971d102c9ab7fa5eed4cd6bab8f7af956f7d565ee1917084a95398b6a21eac920fe3dd1345ec0a7ef39367ee69ddf092cbfe5b93e5e568ebc491983c09c76d922dc3",
+		input: "2dba321bdcdb6e442aa9bfbb7808892ae26ed5dd77fc4944bf87d90396d2ecdb80480dcfd0ef9b5c82ec6ce99588be5a4d34adf61c6d0baaa31a4336a44b1b9214bfe9e095459073a494529b9b5fbbdf5eac1e5ec8c7017b80cc8d8da0f07c560101f83f82022bd79020010db83c4d001500000000abcdef12820cfa8215a8d79020010db885a308d313198a2e037073488208ae82823a8443b9a35501c50102030405",
 		wantPacket: &ping{
 			Version:    555,
 			From:       rpcEndpoint{net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 3322, 5544},
 			To:         rpcEndpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
 			Expiration: 1136239445,
+			NetworkId:  testNetworkId,
 			Rest:       []rlp.RawValue{{0xC5, 0x01, 0x02, 0x03, 0x04, 0x05}},
 		},
 	},

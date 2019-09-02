@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"container/list"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -33,6 +34,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
+
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
@@ -43,7 +46,7 @@ var (
 	errTimeout          = errors.New("RPC timeout")
 	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
-	errBadNetworkID     = errors.New("bad networkID")
+	errBadNetworkId     = errors.New("bad networkId")
 )
 
 // Timeouts
@@ -73,7 +76,7 @@ type (
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
-		NetworkID  uint64
+		NetworkId  uint64
 
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
@@ -315,7 +318,7 @@ func (t *udp) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) <-ch
 		From:       t.ourEndpoint(),
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-		NetworkID:  t.localNode.NetworkID(),
+		NetworkId:  t.localNode.NetworkId(),
 	}
 	packet, hash, err := encodePacket(t.priv, pingPacket, req)
 	if err != nil {
@@ -557,7 +560,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (packet, 
 	// add the hash to the front. Note: this doesn't protect the
 	// packet in any way. Our public key will be part of this hash in
 	// The future.
-	hash = crypto.Keccak256(packet[macSize:])
+	hash = crypto.Keccak256(packet[macSize:], celoClientSalt)
 	copy(packet, hash)
 	return packet, hash, nil
 }
@@ -615,7 +618,7 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 		return nil, encPubkey{}, nil, errPacketTooSmall
 	}
 	hash, sig, sigdata := buf[:macSize], buf[macSize:headSize], buf[headSize:]
-	shouldhash := crypto.Keccak256(buf[macSize:])
+	shouldhash := crypto.Keccak256(buf[macSize:], celoClientSalt)
 	if !bytes.Equal(hash, shouldhash) {
 		return nil, encPubkey{}, nil, errBadHash
 	}
@@ -645,8 +648,8 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 // Packet Handlers
 
 func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey encPubkey) error {
-	if t.localNode.NetworkID() != req.NetworkID {
-		return errBadNetworkID
+	if t.localNode.NetworkId() != req.NetworkId {
+		return errBadNetworkId
 	}
 	if expired(req.Expiration) {
 		return errExpired
@@ -769,4 +772,20 @@ func (req *neighbors) name() string { return "NEIGHBORS/v4" }
 
 func expired(ts uint64) bool {
 	return time.Unix(int64(ts), 0).Before(time.Now())
+}
+
+func EncodeTestPingPacket() string {
+	testkey, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+
+	pingpacket, _, _ := encodePacket(testkey, pingPacket,
+		&ping{
+			Version:    555,
+			From:       rpcEndpoint{net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 3322, 5544},
+			To:         rpcEndpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
+			Expiration: 1136239445,
+			NetworkId:  1,
+			Rest:       []rlp.RawValue{{0xC5, 0x01, 0x02, 0x03, 0x04, 0x05}},
+		})
+
+	return hex.EncodeToString(pingpacket)
 }

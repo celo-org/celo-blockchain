@@ -27,7 +27,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	gethnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"golang.org/x/crypto/sha3"
@@ -229,7 +228,7 @@ func TestServerTaskScheduling(t *testing.T) {
 	db, _ := enode.OpenDB("")
 	srv := &Server{
 		Config:    Config{MaxPeers: 10},
-		localnode: enode.NewLocalNode(db, newkey(), gethnode.DefaultConfig.P2P.NetworkId),
+		localnode: enode.NewLocalNode(db, newkey(), 1),
 		nodedb:    db,
 		quit:      make(chan struct{}),
 		ntab:      fakeTable{},
@@ -278,7 +277,7 @@ func TestServerManyTasks(t *testing.T) {
 		db, _ = enode.OpenDB("")
 		srv   = &Server{
 			quit:      make(chan struct{}),
-			localnode: enode.NewLocalNode(db, newkey(), gethnode.DefaultConfig.P2P.NetworkId),
+			localnode: enode.NewLocalNode(db, newkey(), 1),
 			nodedb:    db,
 			ntab:      fakeTable{},
 			running:   true,
