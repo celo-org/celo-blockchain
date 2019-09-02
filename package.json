@@ -1,11 +1,14 @@
 {
   "name": "@celo/client",
-  "version": "0.0.1",
+  "version": "0.0.107",
   "description": "Celo client for mobile",
   "files": [
     "build/bin/geth.aar",
-    "build/bin/Geth.framework/**",
+    "build/bin/Geth.framework.zip",
     "CeloBlockchain.podspec",
     "vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a"
-  ]
+  ],
+  "scripts": {
+    "postinstall": "unzip build/bin/Geth.framework.zip -d build/bin"
+  }
 }
