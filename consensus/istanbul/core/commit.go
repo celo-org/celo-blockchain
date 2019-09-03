@@ -93,7 +93,7 @@ func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error
 	return nil
 }
 
-// verifyCommit verifies if the received COMMIT istanbul.Message is equivalent to our subject
+// verifyCommit verifies if the received COMMIT message is equivalent to our subject
 func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
