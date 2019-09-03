@@ -52,7 +52,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error {
-	// Decode COMMIT istanbul.Message
+	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
 	if err != nil {
