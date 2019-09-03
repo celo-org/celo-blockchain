@@ -180,10 +180,8 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 		// We've received the minimum quorum size ROUND CHANGE messages, start a new round immediately.
 		c.startNewRound(roundView.Round)
 		return nil
-	} else if cv.Round.Cmp(roundView.Round) < 0 {
-		// Only gossip the message with current round to other validators.
-		return errIgnored
 	}
+
 	return nil
 }
 

@@ -25,8 +25,6 @@ var (
 	// errNotFromProposer is returned when received message is supposed to be from
 	// proposer.
 	errNotFromProposer = errors.New("message does not come from proposer")
-	// errIgnored is returned when a message was ignored.
-	errIgnored = errors.New("message is ignored")
 	// errFutureMessage is returned when current view is earlier than the
 	// view of the received message.
 	errFutureMessage = errors.New("future message")

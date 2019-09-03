@@ -266,7 +266,7 @@ OUTER:
 			if err := c.handlePreprepare(&istanbul.Message{
 				Code:    istanbul.MsgPreprepare,
 				Msg:     m,
-				Address: validator.Address(),
+				Address: v0.Address(),
 			}, validator); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
