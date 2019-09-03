@@ -406,10 +406,8 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
-	select {
-	case <-time.After(delay):
-		return nil
-	}
+	time.Sleep(delay)
+	return nil
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
