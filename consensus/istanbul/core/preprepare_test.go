@@ -253,7 +253,7 @@ OUTER:
 		}
 
 		for i, v := range test.system.backends {
-			
+
 			// i == 0 is primary backend, it is responsible for send PRE-PREPARE messages to others.
 			if i == 0 {
 				continue
