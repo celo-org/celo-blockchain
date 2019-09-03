@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"container/list"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -772,20 +771,4 @@ func (req *neighbors) name() string { return "NEIGHBORS/v4" }
 
 func expired(ts uint64) bool {
 	return time.Unix(int64(ts), 0).Before(time.Now())
-}
-
-func EncodeTestPingPacket() string {
-	testkey, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-
-	pingpacket, _, _ := encodePacket(testkey, pingPacket,
-		&ping{
-			Version:    555,
-			From:       rpcEndpoint{net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 3322, 5544},
-			To:         rpcEndpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
-			Expiration: 1136239445,
-			NetworkId:  1,
-			Rest:       []rlp.RawValue{{0xC5, 0x01, 0x02, 0x03, 0x04, 0x05}},
-		})
-
-	return hex.EncodeToString(pingpacket)
 }
