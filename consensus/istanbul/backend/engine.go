@@ -404,7 +404,12 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = big.NewInt(time.Now().Unix())
 	}
 
-	return nil
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
+	select {
+	case <-time.After(delay):
+		return nil
+	}
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
@@ -556,14 +561,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	}
 
 	go func() {
-		// wait for the timestamp of header, use this to adjust the block period
-		delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
-		select {
-		case <-time.After(delay):
-		case <-stop:
-			return
-		}
-
 		// get the proposed block hash and clear it if the seal() is completed.
 		sb.sealMu.Lock()
 		sb.proposedBlockHash = block.Hash()

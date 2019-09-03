@@ -36,7 +36,6 @@ type State uint64
 
 const (
 	StateAcceptRequest State = iota
-	StateSentPreprepare
 	StatePreprepared
 	StatePrepared
 	StateCommitted

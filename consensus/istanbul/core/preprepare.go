@@ -27,7 +27,7 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 	logger := c.logger.New("state", c.state)
 
 	// If I'm the proposer and I have the same sequence with the proposal
-	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() && c.state == StateAcceptRequest {
+	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
 		curView := c.currentView()
 		preprepare, err := Encode(&istanbul.Preprepare{
 			View:     curView,
@@ -38,7 +38,6 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 			return
 		}
 
-		c.state = StateSentPreprepare
 		c.broadcast(&message{
 			Code: msgPreprepare,
 			Msg:  preprepare,
@@ -100,7 +99,7 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 	}
 
 	// Here is about to accept the PRE-PREPARE
-	if c.state == StateAcceptRequest || c.state == StateSentPreprepare {
+	if c.state == StateAcceptRequest {
 		// Send ROUND CHANGE if the locked proposal and the received proposal are different
 		if c.current.IsHashLocked() {
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() {
