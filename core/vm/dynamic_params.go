@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -44,7 +43,7 @@ type regAddrCacheEntry struct {
 	registryCodeHash    common.Hash
 }
 
-func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, error) {
+func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
@@ -52,10 +51,8 @@ func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, 
 		return nil, errors.ErrRegistryContractNotDeployed
 	}
 
-	var registryIdHash [32]byte
-	copy(registryIdHash[:], crypto.Keccak256([]byte(registryId)))
 	var contractAddress common.Address
-	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryIdHash}, &contractAddress, 20000)
+	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
 	if err == abi.ErrEmptyOutput {
 		log.Trace("Registry contract not deployed")

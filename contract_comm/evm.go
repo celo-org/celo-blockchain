@@ -125,11 +125,11 @@ type InternalEVMHandler struct {
 	chain ChainContext
 }
 
-func MakeStaticCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+func MakeStaticCall(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
-func MakeCall(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
+func MakeCall(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
 	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
@@ -141,7 +141,7 @@ func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string,
 	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
-func GetRegisteredAddress(registryId string, header *types.Header, state vm.StateDB) (*common.Address, error) {
+func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func SetInternalEVMHandler(chain ChainContext) {
 	}
 }
 
-func makeCallWithContractId(scRegistryId string, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
+func makeCallWithContractId(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
 	scAddress, err := GetRegisteredAddress(scRegistryId, header, state)
 
 	if err != nil {
