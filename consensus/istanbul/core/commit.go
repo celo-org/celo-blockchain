@@ -52,7 +52,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message, src istanbul.Validator) error {
-	// Decode COMMIT istanbul.Message
+	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
 	if err != nil {
@@ -109,7 +109,7 @@ func (c *core) verifyCommit(commit *istanbul.Subject, src istanbul.Validator) er
 func (c *core) acceptCommit(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
-	// Add the COMMIT istanbul.Message to current round state
+	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
 		return err
