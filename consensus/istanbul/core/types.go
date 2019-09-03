@@ -17,9 +17,6 @@
 package core
 
 import (
-	"fmt"
-	"io"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -67,94 +64,6 @@ func (s State) Cmp(y State) int {
 		return 1
 	}
 	return 0
-}
-
-const (
-	msgPreprepare uint64 = iota
-	msgPrepare
-	msgCommit
-	msgRoundChange
-)
-
-type message struct {
-	Code          uint64
-	Msg           []byte
-	Address       common.Address
-	Signature     []byte
-	CommittedSeal []byte
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes m into the Ethereum RLP format.
-func (m *message) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (m *message) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Code          uint64
-		Msg           []byte
-		Address       common.Address
-		Signature     []byte
-		CommittedSeal []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal = msg.Code, msg.Msg, msg.Address, msg.Signature, msg.CommittedSeal
-	return nil
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for core.
-
-func (m *message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
-	// Decode message
-	err := rlp.DecodeBytes(b, &m)
-	if err != nil {
-		return err
-	}
-
-	// Validate message (on a message without Signature)
-	if validateFn != nil {
-		var payload []byte
-		payload, err = m.PayloadNoSig()
-		if err != nil {
-			return err
-		}
-
-		_, err = validateFn(payload, m.Signature)
-	}
-	// Still return the message even the err is not nil
-	return err
-}
-
-func (m *message) Payload() ([]byte, error) {
-	return rlp.EncodeToBytes(m)
-}
-
-func (m *message) PayloadNoSig() ([]byte, error) {
-	return rlp.EncodeToBytes(&message{
-		Code:          m.Code,
-		Msg:           m.Msg,
-		Address:       m.Address,
-		Signature:     []byte{},
-		CommittedSeal: m.CommittedSeal,
-	})
-}
-
-func (m *message) Decode(val interface{}) error {
-	return rlp.DecodeBytes(m.Msg, val)
-}
-
-func (m *message) String() string {
-	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
 }
 
 // ==============================================

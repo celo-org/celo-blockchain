@@ -59,13 +59,13 @@ func (c *core) sendRoundChange(round *big.Int) {
 		return
 	}
 
-	c.broadcast(&message{
-		Code: msgRoundChange,
+	c.broadcast(&istanbul.Message{
+		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
 	})
 }
 
-func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
+func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("state", c.state, "from", src.Address().Hex())
 
 	// Decode ROUND CHANGE message
@@ -75,7 +75,7 @@ func (c *core) handleRoundChange(msg *message, src istanbul.Validator) error {
 		return errInvalidMessage
 	}
 
-	if err := c.checkMessage(msgRoundChange, rc.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
 		return err
 	}
 
@@ -126,7 +126,7 @@ type roundChangeSet struct {
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *message) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) (int, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
