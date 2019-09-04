@@ -17,6 +17,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -193,27 +195,13 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
-	logger := c.logger.New("func", "handleTimeoutMsg", "round", timeoutView.Round)
-	if c.current != nil {
-		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-	} else {
-		logger = logger.New("cur_seq", 0, "cur_round", -1)
-	}
+	// logger := c.logger.New("func", "handleTimeoutMsg", "round", timeoutView.Round)
+	// if c.current != nil {
+	// 	logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	// } else {
+	// 	logger = logger.New("cur_seq", 0, "cur_round", -1)
+	// }
 
-	// Don't round change on old timeouts
-	if timeoutView.Cmp(c.currentView()) < 0 {
-		return
-	}
-	// If we're not waiting for a new round, we transition to that state and perform the associated actions
-	// If we're already waiting, we start a new round (into the waiting state) if it is a future timeout.
-	if !c.waitingForNewRound {
-		logger.Trace("round change timeout, sending round change message")
-		c.waitForNewRound()
-	} else if timeoutView.Round.Cmp(c.current.Round()) > 0 {
-		// Start new round will go to a waiting state if it cannot produce a round change certificate.
-		logger.Trace("round change timeout, going into waiting state in next round")
-		c.startNewRound(timeoutView.Round)
-	} else {
-		logger.Trace("round change timeout (from current round), already waiting for next round")
-	}
+	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
+	c.waitForDesiredRound(nextRound)
 }

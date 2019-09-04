@@ -107,7 +107,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		// Verify ROUND CHANGE message is for a proper view
 		// TODO(joshua): May be able to relax to the proposal is >= than the round change message.
-		if roundChange.View.Cmp(proposal.View) != 0 {
+		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
@@ -171,9 +171,9 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
-	if num == c.valSet.F()+1 && !c.waitingForNewRound {
+	if num == c.valSet.F()+1 {
 		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
-		c.waitForNewRound()
+		c.waitForDesiredRound(roundView.Round)
 	} else if num == c.valSet.MinQuorumSize() {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(roundView.Round)

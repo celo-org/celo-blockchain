@@ -244,8 +244,6 @@ func (c *core) startNewRound(round *big.Int) {
 
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
-	// Go to waiting state if we can't produce a round change certificate.
-	c.waitingForNewRound = false
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -256,7 +254,7 @@ func (c *core) startNewRound(round *big.Int) {
 		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			c.waitingForNewRound = true
+			return
 		}
 	} else {
 		newView = &istanbul.View{
@@ -274,8 +272,9 @@ func (c *core) startNewRound(round *big.Int) {
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
+	c.waitingForNewRound = false
 	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil && !c.waitingForNewRound {
+	if roundChange && c.isProposer() && c.current != nil {
 		// Start with pending request
 		request := c.current.pendingRequest
 		// Search for a valid request in round change messages.
@@ -298,26 +297,38 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 	}
 	c.newRoundChangeTimer()
-	// If going into an immediate waiting state, need round change timer for the next round & need to send the round change message.
-	if c.waitingForNewRound {
-		c.waitForNewRound()
-	}
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
 // All actions that occur when transitioning to waiting for round change state.
-func (c *core) waitForNewRound() {
-	nextView := &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Add(c.current.Round(), common.Big1),
+func (c *core) waitForDesiredRound(r *big.Int) {
+	logger := c.logger.New("func", "waitForDesiredRound", "cur_round", c.current.Round(), "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+	logger.Debug("waiting for desired round")
+	// Don't wait for an older round
+	if c.current.DesiredRound().Cmp(r) >= 0 {
+		return
 	}
-	c.newRoundChangeTimerForView(nextView)
-	c.sendRoundChange(nextView.Round)
+	desiredView := &istanbul.View {
+		Sequence: new(big.Int).Set(c.current.Sequence()),
+		Round:    new(big.Int).Set(r),
+
+	}
+	// Perform all of the updates
+	// TODO: Set core.state (and add it) instead of a flag
 	c.waitingForNewRound = true
+	c.current.SetDesiredRound(r)
+	// TODO(joshua): Double check that this works with skipped proposers
+	_, lastProposer := c.backend.LastProposal()
+	c.valSet.CalcProposer(lastProposer, desiredView.Round.Uint64())
+	c.newRoundChangeTimerForView(desiredView)
+
+	// Send round change
+	c.sendRoundChange(desiredView.Round)
 }
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
+	// TODO(Joshua): Include desired round here.
 	if roundChange && c.current != nil {
 		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.backend.HasBadProposal)
 	} else {

@@ -30,7 +30,7 @@ import (
 func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
 		round:               view.Round,
-		desiredRound:        new(big.Int).Set(view.Round.Add(common.Big1))
+		desiredRound:        view.Round,
 		sequence:            view.Sequence,
 		Preprepare:          preprepare,
 		Prepares:            newMessageSet(validatorSet),
@@ -111,6 +111,20 @@ func (s *roundState) Round() *big.Int {
 	defer s.mu.RUnlock()
 
 	return s.round
+}
+
+func (s *roundState) SetDesiredRound(r *big.Int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.desiredRound = new(big.Int).Set(r)
+}
+
+func (s *roundState) DesiredRound() *big.Int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.desiredRound
 }
 
 func (s *roundState) SetSequence(seq *big.Int) {

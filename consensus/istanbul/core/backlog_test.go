@@ -96,10 +96,8 @@ func TestCheckMessage(t *testing.T) {
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if testCode[j] == istanbul.MsgRoundChange {
-				// Round change messages carry the view that they want to validators to transition to
-				// therefore they're 'old' when the validator is already on that view.
-				if err != errOldMessage {
-					t.Errorf("error mismatch: have %v, want errOldMessage", err)
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
 				}
 			} else if err != errFutureMessage {
 				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
@@ -114,8 +112,8 @@ func TestCheckMessage(t *testing.T) {
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want errOldMessage", err)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
 			}
 		} else if testCode[i] == istanbul.MsgPreprepare {
 			if err != nil {
@@ -133,8 +131,8 @@ func TestCheckMessage(t *testing.T) {
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want errOldMessage", err)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
 			}
 		} else if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
@@ -146,8 +144,8 @@ func TestCheckMessage(t *testing.T) {
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want errOldMessage", err)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
 			}
 		} else if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
@@ -159,8 +157,8 @@ func TestCheckMessage(t *testing.T) {
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want errOldMessage", err)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
 			}
 		} else if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
@@ -302,11 +300,6 @@ func TestProcessBacklog(t *testing.T) {
 		Round:    big.NewInt(0),
 		Sequence: big.NewInt(1),
 	}
-	nextView := &istanbul.View{
-		Round:    big.NewInt(1),
-		Sequence: big.NewInt(1),
-	}
-
 	preprepare := &istanbul.Preprepare{
 		View:     v,
 		Proposal: makeBlock(1),
@@ -320,7 +313,7 @@ func TestProcessBacklog(t *testing.T) {
 	subjectPayload, _ := Encode(subject)
 
 	rc := &istanbul.RoundChange{
-		View:                nextView,
+		View:                v,
 		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 	}
 	rcPayload, _ := Encode(rc)

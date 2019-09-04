@@ -44,7 +44,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	if msgCode == istanbul.MsgRoundChange {
 		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
 			return errFutureMessage
-		} else if view.Cmp(c.currentView()) <= 0 {
+		} else if view.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errOldMessage
 		}
 		return nil
