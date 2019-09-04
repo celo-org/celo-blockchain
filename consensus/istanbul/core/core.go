@@ -203,6 +203,31 @@ func (c *core) commit() {
 	}
 }
 
+// Generates the next preprepare and associated round change certificate
+func (c *core) nextPreprepare(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+	if err != nil {
+		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
+	}
+	// Start with pending request
+	request := c.current.pendingRequest
+	// Search for a valid request in round change messages.
+	// The round change certificate should be generated such that it is consistent in it's proposed subject.
+	for _, message := range roundChangeCertificate.RoundChangeMessages {
+		var roundChangeMsg *istanbul.RoundChange
+		if err := message.Decode(&roundChangeMsg); err != nil {
+			continue
+		}
+		if roundChangeMsg.HasPreparedCertificate() {
+			request = &istanbul.Request{
+				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+			}
+			break
+		}
+	}
+	return request, roundChangeCertificate, nil
+}
+
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
@@ -242,8 +267,10 @@ func (c *core) startNewRound(round *big.Int) {
 		return
 	}
 
+	// Generate next view and pre-prepare
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
+	var request *istanbul.Request
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -251,12 +278,15 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 
 		var err error
-		roundChangeCertificate, err = c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+		request, roundChangeCertificate, err = c.nextPreprepare(round)
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
 			return
 		}
 	} else {
+		if c.current != nil {
+			request = c.current.pendingRequest
+		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
@@ -274,27 +304,8 @@ func (c *core) startNewRound(round *big.Int) {
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
 	c.waitingForNewRound = false
 	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil {
-		// Start with pending request
-		request := c.current.pendingRequest
-		// Search for a valid request in round change messages.
-		// The round change certificate should be generated such that it is consistent in it's proposed subject.
-		for _, message := range roundChangeCertificate.RoundChangeMessages {
-			var roundChangeMsg *istanbul.RoundChange
-			if err := message.Decode(&roundChangeMsg); err != nil {
-				logger.Error("Failed to decode ROUND CHANGE in certificate. Skipping to next ROUND CHANGE message.", "err", err)
-				continue
-			}
-			if roundChangeMsg.HasPreparedCertificate() {
-				request = &istanbul.Request{
-					Proposal: roundChangeMsg.PreparedCertificate.Proposal,
-				}
-				break
-			}
-		}
-		if request != nil {
-			c.sendPreprepare(request, roundChangeCertificate)
-		}
+	if roundChange && c.isProposer() && c.current != nil && request != nil {
+		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.newRoundChangeTimer()
 
