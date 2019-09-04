@@ -982,7 +982,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	istanbulEmptyBlockCommit := func() {
 		if !noempty && w.isIstanbulEngine() {
-			log.Error("Committing empty block")
 			w.commit(uncles, nil, false, tstart)
 		}
 	}
@@ -1037,7 +1036,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
-		log.Error("No available pending txs")
 		istanbulEmptyBlockCommit()
 		return
 	}
