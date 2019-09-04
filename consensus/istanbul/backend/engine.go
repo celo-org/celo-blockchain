@@ -406,7 +406,10 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
-	time.Sleep(delay)
+	select {
+	case <-time.After(delay):
+		return nil
+	}
 	return nil
 }
 
@@ -558,20 +561,20 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		return err
 	}
 
+	// get the proposed block hash and clear it if the seal() is completed.
+	sb.sealMu.Lock()
+	sb.proposedBlockHash = block.Hash()
+	clear := func() {
+		sb.proposedBlockHash = common.Hash{}
+		sb.sealMu.Unlock()
+	}
+
+	// post block into Istanbul engine
+	go sb.EventMux().Post(istanbul.RequestEvent{
+		Proposal: block,
+	})
+
 	go func() {
-		// get the proposed block hash and clear it if the seal() is completed.
-		sb.sealMu.Lock()
-		sb.proposedBlockHash = block.Hash()
-		clear := func() {
-			sb.proposedBlockHash = common.Hash{}
-			sb.sealMu.Unlock()
-		}
-
-		// post block into Istanbul engine
-		go sb.EventMux().Post(istanbul.RequestEvent{
-			Proposal: block,
-		})
-
 		defer clear()
 		for {
 			select {
