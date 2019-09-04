@@ -194,8 +194,8 @@ OUTER:
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handlePrepare(&message{
-				Code:    msgPrepare,
+			if err := r0.handlePrepare(&istanbul.Message{
+				Code:    istanbul.MsgPrepare,
 				Msg:     m,
 				Address: validator.Address(),
 			}, validator); err != nil {
@@ -236,14 +236,14 @@ OUTER:
 		}
 
 		// verify COMMIT messages
-		decodedMsg := new(message)
+		decodedMsg := new(istanbul.Message)
 		err := decodedMsg.FromPayload(v0.sentMsgs[0], nil)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
 
-		if decodedMsg.Code != msgCommit {
-			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, msgCommit)
+		if decodedMsg.Code != istanbul.MsgCommit {
+			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
 		}
 		var m *istanbul.Subject
 		err = decodedMsg.Decode(&m)
