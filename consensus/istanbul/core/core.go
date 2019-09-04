@@ -320,10 +320,9 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		return
 	}
-	desiredView := &istanbul.View {
+	desiredView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
-
 	}
 	// Perform all of the updates
 	// TODO: Set core.state (and add it) instead of a flag
