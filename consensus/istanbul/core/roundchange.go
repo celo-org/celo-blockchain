@@ -70,7 +70,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 
-	maxRound := common.Big0
+	maxRound := big.NewInt(-1)
 	preferredDigest := common.Hash{}
 	seen := make(map[common.Address]bool)
 	decodedMessages := make([]istanbul.RoundChange, len(roundChangeCertificate.RoundChangeMessages))
@@ -131,7 +131,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		c.roundChangeSet.Add(roundChange.View.Round, &message)
 	}
 
-	if maxRound.Cmp(common.Big0) > 0 && proposal.Digest != preferredDigest {
+	if maxRound.Cmp(big.NewInt(-1)) > 0 && proposal.Digest != preferredDigest {
 		return errInvalidPreparedCertificateDigestMismatch
 	}
 
