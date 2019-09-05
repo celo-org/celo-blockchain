@@ -316,11 +316,13 @@ func (c *core) startNewRound(round *big.Int) {
 // All actions that occur when transitioning to waiting for round change state.
 func (c *core) waitForDesiredRound(r *big.Int) {
 	logger := c.logger.New("func", "waitForDesiredRound", "cur_round", c.current.Round(), "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
-	logger.Debug("waiting for desired round")
 	// Don't wait for an older round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
+		logger.Debug("New desired round not greater than current desired round")
 		return
 	}
+	logger.Debug("Waiting for desired round")
+
 	desiredView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
