@@ -114,14 +114,14 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		if roundChange.HasPreparedCertificate() {
+			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
+				return err
+			}
 			// The prepared certificate with the highest round number carries the proposal we must use
 			preparedView := roundChange.PreparedCertificate.View()
 			if preparedView != nil && preparedView.Round.Cmp(maxRound) > 0 {
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
-			}
-			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
-				return err
 			}
 		}
 
