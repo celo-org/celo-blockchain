@@ -71,9 +71,8 @@ type core struct {
 	timeoutSub            *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
-	valSet             istanbul.ValidatorSet
-	waitingForNewRound bool
-	validateFn         func([]byte, []byte) (common.Address, error)
+	valSet     istanbul.ValidatorSet
+	validateFn func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
 	backlogsMu *sync.Mutex
@@ -302,7 +301,6 @@ func (c *core) startNewRound(round *big.Int) {
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForNewRound = false
 	c.setState(StateAcceptRequest)
 	if roundChange && c.isProposer() && c.current != nil && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
@@ -325,8 +323,7 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 		Round:    new(big.Int).Set(r),
 	}
 	// Perform all of the updates
-	// TODO: Set core.state (and add it) instead of a flag
-	c.waitingForNewRound = true
+	c.setState(StateWaitingForNewRound)
 	c.current.SetDesiredRound(r)
 	// TODO(joshua): Double check that this works with skipped proposers
 	_, lastProposer := c.backend.LastProposal()

@@ -132,6 +132,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
+	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
 			return err

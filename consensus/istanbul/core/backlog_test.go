@@ -48,7 +48,7 @@ func TestCheckMessage(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
 	}
 
-	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted}
+	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
 	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
 	// future sequence
@@ -84,27 +84,6 @@ func TestCheckMessage(t *testing.T) {
 			}
 		}
 	}
-
-	// current view but waiting for round change
-	v = &istanbul.View{
-		Sequence: big.NewInt(1),
-		Round:    big.NewInt(0),
-	}
-	c.waitingForNewRound = true
-	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == istanbul.MsgRoundChange {
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want nil", err)
-				}
-			} else if err != errFutureMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
-			}
-		}
-	}
-	c.waitingForNewRound = false
 
 	v = c.currentView()
 	// current view, state = StateAcceptRequest
@@ -162,6 +141,19 @@ func TestCheckMessage(t *testing.T) {
 			}
 		} else if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
+		}
+	}
+
+	// current view, state = StateWaitingForNewRound
+	c.state = StateWaitingForNewRound
+	for i := 0; i < len(testCode); i++ {
+		err := c.checkMessage(testCode[i], v)
+		if testCode[i] == istanbul.MsgRoundChange {
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+		} else if err != errFutureMessage {
+			t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
 		}
 	}
 

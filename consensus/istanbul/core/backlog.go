@@ -59,7 +59,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	}
 
 	// Round change messages are already let through.
-	if c.waitingForNewRound {
+	if c.state == StateWaitingForNewRound {
 		return errFutureMessage
 	}
 
