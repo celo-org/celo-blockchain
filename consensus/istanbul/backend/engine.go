@@ -404,6 +404,9 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = big.NewInt(time.Now().Unix())
 	}
 
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
+	time.Sleep(delay)
 	return nil
 }
 
@@ -553,14 +556,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	block, err = sb.updateBlock(parent, block)
 	if err != nil {
 		return err
-	}
-
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
-	select {
-	case <-time.After(delay):
-	case <-stop:
-		return nil
 	}
 
 	// get the proposed block hash and clear it if the seal() is completed.
