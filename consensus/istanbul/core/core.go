@@ -211,17 +211,20 @@ func (c *core) nextPreprepare(round *big.Int) (*istanbul.Request, istanbul.Round
 	// Start with pending request
 	request := c.current.pendingRequest
 	// Search for a valid request in round change messages.
-	// The round change certificate should be generated such that it is consistent in it's proposed subject.
+	// The proposal must come from the prepared certificate with the highest round number.
+	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	maxRound := big.NewInt(-1)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		var roundChangeMsg *istanbul.RoundChange
 		if err := message.Decode(&roundChangeMsg); err != nil {
 			continue
 		}
-		if roundChangeMsg.HasPreparedCertificate() {
+		preparedCertificateView := roundChangeMsg.PreparedCertificate.View()
+		if roundChangeMsg.HasPreparedCertificate() && preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
+			maxRound = preparedCertificateView.Round
 			request = &istanbul.Request{
 				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
 			}
-			break
 		}
 	}
 	return request, roundChangeCertificate, nil
