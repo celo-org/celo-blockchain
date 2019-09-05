@@ -179,7 +179,7 @@ func (b *PreparedCertificate) View() *View {
 	if b.IsEmpty() {
 		return nil
 	}
-	msg :=  b.PrepareOrCommitMessages[0]
+	msg := b.PrepareOrCommitMessages[0]
 	var s *Subject
 	err := msg.Decode(&s)
 	if err != nil {
