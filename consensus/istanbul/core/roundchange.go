@@ -70,6 +70,8 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 
+	maxRound := common.Big0
+	preferredDigest := common.Hash{}
 	seen := make(map[common.Address]bool)
 	decodedMessages := make([]istanbul.RoundChange, len(roundChangeCertificate.RoundChangeMessages))
 	for i, message := range roundChangeCertificate.RoundChangeMessages {
@@ -112,11 +114,12 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		if roundChange.HasPreparedCertificate() {
-			// Verify message for the proper proposal.
-			if proposal.Digest != roundChange.PreparedCertificate.Proposal.Hash() {
-				return errInvalidPreparedCertificateDigestMismatch
+			// The prepared certificate with the highest round number carries the proposal we must use
+			preparedView := roundChange.PreparedCertificate.View()
+			if preparedView != nil && preparedView.Round.Cmp(maxRound) > 0 {
+				maxRound = preparedView.Round
+				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}
-
 			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return err
 			}
@@ -126,6 +129,10 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		// TODO(joshua): startNewRound needs these round change messages to generate a
 		// prepared certificate even if this node is not the next proposer
 		c.roundChangeSet.Add(roundChange.View.Round, &message)
+	}
+
+	if maxRound.Cmp(common.Big0) > 0 && proposal.Digest != preferredDigest {
+		return errInvalidPreparedCertificateDigestMismatch
 	}
 
 	// May have already moved to this round based on quorum round change messages.

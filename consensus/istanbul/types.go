@@ -175,6 +175,19 @@ func (b *PreparedCertificate) IsEmpty() bool {
 	return len(b.PrepareOrCommitMessages) == 0
 }
 
+func (b *PreparedCertificate) View() *View {
+	if b.IsEmpty() {
+		return nil
+	}
+	msg :=  b.PrepareOrCommitMessages[0]
+	var s *Subject
+	err := msg.Decode(&s)
+	if err != nil {
+		return nil
+	}
+	return s.View
+}
+
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (b *PreparedCertificate) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{b.Proposal, b.PrepareOrCommitMessages})
