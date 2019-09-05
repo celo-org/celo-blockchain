@@ -54,7 +54,7 @@ jobs:
             set -euo pipefail
             export PATH=$PATH:$HOME/.cargo/bin
             make bls-zexe
-            
+
       - persist_to_workspace:
           root: ~/repos
           paths:
@@ -69,7 +69,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b asaj/governance-e2e
             cd ${CELO_MONOREPO_DIR}/packages
             # TODO(ashishb): Delete unnecessary packages to speed up build time.
             # It would be better whitelist certain packages and delete the rest.
