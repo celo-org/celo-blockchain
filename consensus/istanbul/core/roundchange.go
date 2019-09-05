@@ -111,6 +111,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		// Verify ROUND CHANGE message is for a proper view
 		// TODO(joshua): May be able to relax to the proposal is >= than the round change message.
+		// TODO(Joshua): Think through how this interacts with the generated round change certificate
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
@@ -181,6 +182,8 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
+	// TODO(Joshua): Keep ffRound logic to go the highest round that we can guarantee to be an honest timeout, but then
+	// require quorum messages on a particular round?
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(quorumRound)
@@ -315,6 +318,8 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
+	// TODO(Joshua): Think through if this is correct or if we need to include round change
+	// from messages from a larger round.
 	if rcs.msgsForRound[round] != nil && rcs.msgsForRound[round].Size() >= quorumSize {
 		messages := make([]istanbul.Message, rcs.msgsForRound[round].Size())
 		for i, message := range rcs.msgsForRound[round].Values() {
