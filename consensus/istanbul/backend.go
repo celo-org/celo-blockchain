@@ -85,9 +85,6 @@ type Backend interface {
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
 
-	// IsKnownMessage returns whether the message has been seen before
-	IsKnownMessage(msg Message) bool
-
 	// AddValidatorPeer adds a validator peer
 	AddValidatorPeer(enodeURL string)
 

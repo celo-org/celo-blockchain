@@ -487,19 +487,6 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) IsKnownMessage(msg istanbul.Message) bool {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-
-	data, err := msg.Payload()
-	if err != nil {
-		return false
-	}
-	hash := istanbul.RLPHash(data)
-	_, ok := sb.knownMessages.Get(hash)
-	return ok
-}
-
 func (sb *Backend) AddValidatorPeer(enodeURL string) {
 	if sb.broadcaster != nil {
 		sb.broadcaster.AddValidatorPeer(enodeURL)
