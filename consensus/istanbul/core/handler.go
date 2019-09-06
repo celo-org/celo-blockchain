@@ -195,12 +195,8 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
-	// logger := c.logger.New("func", "handleTimeoutMsg", "round", timeoutView.Round)
-	// if c.current != nil {
-	// 	logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-	// } else {
-	// 	logger = logger.New("cur_seq", 0, "cur_round", -1)
-	// }
+	logger := c.NewLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
+	logger.Trace("Timed out, trying to wait for next round")
 
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
 	c.waitForDesiredRound(nextRound)
