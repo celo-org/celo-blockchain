@@ -96,7 +96,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 				return nil
 			}
 		}
-		// Already in the next round b/c handleRoundChangeCertificate moves us to the next round.
+		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
 		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
 		return err
 	}
