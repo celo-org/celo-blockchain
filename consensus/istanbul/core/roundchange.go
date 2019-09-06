@@ -187,7 +187,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	}
 
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-	quorumRound := c.roundChangeSet.MaxRound(c.valSet.MinQuorumSize())
+	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
 
 	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
@@ -298,6 +298,27 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 		}
 	}
 
+	return nil
+}
+
+// MaxOnOneRound returns the max round which the number of messages is >= num
+func (rcs *roundChangeSet) MaxOnOneRound(num int) *big.Int {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		if rms.Size() >= num {
+			return new(big.Int).SetUint64(r)
+		}
+	}
 	return nil
 }
 
