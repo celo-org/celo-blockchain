@@ -121,8 +121,11 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			// it will be the next pre-prepare. If one node committed, that block is guaranteed (by quorum intersection)
 			// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
 			// blocks that were not committed.
+			// Also reject round change messages where the prepared view is greater than the round change view.
 			preparedView := roundChange.PreparedCertificate.View()
-			if preparedView != nil && preparedView.Round.Cmp(maxRound) > 0 {
+			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
+				return errInvalidRoundChangeViewMismatch
+			} else if preparedView.Round.Cmp(maxRound) > 0 {
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}
