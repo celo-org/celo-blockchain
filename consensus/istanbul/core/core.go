@@ -345,7 +345,6 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	// Perform all of the updates
 	c.setState(StateWaitingForNewRound)
 	c.current.SetDesiredRound(r)
-	// TODO(joshua): Double check that this works with skipped proposers
 	_, lastProposer := c.backend.LastProposal()
 	c.valSet.CalcProposer(lastProposer, desiredView.Round.Uint64())
 	c.newRoundChangeTimerForView(desiredView)
