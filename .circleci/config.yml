@@ -54,7 +54,7 @@ jobs:
             set -euo pipefail
             export PATH=$PATH:$HOME/.cargo/bin
             make bls-zexe
-            
+
       - persist_to_workspace:
           root: ~/repos
           paths:
