@@ -110,7 +110,6 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		// Verify ROUND CHANGE message is for a proper view
-		// TODO(joshua): May be able to relax to the proposal is >= than the round change message.
 		// TODO(Joshua): Think through how this interacts with the generated round change certificate
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errInvalidRoundChangeCertificateMsgView
@@ -120,9 +119,16 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return err
 			}
-			// The prepared certificate with the highest round number carries the proposal we must use
+			// We must use the proposal in the prepared certificate with the highest round number. (See OSDI 99, Section 4.4)
+			// Older prepared certificates may be generated, but if no node committed, there is no guarantee that
+			// it will be the next pre-prepare. If one node committed, that block is guaranteed (by quorum intersection)
+			// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
+			// blocks that were not committed.
+			// Also reject round change messages where the prepared view is greater than the round change view.
 			preparedView := roundChange.PreparedCertificate.View()
-			if preparedView != nil && preparedView.Round.Cmp(maxRound) > 0 {
+			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
+				return errInvalidRoundChangeViewMismatch
+			} else if preparedView.Round.Cmp(maxRound) > 0 {
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}
@@ -130,7 +136,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		decodedMessages[i] = *roundChange
 		// TODO(joshua): startNewRound needs these round change messages to generate a
-		// prepared certificate even if this node is not the next proposer
+		// round change certificate even if this node is not the next proposer
 		c.roundChangeSet.Add(roundChange.View.Round, &message)
 	}
 
@@ -165,6 +171,10 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	if rc.HasPreparedCertificate() {
 		if err := c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
 			return err
+		}
+		preparedCertView := rc.PreparedCertificate.View()
+		if preparedCertView == nil || preparedCertView.Round.Cmp(rc.View.Round) > 0 {
+			return errInvalidRoundChangeViewMismatch
 		}
 	}
 

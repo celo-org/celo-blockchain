@@ -95,6 +95,21 @@ type core struct {
 	consensusTimer metrics.Timer
 }
 
+// Appends the current view and state to the given context.
+func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+	var seq, round *big.Int
+	state := c.state
+	if c.current != nil {
+		seq = c.current.Sequence()
+		round = c.current.Round()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+	}
+	tmp := c.logger.New(ctx...)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
+}
+
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
@@ -202,8 +217,8 @@ func (c *core) commit() {
 	}
 }
 
-// Generates the next preprepare and associated round change certificate
-func (c *core) nextPreprepare(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+// Generates the next preprepare request and associated round change certificate
+func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 	if err != nil {
 		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
@@ -280,7 +295,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 
 		var err error
-		request, roundChangeCertificate, err = c.nextPreprepare(round)
+		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
 			return
@@ -330,7 +345,6 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	// Perform all of the updates
 	c.setState(StateWaitingForNewRound)
 	c.current.SetDesiredRound(r)
-	// TODO(joshua): Double check that this works with skipped proposers
 	_, lastProposer := c.backend.LastProposal()
 	c.valSet.CalcProposer(lastProposer, desiredView.Round.Uint64())
 	c.newRoundChangeTimerForView(desiredView)
