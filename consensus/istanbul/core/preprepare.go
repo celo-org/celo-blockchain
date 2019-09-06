@@ -61,6 +61,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
 		if !preprepare.HasRoundChangeCertificate() {
+			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
 			return errMissingRoundChangeCertificate
 		}
 		subject := istanbul.Subject{
@@ -70,6 +71,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		// This also moves us to the next round if the certificate is valid.
 		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
 		if err != nil {
+			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
 			return err
 		}
 	} else if preprepare.HasRoundChangeCertificate() {
