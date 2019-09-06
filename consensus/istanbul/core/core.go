@@ -202,8 +202,8 @@ func (c *core) commit() {
 	}
 }
 
-// Generates the next preprepare and associated round change certificate
-func (c *core) nextPreprepare(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+// Generates the next preprepare request and associated round change certificate
+func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
 	if err != nil {
 		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
@@ -280,7 +280,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 
 		var err error
-		request, roundChangeCertificate, err = c.nextPreprepare(round)
+		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
 			return
