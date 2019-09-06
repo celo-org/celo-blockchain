@@ -108,7 +108,6 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		// Verify ROUND CHANGE message is for a proper view
-		// TODO(joshua): May be able to relax to the proposal is >= than the round change message.
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
