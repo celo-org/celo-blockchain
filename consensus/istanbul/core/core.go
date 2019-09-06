@@ -95,6 +95,21 @@ type core struct {
 	consensusTimer metrics.Timer
 }
 
+// Appends the current view and state to the given context.
+func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+	var seq, round *big.Int
+	state := c.state
+	if c.current != nil {
+		seq = c.current.Sequence()
+		round = c.current.Round()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+	}
+	tmp := c.logger.New(ctx...)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
+}
+
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
