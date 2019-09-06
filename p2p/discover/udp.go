@@ -458,15 +458,17 @@ func (t *udp) loop() {
 			for el := plist.Front(); el != nil; el = el.Next() {
 				p := el.Value.(*replyMatcher)
 				if p.from == r.from && p.ptype == r.ptype {
-					ok, requestDone := p.callback(r.data)
-					matched = matched || ok
-					// Remove the matcher if callback indicates that all replies have been received.
-					if requestDone {
-						p.errc <- nil
-						plist.Remove(el)
+					if t.pingIPFromPacket || p.ip.Equal(r.ip) {
+						ok, requestDone := p.callback(r.data)
+						matched = matched || ok
+						// Remove the matcher if callback indicates that all replies have been received.
+						if requestDone {
+							p.errc <- nil
+							plist.Remove(el)
+						}
+						// Reset the continuous timeout counter (time drift detection)
+						contTimeouts = 0
 					}
-					// Reset the continuous timeout counter (time drift detection)
-					contTimeouts = 0
 				}
 			}
 			r.matched <- matched
