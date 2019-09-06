@@ -53,6 +53,8 @@ var (
 	errInvalidPreparedCertificateMsgView = errors.New("message in PREPARED certificate for wrong view")
 	// errInvalidPreparedCertificateDigestMismatch is returned when the PREPARED certificate proposal doesn't match one of the messages.
 	errInvalidPreparedCertificateDigestMismatch = errors.New("message in PREPARED certificate for different digest than proposal")
+	// errInvalidRoundChangeViewMismatch is returned when the PREPARED certificate view is greater than the round change view
+	errInvalidRoundChangeViewMismatch = errors.New("View for PREPARED certificate is greater than the view in the round change message")
 
 	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
 	errInvalidRoundChangeCertificateNumMsgs = errors.New("invalid number of ROUND CHANGE messages in certificate")

@@ -166,6 +166,10 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		if err := c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
 			return err
 		}
+		preparedCertView := rc.PreparedCertificate.View()
+		if preparedCertView == nil || preparedCertView.Round.Cmp(rc.View.Round) > 0 {
+			return errInvalidRoundChangeViewMismatch
+		}
 	}
 
 	roundView := rc.View
