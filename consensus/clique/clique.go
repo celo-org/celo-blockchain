@@ -383,7 +383,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
 
-	// Added to bypass the situation when the parent is missing in celolatest mode
+	// Added to bypass the situation when the parent is missing in ultralight mode
 	if chain.Config().FullHeaderChainAvailable {
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor

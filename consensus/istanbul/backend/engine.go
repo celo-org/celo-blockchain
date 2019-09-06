@@ -52,20 +52,21 @@ const (
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
 
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/BondedDeposits.json
-	setCumulativeRewardWeightABI = `[{"constant": false,
-                                          "inputs": [
-                                            {
-                                              "name": "blockReward",
-                                              "type": "uint256"
-                                            }
-                                          ],
-                                          "name": "setCumulativeRewardWeight",
-                                          "outputs": [],
-                                          "payable": false,
-                                          "stateMutability": "nonpayable",
-                                          "type": "function"
-                                        }]`
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/LockedGold.json
+	setCumulativeRewardWeightABI = `[{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "blockReward",
+				"type": "uint256"
+			}
+		],
+		"name": "setCumulativeRewardWeight",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+		}]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	increaseSupplyABI = `[{
@@ -81,7 +82,7 @@ const (
 		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "function"
-				 }]`
+		}]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	totalSupplyABI = `[{
@@ -352,6 +353,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 
 	// The length of validSeal should be larger than number of faulty node + 1
 	if len(publicKeys) < snap.ValSet.MinQuorumSize() {
+		sb.logger.Error("not enough signatures to form a quorum", "public keys", len(publicKeys), "minimum quorum size", snap.ValSet.MinQuorumSize())
 		return errInvalidCommittedSeals
 	}
 	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, extra.CommittedSeal, false)
@@ -402,6 +404,9 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = big.NewInt(time.Now().Unix())
 	}
 
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
+	time.Sleep(delay)
 	return nil
 }
 
@@ -480,19 +485,19 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 
 		stakerBlockReward := big.NewInt(params.Ether)
-		bondedDepositsAddress, err := contract_comm.GetRegisteredAddress(params.BondedDepositsRegistryId, header, state)
+		lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err, "contract id", params.BondedDepositsRegistryId)
+			log.Warn("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
 
-		if bondedDepositsAddress != nil {
-			state.AddBalance(*bondedDepositsAddress, stakerBlockReward)
+		if lockedGoldAddress != nil {
+			state.AddBalance(*lockedGoldAddress, stakerBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-			_, err := contract_comm.MakeCallWithAddress(*bondedDepositsAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
+			_, err := contract_comm.MakeCallWithAddress(*lockedGoldAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
 			if err != nil {
-				log.Error("Unable to send block rewards to bonded deposits", "err", err)
+				log.Error("Unable to send epoch rewards to LockedGold", "err", err)
 				return nil, err
 			}
 		}
@@ -551,14 +556,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	block, err = sb.updateBlock(parent, block)
 	if err != nil {
 		return err
-	}
-
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
-	select {
-	case <-time.After(delay):
-	case <-stop:
-		return nil
 	}
 
 	// get the proposed block hash and clear it if the seal() is completed.
