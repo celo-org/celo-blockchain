@@ -38,14 +38,14 @@ func (c *core) sendPreprepare(request *istanbul.Request) {
 			return
 		}
 
-		c.broadcast(&message{
-			Code: msgPreprepare,
+		c.broadcast(&istanbul.Message{
+			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		})
 	}
 }
 
-func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
+func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.logger.New("from", src, "state", c.state)
 
 	// Decode PRE-PREPARE
@@ -57,7 +57,7 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 
 	// Ensure we have the same view with the PRE-PREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
-	if err := c.checkMessage(msgPreprepare, preprepare.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
 			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
