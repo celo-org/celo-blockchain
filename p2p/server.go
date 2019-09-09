@@ -422,16 +422,16 @@ func (srv *Server) Stop() {
 	srv.loopWG.Wait()
 }
 
-// sharedUDPConn implements a shared connection. Write sends messages to the underlying connection while read returns
+// SharedUDPConn implements a shared connection. Write sends messages to the underlying connection while read returns
 // messages that were found unprocessable and sent to the unhandled channel by the primary listener.
-type sharedUDPConn struct {
+type SharedUDPConn struct {
 	*net.UDPConn
-	unhandled chan discover.ReadPacket
+	Unhandled chan discover.ReadPacket
 }
 
 // ReadFromUDP implements discv5.conn
-func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
-	packet, ok := <-s.unhandled
+func (s *SharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
+	packet, ok := <-s.Unhandled
 	if !ok {
 		return 0, nil, errors.New("Connection was closed")
 	}
@@ -444,7 +444,7 @@ func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err err
 }
 
 // Close implements discv5.conn
-func (s *sharedUDPConn) Close() error {
+func (s *SharedUDPConn) Close() error {
 	return nil
 }
 
@@ -583,11 +583,11 @@ func (srv *Server) setupDiscovery() error {
 
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
-	var sconn *sharedUDPConn
+	var sconn *SharedUDPConn
 	if !srv.NoDiscovery {
 		if srv.DiscoveryV5 {
 			unhandled = make(chan discover.ReadPacket, 100)
-			sconn = &sharedUDPConn{conn, unhandled}
+			sconn = &SharedUDPConn{conn, unhandled}
 		}
 		cfg := discover.Config{
 			PingIPFromPacket: srv.PingIPFromPacket,
