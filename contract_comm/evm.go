@@ -125,12 +125,12 @@ type InternalEVMHandler struct {
 	chain ChainContext
 }
 
-func MakeStaticCall(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, nil, header, state, false)
+func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, false)
 }
 
-func MakeCall(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(scRegistryId, abi, funcName, args, returnObj, gas, value, header, state, true)
+func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
+	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, true)
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
@@ -216,18 +216,18 @@ func SetInternalEVMHandler(chain ChainContext) {
 	}
 }
 
-func makeCallWithContractId(scRegistryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
-	scAddress, err := GetRegisteredAddress(scRegistryId, header, state)
+func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
+	scAddress, err := GetRegisteredAddress(registryId, header, state)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
-			log.Warn("Contract not yet deployed", "contractId", scRegistryId)
+			log.Warn("Contract not yet deployed", "contractId", registryId)
 			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
 			log.Warn("Contract Address Registry not yet deployed")
 			return 0, err
 		} else {
-			log.Error("Error in contract communication", "contract id", scRegistryId, "error", err)
+			log.Error("Error in contract communication", "contract id", registryId, "error", err)
 			return 0, err
 		}
 	}
