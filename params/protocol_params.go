@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -98,19 +99,6 @@ const (
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
 	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
 	GetValidatorGas      uint64 = 5000 // Cost of reading a validator's address
-
-	// Celo registered contracts names.
-	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	AttestationsRegistryId         = "Attestations"
-	LockedGoldRegistryId           = "LockedGold"
-	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
-	GasPriceMinimumRegistryId      = "GasPriceMinimum"
-	GoldTokenRegistryId            = "GoldToken"
-	GovernanceRegistryId           = "Governance"
-	ReserveRegistryId              = "Reserve"
-	RandomRegistryId               = "Random"
-	SortedOraclesRegistryId        = "SortedOracles"
-	ValidatorsRegistryId           = "Validators"
 )
 
 var (
@@ -120,7 +108,28 @@ var (
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
+
+	// Celo registered contract IDs.
+	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
+	AttestationsRegistryId         = makeRegistryId("Attestations")
+	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
+	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
+	GoldTokenRegistryId            = makeRegistryId("GoldToken")
+	GovernanceRegistryId           = makeRegistryId("Governance")
+	ReserveRegistryId              = makeRegistryId("Reserve")
+	RandomRegistryId               = makeRegistryId("Random")
+	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
+	ValidatorsRegistryId           = makeRegistryId("Validators")
 )
+
+func makeRegistryId(contractName string) [32]byte {
+	hash := crypto.Keccak256([]byte(contractName))
+	var id [32]byte
+	copy(id[:], hash)
+
+	return id
+}
 
 const (
 	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
