@@ -134,6 +134,7 @@ func main() {
 		cfg := discover.Config{
 			PrivateKey:  nodeKey,
 			NetRestrict: restrictList,
+			Unhandled: unhandled,
 		}
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
 			utils.Fatalf("%v", err)
