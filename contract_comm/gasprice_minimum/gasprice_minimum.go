@@ -34,7 +34,7 @@ const (
     {
       "constant": true,
       "inputs": [],
-      "name": "infrastructureFraction",
+      "name": "infrastructureFraction_",
       "outputs": [
         {
           "name": "",
@@ -175,13 +175,14 @@ func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*Infrast
 	_, err := contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
-		"infrastructureFraction",
+		"infrastructureFraction_",
 		[]interface{}{},
 		&infraFraction,
 		200000,
 		header,
 		state,
 	)
+
 	if err != nil {
 		return FallbackInfraFraction, err
 	}
