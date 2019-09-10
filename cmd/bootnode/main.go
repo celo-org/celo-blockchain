@@ -44,6 +44,7 @@ func main() {
 		nodeKeyHex       = flag.String("nodekeyhex", "", "private key as hex (for testing)")
 		natdesc          = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
 		netrestrict      = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		runv4            = flag.Bool("v4", true, "run a v4 topic discovery bootnode")
 		runv5            = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity        = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
 		vmodule          = flag.String("vmodule", "", "log verbosity pattern")
