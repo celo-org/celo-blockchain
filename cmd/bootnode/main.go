@@ -44,6 +44,7 @@ func main() {
 		nodeKeyHex  = flag.String("nodekeyhex", "", "private key as hex (for testing)")
 		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
 		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		pingIPFromPacket = flag.Bool("pingipfrompacket", false, "has the discovery protocol use the IP address from a ping packet")
 		runv4		= flag.Bool("v4", true, "run a v4 discovery bootnode")
 		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
@@ -131,7 +132,9 @@ func main() {
 		}
 		db, _ := enode.OpenDB("")
 		ln := enode.NewLocalNode(db, nodeKey)
+		log.Info("pingIPFromPacket", "value", *pingIPFromPacket)
 		cfg := discover.Config{
+			PingIPFromPacket: *pingIPFromPacket,
 			PrivateKey:  nodeKey,
 			NetRestrict: restrictList,
 			Unhandled: unhandled,

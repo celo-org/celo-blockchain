@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var salt = []byte{0x42, 0x4f, 0x53, 0x35, 0x57, 0x12, 0x16, 0x15}
+
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
@@ -553,7 +555,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (packet, 
 	// add the hash to the front. Note: this doesn't protect the
 	// packet in any way. Our public key will be part of this hash in
 	// The future.
-	hash = crypto.Keccak256(packet[macSize:])
+	hash = crypto.Keccak256(packet[macSize:], salt)
 	copy(packet, hash)
 	return packet, hash, nil
 }
@@ -611,7 +613,7 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 		return nil, encPubkey{}, nil, errPacketTooSmall
 	}
 	hash, sig, sigdata := buf[:macSize], buf[macSize:headSize], buf[headSize:]
-	shouldhash := crypto.Keccak256(buf[macSize:])
+	shouldhash := crypto.Keccak256(buf[macSize:], salt)
 	if !bytes.Equal(hash, shouldhash) {
 		return nil, encPubkey{}, nil, errBadHash
 	}
@@ -656,7 +658,9 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) 
 	// Reply.
 	senderIP := from.IP
 	senderPort := from.Port
+	log.Info("Outside pingipfrompacket")
 	if req.From.IP != nil && !req.From.IP.IsLoopback() && t.pingIPFromPacket {
+		log.Info("Inside pingipfrompacket")
 		senderIP = req.From.IP
 		senderPort = int(req.From.UDP)
 	}
