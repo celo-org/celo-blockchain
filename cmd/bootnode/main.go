@@ -36,16 +36,18 @@ import (
 
 func main() {
 	var (
-		listenAddr  = flag.String("addr", ":30301", "listen address")
-		genKey      = flag.String("genkey", "", "generate a node key")
-		writeAddr   = flag.Bool("writeaddress", false, "write out the node's public key and quit")
-		nodeKeyFile = flag.String("nodekey", "", "private key filename")
-		nodeKeyHex  = flag.String("nodekeyhex", "", "private key as hex (for testing)")
-		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
-		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
-		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
-		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
-		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
+		listenAddr       = flag.String("addr", ":30301", "listen address")
+		genKey           = flag.String("genkey", "", "generate a node key")
+		writeAddr        = flag.Bool("writeaddress", false, "write out the node's public key and quit")
+		nodeKeyFile      = flag.String("nodekey", "", "private key filename")
+		nodeKeyHex       = flag.String("nodekeyhex", "", "private key as hex (for testing)")
+		natdesc          = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
+		netrestrict      = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		runv5            = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
+		verbosity        = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
+		vmodule          = flag.String("vmodule", "", "log verbosity pattern")
+		networkId        = flag.Uint64("networkid", 0, "network ID")
+		pingIPFromPacket = flag.Bool("ping-ip-from-packet", false, "Has the discovery protocol use the IP address given by a ping packet")
 
 		nodeKey *ecdsa.PrivateKey
 		err     error
@@ -83,6 +85,10 @@ func main() {
 		if nodeKey, err = crypto.HexToECDSA(*nodeKeyHex); err != nil {
 			utils.Fatalf("-nodekeyhex: %v", err)
 		}
+	case *networkId == 0:
+		utils.Fatalf("--networkid must be set to non zero number")
+	case *runv5:
+		utils.Fatalf("Celo networks currently do not support discovery v5")
 	}
 
 	if *writeAddr {
@@ -124,10 +130,11 @@ func main() {
 		}
 	} else {
 		db, _ := enode.OpenDB("")
-		ln := enode.NewLocalNode(db, nodeKey)
+		ln := enode.NewLocalNode(db, nodeKey, *networkId)
 		cfg := discover.Config{
-			PrivateKey:  nodeKey,
-			NetRestrict: restrictList,
+			PrivateKey:       nodeKey,
+			NetRestrict:      restrictList,
+			PingIPFromPacket: *pingIPFromPacket,
 		}
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
 			utils.Fatalf("%v", err)
