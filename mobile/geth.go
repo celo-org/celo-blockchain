@@ -86,6 +86,9 @@ type NodeConfig struct {
 	// WhisperEnabled specifies whether the node should run the Whisper protocol.
 	WhisperEnabled bool
 
+	// PeerDiscovery indicates whether the node should participate in p2p discovery
+	PeerDiscovery bool
+
 	// Listening address of pprof server.
 	PprofAddress string
 
@@ -147,7 +150,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		UseLightweightKDF: config.UseLightweightKDF,
 		IPCPath:           "geth.ipc",
 		P2P: p2p.Config{
-			NoDiscovery:      true,
+			NoDiscovery:      !config.PeerDiscovery,
 			DiscoveryV5:      false,
 			BootstrapNodesV5: config.BootstrapNodes.nodes,
 			ListenAddr:       ":0",
