@@ -667,9 +667,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) 
 	// Reply.
 	senderIP := from.IP
 	senderPort := from.Port
-	log.Info("Outside pingipfrompacket")
 	if req.From.IP != nil && !req.From.IP.IsLoopback() && t.pingIPFromPacket {
-		log.Info("Inside pingipfrompacket")
 		senderIP = req.From.IP
 		senderPort = int(req.From.UDP)
 	}
