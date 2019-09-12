@@ -151,7 +151,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		IPCPath:           "geth.ipc",
 		P2P: p2p.Config{
 			NoDiscovery:      !config.PeerDiscovery,
-			DiscoveryV5:      false,
+			DiscoveryV5:      true,
 			BootstrapNodesV5: config.BootstrapNodes.nodes,
 			ListenAddr:       ":0",
 			NAT:              nat.Any(),
