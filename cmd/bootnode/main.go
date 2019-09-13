@@ -141,7 +141,7 @@ func main() {
 			PrivateKey:       nodeKey,
 			NetRestrict:      restrictList,
 			PingIPFromPacket: *pingIPFromPacket,
-			Unhandled: unhandled,
+			Unhandled:        unhandled,
 		}
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
 			utils.Fatalf("%v", err)
