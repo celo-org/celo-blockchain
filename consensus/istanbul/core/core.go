@@ -342,11 +342,11 @@ func (c *core) stopTimer() {
 func (c *core) newRoundChangeTimer() {
 	c.stopTimer()
 
-	// set timeout based on the round number
+	// timeout for subsequent rounds adds an exponential backup, capped at 2**4 = 16s
 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
 	round := c.current.Round().Uint64()
 	if round > 0 {
-		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
+		timeout += time.Duration(math.Pow(2, math.Min(float64(round), 4.))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
