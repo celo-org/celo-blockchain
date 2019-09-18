@@ -139,6 +139,10 @@ const (
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
+
+	// The plan is to have these values set within a system smart contract,
+	// and that they are read during runtime.  They could then be changed via
+	// governance.
 	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
 	MaxGasForDebitFromTransactions      uint64 = 46 * 1000
 
