@@ -139,11 +139,20 @@ const (
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
-	MaxGasForDebitFromTransactions      uint64 = 38 * 1000
+
+	// The plan is to have these values set within a system smart contract,
+	// and that they are read during runtime.  They could then be changed via
+	// governance.
 	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
-	MaxGasForCreditToTransactions       uint64 = 32 * 1000
-	MaxGasToReadErc20Balance            uint64 = 15 * 1000
-	MaxGasToReadTobinTax                uint64 = 50 * 1000
+	MaxGasForDebitFromTransactions      uint64 = 46 * 1000
+
+	ExpectedGasForCreditToTransactions uint64 = 32 * 1000
+	MaxGasForCreditToTransactions      uint64 = 64 * 1000
+
+	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
+	MaxGasToReadErc20Balance      uint64 = 30 * 1000
+
+	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
-	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
+	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 )
