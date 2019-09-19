@@ -475,6 +475,10 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, err
 	}
 
+	if len(input) < 96 {
+		return nil, gas, fmt.Errorf("Error: input not long enough")
+	}
+
 	if caller != *celoGoldAddress {
 		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
@@ -506,6 +510,10 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
+	}
+
+	if len(input) < 192 {
+		return nil, gas, fmt.Errorf("Error: input not long enough")
 	}
 
 	parseErrorStr := "Error parsing input: unable to parse %s value from %s"
