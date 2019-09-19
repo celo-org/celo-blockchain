@@ -115,7 +115,7 @@ func newPersistentDB(path string) (*DB, error) {
 
 	case nil:
 		// Version present, flush if different
-		if !bytes.Equal(blob, currentVer) {
+		if !bytes.Equal(blob, currentVer) || true {
 			db.Close()
 			if err = os.RemoveAll(path); err != nil {
 				return nil, err
