@@ -28,4 +28,5 @@ var (
 	ErrContractAddressCollision = errors.New("contract address collision")
 	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
 	ErrValidatorsOutOfBounds    = errors.New("getValidators out of bounds")
+	ErrInputLength              = errors.New("invalid input length")
 )

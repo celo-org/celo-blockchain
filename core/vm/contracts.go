@@ -475,8 +475,8 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, err
 	}
 
-	if len(input) < 96 {
-		return nil, gas, fmt.Errorf("Error: input not long enough")
+	if len(input) != 96 {
+		return nil, gas, ErrInputLength
 	}
 
 	if caller != *celoGoldAddress {
@@ -512,8 +512,8 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 		return nil, gas, err
 	}
 
-	if len(input) < 192 {
-		return nil, gas, fmt.Errorf("Error: input not long enough")
+	if len(input) != 192 {
+		return nil, gas, ErrInputLength
 	}
 
 	parseErrorStr := "Error parsing input: unable to parse %s value from %s"
@@ -579,6 +579,10 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 		return nil, gas, err
 	}
 
+	if len(input) != blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
+		return nil, gas, ErrInputLength
+	}
+
 	publicKeyBytes := input[:blscrypto.PUBLICKEYBYTES]
 	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
 	if err != nil {
@@ -608,13 +612,17 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 }
 
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	index := (&big.Int{}).SetBytes(input[0:32])
 	blockNumber := evm.Context.BlockNumber
 	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
+	if len(input) != 32 {
+		return nil, gas, ErrInputLength
+	}
+
+	index := (&big.Int{}).SetBytes(input[0:32])
 
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
