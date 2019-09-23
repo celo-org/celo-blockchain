@@ -128,6 +128,10 @@ func main() {
 		}
 	}
 
+	// If v4 and v5 are both enabled, a packet is first tried as v4
+	// and then v5 if v4 decoding fails, following the same pattern as full
+	// nodes that use v4 and v5:
+	// https://github.com/celo-org/celo-blockchain/blob/7fbd6f3574f1c1c1e657c152fc63fb771adab3af/p2p/server.go#L588
 	var unhandled chan discover.ReadPacket
 	var sconn *p2p.SharedUDPConn
 	if *runv4 {
