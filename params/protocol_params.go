@@ -121,6 +121,7 @@ var (
 	RandomRegistryId               = makeRegistryId("Random")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
+	BlockchainParamsRegistryId     = makeRegistryId("BlockchainParams")
 )
 
 func makeRegistryId(contractName string) [32]byte {
