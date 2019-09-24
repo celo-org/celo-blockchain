@@ -25,4 +25,6 @@ type backlogEvent struct {
 	msg *istanbul.Message
 }
 
-type timeoutEvent struct{}
+type timeoutEvent struct {
+	view *istanbul.View
+}

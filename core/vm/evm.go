@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -99,6 +100,8 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	Header *types.Header
+
+	Engine consensus.Engine
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

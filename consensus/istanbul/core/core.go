@@ -71,9 +71,8 @@ type core struct {
 	timeoutSub            *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
-	valSet                istanbul.ValidatorSet
-	waitingForRoundChange bool
-	validateFn            func([]byte, []byte) (common.Address, error)
+	valSet     istanbul.ValidatorSet
+	validateFn func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
 	backlogsMu *sync.Mutex
@@ -94,6 +93,21 @@ type core struct {
 	sequenceMeter metrics.Meter
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+}
+
+// Appends the current view and state to the given context.
+func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+	var seq, round *big.Int
+	state := c.state
+	if c.current != nil {
+		seq = c.current.Sequence()
+		round = c.current.Round()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+	}
+	tmp := c.logger.New(ctx...)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
 }
 
 func (c *core) SetAddress(address common.Address) {
@@ -137,7 +151,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -197,28 +211,56 @@ func (c *core) commit() {
 		}
 
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
-			c.current.UnlockHash() //Unlock block when insertion fails
 			c.sendNextRoundChange()
 			return
 		}
 	}
 }
 
+// Generates the next preprepare request and associated round change certificate
+func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+	if err != nil {
+		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
+	}
+	// Start with pending request
+	request := c.current.pendingRequest
+	// Search for a valid request in round change messages.
+	// The proposal must come from the prepared certificate with the highest round number.
+	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	maxRound := big.NewInt(-1)
+	for _, message := range roundChangeCertificate.RoundChangeMessages {
+		var roundChangeMsg *istanbul.RoundChange
+		if err := message.Decode(&roundChangeMsg); err != nil {
+			continue
+		}
+		preparedCertificateView := roundChangeMsg.PreparedCertificate.View()
+		if roundChangeMsg.HasPreparedCertificate() && preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
+			maxRound = preparedCertificateView.Round
+			request = &istanbul.Request{
+				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+			}
+		}
+	}
+	return request, roundChangeCertificate, nil
+}
+
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
 	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0)
+		logger = c.logger.New("cur_round", -1, "cur_seq", 0, "next_round", 0, "next_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
+		logger = c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	roundChange := false
 	// Try to get last proposal
 	lastProposal, lastProposer := c.backend.LastProposal()
 	if c.current == nil {
-		logger.Trace("Start to the initial round")
+		logger.Trace("Start the initial round")
 	} else if lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
+		// Want to be working on the block 1 beyond the last committed block.
 		diff := new(big.Int).Sub(lastProposal.Number(), c.current.Sequence())
 		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
 
@@ -226,13 +268,14 @@ func (c *core) startNewRound(round *big.Int) {
 			c.consensusTimer.UpdateSince(c.consensusTimestamp)
 			c.consensusTimestamp = time.Time{}
 		}
-		logger.Trace("Catch up latest proposal", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
+		logger.Trace("Catch up to the latest proposal.", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
 	} else if lastProposal.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
-		if round.Cmp(common.Big0) == 0 {
-			// same seq and round, don't need to start new round
+		// Working on the block immediately after the last committed block.
+		if round.Cmp(c.current.Round()) == 0 {
+			logger.Trace("Already in the desired round.")
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
+			logger.Warn("New round should not be smaller than current round", "lastProposalNumber", lastProposal.Number().Int64(), "new_round", round)
 			return
 		}
 		roundChange = true
@@ -241,13 +284,26 @@ func (c *core) startNewRound(round *big.Int) {
 		return
 	}
 
+	// Generate next view and pre-prepare
 	var newView *istanbul.View
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	var request *istanbul.Request
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
+
+		var err error
+		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+		if err != nil {
+			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+			return
+		}
 	} else {
+		if c.current != nil {
+			request = c.current.pendingRequest
+		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
@@ -263,52 +319,46 @@ func (c *core) startNewRound(round *big.Int) {
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil {
-		// If it is locked, propose the old proposal
-		// If we have pending request, propose pending request
-		if c.current.IsHashLocked() {
-			r := &istanbul.Request{
-				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
-			}
-			c.sendPreprepare(r)
-		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest)
-		}
+	if roundChange && c.isProposer() && c.current != nil && request != nil {
+		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.newRoundChangeTimer()
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
-func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer())
-
-	if view.Round.Cmp(c.current.Round()) > 0 {
-		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
+// All actions that occur when transitioning to waiting for round change state.
+func (c *core) waitForDesiredRound(r *big.Int) {
+	logger := c.logger.New("func", "waitForDesiredRound", "cur_round", c.current.Round(), "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+	// Don't wait for an older round
+	if c.current.DesiredRound().Cmp(r) >= 0 {
+		logger.Debug("New desired round not greater than current desired round")
+		return
 	}
-	c.waitingForRoundChange = true
+	logger.Debug("Waiting for desired round")
 
-	// Need to keep block locked for round catching up
-	c.updateRoundState(view, c.valSet, true)
-	c.roundChangeSet.Clear(view.Round)
-	c.newRoundChangeTimer()
+	desiredView := &istanbul.View{
+		Sequence: new(big.Int).Set(c.current.Sequence()),
+		Round:    new(big.Int).Set(r),
+	}
+	// Perform all of the updates
+	c.setState(StateWaitingForNewRound)
+	c.current.SetDesiredRound(r)
+	_, lastProposer := c.backend.LastProposal()
+	c.valSet.CalcProposer(lastProposer, desiredView.Round.Uint64())
+	c.newRoundChangeTimerForView(desiredView)
 
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
+	// Send round change
+	c.sendRoundChange(desiredView.Round)
 }
 
-// updateRoundState updates round state by checking if locking block is necessary
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
-	// Lock only if both roundChange is true and it is locked
+	// TODO(Joshua): Include desired round here.
 	if roundChange && c.current != nil {
-		if c.current.IsHashLocked() {
-			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
-		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
-		}
+		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.backend.HasBadProposal)
 	} else {
-		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.backend.HasBadProposal)
 	}
 }
 
@@ -340,17 +390,21 @@ func (c *core) stopTimer() {
 }
 
 func (c *core) newRoundChangeTimer() {
+	c.newRoundChangeTimerForView(c.currentView())
+}
+
+func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	c.stopTimer()
 
 	// set timeout based on the round number
 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := c.current.Round().Uint64()
+	round := view.Round.Uint64()
 	if round > 0 {
 		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{})
+		c.sendEvent(timeoutEvent{view})
 	})
 }
 
