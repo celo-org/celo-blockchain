@@ -30,6 +30,7 @@ type precompiledTest struct {
 	gas             uint64
 	name            string
 	noBenchmark     bool // Benchmark primarily the worst-cases
+	errorExpected   bool
 }
 
 // modexpTests are the test and benchmark data for the modexp precompiled contract.
@@ -336,16 +337,60 @@ var bn256PairingTests = []precompiledTest{
 	},
 }
 
+var fractionMulExpTests = []precompiledTest{
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000150000000000000000000000000000000000000000000000000000000000000f1000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004",
+		expected: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		name:     "correct_input_length",
+	},
+	{
+		input:         "38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e",
+		expected:      "invalid input length",
+		name:          "input_too_long",
+		errorExpected: true,
+	},
+	{
+		input:    "",
+		expected: "invalid input length",
+		name:     "empty_input",
+		errorExpected: true,
+	},
+}
+
+var proofOfPossessionTests = []precompiledTest{
+	{
+		input:         "",
+		expected:      "invalid input length",
+		errorExpected: true,
+		name:          "empty_input",
+	},
+	{
+		input:         "0000000000000000000000000000000038d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e789d1dd423d25f0772d2748d60f7e4b81bb14d086eba8e8e8efb6dcff8a4ae02000000",
+		expected:      "invalid input length",
+		errorExpected: true,
+		name:          "input_too_long",
+	},
+}
+
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	p := PrecompiledContractsByzantium[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.name, contract.Gas), func(t *testing.T) {
-		if res, err := RunPrecompiledContract(p, in, contract, nil); err != nil {
-			t.Error(err)
-		} else if common.Bytes2Hex(res) != test.expected {
-			t.Errorf("Expected %v, got %v", test.expected, common.Bytes2Hex(res))
+		res, err := RunPrecompiledContract(p, in, contract, nil)
+		if test.errorExpected {
+			if err == nil {
+				t.Errorf("Expected error: %v, but no error occurred", test.expected)
+			} else if err.Error() != test.expected {
+				t.Errorf("Expected error: \"%v\", but got \"%v\"", test.expected, err.Error())
+			}
+		} else {
+			if err != nil {
+				t.Error(err)
+			} else if common.Bytes2Hex(res) != test.expected {
+				t.Errorf("Expected %v, got %v", test.expected, common.Bytes2Hex(res))
+			}
 		}
 	})
 }
@@ -475,9 +520,25 @@ func TestPrecompiledBn256Pairing(t *testing.T) {
 	}
 }
 
-// Behcnmarks the sample inputs from the elliptic curve pairing check EIP 197.
+// Benchmarks the sample inputs from the elliptic curve pairing check EIP 197.
 func BenchmarkPrecompiledBn256Pairing(bench *testing.B) {
 	for _, test := range bn256PairingTests {
 		benchmarkPrecompiled("08", test, bench)
+	}
+}
+
+// Tests sample inputs for fractionMulExp
+// NOTE: This currently only verifies that inputs of invalid length are rejected
+func TestPrecompiledFractionMulExp(t *testing.T) {
+	for _, test := range fractionMulExpTests {
+		testPrecompiled("fc", test, t)
+	}
+}
+
+// Tests sample inputs for proofOfPossession
+// NOTE: This currently only verifies that inputs of invalid length are rejected
+func TestPrecompiledProofOfPossession(t *testing.T) {
+	for _, test := range proofOfPossessionTests {
+		testPrecompiled("fb", test, t)
 	}
 }
