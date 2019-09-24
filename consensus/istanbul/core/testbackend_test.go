@@ -129,6 +129,7 @@ func (self *testSystemBackend) Verify(proposal istanbul.Proposal, src istanbul.V
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
+	// We overload the signature with the signer address so we can return the latter from CheckValidatorSignature.
 	return self.Address().Bytes(), nil
 }
 
@@ -137,6 +138,7 @@ func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) er
 }
 
 func (self *testSystemBackend) CheckValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+	// Return the actual signature data as the signer address here.
 	return common.BytesToAddress(sig), nil
 }
 
