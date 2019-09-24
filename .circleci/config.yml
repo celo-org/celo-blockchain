@@ -70,18 +70,12 @@ jobs:
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
-            cd ${CELO_MONOREPO_DIR}/packages
-            # TODO(ashishb): Delete unnecessary packages to speed up build time.
-            # It would be better whitelist certain packages and delete the rest.
-            # Deletion does not work right now and yarn fails with weird errors.
-            # This will be enabled and resolved later.
-            # rm -rf analytics blockchain-api cli docs faucet helm-charts mobile notification-service react-components transaction-metrics-exporter verification-pool-api verifier web
-            cd ${CELO_MONOREPO_DIR}/packages/celotool
-            yarn || yarn
-            yarn --cwd=${CELO_MONOREPO_DIR}/packages/utils build
-            yarn --cwd=${CELO_MONOREPO_DIR}/packages/walletkit build
-            yarn --cwd=${CELO_MONOREPO_DIR}/packages/celotool build
-
+            # separate build to avoid ENOMEM in CI :(
+            yarn build --scope @celo/utils
+            yarn build --scope @celo/protocol
+            yarn build --scope docs
+            yarn build --scope @celo/walletkit
+            yarn build --ignore @celo/protocol --ignore docs --ignore @celo/walletkit --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
       - run:
           name: Setup Go language
           command: |
