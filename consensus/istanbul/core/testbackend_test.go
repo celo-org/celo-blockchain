@@ -18,7 +18,9 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"math"
 	"math/big"
+	"testing"
 	"time"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -46,7 +48,8 @@ type testSystemBackend struct {
 	committedMsgs []testCommittedMsgs
 	sentMsgs      [][]byte // store the message when Send is called by core
 
-	key     []byte
+	key     ecdsa.PrivateKey
+	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
 }
@@ -102,7 +105,7 @@ func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []by
 }
 
 func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
-	privateKey, _ := bls.DeserializePrivateKey(self.key)
+	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
 	signature, _ := privateKey.SignMessage(data, []byte{}, false)
@@ -125,13 +128,13 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.In
 	return nil
 }
 
-func (self *testSystemBackend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
+func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, nil
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
-	testLogger.Warn("not sign any data")
-	return data, nil
+	hashData := crypto.Keccak256(data)
+	return crypto.Sign(hashData, &self.key)
 }
 
 func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) error {
@@ -139,7 +142,7 @@ func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) er
 }
 
 func (self *testSystemBackend) CheckValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return common.Address{}, nil
+	return istanbul.CheckValidatorSignature(self.peers, data, sig)
 }
 
 func (self *testSystemBackend) Hash(b interface{}) common.Hash {
@@ -159,8 +162,10 @@ func (self *testSystemBackend) HasBadProposal(hash common.Hash) bool {
 func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
+		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal, common.Address{}
 	}
+	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
 }
 
@@ -175,6 +180,82 @@ func (self *testSystemBackend) GetProposer(number uint64) common.Address {
 
 func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
+}
+
+func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
+	message := new(istanbul.Message)
+	data, err := self.engine.(*core).finalizeMessage(msg)
+	if err != nil {
+		return *message, err
+	}
+	err = message.FromPayload(data, self.engine.(*core).validateFn)
+	return *message, err
+}
+
+func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
+	prepare := &istanbul.Subject{
+		View:   &view,
+		Digest: digest,
+	}
+
+	payload, err := Encode(prepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgPrepare,
+		Msg:  payload,
+	}
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
+func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
+	commit := &istanbul.Subject{
+		View:   &view,
+		Digest: proposal.Hash(),
+	}
+
+	payload, err := Encode(commit)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgCommit,
+		Msg:  payload,
+	}
+
+	// We swap in the provided proposal so that the message is finalized for the provided proposal
+	// and not for the current preprepare.
+	cachePreprepare := self.engine.(*core).current.Preprepare
+	self.engine.(*core).current.Preprepare = &istanbul.Preprepare{
+		View:     &view,
+		Proposal: proposal,
+	}
+	message, err := self.finalizeAndReturnMessage(msg)
+	self.engine.(*core).current.Preprepare = cachePreprepare
+	return message, err
+}
+
+func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
+	rc := &istanbul.RoundChange{
+		View:                &view,
+		PreparedCertificate: preparedCert,
+	}
+
+	payload, err := Encode(rc)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgRoundChange,
+		Msg:  payload,
+	}
+
+	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
@@ -197,26 +278,31 @@ func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 
 type testSystem struct {
 	backends       []*testSystemBackend
+	f              uint64
+	n              uint64
 	validatorsKeys [][]byte
 
 	queuedMessage chan istanbul.MessageEvent
 	quit          chan struct{}
 }
 
-func newTestSystem(n uint64, keys [][]byte) *testSystem {
+func newTestSystem(n uint64, f uint64, keys [][]byte) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
 		backends:       make([]*testSystemBackend, n),
 		validatorsKeys: keys,
+		f:              f,
+		n:              n,
 
 		queuedMessage: make(chan istanbul.MessageEvent),
 		quit:          make(chan struct{}),
 	}
 }
 
-func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte) {
+func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte, []*ecdsa.PrivateKey) {
 	vals := make([]istanbul.ValidatorData, 0)
-	keys := make([][]byte, 0)
+	blsKeys := make([][]byte, 0)
+	keys := make([]*ecdsa.PrivateKey, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
@@ -225,22 +311,34 @@ func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte) {
 			crypto.PubkeyToAddress(privateKey.PublicKey),
 			blsPublicKey,
 		})
-		keys = append(keys, blsPrivateKey)
+		keys = append(keys, privateKey)
+		blsKeys = append(blsKeys, blsPrivateKey)
 	}
-	return vals, keys
+	return vals, blsKeys, keys
 }
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
-	validators, _ := generateValidators(n)
+	validators, _, _ := generateValidators(n)
 	return validator.NewSet(validators, istanbul.RoundRobin)
 }
 
-// FIXME: int64 is needed for N and F
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
+	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) *roundState {
+		return newRoundState(&istanbul.View{
+			Round:    big.NewInt(0),
+			Sequence: big.NewInt(1),
+		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), func(hash common.Hash) bool {
+			return false
+		})
+	})
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) *roundState) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
-	validators, keys := generateValidators(int(n))
-	sys := newTestSystem(n, keys)
+	validators, blsKeys, keys := generateValidators(int(n))
+	sys := newTestSystem(n, f, blsKeys)
 	config := istanbul.DefaultConfig
 
 	for i := uint64(0); i < n; i++ {
@@ -248,16 +346,13 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
-		backend.key = keys[i]
+		backend.key = *keys[i]
+		backend.blsKey = blsKeys[i]
 
 		core := New(backend, config).(*core)
 		core.state = StateAcceptRequest
-		core.current = newRoundState(&istanbul.View{
-			Round:    big.NewInt(0),
-			Sequence: big.NewInt(1),
-		}, vset, common.Hash{}, nil, nil, func(hash common.Hash) bool {
-			return false
-		})
+		core.current = getRoundState(vset)
+		core.roundChangeSet = newRoundChangeSet(vset)
 		core.valSet = vset
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
@@ -321,6 +416,53 @@ func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 
 	t.backends[id] = backend
 	return backend
+}
+
+func (t *testSystem) F() uint64 {
+	return t.f
+}
+
+func (t *testSystem) MinQuorumSize() uint64 {
+	return uint64(math.Ceil(float64(2*t.n) / 3))
+}
+
+func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+	preparedCertificate := istanbul.PreparedCertificate{
+		Proposal:                proposal,
+		PrepareOrCommitMessages: []istanbul.Message{},
+	}
+	for i, backend := range sys.backends {
+		if uint64(i) == sys.MinQuorumSize() {
+			break
+		}
+		var err error
+		var msg istanbul.Message
+		if i%2 == 0 {
+			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+		} else {
+			msg, err = backend.getCommitMessage(view, proposal)
+		}
+		if err != nil {
+			t.Errorf("Failed to create message %v: %v", i, err)
+		}
+		preparedCertificate.PrepareOrCommitMessages = append(preparedCertificate.PrepareOrCommitMessages, msg)
+	}
+	return preparedCertificate
+}
+
+func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	for i, backend := range sys.backends {
+		if uint64(i) == sys.MinQuorumSize() {
+			break
+		}
+		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
+		if err != nil {
+			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
+		}
+		roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
+	}
+	return roundChangeCertificate
 }
 
 // ==============================================
