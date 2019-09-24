@@ -17,6 +17,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -109,11 +111,14 @@ func (c *core) handleEvents() {
 					c.logger.Error("Error in handling istanbul message that was sent from a backlog event", "err", err)
 				}
 			}
-		case _, ok := <-c.timeoutSub.Chan():
+		case event, ok := <-c.timeoutSub.Chan():
 			if !ok {
 				return
 			}
-			c.handleTimeoutMsg()
+			switch ev := event.Data.(type) {
+			case timeoutEvent:
+				c.handleTimeoutMsg(ev.view)
+			}
 		case event, ok := <-c.finalCommittedSub.Chan():
 			if !ok {
 				return
@@ -132,7 +137,12 @@ func (c *core) sendEvent(ev interface{}) {
 }
 
 func (c *core) handleMsg(payload []byte) error {
-	logger := c.logger.New()
+	logger := c.logger.New("func", "handleMsg")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
@@ -152,7 +162,12 @@ func (c *core) handleMsg(payload []byte) error {
 }
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("address", c.address, "from", src)
+	logger := c.logger.New("address", c.address, "from", msg.Address, "func", "handleCheckedMsg")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	// Store the message if it's a future message
 	testBacklog := func(err error) error {
@@ -165,13 +180,13 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
-		return testBacklog(c.handlePreprepare(msg, src))
+		return testBacklog(c.handlePreprepare(msg))
 	case istanbul.MsgPrepare:
-		return testBacklog(c.handlePrepare(msg, src))
+		return testBacklog(c.handlePrepare(msg))
 	case istanbul.MsgCommit:
-		return testBacklog(c.handleCommit(msg, src))
+		return testBacklog(c.handleCommit(msg))
 	case istanbul.MsgRoundChange:
-		return testBacklog(c.handleRoundChange(msg, src))
+		return testBacklog(c.handleRoundChange(msg))
 	default:
 		logger.Error("Invalid message", "msg", msg)
 	}
@@ -179,23 +194,10 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg() {
-	// If we're not waiting for round change yet, we can try to catch up
-	// the max round with F+1 round change message. We only need to catch up
-	// if the max round is larger than current round.
-	if !c.waitingForRoundChange {
-		maxRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-		if maxRound != nil && maxRound.Cmp(c.current.Round()) > 0 {
-			c.sendRoundChange(maxRound)
-			return
-		}
-	}
+func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
+	logger := c.NewLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
+	logger.Trace("Timed out, trying to wait for next round")
 
-	lastProposal, _ := c.backend.LastProposal()
-	if lastProposal != nil && lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
-		c.logger.Trace("round change timeout, catch up latest sequence", "number", lastProposal.Number().Uint64())
-		c.startNewRound(common.Big0)
-	} else {
-		c.sendNextRoundChange()
-	}
+	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
+	c.waitForDesiredRound(nextRound)
 }
