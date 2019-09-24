@@ -19,11 +19,12 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 func (c *core) sendPrepare() {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPrepare")
 
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)
@@ -31,13 +32,84 @@ func (c *core) sendPrepare() {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
+	logger.Trace("Sending prepare")
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  encodedSubject,
 	})
 }
 
-func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) error {
+func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPreparedCertificate")
+
+	// Validate the attached proposal
+	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+		return errInvalidPreparedCertificateProposal
+	}
+
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.valSet.MinQuorumSize() {
+		return errInvalidPreparedCertificateNumMsgs
+	}
+
+	seen := make(map[common.Address]bool)
+	for _, message := range preparedCertificate.PrepareOrCommitMessages {
+		data, err := message.PayloadNoSig()
+		if err != nil {
+			return err
+		}
+
+		// Verify message signed by a validator
+		signer, err := c.validateFn(data, message.Signature)
+		if err != nil {
+			return err
+		}
+
+		if signer != message.Address {
+			return errInvalidPreparedCertificateMsgSignature
+		}
+
+		// Check for duplicate messages
+		if seen[signer] {
+			return errInvalidPreparedCertificateDuplicate
+		}
+		seen[signer] = true
+
+		// Check that the message is a PREPARE or COMMIT message
+		if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
+			return errInvalidPreparedCertificateMsgCode
+		}
+
+		var subject *istanbul.Subject
+		if err := message.Decode(&subject); err != nil {
+			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+			return err
+		}
+
+		// Verify message for the proper sequence.
+		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+			return errInvalidPreparedCertificateMsgView
+		}
+
+		// Verify message for the proper proposal.
+		if subject.Digest != preparedCertificate.Proposal.Hash() {
+			return errInvalidPreparedCertificateDigestMismatch
+		}
+
+		// If COMMIT message, verify valid committed seal.
+		if message.Code == istanbul.MsgCommit {
+			_, src := c.valSet.GetByAddress(signer)
+			err := c.verifyCommittedSeal(subject.Digest, message.CommittedSeal, src)
+			if err != nil {
+				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *core) handlePrepare(msg *istanbul.Message) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
@@ -49,19 +121,23 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 		return err
 	}
 
-	// If it is locked, it can only process on the locked block.
-	// Passing verifyPrepare and checkMessage implies it is processing on the locked block since it was verified in the Preprepared state.
-	if err := c.verifyPrepare(prepare, src); err != nil {
+	if err := c.verifyPrepare(prepare); err != nil {
 		return err
 	}
 
-	c.acceptPrepare(msg, src)
+	c.acceptPrepare(msg)
+	preparesAndCommits := c.current.GetPrepareOrCommitSize()
+	minQuorumSize := c.valSet.MinQuorumSize()
+	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
 
-	// Change to Prepared state if we've received enough PREPARE messages or it is locked
-	// and we are in earlier state before Prepared state.
-	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() >= c.valSet.MinQuorumSize()) &&
-		c.state.Cmp(StatePrepared) < 0 {
-		c.current.LockHash()
+	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
+	// before Prepared state.
+	// TODO(joshua): Remove state comparisons (or change the cmp function)
+	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
+		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+			return err
+		}
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}
@@ -70,8 +146,8 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 }
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
-func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPrepare")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
@@ -82,8 +158,8 @@ func (c *core) verifyPrepare(prepare *istanbul.Subject, src istanbul.Validator) 
 	return nil
 }
 
-func (c *core) acceptPrepare(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) acceptPrepare(msg *istanbul.Message) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
 
 	// Add the PREPARE message to current round state
 	if err := c.current.Prepares.Add(msg); err != nil {
