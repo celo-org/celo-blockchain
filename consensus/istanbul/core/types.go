@@ -36,6 +36,7 @@ const (
 	StatePreprepared
 	StatePrepared
 	StateCommitted
+	StateWaitingForNewRound
 )
 
 func (s State) String() string {
@@ -47,6 +48,8 @@ func (s State) String() string {
 		return "Prepared"
 	} else if s == StateCommitted {
 		return "Committed"
+	} else if s == StateWaitingForNewRound {
+		return "Waiting for new round"
 	} else {
 		return "Unknown"
 	}
