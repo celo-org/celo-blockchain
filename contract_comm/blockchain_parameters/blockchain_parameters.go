@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package blockchain_params
+package blockchain_parameters
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -25,57 +26,62 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/hashicorp/go-version"
 )
 
 const (
-	blockchainParamsABIString = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "minimumClientVersion",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "string"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
+	blockchainParametersABIString = `[{
+			"constant": true,
+			"inputs": [],
+			"name": "getMinimumClientVersion",
+			"outputs": [
+			  {
+				"name": "major",
+				"type": "uint256"
+			  },
+			  {
+				"name": "minor",
+				"type": "uint256"
+			  },
+			  {
+				"name": "patch",
+				"type": "uint256"
+			  }
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+	}]`
 )
 
 const defaultGasAmount = 2000000
 
 var (
-	blockchainParamsABI, _ = abi.JSON(strings.NewReader(blockchainParamsABIString))
+	blockchainParametersABI, _ = abi.JSON(strings.NewReader(blockchainParametersABIString))
 )
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
-	var minVersion string
+	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	var err error
 	_, err = contract_comm.MakeStaticCall(
-		params.BlockchainParamsRegistryId,
-		blockchainParamsABI,
-		"minimumClientVersion",
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"getMinimumClientVersion",
 		[]interface{}{},
-		&minVersion,
+		&version,
 		defaultGasAmount,
 		header,
 		state,
 	)
 
 	if err != nil {
-		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParamsRegistryId)
+		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
 		return nil
 	}
 
-	log.Warn("Version", "version", minVersion)
-	v1, err := version.NewVersion(minVersion)
-	v2, err := version.NewVersion(params.Version)
-
-	if v2.LessThan(v1) {
-		log.Crit("Client version older than required", "current", params.Version, "required", minVersion)
+	if params.VersionMajor < version[0].Uint64() ||
+		params.VersionMajor == version[0].Uint64() && params.VersionMinor < version[1].Uint64() ||
+		params.VersionMajor == version[0].Uint64() && params.VersionMinor == version[1].Uint64() && params.VersionPatch < version[2].Uint64() {
+		log.Crit("Client version older than required", "current", params.Version, "required", version)
 	}
 
 	return nil
