@@ -350,9 +350,9 @@ var fractionMulExpTests = []precompiledTest{
 		errorExpected: true,
 	},
 	{
-		input:    "",
-		expected: "invalid input length",
-		name:     "empty_input",
+		input:         "",
+		expected:      "invalid input length",
+		name:          "empty_input",
 		errorExpected: true,
 	},
 }
