@@ -122,6 +122,9 @@ type Config struct {
 	// live nodes in the network.
 	NodeDatabase string `toml:",omitempty"`
 
+	// UseInMemoryNodeDatabase specifies whether the node database should be in-memory or on-disk
+	UseInMemoryNodeDatabase bool
+
 	// Protocols should contain the protocols supported
 	// by the server. Matching protocols are launched for
 	// each peer.

@@ -324,10 +324,15 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 			return err
 		}
 
-		_, err = validateFn(payload, m.Signature)
+		signed_val_addr, err := validateFn(payload, m.Signature)
+		if err != nil {
+			return err
+		}
+		if signed_val_addr != m.Address {
+			return ErrInvalidSigner
+		}
 	}
-	// Still return the message even the err is not nil
-	return err
+	return nil
 }
 
 func (m *Message) Payload() ([]byte, error) {
