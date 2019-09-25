@@ -34,6 +34,8 @@ import (
 
 const Version = 4
 
+var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
+
 // Errors
 var (
 	errPacketTooSmall = errors.New("too small")
@@ -356,7 +358,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (p, hash 
 		return nil, nil, err
 	}
 	packet := b.Bytes()
-	sig, err := crypto.Sign(crypto.Keccak256(packet[headSize:]), priv)
+	sig, err := crypto.Sign(crypto.Keccak256(packet[headSize:], celoClientSalt), priv)
 	if err != nil {
 		log.Error(fmt.Sprint("could not sign packet:", err))
 		return nil, nil, err
@@ -412,7 +414,7 @@ func decodePacket(buffer []byte, pkt *ingressPacket) error {
 	if !bytes.Equal(prefix, versionPrefix) {
 		return errBadPrefix
 	}
-	fromID, err := recoverNodeID(crypto.Keccak256(buf[headSize:]), sig)
+	fromID, err := recoverNodeID(crypto.Keccak256(buf[headSize:], celoClientSalt), sig)
 	if err != nil {
 		return err
 	}
