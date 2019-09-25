@@ -525,7 +525,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	//   exponent:     32 bytes, 256 bit integer, exponent to raise the second fraction (b) to
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
-  // 6 args x 32 bytes each = 192 bytes total input length
+	// 6 args x 32 bytes each = 192 bytes total input length
 	if len(input) != 192 {
 		return nil, gas, ErrInputLength
 	}
