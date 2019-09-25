@@ -584,7 +584,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 			if err == abipkg.ErrEmptyOutput {
 				log.Debug("Error in unpacking EVM call return bytes", "err", err)
 			} else {
-				log.Warn("Error in unpacking EVM call return bytes", "err", err)
+				log.Error("Error in unpacking EVM call return bytes", "err", err)
 			}
 			return leftoverGas, err
 		}
