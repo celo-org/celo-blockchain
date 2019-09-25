@@ -578,7 +578,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
 			} else {
 				txn := []*types.Transaction(*priceHeap)[0]
-				if currency.Cmp(cheapestTxn.GasPrice(), cheapestTxn.GasCurrency(), txn.GasPrice(), txn.GasCurrency()) < 0 {
+				if currency.Cmp(txn.GasPrice(), txn.GasCurrency(), cheapestTxn.GasPrice(), cheapestTxn.GasCurrency()) < 0 {
 					cheapestHeap = priceHeap
 				}
 			}
