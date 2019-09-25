@@ -480,7 +480,11 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if len(input) != 96 {
+	//
+	// Unlike other input length checks, this one is allowed to be larger than the sum of
+	// the bytes needed for these arguments. The reason for this is that it may also get a
+	// transaction options object.
+	if len(input) >= 96 {
 		return nil, gas, ErrInputLength
 	}
 
