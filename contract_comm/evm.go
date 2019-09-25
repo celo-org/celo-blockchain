@@ -224,7 +224,7 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 			log.Warn("Contract not yet deployed", "contractId", registryId)
 			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Warn("Contract Address Registry not yet deployed")
+			log.Debug("Contract Address Registry not yet deployed")
 			return 0, err
 		} else {
 			log.Error("Error in contract communication", "contract id", registryId, "error", err)
