@@ -480,11 +480,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	//
-	// Unlike other input length checks, this one is allowed to be larger than the sum of
-	// the bytes needed for these arguments. The reason for this is that it may also get a
-	// transaction options object.
-	if len(input) >= 96 {
+	if len(input) < 96 {
 		return nil, gas, ErrInputLength
 	}
 
@@ -530,7 +526,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
 	// 6 args x 32 bytes each = 192 bytes total input length
-	if len(input) != 192 {
+	if len(input) < 192 {
 		return nil, gas, ErrInputLength
 	}
 
@@ -601,7 +597,7 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
 	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
 	// the total length of input required is the sum of these constants
-	if len(input) != blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
+	if len(input) < blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
 		return nil, gas, ErrInputLength
 	}
 
@@ -643,7 +639,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 
 	// input is comprised of a single argument:
 	//   index: 32 byte integer representing the index of the validator to get
-	if len(input) != 32 {
+	if len(input) < 32 {
 		return nil, gas, ErrInputLength
 	}
 
