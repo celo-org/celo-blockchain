@@ -16,10 +16,18 @@
 
 package core
 
-import "github.com/ethereum/go-ethereum/consensus/istanbul"
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+)
 
 func (c *core) handleRequest(request *istanbul.Request) error {
-	logger := c.logger.New("state", c.state, "seq", c.current.sequence)
+	logger := c.logger.New("state", c.state, "func", "handleRequest")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	if err := c.checkRequestMsg(request); err != nil {
 		if err == errInvalidMessage {
@@ -33,8 +41,9 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
 	c.current.pendingRequest = request
-	if c.state == StateAcceptRequest {
-		c.sendPreprepare(request)
+	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
+	if c.state == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
+		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
 	}
 	return nil
 }
@@ -58,7 +67,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 }
 
 func (c *core) storeRequestMsg(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_seq", c.current.Sequence(), "cur_round", c.current.Round(), "func", "storeRequestMsg")
 
 	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
