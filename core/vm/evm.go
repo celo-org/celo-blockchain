@@ -579,13 +579,12 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-			// `ErrEmptyOutput` often occurs when when syncing & importing blocks
-			// before a contract has been deployed, creating expected warnings
-			logMsg := "Error in unpacking EVM call return bytes"
+			// `ErrEmptyOutput` is expected when when syncing & importing blocks
+			// before a contract has been deployed
 			if err == abipkg.ErrEmptyOutput {
-				log.Debug(logMsg, "err", err)
+				log.Debug("Error in unpacking EVM call return bytes", "err", err)
 			} else {
-				log.Warn(logMsg, "err", err)
+				log.Warn("Error in unpacking EVM call return bytes", "err", err)
 			}
 			return leftoverGas, err
 		}
