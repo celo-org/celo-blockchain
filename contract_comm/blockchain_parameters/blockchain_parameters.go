@@ -50,7 +50,21 @@ const (
 			"payable": false,
 			"stateMutability": "view",
 			"type": "function"
-	}]`
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "blockGasLimit",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
 )
 
 const defaultGasAmount = 2000000
@@ -58,6 +72,22 @@ const defaultGasAmount = 2000000
 var (
 	blockchainParametersABI, _ = abi.JSON(strings.NewReader(blockchainParametersABIString))
 )
+
+func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
+	var gasLimit *big.Int
+	_, err := contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"blockGasLimit",
+		[]interface{}{},
+		&gasLimit,
+		defaultGasAmount,
+		header,
+		state,
+	)
+	log.Warn("querying block gas limit", "limit", gasLimit, "err", err)
+	return gasLimit.Uint64(), err
+}
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}

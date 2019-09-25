@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -105,7 +106,15 @@ func (v *BlockValidator) ValidateState(block, parent *types.Block, statedb *stat
 // to keep the baseline gas above the provided floor, and increase it towards the
 // ceil if the blocks are full. If the ceil is exceeded, it will always decrease
 // the gas allowance.
-func CalcGasLimit(parent *types.Block, gasFloor, gasCeil uint64) uint64 {
+func CalcGasLimit(parent *types.Block, statedb *state.StateDB, gasFloor, gasCeil uint64) uint64 {
+	header := parent.Header()
+
+	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
+
+	if err == nil {
+		return limit
+	}
+
 	// contrib = (parentGasUsed * 3 / 2) / 1024
 	contrib := (parent.GasUsed() + parent.GasUsed()/2) / params.GasLimitBoundDivisor
 
@@ -119,7 +128,7 @@ func CalcGasLimit(parent *types.Block, gasFloor, gasCeil uint64) uint64 {
 		at that usage) the amount increased/decreased depends on how far away
 		from parentGasLimit * (2/3) parentGasUsed is.
 	*/
-	limit := parent.GasLimit() - decay + contrib
+	limit = parent.GasLimit() - decay + contrib
 	if limit < params.MinGasLimit {
 		limit = params.MinGasLimit
 	}

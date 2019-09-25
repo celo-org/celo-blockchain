@@ -906,10 +906,17 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	num := parent.Number()
+	limit := uint64(0)
+	if w.current != nil {
+		limit = core.CalcGasLimit(parent, w.current.state, w.gasFloor, w.gasCeil)
+	} else {
+		limit = core.CalcGasLimit(parent, nil, w.gasFloor, w.gasCeil)
+		log.Info("Limit", "limit", limit)
+	}
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
+		GasLimit:   limit,
 		Extra:      w.extra,
 		Time:       big.NewInt(timestamp),
 	}
