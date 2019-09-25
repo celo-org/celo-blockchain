@@ -463,7 +463,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 	if err == contract_errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
+		log.Debug("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
@@ -474,7 +474,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err)
+			log.Debug("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
@@ -487,7 +487,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		stakerBlockReward := big.NewInt(params.Ether)
 		lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
+			log.Debug("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
