@@ -100,13 +100,13 @@ const (
 const defaultGasAmount = 2000000
 
 var (
-	gasPriceMinimumABI, _                           = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackInfraFraction   *InfrastructureFraction = &InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum *big.Int                = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier    *big.Int                = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _                     = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackInfraFraction   *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
+	FallbackGasPriceMinimum *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier    *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
-type InfrastructureFraction struct {
+type ProposerFraction struct {
 	Numerator   *big.Int
 	Denominator *big.Int
 }
@@ -179,7 +179,7 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 }
 
 // Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*InfrastructureFraction, error) {
+func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(
@@ -197,5 +197,5 @@ func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*Infrast
 		return FallbackInfraFraction, err
 	}
 
-	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
+	return &ProposerFraction{infraFraction[0], infraFraction[1]}, err
 }
