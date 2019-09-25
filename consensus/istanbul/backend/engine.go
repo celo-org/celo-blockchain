@@ -456,13 +456,14 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
-
-	if err != nil {
+	if err == contract_errors.ErrRegistryContractNotDeployed {
+		log.Debug("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
+	} else if err != nil {
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
 	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
-	if err == contract_errors.ErrSmartContractNotDeployed {
+	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
 		log.Debug("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
