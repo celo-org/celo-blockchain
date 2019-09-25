@@ -475,6 +475,11 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, err
 	}
 
+	// input is comprised of 3 arguments:
+	//   from:  32 bytes representing the address of the sender
+	//   to:    32 bytes representing the address of the recipient
+	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
+	// 3 arguments x 32 bytes each = 96 bytes total input
 	if len(input) != 96 {
 		return nil, gas, ErrInputLength
 	}
@@ -512,6 +517,15 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 		return nil, gas, err
 	}
 
+	// input is comprised of 6 arguments:
+	//   aNumerator:   32 bytes, 256 bit integer, numerator for the first fraction (a)
+	//   aDenominator: 32 bytes, 256 bit integer, denominator for the first fraction (a)
+	//   bNumerator:   32 bytes, 256 bit integer, numerator for the second fraction (b)
+	//   bDenominator: 32 bytes, 256 bit integer, denominator for the second fraction (b)
+	//   exponent:     32 bytes, 256 bit integer, exponent to raise the second fraction (b) to
+	//   decimals:     32 bytes, 256 bit integer, places of precision
+	//
+  // 6 args x 32 bytes each = 192 bytes total input length
 	if len(input) != 192 {
 		return nil, gas, ErrInputLength
 	}
@@ -579,6 +593,10 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 		return nil, gas, err
 	}
 
+	// input is comprised of 2 arguments:
+	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
+	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
+	// the total length of input required is the sum of these constants
 	if len(input) != blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
 		return nil, gas, ErrInputLength
 	}
@@ -618,6 +636,9 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	if err != nil {
 		return nil, gas, err
 	}
+
+	// input is comprised of a single argument:
+	//   index: 32 byte integer representing the index of the validator to get
 	if len(input) != 32 {
 		return nil, gas, ErrInputLength
 	}
