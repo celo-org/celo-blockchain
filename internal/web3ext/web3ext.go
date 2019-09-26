@@ -160,6 +160,11 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
+			name: 'removeSentry',
+			call: 'admin_removeSentry',
+			params: 1
+		}),
+		new web3._extend.Method({
 			name: 'addTrustedPeer',
 			call: 'admin_addTrustedPeer',
 			params: 1

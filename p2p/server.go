@@ -190,7 +190,7 @@ type Server struct {
 	addvalidator    chan *enode.Node
 	removevalidator chan *enode.Node
 	addsentry       chan *enode.Node
-	// removesentry    chan *enode.Node
+	removesentry    chan *enode.Node
 	addstatic     chan *enode.Node
 	removestatic  chan *enode.Node
 	addtrusted    chan *enode.Node
@@ -364,10 +364,18 @@ func (srv *Server) RemoveValidatorPeer(node *enode.Node) {
 	}
 }
 
-// AddSentryPeer assigns the given node as a sentry node.  It will set it as a static and trusted node.
+// AddSentryPeer assigns the given node as a sentry node. It will set it as a static node.
 func (srv *Server) AddSentryPeer(node *enode.Node) {
 	select {
 	case srv.addsentry <- node:
+	case <-srv.quit:
+	}
+}
+
+// RemoveSentryPeer removes the given node as a sentry node.
+func (srv *Server) RemoveSentryPeer(node *enode.Node) {
+	select {
+	case srv.removesentry <- node:
 	case <-srv.quit:
 	}
 }
@@ -502,6 +510,7 @@ func (srv *Server) Start() (err error) {
 	srv.addvalidator = make(chan *enode.Node)
 	srv.removevalidator = make(chan *enode.Node)
 	srv.addsentry = make(chan *enode.Node)
+	srv.removesentry = make(chan *enode.Node)
 	srv.addstatic = make(chan *enode.Node)
 	srv.removestatic = make(chan *enode.Node)
 	srv.addtrusted = make(chan *enode.Node)
@@ -864,6 +873,21 @@ running:
 				if p, ok := peers[n.ID()]; ok {
 					p.rw.set(sentryConn, true)
 					numConnectedSentryPeers++
+				}
+			}
+		case n := <-srv.removesentry:
+			if isSentryNode(n.ID()) {
+				srv.log.Trace("Removing sentry node", "node", n)
+
+				sentryNodeInfo := sentryNodes[n.ID()]
+				delete(sentryNodes, n.ID())
+
+				// If it was not set as static by the user, then remove as static peer.
+				// If it was set as static by the user, then don't do anything, as a sentry node is already set as static.
+				if !sentryNodeInfo.atSentryRemoveSetStatic {
+					srv.log.Trace("removing static node as part of removing sentry node")
+					// This will disconnect the connection
+					removeStatic(n)
 				}
 			}
 		case n := <-srv.addstatic:
