@@ -155,6 +155,11 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
+			name: 'addSentry',
+			call: 'admin_addSentry',
+			params: 1
+		}),
+		new web3._extend.Method({
 			name: 'addTrustedPeer',
 			call: 'admin_addTrustedPeer',
 			params: 1

@@ -452,6 +452,7 @@ type PeerInfo struct {
 		Trusted       bool   `json:"trusted"`
 		Static        bool   `json:"static"`
 		Validator     bool   `json:"validator"`
+		Sentry        bool   `json:"sentry"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
@@ -477,6 +478,7 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.Trusted = p.rw.is(trustedConn)
 	info.Network.Static = p.rw.is(staticDialedConn)
 	info.Network.Validator = p.rw.is(validatorConn)
+	info.Network.Sentry = p.rw.is(sentryConn)
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {

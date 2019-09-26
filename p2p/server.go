@@ -189,16 +189,18 @@ type Server struct {
 	quit            chan struct{}
 	addvalidator    chan *enode.Node
 	removevalidator chan *enode.Node
-	addstatic       chan *enode.Node
-	removestatic    chan *enode.Node
-	addtrusted      chan *enode.Node
-	removetrusted   chan *enode.Node
-	posthandshake   chan *conn
-	addpeer         chan *conn
-	delpeer         chan peerDrop
-	loopWG          sync.WaitGroup // loop, listenLoop
-	peerFeed        event.Feed
-	log             log.Logger
+	addsentry       chan *enode.Node
+	// removesentry    chan *enode.Node
+	addstatic     chan *enode.Node
+	removestatic  chan *enode.Node
+	addtrusted    chan *enode.Node
+	removetrusted chan *enode.Node
+	posthandshake chan *conn
+	addpeer       chan *conn
+	delpeer       chan peerDrop
+	loopWG        sync.WaitGroup // loop, listenLoop
+	peerFeed      event.Feed
+	log           log.Logger
 }
 
 type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo)
@@ -217,6 +219,7 @@ const (
 	inboundConn
 	trustedConn
 	validatorConn
+	sentryConn
 )
 
 // conn wraps a network connection with information gathered
@@ -270,6 +273,9 @@ func (f connFlag) String() string {
 	}
 	if f&validatorConn != 0 {
 		s += "-validator"
+	}
+	if f&sentryConn != 0 {
+		s += "-sentry"
 	}
 	if s != "" {
 		s = s[1:]
@@ -358,6 +364,14 @@ func (srv *Server) RemoveValidatorPeer(node *enode.Node) {
 	}
 }
 
+// AddSentryPeer assigns the given node as a sentry node.  It will set it as a static and trusted node.
+func (srv *Server) AddSentryPeer(node *enode.Node) {
+	select {
+	case srv.addsentry <- node:
+	case <-srv.quit:
+	}
+}
+
 // AddPeer connects to the given node and maintains the connection until the
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
@@ -393,7 +407,7 @@ func (srv *Server) RemoveTrustedPeer(node *enode.Node) {
 	}
 }
 
-// SubscribePeers subscribes the given channel to peer events
+// SubscribeEvents subscribes the given channel to peer events
 func (srv *Server) SubscribeEvents(ch chan *PeerEvent) event.Subscription {
 	return srv.peerFeed.Subscribe(ch)
 }
@@ -487,6 +501,7 @@ func (srv *Server) Start() (err error) {
 	srv.posthandshake = make(chan *conn)
 	srv.addvalidator = make(chan *enode.Node)
 	srv.removevalidator = make(chan *enode.Node)
+	srv.addsentry = make(chan *enode.Node)
 	srv.addstatic = make(chan *enode.Node)
 	srv.removestatic = make(chan *enode.Node)
 	srv.addtrusted = make(chan *enode.Node)
@@ -667,21 +682,28 @@ type valNodeInfo struct {
 	remoteEnodeURL        string
 }
 
+type sentryNodeInfo struct {
+	atSentryRemoveSetStatic bool
+	remoteEnodeURL          string
+}
+
 func (srv *Server) run(dialstate dialer) {
 	srv.log.Info("Started P2P networking", "self", srv.localnode.Node())
 	defer srv.loopWG.Done()
 	defer srv.nodedb.Close()
 
 	var (
-		peers                = make(map[enode.ID]*Peer)
-		inboundCount         = 0
-		trusted              = make(map[enode.ID]bool, len(srv.TrustedNodes))
-		taskdone             = make(chan task, maxActiveDialTasks)
-		runningTasks         []task
-		queuedTasks          []task // tasks that can't run yet
-		valNodes             = make(map[enode.ID]*valNodeInfo)
-		numConnectedValPeers = 0
-		numInboundValPeers   = 0
+		peers                   = make(map[enode.ID]*Peer)
+		inboundCount            = 0
+		trusted                 = make(map[enode.ID]bool, len(srv.TrustedNodes))
+		taskdone                = make(chan task, maxActiveDialTasks)
+		runningTasks            []task
+		queuedTasks             []task // tasks that can't run yet
+		valNodes                = make(map[enode.ID]*valNodeInfo)
+		sentryNodes             = make(map[enode.ID]*sentryNodeInfo)
+		numConnectedValPeers    = 0
+		numInboundValPeers      = 0
+		numConnectedSentryPeers = 0 // connections to sentry nodes from its corresponding validator will never be inbound
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup or added via AddTrustedPeer RPC.
@@ -721,6 +743,13 @@ func (srv *Server) run(dialstate dialer) {
 
 	isValNode := func(ID enode.ID) bool {
 		if _, ok := valNodes[ID]; ok {
+			return true
+		}
+		return false
+	}
+
+	isSentryNode := func(ID enode.ID) bool {
+		if _, ok := sentryNodes[ID]; ok {
 			return true
 		}
 		return false
@@ -787,9 +816,7 @@ running:
 
 				// If already connected, updated val peer counters and set the validatorConn flag in the connection
 				if p, ok := peers[n.ID()]; ok {
-					if p, ok := peers[n.ID()]; ok {
-						p.rw.set(validatorConn, true)
-					}
+					p.rw.set(validatorConn, true)
 					numConnectedValPeers++
 					if p.Inbound() {
 						numInboundValPeers++
@@ -818,6 +845,27 @@ running:
 					removeTrusted(n)
 				}
 			}
+		case n := <-srv.addsentry:
+			if !isSentryNode(n.ID()) {
+				srv.log.Trace("Adding sentry node", "node", n)
+
+				// Save the previous state of the peer, so that when it's removed as a sentry node, it will be restored to that state
+				isStatic := dialstate.isStatic(n)
+
+				sentryNodes[n.ID()] = &sentryNodeInfo{atSentryRemoveSetStatic: isStatic, remoteEnodeURL: n.String()}
+
+				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
+				if !isStatic {
+					srv.log.Trace("Setting sentry node to static")
+					addStatic(n)
+				}
+
+				// If already connected, update sentry peer counters and set the sentryConn flag in the connection
+				if p, ok := peers[n.ID()]; ok {
+					p.rw.set(sentryConn, true)
+					numConnectedSentryPeers++
+				}
+			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
@@ -825,6 +873,8 @@ running:
 
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = true
+			} else if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = true
 			} else {
 				srv.log.Trace("Adding static node", "node", n)
 				addStatic(n)
@@ -835,6 +885,8 @@ running:
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = false
+			} else if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = false
 			} else {
 				srv.log.Trace("Removing static node", "node", n)
 				removeStatic(n)
@@ -878,16 +930,19 @@ running:
 			if _, ok := valNodes[c.node.ID()]; ok {
 				c.flags |= validatorConn
 			}
+			if _, ok := sentryNodes[c.node.ID()]; ok {
+				c.flags |= sentryConn
+			}
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
 			select {
-			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers):
+			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers):
 			case <-srv.quit:
 				break running
 			}
 		case c := <-srv.addpeer:
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
-			err := srv.protoHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
+			err := srv.protoHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
 				p := newPeer(c, srv.Protocols)
@@ -904,12 +959,14 @@ running:
 					inboundCount++
 				}
 
-				// increment the validator peer counters
+				// increment the validator/sentry peer counters
 				if isValNode(c.node.ID()) {
 					numConnectedValPeers++
 					if p.Inbound() {
 						numInboundValPeers++
 					}
+				} else if isSentryNode(c.node.ID()) {
+					numConnectedSentryPeers++
 				}
 
 			}
@@ -936,6 +993,8 @@ running:
 				if pd.Inbound() {
 					numInboundValPeers--
 				}
+			} else if isSentryNode(pd.ID()) {
+				numConnectedSentryPeers--
 			}
 		}
 	}
@@ -963,19 +1022,19 @@ running:
 	}
 }
 
-func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
+func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int, numConnectedSentryPeers int) error {
 	// Drop connections with no matching protocols.
 	if len(srv.Protocols) > 0 && countMatchingProtocols(srv.Protocols, c.caps) == 0 {
 		return DiscUselessPeer
 	}
 	// Repeat the encryption handshake checks because the
 	// peer set might have changed between the handshakes.
-	return srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
+	return srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers)
 }
 
-func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
+func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int, numConnectedSentryPeers int) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn|validatorConn) && len(peers) >= (srv.MaxPeers+numConnectedValPeers): // Don't count the validator nodes against max peers
+	case !c.is(trustedConn|staticDialedConn|validatorConn|sentryConn) && len(peers) >= (srv.MaxPeers+numConnectedSentryPeers+numConnectedValPeers): // Don't count the validator or sentry nodes against max peers
 		return DiscTooManyPeers
 	case !c.is(trustedConn|validatorConn) && c.is(inboundConn) && inboundCount >= (srv.maxInboundConns()+numInboundValPeers): // Don't count the inbound validator nodes against max inbound conns
 		return DiscTooManyPeers
