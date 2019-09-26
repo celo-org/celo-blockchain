@@ -930,28 +930,24 @@ running:
 			// it will keep the node connected.
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = true
-				break
-			}
-			if isSentryNode(n.ID()) {
+			} else if isSentryNode(n.ID()) {
 				sentryNodes[n.ID()].atSentryRemoveSetStatic = true
-				break
+			} else {
+				srv.log.Trace("Adding static node", "node", n)
+				addStatic(n)
 			}
-			srv.log.Trace("Adding static node", "node", n)
-			addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = false
-				break
-			}
-			if isSentryNode(n.ID()) {
+			} else if isSentryNode(n.ID()) {
 				sentryNodes[n.ID()].atSentryRemoveSetStatic = false
-				break
+			} else {
+				srv.log.Trace("Removing static node", "node", n)
+				removeStatic(n)
 			}
-			srv.log.Trace("Removing static node", "node", n)
-			removeStatic(n)
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
