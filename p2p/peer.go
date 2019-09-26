@@ -181,6 +181,11 @@ func (p *Peer) Validator() bool {
 	return p.rw.is(validatorConn)
 }
 
+// Sentry returns true if the peer is a sentry connection
+func (p *Peer) Sentry() bool {
+	return p.rw.is(sentryConn)
+}
+
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{

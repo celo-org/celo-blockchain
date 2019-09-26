@@ -353,6 +353,19 @@ func (srv *Server) ValPeers() []string {
 	return valPeers
 }
 
+// SentryCount returns the number of sentry nodes
+func (srv *Server) SentryCount() int {
+	var count int
+	select {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		count = len(sentryNodes)
+	}:
+		<-srv.peerOpDone
+	case <-srv.quit:
+	}
+	return count
+}
+
 // sentryPeers returns the sentry peers
 func (srv *Server) sentryPeers() []*Peer {
 	var sentryPeers []*Peer
@@ -1079,7 +1092,7 @@ func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount i
 
 func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int, numConnectedSentryPeers int) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn|validatorConn|sentryConn) && len(peers) >= (srv.MaxPeers+numConnectedSentryPeers+numConnectedValPeers): // Don't count the validator or sentry nodes against max peers
+	case !c.is(trustedConn|staticDialedConn|validatorConn|sentryConn) && len(peers) >= (srv.MaxPeers+numConnectedValPeers+numConnectedSentryPeers): // Don't count the validator or sentry nodes against max peers
 		return DiscTooManyPeers
 	case !c.is(trustedConn|validatorConn) && c.is(inboundConn) && inboundCount >= (srv.maxInboundConns()+numInboundValPeers): // Don't count the inbound validator nodes against max inbound conns
 		return DiscTooManyPeers
