@@ -191,19 +191,19 @@ type Server struct {
 	removevalidator chan *enode.Node
 	addsentry       chan *enode.Node
 	removesentry    chan *enode.Node
-	addstatic     chan *enode.Node
-	removestatic  chan *enode.Node
-	addtrusted    chan *enode.Node
-	removetrusted chan *enode.Node
-	posthandshake chan *conn
-	addpeer       chan *conn
-	delpeer       chan peerDrop
-	loopWG        sync.WaitGroup // loop, listenLoop
-	peerFeed      event.Feed
-	log           log.Logger
+	addstatic       chan *enode.Node
+	removestatic    chan *enode.Node
+	addtrusted      chan *enode.Node
+	removetrusted   chan *enode.Node
+	posthandshake   chan *conn
+	addpeer         chan *conn
+	delpeer         chan peerDrop
+	loopWG          sync.WaitGroup // loop, listenLoop
+	peerFeed        event.Feed
+	log             log.Logger
 }
 
-type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo)
+type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo)
 
 type peerDrop struct {
 	*Peer
@@ -310,7 +310,7 @@ func (srv *Server) Peers() []*Peer {
 	// Note: We'd love to put this function into a variable but
 	// that seems to cause a weird compiler error in some
 	// environments.
-	case srv.peerOp <- func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
+	case srv.peerOp <- func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
 		for _, p := range peers {
 			ps = append(ps, p)
 		}
@@ -325,7 +325,9 @@ func (srv *Server) Peers() []*Peer {
 func (srv *Server) PeerCount() int {
 	var count int
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) { count = len(ps) }:
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		count = len(ps)
+	}:
 		<-srv.peerOpDone
 	case <-srv.quit:
 	}
@@ -336,7 +338,7 @@ func (srv *Server) PeerCount() int {
 func (srv *Server) ValPeers() []string {
 	var valPeers []string
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
 		for _, valPeerInfo := range valNodes {
 			valPeers = append(valPeers, valPeerInfo.remoteEnodeURL)
 		}
@@ -346,6 +348,22 @@ func (srv *Server) ValPeers() []string {
 	}
 
 	return valPeers
+}
+
+// sentryPeers returns the sentry peers
+func (srv *Server) sentryPeers() []*Peer {
+	var sentryPeers []*Peer
+	select {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		for sentryID := range sentryNodes {
+			sentryPeers = append(sentryPeers, ps[sentryID])
+		}
+	}:
+		<-srv.peerOpDone
+	case <-srv.quit:
+	}
+
+	return sentryPeers
 }
 
 // AddValidatorPeer assigns the given node as a validator node.  It will set it as a static and trusted node.
@@ -935,7 +953,7 @@ running:
 			}
 		case op := <-srv.peerOp:
 			// This channel is used by Peers and PeerCount and ValPeers.
-			op(peers, valNodes)
+			op(peers, valNodes, sentryNodes)
 			srv.peerOpDone <- struct{}{}
 		case t := <-taskdone:
 			// A task got done. Tell dialstate about it so it
@@ -1326,11 +1344,21 @@ func (srv *Server) NodeInfo() *NodeInfo {
 	return info
 }
 
-// PeersInfo returns an array of metadata objects describing connected peers.
+// PeersInfo returns an array of metadata objects describing all connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
+	return peersInfo(srv.Peers())
+}
+
+// SentryInfo returns an array of metadata objects describing sentry peers
+func (srv *Server) SentryInfo() []*PeerInfo {
+	return peersInfo(srv.sentryPeers())
+}
+
+// peersInfo returns a sorted array of metadata objects describing an array of peers
+func peersInfo(peers []*Peer) []*PeerInfo {
 	// Gather all the generic and sub-protocol specific infos
-	infos := make([]*PeerInfo, 0, srv.PeerCount())
-	for _, peer := range srv.Peers() {
+	infos := make([]*PeerInfo, 0, len(peers))
+	for _, peer := range peers {
 		if peer != nil {
 			infos = append(infos, peer.Info())
 		}

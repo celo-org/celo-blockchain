@@ -323,6 +323,16 @@ func (api *PublicAdminAPI) NodeInfo() (*p2p.NodeInfo, error) {
 	return server.NodeInfo(), nil
 }
 
+// SentryInfo retrieves all the information we know about each individual sentry
+// node at the protocol granularity.
+func (api *PublicAdminAPI) SentryInfo() ([]*p2p.PeerInfo, error) {
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.SentryInfo(), nil
+}
+
 // Datadir retrieves the current data directory the node is using.
 func (api *PublicAdminAPI) Datadir() string {
 	return api.node.DataDir()
