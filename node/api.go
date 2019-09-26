@@ -82,9 +82,6 @@ func (api *PrivateAdminAPI) AddSentry(url string) (bool, error) {
 	if server == nil {
 		return false, ErrNodeStopped
 	}
-	if !server.Proxied {
-		return false, fmt.Errorf("the node must be proxied to add a sentry")
-	}
 	node, err := enode.ParseV4(url)
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
@@ -99,9 +96,6 @@ func (api *PrivateAdminAPI) RemoveSentry(url string) (bool, error) {
 	server := api.node.Server()
 	if server == nil {
 		return false, ErrNodeStopped
-	}
-	if !server.Proxied {
-		return false, fmt.Errorf("the node must be proxied to remove a sentry")
 	}
 	// Try to remove the url as a sentry and return
 	node, err := enode.ParseV4(url)

@@ -889,7 +889,7 @@ running:
 				}
 			}
 		case n := <-srv.addsentry:
-			if !isSentryNode(n.ID()) {
+			if !isSentryNode(n.ID()) && srv.Proxied {
 				srv.log.Trace("Adding sentry node", "node", n)
 
 				// Save the previous state of the peer, so that when it's removed as a sentry node, it will be restored to that state
@@ -910,7 +910,7 @@ running:
 				}
 			}
 		case n := <-srv.removesentry:
-			if isSentryNode(n.ID()) {
+			if isSentryNode(n.ID()) && srv.Proxied {
 				srv.log.Trace("Removing sentry node", "node", n)
 
 				sentryNodeInfo := sentryNodes[n.ID()]
