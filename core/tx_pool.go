@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -658,7 +659,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return ErrInsufficientFunds
 		}
 	}
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency())
+	additionalGas := blockchain_parameters.GetGasForNonGoldCurrencies(pool.chain.CurrentBlock().Header(), pool.currentState)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency(), additionalGas)
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -1281,7 +1283,7 @@ type txLookup struct {
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-		all:                       make(map[common.Hash]*types.Transaction),
+		all: make(map[common.Hash]*types.Transaction),
 		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
 	}
 }

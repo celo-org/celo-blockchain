@@ -50,7 +50,21 @@ const (
 			"payable": false,
 			"stateMutability": "view",
 			"type": "function"
-	}]`
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "gasForNonGoldCurrencies",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }]`
 )
 
 const defaultGasAmount = 2000000
@@ -85,4 +99,24 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
 	}
 
 	return nil
+}
+
+func GetGasForNonGoldCurrencies(header *types.Header, state vm.StateDB) uint64 {
+	var gas *big.Int
+	var err error
+	_, err = contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"gasForNonGoldCurrencies",
+		[]interface{}{},
+		&gas,
+		defaultGasAmount,
+		header,
+		state,
+	)
+	if err != nil {
+		return params.AdditionalGasForNonGoldCurrencies
+	}
+	log.Info("Reading gas", "gas", gas)
+	return gas.Uint64()
 }

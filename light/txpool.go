@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -403,7 +404,8 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency())
+	additionalGas := blockchain_parameters.GetGasForNonGoldCurrencies(pool.chain.CurrentHeader(), pool.currentState(ctx))
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency(), additionalGas)
 	if err != nil {
 		return err
 	}
