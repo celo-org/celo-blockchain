@@ -928,27 +928,30 @@ running:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
-
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = true
-			} else if isSentryNode(n.ID()) {
-				sentryNodes[n.ID()].atSentryRemoveSetStatic = true
-			} else {
-				srv.log.Trace("Adding static node", "node", n)
-				addStatic(n)
+				break
 			}
+			if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = true
+				break
+			}
+			srv.log.Trace("Adding static node", "node", n)
+			addStatic(n)
 		case n := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = false
-			} else if isSentryNode(n.ID()) {
-				sentryNodes[n.ID()].atSentryRemoveSetStatic = false
-			} else {
-				srv.log.Trace("Removing static node", "node", n)
-				removeStatic(n)
+				break
 			}
+			if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = false
+				break
+			}
+			srv.log.Trace("Removing static node", "node", n)
+			removeStatic(n)
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
