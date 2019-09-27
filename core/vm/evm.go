@@ -22,9 +22,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	abipkg "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -99,6 +100,8 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	Header *types.Header
+
+	Engine consensus.Engine
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -543,7 +546,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	return gas, nil
 }
 
-func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
 		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
@@ -551,14 +554,14 @@ func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abi.ABI
 	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
-func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
 		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
-func (evm *EVM) handleABICall(abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
+func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
 		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
@@ -576,7 +579,13 @@ func (evm *EVM) handleABICall(abi abi.ABI, funcName string, args []interface{}, 
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-			log.Error("Error in unpacking EVM call return bytes", "err", err)
+			// `ErrEmptyOutput` is expected when when syncing & importing blocks
+			// before a contract has been deployed
+			if err == abipkg.ErrEmptyOutput {
+				log.Debug("Error in unpacking EVM call return bytes", "err", err)
+			} else {
+				log.Error("Error in unpacking EVM call return bytes", "err", err)
+			}
 			return leftoverGas, err
 		}
 	}
