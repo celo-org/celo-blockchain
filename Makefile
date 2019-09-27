@@ -23,8 +23,8 @@ else
 endif
 
 # example NDK values
-#NDK_VERSION=android-ndk-r19c
-#ANDROID_NDK=$(PWD)/ndk_bundle/$(NDK_VERSION)
+export NDK_VERSION ?= android-ndk-r19c
+export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth: bls-zexe
 	build/env.sh go run build/ci.go install ./cmd/geth
@@ -38,9 +38,7 @@ check_android_env:
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
 
 ndk_bundle: check_android_env
-ifneq ("$(wildcard $(ANDROID_NDK))","")
-	$(error "NDK already exists at $(ANDROID_NDK). Remove the directory if you want to re-download it")
-else
+ifeq ("$(wildcard $(ANDROID_NDK))","")
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-$(OS)-x86_64.zip && \
@@ -48,12 +46,16 @@ else
 		mkdir -p $(ANDROID_NDK) && \
 		unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
 		rm /tmp/$(NDK_VERSION).zip
+else
+ifeq ("$(wildcard $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64)","")
+	$(error "Android NDK is installed but doesn't contain an llvm cross-compilation toolchain. Delete your current NDK or modify the ANDROID_NDK environment variable to an empty directory download it automatically.")
+endif
 endif
 
 
-bls-zexe-android: check_android_env
+bls-zexe-android: check_android_env ndk_bundle
 ifeq ("$(RUSTUP_exists)","")
-	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md to install Rust.")
 else
 	rustup target add aarch64-linux-android
 	rustup target add armv7-linux-androideabi
@@ -96,7 +98,7 @@ swarm:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
 
-all:
+all: bls-zexe
 	build/env.sh go run build/ci.go install
 
 android: bls-zexe-android
@@ -115,9 +117,15 @@ test: all
 lint: ## Run linters.
 	build/env.sh go run build/ci.go lint
 
-clean:
+clean-geth:
 	./build/clean_go_build_cache.sh
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
+
+clean-bls-zexe:
+	rm -rf vendor/github.com/celo-org/bls-zexe/bls/target
+
+clean: clean-geth clean-bls-zexe
+
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.

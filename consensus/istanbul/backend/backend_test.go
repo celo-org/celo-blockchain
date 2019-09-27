@@ -183,7 +183,7 @@ func TestGetProposer(t *testing.T) {
 	expected := engine.GetProposer(1)
 	actual := engine.Address()
 	if actual != expected {
-		t.Errorf("proposer mismatch: have %v, want %v", actual.Hex(), expected.Hex())
+		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
 	}
 }
 

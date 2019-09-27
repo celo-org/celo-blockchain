@@ -129,7 +129,7 @@ var (
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
 		Usage: "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby, 5=Ottoman)",
-		Value: eth.DefaultConfig.NetworkId,
+		Value: node.DefaultConfig.P2P.NetworkId,
 	}
 	TestnetFlag = cli.BoolFlag{
 		Name:  "testnet",
@@ -171,7 +171,7 @@ var (
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",
-		Usage: `Blockchain sync mode ("fast", "full", "light", or "celolatest")`,
+		Usage: `Blockchain sync mode ("fast", "full", "light", or "ultralight")`,
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -182,7 +182,7 @@ var (
 	LightServFlag = cli.IntFlag{
 		Name:  "lightserv",
 		Usage: "Maximum percentage of time allowed for serving LES requests (0-90)",
-		Value: 0,
+		Value: eth.DefaultConfig.LightServ,
 	}
 	LightPeersFlag = cli.IntFlag{
 		Name:  "lightpeers",
@@ -563,6 +563,14 @@ var (
 	NetrestrictFlag = cli.StringFlag{
 		Name:  "netrestrict",
 		Usage: "Restricts network communication to the given IP networks (CIDR masks)",
+	}
+	PingIPFromPacketFlag = cli.BoolFlag{
+		Name:  "ping-ip-from-packet",
+		Usage: "Has the discovery protocol use the IP address given by a ping packet",
+	}
+	UseInMemoryDiscoverTable = cli.BoolFlag{
+		Name:  "use-in-memory-discovery-table",
+		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
 	// ATM the url is left to the user and deployment to
@@ -962,6 +970,8 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
 	lightPeers := ctx.GlobalInt(LightPeersFlag.Name)
@@ -993,6 +1003,12 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(NoDiscoverFlag.Name) || lightClient {
 		cfg.NoDiscovery = true
+	}
+	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
+		cfg.PingIPFromPacket = true
+	}
+	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+		cfg.UseInMemoryNodeDatabase = true
 	}
 
 	// if we're running a light client or server, force enable the v5 peer discovery
@@ -1465,8 +1481,6 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	name := "chaindata"
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name = "lightchaindata"
-	} else if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
-		name = "celolatestchaindata"
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
 		name = "ultralightchaindata"
 	}
@@ -1499,7 +1513,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
-	if ctx.GlobalString(SyncModeFlag.Name) == "celolatest" {
+	if ctx.GlobalString(SyncModeFlag.Name) == "ultralight" {
 		config.FullHeaderChainAvailable = false
 	}
 	if err != nil {

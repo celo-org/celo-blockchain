@@ -28,6 +28,83 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
+func TestVerifyPreparedCertificate(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	sys := NewTestSystemWithBackend(N, F)
+	view := istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+	proposal := makeBlock(0)
+
+	testCases := []struct {
+		certificate istanbul.PreparedCertificate
+		expectedErr error
+	}{
+		{
+			// Valid PREPARED certificate
+			sys.getPreparedCertificate(t, view, proposal),
+			nil,
+		},
+		{
+			// Invalid PREPARED certificate, duplicate message
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateDuplicate,
+		},
+		{
+			// Invalid PREPARED certificate, future message
+			func() istanbul.PreparedCertificate {
+				futureView := istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(10),
+				}
+				preparedCertificate := sys.getPreparedCertificate(t, futureView, proposal)
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateMsgView,
+		},
+		{
+			// Invalid PREPARED certificate, includes preprepare message
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, view, proposal))
+				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateMsgCode,
+		},
+		{
+			// Invalid PREPARED certificate, hash mismatch
+			func() istanbul.PreparedCertificate {
+				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
+				preparedCertificate.Proposal = makeBlock(1)
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateDigestMismatch,
+		},
+		{
+			// Empty certificate
+			istanbul.EmptyPreparedCertificate(),
+			errInvalidPreparedCertificateNumMsgs,
+		},
+	}
+	for _, test := range testCases {
+		for _, backend := range sys.backends {
+			c := backend.engine.(*core)
+			err := c.verifyPreparedCertificate(test.certificate)
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			}
+		}
+	}
+}
+
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
@@ -69,6 +146,72 @@ func TestHandlePrepare(t *testing.T) {
 				return sys
 			}(),
 			nil,
+		},
+		{
+			// normal case with prepared certificate
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				preparedCert := sys.getPreparedCertificate(
+					t,
+					istanbul.View{
+						Round:    big.NewInt(0),
+						Sequence: big.NewInt(1),
+					},
+					proposal)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.current = newTestRoundState(
+						&istanbul.View{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
+						c.valSet,
+					)
+					c.current.preparedCertificate = preparedCert
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.state = StatePreprepared
+					}
+				}
+				return sys
+			}(),
+			nil,
+		},
+		{
+			// Inconsistent subject due to prepared certificate
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				preparedCert := sys.getPreparedCertificate(
+					t,
+					istanbul.View{
+						Round:    big.NewInt(0),
+						Sequence: big.NewInt(10),
+					},
+					proposal)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.current = newTestRoundState(
+						&istanbul.View{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
+						c.valSet,
+					)
+					c.current.preparedCertificate = preparedCert
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.state = StatePreprepared
+					}
+				}
+				return sys
+			}(),
+			errInconsistentSubject,
 		},
 		{
 			// future message
@@ -194,16 +337,13 @@ OUTER:
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handlePrepare(&message{
-				Code:    msgPrepare,
+			if err := r0.handlePrepare(&istanbul.Message{
+				Code:    istanbul.MsgPrepare,
 				Msg:     m,
 				Address: validator.Address(),
-			}, validator); err != nil {
+			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-				}
-				if r0.current.IsHashLocked() {
-					t.Errorf("block should not be locked")
 				}
 				continue OUTER
 			}
@@ -215,19 +355,16 @@ OUTER:
 			if r0.state != StatePreprepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
 			}
-			if r0.current.Prepares.Size() > 2*r0.valSet.F() {
-				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.F()+1)
-			}
-			if r0.current.IsHashLocked() {
-				t.Errorf("block should not be locked")
+			if r0.current.Prepares.Size() >= r0.valSet.MinQuorumSize() {
+				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
 			}
 
 			continue
 		}
 
-		// core should have 2F+1 PREPARE messages
-		if r0.current.Prepares.Size() <= 2*r0.valSet.F() {
-			t.Errorf("the size of PREPARE messages should be larger than 2F+1: size %v", r0.current.Commits.Size())
+		// core should have MinQuorumSize PREPARE messages
+		if r0.current.Prepares.Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares.Size())
 		}
 
 		// a message will be delivered to backend if 2F+1
@@ -236,14 +373,14 @@ OUTER:
 		}
 
 		// verify COMMIT messages
-		decodedMsg := new(message)
+		decodedMsg := new(istanbul.Message)
 		err := decodedMsg.FromPayload(v0.sentMsgs[0], nil)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
 
-		if decodedMsg.Code != msgCommit {
-			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, msgCommit)
+		if decodedMsg.Code != istanbul.MsgCommit {
+			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
 		}
 		var m *istanbul.Subject
 		err = decodedMsg.Decode(&m)
@@ -252,9 +389,6 @@ OUTER:
 		}
 		if !reflect.DeepEqual(m, expectedSubject) {
 			t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
-		}
-		if !r0.current.IsHashLocked() {
-			t.Errorf("block should be locked")
 		}
 	}
 }
@@ -358,7 +492,7 @@ func TestVerifyPrepare(t *testing.T) {
 		c := sys.backends[0].engine.(*core)
 		c.current = test.roundState
 
-		if err := c.verifyPrepare(test.prepare, peer); err != nil {
+		if err := c.verifyPrepare(test.prepare); err != nil {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}

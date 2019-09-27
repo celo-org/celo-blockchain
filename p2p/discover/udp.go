@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
+
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
@@ -43,6 +45,7 @@ var (
 	errTimeout          = errors.New("RPC timeout")
 	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
+	errBadNetworkId     = errors.New("bad networkId")
 )
 
 // Timeouts
@@ -72,6 +75,8 @@ type (
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
+		NetworkId  uint64
+
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
@@ -176,13 +181,14 @@ type conn interface {
 
 // udp implements the discovery v4 UDP wire protocol.
 type udp struct {
-	conn        conn
-	netrestrict *netutil.Netlist
-	priv        *ecdsa.PrivateKey
-	localNode   *enode.LocalNode
-	db          *enode.DB
-	tab         *Table
-	wg          sync.WaitGroup
+	conn             conn
+	netrestrict      *netutil.Netlist
+	priv             *ecdsa.PrivateKey
+	localNode        *enode.LocalNode
+	db               *enode.DB
+	tab              *Table
+	wg               sync.WaitGroup
+	pingIPFromPacket bool
 
 	addReplyMatcher chan *replyMatcher
 	gotreply        chan reply
@@ -240,7 +246,8 @@ type ReadPacket struct {
 // Config holds Table-related settings.
 type Config struct {
 	// These settings are required and configure the UDP listener:
-	PrivateKey *ecdsa.PrivateKey
+	PingIPFromPacket bool
+	PrivateKey       *ecdsa.PrivateKey
 
 	// These settings are optional:
 	NetRestrict *netutil.Netlist  // network whitelist
@@ -259,14 +266,15 @@ func ListenUDP(c conn, ln *enode.LocalNode, cfg Config) (*Table, error) {
 
 func newUDP(c conn, ln *enode.LocalNode, cfg Config) (*Table, *udp, error) {
 	udp := &udp{
-		conn:            c,
-		priv:            cfg.PrivateKey,
-		netrestrict:     cfg.NetRestrict,
-		localNode:       ln,
-		db:              ln.Database(),
-		closing:         make(chan struct{}),
-		gotreply:        make(chan reply),
-		addReplyMatcher: make(chan *replyMatcher),
+		conn:             c,
+		priv:             cfg.PrivateKey,
+		netrestrict:      cfg.NetRestrict,
+		localNode:        ln,
+		db:               ln.Database(),
+		pingIPFromPacket: cfg.PingIPFromPacket,
+		closing:          make(chan struct{}),
+		gotreply:         make(chan reply),
+		addReplyMatcher:  make(chan *replyMatcher),
 	}
 	tab, err := newTable(udp, ln.Database(), cfg.Bootnodes)
 	if err != nil {
@@ -309,6 +317,7 @@ func (t *udp) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) <-ch
 		From:       t.ourEndpoint(),
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
+		NetworkId:  t.localNode.NetworkId(),
 	}
 	packet, hash, err := encodePacket(t.priv, pingPacket, req)
 	if err != nil {
@@ -448,16 +457,18 @@ func (t *udp) loop() {
 			var matched bool // whether any replyMatcher considered the reply acceptable.
 			for el := plist.Front(); el != nil; el = el.Next() {
 				p := el.Value.(*replyMatcher)
-				if p.from == r.from && p.ptype == r.ptype && p.ip.Equal(r.ip) {
-					ok, requestDone := p.callback(r.data)
-					matched = matched || ok
-					// Remove the matcher if callback indicates that all replies have been received.
-					if requestDone {
-						p.errc <- nil
-						plist.Remove(el)
+				if p.from == r.from && p.ptype == r.ptype {
+					if t.pingIPFromPacket || p.ip.Equal(r.ip) {
+						ok, requestDone := p.callback(r.data)
+						matched = matched || ok
+						// Remove the matcher if callback indicates that all replies have been received.
+						if requestDone {
+							p.errc <- nil
+							plist.Remove(el)
+						}
+						// Reset the continuous timeout counter (time drift detection)
+						contTimeouts = 0
 					}
-					// Reset the continuous timeout counter (time drift detection)
-					contTimeouts = 0
 				}
 			}
 			r.matched <- matched
@@ -550,7 +561,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (packet, 
 	// add the hash to the front. Note: this doesn't protect the
 	// packet in any way. Our public key will be part of this hash in
 	// The future.
-	hash = crypto.Keccak256(packet[macSize:])
+	hash = crypto.Keccak256(packet[macSize:], celoClientSalt)
 	copy(packet, hash)
 	return packet, hash, nil
 }
@@ -608,7 +619,7 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 		return nil, encPubkey{}, nil, errPacketTooSmall
 	}
 	hash, sig, sigdata := buf[:macSize], buf[macSize:headSize], buf[headSize:]
-	shouldhash := crypto.Keccak256(buf[macSize:])
+	shouldhash := crypto.Keccak256(buf[macSize:], celoClientSalt)
 	if !bytes.Equal(hash, shouldhash) {
 		return nil, encPubkey{}, nil, errBadHash
 	}
@@ -638,6 +649,9 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 // Packet Handlers
 
 func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey encPubkey) error {
+	if t.localNode.NetworkId() != req.NetworkId {
+		return errBadNetworkId
+	}
 	if expired(req.Expiration) {
 		return errExpired
 	}
@@ -651,9 +665,11 @@ func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey e
 
 func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) {
 	// Reply.
-	senderFrom := from.IP
-	if req.From.IP != nil && !req.From.IP.IsLoopback() {
-		senderFrom = req.From.IP
+	senderIP := from.IP
+	senderPort := from.Port
+	if req.From.IP != nil && !req.From.IP.IsLoopback() && t.pingIPFromPacket {
+		senderIP = req.From.IP
+		senderPort = int(req.From.UDP)
 	}
 
 	t.send(from, fromID, pongPacket, &pong{
@@ -663,7 +679,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID enode.ID, mac []byte) 
 	})
 
 	// Ping back if our last pong on file is too far in the past.
-	n := wrapNode(enode.NewV4(req.senderKey, senderFrom, int(req.From.TCP), int(req.From.UDP)))
+	n := wrapNode(enode.NewV4(req.senderKey, senderIP, int(req.From.TCP), senderPort))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
 		t.sendPing(fromID, from, func() {
 			t.tab.addVerifiedNode(n)

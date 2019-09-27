@@ -139,6 +139,8 @@ var (
 		configFileFlag,
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
+		utils.PingIPFromPacketFlag,
+		utils.UseInMemoryDiscoverTable,
 	}
 
 	rpcFlags = []cli.Flag{

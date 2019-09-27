@@ -211,7 +211,9 @@ func (st *StateTransition) canBuyGas(accountOwner common.Address, gasNeeded *big
 	if gasCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(gasNeeded) > 0
 	}
-	balanceOf, _, err := currency.GetBalanceOf(accountOwner, *gasCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
+	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *gasCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
+	log.Debug("balanceOf called", "gasCurrency", *gasCurrency, "gasUsed", gasUsed)
+
 	if err != nil {
 		return false
 	}
@@ -233,7 +235,9 @@ func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, ga
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
+	_, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForDebitFromTransactions - leftoverGas
+	log.Debug("debitFrom called", "gasCurrency", *gasCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -251,7 +255,9 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gas
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, _, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
+	_, leftoverGas, err := evm.Call(rootCaller, *gasCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForCreditToTransactions - leftoverGas
+	log.Debug("creditTo called", "gasCurrency", *gasCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -375,7 +381,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*st.infrastructureAccountAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		log.Debug("no infrastructure account address found - sending entire txFee to fee recipient")
 		recipientTxFee = totalTxFee
 	}
 

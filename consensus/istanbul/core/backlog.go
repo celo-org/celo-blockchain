@@ -23,11 +23,11 @@ import (
 
 var (
 	// msgPriority is defined for calculating processing priority to speedup consensus
-	// msgPreprepare > msgCommit > msgPrepare
+	// istanbul.MsgPreprepare > istanbul.MsgCommit > istanbul.MsgPrepare
 	msgPriority = map[uint64]int{
-		msgPreprepare: 1,
-		msgCommit:     2,
-		msgPrepare:    3,
+		istanbul.MsgPreprepare: 1,
+		istanbul.MsgCommit:     2,
+		istanbul.MsgPrepare:    3,
 	}
 )
 
@@ -40,10 +40,11 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errInvalidMessage
 	}
 
-	if msgCode == msgRoundChange {
+	// Round change messages should be in the same sequence but be >= the desired round
+	if msgCode == istanbul.MsgRoundChange {
 		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
 			return errFutureMessage
-		} else if view.Cmp(c.currentView()) < 0 {
+		} else if view.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errOldMessage
 		}
 		return nil
@@ -57,14 +58,15 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errOldMessage
 	}
 
-	if c.waitingForRoundChange {
+	// Round change messages are already let through.
+	if c.state == StateWaitingForNewRound {
 		return errFutureMessage
 	}
 
-	// StateAcceptRequest only accepts msgPreprepare
+	// StateAcceptRequest only accepts istanbul.MsgPreprepare
 	// other messages are future messages
 	if c.state == StateAcceptRequest {
-		if msgCode > msgPreprepare {
+		if msgCode > istanbul.MsgPreprepare {
 			return errFutureMessage
 		}
 		return nil
@@ -75,10 +77,15 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	return nil
 }
 
-func (c *core) storeBacklog(msg *message, src istanbul.Validator) {
-	logger := c.logger.New("from", src, "state", c.state)
+func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "func", "storeBacklog")
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
-	if src.Address() == c.Address() {
+	if msg.Address == c.Address() {
 		logger.Warn("Backlog from self")
 		return
 	}
@@ -93,15 +100,22 @@ func (c *core) storeBacklog(msg *message, src istanbul.Validator) {
 		backlog = prque.New(nil)
 	}
 	switch msg.Code {
-	case msgPreprepare:
+	case istanbul.MsgPreprepare:
 		var p *istanbul.Preprepare
 		err := msg.Decode(&p)
 		if err == nil {
 			backlog.Push(msg, toPriority(msg.Code, p.View))
 		}
-		// for msgRoundChange, msgPrepare and msgCommit cases
-	default:
+	case istanbul.MsgPrepare:
+		fallthrough
+	case istanbul.MsgCommit:
 		var p *istanbul.Subject
+		err := msg.Decode(&p)
+		if err == nil {
+			backlog.Push(msg, toPriority(msg.Code, p.View))
+		}
+	case istanbul.MsgRoundChange:
+		var p *istanbul.RoundChange
 		err := msg.Decode(&p)
 		if err == nil {
 			backlog.Push(msg, toPriority(msg.Code, p.View))
@@ -119,7 +133,7 @@ func (c *core) processBacklog() {
 			continue
 		}
 
-		logger := c.logger.New("from", src, "state", c.state)
+		logger := c.logger.New("from", src, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "processBacklog")
 		isFuture := false
 
 		// We stop processing if
@@ -127,21 +141,28 @@ func (c *core) processBacklog() {
 		//   2. The first message in queue is a future message
 		for !(backlog.Empty() || isFuture) {
 			m, prio := backlog.Pop()
-			msg := m.(*message)
+			msg := m.(*istanbul.Message)
 			var view *istanbul.View
 			switch msg.Code {
-			case msgPreprepare:
+			case istanbul.MsgPreprepare:
 				var m *istanbul.Preprepare
 				err := msg.Decode(&m)
 				if err == nil {
 					view = m.View
 				}
-				// for msgRoundChange, msgPrepare and msgCommit cases
-			default:
+			case istanbul.MsgPrepare:
+				fallthrough
+			case istanbul.MsgCommit:
 				var sub *istanbul.Subject
 				err := msg.Decode(&sub)
 				if err == nil {
 					view = sub.View
+				}
+			case istanbul.MsgRoundChange:
+				var rc *istanbul.RoundChange
+				err := msg.Decode(&rc)
+				if err == nil {
+					view = rc.View
 				}
 			}
 			if view == nil {
@@ -171,8 +192,8 @@ func (c *core) processBacklog() {
 }
 
 func toPriority(msgCode uint64, view *istanbul.View) int64 {
-	if msgCode == msgRoundChange {
-		// For msgRoundChange, set the message priority based on its sequence
+	if msgCode == istanbul.MsgRoundChange {
+		// For istanbul.MsgRoundChange, set the message priority based on its sequence
 		return -int64(view.Sequence.Uint64() * 1000)
 	}
 	// FIXME: round will be reset as 0 while new sequence

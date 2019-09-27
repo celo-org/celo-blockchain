@@ -207,6 +207,10 @@ web3._extend({
 			getter: 'admin_nodeInfo'
 		}),
 		new web3._extend.Property({
+			name: 'discoverTableInfo',
+			getter: 'admin_discoverTableInfo'
+		}),
+		new web3._extend.Property({
 			name: 'peers',
 			getter: 'admin_peers'
 		}),

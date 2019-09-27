@@ -168,7 +168,6 @@ OUTER:
 
 		for i, v := range test.system.backends {
 			validator := r0.valSet.GetByIndex(uint64(i))
-
 			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
 			defer privateKey.Destroy()
 
@@ -177,18 +176,15 @@ OUTER:
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&message{
-				Code:          msgCommit,
+			if err := r0.handleCommit(&istanbul.Message{
+				Code:          istanbul.MsgCommit,
 				Msg:           m,
 				Address:       validator.Address(),
 				Signature:     []byte{},
 				CommittedSeal: signatureBytes,
-			}, validator); err != nil {
+			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-				}
-				if r0.current.IsHashLocked() {
-					t.Errorf("block should not be locked")
 				}
 				continue OUTER
 			}
@@ -200,33 +196,26 @@ OUTER:
 			if r0.state != StatePrepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePrepared)
 			}
-			if r0.current.Commits.Size() > 2*r0.valSet.F() {
-				t.Errorf("the size of commit messages should be less than %v", 2*r0.valSet.F()+1)
-			}
-			if r0.current.IsHashLocked() {
-				t.Errorf("block should not be locked")
+			if r0.current.Commits.Size() > r0.valSet.MinQuorumSize() {
+				t.Errorf("the size of commit messages should be less than %v", r0.valSet.MinQuorumSize())
 			}
 			continue
 		}
 
-		// core should have 2F+1 prepare messages
-		if r0.current.Commits.Size() <= 2*r0.valSet.F() {
-			t.Errorf("the size of commit messages should be larger than 2F+1: size %v", r0.current.Commits.Size())
+		// core should have min quorum size prepare messages
+		if r0.current.Commits.Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits.Size())
 		}
 
-		// check signatures large than 2F+1
+		// check signatures large than MinQuorumSize
 		signedCount := 0
 		for i := 0; i < r0.valSet.Size(); i++ {
 			if v0.committedMsgs[0].bitmap.Bit(i) == 1 {
 				signedCount++
 			}
 		}
-
-		if signedCount <= 2*r0.valSet.F() {
-			t.Errorf("the expected signed count should be larger than %v, but got %v", 2*r0.valSet.F(), signedCount)
-		}
-		if !r0.current.IsHashLocked() {
-			t.Errorf("block should be locked")
+		if signedCount < r0.valSet.MinQuorumSize() {
+			t.Errorf("the expected signed count should be greater than or equal to %v, but got %v", r0.valSet.MinQuorumSize(), signedCount)
 		}
 	}
 }
@@ -329,7 +318,7 @@ func TestVerifyCommit(t *testing.T) {
 		c := sys.backends[0].engine.(*core)
 		c.current = test.roundState
 
-		if err := c.verifyCommit(test.commit, peer); err != nil {
+		if err := c.verifyCommit(test.commit); err != nil {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}

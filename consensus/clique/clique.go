@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -268,6 +269,10 @@ func (c *Clique) Author(header *types.Header) (common.Address, error) {
 	return ecrecover(header, c.signatures)
 }
 
+func (c *Clique) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
+	return []istanbul.Validator{}
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Clique) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	return c.verifyHeader(chain, header, nil)
@@ -378,7 +383,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
 
-	// Added to bypass the situation when the parent is missing in celolatest mode
+	// Added to bypass the situation when the parent is missing in ultralight mode
 	if chain.Config().FullHeaderChainAvailable {
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor
