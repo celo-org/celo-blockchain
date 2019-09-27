@@ -57,6 +57,10 @@ const (
 
 	// Maximum amount of time allowed for writing a complete message.
 	frameWriteTimeout = 20 * time.Second
+
+	// The maximum number of sentry nodes a proxied node can have.
+	// This will increase in the future.
+	maxSentryNodes = 1
 )
 
 var errServerStopped = errors.New("server stopped")
@@ -890,6 +894,14 @@ running:
 			}
 		case n := <-srv.addsentry:
 			if !isSentryNode(n.ID()) && srv.Proxied {
+				if !srv.Proxied {
+					srv.log.Error("Add sentry node failed: this node is not configured to be proxied")
+					break
+				}
+				if numConnectedSentryPeers == maxSentryNodes {
+					srv.log.Error("Add sentry node failed: maximum number of sentry nodes reached", "maxSentryNodes", maxSentryNodes)
+					break
+				}
 				srv.log.Trace("Adding sentry node", "node", n)
 
 				// Save the previous state of the peer, so that when it's removed as a sentry node, it will be restored to that state
@@ -910,7 +922,11 @@ running:
 				}
 			}
 		case n := <-srv.removesentry:
-			if isSentryNode(n.ID()) && srv.Proxied {
+			if isSentryNode(n.ID()) {
+				if !srv.Proxied {
+					srv.log.Error("Remove sentry node failed: this node is not configured to be proxied")
+					break
+				}
 				srv.log.Trace("Removing sentry node", "node", n)
 
 				sentryNodeInfo := sentryNodes[n.ID()]
