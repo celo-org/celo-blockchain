@@ -57,6 +57,10 @@ const (
 
 	// Maximum amount of time allowed for writing a complete message.
 	frameWriteTimeout = 20 * time.Second
+
+	// The maximum number of sentry nodes a proxied node can have.
+	// This will increase in the future.
+	maxSentryNodes = 1
 )
 
 var errServerStopped = errors.New("server stopped")
@@ -113,6 +117,9 @@ type Config struct {
 	// If this option is set to a non-nil value, only hosts which match one of the
 	// IP networks contained in the list are considered.
 	NetRestrict *netutil.Netlist `toml:",omitempty"`
+
+	// Proxied indicates the node is proxied by sentry nodes.
+	Proxied bool
 
 	// PingIPFromPacket uses the IP address from p2p discovery ping packet
 	// rather than the UDP header. See https://github.com/celo-org/celo-blockchain/pull/301
@@ -189,6 +196,8 @@ type Server struct {
 	quit            chan struct{}
 	addvalidator    chan *enode.Node
 	removevalidator chan *enode.Node
+	addsentry       chan *enode.Node
+	removesentry    chan *enode.Node
 	addstatic       chan *enode.Node
 	removestatic    chan *enode.Node
 	addtrusted      chan *enode.Node
@@ -201,7 +210,7 @@ type Server struct {
 	log             log.Logger
 }
 
-type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo)
+type peerOpFunc func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo)
 
 type peerDrop struct {
 	*Peer
@@ -217,6 +226,7 @@ const (
 	inboundConn
 	trustedConn
 	validatorConn
+	sentryConn
 )
 
 // conn wraps a network connection with information gathered
@@ -271,6 +281,9 @@ func (f connFlag) String() string {
 	if f&validatorConn != 0 {
 		s += "-validator"
 	}
+	if f&sentryConn != 0 {
+		s += "-sentry"
+	}
 	if s != "" {
 		s = s[1:]
 	}
@@ -304,7 +317,7 @@ func (srv *Server) Peers() []*Peer {
 	// Note: We'd love to put this function into a variable but
 	// that seems to cause a weird compiler error in some
 	// environments.
-	case srv.peerOp <- func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
+	case srv.peerOp <- func(peers map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
 		for _, p := range peers {
 			ps = append(ps, p)
 		}
@@ -319,7 +332,9 @@ func (srv *Server) Peers() []*Peer {
 func (srv *Server) PeerCount() int {
 	var count int
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) { count = len(ps) }:
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		count = len(ps)
+	}:
 		<-srv.peerOpDone
 	case <-srv.quit:
 	}
@@ -330,7 +345,7 @@ func (srv *Server) PeerCount() int {
 func (srv *Server) ValPeers() []string {
 	var valPeers []string
 	select {
-	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo) {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
 		for _, valPeerInfo := range valNodes {
 			valPeers = append(valPeers, valPeerInfo.remoteEnodeURL)
 		}
@@ -340,6 +355,35 @@ func (srv *Server) ValPeers() []string {
 	}
 
 	return valPeers
+}
+
+// SentryCount returns the number of sentry nodes
+func (srv *Server) SentryCount() int {
+	var count int
+	select {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		count = len(sentryNodes)
+	}:
+		<-srv.peerOpDone
+	case <-srv.quit:
+	}
+	return count
+}
+
+// sentryPeers returns the sentry peers
+func (srv *Server) sentryPeers() []*Peer {
+	var sentryPeers []*Peer
+	select {
+	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
+		for sentryID := range sentryNodes {
+			sentryPeers = append(sentryPeers, ps[sentryID])
+		}
+	}:
+		<-srv.peerOpDone
+	case <-srv.quit:
+	}
+
+	return sentryPeers
 }
 
 // AddValidatorPeer assigns the given node as a validator node.  It will set it as a static and trusted node.
@@ -354,6 +398,22 @@ func (srv *Server) AddValidatorPeer(node *enode.Node) {
 func (srv *Server) RemoveValidatorPeer(node *enode.Node) {
 	select {
 	case srv.removevalidator <- node:
+	case <-srv.quit:
+	}
+}
+
+// AddSentryPeer assigns the given node as a sentry node. It will set it as a static node.
+func (srv *Server) AddSentryPeer(node *enode.Node) {
+	select {
+	case srv.addsentry <- node:
+	case <-srv.quit:
+	}
+}
+
+// RemoveSentryPeer removes the given node as a sentry node.
+func (srv *Server) RemoveSentryPeer(node *enode.Node) {
+	select {
+	case srv.removesentry <- node:
 	case <-srv.quit:
 	}
 }
@@ -393,7 +453,7 @@ func (srv *Server) RemoveTrustedPeer(node *enode.Node) {
 	}
 }
 
-// SubscribePeers subscribes the given channel to peer events
+// SubscribeEvents subscribes the given channel to peer events
 func (srv *Server) SubscribeEvents(ch chan *PeerEvent) event.Subscription {
 	return srv.peerFeed.Subscribe(ch)
 }
@@ -493,6 +553,8 @@ func (srv *Server) Start() (err error) {
 	srv.posthandshake = make(chan *conn)
 	srv.addvalidator = make(chan *enode.Node)
 	srv.removevalidator = make(chan *enode.Node)
+	srv.addsentry = make(chan *enode.Node)
+	srv.removesentry = make(chan *enode.Node)
 	srv.addstatic = make(chan *enode.Node)
 	srv.removestatic = make(chan *enode.Node)
 	srv.addtrusted = make(chan *enode.Node)
@@ -673,21 +735,28 @@ type valNodeInfo struct {
 	remoteEnodeURL        string
 }
 
+type sentryNodeInfo struct {
+	atSentryRemoveSetStatic bool
+	remoteEnodeURL          string
+}
+
 func (srv *Server) run(dialstate dialer) {
 	srv.log.Info("Started P2P networking", "self", srv.localnode.Node())
 	defer srv.loopWG.Done()
 	defer srv.nodedb.Close()
 
 	var (
-		peers                = make(map[enode.ID]*Peer)
-		inboundCount         = 0
-		trusted              = make(map[enode.ID]bool, len(srv.TrustedNodes))
-		taskdone             = make(chan task, maxActiveDialTasks)
-		runningTasks         []task
-		queuedTasks          []task // tasks that can't run yet
-		valNodes             = make(map[enode.ID]*valNodeInfo)
-		numConnectedValPeers = 0
-		numInboundValPeers   = 0
+		peers                   = make(map[enode.ID]*Peer)
+		inboundCount            = 0
+		trusted                 = make(map[enode.ID]bool, len(srv.TrustedNodes))
+		taskdone                = make(chan task, maxActiveDialTasks)
+		runningTasks            []task
+		queuedTasks             []task // tasks that can't run yet
+		valNodes                = make(map[enode.ID]*valNodeInfo)
+		sentryNodes             = make(map[enode.ID]*sentryNodeInfo)
+		numConnectedValPeers    = 0
+		numInboundValPeers      = 0
+		numConnectedSentryPeers = 0 // connections to sentry nodes from its corresponding validator will never be inbound
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup or added via AddTrustedPeer RPC.
@@ -727,6 +796,13 @@ func (srv *Server) run(dialstate dialer) {
 
 	isValNode := func(ID enode.ID) bool {
 		if _, ok := valNodes[ID]; ok {
+			return true
+		}
+		return false
+	}
+
+	isSentryNode := func(ID enode.ID) bool {
+		if _, ok := sentryNodes[ID]; ok {
 			return true
 		}
 		return false
@@ -793,9 +869,7 @@ running:
 
 				// If already connected, updated val peer counters and set the validatorConn flag in the connection
 				if p, ok := peers[n.ID()]; ok {
-					if p, ok := peers[n.ID()]; ok {
-						p.rw.set(validatorConn, true)
-					}
+					p.rw.set(validatorConn, true)
 					numConnectedValPeers++
 					if p.Inbound() {
 						numInboundValPeers++
@@ -824,13 +898,62 @@ running:
 					removeTrusted(n)
 				}
 			}
+		case n := <-srv.addsentry:
+			if !isSentryNode(n.ID()) && srv.Proxied {
+				if !srv.Proxied {
+					srv.log.Error("Add sentry node failed: this node is not configured to be proxied")
+					break
+				}
+				if numConnectedSentryPeers == maxSentryNodes {
+					srv.log.Error("Add sentry node failed: maximum number of sentry nodes reached", "maxSentryNodes", maxSentryNodes)
+					break
+				}
+				srv.log.Trace("Adding sentry node", "node", n)
+
+				// Save the previous state of the peer, so that when it's removed as a sentry node, it will be restored to that state
+				isStatic := dialstate.isStatic(n)
+
+				sentryNodes[n.ID()] = &sentryNodeInfo{atSentryRemoveSetStatic: isStatic, remoteEnodeURL: n.String()}
+
+				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
+				if !isStatic {
+					srv.log.Trace("Setting sentry node to static")
+					addStatic(n)
+				}
+
+				// If already connected, update sentry peer counters and set the sentryConn flag in the connection
+				if p, ok := peers[n.ID()]; ok {
+					p.rw.set(sentryConn, true)
+					numConnectedSentryPeers++
+				}
+			}
+		case n := <-srv.removesentry:
+			if isSentryNode(n.ID()) {
+				if !srv.Proxied {
+					srv.log.Error("Remove sentry node failed: this node is not configured to be proxied")
+					break
+				}
+				srv.log.Trace("Removing sentry node", "node", n)
+
+				sentryNodeInfo := sentryNodes[n.ID()]
+				delete(sentryNodes, n.ID())
+
+				// If it was not set as static by the user, then remove as static peer.
+				// If it was set as static by the user, then don't do anything, as a sentry node is already set as static.
+				if !sentryNodeInfo.atSentryRemoveSetStatic {
+					srv.log.Trace("removing static node as part of removing sentry node")
+					// This will disconnect the connection
+					removeStatic(n)
+				}
+			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
-
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = true
+			} else if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = true
 			} else {
 				srv.log.Trace("Adding static node", "node", n)
 				addStatic(n)
@@ -841,6 +964,8 @@ running:
 			// stop keeping the node connected.
 			if isValNode(n.ID()) {
 				valNodes[n.ID()].atValRemoveSetStatic = false
+			} else if isSentryNode(n.ID()) {
+				sentryNodes[n.ID()].atSentryRemoveSetStatic = false
 			} else {
 				srv.log.Trace("Removing static node", "node", n)
 				removeStatic(n)
@@ -865,7 +990,7 @@ running:
 			}
 		case op := <-srv.peerOp:
 			// This channel is used by Peers and PeerCount and ValPeers.
-			op(peers, valNodes)
+			op(peers, valNodes, sentryNodes)
 			srv.peerOpDone <- struct{}{}
 		case t := <-taskdone:
 			// A task got done. Tell dialstate about it so it
@@ -884,16 +1009,19 @@ running:
 			if _, ok := valNodes[c.node.ID()]; ok {
 				c.flags |= validatorConn
 			}
+			if _, ok := sentryNodes[c.node.ID()]; ok {
+				c.flags |= sentryConn
+			}
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
 			select {
-			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers):
+			case c.cont <- srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers):
 			case <-srv.quit:
 				break running
 			}
 		case c := <-srv.addpeer:
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
-			err := srv.protoHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
+			err := srv.protoHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
 				p := newPeer(c, srv.Protocols)
@@ -910,12 +1038,14 @@ running:
 					inboundCount++
 				}
 
-				// increment the validator peer counters
+				// increment the validator/sentry peer counters
 				if isValNode(c.node.ID()) {
 					numConnectedValPeers++
 					if p.Inbound() {
 						numInboundValPeers++
 					}
+				} else if isSentryNode(c.node.ID()) {
+					numConnectedSentryPeers++
 				}
 
 			}
@@ -942,6 +1072,8 @@ running:
 				if pd.Inbound() {
 					numInboundValPeers--
 				}
+			} else if isSentryNode(pd.ID()) {
+				numConnectedSentryPeers--
 			}
 		}
 	}
@@ -969,19 +1101,19 @@ running:
 	}
 }
 
-func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
+func (srv *Server) protoHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int, numConnectedSentryPeers int) error {
 	// Drop connections with no matching protocols.
 	if len(srv.Protocols) > 0 && countMatchingProtocols(srv.Protocols, c.caps) == 0 {
 		return DiscUselessPeer
 	}
 	// Repeat the encryption handshake checks because the
 	// peer set might have changed between the handshakes.
-	return srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
+	return srv.encHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers, numConnectedSentryPeers)
 }
 
-func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int) error {
+func (srv *Server) encHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn, numConnectedValPeers int, numInboundValPeers int, numConnectedSentryPeers int) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn|validatorConn) && len(peers) >= (srv.MaxPeers+numConnectedValPeers): // Don't count the validator nodes against max peers
+	case !c.is(trustedConn|staticDialedConn|validatorConn|sentryConn) && len(peers) >= (srv.MaxPeers+numConnectedValPeers+numConnectedSentryPeers): // Don't count the validator or sentry nodes against max peers
 		return DiscTooManyPeers
 	case !c.is(trustedConn|validatorConn) && c.is(inboundConn) && inboundCount >= (srv.maxInboundConns()+numInboundValPeers): // Don't count the inbound validator nodes against max inbound conns
 		return DiscTooManyPeers
@@ -1249,11 +1381,21 @@ func (srv *Server) NodeInfo() *NodeInfo {
 	return info
 }
 
-// PeersInfo returns an array of metadata objects describing connected peers.
+// PeersInfo returns an array of metadata objects describing all connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
+	return peersInfo(srv.Peers())
+}
+
+// SentryInfo returns an array of metadata objects describing sentry peers
+func (srv *Server) SentryInfo() []*PeerInfo {
+	return peersInfo(srv.sentryPeers())
+}
+
+// peersInfo returns a sorted array of metadata objects describing an array of peers
+func peersInfo(peers []*Peer) []*PeerInfo {
 	// Gather all the generic and sub-protocol specific infos
-	infos := make([]*PeerInfo, 0, srv.PeerCount())
-	for _, peer := range srv.Peers() {
+	infos := make([]*PeerInfo, 0, len(peers))
+	for _, peer := range peers {
 		if peer != nil {
 			infos = append(infos, peer.Info())
 		}

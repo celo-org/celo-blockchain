@@ -181,6 +181,11 @@ func (p *Peer) Validator() bool {
 	return p.rw.is(validatorConn)
 }
 
+// Sentry returns true if the peer is a sentry connection
+func (p *Peer) Sentry() bool {
+	return p.rw.is(sentryConn)
+}
+
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
@@ -452,6 +457,7 @@ type PeerInfo struct {
 		Trusted       bool   `json:"trusted"`
 		Static        bool   `json:"static"`
 		Validator     bool   `json:"validator"`
+		Sentry        bool   `json:"sentry"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
@@ -477,6 +483,7 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.Trusted = p.rw.is(trustedConn)
 	info.Network.Static = p.rw.is(staticDialedConn)
 	info.Network.Validator = p.rw.is(validatorConn)
+	info.Network.Sentry = p.rw.is(sentryConn)
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {

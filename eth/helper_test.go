@@ -65,13 +65,36 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		panic(err)
 	}
-
-	pm, err := NewProtocolManager(gspec.Config, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx}, engine, blockchain, db, nil, nil)
+	pm, err := NewProtocolManager(gspec.Config, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx}, engine, blockchain, db, nil, newServer())
 	if err != nil {
 		return nil, nil, err
 	}
 	pm.Start(1000)
 	return pm, db, nil
+}
+
+func newServer() *p2p.Server {
+	config := p2p.Config{
+		Name:       "test",
+		MaxPeers:   10,
+		ListenAddr: "127.0.0.1:0",
+		PrivateKey: newkey(),
+	}
+	server := &p2p.Server{
+		Config: config,
+	}
+	if err := server.Start(); err != nil {
+		panic("Could not start server: " + err.Error())
+	}
+	return server
+}
+
+func newkey() *ecdsa.PrivateKey {
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		panic("couldn't generate key: " + err.Error())
+	}
+	return key
 }
 
 // newTestProtocolManagerMust creates a new protocol manager for testing purposes,
