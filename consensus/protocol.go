@@ -67,6 +67,8 @@ type Broadcaster interface {
 	RemoveValidatorPeer(enodeURL string) error
 	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
+	// Gets all of the sentry peers' enodeURL
+	GetSentryPeers() []string
 }
 
 // Peer defines the interface to communicate with peer

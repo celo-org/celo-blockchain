@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	istanbulMsg         = 0x11
-	istanbulAnnounceMsg = 0x12
+	istanbulMsg              = 0x11
+	istanbulAnnounceMsg      = 0x12
+	istanbulValEnodeShareMsg = 0x13
 )
 
 var (

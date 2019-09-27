@@ -902,6 +902,10 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 	return pm.server.ValPeers()
 }
 
+func (pm *ProtocolManager) GetSentryPeers() []string {
+	return pm.server.SentryPeers()
+}
+
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {
 	return pm.server.Self()
 }
