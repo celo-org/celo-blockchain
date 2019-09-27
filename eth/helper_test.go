@@ -81,7 +81,7 @@ func newServer() *p2p.Server {
 		PrivateKey: newkey(),
 	}
 	server := &p2p.Server{
-		Config:       config,
+		Config: config,
 	}
 	if err := server.Start(); err != nil {
 		panic("Could not start server: " + err.Error())
