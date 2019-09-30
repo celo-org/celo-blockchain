@@ -669,7 +669,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrIntrinsicGas
 	}
 
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
+	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
+	if err != nil {
+		log.Debug("gas price less than current gas price minimum", "gasPriceMinimum", gasPriceMinimum, "err", err)
+		return err
+	}
+
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 		return ErrGasPriceDoesNotExceedMinimum
