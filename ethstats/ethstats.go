@@ -154,7 +154,7 @@ func (s *Service) loop() {
 	txEventCh := make(chan core.NewTxsEvent, txChanSize)
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
-	log.Info("test", "engine", istanbul.GetNumberWithinEpoch(2000, 123))
+
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
 		quitCh = make(chan struct{})
