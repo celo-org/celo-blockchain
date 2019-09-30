@@ -244,7 +244,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
-		return istanbulBackend.New(&config.Istanbul, db)
+		return istanbulBackend.New(&config.Istanbul, db, config.Proxied)
 	}
 
 	// Otherwise assume proof-of-work

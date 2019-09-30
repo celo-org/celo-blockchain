@@ -62,20 +62,10 @@ func (vet *validatorEnodeTable) String() string {
 	outputString := "ValEnodeTable:"
 
 	for _, valEnode := range vet.valEnodeTable {
-		fmt.Sprintf(outputString, "%s\t%s", outputString, valEnode.String())
+		outputString = fmt.Sprintf("%s\t%s", outputString, valEnode.String())
 	}
 
 	return outputString
-}
-
-func (vet *validatorEnodeTable) getAddresses() []common.Address {
-	addresses := make([]common.Address, len(vet.valEnodeTable))
-	i := 0
-	for k := range vet.valEnodeTable {
-		addresses[i] = k
-		i++
-	}
-	return addresses
 }
 
 func (vet *validatorEnodeTable) getUsingAddress(address common.Address) *validatorEnode {
@@ -118,10 +108,13 @@ func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode
 		log.Trace("Created an entry in the valEnodeTable", "address", remoteAddress, "ValidatorEnode", vet.valEnodeTable[remoteAddress].String())
 	}
 
+	log.Warn("valSet.List()", "value", valSet.List())
+
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
 	if _, remoteNode := valSet.GetByAddress(remoteAddress); remoteNode != nil {
 		if _, localNode := valSet.GetByAddress(localAddress); localNode != nil {
+			log.Warn("adding validator peer :)", "validator", newValEnode)
 			vet.addValidatorPeer(newValEnode.enodeURL)
 		}
 	}

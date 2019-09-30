@@ -58,7 +58,7 @@ type AnnounceGossipTimestamp struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database, proxied bool) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -76,6 +76,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
+		proxied:              proxied,
 		valEnodeShareWg:      new(sync.WaitGroup),
 		valEnodeShareQuit:    make(chan struct{}),
 	}
@@ -130,6 +131,8 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
+
+	proxied bool
 
 	valEnodeShareWg *sync.WaitGroup
 	valEnodeShareQuit chan struct{}

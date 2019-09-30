@@ -54,7 +54,7 @@ type valEnodeShareMessage struct {
 }
 
 func (sm *valEnodeShareMessage) String() string {
-	return fmt.Sprintf("{Address: %s, ValEnodes: %s, View: %v, Signature: %v}", sm.Address, sm.ValEnodes, sm.View, hex.EncodeToString(sm.Signature))
+	return fmt.Sprintf("{Address: %s, ValEnodes: %s, View: %v, Signature: %v}", sm.Address.String(), sm.ValEnodes, sm.View, hex.EncodeToString(sm.Signature))
 }
 
 // ==============================================
@@ -164,9 +164,20 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 	view := sb.core.CurrentView()
 
+	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
+	i := 0
+	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
+		sharedValidatorEnodes[i] = sharedValidatorEnode{
+			Address: address,
+			EnodeURL: validatorEnode.enodeURL,
+			View: validatorEnode.view,
+		}
+		i++
+	}
+
 	msg := &valEnodeShareMessage{
 		Address:     sb.Address(),
-		ValEnodes:   []sharedValidatorEnode{},
+		ValEnodes:   sharedValidatorEnodes,
 		View:        view,
 	}
 
@@ -238,6 +249,21 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 	}
 
 	sb.logger.Warn("woo! got Istanbul Validator Enode Share message", "msg", msg.String())
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+	for _, sharedValidatorEnode := range msg.ValEnodes {
+		valEnode := &validatorEnode{
+			enodeURL: sharedValidatorEnode.EnodeURL,
+			view: sharedValidatorEnode.View,
+		}
+		sb.logger.Warn("upserting!")
+		if err := sb.valEnodeTable.upsert(sharedValidatorEnode.Address, valEnode, valSet, sb.Address()); err != nil {
+			sb.logger.Warn("Error in upserting a valenode entry", "ValEnodeShareMsg", msg, "error", err)
+		}
+	}
+
+	sb.logger.Warn("validator enode table:", "content", sb.valEnodeTable.String())
 
 	// // Decrypt the EnodeURL
 	// nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
