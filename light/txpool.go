@@ -404,11 +404,11 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should supply enough intrinsic gas
-	additionalGas := blockchain_parameters.GetGasForNonGoldCurrencies(pool.chain.CurrentHeader(), pool.currentState(ctx))
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, tx.GasCurrency(), additionalGas)
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
 	if err != nil {
 		return err
 	}
+	gas += blockchain_parameters.GetCurrencyGasCost(pool.chain.CurrentHeader(), pool.currentState(ctx), tx.GasCurrency())
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
 	}

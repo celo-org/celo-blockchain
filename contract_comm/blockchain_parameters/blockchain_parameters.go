@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -101,9 +102,12 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
 	return nil
 }
 
-func GetGasForNonGoldCurrencies(header *types.Header, state vm.StateDB) uint64 {
+func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
 	var gas *big.Int
 	var err error
+	if gasCurrency == nil {
+		return 0
+	}
 	_, err = contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
