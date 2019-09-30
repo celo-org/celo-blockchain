@@ -998,6 +998,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
+		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			log.Warn("Node is proxied but is not configured to mine")
+		}
 		cfg.Proxied = true
 	}
 	if ctx.GlobalIsSet(NoDiscoverFlag.Name) || lightClient || cfg.Proxied {
