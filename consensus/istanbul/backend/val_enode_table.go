@@ -68,6 +68,16 @@ func (vet *validatorEnodeTable) String() string {
 	return outputString
 }
 
+func (vet *validatorEnodeTable) getAddresses() []common.Address {
+	addresses := make([]common.Address, len(vet.valEnodeTable))
+	i := 0
+	for k := range vet.valEnodeTable {
+		addresses[i] = k
+		i++
+	}
+	return addresses
+}
+
 func (vet *validatorEnodeTable) getUsingAddress(address common.Address) *validatorEnode {
 	return vet.valEnodeTable[address]
 }

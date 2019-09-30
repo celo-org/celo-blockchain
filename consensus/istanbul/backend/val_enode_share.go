@@ -40,15 +40,21 @@ import (
 //
 // define the istanbul announce message
 
+type sharedValidatorEnode struct {
+	Address  common.Address
+	EnodeURL string
+	View     *istanbul.View
+}
+
 type valEnodeShareMessage struct {
-	Address               common.Address
-    TestPayload           string
-	View                  *istanbul.View
-	Signature             []byte
+	Address           common.Address
+	ValEnodes         []sharedValidatorEnode
+	View              *istanbul.View
+	Signature         []byte
 }
 
 func (sm *valEnodeShareMessage) String() string {
-	return fmt.Sprintf("{Address: %s, TestPayload: %s, View: %v, Signature: %v}", sm.TestPayload, sm.View, hex.EncodeToString(sm.Signature))
+	return fmt.Sprintf("{Address: %s, ValEnodes: %s, View: %v, Signature: %v}", sm.Address, sm.ValEnodes, sm.View, hex.EncodeToString(sm.Signature))
 }
 
 // ==============================================
@@ -57,14 +63,14 @@ func (sm *valEnodeShareMessage) String() string {
 
 // EncodeRLP serializes sm into the Ethereum RLP format.
 func (sm *valEnodeShareMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sm.Address, sm.TestPayload, sm.View, sm.Signature})
+	return rlp.Encode(w, []interface{}{sm.Address, sm.ValEnodes, sm.View, sm.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address     common.Address
-        TestPayload string
+        ValEnodes   []sharedValidatorEnode
 		View        *istanbul.View
 		Signature   []byte
 	}
@@ -72,7 +78,7 @@ func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	sm.Address, sm.TestPayload, sm.View, sm.Signature = msg.Address, msg.TestPayload, msg.View, msg.Signature
+	sm.Address, sm.ValEnodes, sm.View, sm.Signature = msg.Address, msg.ValEnodes, msg.View, msg.Signature
 	return nil
 }
 
@@ -94,7 +100,7 @@ func (sm *valEnodeShareMessage) Sign(signingFn func(data []byte) ([]byte, error)
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
 		Address:     sm.Address,
-		TestPayload: sm.TestPayload,
+		ValEnodes:   sm.ValEnodes,
 		View:        sm.View,
 		Signature:   []byte{},
 	})
@@ -110,7 +116,7 @@ func (sm *valEnodeShareMessage) VerifySig() error {
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
 		Address:     sm.Address,
-		TestPayload: sm.TestPayload,
+		ValEnodes:   sm.ValEnodes,
 		View:        sm.View,
 		Signature:   []byte{},
 	})
@@ -160,7 +166,7 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 
 	msg := &valEnodeShareMessage{
 		Address:     sb.Address(),
-		TestPayload: "hello there",
+		ValEnodes:   []sharedValidatorEnode{},
 		View:        view,
 	}
 
@@ -177,7 +183,7 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 		return nil, err
 	}
 
-	sb.logger.Trace("Generated a Istanbul Validator Enode Share message", "ValEnodeShareMsg", msg)
+	sb.logger.Trace("Generated a Istanbul Validator Enode Share message", "ValEnodeShareMsg", msg.String())
 
 	return payload, nil
 }
