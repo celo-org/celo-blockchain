@@ -39,9 +39,9 @@ type sharedValidatorEnode struct {
 }
 
 type valEnodeShareMessage struct {
-	Address           common.Address
-	ValEnodes         []sharedValidatorEnode
-	Signature         []byte
+	Address   common.Address
+	ValEnodes []sharedValidatorEnode
+	Signature []byte
 }
 
 func (sm *valEnodeShareMessage) String() string {
@@ -60,9 +60,9 @@ func (sm *valEnodeShareMessage) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address     common.Address
-        ValEnodes   []sharedValidatorEnode
-		Signature   []byte
+		Address   common.Address
+		ValEnodes []sharedValidatorEnode
+		Signature []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
@@ -89,9 +89,9 @@ func (sm *valEnodeShareMessage) Sign(signingFn func(data []byte) ([]byte, error)
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
-		Address:     sm.Address,
-		ValEnodes:   sm.ValEnodes,
-		Signature:   []byte{},
+		Address:   sm.Address,
+		ValEnodes: sm.ValEnodes,
+		Signature: []byte{},
 	})
 	if err != nil {
 		return err
@@ -104,9 +104,9 @@ func (sm *valEnodeShareMessage) VerifySig() error {
 	// Construct and encode a message with no signature
 	var payloadNoSig []byte
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
-		Address:     sm.Address,
-		ValEnodes:   sm.ValEnodes,
-		Signature:   []byte{},
+		Address:   sm.Address,
+		ValEnodes: sm.ValEnodes,
+		Signature: []byte{},
 	})
 	if err != nil {
 		return err
@@ -154,16 +154,16 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 	i := 0
 	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
 		sharedValidatorEnodes[i] = sharedValidatorEnode{
-			Address: address,
+			Address:  address,
 			EnodeURL: validatorEnode.enodeURL,
-			View: validatorEnode.view,
+			View:     validatorEnode.view,
 		}
 		i++
 	}
 
 	msg := &valEnodeShareMessage{
-		Address:     sb.Address(),
-		ValEnodes:   sharedValidatorEnodes,
+		Address:   sb.Address(),
+		ValEnodes: sharedValidatorEnodes,
 	}
 
 	// Sign the validator enode share message
@@ -234,7 +234,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 	for _, sharedValidatorEnode := range msg.ValEnodes {
 		valEnode := &validatorEnode{
 			enodeURL: sharedValidatorEnode.EnodeURL,
-			view: sharedValidatorEnode.View,
+			view:     sharedValidatorEnode.View,
 		}
 		if err := sb.valEnodeTable.upsert(sharedValidatorEnode.Address, valEnode, valSet, sb.Address(), true); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "ValEnodeShareMsg", msg, "error", err)

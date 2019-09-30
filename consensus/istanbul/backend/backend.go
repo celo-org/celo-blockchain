@@ -131,7 +131,7 @@ type Backend struct {
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 
-	valEnodeShareWg *sync.WaitGroup
+	valEnodeShareWg   *sync.WaitGroup
 	valEnodeShareQuit chan struct{}
 }
 
