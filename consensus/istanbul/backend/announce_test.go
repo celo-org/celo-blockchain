@@ -44,6 +44,14 @@ func (mb *MockBroadcaster) GetValidatorPeers() []string {
 	return nil
 }
 
+func (mb *MockBroadcaster) Proxied() bool {
+	return false
+}
+
+func (mb *MockBroadcaster) GetSentryPeers() []consensus.Peer {
+	return nil
+}
+
 func TestHandleIstAnnounce(t *testing.T) {
 	_, b := newBlockChain(4, true)
 	for b == nil || b.Address() == getAddress() {

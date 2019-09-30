@@ -67,7 +67,7 @@ type Broadcaster interface {
 	RemoveValidatorPeer(enodeURL string) error
 	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
-	// Returns if this node is proxied by sentry nodes
+	// Returns if this node is intended to be proxied by sentry nodes
 	Proxied() bool
 	// Gets all of the sentry peers
 	GetSentryPeers() []Peer

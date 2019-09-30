@@ -194,14 +194,16 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 		return nil
 	}
 
-	sentryPeers := sb.broadcaster.GetSentryPeers()
-	if len(sentryPeers) > 0 {
-		sb.logger.Trace("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
-		for _, sentryPeer := range sentryPeers {
-			sentryPeer.Send(istanbulValEnodeShareMsg, payload)
+	if sb.broadcaster != nil {
+		sentryPeers := sb.broadcaster.GetSentryPeers()
+		if len(sentryPeers) > 0 {
+			sb.logger.Trace("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
+			for _, sentryPeer := range sentryPeers {
+				sentryPeer.Send(istanbulValEnodeShareMsg, payload)
+			}
+		} else {
+			sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
 		}
-	} else {
-		sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
 	}
 
 	return nil
