@@ -119,6 +119,7 @@ func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *com
 		state,
 	)
 	if err != nil {
+		log.Info("Default gas", "gas", params.AdditionalGasForNonGoldCurrencies)
 		return params.AdditionalGasForNonGoldCurrencies
 	}
 	log.Info("Reading gas", "gas", gas)

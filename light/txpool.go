@@ -408,7 +408,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	if err != nil {
 		return err
 	}
-	gas += blockchain_parameters.GetCurrencyGasCost(pool.chain.CurrentHeader(), pool.currentState(ctx), tx.GasCurrency())
+	gas += blockchain_parameters.GetCurrencyGasCost(header, currentState, tx.GasCurrency())
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
 	}
