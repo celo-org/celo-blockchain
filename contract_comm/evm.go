@@ -221,10 +221,10 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
-			log.Warn("Contract not yet deployed", "contractId", registryId)
+			log.Debug("Contract not yet deployed", "contractId", registryId)
 			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Warn("Contract Address Registry not yet deployed")
+			log.Debug("Contract Address Registry not yet deployed")
 			return 0, err
 		} else {
 			log.Error("Error in contract communication", "contract id", registryId, "error", err)
