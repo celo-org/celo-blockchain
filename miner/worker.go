@@ -812,8 +812,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
-		// We will add any more txns from the `txns` parameter if `tx` is below the gas price minimum.
-		// All the other transactions after this will either also be below the gas price minimum or will have a
+		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
+		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
 		// nonce that is non sequential to the last mined txn for the account.
 		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
