@@ -17,28 +17,20 @@
 package backend
 
 import (
-	// "bytes"
-	// "crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	// mrand "math/rand"
-	// "strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	// contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
-	// "github.com/ethereum/go-ethereum/contract_comm/validators"
-	// "github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	// "github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // ==============================================
 //
-// define the istanbul announce message
+// define the validator enode share message
 
 type sharedValidatorEnode struct {
 	Address  common.Address
@@ -49,12 +41,11 @@ type sharedValidatorEnode struct {
 type valEnodeShareMessage struct {
 	Address           common.Address
 	ValEnodes         []sharedValidatorEnode
-	View              *istanbul.View
 	Signature         []byte
 }
 
 func (sm *valEnodeShareMessage) String() string {
-	return fmt.Sprintf("{Address: %s, ValEnodes: %s, View: %v, Signature: %v}", sm.Address.String(), sm.ValEnodes, sm.View, hex.EncodeToString(sm.Signature))
+	return fmt.Sprintf("{Address: %s, ValEnodes: %s, Signature: %v}", sm.Address.String(), sm.ValEnodes, hex.EncodeToString(sm.Signature))
 }
 
 // ==============================================
@@ -63,7 +54,7 @@ func (sm *valEnodeShareMessage) String() string {
 
 // EncodeRLP serializes sm into the Ethereum RLP format.
 func (sm *valEnodeShareMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sm.Address, sm.ValEnodes, sm.View, sm.Signature})
+	return rlp.Encode(w, []interface{}{sm.Address, sm.ValEnodes, sm.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -71,20 +62,19 @@ func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address     common.Address
         ValEnodes   []sharedValidatorEnode
-		View        *istanbul.View
 		Signature   []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	sm.Address, sm.ValEnodes, sm.View, sm.Signature = msg.Address, msg.ValEnodes, msg.View, msg.Signature
+	sm.Address, sm.ValEnodes, sm.Signature = msg.Address, msg.ValEnodes, msg.Signature
 	return nil
 }
 
 // ==============================================
 //
-// define the functions that needs to be provided for the istanbul announce sender and handler
+// define the functions that needs to be provided for the validator enode share sender and handler
 func (sm *valEnodeShareMessage) FromPayload(b []byte) error {
 	// Decode message
 	err := rlp.DecodeBytes(b, &sm)
@@ -101,7 +91,6 @@ func (sm *valEnodeShareMessage) Sign(signingFn func(data []byte) ([]byte, error)
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
 		Address:     sm.Address,
 		ValEnodes:   sm.ValEnodes,
-		View:        sm.View,
 		Signature:   []byte{},
 	})
 	if err != nil {
@@ -117,7 +106,6 @@ func (sm *valEnodeShareMessage) VerifySig() error {
 	payloadNoSig, err := rlp.EncodeToBytes(&valEnodeShareMessage{
 		Address:     sm.Address,
 		ValEnodes:   sm.ValEnodes,
-		View:        sm.View,
 		Signature:   []byte{},
 	})
 	if err != nil {
@@ -139,8 +127,8 @@ func (sm *valEnodeShareMessage) VerifySig() error {
 	return nil
 }
 
-// This function is meant to be run as a goroutine.  It will periodically gossip announce messages
-// to the rest of the registered validators to communicate it's enodeURL to them.
+// This function is meant to be run as a goroutine.  It will periodically gossip validator enode share messages
+// to this node's sentries so that sentries know the enodes of validators
 func (sb *Backend) sendValEnodeShareMsgs() {
 	sb.valEnodeShareWg.Add(1)
 	defer sb.valEnodeShareWg.Done()
@@ -162,8 +150,6 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 }
 
 func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
-	view := sb.core.CurrentView()
-
 	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
 	i := 0
 	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
@@ -178,10 +164,9 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 	msg := &valEnodeShareMessage{
 		Address:     sb.Address(),
 		ValEnodes:   sharedValidatorEnodes,
-		View:        view,
 	}
 
-	// Sign the announce message
+	// Sign the validator enode share message
 	if err := msg.Sign(sb.Sign); err != nil {
 		sb.logger.Error("Error in signing an Istanbul Validator Enode Share message", "ValEnodeShareMsg", msg.String(), "err", err)
 		return nil, err
@@ -211,7 +196,7 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 
 	sentryPeers := sb.broadcaster.GetSentryPeers()
 	if len(sentryPeers) > 0 {
-		sb.logger.Debug("Sending Istanbul Validator Enode Share Message to sentry peers", "sentryPeers", sentryPeers, "len", len(sentryPeers))
+		sb.logger.Trace("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
 		for _, sentryPeer := range sentryPeers {
 			sentryPeer.Send(istanbulValEnodeShareMsg, payload)
 		}
@@ -226,7 +211,7 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 // certain validator, add a check in here to make sure the message came from
 // the correct validator.
 func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
-	sb.logger.Warn("Handling an Istanbul Validator Enode Message message")
+	sb.logger.Warn("Handling an Istanbul Validator Enode message")
 
 	msg := new(valEnodeShareMessage)
 	// Decode message
@@ -242,43 +227,21 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		return err
 	}
 
-	// If the message is originally from this node, then ignore it
-	if msg.Address == sb.Address() {
-		sb.logger.Trace("Received a ValEnodeShareMsg message originating from this node. Ignoring it.")
-		return nil
-	}
+	sb.logger.Trace("Received an Istanbul Validator Enode Share message", "msg", msg.String())
 
-	sb.logger.Warn("woo! got Istanbul Validator Enode Share message", "msg", msg.String())
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
 	for _, sharedValidatorEnode := range msg.ValEnodes {
 		valEnode := &validatorEnode{
 			enodeURL: sharedValidatorEnode.EnodeURL,
 			view: sharedValidatorEnode.View,
 		}
-		sb.logger.Warn("upserting!")
-		if err := sb.valEnodeTable.upsert(sharedValidatorEnode.Address, valEnode, valSet, sb.Address()); err != nil {
+		if err := sb.valEnodeTable.upsert(sharedValidatorEnode.Address, valEnode, valSet, sb.Address(), true); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "ValEnodeShareMsg", msg, "error", err)
 		}
 	}
 
-	sb.logger.Warn("validator enode table:", "content", sb.valEnodeTable.String())
-
-	// // Decrypt the EnodeURL
-	// nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
-
-	// // Save in the valEnodeTable if mining
-	// if sb.coreStarted {
-	// 	block := sb.currentBlock()
-	// 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	//
-	// 	newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
-	// 	if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
-	// 		sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
-	// 		return err
-	// 	}
-	// }
+	sb.logger.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
 
 	return nil
 }

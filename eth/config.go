@@ -136,9 +136,6 @@ type Config struct {
 
 	// Constantinople block override (TODO: remove after the fork)
 	ConstantinopleOverride *big.Int
-
-	// Indicates if this node is to be proxied by a sentry node
-	Proxied bool
 }
 
 type configMarshaling struct {

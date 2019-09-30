@@ -313,7 +313,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
+		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), false); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
 		}

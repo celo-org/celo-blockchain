@@ -912,6 +912,10 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 	return pm.server.ValPeers()
 }
 
+func (pm *ProtocolManager) Proxied() bool {
+	return pm.server.Proxied
+}
+
 // GetSentryPeers returns an array of all the sentry peers
 func (pm *ProtocolManager) GetSentryPeers() []consensus.Peer {
 	peers := make([]consensus.Peer, len(pm.sentryPeers))
