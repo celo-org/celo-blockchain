@@ -893,7 +893,7 @@ running:
 				}
 			}
 		case n := <-srv.addsentry:
-			if !isSentryNode(n.ID()) && srv.Proxied {
+			if !isSentryNode(n.ID()) {
 				if !srv.Proxied {
 					srv.log.Error("Add sentry node failed: this node is not configured to be proxied")
 					break
@@ -923,10 +923,6 @@ running:
 			}
 		case n := <-srv.removesentry:
 			if isSentryNode(n.ID()) {
-				if !srv.Proxied {
-					srv.log.Error("Remove sentry node failed: this node is not configured to be proxied")
-					break
-				}
 				srv.log.Trace("Removing sentry node", "node", n)
 
 				sentryNodeInfo := sentryNodes[n.ID()]
