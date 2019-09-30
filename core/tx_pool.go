@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -667,6 +668,13 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
 	}
+
+	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
+	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
+		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
+		return ErrGasPriceDoesNotExceedMinimum
+	}
+
 	return nil
 }
 
