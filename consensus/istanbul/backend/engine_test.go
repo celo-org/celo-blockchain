@@ -249,7 +249,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     parent.Number().Add(parent.Number(), common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+		GasLimit:   core.CalcGasLimit(parent, nil, parent.GasLimit(), parent.GasLimit()),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(config.BlockPeriod)),

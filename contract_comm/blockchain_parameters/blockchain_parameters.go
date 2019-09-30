@@ -86,6 +86,9 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		state,
 	)
 	// log.Info("querying block gas limit", "limit", gasLimit, "err", err)
+	if err != nil {
+		return 0, err
+	}
 	return gasLimit.Uint64(), err
 }
 
