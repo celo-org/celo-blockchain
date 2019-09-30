@@ -685,6 +685,9 @@ func (sb *Backend) Stop() error {
 
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
+
+	sb.valEnodeShareQuit <- struct{}{}
+	sb.valEnodeShareWg.Wait()
 	return nil
 }
 
