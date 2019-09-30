@@ -17,22 +17,22 @@
 package backend
 
 import (
-	"bytes"
-	"crypto/rand"
+	// "bytes"
+	// "crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	mrand "math/rand"
-	"strings"
+	// mrand "math/rand"
+	// "strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
+	// "github.com/ethereum/go-ethereum/common"
+	// "github.com/ethereum/go-ethereum/consensus/istanbul"
+	// contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
+	// "github.com/ethereum/go-ethereum/contract_comm/validators"
+	// "github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	// "github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -71,8 +71,6 @@ func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 		// View                  *istanbul.View
 		// Signature             []byte
 	}
-
-    var msg valEnodeShareMessage
 
 	if err := s.Decode(&msg); err != nil {
 		return err
@@ -146,7 +144,7 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Minute / 5.0)
 
 	for {
 		select {
@@ -246,10 +244,62 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 	if payload == nil {
 		return nil
 	}
+	//
+	// var hash common.Hash
+	// if !ignoreCache {
+	// 	hash = istanbul.RLPHash(payload)
+	// 	sb.knownMessages.Add(hash, true)
+	// }
+	//
+	// sentries := sb.broadcaster.Get
+	//
+	// var targets map[common.Address]bool = nil
+	//
+	// if valSet != nil {
+	// 	targets = make(map[common.Address]bool)
+	// 	for _, val := range valSet.List() {
+	// 		if val.Address() != sb.Address() {
+	// 			targets[val.Address()] = true
+	// 		}
+	// 	}
+	// }
+	//
+	// if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
+	// 	ps := sb.broadcaster.FindPeers(targets)
+	//
+	// 	for addr, p := range ps {
+	// 		if !ignoreCache {
+	// 			ms, ok := sb.recentMessages.Get(addr)
+	// 			var m *lru.ARCCache
+	// 			if ok {
+	// 				m, _ = ms.(*lru.ARCCache)
+	// 				if _, k := m.Get(hash); k {
+	// 					// This peer had this event, skip it
+	// 					continue
+	// 				}
+	// 			} else {
+	// 				m, _ = lru.NewARC(inmemoryMessages)
+	// 			}
+	//
+	// 			m.Add(hash, true)
+	// 			sb.recentMessages.Add(addr, m)
+	// 		}
+	//
+	// 		go p.Send(msgCode, payload)
+	// 	}
+	// }
+	// return nil
+	//
+	//
+	sentryPeers := sb.broadcaster.GetSentryPeers()
+	if len(sentryPeers) > 0 {
+		sb.logger.Warn("Sentrypeers!!!!!", "sentryPeers", sentryPeers, "len", len(sentryPeers))
+		// sentryPeers[0].Send(istanbulValEnodeShareMsg, payload)
+		sentryPeers[0].Send(istanbulValEnodeShareMsg, payload)
+	} else {
+		sb.logger.Warn("No sentry enodes")
+	}
 
-    // TODO don't gossip !!!!!
-
-    peer.Send(istanbulValEnodeShareMsg)
 	// sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	return nil
@@ -258,7 +308,7 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 	sb.logger.Warn("Handling an IstanbulAnnounce message")
 
-	msg := new(announceMessage)
+	msg := new(valEnodeShareMessage)
 	// Decode message
 	err := msg.FromPayload(payload)
 	if err != nil {
@@ -266,7 +316,9 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		return err
 	}
 
-    sb.logger.Warn("woo! Payload" + msg.Payload())
+	payloadContent, err := msg.Payload()
+
+    sb.logger.Warn("woo! Payload", "payloadContent", payloadContent, "msg.TestPayload", msg.TestPayload, "err", err)
 
 	// // Verify message signature
 	// if err := msg.VerifySig(); err != nil {

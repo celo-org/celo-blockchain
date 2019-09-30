@@ -42,7 +42,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{19},
+		Lengths:  []uint64{20},
 		Primary:  true,
 	}
 }
@@ -52,7 +52,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) {
+	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
 		if !sb.coreStarted && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
@@ -87,6 +87,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 			})
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
+		} else if msg.Code == istanbulValEnodeShareMsg {
+			go sb.handleValEnodeShareMsg(data)
 		}
 
 		return true, nil
