@@ -185,7 +185,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
 			utils.PingIPFromPacketFlag,
-			utils.UseInMemoryDiscoverTable,
+			utils.UseInMemoryDiscoverTableFlag,
+			utils.IsSentryFlag,
 		},
 	},
 	{

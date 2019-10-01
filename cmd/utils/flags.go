@@ -568,9 +568,13 @@ var (
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
-	UseInMemoryDiscoverTable = cli.BoolFlag{
+	UseInMemoryDiscoverTableFlag = cli.BoolFlag{
 		Name:  "use-in-memory-discovery-table",
 		Usage: "Specifies whether to use an in memory discovery table",
+	}
+	IsSentryFlag = cli.BoolFlag{
+		Name:  "is-sentry",
+		Usage: "Specifies whether this node is a sentry",
 	}
 
 	// ATM the url is left to the user and deployment to
@@ -1007,7 +1011,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
 	}
-	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+	if ctx.GlobalIsSet(UseInMemoryDiscoverTableFlag.Name) {
 		cfg.UseInMemoryNodeDatabase = true
 	}
 
@@ -1056,6 +1060,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(NoUSBFlag.Name) {
 		cfg.NoUSB = ctx.GlobalBool(NoUSBFlag.Name)
+	}
+	if ctx.GlobalIsSet(IsSentryFlag.Name) {
+		cfg.IsSentry = ctx.GlobalBool(IsSentryFlag.Name)
 	}
 }
 

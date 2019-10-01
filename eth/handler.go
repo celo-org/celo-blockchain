@@ -371,15 +371,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
-	// Forward message to proxy if message came from outside network
-	if !p.Peer.IsProxy {
-		for _, peer := range pm.peers.peers {
-			if peer.Peer.IsProxy {
-				go peer.Send(msg.Code, msg.Payload)
-			}
-		}
-	}
-
 	// Send messages to the consensus engine first. If they are consensus related,
 	// e.g. for IBFT, let the consensus handler handle the message.
 	if handler, ok := pm.engine.(consensus.Handler); ok {

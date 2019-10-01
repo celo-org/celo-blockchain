@@ -38,12 +38,12 @@ import (
 )
 
 const (
-	datadirPrivateKey      = "nodekey"            // Path within the datadir to the node's private key
-	datadirDefaultKeyStore = "keystore"           // Path within the datadir to the keystore
-	datadirStaticNodes     = "static-nodes.json"  // Path within the datadir to the static node list
-	datadirTrustedNodes    = "trusted-nodes.json" // Path within the datadir to the trusted node list
-	datadirProxiedNodes    = "proxied-nodes.json" // Path within the datadir to the proxied node list
-	datadirNodeDatabase    = "nodes"              // Path within the datadir to store the node infos
+	datadirPrivateKey          = "nodekey"            // Path within the datadir to the node's private key
+	datadirDefaultKeyStore     = "keystore"           // Path within the datadir to the keystore
+	datadirStaticNodes         = "static-nodes.json"  // Path within the datadir to the static node list
+	datadirTrustedNodes        = "trusted-nodes.json" // Path within the datadir to the trusted node list
+	datadirProxiedNodes        = "proxied-nodes.json" // Path within the datadir to the proxied node list
+	datadirNodeDatabase        = "nodes"              // Path within the datadir to store the node infos
 	datadirProxiedNodeDatabase = "proxied-nodes"
 )
 
@@ -73,6 +73,7 @@ type Config struct {
 	// Configuration of peer-to-peer networking.
 	P2P p2p.Config
 
+	IsSentry bool
 	ProxyP2P p2p.Config
 
 	// KeyStoreDir is the file system folder that contains private keys. The directory can

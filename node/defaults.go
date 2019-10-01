@@ -43,18 +43,20 @@ var DefaultConfig = Config{
 	HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
 	WSPort:           DefaultWSPort,
 	WSModules:        []string{"net", "web3"},
+	IsSentry:         false,
 	P2P: p2p.Config{
 		ListenAddr: ":30303",
 		MaxPeers:   25,
 		NAT:        nat.Any(),
-		IsProxy: false,
+		IsProxy:    false,
 		NetworkId:  1,
 	},
 	ProxyP2P: p2p.Config{
 		ListenAddr: ":30503",
 		MaxPeers:   25,
 		NAT:        nat.Any(),
-		IsProxy: true,
+		IsProxy:    true,
+		NetworkId:  1,
 	},
 }
 

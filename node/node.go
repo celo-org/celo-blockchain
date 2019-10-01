@@ -170,24 +170,29 @@ func (n *Node) Start() error {
 
 	// Initialize the proxy p2p server. This creates the node key and
 	// discovery databases.
-	n.proxyServerConfig = n.config.ProxyP2P
-	n.proxyServerConfig.NoDiscovery = true
-	n.proxyServerConfig.PrivateKey = n.config.NodeKey()
-	n.proxyServerConfig.Name = n.config.NodeName()
-	n.proxyServerConfig.Logger = n.log
-	if n.proxyServerConfig.StaticNodes == nil {
-		n.proxyServerConfig.StaticNodes = n.config.ProxiedNodes()
-	}
-	// if n.proxyServerConfig.TrustedNodes == nil {
-	// 	n.proxyServerConfig.TrustedNodes = n.config.TrustedNodes()
-	// }
-	if n.proxyServerConfig.NodeDatabase == "" {
-		n.proxyServerConfig.NodeDatabase = n.config.ProxiedNodeDB()
+	var proxyRunning *p2p.Server = nil
+	if n.config.IsSentry {
+		// Initialize the proxy p2p server. This creates the node key and
+		// discovery databases.
+		n.proxyServerConfig = n.config.ProxyP2P
+		n.proxyServerConfig.NoDiscovery = true
+		n.proxyServerConfig.PrivateKey = n.config.NodeKey()
+		n.proxyServerConfig.Name = n.config.NodeName()
+		n.proxyServerConfig.Logger = n.log
+		if n.proxyServerConfig.StaticNodes == nil {
+			n.proxyServerConfig.StaticNodes = n.config.ProxiedNodes()
+		}
+		// if n.proxyServerConfig.TrustedNodes == nil {
+		// 	n.proxyServerConfig.TrustedNodes = n.config.TrustedNodes()
+		// }
+		if n.proxyServerConfig.NodeDatabase == "" {
+			n.proxyServerConfig.NodeDatabase = n.config.ProxiedNodeDB()
+		}
+		proxyRunning = &p2p.Server{Config: n.proxyServerConfig}
+		n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServerConfig.Name)
+		n.log.Info("n.proxyServerConfig", "n.proxyServerConfig", n.proxyServerConfig.ListenAddr)
 	}
 
-	proxyRunning := &p2p.Server{Config: n.proxyServerConfig}
-	n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServerConfig.Name)
-	n.log.Info("n.proxyServerConfig", "n.proxyServerConfig", n.proxyServerConfig.ListenAddr)
 	// Otherwise copy and specialize the P2P configuration
 	services := make(map[reflect.Type]Service)
 	for _, constructor := range n.serviceFuncs {
@@ -217,13 +222,17 @@ func (n *Node) Start() error {
 	// Gather the protocols and start the freshly assembled P2P server
 	for _, service := range services {
 		running.Protocols = append(running.Protocols, service.Protocols()...)
-		proxyRunning.Protocols = append(proxyRunning.Protocols, service.Protocols()...)
+		if proxyRunning != nil {
+			proxyRunning.Protocols = append(proxyRunning.Protocols, service.Protocols()...)
+		}
 	}
 	if err := running.Start(); err != nil {
 		return convertFileLockError(err)
 	}
-	if err := proxyRunning.Start(); err != nil {
-		return convertFileLockError(err)
+	if proxyRunning != nil {
+		if err := proxyRunning.Start(); err != nil {
+			return convertFileLockError(err)
+		}
 	}
 	// Start each of the services
 	started := []reflect.Type{}
@@ -234,7 +243,9 @@ func (n *Node) Start() error {
 				services[kind].Stop()
 			}
 			running.Stop()
-			proxyRunning.Stop()
+			if proxyRunning != nil {
+				proxyRunning.Stop()
+			}
 
 			return err
 		}
@@ -247,7 +258,9 @@ func (n *Node) Start() error {
 			service.Stop()
 		}
 		running.Stop()
-		proxyRunning.Stop()
+		if proxyRunning != nil {
+			proxyRunning.Stop()
+		}
 		return err
 	}
 	// Finish initializing the startup
