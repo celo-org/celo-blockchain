@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -121,8 +122,11 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 	if currency == nil {
 		currencyAddress, err = contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 
-		if err != nil {
+		if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 			return FallbackGasPriceMinimum, nil
+		}
+		if err != nil {
+			return FallbackGasPriceMinimum, err
 		}
 	} else {
 		currencyAddress = currency
