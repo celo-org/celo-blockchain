@@ -57,7 +57,7 @@ func (sm *valEnodeShareMessage) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{sm.Address, sm.ValEnodes, sm.Signature})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the sm fields from a RLP stream.
 func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address   common.Address
@@ -133,7 +133,7 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 	sb.valEnodeShareWg.Add(1)
 	defer sb.valEnodeShareWg.Done()
 
-	ticker := time.NewTicker(time.Minute / 5.0)
+	ticker := time.NewTicker(time.Minute)
 
 	for {
 		select {
