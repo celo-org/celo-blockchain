@@ -470,6 +470,15 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
+// DiscoverTableInfo gets information on all the buckets in the
+// discover table
+func (srv *Server) DiscoverTableInfo() *discover.TableInfo {
+	if srv.ntab != nil {
+		return srv.ntab.Info()
+	}
+	return nil
+}
+
 // Stop terminates the server and all active peer connections.
 // It blocks until all active connections have been closed.
 func (srv *Server) Stop() {
