@@ -10,7 +10,7 @@ rust-defaults: &rust-defaults
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
-    - image: celohq/node10:gcloud
+    - image: celohq/node10-gcloud
 
 jobs:
   unit-tests:
