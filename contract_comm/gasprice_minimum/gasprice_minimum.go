@@ -100,10 +100,10 @@ const (
 const defaultGasAmount = 2000000
 
 var (
-	gasPriceMinimumABI, _                     = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackInfraFraction   *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier    *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _                      = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackProposerFraction *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
+	FallbackGasPriceMinimum  *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier     *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
 type ProposerFraction struct {
@@ -194,7 +194,7 @@ func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFract
 	)
 
 	if err != nil {
-		return FallbackInfraFraction, err
+		return FallbackProposerFraction, err
 	}
 
 	return &ProposerFraction{infraFraction[0], infraFraction[1]}, err
