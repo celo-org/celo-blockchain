@@ -36,7 +36,7 @@ const (
     {
       "constant": true,
       "inputs": [],
-      "name": "infrastructureFraction_",
+      "name": "proposerFraction_",
       "outputs": [
         {
           "name": "",
@@ -178,14 +178,14 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 	return updatedGasPriceMinimum, err
 }
 
-// Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
+// Returns the fraction of the gasprice min that should be allocated to the proposer
 func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
-		"infrastructureFraction_",
+		"proposerFraction_",
 		[]interface{}{},
 		&infraFraction,
 		200000,
