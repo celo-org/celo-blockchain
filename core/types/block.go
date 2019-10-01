@@ -36,6 +36,10 @@ var (
 	EmptyRootHash   = DeriveSha(Transactions{})
 	EmptyUncleHash  = CalcUncleHash(nil)
 	EmptyRandomness = Randomness{}
+	EmptyBlockSeal  = BlockSeal{
+		Seal:   []byte{},
+		Bitmap: big.NewInt(0),
+	}
 )
 
 // A BlockNonce is a 64-bit hash which proves (combined with the
@@ -149,12 +153,42 @@ func (r *Randomness) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{r.Revealed, r.Committed})
 }
 
+type BlockSeal struct {
+	// An aggregated signature of the block
+	Seal []byte
+	// Bitmap indicating which validators' signatures are aggregated into the seal.
+	Bitmap *big.Int
+}
+
+func (b *BlockSeal) Size() common.StorageSize {
+	bitmapSize := len(b.Bitmap.Bytes())
+	sealSize := len(b.Seal)
+	return common.StorageSize(bitmapSize + sealSize)
+}
+
+func (b *BlockSeal) DecodeRLP(s *rlp.Stream) error {
+	var blockSeal struct {
+		Seal   []byte
+		Bitmap *big.Int
+	}
+	if err := s.Decode(&blockSeal); err != nil {
+		return err
+	}
+	b.Seal, b.Bitmap = blockSeal.Seal, blockSeal.Bitmap
+	return nil
+}
+
+func (b *BlockSeal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{b.Seal, b.Bitmap})
+}
+
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
 	Transactions []*Transaction
 	Uncles       []*Header
 	Randomness   *Randomness
+	ParentSeal   *BlockSeal
 }
 
 // Block represents an entire block in the Ethereum blockchain.
@@ -163,6 +197,9 @@ type Block struct {
 	uncles       []*Header
 	transactions Transactions
 	randomness   *Randomness
+	// Aggregated signature of all signatures the block proposer saw for the
+	// previous block.
+	parentSeal *BlockSeal
 
 	// caches
 	hash atomic.Value
@@ -197,6 +234,7 @@ type extblock struct {
 	Txs        []*Transaction
 	Uncles     []*Header
 	Randomness *Randomness
+	ParentSeal *BlockSeal
 }
 
 // [deprecated by eth/63]
@@ -206,6 +244,7 @@ type storageblock struct {
 	Txs        []*Transaction
 	Uncles     []*Header
 	Randomness *Randomness
+	ParentSeal *BlockSeal
 	TD         *big.Int
 }
 
@@ -216,8 +255,8 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, randomness *Randomness) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness}
+func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, randomness *Randomness, parentSeal *BlockSeal) *Block {
+	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, parentSeal: parentSeal}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -249,6 +288,10 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 		b.randomness = &EmptyRandomness
 	}
 
+	if parentSeal == nil {
+		b.parentSeal = &EmptyBlockSeal
+	}
+
 	return b
 }
 
@@ -256,7 +299,7 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
-	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness}
+	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness, parentSeal: &EmptyBlockSeal}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -286,7 +329,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.randomness = eb.Header, eb.Uncles, eb.Txs, eb.Randomness
+	b.header, b.uncles, b.transactions, b.randomness, b.parentSeal = eb.Header, eb.Uncles, eb.Txs, eb.Randomness, eb.ParentSeal
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -298,6 +341,7 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 		Txs:        b.transactions,
 		Uncles:     b.uncles,
 		Randomness: b.randomness,
+		ParentSeal: b.parentSeal,
 	})
 }
 
@@ -307,7 +351,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.td, b.randomness = sb.Header, sb.Uncles, sb.Txs, sb.TD, sb.Randomness
+	b.header, b.uncles, b.transactions, b.td, b.randomness, b.parentSeal = sb.Header, sb.Uncles, sb.Txs, sb.TD, sb.Randomness, sb.ParentSeal
 	return nil
 }
 
@@ -316,6 +360,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 func (b *Block) Uncles() []*Header          { return b.uncles }
 func (b *Block) Transactions() Transactions { return b.transactions }
 func (b *Block) Randomness() *Randomness    { return b.randomness }
+func (b *Block) ParentSeal() *BlockSeal     { return b.parentSeal }
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
@@ -347,7 +392,7 @@ func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Ext
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.uncles, b.randomness} }
+func (b *Block) Body() *Body { return &Body{b.transactions, b.uncles, b.randomness, b.parentSeal} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -382,6 +427,7 @@ func (b *Block) WithSeal(header *Header) *Block {
 		transactions: b.transactions,
 		uncles:       b.uncles,
 		randomness:   b.randomness,
+		parentSeal:   b.parentSeal,
 	}
 }
 
@@ -391,18 +437,32 @@ func (b *Block) WithRandomness(randomness *Randomness) *Block {
 		header:       b.header,
 		transactions: b.transactions,
 		uncles:       b.uncles,
+		parentSeal:   b.parentSeal,
 		randomness:   randomness,
 	}
 	return block
 }
 
+// WithParentSeal returns a new block with the given parentSeal.
+func (b *Block) WithParentSeal(parentSeal *BlockSeal) *Block {
+	block := &Block{
+		header:       b.header,
+		transactions: b.transactions,
+		uncles:       b.uncles,
+		randomness:   b.randomness,
+		parentSeal:   parentSeal,
+	}
+	return block
+}
+
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomness *Randomness) *Block {
+func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomness *Randomness, parentSeal *BlockSeal) *Block {
 	block := &Block{
 		header:       CopyHeader(b.header),
 		transactions: make([]*Transaction, len(transactions)),
 		uncles:       make([]*Header, len(uncles)),
 		randomness:   randomness,
+		parentSeal:   parentSeal,
 	}
 	copy(block.transactions, transactions)
 	for i := range uncles {
@@ -410,6 +470,9 @@ func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomne
 	}
 	if randomness == nil {
 		block.randomness = &EmptyRandomness
+	}
+	if parentSeal == nil {
+		block.parentSeal = &EmptyBlockSeal
 	}
 	return block
 }
