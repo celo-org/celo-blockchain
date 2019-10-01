@@ -152,6 +152,7 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
 	i := 0
+	sb.valEnodeTable.valEnodeTableMu.RLock()
 	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
 		sharedValidatorEnodes[i] = sharedValidatorEnode{
 			Address:  address,
@@ -160,6 +161,7 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 		}
 		i++
 	}
+	sb.valEnodeTable.valEnodeTableMu.RUnlock()
 
 	msg := &valEnodeShareMessage{
 		Address:   sb.Address(),
