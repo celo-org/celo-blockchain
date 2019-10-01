@@ -120,6 +120,10 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 	var currencyAddress *common.Address
 	var err error
 
+	if state == nil || header == nil {
+		return FallbackGasPriceMinimum, nil
+	}
+
 	if currency == nil {
 		currencyAddress, err = contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 
