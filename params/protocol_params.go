@@ -113,6 +113,7 @@ var (
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
 	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	ElectionRegistryId             = makeRegistryId("Election")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
@@ -155,4 +156,6 @@ const (
 	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
+	MaxGasForGetValidator             uint64 = 100 * 1000
+	MaxGasForElectValidators          uint64 = 50 * 1000000
 )
