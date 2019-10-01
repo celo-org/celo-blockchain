@@ -575,19 +575,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		transactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
 		randomness := make([]*types.Randomness, len(request))
+		parentSeals := make([]*types.BlockSeal, len(request))
 
 		for i, body := range request {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
 			randomness[i] = body.Randomness
+			parentSeals[i] = body.ParentSeal
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0
+		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(parentSeals) > 0
 		if filter {
-			transactions, uncles, randomness = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, time.Now())
+			transactions, uncles, randomness, parentSeals = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, parentSeals, time.Now())
 		}
-		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness)
+		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(parentSeals) > 0 || !filter {
+			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness, parentSeals)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
 			}

@@ -893,6 +893,10 @@ func RPCMarshalBlock(b *types.Block, inclTx bool, fullTx bool) (map[string]inter
 		"revealed":  hexutil.Bytes(b.Randomness().Revealed.Bytes()),
 		"committed": hexutil.Bytes(b.Randomness().Committed.Bytes()),
 	}
+	fields["parentSeal"] = map[string]interface{}{
+		"seal":   hexutil.Bytes(b.ParentSeal().Seal),
+		"bitmap": hexutil.Bytes(b.ParentSeal().Bitmap.Bytes()),
+	}
 
 	if inclTx {
 		formatTx := func(tx *types.Transaction) (interface{}, error) {

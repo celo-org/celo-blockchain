@@ -313,6 +313,8 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errInvalidCoinbase
 	}
 
+	// TODO: Check parent signatures
+
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet

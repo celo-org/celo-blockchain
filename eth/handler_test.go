@@ -278,7 +278,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness()})
+						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), ParentSeal: block.ParentSeal()})
 					}
 					break
 				}
@@ -288,7 +288,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 			hashes = append(hashes, hash)
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := pm.blockchain.GetBlockByHash(hash)
-				bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness()})
+				bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), ParentSeal: block.ParentSeal()})
 			}
 		}
 		// Send the hash request and verify the response

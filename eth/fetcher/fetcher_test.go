@@ -185,16 +185,18 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 		transactions := make([][]*types.Transaction, 0, len(hashes))
 		uncles := make([][]*types.Header, 0, len(hashes))
 		randomness := make([]*types.Randomness, 0, len(hashes))
+		parentSeals := make([]*types.BlockSeal, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
 				transactions = append(transactions, block.Transactions())
 				uncles = append(uncles, block.Uncles())
 				randomness = append(randomness, block.Randomness())
+				parentSeals = append(parentSeals, block.ParentSeal())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, parentSeals, time.Now().Add(drift))
 
 		return nil
 	}

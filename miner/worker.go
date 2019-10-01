@@ -102,6 +102,7 @@ type environment struct {
 	txs        []*types.Transaction
 	receipts   []*types.Receipt
 	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
+	parentSeal *types.BlockSeal  // The types.BlockSeal of the last block mined by this worker
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -749,6 +750,7 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 		w.current.randomness,
+		w.current.parentSeal,
 	)
 
 	w.snapshotState = w.current.state.Copy()
@@ -1083,7 +1085,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness, w.current.parentSeal)
 	if err != nil {
 		return err
 	}
