@@ -35,7 +35,7 @@ func makeBlock(number int64) *types.Block {
 		GasUsed:    0,
 		Time:       big.NewInt(0),
 	}
-	return types.NewBlock(header, nil, nil, nil, nil)
+	return types.NewBlock(header, nil, nil, nil, nil, nil)
 }
 
 func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
