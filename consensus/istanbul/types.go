@@ -309,6 +309,16 @@ func (m *Message) DecodeRLP(s *rlp.Stream) error {
 //
 // define the functions that needs to be provided for core.
 
+func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	// Construct and encode a message with no signature
+	payloadNoSig, err := m.PayloadNoSig()
+	if err != nil {
+		return err
+	}
+	m.Signature, err = signingFn(payloadNoSig)
+	return err
+}
+
 func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
 	// Decode Message
 	err := rlp.DecodeBytes(b, &m)
