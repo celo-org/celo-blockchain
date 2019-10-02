@@ -59,7 +59,7 @@ var (
 	blockchainParametersABI, _ = abi.JSON(strings.NewReader(blockchainParametersABIString))
 )
 
-func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
+func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	var err error
 	_, err = contract_comm.MakeStaticCall(
@@ -75,7 +75,6 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
 
 	if err != nil {
 		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
-		return nil
 	}
 
 	if params.VersionMajor < version[0].Uint64() ||
@@ -84,5 +83,4 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
 		log.Crit("Client version older than required", "current", params.Version, "required", version)
 	}
 
-	return nil
 }

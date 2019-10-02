@@ -74,10 +74,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, err
 		}
 	}
-	err := blockchain_parameters.CheckMinimumVersion(header, statedb)
-	if err != nil {
-		return nil, nil, 0, err
-	}
+	blockchain_parameters.CheckMinimumVersion(header, statedb)
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
