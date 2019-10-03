@@ -102,7 +102,7 @@ type environment struct {
 	txs        []*types.Transaction
 	receipts   []*types.Receipt
 	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
-	parentSeal *types.BlockSeal  // The types.BlockSeal of the last block mined by this worker
+	parentSeal *types.BlockSeal  // The types.BlockSeal containing the signatures for the parent block seen by this worker.
 }
 
 // task contains all information for consensus engine sealing and result submitting.

@@ -27,9 +27,16 @@ import (
 )
 
 func TestSealEncoding(t *testing.T) {
+	blsSig := common.FromHex("8e30602b136996ec19761aabef852fd0ea4a9df63a43da052bedb82f1618ce2b907bbc70e02070224da34d688fa16101907e919aa92788f754640c318a1c970632237f2a4f6256bbd8cbe76215c37b606517bdb11b526a3ab098a03571e3fe00") // BLS signature produced by the crypto/bls test
+	validatorsBitmap := big.NewInt(100)
 	seal := BlockSeal{
-		Seal:   common.FromHex("8e30602b136996ec19761aabef852fd0ea4a9df63a43da052bedb82f1618ce2b907bbc70e02070224da34d688fa16101907e919aa92788f754640c318a1c970632237f2a4f6256bbd8cbe76215c37b606517bdb11b526a3ab098a03571e3fe00"), // BLS signature produced by the crypto/bls test
-		Bitmap: big.NewInt(7),
+		Seal:   blsSig,
+		Bitmap: validatorsBitmap,
+	}
+
+	expectedSize := common.StorageSize(len(blsSig) + len(validatorsBitmap.Bytes()))
+	if seal.Size() != expectedSize {
+		t.Errorf("seal size did not match. got %v, want %v", seal.Size(), expectedSize)
 	}
 
 	sealEnc := bytes.NewBuffer([]byte{})
