@@ -568,6 +568,11 @@ var (
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
+	VersionCheckFlag = cli.BoolFlag{
+		Name:  "disable-version-check",
+		Usage: "Disable version check. Use if the parameter is set erroneously",
+	}
+
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
 		Name:  "jspath",

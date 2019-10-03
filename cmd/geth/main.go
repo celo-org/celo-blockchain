@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/console"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/debug"
@@ -140,6 +141,7 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTable,
+		utils.VersionCheckFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -359,5 +361,8 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if err := ethereum.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
+	}
+	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
+		blockchain_parameters.SpawnCheck()
 	}
 }

@@ -19,6 +19,7 @@ package blockchain_parameters
 import (
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/contract_comm"
@@ -93,7 +94,17 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 	}
 
 	if params.CurrentVersionInfo.Cmp(version) == -1 {
+		time.Sleep(10 * time.Second)
 		log.Crit("Client version older than required", "current", params.Version, "required", version)
 	}
 
+}
+
+func SpawnCheck() {
+	go func() {
+		for {
+			time.Sleep(60 * time.Second)
+			CheckMinimumVersion(nil, nil)
+		}
+	}()
 }
