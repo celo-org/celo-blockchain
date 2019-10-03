@@ -120,7 +120,7 @@ func (sb *Backend) NewChainHead() error {
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-		if !sb.broadcaster.Proxied() {
+		if !sb.Proxied() {
 			go sb.RefreshValPeers(valset)
 		}
 	}

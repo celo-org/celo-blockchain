@@ -1,8 +1,8 @@
 package backend
 
 import (
-	"testing"
 	"math/big"
+	"testing"
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -42,7 +42,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	b.valEnodeTable.valEnodeTable[testAddress] = &validatorEnode{
 		enodeURL: testEnode,
 		view: &istanbul.View{
-			Round: big.NewInt(0),
+			Round:    big.NewInt(0),
 			Sequence: big.NewInt(0),
 		},
 	}
@@ -58,7 +58,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	if err = b.handleValEnodeShareMsg(payload); err != nil {
 		t.Errorf("error %v", err)
 	}
-	
+
 	if b.valEnodeTable.valEnodeTable[testAddress] != nil {
 		if b.valEnodeTable.valEnodeTable[testAddress].enodeURL != testEnode {
 			t.Errorf("Expected %v, but got %v instead", testEnode, b.valEnodeTable.valEnodeTable[testAddress].enodeURL)

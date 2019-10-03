@@ -536,3 +536,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
 	}
 }
+
+func (sb *Backend) Proxied() bool {
+	return sb.broadcaster != nil && sb.broadcaster.Proxied()
+}
