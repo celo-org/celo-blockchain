@@ -50,7 +50,7 @@ const (
 	inmemorySnapshots             = 128 // Number of recent vote snapshots to keep in memory
 	inmemoryPeers                 = 40
 	inmemoryMessages              = 1024
-	mobileAllowedClockSkew uint64 = 5
+	mobileAllowedClockSkew        = uint64(5)
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/LockedGold.json
 	setCumulativeRewardWeightABI = `[{
@@ -184,13 +184,13 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew
-	var allowedFutureBlockTime = big.NewInt(now().Unix())
+	allowedFutureBlockTime := uint64(now().Unix())
 	if !chain.Config().FullHeaderChainAvailable {
-		allowedFutureBlockTime = new(big.Int).Add(allowedFutureBlockTime, new(big.Int).SetUint64(mobileAllowedClockSkew))
+		allowedFutureBlockTime =  allowedFutureBlockTime + mobileAllowedClockSkew
 	}
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(allowedFutureBlockTime) > 0 {
+	if header.Time > allowedFutureBlockTime {
 		return consensus.ErrFutureBlock
 	}
 
@@ -242,7 +242,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor
 		}
-		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
+		if parent.Time+sb.config.BlockPeriod > header.Time {
 			return errInvalidTimestamp
 		}
 		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
@@ -399,9 +399,10 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	header.Difficulty = defaultDifficulty
 
 	// set header's timestamp
-	header.Time = new(big.Int).Add(parent.Time, new(big.Int).SetUint64(sb.config.BlockPeriod))
-	if header.Time.Int64() < time.Now().Unix() {
-		header.Time = big.NewInt(time.Now().Unix())
+	header.Time = parent.Time + sb.config.BlockPeriod
+	now := uint64(now().Unix())
+	if header.Time < now {
+		header.Time = now
 	}
 
 	return nil
@@ -446,11 +447,24 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
-// and assembles the final block.
+// but does not assemble the block.
 //
-// Note, the block header and state database might be updated to reflect any
+// Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header) {
+		header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+		header.UncleHash = types.CalcUncleHash(nil)
+}
+
+// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
+// rewards) and assembles the final block.
+//
+// Note: The block header and state database might be updated to reflect any
+// consensus rules that happen at finalization (e.g. block rewards).
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
 
@@ -522,9 +536,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 			}
 		}
 	}
-
+	
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = nilUncleHash
+	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
@@ -556,7 +570,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	}
 
 	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(block.Header().Time.Int64(), 0).Sub(now())
+	delay := time.Unix(int64(block.Header().Time), 0).Sub(now())
 	select {
 	case <-time.After(delay):
 	case <-stop:

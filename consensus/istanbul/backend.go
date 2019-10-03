@@ -26,13 +26,17 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// SignerFn is a signer callback function to request a hash to be signed by a
+// SignerFn is a signer callback function to request a header to be signed by a
 // backing account.
-type SignerFn func(accounts.Account, []byte) ([]byte, error)
+type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
+
+// SignerFn is a signer callback function to request a header to be signed by a
+// backing account.
+type BLSSignerFn func(accounts.Account, []byte) ([]byte, error)
 
 // MessageSignerFn is a signer callback function to request a raw message to
 // be signed by a backing account.
-type MessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
+type BLSMessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -98,5 +102,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
 }

@@ -29,10 +29,10 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -245,7 +245,7 @@ func TestValSetChange(t *testing.T) {
 		b := genesis.ToBlock(nil)
 		extra, _ := assembleExtra(b.Header(), []istanbul.ValidatorData{}, validators)
 		genesis.ExtraData = extra
-		db := ethdb.NewMemDatabase()
+		db := rawdb.NewMemoryDatabase()
 
 		config := istanbul.DefaultConfig
 		if tt.epoch != 0 {
@@ -260,7 +260,7 @@ func TestValSetChange(t *testing.T) {
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+		signerFn := func(_ ethAccounts.Account, mimeType string, data []byte) ([]byte, error) {
 			return crypto.Sign(data, privateKey)
 		}
 
@@ -327,7 +327,7 @@ func TestValSetChange(t *testing.T) {
 		for j, valsetdiff := range tt.valsetdiffs {
 			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
-				Time:       big.NewInt(int64(j) * int64(config.BlockPeriod)),
+				Time:       uint64(j) * uint64(config.BlockPeriod),
 				Difficulty: defaultDifficulty,
 				MixDigest:  types.IstanbulDigest,
 			}
@@ -421,7 +421,7 @@ func TestSaveAndLoad(t *testing.T) {
 			},
 		}, istanbul.RoundRobin),
 	}
-	db := ethdb.NewMemDatabase()
+	db := rawdb.NewMemoryDatabase()
 	err := snap.store(db)
 	if err != nil {
 		t.Errorf("store snapshot failed: %v", err)

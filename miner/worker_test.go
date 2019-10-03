@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/bls"
@@ -61,6 +62,12 @@ var (
 	// Test transactions
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
+
+	testConfig = &Config{
+		Recommit: time.Second,
+		GasFloor: params.GenesisGasLimit,
+		GasCeil:  params.GenesisGasLimit,
+	}
 )
 
 func init() {
@@ -96,7 +103,7 @@ type testWorkerBackend struct {
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
 	var (
-		db    = ethdb.NewMemDatabase()
+		db    = rawdb.NewMemoryDatabase()
 		gspec = core.Genesis{
 			Config: chainConfig,
 			Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
@@ -153,7 +160,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		gen.SetCoinbase(testUserAddress)
 	})
 	var backends []accounts.Backend
-	accountManager := accounts.NewManager(backends...)
+	accountManager := accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: true}, backends...)
 
 	return &testWorkerBackend{
 		accountManager: accountManager,
@@ -176,7 +183,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, &backend.db)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -185,12 +192,12 @@ func TestPendingStateAndBlockEthash(t *testing.T) {
 	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker())
 }
 func TestPendingStateAndBlockClique(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
-	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 		return crypto.Sign(data, testBankKey)
 	}
 
@@ -244,7 +251,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	engine := istanbulBackend.New(istanbul.DefaultConfig, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
@@ -284,9 +291,10 @@ func TestEmptyWorkEthash(t *testing.T) {
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
 }
+
 func TestEmptyWorkClique(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, true)
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, false)
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), true, true)
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), true, false)
 }
 
 func TestEmptyWorkIstanbul(t *testing.T) {
@@ -352,7 +360,7 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	for i := 0; i < expectedTasksLen; i += 1 {
 		select {
 		case <-taskCh:
-		case <-time.NewTimer(time.Second).C:
+		case <-time.NewTimer(2 * time.Second).C:
 			t.Error("new task timeout")
 		}
 	}
@@ -425,7 +433,7 @@ func TestRegenerateMiningBlockEthash(t *testing.T) {
 }
 
 func TestRegenerateMiningBlockClique(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 // For Ethhash and Clique, it is safe and even desired to start another seal process in the presence of new transactions
@@ -550,7 +558,7 @@ func TestAdjustIntervalEthash(t *testing.T) {
 }
 
 func TestAdjustIntervalClique(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {

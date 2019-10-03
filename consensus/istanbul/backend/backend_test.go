@@ -243,7 +243,7 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
+func signerFn(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
 	return crypto.Sign(data, key)
 }
@@ -308,7 +308,7 @@ func newBackend() (b *Backend) {
 	return
 }
 
-func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
+func signerFnInvalid(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	key, _ := generateInvalidPrivateKey()
 	return crypto.Sign(data, key)
 }

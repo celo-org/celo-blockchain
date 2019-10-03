@@ -90,8 +90,8 @@ type Backend struct {
 
 	address          common.Address           // Ethereum address of the signing key
 	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.SignerFn        // Signer function to authorize hashes using BLS with
-	signMessageBLSFn istanbul.MessageSignerFn // Signer function to authorize messages using BLS with
+	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
+	signMessageBLSFn istanbul.BLSMessageSignerFn // Signer function to authorize messages using BLS with
 	signFnMu         sync.RWMutex             // Protects the signer fields
 
 	core         istanbulCore.Engine
@@ -131,7 +131,7 @@ type Backend struct {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -307,7 +307,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
 	if err != nil && err != errEmptyCommittedSeals {
 		if err == consensus.ErrFutureBlock {
-			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
+			return time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
 			return 0, err
 		}
@@ -401,7 +401,7 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	hashData := crypto.Keccak256(data)
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
+	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, hashData)
 }
 
 func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {

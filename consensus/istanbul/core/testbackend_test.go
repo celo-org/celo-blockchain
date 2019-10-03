@@ -25,10 +25,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	
 	elog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -61,7 +63,7 @@ type testCommittedMsgs struct {
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.MessageSignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.BLSSignerFn, _ istanbul.BLSMessageSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -311,12 +313,11 @@ func (t *testSystem) stop(core bool) {
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
-	ethDB := ethdb.NewMemDatabase()
 	backend := &testSystemBackend{
 		id:     id,
 		sys:    t,
 		events: new(event.TypeMux),
-		db:     ethDB,
+		db:     rawdb.NewMemoryDatabase(),
 	}
 
 	t.backends[id] = backend

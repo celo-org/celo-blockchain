@@ -25,13 +25,11 @@ const (
 	FullSync       SyncMode = iota // Synchronise the entire blockchain history from full blocks
 	FastSync                       // Quickly download the headers, full sync only at the chain head
 	LightSync                      // Download only the headers and terminate afterwards
-	SyncModeLightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
+	LightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
 )
 
-const SyncModeLightestSyncModeAsString = "lightest"
-
 func (mode SyncMode) IsValid() bool {
-	return mode >= FullSync && mode <= SyncModeLightestSync
+	return mode >= FullSync && mode <= LightestSync
 }
 
 // String implements the stringer interface.
@@ -43,8 +41,8 @@ func (mode SyncMode) String() string {
 		return "fast"
 	case LightSync:
 		return "light"
-	case SyncModeLightestSync:
-		return SyncModeLightestSyncModeAsString
+	case LightestSync:
+		return "lightest"
 	default:
 		return "unknown"
 	}
@@ -58,8 +56,8 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("fast"), nil
 	case LightSync:
 		return []byte("light"), nil
-	case SyncModeLightestSync:
-		return []byte(SyncModeLightestSyncModeAsString), nil
+	case LightestSync:
+		return []byte("lightest"), nil
 	default:
 		return nil, fmt.Errorf("unknown sync mode %d", mode)
 	}
@@ -73,11 +71,10 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FastSync
 	case "light":
 		*mode = LightSync
-	case SyncModeLightestSyncModeAsString:
-		*mode = SyncModeLightestSync
+	case "lightest":
+		*mode = LightestSync
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "%s"`,
-			text, SyncModeLightestSyncModeAsString)
+		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "lightest"`, text)
 	}
 	return nil
 }
@@ -91,7 +88,7 @@ func (mode SyncMode) SyncFullHeaderChain() bool {
 		return true
 	case LightSync:
 		return true
-	case SyncModeLightestSync:
+	case LightestSync:
 		return false
 	default:
 		panic(fmt.Errorf("unknown sync mode %d", mode))
@@ -108,7 +105,7 @@ func (mode SyncMode) SyncFullBlockChain() bool {
 		return true
 	case LightSync:
 		return false
-	case SyncModeLightestSync:
+	case LightestSync:
 		return false
 	default:
 		panic(fmt.Errorf("unknown sync mode %d", mode))

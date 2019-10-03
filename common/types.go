@@ -142,6 +142,21 @@ func (h Hash) Value() (driver.Value, error) {
 	return h[:], nil
 }
 
+// ImplementsGraphQLType returns true if Hash implements the specified GraphQL type.
+func (_ Hash) ImplementsGraphQLType(name string) bool { return name == "Bytes32" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (h *Hash) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		*h = HexToHash(input)
+	default:
+		err = fmt.Errorf("Unexpected type for Bytes32: %v", input)
+	}
+	return err
+}
+
 // UnprefixedHash allows marshaling a Hash without 0x prefix.
 type UnprefixedHash Hash
 
@@ -187,9 +202,6 @@ func IsHexAddress(s string) bool {
 
 // Bytes gets the string representation of the underlying address.
 func (a Address) Bytes() []byte { return a[:] }
-
-// Big converts an address to a big integer.
-func (a Address) Big() *big.Int { return new(big.Int).SetBytes(a[:]) }
 
 // Hash converts an address to a hash by left-padding it with zeros.
 func (a Address) Hash() Hash { return BytesToHash(a[:]) }
@@ -278,6 +290,21 @@ func ConvertToStringSlice(addresses []Address) []string {
 	}
 
 	return returnList
+}
+
+// ImplementsGraphQLType returns true if Hash implements the specified GraphQL type.
+func (a Address) ImplementsGraphQLType(name string) bool { return name == "Address" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (a *Address) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		*a = HexToAddress(input)
+	default:
+		err = fmt.Errorf("Unexpected type for Address: %v", input)
+	}
+	return err
 }
 
 // UnprefixedAddress allows marshaling an Address without 0x prefix.

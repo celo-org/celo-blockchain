@@ -25,11 +25,12 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -42,17 +43,21 @@ var DefaultConfig = Config{
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	},
-	NetworkId:                   1,
-	LightPeers:                  99,
-	LightServ:                   50,
-	DatabaseCache:               768,
-	TrieTimeout:                 60 * time.Minute,
-	MinerGasFloor:               8000000,
-	MinerGasCeil:                8000000,
-	MinerGasPrice:               big.NewInt(1),
-	MinerRecommit:               3 * time.Second,
-	MinerVerificationServiceUrl: "https://mining-pool.celo.org/v0.1/sms",
-
+	NetworkId:          1,
+	LightPeers:         100,
+	LightServ:          50,
+	UltraLightFraction: 75,
+	DatabaseCache:      512,
+	TrieCleanCache:     256,
+	TrieDirtyCache:     256,
+	TrieTimeout:        60 * time.Minute,
+	Miner: miner.Config{
+		GasFloor:               8000000,
+		GasCeil:                8000000,
+		GasPrice:               big.NewInt(1),
+		Recommit:               3 * time.Second,
+		VerificationService:    "https://mining-pool.celo.org/v0.1/sms",
+	},
 	TxPool: core.DefaultTxPoolConfig,
 
 	Istanbul: *istanbul.DefaultConfig,
@@ -65,14 +70,21 @@ func init() {
 			home = user.HomeDir
 		}
 	}
-	if runtime.GOOS == "windows" {
-		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "AppData", "Ethash")
+	if runtime.GOOS == "darwin" {
+		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "Library", "Ethash")
+	} else if runtime.GOOS == "windows" {
+		localappdata := os.Getenv("LOCALAPPDATA")
+		if localappdata != "" {
+			DefaultConfig.Ethash.DatasetDir = filepath.Join(localappdata, "Ethash")
+		} else {
+			DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "AppData", "Local", "Ethash")
+		}
 	} else {
 		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, ".ethash")
 	}
 }
 
-//go:generate gencodec -type Config -field-override configMarshaling -formats toml -out gen_config.go
+//go:generate gencodec -type Config -formats toml -out gen_config.go
 
 type Config struct {
 	// The genesis block, which is inserted if the database is empty.
@@ -82,36 +94,41 @@ type Config struct {
 	// Protocol options
 	NetworkId uint64 // Network ID to use for selecting peers to connect to
 	SyncMode  downloader.SyncMode
-	NoPruning bool
+
+	NoPruning  bool // Whether to disable pruning and flush everything to disk
+	NoPrefetch bool // Whether to disable prefetching and only load state on demand
 
 	// Whitelist of required block number -> hash values to accept
 	Whitelist map[uint64]common.Hash `toml:"-"`
 
 	// Light client options
-	LightServ  int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
-	LightPeers int `toml:",omitempty"` // Maximum number of LES client peers
+	LightServ    int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
+	LightIngress int `toml:",omitempty"` // Incoming bandwidth limit for light servers
+	LightEgress  int `toml:",omitempty"` // Outgoing bandwidth limit for light servers
+	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
+
 	// The GasFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`
 
+	// Ultra Light client options
+	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers
+	UltraLightFraction     int      `toml:",omitempty"` // Percentage of trusted servers to accept an announcement
+	UltraLightOnlyAnnounce bool     `toml:",omitempty"` // Whether to only announce headers, or also serve them
+
 	// Database options
 	SkipBcVersionCheck bool `toml:"-"`
 	DatabaseHandles    int  `toml:"-"`
 	DatabaseCache      int
-	TrieCleanCache     int
-	TrieDirtyCache     int
-	TrieTimeout        time.Duration
+	DatabaseFreezer    string
 
-	// Mining-related options
-	MinerNotify                 []string `toml:",omitempty"`
-	MinerExtraData              []byte   `toml:",omitempty"`
-	MinerGasFloor               uint64
-	MinerGasCeil                uint64
-	MinerGasPrice               *big.Int
-	MinerRecommit               time.Duration
-	MinerNoverify               bool
-	MinerVerificationServiceUrl string
+	TrieCleanCache int
+	TrieDirtyCache int
+	TrieTimeout    time.Duration
+
+	// Mining options
+	Miner miner.Config
 
 	// Ethash options
 	Ethash ethash.Config
@@ -134,10 +151,12 @@ type Config struct {
 	// Type of the EVM interpreter ("" for default)
 	EVMInterpreter string
 
-	// Constantinople block override (TODO: remove after the fork)
-	ConstantinopleOverride *big.Int
-}
+	// RPCGasCap is the global gas cap for eth-call variants.
+	RPCGasCap *big.Int `toml:",omitempty"`
 
-type configMarshaling struct {
-	MinerExtraData hexutil.Bytes
+	// Checkpoint is a hardcoded checkpoint which can be nil.
+	Checkpoint *params.TrustedCheckpoint `toml:",omitempty"`
+
+	// CheckpointOracle is the configuration for checkpoint oracle.
+	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 }

@@ -47,7 +47,7 @@ func TestBlockEncoding(t *testing.T) {
 	check("Root", block.Root(), common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217"))
 	check("Hash", block.Hash(), common.HexToHash("f5a450266c77dce47f7698959d8e7019db860ee19a5322b16a853fdf23607100"))
 	check("Nonce", block.Nonce(), uint64(0x0))
-	check("Time", block.Time(), big.NewInt(1548187484))
+	check("Time", block.Time(), uint64(1548187484))
 	check("Size", block.Size(), common.StorageSize(len(blockEnc)))
 	check("ParentHash", block.ParentHash(), common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7"))
 
@@ -60,5 +60,21 @@ func TestBlockEncoding(t *testing.T) {
 	}
 	if !bytes.Equal(ourBlockEnc, blockEnc) {
 		t.Errorf("encoded block mismatch:\ngot:  %x\nwant: %x", ourBlockEnc, blockEnc)
+	}
+}
+
+func TestUncleHash(t *testing.T) {
+	uncles := make([]*Header, 0)
+	h := CalcUncleHash(uncles)
+	exp := common.HexToHash("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
+	if h != exp {
+		t.Fatalf("empty uncle hash is wrong, got %x != %x", h, exp)
+	}
+}
+func BenchmarkUncleHash(b *testing.B) {
+	uncles := make([]*Header, 0)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		CalcUncleHash(uncles)
 	}
 }

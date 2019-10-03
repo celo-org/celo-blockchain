@@ -46,9 +46,9 @@ const SyncModeFastSync = 2
 const SyncModeLightSync = 3
 
 // Deprecated: This used to be SyncModeCeloLatestSync. Geth will panic if started in this mode.
-// Use SyncModeLightestSync instead.
+// Use LightestSync instead.
 const SyncModeDeprecatedSync = 4
-const SyncModeLightestSync = 5
+const LightestSync = 5
 
 // NodeConfig represents the collection of configuration values to fine tune the Geth
 // node embedded into a mobile process. The available values are a subset of the
@@ -155,6 +155,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			MaxPeers:         config.MaxPeers,
 		},
 	}
+
 	rawStack, err := node.New(nodeConf)
 	if err != nil {
 		return nil, err
@@ -227,11 +228,17 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 		return downloader.LightSync
 	case SyncModeDeprecatedSync:
 		panic("'celolatest' mode is no longer supported. Use 'lightest' instead")
-	case SyncModeLightestSync:
-		return downloader.SyncModeLightestSync
+	case LightestSync:
+		return downloader.LightestSync
 	default:
 		panic(fmt.Sprintf("Unexpected sync mode value: %d", syncMode))
 	}
+}
+
+// Close terminates a running node along with all it's services, tearing internal
+// state doen too. It's not possible to restart a closed node.
+func (n *Node) Close() error {
+	return n.node.Close()
 }
 
 // Start creates a live P2P node and starts running it.

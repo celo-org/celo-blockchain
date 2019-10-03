@@ -50,7 +50,7 @@ func decryptPhoneNumber(request types.AttestationRequest, account accounts.Accou
 }
 
 func createAttestationMessage(request types.AttestationRequest, account accounts.Account, wallet accounts.Wallet) (string, error) {
-	signature, err := wallet.SignHash(account, request.CodeHash.Bytes())
+	signature, err := wallet.SignText(account, request.CodeHash.Bytes())
 	if err != nil {
 		return "", err
 	}

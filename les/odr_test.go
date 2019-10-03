@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/params"
@@ -39,9 +38,7 @@ import (
 
 type odrTestFn func(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte
 
-func TestOdrGetBlockLes1(t *testing.T) { testOdr(t, 1, 1, odrGetBlock) }
-
-func TestOdrGetBlockLes2(t *testing.T) { testOdr(t, 2, 1, odrGetBlock) }
+func TestOdrGetBlockLes2(t *testing.T) { testOdr(t, 2, 1, true, odrGetBlock) }
 
 func odrGetBlock(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	var block *types.Block
@@ -57,15 +54,13 @@ func odrGetBlock(ctx context.Context, db ethdb.Database, config *params.ChainCon
 	return rlp
 }
 
-func TestOdrGetReceiptsLes1(t *testing.T) { testOdr(t, 1, 1, odrGetReceipts) }
-
-func TestOdrGetReceiptsLes2(t *testing.T) { testOdr(t, 2, 1, odrGetReceipts) }
+func TestOdrGetReceiptsLes2(t *testing.T) { testOdr(t, 2, 1, true, odrGetReceipts) }
 
 func odrGetReceipts(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	var receipts types.Receipts
 	if bc != nil {
 		if number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
-			receipts = rawdb.ReadReceipts(db, bhash, *number)
+			receipts = rawdb.ReadReceipts(db, bhash, *number, config)
 		}
 	} else {
 		if number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
@@ -79,13 +74,11 @@ func odrGetReceipts(ctx context.Context, db ethdb.Database, config *params.Chain
 	return rlp
 }
 
-func TestOdrAccountsLes1(t *testing.T) { testOdr(t, 1, 1, odrAccounts) }
-
-func TestOdrAccountsLes2(t *testing.T) { testOdr(t, 2, 1, odrAccounts) }
+func TestOdrAccountsLes2(t *testing.T) { testOdr(t, 2, 1, true, odrAccounts) }
 
 func odrAccounts(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	dummyAddr := common.HexToAddress("1234567812345678123456781234567812345678")
-	acc := []common.Address{testBankAddress, acc1Addr, acc2Addr, dummyAddr}
+	acc := []common.Address{bankAddr, userAddr1, userAddr2, dummyAddr}
 
 	var (
 		res []byte
@@ -109,9 +102,7 @@ func odrAccounts(ctx context.Context, db ethdb.Database, config *params.ChainCon
 	return res
 }
 
-func TestOdrContractCallLes1(t *testing.T) { testOdr(t, 1, 2, odrContractCall) }
-
-func TestOdrContractCallLes2(t *testing.T) { testOdr(t, 2, 2, odrContractCall) }
+func TestOdrContractCallLes2(t *testing.T) { testOdr(t, 2, 2, true, odrContractCall) }
 
 type callmsg struct {
 	types.Message
@@ -130,7 +121,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			statedb, err := state.New(header.Root, state.NewDatabase(db))
 
 			if err == nil {
-				from := statedb.GetOrNewStateObject(testBankAddress)
+				from := statedb.GetOrNewStateObject(bankAddr)
 				from.SetBalance(math.MaxBig256)
 
 				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, data, false)}
@@ -146,8 +137,8 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 		} else {
 			header := lc.GetHeaderByHash(bhash)
 			state := light.NewState(ctx, header, lc.Odr())
-			state.SetBalance(testBankAddress, math.MaxBig256)
-			msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, data, false)}
+			state.SetBalance(bankAddr, math.MaxBig256)
+			msg := callmsg{types.NewMessage(bankAddr, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, data, false)}
 			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
@@ -160,14 +151,41 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 	return res
 }
 
+func TestOdrTxStatusLes2(t *testing.T) { testOdr(t, 2, 1, false, odrTxStatus) }
+
+func odrTxStatus(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
+	var txs types.Transactions
+	if bc != nil {
+		block := bc.GetBlockByHash(bhash)
+		txs = block.Transactions()
+	} else {
+		if block, _ := lc.GetBlockByHash(ctx, bhash); block != nil {
+			btxs := block.Transactions()
+			txs = make(types.Transactions, len(btxs))
+			for i, tx := range btxs {
+				var err error
+				txs[i], _, _, _, err = light.GetTransaction(ctx, lc.Odr(), tx.Hash())
+				if err != nil {
+					return nil
+				}
+			}
+		}
+	}
+	rlp, _ := rlp.EncodeToBytes(txs)
+	return rlp
+}
+
 // testOdr tests odr requests whose validation guaranteed by block headers.
-func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
+func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn odrTestFn) {
 	// Assemble the test environment
 	server, client, tearDown := newClientServerEnv(t, 4, protocol, nil, true)
 	defer tearDown()
-	client.pm.synchronise(client.rPeer, downloader.LightSync)
+	client.pm.synchronise(client.rPeer)
 
 	test := func(expFail uint64) {
+		// Mark this as a helper to put the failures at the correct lines
+		t.Helper()
+
 		for i := uint64(0); i <= server.pm.blockchain.CurrentHeader().Number.Uint64(); i++ {
 			bhash := rawdb.ReadCanonicalHash(server.db, i)
 			b1 := fn(light.NoOdr, server.db, server.pm.chainConfig, server.pm.blockchain.(*core.BlockChain), nil, bhash)
@@ -179,10 +197,10 @@ func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
 			eq := bytes.Equal(b1, b2)
 			exp := i < expFail
 			if exp && !eq {
-				t.Errorf("odr mismatch")
+				t.Fatalf("odr mismatch: have %x, want %x", b2, b1)
 			}
 			if !exp && eq {
-				t.Errorf("unexpected odr match")
+				t.Fatalf("unexpected odr match")
 			}
 		}
 	}
@@ -191,6 +209,7 @@ func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
 	client.peers.Unregister(client.rPeer.id)
 	time.Sleep(time.Millisecond * 10) // ensure that all peerSetNotify callbacks are executed
 	test(expFail)
+
 	// expect all retrievals to pass
 	client.peers.Register(client.rPeer)
 	time.Sleep(time.Millisecond * 10) // ensure that all peerSetNotify callbacks are executed
@@ -198,8 +217,10 @@ func testOdr(t *testing.T, protocol int, expFail uint64, fn odrTestFn) {
 	client.rPeer.hasBlock = func(common.Hash, uint64, bool) bool { return true }
 	client.peers.lock.Unlock()
 	test(5)
-	// still expect all retrievals to pass, now data should be cached locally
-	client.peers.Unregister(client.rPeer.id)
-	time.Sleep(time.Millisecond * 10) // ensure that all peerSetNotify callbacks are executed
-	test(5)
+	if checkCached {
+		// still expect all retrievals to pass, now data should be cached locally
+		client.peers.Unregister(client.rPeer.id)
+		time.Sleep(time.Millisecond * 10) // ensure that all peerSetNotify callbacks are executed
+		test(5)
+	}
 }

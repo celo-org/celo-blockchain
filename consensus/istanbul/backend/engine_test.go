@@ -32,12 +32,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -46,11 +46,11 @@ import (
 // other fake events to process Istanbul.
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
-	memDB := ethdb.NewMemDatabase()
+	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
-	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 		return crypto.Sign(data, nodeKeys[0])
 	}
 
@@ -127,7 +127,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 		},
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-			return blockchain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 		})
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
@@ -142,7 +142,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	for _, key := range nodeKeys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		if addr.String() == proposerAddr.String() {
-			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+			signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
 			signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
@@ -252,7 +252,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 		GasLimit:   core.CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
-		Time:       new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(config.BlockPeriod)),
+		Time:       parent.Time() + uint64(config.BlockPeriod),
 		Difficulty: defaultDifficulty,
 	}
 	return header
@@ -270,7 +270,8 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
 	state, _ := chain.StateAt(parent.Root())
-	block, _ := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	engine.Finalize(chain, header, state, nil, nil)
+	block, _ := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
 	return block
 }
 
@@ -437,7 +438,7 @@ func TestVerifyHeader(t *testing.T) {
 	// invalid timestamp
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(chain.Genesis().Time(), new(big.Int).SetUint64(engine.config.BlockPeriod-1))
+	header.Time = chain.Genesis().Time() + uint64(engine.config.BlockPeriod-1)
 	err = engine.VerifyHeader(chain, header, false)
 	if err != errInvalidTimestamp {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidTimestamp)
@@ -446,7 +447,7 @@ func TestVerifyHeader(t *testing.T) {
 	// future block
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(10))
+	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
@@ -512,7 +513,7 @@ func TestVerifyHeaders(t *testing.T) {
 		headers = append(headers, blocks[i].Header())
 	}
 	now = func() time.Time {
-		return time.Unix(headers[size-1].Time.Int64(), 0)
+		return time.Unix(int64(headers[size-1].Time), 0)
 	}
 	_, results := engine.VerifyHeaders(chain, headers, nil)
 	const timeoutDura = 2 * time.Second
@@ -597,7 +598,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	// allow future block without full chain available
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header := block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(3))
+	header.Time = uint64(now().Unix() + 3)
 	err := engine.VerifyHeader(chain, header, false)
 	if err != errEmptyCommittedSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, errEmptyCommittedSeals)
@@ -606,7 +607,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	// reject future block without full chain available
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(10))
+	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
