@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -43,6 +44,7 @@ func main() {
 		nodeKeyHex       = flag.String("nodekeyhex", "", "private key as hex (for testing)")
 		natdesc          = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
 		netrestrict      = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		runv4            = flag.Bool("v4", true, "run a v4 topic discovery bootnode")
 		runv5            = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity        = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
 		vmodule          = flag.String("vmodule", "", "log verbosity pattern")
@@ -64,6 +66,8 @@ func main() {
 		utils.Fatalf("-nat: %v", err)
 	}
 	switch {
+	case !*runv4 && !*runv5:
+		utils.Fatalf("Must specify at least one discovery protocol (v4 or v5)")
 	case *genKey != "":
 		nodeKey, err = crypto.GenerateKey()
 		if err != nil {
@@ -124,19 +128,38 @@ func main() {
 		}
 	}
 
-	if *runv5 {
-		if _, err := discv5.ListenUDP(nodeKey, conn, "", restrictList); err != nil {
-			utils.Fatalf("%v", err)
+	// If v4 and v5 are both enabled, a packet is first tried as v4
+	// and then v5 if v4 decoding fails, following the same pattern as full
+	// nodes that use v4 and v5:
+	// https://github.com/celo-org/celo-blockchain/blob/7fbd6f3574f1c1c1e657c152fc63fb771adab3af/p2p/server.go#L588
+	var unhandled chan discover.ReadPacket
+	var sconn *p2p.SharedUDPConn
+	if *runv4 {
+		if *runv5 {
+			unhandled = make(chan discover.ReadPacket, 100)
+			sconn = &p2p.SharedUDPConn{conn, unhandled}
 		}
-	} else {
 		db, _ := enode.OpenDB("")
 		ln := enode.NewLocalNode(db, nodeKey, *networkId)
 		cfg := discover.Config{
 			PrivateKey:       nodeKey,
 			NetRestrict:      restrictList,
 			PingIPFromPacket: *pingIPFromPacket,
+			Unhandled:        unhandled,
 		}
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
+			utils.Fatalf("%v", err)
+		}
+	}
+
+	if *runv5 {
+		var err error
+		if sconn != nil {
+			_, err = discv5.ListenUDP(nodeKey, sconn, "", restrictList)
+		} else {
+			_, err = discv5.ListenUDP(nodeKey, conn, "", restrictList)
+		}
+		if err != nil {
 			utils.Fatalf("%v", err)
 		}
 	}

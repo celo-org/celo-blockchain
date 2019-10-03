@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
@@ -85,6 +86,7 @@ func (t fakeTable) Close()                                {}
 func (t fakeTable) LookupRandom() []*enode.Node           { return nil }
 func (t fakeTable) Resolve(*enode.Node) *enode.Node       { return nil }
 func (t fakeTable) ReadRandomNodes(buf []*enode.Node) int { return copy(buf, t) }
+func (t fakeTable) Info() *discover.TableInfo             { return &discover.TableInfo{} }
 
 // This test checks that dynamic dials are launched from discovery results.
 func TestDialStateDynDial(t *testing.T) {
@@ -703,3 +705,4 @@ func (t *resolveMock) Self() *enode.Node                     { return new(enode.
 func (t *resolveMock) Close()                                {}
 func (t *resolveMock) LookupRandom() []*enode.Node           { return nil }
 func (t *resolveMock) ReadRandomNodes(buf []*enode.Node) int { return 0 }
+func (t *resolveMock) Info() *discover.TableInfo             { return &discover.TableInfo{} }

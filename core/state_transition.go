@@ -32,9 +32,10 @@ import (
 )
 
 var (
-	errInsufficientBalanceForGas    = errors.New("insufficient balance to pay for gas")
-	errNonWhitelistedGasCurrency    = errors.New("non-whitelisted gas currency address")
-	errGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
+	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice does not exceed gas price minimum")
+
+	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
+	errNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency address")
 )
 
 /*
@@ -297,7 +298,7 @@ func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's gas price is valid.
 	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
 		log.Error("Tx gas price does not exceed minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
-		return errGasPriceDoesNotExceedMinimum
+		return ErrGasPriceDoesNotExceedMinimum
 	}
 
 	return nil
@@ -381,7 +382,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		recipientTxFee = new(big.Int).Sub(totalTxFee, infraTxFee)
 		err = st.creditGas(*st.infrastructureAccountAddress, infraTxFee, msg.GasCurrency())
 	} else {
-		log.Error("no infrastructure account address found - sending entire txFee to fee recipient")
+		log.Debug("no infrastructure account address found - sending entire txFee to fee recipient")
 		recipientTxFee = totalTxFee
 	}
 
