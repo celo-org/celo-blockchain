@@ -198,12 +198,15 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+	sb.valEnodeTable.valEnodeTableMu.Lock()
+	defer sb.valEnodeTable.valEnodeTableMu.Unlock()
 	for _, sharedValidatorEnode := range valEnodeShareMessage.ValEnodes {
 		valEnode := &validatorEnode{
 			enodeURL: sharedValidatorEnode.EnodeURL,
 			view:     sharedValidatorEnode.View,
 		}
-		if err := sb.valEnodeTable.upsert(sharedValidatorEnode.Address, valEnode, valSet, sb.Address(), false, true); err != nil {
+		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, valEnode, valSet, sb.Address(), false, true); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "error", err)
 		}
 	}
