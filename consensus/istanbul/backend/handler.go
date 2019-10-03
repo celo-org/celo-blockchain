@@ -98,7 +98,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 					// Need to forward the message to the proxied validator
 					proxiedPeer := sb.broadcaster.GetProxiedPeer()
 					if proxiedPeer != nil {
-						proxiedPeer.Send(msg.Code, data)
+						go proxiedPeer.Send(msg.Code, data)
 					}
 				}
 			} else {
