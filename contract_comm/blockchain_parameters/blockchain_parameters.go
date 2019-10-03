@@ -65,7 +65,7 @@ func init() {
 	}
 }
 
-func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
+func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	var err error
 	_, err = contract_comm.MakeStaticCall(
@@ -78,15 +78,21 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 		header,
 		state,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return &params.VersionInfo{version[0].Uint64(), version[1].Uint64(), version[2].Uint64()}, nil
+}
+
+func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
+	version, err := GetMinimumVersion(header, state)
 
 	if err != nil {
 		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
 		return
 	}
 
-	if params.VersionMajor < version[0].Uint64() ||
-		params.VersionMajor == version[0].Uint64() && params.VersionMinor < version[1].Uint64() ||
-		params.VersionMajor == version[0].Uint64() && params.VersionMinor == version[1].Uint64() && params.VersionPatch < version[2].Uint64() {
+	if params.CurrentVersionInfo.Cmp(version) == -1 {
 		log.Crit("Client version older than required", "current", params.Version, "required", version)
 	}
 
