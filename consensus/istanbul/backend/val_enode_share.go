@@ -74,6 +74,7 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 
 	sharedEnodesBytes, err := rlp.EncodeToBytes(sharedValidatorEnodes)
 	if err != nil {
+		sb.logger.Error("Error encoding Istanbul Validator Enode Share message content", "sharedValidatorEnodes", sharedValidatorEnodes, "err", err)
 		return nil, err
 	}
 
