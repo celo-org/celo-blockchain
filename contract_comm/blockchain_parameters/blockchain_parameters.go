@@ -55,9 +55,15 @@ const (
 
 const defaultGasAmount = 2000000
 
-var (
-	blockchainParametersABI, _ = abi.JSON(strings.NewReader(blockchainParametersABIString))
-)
+var blockchainParametersABI abi.ABI
+
+func init() {
+	var err error
+	blockchainParametersABI, err = abi.JSON(strings.NewReader(blockchainParametersABIString))
+	if err != nil {
+		log.Error("Error reading ABI for BlockchainParameters", "err", err)
+	}
+}
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
