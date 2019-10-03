@@ -81,7 +81,7 @@ func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Addres
 }
 
 // This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
-func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, forcePeer bool) error {
+func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
 	vet.valEnodeTableMu.Lock()
 	defer vet.valEnodeTableMu.Unlock()
 
@@ -113,7 +113,7 @@ func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode
 	if _, remoteNode := valSet.GetByAddress(remoteAddress); remoteNode != nil {
 		// TODO: remove `forcePeer` once we can tell if the current node is a proxy
 		// for a validator in the current valSet
-		if _, localNode := valSet.GetByAddress(localAddress); localNode != nil || forcePeer {
+		if _, localNode := valSet.GetByAddress(localAddress); (localNode != nil && !isProxied) || isSentry {
 			vet.addValidatorPeer(newValEnode.enodeURL)
 		}
 	}

@@ -262,7 +262,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: announceMessage.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), false); err != nil {
+		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), sb.broadcaster.Proxied(), false); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
 			return err
 		}
