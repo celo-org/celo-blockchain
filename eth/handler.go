@@ -379,7 +379,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 		addr := crypto.PubkeyToAddress(*pubKey)
-		handled, err := handler.HandleMsg(addr, msg)
+		handled, err := handler.HandleMsg(addr, msg, p.IsProxied)
 		if handled {
 			return err
 		}
@@ -910,4 +910,19 @@ func (pm *ProtocolManager) GetLocalNode() *enode.Node {
 
 func (pm *ProtocolManager) GetNodeKey() *ecdsa.PrivateKey {
 	return pm.server.PrivateKey
+}
+
+func (pm *ProtocolManager) GetProxiedPeer() consensus.Peer {
+	if pm.IsSentry() {
+		for _, p := range pm.peers.Peers() {
+			if p.IsProxied {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+func (pm *ProtocolManager) IsSentry() bool {
+	return pm.proxyServer != nil
 }

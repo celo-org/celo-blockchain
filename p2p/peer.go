@@ -114,7 +114,7 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	IsProxy bool
+	IsProxied bool
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -183,17 +183,17 @@ func (p *Peer) Validator() bool {
 	return p.rw.is(validatorConn)
 }
 
-func newPeer(conn *conn, protocols []Protocol, IsProxy bool) *Peer {
+func newPeer(conn *conn, protocols []Protocol, IsProxied bool) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:       conn,
-		running:  protomap,
-		created:  mclock.Now(),
-		disc:     make(chan DiscReason),
-		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:   make(chan struct{}),
-		log:      log.New("id", conn.node.ID(), "conn", conn.flags),
-		IsProxy:  IsProxy,
+		rw:        conn,
+		running:   protomap,
+		created:   mclock.Now(),
+		disc:      make(chan DiscReason),
+		protoErr:  make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:    make(chan struct{}),
+		log:       log.New("id", conn.node.ID(), "conn", conn.flags),
+		IsProxied: IsProxied,
 	}
 	return p
 }

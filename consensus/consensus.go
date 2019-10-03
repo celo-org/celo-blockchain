@@ -133,7 +133,7 @@ type Handler interface {
 	NewChainHead() error
 
 	// HandleMsg handles a message from peer
-	HandleMsg(address common.Address, data p2p.Msg) (bool, error)
+	HandleMsg(address common.Address, data p2p.Msg, fromProxiedPeer bool) (bool, error)
 
 	// SetBroadcaster sets the broadcaster to send message to peers
 	SetBroadcaster(Broadcaster)

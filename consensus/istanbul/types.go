@@ -277,6 +277,7 @@ type Message struct {
 	Address       common.Address
 	Signature     []byte
 	CommittedSeal []byte
+	DestAddresses []common.Address // This is non nil for consensus messages sent from a proxied validator
 }
 
 // ==============================================
@@ -285,7 +286,7 @@ type Message struct {
 
 // EncodeRLP serializes m into the Ethereum RLP format.
 func (m *Message) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal})
+	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal, m.DestAddresses})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
@@ -296,12 +297,13 @@ func (m *Message) DecodeRLP(s *rlp.Stream) error {
 		Address       common.Address
 		Signature     []byte
 		CommittedSeal []byte
+		DestAddresses []common.Address
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal = msg.Code, msg.Msg, msg.Address, msg.Signature, msg.CommittedSeal
+	m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal, m.DestAddresses = msg.Code, msg.Msg, msg.Address, msg.Signature, msg.CommittedSeal, m.DestAddresses
 	return nil
 }
 
@@ -346,6 +348,7 @@ func (m *Message) PayloadNoSig() ([]byte, error) {
 		Address:       m.Address,
 		Signature:     []byte{},
 		CommittedSeal: m.CommittedSeal,
+		DestAddresses: m.DestAddresses,
 	})
 }
 

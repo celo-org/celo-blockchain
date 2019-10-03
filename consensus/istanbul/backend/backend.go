@@ -162,9 +162,9 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
+func (sb *Backend) Broadcast(validators []common.Address, payload []byte) error {
 	// send to others
-	sb.Gossip(valSet, payload, istanbulMsg, false)
+	sb.Gossip(validators, payload, istanbulMsg, false)
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -174,7 +174,7 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+func (sb *Backend) Gossip(validators []common.Address, payload []byte, msgCode uint64, ignoreCache bool) error {
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
@@ -183,16 +183,16 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 
 	var targets map[common.Address]bool = nil
 
-	if valSet != nil {
+	if validators != nil {
 		targets = make(map[common.Address]bool)
-		for _, val := range valSet.List() {
-			if val.Address() != sb.Address() {
-				targets[val.Address()] = true
+		for _, val := range validators {
+			if val != sb.Address() {
+				targets[val] = true
 			}
 		}
 	}
 
-	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
+	if sb.broadcaster != nil && ((validators == nil) || (len(targets) > 0)) {
 		ps := sb.broadcaster.FindPeers(targets)
 		for addr, p := range ps {
 			if !ignoreCache {

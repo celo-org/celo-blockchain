@@ -47,7 +47,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 }
 
 // HandleMsg implements consensus.Handler.HandleMsg
-func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
+func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer bool) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
@@ -81,9 +81,31 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 		sb.knownMessages.Add(hash, true)
 
 		if msg.Code == istanbulMsg {
-			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-				Payload: data,
-			})
+			if sb.broadcaster.IsSentry() {
+
+				if fromProxiedPeer {
+					// Reveived a message from this sentry's proxied validator
+					// Note that we are NOT verifying the signature of the message that is sent from the
+					// proxied validator, since it's a trusted peer and all the other validators will
+					// verify the signature.
+					istMsg := new(istanbul.Message)
+					if err := istMsg.Decode(data); err != nil {
+						sb.logger.Error("Failed to decode message from payload", "err", err)
+						return true, err
+					}
+					go sb.Gossip(istMsg.DestAddresses, data, msg.Code, false)
+				} else {
+					// Need to forward the message to the proxied validator
+					proxiedPeer := sb.broadcaster.GetProxiedPeer()
+					if proxiedPeer != nil {
+						proxiedPeer.Send(msg.Code, data)
+					}
+				}
+			} else {
+				go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+					Payload: data,
+				})
+			}
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
 		}

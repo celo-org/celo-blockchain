@@ -91,7 +91,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message []byte) error {
+func (self *testSystemBackend) Broadcast(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	self.sys.queuedMessage <- istanbul.MessageEvent{
@@ -99,7 +99,7 @@ func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message [
 	}
 	return nil
 }
-func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte, msgCode uint64, ignoreCache bool) error {
+func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
 	return nil
 }
 
