@@ -75,6 +75,7 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 
 	if err != nil {
 		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
+		return
 	}
 
 	if params.VersionMajor < version[0].Uint64() ||
