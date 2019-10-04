@@ -57,8 +57,6 @@ var (
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
 
-	testVerificationService = ""
-
 	// Test transactions
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
