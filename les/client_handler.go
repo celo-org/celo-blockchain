@@ -41,15 +41,17 @@ type clientHandler struct {
 	backend    *LightEthereum
 	syncMode   downloader.SyncMode
 	
-	closeCh chan struct{}
-	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
+	closeCh  chan struct{}
+	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
+	syncDone func()         // Test hooks when syncing is done.
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
 	handler := &clientHandler{
-		backend:  backend,
-		closeCh:  make(chan struct{}),
-		syncMode: syncMode,
+		checkpoint: checkpoint,
+		backend:    backend,
+		closeCh:    make(chan struct{}),
+		syncMode:   syncMode,
 	}
 	if ulcServers != nil {
 		ulc, err := newULC(ulcServers, ulcFraction)
