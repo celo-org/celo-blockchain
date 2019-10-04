@@ -59,7 +59,7 @@ var (
 	extraVanity         = 32                                // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraProposedSigner = 20                                // Fixed number of extra-data prefix bytes reserved for proposed signer. Comes after extraVanity.
 	extraPrefix         = extraVanity + extraProposedSigner // The number of extra-data prefix bytes reserved for the vaniry and proposed signer.
-	extraSeal           = 65                                // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraSeal           = crypto.SignatureLength            // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
@@ -774,7 +774,7 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 		header.GasLimit,
 		header.GasUsed,
 		header.Time,
-		header.Extra[:len(header.Extra)-65], // Yes, this will panic if extra is too short
+		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
 		header.MixDigest,
 		header.Nonce,
 	})

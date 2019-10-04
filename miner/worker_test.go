@@ -112,8 +112,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	switch engine.(type) {
 	case *clique.Clique:
-		gspec.ExtraData = make([]byte, 52+common.AddressLength+65)
-		copy(gspec.ExtraData[52:], testBankAddress[:])
+		gspec.ExtraData = make([]byte, 52+common.AddressLength+crypto.SignatureLength)
 		copy(gspec.ExtraData[52:], testBankAddress[:])
 	case *ethash.Ethash:
 	case *istanbulBackend.Backend:

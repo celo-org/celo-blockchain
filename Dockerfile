@@ -21,7 +21,7 @@ ADD ./vendor /go-ethereum/vendor
 RUN cd /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
 
 # Build Geth in a stock Go builder container
-FROM golang:1.12-alpine as builder
+FROM golang:1.13-alpine as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
@@ -36,5 +36,5 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 
-EXPOSE 8545 8546 30303 30303/udp
+EXPOSE 8545 8546 8547 30303 30303/udp
 ENTRYPOINT ["geth"]

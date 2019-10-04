@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 )
 
 const makeCostStats = false // make request cost statistics during operation
@@ -85,12 +86,13 @@ var (
 )
 
 const (
-	maxCostFactor    = 2 // ratio of maximum and average cost estimates
+	maxCostFactor    = 2    // ratio of maximum and average cost estimates
+	bufLimitRatio    = 6000 // fixed bufLimit/MRR ratio
 	gfUsageThreshold = 0.5
 	gfUsageTC        = time.Second
 	gfRaiseTC        = time.Second * 200
 	gfDropTC         = time.Second * 50
-	gfDbKey          = "_globalCostFactorV3"
+	gfDbKey          = "_globalCostFactorV6"
 )
 
 // costTracker is responsible for calculating costs and cost estimates on the
@@ -131,6 +133,10 @@ type costTracker struct {
 	totalRechargeCh chan uint64
 
 	stats map[uint64][]uint64 // Used for testing purpose.
+
+	// TestHooks
+	testing      bool            // Disable real cost evaluation for testing purpose.
+	testCostList RequestCostList // Customized cost table for testing purpose.
 }
 
 // newCostTracker creates a cost tracker and loads the cost factor statistics from the database.
@@ -225,6 +231,9 @@ type reqInfo struct {
 	// servingTime is the CPU time corresponding to the actual processing of
 	// the request.
 	servingTime float64
+
+	// msgCode indicates the type of request.
+	msgCode uint64
 }
 
 // gfLoop starts an event loop which updates the global cost factor which is
@@ -268,10 +277,43 @@ func (ct *costTracker) gfLoop() {
 		for {
 			select {
 			case r := <-ct.reqInfoCh:
+				relCost := int64(factor * r.servingTime * 100 / r.avgTimeCost) // Convert the value to a percentage form
+
+				// Record more metrics if we are debugging
+				if metrics.EnabledExpensive {
+					switch r.msgCode {
+					case GetBlockHeadersMsg:
+						relativeCostHeaderHistogram.Update(relCost)
+					case GetBlockBodiesMsg:
+						relativeCostBodyHistogram.Update(relCost)
+					case GetReceiptsMsg:
+						relativeCostReceiptHistogram.Update(relCost)
+					case GetCodeMsg:
+						relativeCostCodeHistogram.Update(relCost)
+					case GetProofsV2Msg:
+						relativeCostProofHistogram.Update(relCost)
+					case GetHelperTrieProofsMsg:
+						relativeCostHelperProofHistogram.Update(relCost)
+					case SendTxV2Msg:
+						relativeCostSendTxHistogram.Update(relCost)
+					case GetTxStatusMsg:
+						relativeCostTxStatusHistogram.Update(relCost)
+					}
+				}
+				// SendTxV2 and GetTxStatus requests are two special cases.
+				// All other requests will only put pressure on the database, and
+				// the corresponding delay is relatively stable. While these two
+				// requests involve txpool query, which is usually unstable.
+				//
+				// TODO(rjl493456442) fixes this.
+				if r.msgCode == SendTxV2Msg || r.msgCode == GetTxStatusMsg {
+					continue
+				}
 				requestServedMeter.Mark(int64(r.servingTime))
-				requestEstimatedMeter.Mark(int64(r.avgTimeCost / factor))
 				requestServedTimer.Update(time.Duration(r.servingTime))
-				relativeCostHistogram.Update(int64(r.avgTimeCost / factor / r.servingTime))
+				requestEstimatedMeter.Mark(int64(r.avgTimeCost / factor))
+				requestEstimatedTimer.Update(time.Duration(r.avgTimeCost / factor))
+				relativeCostHistogram.Update(relCost)
 
 				now := mclock.Now()
 				dt := float64(now - expUpdate)
@@ -322,12 +364,12 @@ func (ct *costTracker) gfLoop() {
 							default:
 							}
 						}
+						globalFactorGauge.Update(int64(1000 * factor))
 						log.Debug("global cost factor updated", "factor", factor)
 					}
 				}
 				recentServedGauge.Update(int64(recentTime))
 				recentEstimatedGauge.Update(int64(recentAvg))
-				totalRechargeGauge.Update(int64(totalRecharge))
 
 			case <-saveTicker.C:
 				saveCostFactor()
@@ -374,7 +416,7 @@ func (ct *costTracker) updateStats(code, amount, servingTime, realCost uint64) {
 	avg := reqAvgTimeCost[code]
 	avgTimeCost := avg.baseCost + amount*avg.reqCost
 	select {
-	case ct.reqInfoCh <- reqInfo{float64(avgTimeCost), float64(servingTime)}:
+	case ct.reqInfoCh <- reqInfo{float64(avgTimeCost), float64(servingTime), code}:
 	default:
 	}
 	if makeCostStats {
