@@ -22,9 +22,9 @@ import "fmt"
 type SyncMode int
 
 const (
-	FullSync       SyncMode = iota // Synchronise the entire blockchain history from full blocks
-	FastSync                       // Quickly download the headers, full sync only at the chain head
-	LightSync                      // Download only the headers and terminate afterwards
+	FullSync     SyncMode = iota // Synchronise the entire blockchain history from full blocks
+	FastSync                     // Quickly download the headers, full sync only at the chain head
+	LightSync                    // Download only the headers and terminate afterwards
 	LightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
 )
 

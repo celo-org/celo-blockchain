@@ -731,14 +731,14 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
-	From            *common.Address  `json:"from"`
+	From            *common.Address `json:"from"`
 	To              *common.Address `json:"to"`
-	Gas             *hexutil.Uint64  `json:"gas"`
-	GasPrice        *hexutil.Big     `json:"gasPrice"`
+	Gas             *hexutil.Uint64 `json:"gas"`
+	GasPrice        *hexutil.Big    `json:"gasPrice"`
 	GasCurrency     *common.Address `json:"gasCurrency"`
 	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
-	Value           *hexutil.Big     `json:"value"`
-	Data            *hexutil.Bytes   `json:"data"`
+	Value           *hexutil.Big    `json:"value"`
+	Data            *hexutil.Bytes  `json:"data"`
 }
 
 // account indicates the overriding fields of account during the execution of
@@ -1432,7 +1432,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			args.GasFeeRecipient = &recipient
 		}
 	}
-	
+
 	// Estimate the gas usage if necessary.
 	if args.Gas == nil {
 		// For backwards-compatibility reason, we try both input and data

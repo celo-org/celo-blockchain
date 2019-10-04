@@ -66,7 +66,7 @@ type LightEthereum struct {
 	accountManager *accounts.Manager
 	netRPCService  *ethapi.PublicNetAPI
 
-	networkId uint64 
+	networkId uint64
 }
 
 func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {

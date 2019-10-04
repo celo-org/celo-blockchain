@@ -1095,7 +1095,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				// chain errors.
 
 				// Don't delay last few headers in IBFT since we are not expecting chain reorgs in IBFT
-				if !d.ibftConsensus {			
+				if !d.ibftConsensus {
 					if n := len(headers); n > 0 {
 						// Retrieve the current head we're at
 						var head uint64

@@ -210,7 +210,6 @@ var (
 		Threshold: 2,
 	}
 
-
 	// OttomanChainConfig contains the chain parameters to run a node on the Ottoman test network.
 	OttomanChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(5),

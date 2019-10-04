@@ -40,7 +40,7 @@ type clientHandler struct {
 	downloader *downloader.Downloader
 	backend    *LightEthereum
 	syncMode   downloader.SyncMode
-	
+
 	closeCh  chan struct{}
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.

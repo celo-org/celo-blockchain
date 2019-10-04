@@ -38,10 +38,10 @@ type Config struct {
 	PrivateKey *ecdsa.PrivateKey
 
 	// These settings are optional:
-	NetRestrict *netutil.Netlist  // network whitelist
-	Bootnodes   []*enode.Node     // list of bootstrap nodes
-	Unhandled   chan<- ReadPacket // unhandled packets are sent on this channel
-	Log         log.Logger        // if set, log messages go here
+	NetRestrict      *netutil.Netlist  // network whitelist
+	Bootnodes        []*enode.Node     // list of bootstrap nodes
+	Unhandled        chan<- ReadPacket // unhandled packets are sent on this channel
+	Log              log.Logger        // if set, log messages go here
 	PingIPFromPacket bool
 }
 

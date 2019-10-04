@@ -225,7 +225,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
 	}
-	
+
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 

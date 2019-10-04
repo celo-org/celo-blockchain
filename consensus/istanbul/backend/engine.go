@@ -47,10 +47,10 @@ import (
 )
 
 const (
-	inmemorySnapshots             = 128 // Number of recent vote snapshots to keep in memory
-	inmemoryPeers                 = 40
-	inmemoryMessages              = 1024
-	mobileAllowedClockSkew        = uint64(5)
+	inmemorySnapshots      = 128 // Number of recent vote snapshots to keep in memory
+	inmemoryPeers          = 40
+	inmemoryMessages       = 1024
+	mobileAllowedClockSkew = uint64(5)
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/LockedGold.json
 	setCumulativeRewardWeightABI = `[{
@@ -186,7 +186,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// This is due to potential clock skew
 	allowedFutureBlockTime := uint64(now().Unix())
 	if !chain.Config().FullHeaderChainAvailable {
-		allowedFutureBlockTime =  allowedFutureBlockTime + mobileAllowedClockSkew
+		allowedFutureBlockTime = allowedFutureBlockTime + mobileAllowedClockSkew
 	}
 
 	// Don't waste time checking blocks from the future
@@ -453,8 +453,8 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header) {
-		header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-		header.UncleHash = types.CalcUncleHash(nil)
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 }
 
 // FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
@@ -536,7 +536,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 			}
 		}
 	}
-	
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 

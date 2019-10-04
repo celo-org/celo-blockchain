@@ -88,11 +88,11 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address          common.Address           // Ethereum address of the signing key
-	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
+	address          common.Address              // Ethereum address of the signing key
+	signFn           istanbul.SignerFn           // Signer function to authorize hashes with
 	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.BLSMessageSignerFn // Signer function to authorize messages using BLS with
-	signFnMu         sync.RWMutex             // Protects the signer fields
+	signFnMu         sync.RWMutex                // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
