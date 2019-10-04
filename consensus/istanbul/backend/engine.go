@@ -21,10 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -33,6 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
+	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -50,39 +50,6 @@ const (
 	inmemoryPeers                 = 40
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
-
-	// TODO(asa): Move this to contract_comm
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	increaseSupplyABI = `[{
-		"constant": false,
-		"inputs": [
-		  {
-			"name": "amount",
-			"type": "uint256"
-		  }
-		],
-		"name": "increaseSupply",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-		}]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	totalSupplyABI = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
 )
 
 var (
@@ -137,9 +104,6 @@ var (
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
-
-	increaseSupplyFuncABI, _ = abi.JSON(strings.NewReader(increaseSupplyABI))
-	totalSupplyFuncABI, _    = abi.JSON(strings.NewReader(totalSupplyABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -445,51 +409,10 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
-	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
-	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
-		log.Debug("Registry address lookup failed", "err", err)
-	} else if err != nil {
-		log.Error(err.Error())
-	}
-	// Add block rewards only if goldtoken smart contract has been initialized
-	if goldTokenAddress != nil {
-		totalBlockRewards := big.NewInt(0)
-
-		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
-		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Debug("Registry address lookup failed", "err", err)
-		} else if err != nil {
-			log.Error(err.Error())
-		}
-
-		if governanceAddress != nil {
-			state.AddBalance(*governanceAddress, infrastructureBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
-		}
-
-		// Update totalSupply of GoldToken.
-		if totalBlockRewards.Cmp(common.Big0) > 0 {
-			var totalSupply *big.Int
-			if _, err := contract_comm.MakeStaticCallWithAddress(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
-				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
-				return nil, err
-			}
-			if totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
-				data, err := sb.db.Get(core.DBGenesisSupplyKey)
-				if err != nil {
-					log.Error("Unable to fetch genesisSupply from db", "err", err)
-					return nil, err
-				}
-				genesisSupply := new(big.Int)
-				genesisSupply.SetBytes(data)
-				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
-			}
-			if _, err := contract_comm.MakeCallWithAddress(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
-				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
-				return nil, err
-			}
-		}
+	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+		sb.updateValidatorEpochScores(header, state)
+		sb.distributeEpochPayments(header, state)
+		sb.distributeEpochRewards(header, state)
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -497,6 +420,92 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
+}
+
+func (sb *Backend) updateValidatorEpochScores(header *types.Header, state *state.StateDB) error {
+	valSet := sb.GetValidators(header.Number, header.Hash())
+	for _, val := range valSet {
+		// TODO: Use actual uptime metric.
+		var uptime big.Int
+		// 1.0 in fixidity
+		uptime.Exp(big.NewInt(10), big.NewInt(24), nil)
+
+		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
+		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+			log.Debug("Registry address lookup failed", "err", err)
+		} else {
+			log.Error("Unable to update validator epoch score", "address", val.Address(), "err", err.Error())
+		}
+	}
+	return nil
+}
+
+func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB) error {
+	valSet := sb.GetValidators(header.Number, header.Hash())
+	for _, val := range valSet {
+		err := validators.DistributeEpochPayment(header, state, val.Address())
+		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+			log.Debug("Registry address lookup failed", "err", err)
+		} else {
+			log.Error("Unable to distribute epoch payment", "address", val.Address(), "err", err.Error())
+		}
+	}
+	return nil
+}
+
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
+	_, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
+	if err != nil {
+		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+			log.Debug("Registry address lookup failed", "err", err)
+		} else {
+			log.Error(err.Error())
+		}
+		return err
+	}
+
+	totalEpochRewards := big.NewInt(0)
+
+	// Fixed epoch reward to the infrastructure fund.
+	infrastructureEpochReward := big.NewInt(params.Ether)
+	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
+	if err == contract_errors.ErrSmartContractNotDeployed {
+		log.Debug("Registry address lookup failed", "err", err)
+	} else if err != nil {
+		log.Error(err.Error())
+	}
+
+	if governanceAddress != nil {
+		state.AddBalance(*governanceAddress, infrastructureEpochReward)
+		totalEpochRewards.Add(totalEpochRewards, infrastructureEpochReward)
+	}
+
+	// Update totalSupply of GoldToken.
+	if totalEpochRewards.Cmp(common.Big0) > 0 {
+		totalSupply, err := gold_token.GetTotalSupply(header, state)
+		if err != nil || totalSupply == nil {
+			log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
+			return err
+		}
+		// totalSupply not yet initialized.
+		if totalSupply.Cmp(common.Big0) == 0 {
+			data, err := sb.db.Get(core.DBGenesisSupplyKey)
+			if err != nil {
+				log.Error("Unable to fetch genesisSupply from db", "err", err)
+				return err
+			}
+			genesisSupply := new(big.Int)
+			genesisSupply.SetBytes(data)
+			totalEpochRewards.Add(totalEpochRewards, genesisSupply)
+		}
+
+		err = gold_token.IncreaseSupply(header, state, totalEpochRewards)
+		if err != nil {
+			log.Error("Unable to increment goldTotalSupply for epoch rewards", "err", err)
+			return err
+		}
+	}
+	return nil
 }
 
 // Seal generates a new block for the given input block with the local miner's

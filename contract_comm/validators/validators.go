@@ -17,6 +17,7 @@ package validators
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -70,11 +71,57 @@ const validatorsABIString string = `[
             "name": "affiliation",
             "type": "address"
           }
+					{
+						"name": "score",
+						"type": "uint256"
+					}
         ],
         "payable": false,
         "stateMutability": "view",
           "type": "function"
           }
+					    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "validator",
+          "type": "address"
+        }
+      ],
+      "name": "distributeEpochPayment",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+		    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "validator",
+          "type": "address"
+        },
+        {
+          "name": "uptime",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateValidatorScore",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
 ]`
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
@@ -82,7 +129,6 @@ var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[common.Address]bool, error) {
 	var regVals []common.Address
 
-	// Get the new epoch's validator set
 	maxGasForGetRegisteredValidators := uint64(1000000)
 	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
@@ -121,4 +167,34 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 		})
 	}
 	return validatorData, nil
+}
+
+func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common.Address, uptime big.Int) error {
+	_, err := contract_comm.MakeCall(
+		params.ValidatorsRegistryId,
+		validatorsABI,
+		"updateValidatorScore",
+		[]interface{}{address, uptime},
+		nil,
+		params.MaxGasForUpdateValidatorScore,
+		big.NewInt(0),
+		header,
+		state,
+	)
+	return err
+}
+
+func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address) error {
+	_, err := contract_comm.MakeCall(
+		params.ValidatorsRegistryId,
+		validatorsABI,
+		"distributeEpochPayment",
+		[]interface{}{address},
+		nil,
+		params.MaxGasForDistributeEpochPayment,
+		big.NewInt(0),
+		header,
+		state,
+	)
+	return err
 }

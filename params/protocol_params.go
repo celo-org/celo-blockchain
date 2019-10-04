@@ -158,4 +158,8 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 	MaxGasForGetValidator             uint64 = 100 * 1000
 	MaxGasForElectValidators          uint64 = 50 * 1000000
+	MaxGasForDistributeEpochPayment   uint64 = 100 * 1000
+	MaxGasForUpdateValidatorScore     uint64 = 100 * 1000
+	MaxGasForTotalSupply              uint64 = 50 * 1000
+	MaxGasForIncreaseSupply           uint64 = 50 * 1000
 )
