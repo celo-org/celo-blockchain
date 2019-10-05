@@ -555,13 +555,16 @@ func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.
 }
 
 func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	log.Info("Call from system")
 	call := func(transactionData []byte) ([]byte, uint64, error) {
+		log.Info("making evm Call")
 		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
 func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
+	log.Info("handle abi call")
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
 		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
@@ -575,7 +578,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 		return leftoverGas, err
 	}
 
-	log.Trace("EVM call successful", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
+	log.Info("EVM call successful", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {

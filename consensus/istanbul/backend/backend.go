@@ -362,6 +362,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
 	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	log.Info("elected validators", "val", newValSetAddresses)
 	if err != nil {
 		return nil, err
 	}

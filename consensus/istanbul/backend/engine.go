@@ -363,7 +363,9 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		newValSet, err := sb.getNewValidatorSet(header, state)
-		if err != nil {
+		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+			log.Debug("Registry address lookup failed", "err", err)
+		} else if err != nil {
 			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {
 			// Get the last epoch's validator set
@@ -410,8 +412,11 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		sb.updateValidatorEpochScores(header, state)
-		sb.distributeEpochPayments(header, state)
+		log.Info("Finalize - last block of epoch")
+		// The current validator set is the validator set from the previous block.
+		valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
+		sb.updateValidatorScores(header, state, valSet)
+		sb.distributeEpochPayments(header, state, valSet)
 		sb.distributeEpochRewards(header, state)
 	}
 
@@ -422,31 +427,30 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
 }
 
-func (sb *Backend) updateValidatorEpochScores(header *types.Header, state *state.StateDB) error {
-	valSet := sb.GetValidators(header.Number, header.Hash())
+func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	for _, val := range valSet {
 		// TODO: Use actual uptime metric.
 		var uptime big.Int
 		// 1.0 in fixidity
 		uptime.Exp(big.NewInt(10), big.NewInt(24), nil)
 
-		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
+		log.Info("Updating validator score for address", "address", val.Address(), "value", uptime)
+		err := validators.UpdateValidatorScore(header, state, val.Address(), &uptime)
 		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
 			log.Debug("Registry address lookup failed", "err", err)
-		} else {
+		} else if err != nil {
 			log.Error("Unable to update validator epoch score", "address", val.Address(), "err", err.Error())
 		}
 	}
 	return nil
 }
 
-func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB) error {
-	valSet := sb.GetValidators(header.Number, header.Hash())
+func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	for _, val := range valSet {
 		err := validators.DistributeEpochPayment(header, state, val.Address())
 		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
 			log.Debug("Registry address lookup failed", "err", err)
-		} else {
+		} else if err != nil {
 			log.Error("Unable to distribute epoch payment", "address", val.Address(), "err", err.Error())
 		}
 	}

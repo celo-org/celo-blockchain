@@ -46,40 +46,42 @@ const validatorsABIString string = `[
     "stateMutability": "view",
     "type": "function"
   },
-  {
-        "name": "getValidator",
-        "inputs": [
-          {
-            "name": "account",
-            "type": "address"
-          }
-        ],
-        "outputs": [
-          {
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "name": "url",
-            "type": "string"
-          },
-          {
-            "name": "publicKeysData",
-            "type": "bytes"
-          },
-          {
-            "name": "affiliation",
-            "type": "address"
-          }
-					{
-						"name": "score",
-						"type": "uint256"
-					}
-        ],
-        "payable": false,
-        "stateMutability": "view",
-          "type": "function"
-          }
+	    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "getValidator",
+      "outputs": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "publicKeysData",
+          "type": "bytes"
+        },
+        {
+          "name": "affiliation",
+          "type": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+
 					    {
       "constant": false,
       "inputs": [
@@ -89,12 +91,7 @@ const validatorsABIString string = `[
         }
       ],
       "name": "distributeEpochPayment",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
+      "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
@@ -112,16 +109,11 @@ const validatorsABIString string = `[
         }
       ],
       "name": "updateValidatorScore",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
+      "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
-    },
+    }
 ]`
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
@@ -151,6 +143,7 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 			Url            string
 			PublicKeysData []byte
 			Affiliation    common.Address
+			Score          *big.Int
 		}{}
 		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
 		if err != nil {
@@ -169,15 +162,15 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	return validatorData, nil
 }
 
-func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common.Address, uptime big.Int) error {
+func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common.Address, uptime *big.Int) error {
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"updateValidatorScore",
-		[]interface{}{address, uptime},
+		[]interface{}{address, big.NewInt(int64(1000))},
 		nil,
 		params.MaxGasForUpdateValidatorScore,
-		big.NewInt(0),
+		common.Big0,
 		header,
 		state,
 	)
@@ -192,7 +185,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 		[]interface{}{address},
 		nil,
 		params.MaxGasForDistributeEpochPayment,
-		big.NewInt(0),
+		common.Big0,
 		header,
 		state,
 	)

@@ -92,8 +92,7 @@ const (
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
-      } 
-    
+      }
   ]`
 )
 
