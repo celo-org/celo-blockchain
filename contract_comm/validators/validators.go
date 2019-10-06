@@ -113,6 +113,25 @@ const validatorsABIString string = `[
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+		    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "getMembershipInLastEpoch",
+      "outputs": [
+        {
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]`
 
@@ -167,7 +186,7 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"updateValidatorScore",
-		[]interface{}{address, big.NewInt(int64(1000))},
+		[]interface{}{address, uptime},
 		nil,
 		params.MaxGasForUpdateValidatorScore,
 		common.Big0,
@@ -190,4 +209,13 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 		state,
 	)
 	return err
+}
+
+func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {
+	var group common.Address
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpoch", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
+	if err != nil {
+		return common.ZeroAddress, err
+	}
+	return group, nil
 }

@@ -24,11 +24,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/election"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
@@ -412,12 +414,15 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		log.Info("Finalize - last block of epoch")
-		// The current validator set is the validator set from the previous block.
+		// The validator set that signs off on the last block of the epoch is the one that we need to
+		// iterate over.
 		valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
+		log.Info("Iterating over", "number", header.Number, "valset", valSet)
+		log.Info("Root before epoch updates", "root", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)))
 		sb.updateValidatorScores(header, state, valSet)
 		sb.distributeEpochPayments(header, state, valSet)
-		sb.distributeEpochRewards(header, state)
+		sb.distributeEpochRewards(header, state, valSet)
+		log.Info("Root after epoch updates", "root", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)))
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -430,16 +435,14 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	for _, val := range valSet {
 		// TODO: Use actual uptime metric.
-		var uptime big.Int
 		// 1.0 in fixidity
-		uptime.Exp(big.NewInt(10), big.NewInt(24), nil)
-
-		log.Info("Updating validator score for address", "address", val.Address(), "value", uptime)
-		err := validators.UpdateValidatorScore(header, state, val.Address(), &uptime)
+		uptime := math.BigPow(10, 24)
+		log.Info("Updating validator score for address", "address", val.Address(), "uptime", uptime.String())
+		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
 			log.Debug("Registry address lookup failed", "err", err)
 		} else if err != nil {
-			log.Error("Unable to update validator epoch score", "address", val.Address(), "err", err.Error())
+			log.Error("Unable to update validator score", "address", val.Address(), "err", err.Error())
 		}
 	}
 	return nil
@@ -447,6 +450,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 
 func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	for _, val := range valSet {
+		log.Info("Distributing epoch payment for address", "address", val.Address())
 		err := validators.DistributeEpochPayment(header, state, val.Address())
 		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
 			log.Debug("Registry address lookup failed", "err", err)
@@ -457,7 +461,29 @@ func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.St
 	return nil
 }
 
-func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
+	log.Info("Distributing epoch rewards")
+	groupElectedValidator := make(map[common.Address]bool)
+	for _, val := range valSet {
+		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
+		if err != nil {
+			log.Error("Error distributing epoch rewards, getting membership in last epoch", "err", err)
+		}
+		groupElectedValidator[group] = true
+	}
+
+	groups := make([]common.Address, 0, len(groupElectedValidator))
+	for group := range groupElectedValidator {
+		groups = append(groups, group)
+	}
+	err := election.DistributeEpochRewards(header, state, groups)
+	if err != nil {
+		log.Error("Error distributing epoch rewards", "err", err)
+	}
+	return err
+}
+
+func (sb *Backend) increaseGoldTokenTotalSupply(header *types.Header, state *state.StateDB) error {
 	_, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
 	if err != nil {
 		if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {

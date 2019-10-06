@@ -155,11 +155,14 @@ const (
 
 	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
-	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
-	MaxGasForGetValidator             uint64 = 100 * 1000
-	MaxGasForElectValidators          uint64 = 50 * 1000000
-	MaxGasForDistributeEpochPayment   uint64 = 100 * 1000
-	MaxGasForUpdateValidatorScore     uint64 = 100 * 1000
-	MaxGasForTotalSupply              uint64 = 50 * 1000
-	MaxGasForIncreaseSupply           uint64 = 50 * 1000
+	AdditionalGasForNonGoldCurrencies             uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
+	MaxGasForGetValidator                         uint64 = 100 * 1000
+	MaxGasForElectValidators                      uint64 = 50 * 1000000
+	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
+	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
+	MaxGasForTotalSupply                          uint64 = 50 * 1000
+	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
+	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
 )

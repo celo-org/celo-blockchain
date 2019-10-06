@@ -182,7 +182,6 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 }
 
 func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, mutateState bool) (uint64, error) {
-	log.Info("Creating evm")
 	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
@@ -191,7 +190,6 @@ func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, 
 	var gasLeft uint64
 
 	if mutateState {
-		log.Info("Making call")
 		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
 	} else {
 		gasLeft, err = vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
@@ -219,7 +217,6 @@ func SetInternalEVMHandler(chain ChainContext) {
 }
 
 func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
-	log.Info("Making call with contract id")
 	scAddress, err := GetRegisteredAddress(registryId, header, state)
 
 	if err != nil {
@@ -234,7 +231,6 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 			return 0, err
 		}
 	}
-	log.Info("Found registered contract")
 
 	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
 }

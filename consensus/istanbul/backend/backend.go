@@ -362,7 +362,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
 	newValSetAddresses, err := election.GetElectedValidators(header, state)
-	log.Info("elected validators", "val", newValSetAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -380,6 +379,10 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	}
 
 	newValSet, err := sb.getNewValidatorSet(block.Header(), state)
+	for _, val := range newValSet {
+		log.Info("New val set", "number", block.Header().Number, "validator", val.Address)
+	}
+
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
