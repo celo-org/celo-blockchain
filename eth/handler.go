@@ -283,9 +283,10 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
 	isValPeer := p.Validator()
+	isSentryPeer := p.Sentry()
 
-	// Ignore maxPeers if this is a trusted peer or a validator peer
-	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer) {
+	// Ignore maxPeers if this is a trusted, validator, or sentry peer
+	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)-pm.server.SentryCount()) && !(p.Peer.Info().Network.Trusted || isValPeer || isSentryPeer) {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())

@@ -564,6 +564,10 @@ var (
 		Name:  "netrestrict",
 		Usage: "Restricts network communication to the given IP networks (CIDR masks)",
 	}
+	ProxiedFlag = cli.BoolFlag{
+		Name:  "proxied",
+		Usage: "Indicates the node will be proxied by sentry nodes. Disables discovery.",
+	}
 	PingIPFromPacketFlag = cli.BoolFlag{
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
@@ -1005,10 +1009,16 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(MaxPendingPeersFlag.Name) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
-	if ctx.GlobalIsSet(NoDiscoverFlag.Name) || lightClient {
+	if ctx.GlobalBool(ProxiedFlag.Name) {
+		if !ctx.GlobalBool(MiningEnabledFlag.Name) {
+			log.Warn("Node is proxied but is not configured to mine")
+		}
+		cfg.Proxied = true
+	}
+	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient || cfg.Proxied {
 		cfg.NoDiscovery = true
 	}
-	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
+	if ctx.GlobalBool(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
 	}
 	if ctx.GlobalIsSet(UseInMemoryDiscoverTableFlag.Name) {

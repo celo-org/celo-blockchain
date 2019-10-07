@@ -184,6 +184,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NetrestrictFlag,
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
+			utils.ProxiedFlag,
 			utils.PingIPFromPacketFlag,
 			utils.UseInMemoryDiscoverTableFlag,
 			utils.IsSentryFlag,
@@ -236,6 +237,13 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: whisperFlags,
 	},
 	{
+		Name: "ISTANBUL",
+		Flags: []cli.Flag{
+			utils.IstanbulRequestTimeoutFlag,
+			utils.IstanbulBlockPeriodFlag,
+		},
+	},
+	{
 		Name: "DEPRECATED",
 		Flags: []cli.Flag{
 			utils.MinerLegacyThreadsFlag,
@@ -246,13 +254,6 @@ var AppHelpFlagGroups = []flagGroup{
 	},
 	{
 		Name: "MISC",
-	},
-	{
-		Name: "ISTANBUL",
-		Flags: []cli.Flag{
-			utils.IstanbulRequestTimeoutFlag,
-			utils.IstanbulBlockPeriodFlag,
-		},
 	},
 }
 

@@ -76,6 +76,37 @@ func (api *PrivateAdminAPI) RemovePeer(url string) (bool, error) {
 	return true, nil
 }
 
+// AddSentry peers with a remote node that acts as a sentry, even if slots are full
+func (api *PrivateAdminAPI) AddSentry(url string) (bool, error) {
+	// Make sure the server is running, fail otherwise
+	server := api.node.Server()
+	if server == nil {
+		return false, ErrNodeStopped
+	}
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+	server.AddSentryPeer(node)
+	return true, nil
+}
+
+// RemoveSentry removes a node from acting as a sentry
+func (api *PrivateAdminAPI) RemoveSentry(url string) (bool, error) {
+	// Make sure the server is running, fail otherwise
+	server := api.node.Server()
+	if server == nil {
+		return false, ErrNodeStopped
+	}
+	// Try to remove the url as a sentry and return
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+	server.RemoveSentryPeer(node)
+	return true, nil
+}
+
 // AddTrustedPeer allows a remote node to always connect, even if slots are full
 func (api *PrivateAdminAPI) AddTrustedPeer(url string) (bool, error) {
 	// Make sure the server is running, fail otherwise
@@ -302,6 +333,16 @@ func (api *PublicAdminAPI) NodeInfo() (*p2p.NodeInfo, error) {
 		return nil, ErrNodeStopped
 	}
 	return server.NodeInfo(), nil
+}
+
+// SentryInfo retrieves all the information we know about each individual sentry
+// node at the protocol granularity.
+func (api *PublicAdminAPI) SentryInfo() ([]*p2p.PeerInfo, error) {
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.SentryInfo(), nil
 }
 
 // Datadir retrieves the current data directory the node is using.

@@ -139,6 +139,7 @@ var (
 		configFileFlag,
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
+		utils.ProxiedFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.IsSentryFlag,
