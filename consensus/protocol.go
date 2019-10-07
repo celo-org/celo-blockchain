@@ -71,6 +71,10 @@ type Broadcaster interface {
 	IsSentry() bool
 	// Returns the proxied peer, if this node is a sentry
 	GetProxiedPeer() Peer
+	// Returns if this node is intended to be proxied by sentry nodes
+	Proxied() bool
+	// Gets all of the sentry peers
+	GetSentryPeers() []Peer
 }
 
 // Peer defines the interface to communicate with peer

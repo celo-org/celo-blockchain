@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	istanbulMsg         = 0x11
-	istanbulAnnounceMsg = 0x12
+	istanbulMsg              = 0x11
+	istanbulAnnounceMsg      = 0x12
+	istanbulValEnodeShareMsg = 0x13
 )
 
 var (
@@ -41,7 +42,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{19},
+		Lengths:  []uint64{20},
 		Primary:  true,
 	}
 }
@@ -51,7 +52,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) {
+	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
 		if !sb.coreStarted && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
@@ -108,6 +109,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 			}
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
+		} else if msg.Code == istanbulValEnodeShareMsg {
+			go sb.handleValEnodeShareMsg(data)
 		}
 
 		return true, nil
@@ -132,14 +135,16 @@ func (sb *Backend) NewChainHead() error {
 	// and disconnect from the ones that are no longer in the val set.
 	currentBlock := sb.currentBlock()
 	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "current block number", currentBlock.Number().Uint64())
+		sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "current block number", currentBlock.Number().Uint64())
 		valset := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
 		if _, val := valset.GetByAddress(sb.Address()); val == nil {
 			sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-		go sb.RefreshValPeers(valset)
+		if !sb.Proxied() {
+			go sb.RefreshValPeers(valset)
+		}
 	}
 
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})

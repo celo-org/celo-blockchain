@@ -79,10 +79,11 @@ type ProtocolManager struct {
 	chainconfig *params.ChainConfig
 	maxPeers    int
 
-	downloader *downloader.Downloader
-	fetcher    *fetcher.Fetcher
-	peers      *peerSet
-	valPeers   map[string]bool
+	downloader  *downloader.Downloader
+	fetcher     *fetcher.Fetcher
+	peers       *peerSet
+	valPeers    map[string]bool
+	sentryPeers map[string]bool
 
 	SubProtocols []p2p.Protocol
 
@@ -123,6 +124,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		chainconfig: config,
 		peers:       newPeerSet(),
 		valPeers:    make(map[string]bool),
+		sentryPeers: make(map[string]bool),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
@@ -224,6 +226,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 		log.Error("Peer removal failed", "peer", id, "err", err)
 	}
 	delete(pm.valPeers, id)
+	delete(pm.sentryPeers, id)
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
@@ -268,6 +271,9 @@ func (pm *ProtocolManager) Stop() {
 	for id := range pm.valPeers {
 		delete(pm.valPeers, id)
 	}
+	for id := range pm.sentryPeers {
+		delete(pm.sentryPeers, id)
+	}
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
@@ -286,7 +292,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	isSentryPeer := p.Sentry()
 
 	// Ignore maxPeers if this is a trusted, validator, or sentry peer
-	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)-pm.server.SentryCount()) && !(p.Peer.Info().Network.Trusted || isValPeer || isSentryPeer) {
+	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)-len(pm.sentryPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer || isSentryPeer) {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -314,7 +320,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	if isValPeer {
 		pm.valPeers[p.id] = true
+	} else if isSentryPeer {
+		pm.sentryPeers[p.id] = true
 	}
+
 	defer pm.removePeer(p.id)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
@@ -903,6 +912,21 @@ func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
 
 func (pm *ProtocolManager) GetValidatorPeers() []string {
 	return pm.server.ValPeers()
+}
+
+func (pm *ProtocolManager) Proxied() bool {
+	return pm.server.Proxied
+}
+
+// GetSentryPeers returns an array of all the sentry peers
+func (pm *ProtocolManager) GetSentryPeers() []consensus.Peer {
+	peers := make([]consensus.Peer, len(pm.sentryPeers))
+	i := 0
+	for id := range pm.sentryPeers {
+		peers[i] = pm.peers.Peer(id)
+		i++
+	}
+	return peers
 }
 
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {

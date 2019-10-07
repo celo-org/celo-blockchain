@@ -41,15 +41,13 @@ import (
 // define the istanbul announce message
 
 type announceMessage struct {
-	Address               common.Address
 	IncompleteEnodeURL    string
 	EncryptedEndpointData [][][]byte
 	View                  *istanbul.View
-	Signature             []byte
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{Address: %s, View: %v, IncompleteEnodeURL: %v, Signature: %v}", am.Address.String(), am.View, am.IncompleteEnodeURL, hex.EncodeToString(am.Signature))
+	return fmt.Sprintf("{View: %v, IncompleteEnodeURL: %v}", am.View, am.IncompleteEnodeURL)
 }
 
 // ==============================================
@@ -58,82 +56,21 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature})
+	return rlp.Encode(w, []interface{}{am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address               common.Address
 		IncompleteEnodeURL    string
 		EncryptedEndpointData [][][]byte
 		View                  *istanbul.View
-		Signature             []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.Address, am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View, am.Signature = msg.Address, msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View, msg.Signature
-	return nil
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for the istanbul announce sender and handler
-func (am *announceMessage) FromPayload(b []byte) error {
-	// Decode message
-	err := rlp.DecodeBytes(b, &am)
-	return err
-}
-
-func (am *announceMessage) Payload() ([]byte, error) {
-	return rlp.EncodeToBytes(am)
-}
-
-func (am *announceMessage) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	// Construct and encode a message with no signature
-	var payloadNoSig []byte
-	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:               am.Address,
-		IncompleteEnodeURL:    am.IncompleteEnodeURL,
-		EncryptedEndpointData: am.EncryptedEndpointData,
-		View:                  am.View,
-		Signature:             []byte{},
-	})
-	if err != nil {
-		return err
-	}
-	am.Signature, err = signingFn(payloadNoSig)
-	return err
-}
-
-func (am *announceMessage) VerifySig() error {
-	// Construct and encode a message with no signature
-	var payloadNoSig []byte
-	payloadNoSig, err := rlp.EncodeToBytes(&announceMessage{
-		Address:               am.Address,
-		IncompleteEnodeURL:    am.IncompleteEnodeURL,
-		EncryptedEndpointData: am.EncryptedEndpointData,
-		View:                  am.View,
-		Signature:             []byte{},
-	})
-	if err != nil {
-		return err
-	}
-
-	sigAddr, err := istanbul.GetSignatureAddress(payloadNoSig, am.Signature)
-	if err != nil {
-		return err
-	}
-
-	if sigAddr != am.Address {
-		log.Error("Address in the message is different than the address that signed it",
-			"sigAddr", sigAddr.Hex(),
-			"msg.Address", am.Address.Hex())
-		return errInvalidSignature
-	}
-
+	am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View = msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View
 	return nil
 }
 
@@ -204,27 +141,39 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		}
 	}
 
-	msg := &announceMessage{
-		Address:               sb.Address(),
+	announceMessage := &announceMessage{
 		IncompleteEnodeURL:    incompleteEnodeUrl,
 		EncryptedEndpointData: encryptedEndpoints,
 		View:                  view,
 	}
 
+	announceBytes, err := rlp.EncodeToBytes(announceMessage)
+	if err != nil {
+		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceMsg", announceMessage.String(), "err", err)
+	}
+
+	msg := &istanbul.Message{
+		Code:          istanbulAnnounceMsg,
+		Msg:           announceBytes,
+		Address:       sb.Address(),
+		Signature:     []byte{},
+		CommittedSeal: []byte{},
+	}
+
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in signing an Istanbul Announce Message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String(), "err", err)
 		return nil, err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
-		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String(), "err", err)
 		return nil, err
 	}
 
-	sb.logger.Trace("Broadcasting an announce message", "AnnounceMsg", msg)
+	sb.logger.Trace("Broadcasting an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 
 	return payload, nil
 }
@@ -247,17 +196,11 @@ func (sb *Backend) sendIstAnnounce() error {
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.logger.Trace("Handling an IstanbulAnnounce message")
 
-	msg := new(announceMessage)
+	msg := new(istanbul.Message)
 	// Decode message
-	err := msg.FromPayload(payload)
+	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
 		sb.logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
-		return err
-	}
-
-	// Verify message signature
-	if err := msg.VerifySig(); err != nil {
-		sb.logger.Error("Error in verifying the signature of an Istanbul Announce message", "err", err, "AnnounceMsg", msg.String())
 		return err
 	}
 
@@ -288,15 +231,21 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
+		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "IstanbulMsg", msg.String(), "validators", regAndActiveVals, "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
 	// Decrypt the EnodeURL
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
+	var announceMessage announceMessage
+	err = rlp.DecodeBytes(msg.Msg, &announceMessage)
+	if err != nil {
+		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+	}
+
 	encryptedEndpoint := []byte("")
-	for _, entry := range msg.EncryptedEndpointData {
+	for _, entry := range announceMessage.EncryptedEndpointData {
 		if bytes.Equal(entry[0], sb.Address().Bytes()) {
 			encryptedEndpoint = entry[1]
 		}
@@ -305,16 +254,16 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if err != nil && len(encryptedEndpoint) > 0 {
 		sb.logger.Warn("Error in decrypting endpoint", "err", err, "encryptedEndpoint", encryptedEndpoint)
 	}
-	enodeUrl := msg.IncompleteEnodeURL + string(endpointBytes)
+	enodeUrl := announceMessage.IncompleteEnodeURL + string(endpointBytes)
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
-			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
+		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: announceMessage.View}
+		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), sb.Proxied(), false); err != nil {
+			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
 			return err
 		}
 	}
@@ -323,14 +272,14 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
-			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
+			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	sb.logger.Trace("Regossiping the istanbul announce message", "AnnounceMsg", msg)
+	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossipedMu.Lock()

@@ -76,6 +76,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
+		valEnodeShareWg:      new(sync.WaitGroup),
+		valEnodeShareQuit:    make(chan struct{}),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
@@ -128,6 +130,9 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
+
+	valEnodeShareWg   *sync.WaitGroup
+	valEnodeShareQuit chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -529,4 +534,8 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	} else {
 		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
 	}
+}
+
+func (sb *Backend) Proxied() bool {
+	return sb.broadcaster != nil && sb.broadcaster.Proxied()
 }

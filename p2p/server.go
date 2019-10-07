@@ -374,7 +374,7 @@ func (srv *Server) SentryCount() int {
 }
 
 // sentryPeers returns the sentry peers
-func (srv *Server) sentryPeers() []*Peer {
+func (srv *Server) SentryPeers() []*Peer {
 	var sentryPeers []*Peer
 	select {
 	case srv.peerOp <- func(ps map[enode.ID]*Peer, valNodes map[enode.ID]*valNodeInfo, sentryNodes map[enode.ID]*sentryNodeInfo) {
@@ -1390,7 +1390,7 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 
 // SentryInfo returns an array of metadata objects describing sentry peers
 func (srv *Server) SentryInfo() []*PeerInfo {
-	return peersInfo(srv.sentryPeers())
+	return peersInfo(srv.SentryPeers())
 }
 
 // peersInfo returns a sorted array of metadata objects describing an array of peers

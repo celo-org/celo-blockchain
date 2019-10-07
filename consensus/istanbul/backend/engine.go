@@ -666,6 +666,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 
 	go sb.sendAnnounceMsgs()
 
+	if sb.Proxied() {
+		go sb.sendValEnodeShareMsgs()
+	}
+
 	return nil
 }
 
@@ -683,6 +687,9 @@ func (sb *Backend) Stop() error {
 
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
+
+	sb.valEnodeShareQuit <- struct{}{}
+	sb.valEnodeShareWg.Wait()
 	return nil
 }
 

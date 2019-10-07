@@ -49,6 +49,14 @@ func (mb *MockBroadcaster) IsSentry() bool {
 }
 
 func (mb *MockBroadcaster) GetProxiedPeer() consensus.Peer {
+        return nil
+}
+
+func (mb *MockBroadcaster) Proxied() bool {
+	return false
+}
+
+func (mb *MockBroadcaster) GetSentryPeers() []consensus.Peer {
 	return nil
 }
 

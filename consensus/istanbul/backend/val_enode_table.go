@@ -62,7 +62,7 @@ func (vet *validatorEnodeTable) String() string {
 	outputString := "ValEnodeTable:"
 
 	for _, valEnode := range vet.valEnodeTable {
-		fmt.Sprintf(outputString, "%s\t%s", outputString, valEnode.String())
+		outputString = fmt.Sprintf("%s\t%s", outputString, valEnode.String())
 	}
 
 	return outputString
@@ -80,11 +80,17 @@ func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Addres
 	}
 }
 
-// This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
-func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address) error {
+// Locks the valEnodeTable mutex and updates or inserts a validator enode entry by calling upsertNonLocking
+func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
 	vet.valEnodeTableMu.Lock()
 	defer vet.valEnodeTableMu.Unlock()
 
+	return vet.upsertNonLocking(remoteAddress, newValEnode, valSet, localAddress, isProxied, isSentry)
+}
+
+// This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
+// This does not lock the table mutex
+func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
 	if oldValEnode := vet.getUsingAddress(remoteAddress); oldValEnode != nil {
 		// If it is an old message, ignore it.
 		if newValEnode.view.Cmp(oldValEnode.view) <= 0 {
@@ -111,7 +117,9 @@ func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
 	if _, remoteNode := valSet.GetByAddress(remoteAddress); remoteNode != nil {
-		if _, localNode := valSet.GetByAddress(localAddress); localNode != nil {
+		// TODO: remove `forcePeer` once we can tell if the current node is a proxy
+		// for a validator in the current valSet
+		if _, localNode := valSet.GetByAddress(localAddress); (localNode != nil && !isProxied) || isSentry {
 			vet.addValidatorPeer(newValEnode.enodeURL)
 		}
 	}
