@@ -232,5 +232,9 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 		}
 	}
 
-	return executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
+	gasLeft, err := executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
+	if err != nil {
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", registryId)
+	}
+	return gasLeft, err
 }

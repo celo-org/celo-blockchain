@@ -125,10 +125,11 @@ func getEligibleValidatorGroupsVoteTotals(header *types.Header, state vm.StateDB
 	return voteTotals, err
 }
 
-func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address) error {
+func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address) (*big.Int, error) {
+	totalRewards := big.NewInt(0)
 	voteTotals, err := getEligibleValidatorGroupsVoteTotals(header, state)
 	if err != nil {
-		log.Error("DistributeEpochRewards, error calling getEligibleValidatorGroupsVoteTotals", "err", err)
+		return totalRewards, err
 	}
 
 	// One gold
@@ -159,10 +160,10 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			}
 		}
 		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state)
-
 		if err != nil {
-			log.Error("DistributeEpochRewards, error calling distributeEpochRewards", "err", err)
+			return totalRewards, err
 		}
+		totalRewards.Add(totalRewards, reward)
 	}
-	return nil
+	return totalRewards, nil
 }

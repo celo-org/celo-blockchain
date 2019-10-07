@@ -379,10 +379,6 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	}
 
 	newValSet, err := sb.getNewValidatorSet(block.Header(), state)
-	for _, val := range newValSet {
-		log.Info("New val set", "number", block.Header().Number, "validator", val.Address)
-	}
-
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
