@@ -68,6 +68,16 @@ type Validator interface {
 	String() string
 }
 
+func GetAddressesFromValidatorList(validators []Validator) []common.Address {
+	returnList := make([]common.Address, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.Address()
+	}
+
+	return returnList
+}
+
 // ----------------------------------------------------------------------------
 
 type Validators []Validator

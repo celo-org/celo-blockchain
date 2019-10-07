@@ -175,6 +175,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.BootnodesV4Flag,
 			utils.BootnodesV5Flag,
 			utils.ListenPortFlag,
+			utils.ProxyListenPortFlag,
 			utils.MaxPeersFlag,
 			utils.MaxPendingPeersFlag,
 			utils.NATFlag,
@@ -184,7 +185,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
 			utils.PingIPFromPacketFlag,
-			utils.UseInMemoryDiscoverTable,
+			utils.UseInMemoryDiscoverTableFlag,
+			utils.IsSentryFlag,
 		},
 	},
 	{

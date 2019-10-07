@@ -47,7 +47,7 @@ func TestIstanbulMessage(t *testing.T) {
 	}
 
 	// 2. this message should be in cache after we handle it
-	_, err := backend.HandleMsg(addr, msg)
+	_, err := backend.HandleMsg(addr, msg, false)
 	if err != nil {
 		t.Fatalf("handle message failed: %v", err)
 	}

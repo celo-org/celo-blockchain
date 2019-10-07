@@ -51,7 +51,7 @@ type Protocol struct {
 	Primary bool
 }
 
-// Broadcaster defines the interface to enqueue blocks to fetcher and find peer
+// Protocol Manager defines the interface to enqueue blocks to fetcher, find peer
 type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
 	Enqueue(id string, block *types.Block)
@@ -67,6 +67,10 @@ type Broadcaster interface {
 	RemoveValidatorPeer(enodeURL string) error
 	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
+	// Returns the fact of whether this node is a sentry
+	IsSentry() bool
+	// Returns the proxied peer, if this node is a sentry
+	GetProxiedPeer() Peer
 }
 
 // Peer defines the interface to communicate with peer

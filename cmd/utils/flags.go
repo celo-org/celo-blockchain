@@ -519,6 +519,11 @@ var (
 		Usage: "Network listening port",
 		Value: 30303,
 	}
+	ProxyListenPortFlag = cli.IntFlag{
+		Name:  "proxyport",
+		Usage: "Proxy Network listening port",
+		Value: 30503,
+	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
 		Usage: "Comma separated enode URLs for P2P discovery bootstrap (set v4+v5 instead for light servers)",
@@ -563,9 +568,13 @@ var (
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
-	UseInMemoryDiscoverTable = cli.BoolFlag{
+	UseInMemoryDiscoverTableFlag = cli.BoolFlag{
 		Name:  "use-in-memory-discovery-table",
 		Usage: "Specifies whether to use an in memory discovery table",
+	}
+	IsSentryFlag = cli.BoolFlag{
+		Name:  "is-sentry",
+		Usage: "Specifies whether this node is a sentry",
 	}
 
 	// ATM the url is left to the user and deployment to
@@ -779,8 +788,11 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 // setListenAddress creates a TCP listening address string from set command
 // line flags.
 func setListenAddress(ctx *cli.Context, cfg *p2p.Config) {
-	if ctx.GlobalIsSet(ListenPortFlag.Name) {
+	if !cfg.IsProxy && ctx.GlobalIsSet(ListenPortFlag.Name) {
 		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ListenPortFlag.Name))
+	}
+	if cfg.IsProxy && ctx.GlobalIsSet(ProxyListenPortFlag.Name) {
+		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ProxyListenPortFlag.Name))
 	}
 }
 
@@ -999,7 +1011,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
 	}
-	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+	if ctx.GlobalIsSet(UseInMemoryDiscoverTableFlag.Name) {
 		cfg.UseInMemoryNodeDatabase = true
 	}
 
@@ -1033,6 +1045,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 // SetNodeConfig applies node-related command line flags to the config.
 func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	SetP2PConfig(ctx, &cfg.P2P)
+	SetP2PConfig(ctx, &cfg.ProxyP2P)
 	setIPC(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setWS(ctx, cfg)
@@ -1047,6 +1060,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(NoUSBFlag.Name) {
 		cfg.NoUSB = ctx.GlobalBool(NoUSBFlag.Name)
+	}
+	if ctx.GlobalIsSet(IsSentryFlag.Name) {
+		cfg.IsSentry = ctx.GlobalBool(IsSentryFlag.Name)
 	}
 }
 
