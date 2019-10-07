@@ -564,10 +564,6 @@ var (
 		Name:  "netrestrict",
 		Usage: "Restricts network communication to the given IP networks (CIDR masks)",
 	}
-	ProxiedFlag = cli.BoolFlag{
-		Name:  "proxied",
-		Usage: "Indicates the node will be proxied by sentry nodes. Disables discovery.",
-	}
 	PingIPFromPacketFlag = cli.BoolFlag{
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
@@ -576,8 +572,12 @@ var (
 		Name:  "use-in-memory-discovery-table",
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
-	IsSentryFlag = cli.BoolFlag{
-		Name:  "is-sentry",
+	ProxiedFlag = cli.BoolFlag{
+		Name:  "proxied",
+		Usage: "Specifies whether this node will be proxied by sentry nodes. Disables discovery.",
+	}	
+	SentryFlag = cli.BoolFlag{
+		Name:  "sentry",
 		Usage: "Specifies whether this node is a sentry",
 	}
 
@@ -1071,8 +1071,8 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(NoUSBFlag.Name) {
 		cfg.NoUSB = ctx.GlobalBool(NoUSBFlag.Name)
 	}
-	if ctx.GlobalIsSet(IsSentryFlag.Name) {
-		cfg.IsSentry = ctx.GlobalBool(IsSentryFlag.Name)
+	if ctx.GlobalIsSet(SentryFlag.Name) {
+		cfg.Sentry = ctx.GlobalBool(SentryFlag.Name)
 	}
 }
 

@@ -171,7 +171,7 @@ func (n *Node) Start() error {
 	// Initialize the proxy p2p server. This creates the node key and
 	// discovery databases.
 	var proxyRunning *p2p.Server = nil
-	if n.config.IsSentry {
+	if n.config.Sentry {
 		// Initialize the proxy p2p server. This creates the node key and
 		// discovery databases.
 		n.proxyServerConfig = n.config.ProxyP2P

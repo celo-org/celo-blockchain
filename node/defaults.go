@@ -43,7 +43,7 @@ var DefaultConfig = Config{
 	HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
 	WSPort:           DefaultWSPort,
 	WSModules:        []string{"net", "web3"},
-	IsSentry:         false,
+	Sentry:           false,
 	P2P: p2p.Config{
 		ListenAddr: ":30303",
 		MaxPeers:   25,

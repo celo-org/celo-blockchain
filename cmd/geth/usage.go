@@ -184,10 +184,10 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NetrestrictFlag,
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
-			utils.ProxiedFlag,
 			utils.PingIPFromPacketFlag,
 			utils.UseInMemoryDiscoverTableFlag,
-			utils.IsSentryFlag,
+			utils.ProxiedFlag,
+			utils.SentryFlag,
 		},
 	},
 	{

@@ -139,10 +139,10 @@ var (
 		configFileFlag,
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
-		utils.ProxiedFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
-		utils.IsSentryFlag,
+		utils.ProxiedFlag,
+		utils.SentryFlag,
 	}
 
 	rpcFlags = []cli.Flag{
