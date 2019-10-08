@@ -47,6 +47,7 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 	var contractAddress common.Address
 	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
+	// TODO(asa): Why was this change necessary?
 	if err == abi.ErrEmptyOutput || err == errExecutionReverted {
 		log.Trace("Registry contract not deployed")
 		return nil, errors.ErrRegistryContractNotDeployed

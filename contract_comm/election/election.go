@@ -149,7 +149,7 @@ func getEligibleValidatorGroupsVoteTotals(header *types.Header, state vm.StateDB
 
 func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
 	var groupEpochRewards *big.Int
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, totalEpochRewards}, groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, totalEpochRewards}, &groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
 	if err != nil {
 		return nil, err
 	}
