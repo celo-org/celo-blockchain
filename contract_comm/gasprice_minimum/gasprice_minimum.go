@@ -97,7 +97,7 @@ const (
   ]`
 )
 
-const defaultGasAmount = 2000000
+const defaultGasAmount = params.ContractCommGas
 
 var (
 	gasPriceMinimumABI, _                           = abi.JSON(strings.NewReader(gasPriceMinimumABIString))

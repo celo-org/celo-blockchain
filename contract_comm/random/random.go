@@ -84,7 +84,7 @@ const (
       "type": "function"
     }
 ]`
-	gasAmount = 1000000
+	gasAmount = params.ContractCommGas
 )
 
 var (

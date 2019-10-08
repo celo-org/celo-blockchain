@@ -54,7 +54,7 @@ const (
 	}]`
 )
 
-const defaultGasAmount = 2000000
+const defaultGasAmount = params.ContractCommGas
 
 var blockchainParametersABI abi.ABI
 
