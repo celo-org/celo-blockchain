@@ -26,9 +26,14 @@ var (
 	// istanbul.MsgPreprepare > istanbul.MsgCommit > istanbul.MsgPrepare
 	msgPriority = map[uint64]int{
 		istanbul.MsgPreprepare: 1,
-		istanbul.MsgCommit:     2,
-		istanbul.MsgPrepare:    3,
+		istanbul.MsgCommit:     3,
+		istanbul.MsgPrepare:    2,
 	}
+
+	acceptMaxFutureViews                = big.NewInt(10)
+	acceptMaxFutureMsgsFromOneValidator = 1000
+	acceptMaxFutureMessages             = 100 * 100
+	acceptMaxFutureMessagesPruneBatch   = 100
 )
 
 // checkMessage checks the message state
@@ -38,6 +43,11 @@ var (
 func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	if view == nil || view.Sequence == nil || view.Round == nil {
 		return errInvalidMessage
+	}
+
+	// Never accept messages too far into the future
+	if view.Sequence.Cmp(new(big.Int).Add(c.currentView().Sequence, acceptMaxFutureViews)) > 0 {
+		return errTooFarInTheFutureMessage
 	}
 
 	// Round change messages should be in the same sequence but be >= the desired round
