@@ -394,6 +394,11 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
 
+// Returns the size of epochs in blocks.
+func (sb *Backend) EpochSize() uint64 {
+	return sb.config.Epoch
+}
+
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
 // and assembles the final block.
 //
@@ -497,11 +502,15 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		}
 	}
 
+	// One gold
+	// TODO(asa): This should not be fixed.
+	electionRewardsCeiling := math.BigPow(10, 18)
+
 	groups := make([]common.Address, 0, len(groupElectedValidator))
 	for group := range groupElectedValidator {
 		groups = append(groups, group)
 	}
-	electionRewards, err := election.DistributeEpochRewards(header, state, groups)
+	electionRewards, err := election.DistributeEpochRewards(header, state, groups, electionRewardsCeiling)
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err

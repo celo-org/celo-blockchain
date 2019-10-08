@@ -22,7 +22,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -88,6 +87,29 @@ const electionABIString string = `[
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+		    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "group",
+          "type": "address"
+        },
+        {
+          "name": "totalEpochRewards",
+          "type": "uint256"
+        }
+      ],
+      "name": "getGroupEpochRewards",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]`
 
@@ -125,16 +147,33 @@ func getEligibleValidatorGroupsVoteTotals(header *types.Header, state vm.StateDB
 	return voteTotals, err
 }
 
-func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address) (*big.Int, error) {
+func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
+	var groupEpochRewards *big.Int
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, totalEpochRewards}, groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
+	if err != nil {
+		return nil, err
+	}
+	return groupEpochRewards, nil
+}
+
+func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
 	totalRewards := big.NewInt(0)
 	voteTotals, err := getEligibleValidatorGroupsVoteTotals(header, state)
 	if err != nil {
 		return totalRewards, err
 	}
 
-	// One gold
-	reward := math.BigPow(10, 18)
-	for _, group := range groups {
+	rewards := make([]*big.Int, len(groups))
+	for i, group := range groups {
+		reward, err := getGroupEpochRewards(header, state, group, totalEpochRewards)
+		if err != nil {
+			return totalRewards, err
+		}
+		rewards[i] = reward
+	}
+
+	for i, group := range groups {
+		reward := rewards[i]
 		for _, voteTotal := range voteTotals {
 			if voteTotal.Group == group {
 				voteTotal.Value.Add(voteTotal.Value, reward)

@@ -97,8 +97,9 @@ const (
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas      uint64 = 5000 // Cost of reading a validator's address
+	ProofOfPossessionGas uint64 = 50000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas      uint64 = 5000  // Cost of reading a validator's address
+	GetEpochSizeGas      uint64 = 1000
 )
 
 var (
@@ -165,4 +166,5 @@ const (
 	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
 	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
+	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
 )
