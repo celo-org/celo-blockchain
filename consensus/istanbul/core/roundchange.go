@@ -275,10 +275,19 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	var maxRound *big.Int
-	for k, rms := range rcs.roundChanges {
-		if rms.Size() < num {
-			continue
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	acc := 0
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		acc += rms.Size()
+		if acc >= num {
+			return new(big.Int).SetUint64(r)
 		}
 	}
 
