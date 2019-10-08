@@ -342,9 +342,11 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
-	if rcs.roundChanges[round] != nil && rcs.roundChanges[round].Size() >= quorumSize {
-		messages := make([]istanbul.Message, rcs.roundChanges[round].Size())
-		for i, message := range rcs.roundChanges[round].Values() {
+	// TODO(Joshua): Think through if this is correct or if we need to include round change
+	// from messages from a larger round.
+	if rcs.msgsForRound[round] != nil && rcs.msgsForRound[round].Size() >= quorumSize {
+		messages := make([]istanbul.Message, rcs.msgsForRound[round].Size())
+		for i, message := range rcs.msgsForRound[round].Values() {
 			messages[i] = *message
 		}
 		return istanbul.RoundChangeCertificate{
