@@ -312,7 +312,29 @@ func (rcs *roundChangeSet) MaxOnOneRound(num int) *big.Int {
 			return new(big.Int).SetUint64(r)
 		}
 	}
-	return maxRound
+	return nil
+}
+
+func (rcs *roundChangeSet) String() string {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
+	for r, rms := range rcs.msgsForRound {
+		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
+	}
+
+	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
+	for addr, r := range rcs.latestRoundForVal {
+		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
+	}
+
+	return fmt.Sprintf("RCS len=%v  By round: {<%v> %v}  By val: {<%v> %v}",
+		len(rcs.latestRoundForVal),
+		len(rcs.msgsForRound),
+		strings.Join(msgsForRoundStr, ", "),
+		len(rcs.latestRoundForVal),
+		strings.Join(latestRoundForValStr, ", "))
 }
 
 func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
