@@ -108,7 +108,7 @@ func (c *core) handleEvents() {
 			case backlogEvent:
 				// No need to check signature for internal messages
 				if err := c.handleCheckedMsg(ev.msg, ev.src); err != nil {
-					c.logger.Error("Error in handling istanbul message that was sent from a backlog event", "err", err)
+					c.logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
 				}
 			}
 		case event, ok := <-c.timeoutSub.Chan():

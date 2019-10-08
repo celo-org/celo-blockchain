@@ -110,7 +110,6 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		// Verify ROUND CHANGE message is for a proper view
-		// TODO(Joshua): Think through how this interacts with the generated round change certificate
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errInvalidRoundChangeCertificateMsgView
 		}
@@ -185,6 +184,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
+	logger.Trace("Got round change message", "message_round", roundView.Round)
 
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
@@ -363,3 +363,4 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 	}
 }
+

@@ -145,7 +145,6 @@ func (b *Preprepare) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	b.View, b.Proposal, b.RoundChangeCertificate = preprepare.View, preprepare.Proposal, preprepare.RoundChangeCertificate
-
 	return nil
 }
 
@@ -203,7 +202,6 @@ func (b *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&preparedCertificate); err != nil {
 		return err
 	}
-
 	b.Proposal, b.PrepareOrCommitMessages = preparedCertificate.Proposal, preparedCertificate.PrepareOrCommitMessages
 	return nil
 }
@@ -324,10 +322,15 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 			return err
 		}
 
-		_, err = validateFn(payload, m.Signature)
+		signed_val_addr, err := validateFn(payload, m.Signature)
+		if err != nil {
+			return err
+		}
+		if signed_val_addr != m.Address {
+			return ErrInvalidSigner
+		}
 	}
-	// Still return the message even the err is not nil
-	return err
+	return nil
 }
 
 func (m *Message) Payload() ([]byte, error) {

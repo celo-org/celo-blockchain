@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -469,19 +470,21 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 
 // blockStats is the information to report about individual blocks.
 type blockStats struct {
-	Number     *big.Int       `json:"number"`
-	Hash       common.Hash    `json:"hash"`
-	ParentHash common.Hash    `json:"parentHash"`
-	Timestamp  *big.Int       `json:"timestamp"`
-	Miner      common.Address `json:"miner"`
-	GasUsed    uint64         `json:"gasUsed"`
-	GasLimit   uint64         `json:"gasLimit"`
-	Diff       string         `json:"difficulty"`
-	TotalDiff  string         `json:"totalDifficulty"`
-	Txs        []txStats      `json:"transactions"`
-	TxHash     common.Hash    `json:"transactionsRoot"`
-	Root       common.Hash    `json:"stateRoot"`
-	Uncles     uncleStats     `json:"uncles"`
+	Number      *big.Int       `json:"number"`
+	Hash        common.Hash    `json:"hash"`
+	ParentHash  common.Hash    `json:"parentHash"`
+	Timestamp   *big.Int       `json:"timestamp"`
+	Miner       common.Address `json:"miner"`
+	GasUsed     uint64         `json:"gasUsed"`
+	GasLimit    uint64         `json:"gasLimit"`
+	Diff        string         `json:"difficulty"`
+	TotalDiff   string         `json:"totalDifficulty"`
+	Txs         []txStats      `json:"transactions"`
+	TxHash      common.Hash    `json:"transactionsRoot"`
+	Root        common.Hash    `json:"stateRoot"`
+	Uncles      uncleStats     `json:"uncles"`
+	EpochSize   uint64         `json:"epochSize"`
+	BlockRemain uint64         `json:"blockRemain"`
 }
 
 // txStats is the information to report about individual transactions.
@@ -554,20 +557,26 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Assemble and return the block stats
 	author, _ := s.engine.Author(header)
 
+	// Add epoch info
+	epochSize := s.eth.Config().Istanbul.Epoch
+	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
+
 	return &blockStats{
-		Number:     header.Number,
-		Hash:       header.Hash(),
-		ParentHash: header.ParentHash,
-		Timestamp:  header.Time,
-		Miner:      author,
-		GasUsed:    header.GasUsed,
-		GasLimit:   header.GasLimit,
-		Diff:       header.Difficulty.String(),
-		TotalDiff:  td.String(),
-		Txs:        txs,
-		TxHash:     header.TxHash,
-		Root:       header.Root,
-		Uncles:     uncles,
+		Number:      header.Number,
+		Hash:        header.Hash(),
+		ParentHash:  header.ParentHash,
+		Timestamp:   header.Time,
+		Miner:       author,
+		GasUsed:     header.GasUsed,
+		GasLimit:    header.GasLimit,
+		Diff:        header.Difficulty.String(),
+		TotalDiff:   td.String(),
+		Txs:         txs,
+		TxHash:      header.TxHash,
+		Root:        header.Root,
+		Uncles:      uncles,
+		EpochSize:   epochSize,
+		BlockRemain: blockRemain,
 	}
 }
 
