@@ -44,7 +44,8 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		handlerWg:          new(sync.WaitGroup),
 		logger:             log.New("address", backend.Address()),
 		backend:            backend,
-		backlogs:           make(map[istanbul.Validator]*prque.Prque),
+		backlogBySeq:       make(map[uint64]*prque.Prque),
+		backlogCountByVal:  make(map[common.Address]int),
 		backlogsMu:         new(sync.Mutex),
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
@@ -74,8 +75,10 @@ type core struct {
 	valSet     istanbul.ValidatorSet
 	validateFn func([]byte, []byte) (common.Address, error)
 
-	backlogs   map[istanbul.Validator]*prque.Prque
-	backlogsMu *sync.Mutex
+	backlogBySeq      map[uint64]*prque.Prque
+	backlogCountByVal map[common.Address]int
+	backlogTotal      int
+	backlogsMu        *sync.Mutex
 
 	current   *roundState
 	handlerWg *sync.WaitGroup
@@ -280,7 +283,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastProposal.Number().Int64())
+		logger.Warn("New sequence should be larger than current sequence", "cur_seq", lastProposal.Number().Int64())
 		return
 	}
 
@@ -309,12 +312,11 @@ func (c *core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+		c.roundChangeSet = newRoundChangeSet(c.valSet)
 	}
 
 	// Update logger
-	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// Clear invalid ROUND CHANGE messages
-	c.roundChangeSet = newRoundChangeSet(c.valSet)
+	logger = logger.New("old_proposer", c.valSet.GetProposer(), "old_proposer_id", c.valSet.GetProposerIndex())
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
@@ -325,7 +327,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
+	logger.Debug("New round", "cur_round", newView.Round, "cur_seq", newView.Sequence, "cur_proposer", c.valSet.GetProposer(), "cur_proposer_id", c.valSet.GetProposerIndex(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet)
 }
 
 // All actions that occur when transitioning to waiting for round change state.
