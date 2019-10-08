@@ -217,19 +217,38 @@ type roundChangeSet struct {
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
+	src := msg.Address
 	round := r.Uint64()
-	if rcs.roundChanges[round] == nil {
-		rcs.roundChanges[round] = newMessageSet(rcs.validatorSet)
+
+	if prevLatestRound, ok := rcs.latestRoundForVal[src]; ok {
+		if prevLatestRound > round {
+			// Reject as we have an RC for a later round from this validator.
+			// logger.Debug("Message is old")
+			return errOldMessage
+		} else if prevLatestRound < round {
+			// Already got an RC for an earlier round from this validator.
+			// Forget that and remember this.
+			if rcs.msgsForRound[prevLatestRound] != nil {
+				rcs.msgsForRound[prevLatestRound].Remove(src)
+				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
+					delete(rcs.msgsForRound, prevLatestRound)
+				}
+				// logger.Debug("Deleting earlier Round Change Messages")
+			}
+		}
 	}
-	err := rcs.roundChanges[round].Add(msg)
-	if err != nil {
-		return 0, err
+
+	rcs.latestRoundForVal[src] = round
+
+	if rcs.msgsForRound[round] == nil {
+		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
+		// logger.Debug("Creating new RC message set")
 	}
-	return rcs.roundChanges[round].Size(), nil
+	return rcs.msgsForRound[round].Add(msg)
 }
 
 // Clear deletes the messages with smaller round
