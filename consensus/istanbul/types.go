@@ -145,6 +145,7 @@ func (b *Preprepare) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	b.View, b.Proposal, b.RoundChangeCertificate = preprepare.View, preprepare.Proposal, preprepare.RoundChangeCertificate
+
 	return nil
 }
 
@@ -202,6 +203,7 @@ func (b *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&preparedCertificate); err != nil {
 		return err
 	}
+
 	b.Proposal, b.PrepareOrCommitMessages = preparedCertificate.Proposal, preparedCertificate.PrepareOrCommitMessages
 	return nil
 }
