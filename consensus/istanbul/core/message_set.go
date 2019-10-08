@@ -81,6 +81,13 @@ func (ms *messageSet) ValSetSize() uint64 {
 	return uint64(ms.valSet.Size())
 }
 
+func (ms *messageSet) Remove(address common.Address) {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
+	delete(ms.messages, address)
+}
+
 func (ms *messageSet) Values() (result []*istanbul.Message) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
