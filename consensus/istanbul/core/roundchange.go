@@ -256,9 +256,16 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	for k, rms := range rcs.roundChanges {
-		if len(rms.Values()) == 0 || k < round.Uint64() {
-			delete(rcs.roundChanges, k)
+	for k, rms := range rcs.msgsForRound {
+		if rms.Size() == 0 || k < round.Uint64() {
+			if rms != nil {
+				for _, msg := range rms.Values() {
+					if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok && k == latestRound {
+						delete(rcs.latestRoundForVal, msg.Address)
+					}
+				}
+			}
+			delete(rcs.msgsForRound, k)
 		}
 	}
 }
