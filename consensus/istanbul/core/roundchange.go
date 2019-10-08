@@ -252,9 +252,27 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 		if rms.Size() < num {
 			continue
 		}
-		r := big.NewInt(int64(k))
-		if maxRound == nil || maxRound.Cmp(r) < 0 {
-			maxRound = r
+	}
+
+	return nil
+}
+
+// MaxOnOneRound returns the max round which the number of messages is >= num
+func (rcs *roundChangeSet) MaxOnOneRound(num int) *big.Int {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		if rms.Size() >= num {
+			return new(big.Int).SetUint64(r)
 		}
 	}
 	return maxRound
