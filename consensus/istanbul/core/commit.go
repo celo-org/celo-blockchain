@@ -32,6 +32,8 @@ func (c *core) sendCommit() {
 }
 
 func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendCommitForOldBlock")
+	logger.Trace("Sending commit for old block", "view", view, "digest", digest)
 	sub := &istanbul.Subject{
 		View:   view,
 		Digest: digest,
