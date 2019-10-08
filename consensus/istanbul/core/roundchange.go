@@ -202,16 +202,18 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
-		validatorSet: valSet,
-		roundChanges: make(map[uint64]*messageSet),
-		mu:           new(sync.Mutex),
+		validatorSet:      valSet,
+		msgsForRound:      make(map[uint64]*messageSet),
+		latestRoundForVal: make(map[common.Address]uint64),
+		mu:                new(sync.Mutex),
 	}
 }
 
 type roundChangeSet struct {
-	validatorSet istanbul.ValidatorSet
-	roundChanges map[uint64]*messageSet
-	mu           *sync.Mutex
+	validatorSet      istanbul.ValidatorSet
+	msgsForRound      map[uint64]*messageSet
+	latestRoundForVal map[common.Address]uint64
+	mu                *sync.Mutex
 }
 
 // Add adds the round and message into round change set
