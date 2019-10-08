@@ -67,6 +67,11 @@ func NewEVMContext(msg types.Message, header *types.Header, chain ChainContext, 
 		beneficiary = *author
 	}
 
+	var engine consensus.Engine
+	if chain != nil {
+		engine = chain.Engine()
+	}
+
 	return vm.Context{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
@@ -79,6 +84,7 @@ func NewEVMContext(msg types.Message, header *types.Header, chain ChainContext, 
 		GasLimit:    header.GasLimit,
 		GasPrice:    new(big.Int).Set(msg.GasPrice()),
 		Header:      header,
+		Engine:      engine,
 	}
 }
 
