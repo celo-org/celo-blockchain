@@ -17,11 +17,13 @@
 package core
 
 import (
-	"math/big"
-	"sync"
-
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"math/big"
+	"sort"
+	"strings"
+	"sync"
 )
 
 // sendNextRoundChange sends the ROUND CHANGE message with current round + 1
@@ -177,24 +179,29 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	roundView := rc.View
 
-	// Add the ROUND CHANGE message to its message set and return how many
-	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg)
-	if err != nil {
-		logger.Warn("Failed to add round change message", "message", msg, "err", err)
+	// Add the ROUND CHANGE message to its message set.
+	if err := c.roundChangeSet.Add(roundView.Round, msg); err != nil {
+		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
-	logger.Trace("Got round change message", "num", num, "message_round", roundView.Round)
+	logger.Trace("Got round change message", "message_round", roundView.Round)
 
+	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
+	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
+
+	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
-	if num == c.valSet.F()+1 {
-		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
-		c.waitForDesiredRound(roundView.Round)
-	} else if num == c.valSet.MinQuorumSize() {
+	// TODO(Joshua): Keep ffRound logic to go the highest round that we can guarantee to be an honest timeout, but then
+	// require quorum messages on a particular round?
+	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Trace("Got quorum round change messages, starting new round.")
-		c.startNewRound(roundView.Round)
+		c.startNewRound(quorumRound)
+	} else if ffRound != nil {
+		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
+		c.waitForDesiredRound(ffRound)
 	}
+
 	return nil
 }
 
