@@ -363,4 +363,3 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 	}
 }
-
