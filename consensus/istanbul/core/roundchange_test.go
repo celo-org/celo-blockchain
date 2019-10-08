@@ -73,10 +73,10 @@ func TestRoundChangeSet(t *testing.T) {
 		maxRound := rc.MaxRound(i)
 		if i <= vset.Size() {
 			if maxRound == nil || maxRound.Cmp(view.Round) != 0 {
-				t.Errorf("max round mismatch: have %v, want %v", maxRound, view.Round)
+				t.Errorf("MaxRound mismatch: have %v, want %v", maxRound, view.Round)
 			}
 		} else if maxRound != nil {
-			t.Errorf("max round mismatch: have %v, want nil", maxRound)
+			t.Errorf("MaxRound mismatch: have %v, want nil", maxRound)
 		}
 	}
 
