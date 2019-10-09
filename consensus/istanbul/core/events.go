@@ -22,7 +22,9 @@ import (
 
 type backlogEvent struct {
 	src istanbul.Validator
-	msg *message
+	msg *istanbul.Message
 }
 
-type timeoutEvent struct{}
+type timeoutEvent struct {
+	view *istanbul.View
+}

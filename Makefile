@@ -37,14 +37,9 @@ bls-zexe: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 check_android_env:
 	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
-ifeq ("$(wildcard $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64)","")
-	$(error "NDK doesn't contain an llvm cross-compilation toolchain. Consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
-endif
 
 ndk_bundle: check_android_env
-ifneq ("$(wildcard $(ANDROID_NDK))","")
-	$(error "NDK already exists at $(ANDROID_NDK). Remove the directory if you want to re-download it")
-else
+ifeq ("$(wildcard $(ANDROID_NDK))","")
 	@test $${NDK_VERSION?Please set environment variable NDK_VERSION}
 	curl --silent --show-error --location --fail --retry 3 --output /tmp/$(NDK_VERSION).zip \
 		https://dl.google.com/android/repository/$(NDK_VERSION)-$(OS)-x86_64.zip && \
@@ -52,12 +47,16 @@ else
 		mkdir -p $(ANDROID_NDK) && \
 		unzip -q /tmp/$(NDK_VERSION).zip -d $(ANDROID_NDK)/.. && \
 		rm /tmp/$(NDK_VERSION).zip
+else
+ifeq ("$(wildcard $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(OS)-x86_64)","")
+	$(error "Android NDK is installed but doesn't contain an llvm cross-compilation toolchain. Delete your current NDK or modify the ANDROID_NDK environment variable to an empty directory download it automatically.")
+endif
 endif
 
 
 bls-zexe-android: check_android_env ndk_bundle
 ifeq ("$(RUSTUP_exists)","")
-	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
+	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md to install Rust.")
 else
 	rustup target add aarch64-linux-android
 	rustup target add armv7-linux-androideabi

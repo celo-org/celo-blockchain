@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -97,19 +98,7 @@ const (
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
 	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
-
-	// Celo registered contracts names.
-	// These names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	AttestationsRegistryId         = "Attestations"
-	LockedGoldRegistryId           = "LockedGold"
-	GasCurrencyWhitelistRegistryId = "GasCurrencyWhitelist"
-	GasPriceMinimumRegistryId      = "GasPriceMinimum"
-	GoldTokenRegistryId            = "GoldToken"
-	GovernanceRegistryId           = "Governance"
-	ReserveRegistryId              = "Reserve"
-	RandomRegistryId               = "Random"
-	SortedOraclesRegistryId        = "SortedOracles"
-	ValidatorsRegistryId           = "Validators"
+	GetValidatorGas      uint64 = 5000 // Cost of reading a validator's address
 )
 
 var (
@@ -119,7 +108,28 @@ var (
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
+
+	// Celo registered contract IDs.
+	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
+	AttestationsRegistryId         = makeRegistryId("Attestations")
+	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
+	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
+	GoldTokenRegistryId            = makeRegistryId("GoldToken")
+	GovernanceRegistryId           = makeRegistryId("Governance")
+	ReserveRegistryId              = makeRegistryId("Reserve")
+	RandomRegistryId               = makeRegistryId("Random")
+	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
+	ValidatorsRegistryId           = makeRegistryId("Validators")
 )
+
+func makeRegistryId(contractName string) [32]byte {
+	hash := crypto.Keccak256([]byte(contractName))
+	var id [32]byte
+	copy(id[:], hash)
+
+	return id
+}
 
 const (
 	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
@@ -129,11 +139,20 @@ const (
 	// TODO(asa): Make these operations less expensive by charging only what is used.
 	// The problem is we don't know how much to refund until the refund is complete.
 	// If these values are changed, "setDefaults" will need updating.
-	MaxGasForDebitFromTransactions      uint64 = 50 * 1000
-	ExpectedGasForDebitFromTransactions uint64 = 35 * 1000
-	MaxGasForCreditToTransactions       uint64 = 30 * 1000
-	MaxGasToReadErc20Balance            uint64 = 10 * 1000
-	MaxGasToReadTobinTax                uint64 = 50 * 1000
+
+	// The plan is to have these values set within a system smart contract,
+	// and that they are read during runtime.  They could then be changed via
+	// governance.
+	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
+	MaxGasForDebitFromTransactions      uint64 = 46 * 1000
+
+	ExpectedGasForCreditToTransactions uint64 = 32 * 1000
+	MaxGasForCreditToTransactions      uint64 = 64 * 1000
+
+	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
+	MaxGasToReadErc20Balance      uint64 = 30 * 1000
+
+	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
-	AdditionalGasForNonGoldCurrencies uint64 = 3*MaxGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + MaxGasToReadErc20Balance
+	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 )

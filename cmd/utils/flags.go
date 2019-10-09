@@ -129,7 +129,7 @@ var (
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
 		Usage: "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby, 5=Ottoman)",
-		Value: eth.DefaultConfig.NetworkId,
+		Value: node.DefaultConfig.P2P.NetworkId,
 	}
 	TestnetFlag = cli.BoolFlag{
 		Name:  "testnet",
@@ -563,6 +563,10 @@ var (
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
+	UseInMemoryDiscoverTable = cli.BoolFlag{
+		Name:  "use-in-memory-discovery-table",
+		Usage: "Specifies whether to use an in memory discovery table",
+	}
 
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
@@ -958,6 +962,8 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
 	lightPeers := ctx.GlobalInt(LightPeersFlag.Name)
@@ -992,6 +998,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
+	}
+	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+		cfg.UseInMemoryNodeDatabase = true
 	}
 
 	// if we're running a light client or server, force enable the v5 peer discovery
