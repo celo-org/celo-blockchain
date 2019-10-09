@@ -13,7 +13,7 @@ GO ?= latest
 
 CARGO_exists := $(shell command -v cargo 2> /dev/null)
 RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
-CARGO_LIPO_exists := $(shell command -v cargo lipo 2> /dev/null)
+CARGO_LIPO_exists := $(shell command -v cargo-lipo 2> /dev/null)
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
 OS :=
@@ -92,7 +92,7 @@ bls-zexe-ios:
 ifeq ("$(RUSTUP_exists)","")
 	$(error "No rustup in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
 else ifeq ("$(CARGO_LIPO_exists)","")
-	$(error "No cargo lipo in PATH, run cargo install cargo-CARGO_LIPO_exists")
+	$(error "No cargo lipo in PATH, run cargo install cargo-lipo")
 else
 	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
 	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios,i386-apple-ios
