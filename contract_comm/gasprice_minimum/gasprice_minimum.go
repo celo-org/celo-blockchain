@@ -97,8 +97,6 @@ const (
   ]`
 )
 
-const defaultGasAmount = params.ContractCommGas
-
 var (
 	gasPriceMinimumABI, _                      = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
 	FallbackProposerFraction *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
@@ -145,7 +143,7 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 		"getGasPriceMinimum",
 		[]interface{}{currencyAddress},
 		&gasPriceMinimum,
-		defaultGasAmount,
+		params.MaxGasForGetGasPriceMinimum,
 		header,
 		state,
 	)
@@ -167,7 +165,7 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
 			big.NewInt(int64(header.GasLimit))},
 		&updatedGasPriceMinimum,
-		defaultGasAmount,
+		params.MaxGasForUpdateGasPriceMinimum,
 		big.NewInt(0),
 		header,
 		state,
@@ -188,7 +186,7 @@ func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFract
 		"proposerFraction_",
 		[]interface{}{},
 		&infraFraction,
-		200000,
+		params.MaxGasForProposerFraction,
 		header,
 		state,
 	)

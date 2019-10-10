@@ -54,15 +54,13 @@ const (
 	}]`
 )
 
-const defaultGasAmount = params.ContractCommGas
-
 var blockchainParametersABI abi.ABI
 
 func init() {
 	var err error
 	blockchainParametersABI, err = abi.JSON(strings.NewReader(blockchainParametersABIString))
 	if err != nil {
-		log.Error("Error reading ABI for BlockchainParameters", "err", err)
+		log.Crit("Error reading ABI for BlockchainParameters", "err", err)
 	}
 }
 
@@ -75,7 +73,7 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 		"getMinimumClientVersion",
 		[]interface{}{},
 		&version,
-		defaultGasAmount,
+		params.MaxGasForGetGasPriceMinimum,
 		header,
 		state,
 	)
