@@ -158,7 +158,7 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForGetMinimumClientVersion uint64 = 2000000
+	MaxGasForGetMinimumClientVersion uint64 = 200000
 	MaxGasForCommitments             uint64 = 2000000
 	MaxGasForComputeCommitment       uint64 = 2000000
 	MaxGasForRevealAndCommit         uint64 = 2000000
