@@ -575,7 +575,7 @@ var (
 	ProxiedFlag = cli.BoolFlag{
 		Name:  "proxied",
 		Usage: "Specifies whether this node will be proxied by sentry nodes. Disables discovery.",
-	}	
+	}
 	SentryFlag = cli.BoolFlag{
 		Name:  "sentry",
 		Usage: "Specifies whether this node is a sentry",

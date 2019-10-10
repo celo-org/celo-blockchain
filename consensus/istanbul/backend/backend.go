@@ -175,6 +175,8 @@ func (sb *Backend) Broadcast(destAddresses []common.Address, istMsg *istanbul.Me
 		istMsg.DestAddresses = destAddresses
 	}
 
+	sb.logger.Debug("Called broadcast", "istMsg", istMsg, "destAddresses", common.ConvertToStringSlice(destAddresses))
+
 	return sb.sendMessage(sb.getPeersForMessage(destAddresses), istanbulMsg, istMsg, nil, false, sendMsgToSelf, signMsg)
 }
 
@@ -183,17 +185,21 @@ func (sb *Backend) Gossip(ethMsgCode uint64, istMsg *istanbul.Message, payload [
 	return sb.sendMessage(sb.getPeersForMessage(nil), ethMsgCode, istMsg, payload, ignoreCache, false, true)
 }
 
-func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[common.Address]consensus.Peer {
+func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.proxied() {
 		return sb.broadcaster.FindSentryPeers()
 	} else {
-		var targets map[common.Address]bool = nil
+		var targets map[enode.ID]bool = nil
 
 		if destAddresses != nil {
-			targets = make(map[common.Address]bool)
 			for _, addr := range destAddresses {
-				if addr != sb.Address() {
-					targets[addr] = true
+				valNode := sb.valEnodeTable.getUsingAddress(addr)
+
+				if valNode != nil {
+					node, err := enode.ParseV4(valNode.enodeURL)
+					if err != nil {
+						targets[node.ID()] = true
+					}
 				}
 			}
 		}
@@ -201,8 +207,16 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[common
 	}
 }
 
-func (sb *Backend) sendMessage(peers map[common.Address]consensus.Peer, ethMsgCode uint64, msg *istanbul.Message, payload []byte, ignoreCache bool, sendMsgToSelf bool, signMsg bool) error {
-	sb.logger.Debug("Called sendMessage", "ethMsgCode", ethMsgCode, "peers", peers)
+func (sb *Backend) sendMessage(peers map[enode.ID]consensus.Peer, ethMsgCode uint64, msg *istanbul.Message, payload []byte, ignoreCache bool, sendMsgToSelf bool, signMsg bool) error {
+	ids := []string{}
+	enodeURLs := []string{}
+
+	for a, p := range peers {
+		ids = append(ids, a.String())
+		enodeURLs = append(enodeURLs, p.Node().String())
+	}
+
+	sb.logger.Debug("Called sendMessage", "ethMsgCode", ethMsgCode, "ids", ids, "enodeURLs", enodeURLs, "istmsg", msg)
 	if msg != nil {
 		var err error
 

@@ -57,6 +57,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 			return true, istanbul.ErrStoppedEngine
 		}
 
+		if msg.Code == istanbulMsg {
+			sb.logger.Debug("Got an istanbulMsg")
+		}
+
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
 			sb.logger.Error("Failed to decode message payload", "msg", msg)
@@ -95,10 +99,12 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 						return true, err
 					}
 					istMsg.DestAddresses = []common.Address{}
+					sb.logger.Debug("Got consensus message from proxied validator", "istMg", istMsg)
 					go sb.Broadcast(istMsg.DestAddresses, istMsg, false, false)
 				} else {
 					// Need to forward the message to the proxied validator
 					proxiedPeer := sb.broadcaster.GetProxiedPeer()
+					sb.logger.Debug("Forwarding consensus message to proxied validator")
 					if proxiedPeer != nil {
 						go proxiedPeer.Send(msg.Code, data)
 					}

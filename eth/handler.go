@@ -876,26 +876,24 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
-	m := make(map[common.Address]consensus.Peer)
+func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool) map[enode.ID]consensus.Peer {
+	m := make(map[enode.ID]consensus.Peer)
 	for _, p := range pm.peers.Peers() {
-		pubKey := p.Node().Pubkey()
-		addr := crypto.PubkeyToAddress(*pubKey)
-		if targets[addr] || (targets == nil) {
-			m[addr] = p
+		id := p.Node().ID()
+		if targets[id] || (targets == nil) {
+			m[id] = p
 		}
 	}
 	return m
 }
 
 // FindSentryPeers returns a map of the sentry peers
-func (pm *ProtocolManager) FindSentryPeers() map[common.Address]consensus.Peer {
-	sentryPeers := make(map[common.Address]consensus.Peer)
+func (pm *ProtocolManager) FindSentryPeers() map[enode.ID]consensus.Peer {
+	sentryPeers := make(map[enode.ID]consensus.Peer)
 	for id := range pm.sentryPeers {
 		sentryPeer := pm.peers.Peer(id)
-		pubKey := sentryPeer.Node().Pubkey()
-		addr := crypto.PubkeyToAddress(*pubKey)
-		sentryPeers[addr] = sentryPeer
+		id := sentryPeer.Node().ID()
+		sentryPeers[id] = sentryPeer
 	}
 	return sentryPeers
 }
