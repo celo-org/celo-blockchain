@@ -200,15 +200,15 @@ func nodeToRPC(n *node) rpcNode {
 
 // UDPv4 implements the v4 wire protocol.
 type UDPv4 struct {
-	conn        UDPConn
-	log         log.Logger
-	netrestrict *netutil.Netlist
-	priv        *ecdsa.PrivateKey
-	localNode   *enode.LocalNode
-	db          *enode.DB
-	tab         *Table
-	closeOnce   sync.Once
-	wg          sync.WaitGroup
+	conn             UDPConn
+	log              log.Logger
+	netrestrict      *netutil.Netlist
+	priv             *ecdsa.PrivateKey
+	localNode        *enode.LocalNode
+	db               *enode.DB
+	tab              *Table
+	closeOnce        sync.Once
+	wg               sync.WaitGroup
 	pingIPFromPacket bool
 
 	addReplyMatcher chan *replyMatcher
@@ -263,15 +263,15 @@ type reply struct {
 
 func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 	t := &UDPv4{
-		conn:            c,
-		priv:            cfg.PrivateKey,
-		netrestrict:     cfg.NetRestrict,
-		localNode:       ln,
-		db:              ln.Database(),
-		closing:         make(chan struct{}),
-		gotreply:        make(chan reply),
-		addReplyMatcher: make(chan *replyMatcher),
-		log:             cfg.Log,
+		conn:             c,
+		priv:             cfg.PrivateKey,
+		netrestrict:      cfg.NetRestrict,
+		localNode:        ln,
+		db:               ln.Database(),
+		closing:          make(chan struct{}),
+		gotreply:         make(chan reply),
+		addReplyMatcher:  make(chan *replyMatcher),
+		log:              cfg.Log,
 		pingIPFromPacket: cfg.PingIPFromPacket,
 	}
 	if t.log == nil {

@@ -750,7 +750,7 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64)
 	}
 	return output, gas, nil
 }
-	
+
 type getValidator struct{}
 
 func (c *getValidator) RequiredGas(input []byte) uint64 {
