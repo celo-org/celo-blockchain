@@ -237,7 +237,8 @@ func (c *core) processBacklog() {
 				}
 				if view == nil {
 					logger.Debug("Nil view", "msg", msg)
-					continue
+					// continue
+					return
 				}
 				err := c.checkMessage(msg.Code, view)
 				if err != nil {
