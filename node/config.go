@@ -220,7 +220,7 @@ func (c *Config) IPCEndpoint() string {
 
 // NodeDB returns the path to the discovery node database.
 func (c *Config) NodeDB() string {
-	if c.DataDir == "" {
+	if c.DataDir == "" || c.P2P.UseInMemoryNodeDatabase {
 		return "" // ephemeral
 	}
 	return c.ResolvePath(datadirNodeDatabase)

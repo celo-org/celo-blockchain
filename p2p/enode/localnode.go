@@ -42,10 +42,11 @@ const (
 // current process. Setting ENR entries via the Set method updates the record. A new version
 // of the record is signed on demand when the Node method is called.
 type LocalNode struct {
-	cur atomic.Value // holds a non-nil node pointer while the record is up-to-date.
-	id  ID
-	key *ecdsa.PrivateKey
-	db  *DB
+	cur       atomic.Value // holds a non-nil node pointer while the record is up-to-date.
+	id        ID
+	key       *ecdsa.PrivateKey
+	db        *DB
+	networkId uint64
 
 	// everything below is protected by a lock
 	mu        sync.Mutex
@@ -62,7 +63,7 @@ type lnEndpoint struct {
 }
 
 // NewLocalNode creates a local node.
-func NewLocalNode(db *DB, key *ecdsa.PrivateKey) *LocalNode {
+func NewLocalNode(db *DB, key *ecdsa.PrivateKey, networkId uint64) *LocalNode {
 	ln := &LocalNode{
 		id:      PubkeyToIDV4(&key.PublicKey),
 		db:      db,
@@ -74,6 +75,7 @@ func NewLocalNode(db *DB, key *ecdsa.PrivateKey) *LocalNode {
 		endpoint6: lnEndpoint{
 			track: netutil.NewIPTracker(iptrackWindow, iptrackContactWindow, iptrackMinStatements),
 		},
+		networkId: networkId,
 	}
 	ln.seq = db.localSeq(ln.id)
 	ln.invalidate()
@@ -287,4 +289,8 @@ func (ln *LocalNode) sign() {
 func (ln *LocalNode) bumpSeq() {
 	ln.seq++
 	ln.db.storeLocalSeq(ln.id, ln.seq)
+}
+
+func (ln *LocalNode) NetworkId() uint64 {
+	return ln.networkId
 }

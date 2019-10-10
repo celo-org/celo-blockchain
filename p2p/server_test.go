@@ -231,7 +231,7 @@ func TestServerTaskScheduling(t *testing.T) {
 	db, _ := enode.OpenDB("")
 	srv := &Server{
 		Config:    Config{MaxPeers: 10},
-		localnode: enode.NewLocalNode(db, newkey()),
+		localnode: enode.NewLocalNode(db, newkey(), 1),
 		nodedb:    db,
 		quit:      make(chan struct{}),
 		ntab:      fakeTable{},
@@ -280,7 +280,7 @@ func TestServerManyTasks(t *testing.T) {
 		db, _ = enode.OpenDB("")
 		srv   = &Server{
 			quit:      make(chan struct{}),
-			localnode: enode.NewLocalNode(db, newkey()),
+			localnode: enode.NewLocalNode(db, newkey(), 1),
 			nodedb:    db,
 			ntab:      fakeTable{},
 			running:   true,

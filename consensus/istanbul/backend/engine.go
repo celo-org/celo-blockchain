@@ -400,11 +400,14 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 	// set header's timestamp
 	header.Time = parent.Time + sb.config.BlockPeriod
-	now := uint64(now().Unix())
-	if header.Time < now {
-		header.Time = now
+	nowTime := uint64(now().Unix())
+	if header.Time < nowTime {
+		header.Time = nowTime
 	}
 
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Unix(int64(header.Time), 0).Sub(now())
+	time.Sleep(delay)
 	return nil
 }
 
@@ -467,14 +470,15 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
-
-	if err != nil {
+	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+		log.Debug("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
+	} else if err != nil {
 		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
 	}
 
 	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
-	if err == contract_errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
+	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
+		log.Debug("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
@@ -485,7 +489,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 		infrastructureBlockReward := big.NewInt(params.Ether)
 		governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err)
+			log.Debug("Registry address lookup failed", "err", err)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
@@ -498,7 +502,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 		stakerBlockReward := big.NewInt(params.Ether)
 		lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Warn("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
+			log.Debug("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
 		} else if err != nil {
 			log.Error(err.Error())
 		}
@@ -567,14 +571,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	block, err = sb.updateBlock(parent, block)
 	if err != nil {
 		return err
-	}
-
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(int64(block.Header().Time), 0).Sub(now())
-	select {
-	case <-time.After(delay):
-	case <-stop:
-		return nil
 	}
 
 	// get the proposed block hash and clear it if the seal() is completed.

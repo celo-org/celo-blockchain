@@ -31,6 +31,7 @@ type precompiledTest struct {
 	gas             uint64
 	name            string
 	noBenchmark     bool // Benchmark primarily the worst-cases
+	errorExpected   bool
 }
 
 // precompiledFailureTest defines the input/error pairs for precompiled
@@ -398,16 +399,53 @@ var blake2FTests = []precompiledTest{
 	},
 }
 
+var fractionMulExpTests = []precompiledTest{
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000150000000000000000000000000000000000000000000000000000000000000f1000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004",
+		expected: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		name:     "correct_input_length",
+	},
+	{ // extra input gets ignored and does not make an error occur
+		input:    "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000150000000000000000000000000000000000000000000000000000000000000f100000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000400000000",
+		expected: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		name:     "input_too_long",
+	},
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "empty_input",
+		errorExpected: true,
+	},
+}
+
+var proofOfPossessionTests = []precompiledTest{
+	{
+		input:         "",
+		expected:      "invalid input length",
+		errorExpected: true,
+		name:          "empty_input",
+	},
+}
+
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.name, contract.Gas), func(t *testing.T) {
-		if res, err := RunPrecompiledContract(p, in, contract, nil); err != nil {
-			t.Error(err)
-		} else if common.Bytes2Hex(res) != test.expected {
-			t.Errorf("Expected %v, got %v", test.expected, common.Bytes2Hex(res))
+		res, err := RunPrecompiledContract(p, in, contract, nil)
+		if test.errorExpected {
+			if err == nil {
+				t.Errorf("Expected error: %v, but no error occurred", test.expected)
+			} else if err.Error() != test.expected {
+				t.Errorf("Expected error: \"%v\", but got \"%v\"", test.expected, err.Error())
+			}
+		} else {
+			if err != nil {
+				t.Error(err)
+			} else if common.Bytes2Hex(res) != test.expected {
+				t.Errorf("Expected %v, got %v", test.expected, common.Bytes2Hex(res))
+			}
 		}
 	})
 }
@@ -551,7 +589,7 @@ func TestPrecompiledBn256Pairing(t *testing.T) {
 	}
 }
 
-// Behcnmarks the sample inputs from the elliptic curve pairing check EIP 197.
+// Benchmarks the sample inputs from the elliptic curve pairing check EIP 197.
 func BenchmarkPrecompiledBn256Pairing(bench *testing.B) {
 	for _, test := range bn256PairingTests {
 		benchmarkPrecompiled("08", test, bench)
@@ -572,5 +610,21 @@ func BenchmarkPrecompiledBlake2F(bench *testing.B) {
 func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	for _, test := range blake2FMalformedInputTests {
 		testPrecompiledFailure("09", test, t)
+	}
+}
+
+// Tests sample inputs for fractionMulExp
+// NOTE: This currently only verifies that inputs of invalid length are rejected
+func TestPrecompiledFractionMulExp(t *testing.T) {
+	for _, test := range fractionMulExpTests {
+		testPrecompiled("fc", test, t)
+	}
+}
+
+// Tests sample inputs for proofOfPossession
+// NOTE: This currently only verifies that inputs of invalid length are rejected
+func TestPrecompiledProofOfPossession(t *testing.T) {
+	for _, test := range proofOfPossessionTests {
+		testPrecompiled("fb", test, t)
 	}
 }

@@ -64,7 +64,7 @@ type Backend interface {
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(Proposal, Validator) (time.Duration, error)
+	Verify(Proposal) (time.Duration, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)

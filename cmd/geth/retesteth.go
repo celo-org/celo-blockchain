@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -262,6 +263,10 @@ func (e *NoRewardEngine) SealHash(header *types.Header) common.Hash {
 
 func (e *NoRewardEngine) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
 	return e.inner.CalcDifficulty(chain, time, parent)
+}
+
+func (e *NoRewardEngine) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
+	return e.inner.GetValidators(blockNumber, headerHash)
 }
 
 func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {

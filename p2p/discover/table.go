@@ -84,7 +84,21 @@ type Table struct {
 	nodeAddedHook func(*node) // for testing
 }
 
-// transport is implemented by the UDP transports.
+type bucketInfo struct {
+	Entries      []*node `json:"entries"`
+	Replacements []*node `json:"replacements"`
+	IPs          string  `json:"ips"`
+}
+
+// TableInfo provides information on the discovery table
+type TableInfo struct {
+	Buckets [nBuckets]*bucketInfo `json:"buckets"`
+	IPs     string                `json:"ips"`
+}
+
+// transport is implemented by the UDP transport.
+// it is an interface so we can test without opening lots of UDP
+// sockets and without generating a private key.
 type transport interface {
 	Self() *enode.Node
 	RequestENR(*enode.Node) (*enode.Node, error)
@@ -603,6 +617,22 @@ func (tab *Table) bumpInBucket(b *bucket, n *node) bool {
 func (tab *Table) deleteInBucket(b *bucket, n *node) {
 	b.entries = deleteNode(b.entries, n)
 	tab.removeIP(b, n.IP())
+}
+
+// Info gives information on all the buckets and IPs in the Table
+func (tab *Table) Info() *TableInfo {
+	var buckets [nBuckets]*bucketInfo
+	for i := 0; i < nBuckets; i++ {
+		buckets[i] = &bucketInfo{
+			Entries:      tab.buckets[i].entries,
+			Replacements: tab.buckets[i].replacements,
+			IPs:          tab.buckets[i].ips.String(),
+		}
+	}
+	return &TableInfo{
+		Buckets: buckets,
+		IPs:     tab.ips.String(),
+	}
 }
 
 func contains(ns []*node, id enode.ID) bool {

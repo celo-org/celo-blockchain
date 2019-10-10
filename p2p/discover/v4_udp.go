@@ -36,6 +36,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
+
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
@@ -46,6 +48,7 @@ var (
 	errTimeout          = errors.New("RPC timeout")
 	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
+	errBadNetworkId     = errors.New("bad networkId")
 )
 
 const (
@@ -82,6 +85,8 @@ type (
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
+		NetworkId  uint64
+
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
@@ -204,6 +209,7 @@ type UDPv4 struct {
 	tab         *Table
 	closeOnce   sync.Once
 	wg          sync.WaitGroup
+	pingIPFromPacket bool
 
 	addReplyMatcher chan *replyMatcher
 	gotreply        chan reply
@@ -266,6 +272,7 @@ func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 		gotreply:        make(chan reply),
 		addReplyMatcher: make(chan *replyMatcher),
 		log:             cfg.Log,
+		pingIPFromPacket: cfg.PingIPFromPacket,
 	}
 	if t.log == nil {
 		t.log = log.Root()
@@ -296,6 +303,11 @@ func (t *UDPv4) Close() {
 		t.wg.Wait()
 		t.tab.close()
 	})
+}
+
+// Info gives information on all the buckets and IPs in the local table.
+func (t *UDPv4) Info() *TableInfo {
+	return t.tab.Info()
 }
 
 // ReadRandomNodes reads random nodes from the local table.
@@ -494,6 +506,7 @@ func (t *UDPv4) makePing(toaddr *net.UDPAddr) *pingV4 {
 		From:       t.ourEndpoint(),
 		To:         makeEndpoint(toaddr, 0),
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
+		NetworkId:  t.localNode.NetworkId(),
 		Rest:       []rlp.RawValue{seq},
 	}
 }
@@ -649,7 +662,7 @@ func (t *UDPv4) loop() {
 			var matched bool // whether any replyMatcher considered the reply acceptable.
 			for el := plist.Front(); el != nil; el = el.Next() {
 				p := el.Value.(*replyMatcher)
-				if p.from == r.from && p.ptype == r.data.kind() && p.ip.Equal(r.ip) {
+				if p.from == r.from && p.ptype == r.data.kind() && (t.pingIPFromPacket || p.ip.Equal(r.ip)) {
 					ok, requestDone := p.callback(r.data)
 					matched = matched || ok
 					// Remove the matcher if callback indicates that all replies have been received.
@@ -658,8 +671,6 @@ func (t *UDPv4) loop() {
 						p.errc <- nil
 						plist.Remove(el)
 					}
-					// Reset the continuous timeout counter (time drift detection)
-					contTimeouts = 0
 				}
 			}
 			r.matched <- matched
@@ -753,7 +764,7 @@ func (t *UDPv4) encode(priv *ecdsa.PrivateKey, req packetV4) (packet, hash []byt
 	// add the hash to the front. Note: this doesn't protect the
 	// packet in any way. Our public key will be part of this hash in
 	// The future.
-	hash = crypto.Keccak256(packet[macSize:])
+	hash = crypto.Keccak256(packet[macSize:], celoClientSalt)
 	copy(packet, hash)
 	return packet, hash, nil
 }
@@ -810,7 +821,7 @@ func decodeV4(buf []byte) (packetV4, encPubkey, []byte, error) {
 		return nil, encPubkey{}, nil, errPacketTooSmall
 	}
 	hash, sig, sigdata := buf[:macSize], buf[macSize:headSize], buf[headSize:]
-	shouldhash := crypto.Keccak256(buf[macSize:])
+	shouldhash := crypto.Keccak256(buf[macSize:], celoClientSalt)
 	if !bytes.Equal(hash, shouldhash) {
 		return nil, encPubkey{}, nil, errBadHash
 	}
@@ -878,6 +889,9 @@ func (req *pingV4) name() string { return "PING/v4" }
 func (req *pingV4) kind() byte   { return p_pingV4 }
 
 func (req *pingV4) preverify(t *UDPv4, from *net.UDPAddr, fromID enode.ID, fromKey encPubkey) error {
+	if t.localNode.NetworkId() != req.NetworkId {
+		return errBadNetworkId
+	}
 	if expired(req.Expiration) {
 		return errExpired
 	}

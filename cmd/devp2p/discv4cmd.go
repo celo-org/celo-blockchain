@@ -24,9 +24,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -72,6 +74,12 @@ var (
 var bootnodesFlag = cli.StringFlag{
 	Name:  "bootnodes",
 	Usage: "Comma separated nodes used for bootstrapping",
+}
+
+var networkIdFlag = cli.Uint64Flag{
+	Name:  "networkid",
+	Usage: "Network identifier",
+	Value: node.DefaultConfig.P2P.NetworkId,
 }
 
 func discv4Ping(ctx *cli.Context) error {
@@ -158,7 +166,8 @@ func parseBootnodes(ctx *cli.Context) ([]*enode.Node, error) {
 
 // startV4 starts an ephemeral discovery V4 node.
 func startV4(ctx *cli.Context) *discover.UDPv4 {
-	socket, ln, cfg, err := listen()
+	networkId := ctx.GlobalUint64(networkIdFlag.Name)
+	socket, ln, cfg, err := listen(networkId)
 	if err != nil {
 		exit(err)
 	}
@@ -176,11 +185,11 @@ func startV4(ctx *cli.Context) *discover.UDPv4 {
 	return disc
 }
 
-func listen() (*net.UDPConn, *enode.LocalNode, discover.Config, error) {
+func listen(networkId uint64) (*net.UDPConn, *enode.LocalNode, discover.Config, error) {
 	var cfg discover.Config
 	cfg.PrivateKey, _ = crypto.GenerateKey()
 	db, _ := enode.OpenDB("")
-	ln := enode.NewLocalNode(db, cfg.PrivateKey)
+	ln := enode.NewLocalNode(db, cfg.PrivateKey, networkId)
 
 	socket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IP{0, 0, 0, 0}})
 	if err != nil {

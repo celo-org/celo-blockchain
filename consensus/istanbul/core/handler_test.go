@@ -43,9 +43,9 @@ func TestHandleMsg(t *testing.T) {
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
 	})
-	// with a matched payload. msgPreprepare should match with *istanbul.Preprepare in normal case.
-	msg := &message{
-		Code:          msgPreprepare,
+	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
+	msg := &istanbul.Message{
+		Code:          istanbul.MsgPreprepare,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},
@@ -64,9 +64,9 @@ func TestHandleMsg(t *testing.T) {
 		},
 		Proposal: makeBlock(1),
 	})
-	// with a unmatched payload. msgPrepare should match with *istanbul.Subject in normal case.
-	msg = &message{
-		Code:          msgPrepare,
+	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
+	msg = &istanbul.Message{
+		Code:          istanbul.MsgPrepare,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},
@@ -86,8 +86,8 @@ func TestHandleMsg(t *testing.T) {
 		Proposal: makeBlock(2),
 	})
 	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
-	msg = &message{
-		Code:          msgCommit,
+	msg = &istanbul.Message{
+		Code:          istanbul.MsgCommit,
 		Msg:           m,
 		Address:       v0.Address(),
 		Signature:     []byte{},
@@ -107,7 +107,7 @@ func TestHandleMsg(t *testing.T) {
 		Proposal: makeBlock(3),
 	})
 	// invalid message code. message code is not exists in list
-	msg = &message{
+	msg = &istanbul.Message{
 		Code:          uint64(99),
 		Msg:           m,
 		Address:       v0.Address(),
