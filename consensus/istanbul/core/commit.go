@@ -47,10 +47,21 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	c.broadcast(&istanbul.Message{
+
+	istMsg := &istanbul.Message{
 		Code: istanbul.MsgCommit,
 		Msg:  encodedSubject,
-	})
+	}
+
+	// Add proof of consensus
+	seal := PrepareCommittedSeal(sub.Digest)
+	istMsg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
+	if err != nil {
+		logger.Error("Failed to add commit seal to message", "msg", istMsg, "err", err)
+		return
+	}
+
+	c.broadcast(istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {

@@ -61,8 +61,8 @@ func newValidatorEnodeTable(addValidatorPeer func(enodeURL string), removeValida
 func (vet *validatorEnodeTable) String() string {
 	outputString := "ValEnodeTable:"
 
-	for _, valEnode := range vet.valEnodeTable {
-		outputString = fmt.Sprintf("%s\t%s", outputString, valEnode.String())
+	for valAddr, valEnode := range vet.valEnodeTable {
+		outputString = fmt.Sprintf("%s\t%s %s", outputString, valAddr, valEnode.String())
 	}
 
 	return outputString

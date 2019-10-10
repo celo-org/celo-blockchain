@@ -199,7 +199,7 @@ type Server struct {
 	quit            chan struct{}
 	addvalidator    chan *enode.Node
 	removevalidator chan *enode.Node
-	addsentry       chan *enode.Node
+	addsentry       chan [2]*enode.Node
 	removesentry    chan *enode.Node
 	addstatic       chan *enode.Node
 	removestatic    chan *enode.Node
@@ -406,9 +406,9 @@ func (srv *Server) RemoveValidatorPeer(node *enode.Node) {
 }
 
 // AddSentryPeer assigns the given node as a sentry node. It will set it as a static node.
-func (srv *Server) AddSentryPeer(node *enode.Node) {
+func (srv *Server) AddSentryPeer(node *enode.Node, externalNode *enode.Node) {
 	select {
-	case srv.addsentry <- node:
+	case srv.addsentry <- [2]*enode.Node{node, externalNode}:
 	case <-srv.quit:
 	}
 }
@@ -559,7 +559,7 @@ func (srv *Server) Start() (err error) {
 	srv.posthandshake = make(chan *conn)
 	srv.addvalidator = make(chan *enode.Node)
 	srv.removevalidator = make(chan *enode.Node)
-	srv.addsentry = make(chan *enode.Node)
+	srv.addsentry = make(chan [2]*enode.Node)
 	srv.removesentry = make(chan *enode.Node)
 	srv.addstatic = make(chan *enode.Node)
 	srv.removestatic = make(chan *enode.Node)
@@ -744,6 +744,7 @@ type valNodeInfo struct {
 type sentryNodeInfo struct {
 	atSentryRemoveSetStatic bool
 	remoteEnodeURL          string
+	externalNode            *enode.Node
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -904,8 +905,9 @@ running:
 					removeTrusted(n)
 				}
 			}
-		case n := <-srv.addsentry:
-			if !isSentryNode(n.ID()) {
+		case sentry := <-srv.addsentry:
+			internalNode, externalNode := sentry[0], sentry[1]
+			if !isSentryNode(internalNode.ID()) {
 				if !srv.Proxied {
 					srv.log.Error("Add sentry node failed: this node is not configured to be proxied")
 					break
@@ -914,21 +916,21 @@ running:
 					srv.log.Error("Add sentry node failed: maximum number of sentry nodes reached", "maxSentryNodes", maxSentryNodes)
 					break
 				}
-				srv.log.Trace("Adding sentry node", "node", n)
+				srv.log.Trace("Adding sentry node", "node", internalNode)
 
 				// Save the previous state of the peer, so that when it's removed as a sentry node, it will be restored to that state
-				isStatic := dialstate.isStatic(n)
+				isStatic := dialstate.isStatic(internalNode)
 
-				sentryNodes[n.ID()] = &sentryNodeInfo{atSentryRemoveSetStatic: isStatic, remoteEnodeURL: n.String()}
+				sentryNodes[internalNode.ID()] = &sentryNodeInfo{atSentryRemoveSetStatic: isStatic, remoteEnodeURL: internalNode.String(), externalNode: externalNode}
 
 				// Mark the node as static, so that this node will reconnect to remote node if disconnected.
 				if !isStatic {
 					srv.log.Trace("Setting sentry node to static")
-					addStatic(n)
+					addStatic(internalNode)
 				}
 
 				// If already connected, update sentry peer counters and set the sentryConn flag in the connection
-				if p, ok := peers[n.ID()]; ok {
+				if p, ok := peers[internalNode.ID()]; ok {
 					p.rw.set(sentryConn, true)
 					numConnectedSentryPeers++
 				}
@@ -1048,6 +1050,7 @@ running:
 					}
 				} else if isSentryNode(c.node.ID()) {
 					numConnectedSentryPeers++
+					p.ExternalNode = sentryNodes[c.node.ID()].externalNode
 				}
 
 			}

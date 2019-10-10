@@ -53,7 +53,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	seen := make(map[common.Address]bool)
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
-		data, err := message.PayloadNoSig()
+		data, err := message.PayloadNoSigAndDestAddrs()
 		if err != nil {
 			return err
 		}

@@ -114,7 +114,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	IsProxied bool
+	IsProxied    bool
+	ExternalNode *enode.Node
 }
 
 // NewPeer returns a peer for testing purposes.

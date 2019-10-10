@@ -313,7 +313,7 @@ func (m *Message) DecodeRLP(s *rlp.Stream) error {
 
 func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	// Construct and encode a message with no signature
-	payloadNoSig, err := m.PayloadNoSig()
+	payloadNoSig, err := m.PayloadNoSigAndDestAddrs()
 	if err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 	// Validate message (on a message without Signature)
 	if validateFn != nil {
 		var payload []byte
-		payload, err = m.PayloadNoSig()
+		payload, err = m.PayloadNoSigAndDestAddrs()
 		if err != nil {
 			return err
 		}
@@ -351,14 +351,16 @@ func (m *Message) Payload() ([]byte, error) {
 	return rlp.EncodeToBytes(m)
 }
 
-func (m *Message) PayloadNoSig() ([]byte, error) {
+func (m *Message) PayloadNoSigAndDestAddrs() ([]byte, error) {
 	return rlp.EncodeToBytes(&Message{
 		Code:          m.Code,
 		Msg:           m.Msg,
 		Address:       m.Address,
 		Signature:     []byte{},
 		CommittedSeal: m.CommittedSeal,
-		DestAddresses: m.DestAddresses,
+		// Don't include the DestAddresses in the payload to sign, since the sentry will need to
+		// set it to an empty array when sending it off to other validators/sentries
+		DestAddresses: []common.Address{},
 	})
 }
 

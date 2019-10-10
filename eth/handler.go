@@ -888,6 +888,18 @@ func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common
 	return m
 }
 
+// FindSentryPeers returns a map of the sentry peers
+func (pm *ProtocolManager) FindSentryPeers() map[common.Address]consensus.Peer {
+	sentryPeers := make(map[common.Address]consensus.Peer)
+	for id := range pm.sentryPeers {
+		sentryPeer := pm.peers.Peer(id)
+		pubKey := sentryPeer.Node().Pubkey()
+		addr := crypto.PubkeyToAddress(*pubKey)
+		sentryPeers[addr] = sentryPeer
+	}
+	return sentryPeers
+}
+
 func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
 	node, err := enode.ParseV4(enodeURL)
 	if err != nil {
@@ -914,19 +926,19 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 	return pm.server.ValPeers()
 }
 
-func (pm *ProtocolManager) Proxied() bool {
-	return pm.server.Proxied
+func (pm *ProtocolManager) GetSentryPeers() [][2]string {
+	sentryPeers := pm.server.SentryPeers()
+	returnArray := make([][2]string, len(sentryPeers))
+
+	for i, sp := range sentryPeers {
+		returnArray[i] = [2]string{sp.Node().String(), sp.ExternalNode.String()}
+	}
+
+	return returnArray
 }
 
-// GetSentryPeers returns an array of all the sentry peers
-func (pm *ProtocolManager) GetSentryPeers() []consensus.Peer {
-	peers := make([]consensus.Peer, len(pm.sentryPeers))
-	i := 0
-	for id := range pm.sentryPeers {
-		peers[i] = pm.peers.Peer(id)
-		i++
-	}
-	return peers
+func (pm *ProtocolManager) Proxied() bool {
+	return pm.server.Proxied
 }
 
 func (pm *ProtocolManager) GetLocalNode() *enode.Node {

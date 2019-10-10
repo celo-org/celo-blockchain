@@ -53,8 +53,8 @@ var (
 
 // Entries for the recent announce messages
 type AnnounceGossipTimestamp struct {
-	enodeURL  string
-	timestamp time.Time
+	enodeURLHash common.Hash
+	timestamp    time.Time
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -167,39 +167,69 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(validators []common.Address, payload []byte) error {
-	// send to others
-	sb.Gossip(validators, payload, istanbulMsg, false)
-	// send to self
-	msg := istanbul.MessageEvent{
-		Payload: payload,
+func (sb *Backend) Broadcast(destAddresses []common.Address, istMsg *istanbul.Message, sendMsgToSelf bool, signMsg bool) error {
+
+	// If the validator is proxied, then add the destAddresses to the message so that the sentry
+	// will know which addresses to forward the message to
+	if sb.proxied() {
+		istMsg.DestAddresses = destAddresses
 	}
-	go sb.istanbulEventMux.Post(msg)
-	return nil
+
+	return sb.sendMessage(sb.getPeersForMessage(destAddresses), istanbulMsg, istMsg, nil, false, sendMsgToSelf, signMsg)
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(validators []common.Address, payload []byte, msgCode uint64, ignoreCache bool) error {
+func (sb *Backend) Gossip(ethMsgCode uint64, istMsg *istanbul.Message, payload []byte, ignoreCache bool) error {
+	return sb.sendMessage(sb.getPeersForMessage(nil), ethMsgCode, istMsg, payload, ignoreCache, false, true)
+}
+
+func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[common.Address]consensus.Peer {
+	if sb.proxied() {
+		return sb.broadcaster.FindSentryPeers()
+	} else {
+		var targets map[common.Address]bool = nil
+
+		if destAddresses != nil {
+			targets = make(map[common.Address]bool)
+			for _, addr := range destAddresses {
+				if addr != sb.Address() {
+					targets[addr] = true
+				}
+			}
+		}
+		return sb.broadcaster.FindPeers(targets)
+	}
+}
+
+func (sb *Backend) sendMessage(peers map[common.Address]consensus.Peer, ethMsgCode uint64, msg *istanbul.Message, payload []byte, ignoreCache bool, sendMsgToSelf bool, signMsg bool) error {
+	sb.logger.Debug("Called sendMessage", "ethMsgCode", ethMsgCode, "peers", peers)
+	if msg != nil {
+		var err error
+
+		if signMsg {
+			// Sign the message
+			if err = msg.Sign(sb.Sign); err != nil {
+				sb.logger.Error("Error in signing an Istanbul Message", "ethMsgCode", ethMsgCode, "IstanbulMsg", msg.String(), "err", err)
+				return err
+			}
+		}
+
+		// Convert to payload
+		payload, err = msg.Payload()
+		if err != nil {
+			sb.logger.Error("Error in converting Istanbul Message to payload", "IstanbulMsg", msg.String(), "IstMsg", msg.String(), "err", err)
+			return err
+		}
+	}
+
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
 		sb.knownMessages.Add(hash, true)
 	}
 
-	var targets map[common.Address]bool = nil
-
-	if validators != nil {
-		targets = make(map[common.Address]bool)
-		for _, val := range validators {
-			if val != sb.Address() {
-				targets[val] = true
-			}
-		}
-	}
-
-	if sb.broadcaster != nil && ((validators == nil) || (len(targets) > 0)) {
-		ps := sb.broadcaster.FindPeers(targets)
-		for addr, p := range ps {
+	if len(peers) > 0 {
+		for addr, p := range peers {
 			if !ignoreCache {
 				ms, ok := sb.recentMessages.Get(addr)
 				var m *lru.ARCCache
@@ -217,9 +247,17 @@ func (sb *Backend) Gossip(validators []common.Address, payload []byte, msgCode u
 				sb.recentMessages.Add(addr, m)
 			}
 
-			go p.Send(msgCode, payload)
+			go p.Send(ethMsgCode, payload)
 		}
 	}
+
+	if sendMsgToSelf {
+		msg := istanbul.MessageEvent{
+			Payload: payload,
+		}
+		go sb.istanbulEventMux.Post(msg)
+	}
+
 	return nil
 }
 
@@ -516,6 +554,14 @@ func (sb *Backend) GetValidatorPeers() []string {
 	}
 }
 
+func (sb *Backend) GetSentryPeers() [][2]string {
+	if sb.broadcaster != nil {
+		return sb.broadcaster.GetSentryPeers()
+	} else {
+		return nil
+	}
+}
+
 // This will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
@@ -536,6 +582,6 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	}
 }
 
-func (sb *Backend) Proxied() bool {
+func (sb *Backend) proxied() bool {
 	return sb.broadcaster != nil && sb.broadcaster.Proxied()
 }

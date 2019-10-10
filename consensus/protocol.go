@@ -57,6 +57,8 @@ type Broadcaster interface {
 	Enqueue(id string, block *types.Block)
 	// FindPeers retrives peers by addresses
 	FindPeers(map[common.Address]bool) map[common.Address]Peer
+	// Gets all of the sentry peers
+	FindSentryPeers() map[common.Address]Peer
 	// GetLocalNode retrieves the node's local node
 	GetLocalNode() *enode.Node
 	// GetNodeKey retrieves the node's private key
@@ -67,14 +69,14 @@ type Broadcaster interface {
 	RemoveValidatorPeer(enodeURL string) error
 	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
+	// Gets all of the sentry peers' enodeURL
+	GetSentryPeers() [][2]string
 	// Returns the fact of whether this node is a sentry
 	IsSentry() bool
 	// Returns the proxied peer, if this node is a sentry
 	GetProxiedPeer() Peer
 	// Returns if this node is intended to be proxied by sentry nodes
 	Proxied() bool
-	// Gets all of the sentry peers
-	GetSentryPeers() []Peer
 }
 
 // Peer defines the interface to communicate with peer

@@ -98,7 +98,7 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 	}
 }
 
-func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
+func (sb *Backend) generateValEnodeShareMsg() (*istanbul.Message, error) {
 	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
 	i := 0
 	sb.valEnodeTable.valEnodeTableMu.RLock()
@@ -130,41 +130,26 @@ func (sb *Backend) generateValEnodeShareMsg() ([]byte, error) {
 		CommittedSeal: []byte{},
 	}
 
-	// Sign the validator enode share message
-	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "err", err)
-		return nil, err
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		sb.logger.Error("Error in converting Istanbul Validator Enode Share message to payload", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "err", err)
-		return nil, err
-	}
-
 	sb.logger.Trace("Generated a Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String())
 
-	return payload, nil
+	return msg, nil
 }
 
 func (sb *Backend) sendValEnodeShareMsg() error {
-	payload, err := sb.generateValEnodeShareMsg()
+	msg, err := sb.generateValEnodeShareMsg()
 	if err != nil {
 		return err
 	}
 
-	if payload == nil {
+	if msg == nil {
 		return nil
 	}
 
 	if sb.broadcaster != nil {
-		sentryPeers := sb.broadcaster.GetSentryPeers()
+		sentryPeers := sb.broadcaster.FindSentryPeers()
 		if len(sentryPeers) > 0 {
-			sb.logger.Trace("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
-			for _, sentryPeer := range sentryPeers {
-				sentryPeer.Send(istanbulValEnodeShareMsg, payload)
-			}
+			sb.logger.Debug("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
+			sb.sendMessage(sentryPeers, istanbulValEnodeShareMsg, msg, nil, true, false, true)
 		} else {
 			sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
 		}
@@ -177,7 +162,7 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 // certain validator, add a check in here to make sure the message came from
 // the correct validator.
 func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
-	sb.logger.Trace("Handling an Istanbul Validator Enode message")
+	sb.logger.Debug("Handling an Istanbul Validator Enode Share message")
 
 	msg := new(istanbul.Message)
 	// Decode message
@@ -211,7 +196,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		}
 	}
 
-	sb.logger.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+	sb.logger.Debug("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
 
 	return nil
 }

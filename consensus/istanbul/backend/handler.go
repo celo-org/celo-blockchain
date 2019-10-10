@@ -42,7 +42,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{20},
+		Lengths:  []uint64{22},
 		Primary:  true,
 	}
 }
@@ -53,12 +53,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 	defer sb.coreMu.Unlock()
 
 	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
-		if !sb.coreStarted && (msg.Code == istanbulMsg) {
+		if (!sb.coreStarted && !sb.broadcaster.IsSentry()) && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
+			sb.logger.Error("Failed to decode message payload", "msg", msg)
 			return true, errDecodeFailed
 		}
 
@@ -83,18 +84,18 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 
 		if msg.Code == istanbulMsg {
 			if sb.broadcaster.IsSentry() {
-
 				if fromProxiedPeer {
-					// Reveived a message from this sentry's proxied validator
+					// Received a consensus message from this sentry's proxied validator
 					// Note that we are NOT verifying the signature of the message that is sent from the
 					// proxied validator, since it's a trusted peer and all the other validators will
 					// verify the signature.
 					istMsg := new(istanbul.Message)
-					if err := istMsg.Decode(data); err != nil {
+					if err := istMsg.FromPayload(data, nil); err != nil {
 						sb.logger.Error("Failed to decode message from payload", "err", err)
 						return true, err
 					}
-					go sb.Gossip(istMsg.DestAddresses, data, msg.Code, false)
+					istMsg.DestAddresses = []common.Address{}
+					go sb.Broadcast(istMsg.DestAddresses, istMsg, false, false)
 				} else {
 					// Need to forward the message to the proxied validator
 					proxiedPeer := sb.broadcaster.GetProxiedPeer()
@@ -142,7 +143,7 @@ func (sb *Backend) NewChainHead() error {
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-		if !sb.Proxied() {
+		if !sb.proxied() {
 			go sb.RefreshValPeers(valset)
 		}
 	}

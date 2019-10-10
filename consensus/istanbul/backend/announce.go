@@ -18,7 +18,7 @@ package backend
 
 import (
 	"bytes"
-	"crypto/rand"
+	// "crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -30,9 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
+	//"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	//"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -43,6 +43,7 @@ import (
 type announceMessage struct {
 	IncompleteEnodeURL    string
 	EncryptedEndpointData [][][]byte
+	EnodeURLHash          common.Hash
 	View                  *istanbul.View
 }
 
@@ -56,7 +57,7 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View})
+	return rlp.Encode(w, []interface{}{am.IncompleteEnodeURL, am.EncryptedEndpointData, am.EnodeURLHash, am.View})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
@@ -64,13 +65,14 @@ func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		IncompleteEnodeURL    string
 		EncryptedEndpointData [][][]byte
+		EnodeURLHash          common.Hash
 		View                  *istanbul.View
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.IncompleteEnodeURL, am.EncryptedEndpointData, am.View = msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.View
+	am.IncompleteEnodeURL, am.EncryptedEndpointData, am.EnodeURLHash, am.View = msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.EnodeURLHash, msg.View
 	return nil
 }
 
@@ -96,16 +98,31 @@ func (sb *Backend) sendAnnounceMsgs() {
 	}
 }
 
-func (sb *Backend) generateIstAnnounce() ([]byte, error) {
+func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	block := sb.currentBlock()
-	selfEnode := sb.Enode()
 
-	if selfEnode == nil {
-		sb.logger.Error("Enode is nil in sendIstAnnounce")
-		return nil, nil
+	var enodeUrl string
+	if sb.proxied() {
+		sentryEnodeURLs := sb.GetSentryPeers()
+
+		if len(sentryEnodeURLs) > 0 {
+			// Right now, we assume that there is at most one sentry for this proxied validator
+			enodeUrl = sentryEnodeURLs[0][1]
+
+		} else {
+			sb.logger.Debug("Proxied node has no attached sentries")
+			return nil, nil
+		}
+	} else {
+		selfEnode := sb.Enode()
+
+		if selfEnode == nil {
+			sb.logger.Error("Enode is nil in sendIstAnnounce")
+			return nil, nil
+		}
+
+		enodeUrl = selfEnode.String()
 	}
-
-	enodeUrl := selfEnode.String()
 	view := sb.core.CurrentView()
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
 	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
@@ -129,10 +146,17 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	encryptedEndpoints := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
-		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
-			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
-			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
-			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
+		// TODO: Can we and should we encrypt with the bls public key? It will where down the ledger device faster
+		// for the decryptions.
+		// if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
+		// validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
+		// pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
+		// encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
+
+		var err error = nil
+		if _, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
+			encryptedEndpoint := []byte(endpointData)
+
 			if err != nil {
 				log.Warn("Unable to unmarshal public key", "err", err)
 			} else {
@@ -144,6 +168,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 	announceMessage := &announceMessage{
 		IncompleteEnodeURL:    incompleteEnodeUrl,
 		EncryptedEndpointData: encryptedEndpoints,
+		EnodeURLHash:          istanbul.RLPHash(enodeUrl),
 		View:                  view,
 	}
 
@@ -160,42 +185,27 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		CommittedSeal: []byte{},
 	}
 
-	// Sign the announce message
-	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul Announce Message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String(), "err", err)
-		return nil, err
-	}
+	sb.logger.Debug("Broadcasting an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String(), "err", err)
-		return nil, err
-	}
-
-	sb.logger.Trace("Broadcasting an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
-
-	return payload, nil
+	return msg, nil
 }
 
 func (sb *Backend) sendIstAnnounce() error {
-	payload, err := sb.generateIstAnnounce()
+	istMsg, err := sb.generateIstAnnounce()
 	if err != nil {
 		return err
 	}
 
-	if payload == nil {
+	if istMsg == nil {
 		return nil
 	}
 
-	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+	sb.Gossip(istanbulAnnounceMsg, istMsg, nil, true)
 
 	return nil
 }
 
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
-	sb.logger.Trace("Handling an IstanbulAnnounce message")
-
 	msg := new(istanbul.Message)
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -204,9 +214,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
+	sb.logger.Debug("Handling an IstanbulAnnounce message", "from", msg.Address)
+
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
-		sb.logger.Trace("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
+		sb.logger.Debug("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
 		return nil
 	}
 
@@ -235,34 +247,37 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return errUnauthorizedAnnounceMessage
 	}
 
-	// Decrypt the EnodeURL
-	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
-
 	var announceMessage announceMessage
 	err = rlp.DecodeBytes(msg.Msg, &announceMessage)
 	if err != nil {
 		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 	}
 
-	encryptedEndpoint := []byte("")
-	for _, entry := range announceMessage.EncryptedEndpointData {
-		if bytes.Equal(entry[0], sb.Address().Bytes()) {
-			encryptedEndpoint = entry[1]
-		}
-	}
-	endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
-	if err != nil && len(encryptedEndpoint) > 0 {
-		sb.logger.Warn("Error in decrypting endpoint", "err", err, "encryptedEndpoint", encryptedEndpoint)
-	}
-	enodeUrl := announceMessage.IncompleteEnodeURL + string(endpointBytes)
-
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
+		// Decrypt the EnodeURL
+		// TODO Re-enable decryption of the enodeURL
+		// nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
+
+		encryptedEndpoint := []byte("")
+		for _, entry := range announceMessage.EncryptedEndpointData {
+			if bytes.Equal(entry[0], sb.Address().Bytes()) {
+				encryptedEndpoint = entry[1]
+			}
+		}
+		// endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
+		var err error = nil
+		endpointBytes := encryptedEndpoint
+		if err != nil && len(encryptedEndpoint) > 0 {
+			sb.logger.Warn("Error in decrypting endpoint", "err", err)
+		}
+		enodeUrl := announceMessage.IncompleteEnodeURL + string(endpointBytes)
+
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: announceMessage.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), sb.Proxied(), false); err != nil {
+		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), sb.proxied(), false); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
 			return err
 		}
@@ -271,7 +286,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if (lastGossipTs.enodeURLHash == announceMessage.EnodeURLHash) && (time.Since(lastGossipTs.timestamp) < time.Minute) {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
@@ -279,12 +294,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
-	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+	sb.logger.Debug("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+	sb.Gossip(istanbulAnnounceMsg, nil, payload, true)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURLHash: announceMessage.EnodeURLHash, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {

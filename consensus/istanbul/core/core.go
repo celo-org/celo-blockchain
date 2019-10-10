@@ -93,6 +93,8 @@ type core struct {
 	sequenceMeter metrics.Meter
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	isProxied bool
 }
 
 // Appends the current view and state to the given context.
@@ -115,52 +117,13 @@ func (c *core) SetAddress(address common.Address) {
 	c.logger = log.New("address", address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
-	var err error
-	// Add sender address
-	msg.Address = c.Address()
-
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Sign message
-	data, err := msg.PayloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	msg.Signature, err = c.backend.Sign(data)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
-}
-
 func (c *core) broadcast(msg *istanbul.Message) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
-	payload, err := c.finalizeMessage(msg)
-	if err != nil {
-		logger.Error("Failed to finalize message", "msg", msg, "err", err)
-		return
-	}
+	// Add sender address
+	msg.Address = c.Address()
 
-	// Broadcast payload
-	if err = c.backend.Broadcast(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), payload); err != nil {
+	if err := c.backend.Broadcast(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), msg, true, true); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}

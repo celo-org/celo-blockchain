@@ -73,7 +73,7 @@ type Config struct {
 	// Configuration of peer-to-peer networking.
 	P2P p2p.Config
 
-	Sentry bool
+	Sentry   bool
 	ProxyP2P p2p.Config
 
 	// KeyStoreDir is the file system folder that contains private keys. The directory can
