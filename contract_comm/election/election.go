@@ -47,7 +47,7 @@ const electionABIString string = `[
 			     {
       "constant": true,
       "inputs": [],
-      "name": "getEligibleValidatorGroupsVoteTotals",
+      "name": "getTotalVotesForEligibleValidatorGroups",
       "outputs": [
         {
           "name": "groups",
@@ -130,12 +130,12 @@ type voteTotal struct {
 	Value *big.Int
 }
 
-func getEligibleValidatorGroupsVoteTotals(header *types.Header, state vm.StateDB) ([]voteTotal, error) {
+func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.StateDB) ([]voteTotal, error) {
 	var groups []common.Address
 	var values []*big.Int
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getEligibleValidatorGroupsVoteTotals", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
 	if err != nil {
-		log.Error("DistributeEpochRewards, error calling getEligibleValidatorGroupsVoteTotals", "err", err)
+		log.Error("DistributeEpochRewards, error calling getTotalVotesForEligibleValidatorGroups", "err", err)
 	}
 
 	voteTotals := make([]voteTotal, len(groups))
@@ -158,7 +158,7 @@ func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.A
 
 func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
 	totalRewards := big.NewInt(0)
-	voteTotals, err := getEligibleValidatorGroupsVoteTotals(header, state)
+	voteTotals, err := getTotalVotesForEligibleValidatorGroups(header, state)
 	if err != nil {
 		return totalRewards, err
 	}
