@@ -419,7 +419,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		// TODO(asa): How do I keep from finalizing the state when this returns an error?
 		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
 		if err == nil {
 			header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
