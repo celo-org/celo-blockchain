@@ -93,8 +93,8 @@ ifeq ("$(RUSTUP_exists)","")
 else ifeq ("$(CARGO_LIPO_exists)","")
 	$(error "No cargo lipo in PATH, run cargo install cargo-lipo")
 else
-	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
-	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios,i386-apple-ios
+	rustup target add aarch64-apple-ios armv7-apple-ios x86_64-apple-ios i386-apple-ios
+	cd vendor/github.com/celo-org/bls-zexe/bls && cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,x86_64-apple-ios,i386-apple-ios
 endif
 
 vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a:
