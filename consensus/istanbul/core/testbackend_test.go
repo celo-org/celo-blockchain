@@ -181,9 +181,9 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 	return self.peers
 }
 
-func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
+func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) (istanbul.Message, error) {
 	message := new(istanbul.Message)
-	data, err := self.engine.(*core).finalizeMessage(msg)
+	data, err := self.engine.(*core).finalizeMessage(msg, generateCommittedSeal)
 	if err != nil {
 		return *message, err
 	}
@@ -207,7 +207,7 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 		Msg:  payload,
 	}
 
-	return self.finalizeAndReturnMessage(msg)
+	return self.finalizeAndReturnMessage(msg, nil)
 }
 
 func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
@@ -233,7 +233,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		View:     &view,
 		Proposal: proposal,
 	}
-	message, err := self.finalizeAndReturnMessage(msg)
+	message, err := self.finalizeAndReturnMessage(msg, func() ([]byte, error) { return self.engine.(*core).generateCommittedSeal(commit.Digest) })
 	self.engine.(*core).current.Preprepare = cachePreprepare
 	return message, err
 }
@@ -254,7 +254,7 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 		Msg:  payload,
 	}
 
-	return self.finalizeAndReturnMessage(msg)
+	return self.finalizeAndReturnMessage(msg, nil)
 }
 
 func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}

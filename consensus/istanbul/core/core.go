@@ -115,17 +115,19 @@ func (c *core) SetAddress(address common.Address) {
 	c.logger = log.New("address", address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
+func (c *core) finalizeMessage(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) ([]byte, error) {
 	var err error
 	// Add sender address
 	msg.Address = c.Address()
 
 	// Add proof of consensus
 	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
+	if generateCommittedSeal != nil {
+		// This should be non nilif msg.Code == istanbul.MsgCommit
+		msg.CommittedSeal, err = generateCommittedSeal()
+		if err != nil {
+			return nil, err
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -150,10 +152,10 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
-func (c *core) broadcast(msg *istanbul.Message) {
+func (c *core) broadcast(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
-	payload, err := c.finalizeMessage(msg)
+	payload, err := c.finalizeMessage(msg, generateCommittedSeal)
 	if err != nil {
 		logger.Error("Failed to finalize message", "msg", msg, "err", err)
 		return
