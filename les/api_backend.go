@@ -183,8 +183,8 @@ func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress 
 	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
 }
 
-func (b *LesApiBackend) InfrastructureFraction(ctx context.Context) (*gpm.InfrastructureFraction, error) {
-	return gpm.GetInfrastructureFraction(nil, nil)
+func (b *LesApiBackend) ProposerFraction(ctx context.Context) (*gpm.ProposerFraction, error) {
+	return gpm.GetProposerFraction(nil, nil)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

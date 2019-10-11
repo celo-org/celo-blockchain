@@ -19,6 +19,7 @@ package blockchain_parameters
 import (
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/contract_comm"
@@ -67,11 +68,58 @@ const (
 	  }]`
 )
 
-const defaultGasAmount = 2000000
+var blockchainParametersABI abi.ABI
 
-var (
-	blockchainParametersABI, _ = abi.JSON(strings.NewReader(blockchainParametersABIString))
-)
+func init() {
+	var err error
+	blockchainParametersABI, err = abi.JSON(strings.NewReader(blockchainParametersABIString))
+	if err != nil {
+		log.Crit("Error reading ABI for BlockchainParameters", "err", err)
+	}
+}
+
+func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
+	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
+	var err error
+	_, err = contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"getMinimumClientVersion",
+		[]interface{}{},
+		&version,
+		params.MaxGasForGetGasPriceMinimum,
+		header,
+		state,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &params.VersionInfo{version[0].Uint64(), version[1].Uint64(), version[2].Uint64()}, nil
+}
+
+func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
+	version, err := GetMinimumVersion(header, state)
+
+	if err != nil {
+		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
+		return
+	}
+
+	if params.CurrentVersionInfo.Cmp(version) == -1 {
+		time.Sleep(10 * time.Second)
+		log.Crit("Client version older than required", "current", params.Version, "required", version)
+	}
+
+}
+
+func SpawnCheck() {
+	go func() {
+		for {
+			time.Sleep(60 * time.Second)
+			CheckMinimumVersion(nil, nil)
+		}
+	}()
+}
 
 func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 	var gasLimit *big.Int
@@ -81,41 +129,12 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		"blockGasLimit",
 		[]interface{}{},
 		&gasLimit,
-		defaultGasAmount,
+		params.MaxGasForBlockGasLimit,
 		header,
 		state,
 	)
-	// log.Info("querying block gas limit", "limit", gasLimit, "err", err)
 	if err != nil {
 		return 0, err
 	}
 	return gasLimit.Uint64(), err
-}
-
-func CheckMinimumVersion(header *types.Header, state vm.StateDB) error {
-	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-	var err error
-	_, err = contract_comm.MakeStaticCall(
-		params.BlockchainParametersRegistryId,
-		blockchainParametersABI,
-		"getMinimumClientVersion",
-		[]interface{}{},
-		&version,
-		defaultGasAmount,
-		header,
-		state,
-	)
-
-	if err != nil {
-		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
-		return nil
-	}
-
-	if params.VersionMajor < version[0].Uint64() ||
-		params.VersionMajor == version[0].Uint64() && params.VersionMinor < version[1].Uint64() ||
-		params.VersionMajor == version[0].Uint64() && params.VersionMinor == version[1].Uint64() && params.VersionPatch < version[2].Uint64() {
-		log.Crit("Client version older than required", "current", params.Version, "required", version)
-	}
-
-	return nil
 }
