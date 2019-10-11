@@ -9,6 +9,6 @@
     "vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a"
   ],
   "scripts": {
-    "postinstall": "unzip build/bin/Geth.framework.zip -d build/bin"
+    "postinstall": "rm -rf build/bin/Geth.framework && unzip build/bin/Geth.framework.zip -d build/bin"
   }
 }
