@@ -19,6 +19,7 @@ package blockchain_parameters
 import (
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -67,7 +68,6 @@ const (
 		"type": "function"
 	  }]`
 )
-
 
 var blockchainParametersABI abi.ABI
 
@@ -120,11 +120,6 @@ func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *com
 	}
 	log.Info("Reading gas", "gas", gas)
 	return gas.Uint64()
-		params.MaxGasForGetGasPriceMinimum,
-		header,
-		state,
-	)
-
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
