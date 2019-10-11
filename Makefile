@@ -119,6 +119,7 @@ android: bls-zexe-android
 
 ios: bls-zexe-ios
 	build/env.sh go run build/ci.go xcode --local
+	pushd "$(GOBIN)"; rm -rf Geth.framework.zip; zip -r9y Geth.framework.zip Geth.framework; popd
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
