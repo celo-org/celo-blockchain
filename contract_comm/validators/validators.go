@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -140,8 +140,8 @@ var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[common.Address]bool, error) {
 	var regVals []common.Address
 
-	maxGasForGetRegisteredValidators := uint64(1000000)
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, header, state); err != nil {
+	// Get the new epoch's validator set
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 
