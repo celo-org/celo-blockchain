@@ -1,6 +1,6 @@
 {
   "name": "@celo/client",
-  "version": "0.0.107",
+  "version": "0.0.1",
   "description": "Celo client for mobile",
   "files": [
     "build/bin/geth.aar",
