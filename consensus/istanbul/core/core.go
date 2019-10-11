@@ -122,8 +122,9 @@ func (c *core) finalizeMessage(msg *istanbul.Message, generateCommittedSeal func
 
 	// Add proof of consensus
 	msg.CommittedSeal = []byte{}
+
+	// This should be non nil if msg.Code == istanbul.MsgCommit
 	if generateCommittedSeal != nil {
-		// This should be non nilif msg.Code == istanbul.MsgCommit
 		msg.CommittedSeal, err = generateCommittedSeal()
 		if err != nil {
 			return nil, err
