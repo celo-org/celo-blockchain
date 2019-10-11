@@ -56,11 +56,19 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	istMsg := istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  encodedSubject,
+
+	committedSeal, err := c.generateCommittedSeal(sub.Digest)
+	if err != nil {
+		logger.Error("Failed to commit seal", "err", err)
+		return
 	}
-	c.broadcast(&istMsg, func() ([]byte, error) { return c.generateCommittedSeal(sub.Digest) })
+
+	istMsg := istanbul.Message{
+		Code:          istanbul.MsgCommit,
+		Msg:           encodedSubject,
+		CommittedSeal: committedSeal,
+	}
+	c.broadcast(&istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {

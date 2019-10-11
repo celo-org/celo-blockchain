@@ -43,7 +43,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 		c.broadcast(&istanbul.Message{
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
-		}, nil)
+		})
 	}
 }
 

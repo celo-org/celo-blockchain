@@ -17,6 +17,7 @@
 package core
 
 import (
+	"bytes"
 	"math/big"
 	"reflect"
 	"testing"
@@ -344,6 +345,10 @@ OUTER:
 				_, srcValidator := c.valSet.GetByAddress(v.address)
 				if err := c.verifyCommittedSeal(subject.Digest, decodedMsg.CommittedSeal, srcValidator); err != nil {
 					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, decodedMsg.CommittedSeal)
+				}
+			} else {
+				if !bytes.Equal(decodedMsg.CommittedSeal, []byte{}) {
+					t.Errorf("invalid seal.  should be an empty array")
 				}
 			}
 		}
