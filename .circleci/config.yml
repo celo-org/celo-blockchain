@@ -10,7 +10,7 @@ rust-defaults: &rust-defaults
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
-    - image: celohq/node8:gcloud
+    - image: celohq/node10-gcloud
 
 jobs:
   unit-tests:
@@ -125,6 +125,22 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/repos/geth
 
+  end-to-end-exit-test:
+    <<: *end-to-end-defaults
+    working_directory: ~/repos
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: Geth sync with a standalone node test
+          command: |
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_exit.sh local ~/repos/geth
+
   end-to-end-geth-governance-test:
     <<: *end-to-end-defaults
     # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
@@ -162,6 +178,10 @@ workflows:
             - end-to-end-monorepo-checkout
             - bls-zexe
       - end-to-end-sync-test:
+          requires:
+            - end-to-end-monorepo-checkout
+            - bls-zexe
+      - end-to-end-exit-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe

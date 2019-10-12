@@ -84,7 +84,6 @@ const (
       "type": "function"
     }
 ]`
-	gasAmount = 1000000
 )
 
 var (
@@ -120,7 +119,7 @@ func IsRunning() bool {
 // database.
 func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state vm.StateDB, chain consensus.ChainReader, seed []byte) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, params.MaxGasForCommitments, header, state)
 	if err != nil {
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err
@@ -153,7 +152,7 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 	commitment := common.Hash{}
 	randomness := crypto.Keccak256Hash(append(seed, header.ParentHash.Bytes()...))
 	// TODO(asa): Make an issue to not have to do this via StaticCall
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
 		log.Error("Failed to save last block parentHash to the database", "err", err)
@@ -167,6 +166,6 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state vm.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
+	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue, header, state)
 	return err
 }
