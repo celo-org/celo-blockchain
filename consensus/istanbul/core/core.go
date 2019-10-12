@@ -117,52 +117,11 @@ func (c *core) SetAddress(address common.Address) {
 	c.logger = log.New("address", address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) ([]byte, error) {
-	var err error
-	// Add sender address
-	msg.Address = c.Address()
-
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-
-	// This should be non nil if msg.Code == istanbul.MsgCommit
-	if generateCommittedSeal != nil {
-		msg.CommittedSeal, err = generateCommittedSeal()
-		if err != nil {
-			return nil, err
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Sign message
-	data, err := msg.PayloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	msg.Signature, err = c.backend.Sign(data)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
-}
-
-func (c *core) broadcast(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) {
+func (c *core) broadcast(msg *istanbul.Message) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
-	payload, err := c.finalizeMessage(msg, generateCommittedSeal)
-	if err != nil {
-		logger.Error("Failed to finalize message", "msg", msg, "err", err)
-		return
-	}
+	// Add sender address
+	msg.Address = c.Address()
 
 	if err := c.backend.Broadcast(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), msg, true, true); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)

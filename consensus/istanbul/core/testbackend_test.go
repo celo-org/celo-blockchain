@@ -181,9 +181,9 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 	return self.peers
 }
 
-func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message, generateCommittedSeal func() ([]byte, error)) (istanbul.Message, error) {
+func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
-	data, err := self.engine.(*core).finalizeMessage(msg, generateCommittedSeal)
+	data, err := self.engine.(*core).finalizeMessage(msg)
 	if err != nil {
 		return *message, err
 	}
@@ -207,7 +207,7 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 		Msg:  payload,
 	}
 
-	return self.finalizeAndReturnMessage(msg, nil)
+	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
@@ -221,9 +221,15 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
 	msg := &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  payload,
+		Code:          istanbul.MsgCommit,
+		Msg:           payload,
+		CommittedSeal: committedSeal,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
@@ -233,7 +239,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		View:     &view,
 		Proposal: proposal,
 	}
-	message, err := self.finalizeAndReturnMessage(msg, func() ([]byte, error) { return self.engine.(*core).generateCommittedSeal(commit.Digest) })
+	message, err := self.finalizeAndReturnMessage(msg)
 	self.engine.(*core).current.Preprepare = cachePreprepare
 	return message, err
 }
@@ -254,7 +260,7 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 		Msg:  payload,
 	}
 
-	return self.finalizeAndReturnMessage(msg, nil)
+	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}

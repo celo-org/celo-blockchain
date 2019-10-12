@@ -36,7 +36,7 @@ func (c *core) sendPrepare() {
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  encodedSubject,
-	}, nil)
+	})
 }
 
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {

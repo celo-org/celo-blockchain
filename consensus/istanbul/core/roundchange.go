@@ -60,7 +60,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
-	}, nil)
+	})
 }
 
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
