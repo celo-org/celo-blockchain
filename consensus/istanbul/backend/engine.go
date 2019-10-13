@@ -143,6 +143,10 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errInvalidParentSeal is returned when the parentSeal signature on the
+	// current block did not match the seal extracted from the parent block's
+	// extra field
+	errInvalidParentSeal = errors.New("invalid parent seal")
 )
 
 var (
@@ -237,6 +241,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
+
 	if chain.Config().FullHeaderChainAvailable {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
@@ -362,6 +367,23 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		return errInvalidSignature
 	}
 
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+	parentExtra, err := types.ExtractIstanbulExtra(parent)
+	if err != nil {
+		return err
+	}
+	// todo: Replace with actual parentSeal from current block. How can we get
+	// this? The parentSeal is not part of the header, as it follows the design
+	// choices of the Randomness-PR. Should we make the
+	// parentSeal part of the header's extra?
+	todoSeal := types.EmptyBlockSeal
+	if !bytes.Equal(parentExtra.Seal, todoSeal.Seal) && parentExtra.Bitmap != todoSeal.Bitmap {
+		return errInvalidParentSeal
+	}
+
 	return nil
 }
 
@@ -454,6 +476,7 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness, parentSeal *types.BlockSeal) (*types.Block, error) {
+	// Ensure that the parentSeal
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
 	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
