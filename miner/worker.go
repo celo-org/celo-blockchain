@@ -1030,6 +1030,17 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		w.current.randomness = &types.EmptyRandomness
 	}
 
+	// Get all the seals from the parent
+	istanbulExtra, err := types.ExtractIstanbulExtra(parent.Header())
+	if err != nil {
+		w.current.parentSeal = &types.EmptyBlockSeal
+	} else {
+		w.current.parentSeal = &types.BlockSeal{
+			Seal:   istanbulExtra.Seal,
+			Bitmap: istanbulExtra.Bitmap,
+		}
+	}
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
