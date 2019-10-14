@@ -3,6 +3,6 @@
 package bls
 
 /*
-#cgo LDFLAGS: -L../bls/target/universal/release -L../bls/target/release -lbls_zexe -ldl -lm
+#cgo LDFLAGS: -L../bls/target/i686-apple-darwin/release -L../bls/target/release -lbls_zexe -ldl -lm
 */
 import "C"
