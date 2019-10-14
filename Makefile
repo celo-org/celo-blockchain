@@ -124,7 +124,6 @@ ios: bls-zexe-ios
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
 test: all
-
 	build/env.sh go run build/ci.go test
 
 lint: ## Run linters.
