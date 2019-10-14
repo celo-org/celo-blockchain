@@ -46,4 +46,4 @@ name = "pop_csv"
 path = "examples/pop_csv.rs"
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["lib", "staticlib"]
