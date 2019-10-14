@@ -183,6 +183,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NetrestrictFlag,
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
+			utils.PingIPFromPacketFlag,
+			utils.UseInMemoryDiscoverTable,
 		},
 	},
 	{
@@ -242,6 +244,9 @@ var AppHelpFlagGroups = []flagGroup{
 	},
 	{
 		Name: "MISC",
+		Flags: []cli.Flag{
+			utils.VersionCheckFlag,
+		},
 	},
 	{
 		Name: "ISTANBUL",
