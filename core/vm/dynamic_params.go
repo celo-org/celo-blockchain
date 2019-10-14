@@ -16,7 +16,7 @@ const (
                               "inputs": [
                                    {
                                        "name": "identifier",
-                                       "type": "string"
+                                       "type": "bytes32"
                                    }
                               ],
                               "name": "getAddressFor",
@@ -43,7 +43,7 @@ type regAddrCacheEntry struct {
 	registryCodeHash    common.Hash
 }
 
-func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, error) {
+func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 

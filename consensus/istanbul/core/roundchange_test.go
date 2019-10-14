@@ -19,6 +19,7 @@ package core
 import (
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -26,7 +27,7 @@ import (
 )
 
 func TestRoundChangeSet(t *testing.T) {
-	vals, _ := generateValidators(4)
+	vals, _, _ := generateValidators(4)
 	vset := validator.NewSet(vals, istanbul.RoundRobin)
 	rc := newRoundChangeSet(vset)
 
@@ -43,8 +44,8 @@ func TestRoundChangeSet(t *testing.T) {
 	// Test Add()
 	// Add message from all validators
 	for i, v := range vset.List() {
-		msg := &message{
-			Code:    msgRoundChange,
+		msg := &istanbul.Message{
+			Code:    istanbul.MsgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
@@ -56,8 +57,8 @@ func TestRoundChangeSet(t *testing.T) {
 
 	// Add message again from all validators, but the size should be the same
 	for _, v := range vset.List() {
-		msg := &message{
-			Code:    msgRoundChange,
+		msg := &istanbul.Message{
+			Code:    istanbul.MsgRoundChange,
 			Msg:     m,
 			Address: v.Address(),
 		}
@@ -90,4 +91,384 @@ func TestRoundChangeSet(t *testing.T) {
 	if rc.roundChanges[view.Round.Uint64()] != nil {
 		t.Errorf("the change messages mismatch: have %v, want nil", rc.roundChanges[view.Round.Uint64()])
 	}
+}
+
+func TestHandleRoundChangeCertificate(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	view := istanbul.View{
+		Round:    big.NewInt(1),
+		Sequence: big.NewInt(1),
+	}
+
+	testCases := []struct {
+		getCertificate func(*testSystem) istanbul.RoundChangeCertificate
+		expectedErr    error
+	}{
+		{
+			// Valid round change certificate without PREPARED certificate
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				return sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+			},
+			nil,
+		},
+		{
+			// Valid round change certificate with PREPARED certificate
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				return sys.getRoundChangeCertificate(t, view, sys.getPreparedCertificate(t, view, makeBlock(0)))
+			},
+			nil,
+		},
+		{
+			// Invalid round change certificate, duplicate message
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
+				return roundChangeCertificate
+			},
+			errInvalidRoundChangeCertificateDuplicate,
+		},
+		{
+			// Empty certificate
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
+			errInvalidRoundChangeCertificateNumMsgs,
+		},
+	}
+	for _, test := range testCases {
+		sys := NewTestSystemWithBackend(N, F)
+		for i, backend := range sys.backends {
+			c := backend.engine.(*core)
+			certificate := test.getCertificate(sys)
+			subject := istanbul.Subject{
+				View:   &view,
+				Digest: makeBlock(0).Hash(),
+			}
+			err := c.handleRoundChangeCertificate(subject, certificate)
+
+			if err != test.expectedErr {
+				t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
+			}
+			if err == nil && c.currentView().Cmp(&view) != 0 {
+				t.Errorf("view mismatch for test case %v: have %v, want %v", i, c.currentView(), view)
+			}
+		}
+	}
+}
+
+func TestHandleRoundChange(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1) // F does not affect tests
+
+	testCases := []struct {
+		system      *testSystem
+		getCert     func(*testSystem) istanbul.PreparedCertificate
+		expectedErr error
+	}{
+		{
+			// normal case
+			NewTestSystemWithBackend(N, F),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			nil,
+		},
+		{
+			// normal case with valid prepared certificate
+			NewTestSystemWithBackend(N, F),
+			func(sys *testSystem) istanbul.PreparedCertificate {
+				return sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+			},
+			nil,
+		},
+		{
+			// normal case with invalid prepared certificate
+			NewTestSystemWithBackend(N, F),
+			func(sys *testSystem) istanbul.PreparedCertificate {
+				preparedCert := sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
+				return preparedCert
+			},
+			errInvalidPreparedCertificateDuplicate,
+		},
+		{
+			// valid message for future round
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(10))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			nil,
+		},
+		{
+			// invalid message for future sequence
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetSequence(big.NewInt(10))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			errFutureMessage,
+		},
+		{
+			// invalid message for previous round
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(0))
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.PreparedCertificate {
+				return istanbul.EmptyPreparedCertificate()
+			},
+			nil,
+		},
+	}
+
+OUTER:
+	for _, test := range testCases {
+		test.system.Run(false)
+
+		v0 := test.system.backends[0]
+		r0 := v0.engine.(*core)
+
+		curView := r0.currentView()
+		nextView := &istanbul.View{
+			Round:    new(big.Int).Add(curView.Round, common.Big1),
+			Sequence: curView.Sequence,
+		}
+
+		roundChange := &istanbul.RoundChange{
+			View:                nextView,
+			PreparedCertificate: test.getCert(test.system),
+		}
+
+		for i, v := range test.system.backends {
+			// i == 0 is primary backend, it is responsible for send ROUND CHANGE messages to others.
+			if i == 0 {
+				continue
+			}
+
+			c := v.engine.(*core)
+
+			m, _ := Encode(roundChange)
+
+			// run each backends and verify handlePreprepare function.
+			err := c.handleRoundChange(&istanbul.Message{
+				Code:    istanbul.MsgRoundChange,
+				Msg:     m,
+				Address: v0.Address(),
+			})
+			if err != test.expectedErr {
+				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			}
+			continue OUTER
+		}
+	}
+}
+
+func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
+	for {
+		select {
+		case <-ts.quit:
+			return
+		case event := <-ts.queuedMessage:
+			msg := new(istanbul.Message)
+			if err := msg.FromPayload(event.Payload, nil); err != nil {
+				t.Errorf("Could not decode payload")
+			}
+
+			targets := istMsgDistribution[msg.Code]
+			for index, b := range sys.backends {
+				if targets[index] || msg.Address == b.address {
+					go b.EventMux().Post(event)
+				} else {
+					testLogger.Info("ignoring message with code", "code", msg.Code)
+				}
+			}
+		}
+	}
+}
+
+var gossip = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: true,
+}
+
+var sendTo2FPlus1 = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: false,
+}
+
+var sendToF = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: true,
+}
+
+var sendToFPlus1 = map[int]bool{
+	0: false,
+	1: false,
+	2: true,
+	3: true,
+}
+var noGossip = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: false,
+}
+
+// This tests the liveness issue present in the initial implementation of Istanbul, described in
+// more detail here: https://arxiv.org/pdf/1901.07160.pdf
+// To test this, a block is proposed, for which 2F + 1 PREPARE messages are sent to F nodes.
+// In the original implementation, these F nodes would lock onto that block, and eventually everyone would
+// round change. If the next proposer was byzantine, they could send a PRE-PREPARED with a different block,
+// get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
+// In the new implementation, the PRE-PREPARE will include a ROUND CHANGE certificate,
+// and all nodes will accept the newly proposed block.
+func TestCommitsBlocksAfterRoundChange(t *testing.T) {
+	// Initialize the system with a nil round state so that we properly start round 0.
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+
+	for i, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+		block := makeBlockWithDifficulty(1, int64(i))
+		sys.backends[i].NewRequest(block)
+	}
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	timeout := sys.backends[3].EventMux().Subscribe(timeoutEvent{})
+	defer timeout.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	// Allow everyone to see the initial proposal
+	// Send all PREPARE messages to F nodes.
+	// Send COMMIT messages (we don't expect these to be sent in the first round anyway).
+	// Send ROUND CHANGE messages to the remaining 2F + 1 nodes.
+	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = sendToF
+	istMsgDistribution[istanbul.MsgCommit] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = sendTo2FPlus1
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	// Turn PREPAREs back on for round 1.
+	<-time.After(1 * time.Second)
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+
+	// Wait for round 1 to start.
+	<-timeout.Chan()
+
+	// Eventually we should get a block again
+	select {
+	case <-timeout.Chan():
+		t.Error("Did not finalize a block in round 1")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+		// Wait for all backends to finalize the block.
+		<-time.After(1 * time.Second)
+		expectedCommitted, _ := sys.backends[0].LastProposal()
+		for i, b := range sys.backends {
+			committed, _ := b.LastProposal()
+			// We don't expect any particular block to be committed here. We do expect them to be consistent.
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
+			if expectedCommitted.Hash() != committed.Hash() {
+				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+			}
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // stop Istanbul core
+	}
+	close(sys.quit)
+}
+
+// This tests that when F+1 nodes receive 2F+1 PREPARE messages for a particular proposal, the
+// system enforces that as the only valid proposal for this sequence.
+func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
+	// Initialize the system with a nil round state so that we properly start round 0.
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+
+	for i, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+		block := makeBlockWithDifficulty(1, int64(i))
+		sys.backends[i].NewRequest(block)
+	}
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	timeout := sys.backends[3].EventMux().Subscribe(timeoutEvent{})
+	defer timeout.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	// Send PREPARE messages to F + 1 nodes so we guarantee a PREPARED certificate in the ROUND CHANGE certificate..
+	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = sendToFPlus1
+	istMsgDistribution[istanbul.MsgCommit] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	// Turn PREPARE messages off for round 1 to force reuse of the PREPARED certificate.
+	<-time.After(1 * time.Second)
+	istMsgDistribution[istanbul.MsgPrepare] = noGossip
+
+	// Wait for round 1 to start.
+	<-timeout.Chan()
+	// Turn PREPARE messages back on in time for round 2.
+	<-time.After(1 * time.Second)
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+
+	// Wait for round 2 to start.
+	<-timeout.Chan()
+
+	select {
+	case <-timeout.Chan():
+		t.Error("Did not finalize a block in round 2.")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+		// Wait for all backends to finalize the block.
+		<-time.After(2 * time.Second)
+		for i, b := range sys.backends {
+			committed, _ := b.LastProposal()
+			// We expect to commit the block proposed by the first proposer.
+			expectedCommitted := makeBlockWithDifficulty(1, 0)
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
+			if expectedCommitted.Hash() != committed.Hash() {
+				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+			}
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // start Istanbul core
+	}
+	close(sys.quit)
 }
