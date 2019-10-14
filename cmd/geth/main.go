@@ -96,7 +96,7 @@ var (
 		utils.CacheGCFlag,
 		utils.TrieCacheGenFlag,
 		utils.ListenPortFlag,
-		utils.ProxyListenPortFlag,
+		utils.ProxiedValidatorListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
@@ -141,7 +141,7 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
-		utils.ProxiedFlag,
+		utils.IstanbulProxiedFlag,
 		utils.SentryFlag,
 	}
 
@@ -338,12 +338,21 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			}
 		}
 	}()
+
+	// Miners and sentries only makes sense if a full Ethereum node is running
+	if ctx.GlobalBool(utils.SentryFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" || ctx.GlobalString(utils.SyncModeFlag.Name) == "ultralight" {
+			utils.Fatalf("Light and Ultralight clients do not support mining or acting as a sentry")
+		}
+	}
+
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		// Mining only makes sense if a full Ethereum node is running
-		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
-			utils.Fatalf("Light clients do not support mining")
+		// Sentries can't mine
+		if ctx.GlobalBool(utils.SentryFlag.Name) {
+			utils.Fatalf("Sentries can't mine")
 		}
+
 		var ethereum *eth.Ethereum
 		if err := stack.Service(&ethereum); err != nil {
 			utils.Fatalf("Ethereum service not running: %v", err)

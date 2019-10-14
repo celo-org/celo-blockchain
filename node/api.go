@@ -76,43 +76,6 @@ func (api *PrivateAdminAPI) RemovePeer(url string) (bool, error) {
 	return true, nil
 }
 
-// AddSentry peers with a remote node that acts as a sentry, even if slots are full
-func (api *PrivateAdminAPI) AddSentry(url, externalUrl string) (bool, error) {
-	// Make sure the server is running, fail otherwise
-	server := api.node.Server()
-	if server == nil {
-		return false, ErrNodeStopped
-	}
-	node, err := enode.ParseV4(url)
-	if err != nil {
-		return false, fmt.Errorf("invalid enode: %v", err)
-	}
-
-	externalNode, err := enode.ParseV4(externalUrl)
-	if err != nil {
-		return false, fmt.Errorf("invalid external enode: %v", err)
-	}
-
-	server.AddSentryPeer(node, externalNode)
-	return true, nil
-}
-
-// RemoveSentry removes a node from acting as a sentry
-func (api *PrivateAdminAPI) RemoveSentry(url string) (bool, error) {
-	// Make sure the server is running, fail otherwise
-	server := api.node.Server()
-	if server == nil {
-		return false, ErrNodeStopped
-	}
-	// Try to remove the url as a sentry and return
-	node, err := enode.ParseV4(url)
-	if err != nil {
-		return false, fmt.Errorf("invalid enode: %v", err)
-	}
-	server.RemoveSentryPeer(node)
-	return true, nil
-}
-
 // AddTrustedPeer allows a remote node to always connect, even if slots are full
 func (api *PrivateAdminAPI) AddTrustedPeer(url string) (bool, error) {
 	// Make sure the server is running, fail otherwise

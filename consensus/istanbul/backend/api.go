@@ -17,10 +17,14 @@
 package backend
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -90,4 +94,36 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	validators := snap.validators()
 	validatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
 	return validatorsAddresses, nil
+}
+
+// AddSentry peers with a remote node that acts as a sentry, even if slots are full
+func (api *API) AddSentry(url, externalUrl string) (bool, error) {
+	if !api.istanbul.config.Proxied {
+		api.istanbul.logger.Error("Add sentry node failed: this node is not configured to be proxied")
+		return false, errors.New("Can't add sentry for node that is not configured to be proxied")
+	}
+
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+
+	externalNode, err := enode.ParseV4(externalUrl)
+	if err != nil {
+		return false, fmt.Errorf("invalid external enode: %v", err)
+	}
+
+	api.istanbul.broadcaster.AddSentryPeer(node, externalNode)
+	return true, nil
+}
+
+// RemoveSentry removes a node from acting as a sentry
+func (api *API) RemoveSentry(url string) (bool, error) {
+	// Try to remove the url as a sentry and return
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+	api.istanbul.broadcaster.RemoveSentryPeer(node)
+	return true, nil
 }

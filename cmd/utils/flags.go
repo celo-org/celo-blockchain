@@ -207,6 +207,11 @@ var (
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
+	SentryFlag = cli.BoolFlag{
+		Name:  "sentry",
+		Usage: fmt.Sprintf("Specifies whether this node is a sentry.  This can't be used with the --%s option", MiningEnabledFlag.Name),
+	}
+
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
 		Name:  metrics.DashboardEnabledFlag,
@@ -403,6 +408,7 @@ var (
 		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
 		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
 	}
+
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -519,9 +525,9 @@ var (
 		Usage: "Network listening port",
 		Value: 30303,
 	}
-	ProxyListenPortFlag = cli.IntFlag{
-		Name:  "proxyport",
-		Usage: "Proxy Network listening port",
+	ProxiedValidatorListenPortFlag = cli.IntFlag{
+		Name:  "proxiedvalidatorport",
+		Usage: "Proxied Validator Network listening port",
 		Value: 30503,
 	}
 	BootnodesFlag = cli.StringFlag{
@@ -571,14 +577,6 @@ var (
 	UseInMemoryDiscoverTableFlag = cli.BoolFlag{
 		Name:  "use-in-memory-discovery-table",
 		Usage: "Specifies whether to use an in memory discovery table",
-	}
-	ProxiedFlag = cli.BoolFlag{
-		Name:  "proxied",
-		Usage: "Specifies whether this node will be proxied by sentry nodes. Disables discovery.",
-	}
-	SentryFlag = cli.BoolFlag{
-		Name:  "sentry",
-		Usage: "Specifies whether this node is a sentry",
 	}
 
 	// ATM the url is left to the user and deployment to
@@ -668,6 +666,10 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
+	IstanbulProxiedFlag = cli.BoolFlag{
+		Name:  "istanbul.proxied",
+		Usage: fmt.Sprintf("Specifies whether this node will be proxied by sentry nodes. This option requires that --%s is also used.  It will also disables discovery.", MiningEnabledFlag.Name),
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -696,7 +698,7 @@ func MakeDataDir(ctx *cli.Context) string {
 // setNodeKey creates a node key from set command line flags, either loading it
 // from a file or as a specified hex value. If neither flags were provided, this
 // method returns nil and an emphemeral key is to be generated.
-func setNodeKey(ctx *cli.Context, cfg *p2p.Config) {
+func setNodeKey(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 	var (
 		hex  = ctx.GlobalString(NodeKeyHexFlag.Name)
 		file = ctx.GlobalString(NodeKeyFileFlag.Name)
@@ -711,11 +713,13 @@ func setNodeKey(ctx *cli.Context, cfg *p2p.Config) {
 			Fatalf("Option %q: %v", NodeKeyFileFlag.Name, err)
 		}
 		cfg.PrivateKey = key
+		proxyCfg.PrivateKey = key
 	case hex != "":
 		if key, err = crypto.HexToECDSA(hex); err != nil {
 			Fatalf("Option %q: %v", NodeKeyHexFlag.Name, err)
 		}
 		cfg.PrivateKey = key
+		proxyCfg.PrivateKey = key
 	}
 }
 
@@ -791,23 +795,24 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 
 // setListenAddress creates a TCP listening address string from set command
 // line flags.
-func setListenAddress(ctx *cli.Context, cfg *p2p.Config) {
-	if !cfg.IsProxy && ctx.GlobalIsSet(ListenPortFlag.Name) {
+func setListenAddress(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
+	if ctx.GlobalIsSet(ListenPortFlag.Name) {
 		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ListenPortFlag.Name))
 	}
-	if cfg.IsProxy && ctx.GlobalIsSet(ProxyListenPortFlag.Name) {
-		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ProxyListenPortFlag.Name))
+	if ctx.GlobalIsSet(ProxiedValidatorListenPortFlag.Name) {
+		proxyCfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ProxiedValidatorListenPortFlag.Name))
 	}
 }
 
 // setNAT creates a port mapper from command line flags.
-func setNAT(ctx *cli.Context, cfg *p2p.Config) {
+func setNAT(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 	if ctx.GlobalIsSet(NATFlag.Name) {
 		natif, err := nat.Parse(ctx.GlobalString(NATFlag.Name))
 		if err != nil {
 			Fatalf("Option %s: %v", NATFlag.Name, err)
 		}
 		cfg.NAT = natif
+		proxyCfg.NAT = natif
 	}
 }
 
@@ -971,14 +976,19 @@ func MakePasswordList(ctx *cli.Context) []string {
 	return lines
 }
 
-func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
-	setNodeKey(ctx, cfg)
-	setNAT(ctx, cfg)
-	setListenAddress(ctx, cfg)
+func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
+	setNodeKey(ctx, cfg, proxyCfg)
+
+	// TODO(kevjue):  Right now the sentry will use the same network interface for both of the
+	//                networking interfaces.  They will need to have separate ones soon.
+	setNAT(ctx, cfg, proxyCfg)
+
+	setListenAddress(ctx, cfg, proxyCfg)
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
 	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
@@ -1009,13 +1019,8 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(MaxPendingPeersFlag.Name) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
-	if ctx.GlobalBool(ProxiedFlag.Name) {
-		if !ctx.GlobalBool(MiningEnabledFlag.Name) {
-			log.Warn("Node is proxied but is not configured to mine")
-		}
-		cfg.Proxied = true
-	}
-	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient || cfg.Proxied {
+
+	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient || ctx.GlobalBool(IstanbulProxiedFlag.Name) {
 		cfg.NoDiscovery = true
 	}
 	if ctx.GlobalBool(PingIPFromPacketFlag.Name) {
@@ -1054,8 +1059,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 // SetNodeConfig applies node-related command line flags to the config.
 func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
-	SetP2PConfig(ctx, &cfg.P2P)
-	SetP2PConfig(ctx, &cfg.ProxyP2P)
+	SetP2PConfig(ctx, &cfg.P2P, &cfg.ProxyP2P)
 	setIPC(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setWS(ctx, cfg)
@@ -1187,6 +1191,13 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulProxiedFlag.Name) {
+		cfg.Istanbul.Proxied = ctx.GlobalBool(IstanbulProxiedFlag.Name)
+	}
+	if ctx.GlobalIsSet(SentryFlag.Name) {
+		cfg.Istanbul.Sentry = ctx.GlobalBool(SentryFlag.Name)
+	}
+
 }
 
 // checkExclusive verifies that only a single isntance of the provided flags was

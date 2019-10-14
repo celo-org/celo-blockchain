@@ -908,10 +908,6 @@ running:
 		case sentry := <-srv.addsentry:
 			internalNode, externalNode := sentry[0], sentry[1]
 			if !isSentryNode(internalNode.ID()) {
-				if !srv.Proxied {
-					srv.log.Error("Add sentry node failed: this node is not configured to be proxied")
-					break
-				}
 				if numConnectedSentryPeers == maxSentryNodes {
 					srv.log.Error("Add sentry node failed: maximum number of sentry nodes reached", "maxSentryNodes", maxSentryNodes)
 					break

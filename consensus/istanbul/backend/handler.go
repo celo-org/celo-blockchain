@@ -57,10 +57,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 			return true, istanbul.ErrStoppedEngine
 		}
 
-		if msg.Code == istanbulMsg {
-			sb.logger.Debug("Got an istanbulMsg")
-		}
-
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
 			sb.logger.Error("Failed to decode message payload", "msg", msg)

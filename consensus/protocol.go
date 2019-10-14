@@ -69,6 +69,10 @@ type Broadcaster interface {
 	RemoveValidatorPeer(enodeURL string) error
 	// Gets all of the validator peers' enodeURL
 	GetValidatorPeers() []string
+	// Add a new sentry peer
+	AddSentryPeer(node, externalNode *enode.Node) error
+	// Remove a sentry peer
+	RemoveSentryPeer(node *enode.Node) error
 	// Gets all of the sentry peers' enodeURL
 	GetSentryPeers() [][2]string
 	// Returns the fact of whether this node is a sentry

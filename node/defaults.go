@@ -52,11 +52,12 @@ var DefaultConfig = Config{
 		NetworkId:  1,
 	},
 	ProxyP2P: p2p.Config{
-		ListenAddr: ":30503",
-		MaxPeers:   25,
-		NAT:        nat.Any(),
-		IsProxy:    true,
-		NetworkId:  1,
+		ListenAddr:              ":30503",
+		MaxPeers:                25,
+		IsProxy:                 true,
+		NetworkId:               1,
+		NoDiscovery:             true,
+		UseInMemoryNodeDatabase: true,
 	},
 }
 

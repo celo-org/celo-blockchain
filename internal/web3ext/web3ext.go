@@ -155,16 +155,6 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'addSentry',
-			call: 'admin_addSentry',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'removeSentry',
-			call: 'admin_removeSentry',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'addTrustedPeer',
 			call: 'admin_addTrustedPeer',
 			params: 1
@@ -797,15 +787,15 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'propose',
-			call: 'istanbul_propose',
+			name: 'addSentry',
+			call: 'istanbul_addSentry',
 			params: 2
 		}),
 		new web3._extend.Method({
-			name: 'discard',
-			call: 'istanbul_discard',
+			name: 'removeSentry',
+			call: 'istanbul_removeSentry',
 			params: 1
-		})
+		}),		
 	],
 	properties:
 	[

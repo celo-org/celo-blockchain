@@ -924,6 +924,16 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 	return pm.server.ValPeers()
 }
 
+func (pm *ProtocolManager) AddSentryPeer(node, externalNode *enode.Node) error {
+	pm.server.AddSentryPeer(node, externalNode)
+	return nil
+}
+
+func (pm *ProtocolManager) RemoveSentryPeer(node *enode.Node) error {
+	pm.server.RemoveSentryPeer(node)
+	return nil
+}
+
 func (pm *ProtocolManager) GetSentryPeers() [][2]string {
 	sentryPeers := pm.server.SentryPeers()
 	returnArray := make([][2]string, len(sentryPeers))

@@ -568,6 +568,18 @@ func (sb *Backend) GetValidatorPeers() []string {
 	}
 }
 
+func (sb *Backend) AddSentryPeer(node, externalNode *enode.Node) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.AddSentryPeer(node, externalNode)
+	}
+}
+
+func (sb *Backend) RemoveSentryPeer(node *enode.Node) {
+	if sb.broadcaster != nil {
+		sb.broadcaster.RemoveSentryPeer(node)
+	}
+}
+
 func (sb *Backend) GetSentryPeers() [][2]string {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetSentryPeers()
