@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -99,8 +99,7 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[c
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
-	maxGasForGetRegisteredValidators := uint64(1000000)
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, maxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 
@@ -117,9 +116,8 @@ func GetValidatorSet(header *types.Header, state vm.StateDB) ([]istanbul.Validat
 	var newValSet []istanbul.ValidatorData
 	var newValSetAddresses []common.Address
 	// Get the new epoch's validator set
-	maxGasForGetValidators := uint64(10000000)
 	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidators", []interface{}{}, &newValSetAddresses, maxGasForGetValidators, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidators", []interface{}{}, &newValSetAddresses, params.MaxGasForGetValidators, header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +130,7 @@ func GetValidatorSet(header *types.Header, state vm.StateDB) ([]istanbul.Validat
 			PublicKeysData []byte
 			Affiliation    common.Address
 		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, maxGasForGetValidators, header, state)
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidators, header, state)
 		if err != nil {
 			return nil, err
 		}

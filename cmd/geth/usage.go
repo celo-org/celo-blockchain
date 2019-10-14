@@ -254,6 +254,9 @@ var AppHelpFlagGroups = []flagGroup{
 	},
 	{
 		Name: "MISC",
+		Flags: []cli.Flag{
+			utils.VersionCheckFlag,
+		},
 	},
 }
 
