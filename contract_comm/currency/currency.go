@@ -185,7 +185,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil); err != nil {
 			if err == errors.ErrSmartContractNotDeployed {
 				log.Warn("Registry address lookup failed", "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
@@ -231,7 +231,7 @@ func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 		return returnList, err
 	}
 
-	_, err = contract_comm.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	_, err = contract_comm.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
 	return returnList, err
 }
 
