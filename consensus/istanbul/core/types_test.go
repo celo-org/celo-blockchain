@@ -35,8 +35,8 @@ func testPreprepare(t *testing.T) {
 	}
 	prepreparePayload, _ := Encode(pp)
 
-	m := &message{
-		Code:    msgPreprepare,
+	m := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
 		Msg:     prepreparePayload,
 		Address: common.HexToAddress("0x1234567890"),
 	}
@@ -46,7 +46,7 @@ func testPreprepare(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	decodedMsg := new(message)
+	decodedMsg := new(istanbul.Message)
 	err = decodedMsg.FromPayload(msgPayload, nil)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -84,8 +84,8 @@ func testSubject(t *testing.T) {
 
 	subjectPayload, _ := Encode(s)
 
-	m := &message{
-		Code:    msgPreprepare,
+	m := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
 		Msg:     subjectPayload,
 		Address: common.HexToAddress("0x1234567890"),
 	}
@@ -95,7 +95,7 @@ func testSubject(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	decodedMsg := new(message)
+	decodedMsg := new(istanbul.Message)
 	err = decodedMsg.FromPayload(msgPayload, nil)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -122,12 +122,15 @@ func testSubjectWithSignature(t *testing.T) {
 	}
 	expectedSig := []byte{0x01}
 
+	correctAddress := common.HexToAddress("0x1")
+	spooferAddress := common.HexToAddress("0x2")
+
 	subjectPayload, _ := Encode(s)
 	// 1. Encode test
-	m := &message{
-		Code:          msgPreprepare,
+	m := &istanbul.Message{
+		Code:          istanbul.MsgPreprepare,
 		Msg:           subjectPayload,
-		Address:       common.HexToAddress("0x1234567890"),
+		Address:       correctAddress,
 		Signature:     expectedSig,
 		CommittedSeal: []byte{},
 	}
@@ -139,9 +142,9 @@ func testSubjectWithSignature(t *testing.T) {
 
 	// 2. Decode test
 	// 2.1 Test normal validate func
-	decodedMsg := new(message)
+	decodedMsg := new(istanbul.Message)
 	err = decodedMsg.FromPayload(msgPayload, func(data []byte, sig []byte) (common.Address, error) {
-		return common.Address{}, nil
+		return correctAddress, nil
 	})
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -152,7 +155,7 @@ func testSubjectWithSignature(t *testing.T) {
 	}
 
 	// 2.2 Test nil validate func
-	decodedMsg = new(message)
+	decodedMsg = new(istanbul.Message)
 	err = decodedMsg.FromPayload(msgPayload, nil)
 	if err != nil {
 		t.Error(err)
@@ -163,12 +166,21 @@ func testSubjectWithSignature(t *testing.T) {
 	}
 
 	// 2.3 Test failed validate func
-	decodedMsg = new(message)
+	decodedMsg = new(istanbul.Message)
 	err = decodedMsg.FromPayload(msgPayload, func(data []byte, sig []byte) (common.Address, error) {
 		return common.Address{}, istanbul.ErrUnauthorizedAddress
 	})
 	if err != istanbul.ErrUnauthorizedAddress {
 		t.Errorf("error mismatch: have %v, want %v", err, istanbul.ErrUnauthorizedAddress)
+	}
+
+	// 2.4 Test spoofing signature by another validator validate func
+	decodedMsg = new(istanbul.Message)
+	err = decodedMsg.FromPayload(msgPayload, func(data []byte, sig []byte) (common.Address, error) {
+		return spooferAddress, nil
+	})
+	if err != istanbul.ErrInvalidSigner {
+		t.Errorf("error mismatch: have %v, want ErrInvalidSigner", err)
 	}
 }
 
