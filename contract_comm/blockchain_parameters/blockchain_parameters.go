@@ -56,7 +56,7 @@ const (
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "gasForDebitFromTransaction",
+		"name": "gasForDebitFromTransactions",
 		"outputs": [
 		  {
 			"name": "",
@@ -149,7 +149,7 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 }
 
 func GetGasForDebitFromTransactions(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.ExpectedGasForDebitFromTransactions, "gasDebitFromTransactions")
+	return GetGasCost(header, state, params.ExpectedGasForDebitFromTransactions, "gasForDebitFromTransactions")
 }
 
 func GetGasForCreditToTransactions(header *types.Header, state vm.StateDB) uint64 {
