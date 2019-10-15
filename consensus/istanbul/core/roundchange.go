@@ -17,11 +17,13 @@
 package core
 
 import (
-	"math/big"
-	"sync"
-
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"math/big"
+	"sort"
+	"strings"
+	"sync"
 )
 
 // sendNextRoundChange sends the ROUND CHANGE message with current round + 1
@@ -177,24 +179,29 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	roundView := rc.View
 
-	// Add the ROUND CHANGE message to its message set and return how many
-	// messages we've got with the same round number and sequence number.
-	num, err := c.roundChangeSet.Add(roundView.Round, msg)
-	if err != nil {
-		logger.Warn("Failed to add round change message", "message", msg, "err", err)
+	// Add the ROUND CHANGE message to its message set.
+	if err := c.roundChangeSet.Add(roundView.Round, msg); err != nil {
+		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
-	logger.Trace("Got round change message", "num", num, "message_round", roundView.Round)
+	logger.Trace("Got round change message", "message_round", roundView.Round)
 
+	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
+	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
+
+	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
-	if num == c.valSet.F()+1 {
-		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
-		c.waitForDesiredRound(roundView.Round)
-	} else if num == c.valSet.MinQuorumSize() {
+	// TODO(Joshua): Keep ffRound logic to go the highest round that we can guarantee to be an honest timeout, but then
+	// require quorum messages on a particular round?
+	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Trace("Got quorum round change messages, starting new round.")
-		c.startNewRound(roundView.Round)
+		c.startNewRound(quorumRound)
+	} else if ffRound != nil {
+		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
+		c.waitForDesiredRound(ffRound)
 	}
+
 	return nil
 }
 
@@ -202,32 +209,53 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
-		validatorSet: valSet,
-		roundChanges: make(map[uint64]*messageSet),
-		mu:           new(sync.Mutex),
+		validatorSet:      valSet,
+		msgsForRound:      make(map[uint64]*messageSet),
+		latestRoundForVal: make(map[common.Address]uint64),
+		mu:                new(sync.Mutex),
 	}
 }
 
 type roundChangeSet struct {
-	validatorSet istanbul.ValidatorSet
-	roundChanges map[uint64]*messageSet
-	mu           *sync.Mutex
+	validatorSet      istanbul.ValidatorSet
+	msgsForRound      map[uint64]*messageSet
+	latestRoundForVal map[common.Address]uint64
+	mu                *sync.Mutex
 }
 
 // Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) (int, error) {
+func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
+	src := msg.Address
 	round := r.Uint64()
-	if rcs.roundChanges[round] == nil {
-		rcs.roundChanges[round] = newMessageSet(rcs.validatorSet)
+
+	if prevLatestRound, ok := rcs.latestRoundForVal[src]; ok {
+		if prevLatestRound > round {
+			// Reject as we have an RC for a later round from this validator.
+			// logger.Debug("Message is old")
+			return errOldMessage
+		} else if prevLatestRound < round {
+			// Already got an RC for an earlier round from this validator.
+			// Forget that and remember this.
+			if rcs.msgsForRound[prevLatestRound] != nil {
+				rcs.msgsForRound[prevLatestRound].Remove(src)
+				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
+					delete(rcs.msgsForRound, prevLatestRound)
+				}
+				// logger.Debug("Deleting earlier Round Change Messages")
+			}
+		}
 	}
-	err := rcs.roundChanges[round].Add(msg)
-	if err != nil {
-		return 0, err
+
+	rcs.latestRoundForVal[src] = round
+
+	if rcs.msgsForRound[round] == nil {
+		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
+		// logger.Debug("Creating new RC message set")
 	}
-	return rcs.roundChanges[round].Size(), nil
+	return rcs.msgsForRound[round].Add(msg)
 }
 
 // Clear deletes the messages with smaller round
@@ -235,9 +263,16 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	for k, rms := range rcs.roundChanges {
-		if len(rms.Values()) == 0 || k < round.Uint64() {
-			delete(rcs.roundChanges, k)
+	for k, rms := range rcs.msgsForRound {
+		if rms.Size() == 0 || k < round.Uint64() {
+			if rms != nil {
+				for _, msg := range rms.Values() {
+					if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok && k == latestRound {
+						delete(rcs.latestRoundForVal, msg.Address)
+					}
+				}
+			}
+			delete(rcs.msgsForRound, k)
 		}
 	}
 }
@@ -247,17 +282,66 @@ func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	var maxRound *big.Int
-	for k, rms := range rcs.roundChanges {
-		if rms.Size() < num {
-			continue
-		}
-		r := big.NewInt(int64(k))
-		if maxRound == nil || maxRound.Cmp(r) < 0 {
-			maxRound = r
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	acc := 0
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		acc += rms.Size()
+		if acc >= num {
+			return new(big.Int).SetUint64(r)
 		}
 	}
-	return maxRound
+
+	return nil
+}
+
+// MaxOnOneRound returns the max round which the number of messages is >= num
+func (rcs *roundChangeSet) MaxOnOneRound(num int) *big.Int {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		if rms.Size() >= num {
+			return new(big.Int).SetUint64(r)
+		}
+	}
+	return nil
+}
+
+func (rcs *roundChangeSet) String() string {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+
+	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
+	for r, rms := range rcs.msgsForRound {
+		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
+	}
+
+	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
+	for addr, r := range rcs.latestRoundForVal {
+		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
+	}
+
+	return fmt.Sprintf("RCS len=%v  By round: {<%v> %v}  By val: {<%v> %v}",
+		len(rcs.latestRoundForVal),
+		len(rcs.msgsForRound),
+		strings.Join(msgsForRoundStr, ", "),
+		len(rcs.latestRoundForVal),
+		strings.Join(latestRoundForValStr, ", "))
 }
 
 func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
@@ -265,9 +349,11 @@ func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
-	if rcs.roundChanges[round] != nil && rcs.roundChanges[round].Size() >= quorumSize {
-		messages := make([]istanbul.Message, rcs.roundChanges[round].Size())
-		for i, message := range rcs.roundChanges[round].Values() {
+	// TODO(Joshua): Think through if this is correct or if we need to include round change
+	// from messages from a larger round.
+	if rcs.msgsForRound[round] != nil && rcs.msgsForRound[round].Size() >= quorumSize {
+		messages := make([]istanbul.Message, rcs.msgsForRound[round].Size())
+		for i, message := range rcs.msgsForRound[round].Values() {
 			messages[i] = *message
 		}
 		return istanbul.RoundChangeCertificate{
