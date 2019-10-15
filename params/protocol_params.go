@@ -158,7 +158,6 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForGetMinimumClientVersion    uint64 = 200000
 	MaxGasForCommitments                uint64 = 2000000
 	MaxGasForComputeCommitment          uint64 = 2000000
 	MaxGasForRevealAndCommit            uint64 = 2000000
@@ -169,5 +168,5 @@ const (
 	MaxGasForGetWhiteList               uint64 = 20000
 	MaxGasForGetRegisteredValidators    uint64 = 1000000
 	MaxGasForGetValidators              uint64 = 10000000
-	MaxGasForGetGasForNonGoldCurrencies uint64 = 20000
+	MaxGasForReadBlockchainParameter    uint64 = 20000
 )

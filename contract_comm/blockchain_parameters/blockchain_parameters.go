@@ -56,7 +56,7 @@ const (
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "gasForNonGoldCurrencies",
+		"name": "gasForDebitFromTransaction",
 		"outputs": [
 		  {
 			"name": "",
@@ -66,7 +66,36 @@ const (
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  }]`
+	  },
+	  {
+		"constant": true,
+		"inputs": [],
+		"name": "gasForCreditToTransactions",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  },
+	  {
+		"constant": true,
+		"inputs": [],
+		"name": "gasToReadErc20Balance",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }	  
+]`
 )
 
 var blockchainParametersABI abi.ABI
@@ -88,7 +117,7 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 		"getMinimumClientVersion",
 		[]interface{}{},
 		&version,
-		params.MaxGasForGetGasPriceMinimum,
+		params.MaxGasForReadBlockchainParameter,
 		header,
 		state,
 	)
@@ -98,28 +127,47 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 	return &params.VersionInfo{version[0].Uint64(), version[1].Uint64(), version[2].Uint64()}, nil
 }
 
-func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
+func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
 	var gas *big.Int
 	var err error
-	if gasCurrency == nil {
-		return 0
-	}
 	_, err = contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
-		"gasForNonGoldCurrencies",
+		method,
 		[]interface{}{},
 		&gas,
-		params.MaxGasForGetGasForNonGoldCurrencies,
+		params.MaxGasForReadBlockchainParameter,
 		header,
 		state,
 	)
 	if err != nil {
-		log.Info("Default gas", "gas", params.AdditionalGasForNonGoldCurrencies)
-		return params.AdditionalGasForNonGoldCurrencies
+		log.Info("Default gas", "gas", defaultGas, "method", method)
+		return defaultGas
 	}
 	log.Info("Reading gas", "gas", gas)
 	return gas.Uint64()
+}
+
+func GetGasForDebitFromTransactions(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.ExpectedGasForDebitFromTransactions, "gasDebitFromTransactions")
+}
+
+func GetGasForCreditToTransactions(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.ExpectedGasForCreditToTransactions, "gasForCreditToTransactions")
+}
+
+func GetGasToReadErc20Balance(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.ExpectedGasToReadErc20Balance, "gasToReadErc20Balance")
+}
+
+func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
+	if gasCurrency == nil {
+		return 0
+	}
+	gasForDebitFromTransactions := GetGasForDebitFromTransactions(header, state)
+	gasForCreditToTransactions := GetGasForCreditToTransactions(header, state)
+	gasToReadErc20Balance := GetGasToReadErc20Balance(header, state)
+	return 3*gasForCreditToTransactions + gasForDebitFromTransactions + gasToReadErc20Balance
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
