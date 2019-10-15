@@ -143,10 +143,6 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-	// errInvalidParentSeal is returned when the parentSeal signature on the
-	// current block did not match the seal extracted from the parent block's
-	// extra field
-	errInvalidParentSeal = errors.New("invalid parent seal")
 )
 
 var (
@@ -342,6 +338,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	// 1. Get committed seals from current header
 	validators := snap.ValSet.Copy()
 	proposalSeal := istanbulCore.PrepareCommittedSeal(header.Hash())
+	fmt.Println("Current parent seal: ", extra.CommittedSeal)
 	if err := sb.verifySealsOnProposal(validators, proposalSeal, extra.Bitmap, extra.CommittedSeal); err != nil {
 		return errors.New("invalid bls signature for current block")
 	}
@@ -557,6 +554,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		return errUnauthorized
 	}
 
+	fmt.Println("seal parent number:", number-1)
 	parent := chain.GetHeader(header.ParentHash, number-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -565,6 +563,20 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	if err != nil {
 		return err
 	}
+
+	parentExtras, err := types.ExtractIstanbulExtra(parent)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Got seal from extras: ", parentExtras.Bitmap, parentExtras.CommittedSeal)
+	block = block.WithParentSeal(
+		&types.BlockSeal{
+			Bitmap: parentExtras.Bitmap,
+			Seal:   parentExtras.CommittedSeal,
+		},
+	)
+	fmt.Println("USING Parent Seal: ", block.ParentSeal())
 
 	// get the proposed block hash and clear it if the seal() is completed.
 	sb.sealMu.Lock()
@@ -624,6 +636,18 @@ func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types
 	if err != nil {
 		return nil, err
 	}
+
+	parentExtras, err := types.ExtractIstanbulExtra(parent)
+	if err != nil {
+		return nil, err
+	}
+
+	block = block.WithParentSeal(
+		&types.BlockSeal{
+			Bitmap: parentExtras.Bitmap,
+			Seal:   parentExtras.CommittedSeal,
+		},
+	)
 
 	return block.WithSeal(header), nil
 }

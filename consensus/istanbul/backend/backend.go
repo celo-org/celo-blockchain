@@ -19,6 +19,7 @@ package backend
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -49,6 +50,9 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+	// errInvalidParentBlockSeal is returned when the verification on the parent
+	// block's seals fails
+	errInvalidParentBlockSeal = errors.New("failed to verify bls signature on parent block's seals")
 )
 
 // Entries for the recent announce messages
@@ -313,7 +317,34 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errInvalidCoinbase
 	}
 
-	// TODO: Check parent signatures
+	number := block.Number().Uint64()
+	// Only check the parent seals for blocks after the first block, since its
+	// only parent is the genesis block and is not expected to have a valid bls
+	// signature
+	if number > 1 {
+		snap, err := sb.snapshot(sb.chain, block.Number().Uint64()-1, block.ParentHash(), nil)
+		if err != nil {
+			return 0, err
+		}
+
+		// Get the validator set from the previous block
+		validators := snap.ValSet.Copy()
+
+		// Get the parent seals for this block (ie signature & bitmap)
+		parentSeal := block.ParentSeal()
+
+		// Get the parent block's proposal seal
+		proposalSeal := istanbulCore.PrepareCommittedSeal(block.ParentHash())
+
+		fmt.Println("Proposal Seal:", common.ToHex(proposalSeal))
+		fmt.Println("Parent Seal:", common.ToHex(parentSeal.Seal), parentSeal.Bitmap)
+		for _, v := range validators.List() {
+			fmt.Println("Validator: ", v.String())
+		}
+		if err := sb.verifySealsOnProposal(validators, proposalSeal, parentSeal.Bitmap, parentSeal.Seal); err != nil {
+			return 0, errInvalidParentBlockSeal
+		}
+	}
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 

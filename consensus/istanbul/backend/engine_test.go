@@ -363,6 +363,25 @@ func TestSealCommittedOtherHash(t *testing.T) {
 	}
 }
 
+func TestSealCommittedTwoBlocks(t *testing.T) {
+	chain, engine := newBlockChain(1, true)
+	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
+
+	results := make(chan *types.Block)
+	go func() {
+		err := engine.Seal(chain, block, results, nil)
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want nil", err)
+		}
+	}()
+
+	finalBlock := <-results
+	if finalBlock.Hash() != expectedBlock.Hash() {
+		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
+	}
+}
+
 func TestSealCommitted(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
