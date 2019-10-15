@@ -314,6 +314,7 @@ func (c *core) startNewRound(round *big.Int) {
 	// Update logger
 	logger = logger.New("old_proposer", c.valSet.GetProposer())
 	// Clear invalid ROUND CHANGE messages
+	// TODO(Joshua): I think that this should only be on a new sequence
 	c.roundChangeSet = newRoundChangeSet(c.valSet)
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
