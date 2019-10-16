@@ -911,6 +911,7 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 		RemovedValidators:         removedValidators,
 		Seal:                      []byte{},
 		CommittedSeal:             []byte{},
+		ParentSeal:                &types.EmptyBlockSeal,
 	}
 
 	payload, err := rlp.EncodeToBytes(&ist)
