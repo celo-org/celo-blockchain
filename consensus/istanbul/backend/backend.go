@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/election"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -359,6 +360,15 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, err
 }
 
+func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
+	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	if err != nil {
+		return nil, err
+	}
+	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
+	return newValSet, err
+}
+
 func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
 	header := block.Header()
 
@@ -368,7 +378,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	newValSet, err := validators.GetValidatorSet(block.Header(), state)
+	newValSet, err := sb.getNewValidatorSet(block.Header(), state)
 	if err != nil {
 		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
