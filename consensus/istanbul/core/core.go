@@ -120,17 +120,6 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	// Add sender address
 	msg.Address = c.Address()
 
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Sign message
 	data, err := msg.PayloadNoSig()
 	if err != nil {
