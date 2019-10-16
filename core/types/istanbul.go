@@ -22,7 +22,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -31,13 +31,47 @@ var (
 	// to identify whether the block is from Istanbul consensus engine
 	IstanbulDigest = common.HexToHash("0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365")
 
-	IstanbulExtraVanity        = 32                       // Fixed number of extra-data bytes reserved for validator vanity
-	IstanbulExtraCommittedSeal = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal
-	IstanbulExtraSeal          = 65                       // Fixed number of extra-data bytes reserved for validator seal
+	IstanbulExtraVanity              = 32                       // Fixed number of extra-data bytes reserved for validator vanity
+	IstanbulExtraParentCommittedSeal = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal on the parent block
+	IstanbulExtraCommittedSeal       = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal on the current block
+	IstanbulExtraSeal                = 65                       // Fixed number of extra-data bytes reserved for validator seal
 
 	// ErrInvalidIstanbulHeaderExtra is returned if the length of extra-data is less than 32 bytes
 	ErrInvalidIstanbulHeaderExtra = errors.New("invalid istanbul header extra-data")
+	EmptyBlockSeal                = BlockSeal{
+		Seal:   []byte{},
+		Bitmap: big.NewInt(0),
+	}
 )
+
+type BlockSeal struct {
+	// An aggregated signature of the block
+	Seal []byte
+	// Bitmap indicating which validators' signatures are aggregated into the seal.
+	Bitmap *big.Int
+}
+
+func (b *BlockSeal) Size() common.StorageSize {
+	bitmapSize := len(b.Bitmap.Bytes())
+	sealSize := len(b.Seal)
+	return common.StorageSize(bitmapSize + sealSize)
+}
+
+func (b *BlockSeal) DecodeRLP(s *rlp.Stream) error {
+	var blockSeal struct {
+		Seal   []byte
+		Bitmap *big.Int
+	}
+	if err := s.Decode(&blockSeal); err != nil {
+		return err
+	}
+	b.Seal, b.Bitmap = blockSeal.Seal, blockSeal.Bitmap
+	return nil
+}
+
+func (b *BlockSeal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{b.Seal, b.Bitmap})
+}
 
 type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
@@ -48,9 +82,12 @@ type IstanbulExtra struct {
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
 	Seal []byte
+	// Parentseal is a
+	ParentSeal *BlockSeal
 	// Bitmap is a bitmap having an active bit for each validator that signed this block
 	Bitmap *big.Int
-	// CommittedSeal is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	// CommittedSeal is an aggregated BLS signature resulting from signatures by
+	// each validator that signed this block
 	CommittedSeal []byte
 	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
 	EpochData []byte
@@ -63,6 +100,7 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.AddedValidatorsPublicKeys,
 		ist.RemovedValidators,
 		ist.Seal,
+		ist.ParentSeal,
 		ist.Bitmap,
 		ist.CommittedSeal,
 		ist.EpochData,
@@ -76,6 +114,7 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		AddedValidatorsPublicKeys [][]byte
 		RemovedValidators         *big.Int
 		Seal                      []byte
+		ParentSeal                *BlockSeal
 		Bitmap                    *big.Int
 		CommittedSeal             []byte
 		EpochData                 []byte
@@ -83,7 +122,7 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.ParentSeal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.ParentSeal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
 	return nil
 }
 
@@ -118,6 +157,7 @@ func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 	}
 	istanbulExtra.CommittedSeal = []byte{}
 	istanbulExtra.Bitmap = big.NewInt(0)
+	// istanbulExtra.ParentSeal = &EmptyBlockSeal // TODO; should we remove this?
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {

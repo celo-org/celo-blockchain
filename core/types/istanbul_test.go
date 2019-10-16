@@ -55,7 +55,7 @@ func TestExtractToIstanbul(t *testing.T) {
 		{
 			// normal case
 			bytes.Repeat([]byte{0x00}, IstanbulExtraVanity),
-			hexutil.MustDecode("0xf1ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c00c80808080"),
+			hexutil.MustDecode("0xf4ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c00c80c28080808080"),
 			&IstanbulExtra{
 				AddedValidators: []common.Address{
 					common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
@@ -64,6 +64,7 @@ func TestExtractToIstanbul(t *testing.T) {
 				AddedValidatorsPublicKeys: [][]byte{},
 				RemovedValidators:         big.NewInt(12), //1100
 				Bitmap:                    big.NewInt(0),
+				ParentSeal:                &EmptyBlockSeal,
 				Seal:                      []byte{},
 				CommittedSeal:             []byte{},
 				EpochData:                 []byte{},
