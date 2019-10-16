@@ -941,6 +941,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 	}
+
+	// Get all the seals from the parent
+	if w.isIstanbulEngine() && w.isRunning() {
+		istanbulExtra, err := types.ExtractIstanbulExtra(header)
+		if err != nil {
+			types.WriteParentSeal(header, &types.EmptyBlockSeal)
+		} else {
+			types.WriteParentSeal(header, &types.BlockSeal{
+				Seal:   istanbulExtra.CommittedSeal,
+				Bitmap: istanbulExtra.Bitmap,
+			})
+		}
+	}
+
 	// Could potentially happen if starting to mine in an odd state.
 	err := w.makeCurrent(parent, header)
 	if err != nil {
