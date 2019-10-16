@@ -896,13 +896,18 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return nil, err
+	}
+
 	ist := &types.IstanbulExtra{
 		AddedValidators:           addedValidatorsAddresses,
 		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
 		RemovedValidators:         removedValidators,
 		Seal:                      []byte{},
 		CommittedSeal:             []byte{},
-		ParentSeal:                &types.EmptyBlockSeal,
+		ParentSeal:                extra.ParentSeal,
 	}
 
 	payload, err := rlp.EncodeToBytes(&ist)

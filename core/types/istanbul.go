@@ -81,7 +81,7 @@ type IstanbulExtra struct {
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
 	Seal []byte
-	// Parentseal is a
+	// Parentseal is the bitmap & seal of the validators which signed on the previous block
 	ParentSeal *BlockSeal
 	// Bitmap is a bitmap having an active bit for each validator that signed this block
 	Bitmap *big.Int
