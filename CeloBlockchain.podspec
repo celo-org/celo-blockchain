@@ -5,7 +5,7 @@ package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 Pod::Spec.new do |s|
   s.name            = 'CeloBlockchain'
   s.version         = package['version']
-  s.license         =  { :type => 'BSD' }
+  s.license         = { :type => 'BSD' }
   s.homepage        = 'https://celo.org'
   s.authors         = { 'Connor McEwen' => 'c@celo.org' }
   s.summary         = 'The Celo blockchain built for ios'
