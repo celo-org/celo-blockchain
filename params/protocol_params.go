@@ -122,6 +122,7 @@ var (
 	RandomRegistryId               = makeRegistryId("Random")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
+	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -156,6 +157,18 @@ const (
 	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
-	MaxGasForGetValidator             uint64 = 100 * 1000
-	MaxGasForElectValidators          uint64 = 50 * 1000000
+
+	// Contract communication gas limits
+	MaxGasForGetMinimumClientVersion uint64 = 200000
+	MaxGasForCommitments             uint64 = 2000000
+	MaxGasForComputeCommitment       uint64 = 2000000
+	MaxGasForRevealAndCommit         uint64 = 2000000
+	MaxGasForGetGasPriceMinimum      uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum   uint64 = 2000000
+	MaxGasForProposerFraction        uint64 = 200000
+	MaxGasForMedianRate              uint64 = 20000
+	MaxGasForGetWhiteList            uint64 = 20000
+	MaxGasForGetRegisteredValidators uint64 = 1000000
+	MaxGasForGetValidator            uint64 = 100 * 1000
+	MaxGasForElectValidators         uint64 = 50 * 1000000
 )

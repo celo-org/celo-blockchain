@@ -36,7 +36,7 @@ const (
     {
       "constant": true,
       "inputs": [],
-      "name": "infrastructureFraction_",
+      "name": "proposerFraction_",
       "outputs": [
         {
           "name": "",
@@ -97,16 +97,14 @@ const (
   ]`
 )
 
-const defaultGasAmount = 2000000
-
 var (
-	gasPriceMinimumABI, _                           = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackInfraFraction   *InfrastructureFraction = &InfrastructureFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum *big.Int                = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier    *big.Int                = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _                      = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackProposerFraction *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
+	FallbackGasPriceMinimum  *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier     *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
-type InfrastructureFraction struct {
+type ProposerFraction struct {
 	Numerator   *big.Int
 	Denominator *big.Int
 }
@@ -145,7 +143,7 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 		"getGasPriceMinimum",
 		[]interface{}{currencyAddress},
 		&gasPriceMinimum,
-		defaultGasAmount,
+		params.MaxGasForGetGasPriceMinimum,
 		header,
 		state,
 	)
@@ -167,7 +165,7 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
 			big.NewInt(int64(header.GasLimit))},
 		&updatedGasPriceMinimum,
-		defaultGasAmount,
+		params.MaxGasForUpdateGasPriceMinimum,
 		big.NewInt(0),
 		header,
 		state,
@@ -178,24 +176,24 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 	return updatedGasPriceMinimum, err
 }
 
-// Returns the fraction of the gasprice min that should be allocated to the infrastructure fund
-func GetInfrastructureFraction(header *types.Header, state vm.StateDB) (*InfrastructureFraction, error) {
+// Returns the fraction of the gasprice min that should be allocated to the proposer
+func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFraction, error) {
 	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
 
 	_, err := contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
-		"infrastructureFraction_",
+		"proposerFraction_",
 		[]interface{}{},
 		&infraFraction,
-		200000,
+		params.MaxGasForProposerFraction,
 		header,
 		state,
 	)
 
 	if err != nil {
-		return FallbackInfraFraction, err
+		return FallbackProposerFraction, err
 	}
 
-	return &InfrastructureFraction{infraFraction[0], infraFraction[1]}, err
+	return &ProposerFraction{infraFraction[0], infraFraction[1]}, err
 }
