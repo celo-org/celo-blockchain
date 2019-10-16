@@ -924,6 +924,17 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		header.Coinbase = w.coinbase
 	}
+	// Get all the seals from the parent
+	parentExtra, err := types.ExtractIstanbulExtra(parent.Header())
+	if err != nil {
+		types.WriteParentSeal(header, &types.EmptyBlockSeal)
+	} else {
+		types.WriteParentSeal(header, &types.BlockSeal{
+			Seal:   parentExtra.CommittedSeal,
+			Bitmap: parentExtra.Bitmap,
+		})
+	}
+
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
@@ -942,21 +953,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 
-	// Get all the seals from the parent
-	if w.isIstanbulEngine() && w.isRunning() {
-		istanbulExtra, err := types.ExtractIstanbulExtra(header)
-		if err != nil {
-			types.WriteParentSeal(header, &types.EmptyBlockSeal)
-		} else {
-			types.WriteParentSeal(header, &types.BlockSeal{
-				Seal:   istanbulExtra.CommittedSeal,
-				Bitmap: istanbulExtra.Bitmap,
-			})
-		}
-	}
-
 	// Could potentially happen if starting to mine in an odd state.
-	err := w.makeCurrent(parent, header)
+	err = w.makeCurrent(parent, header)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return

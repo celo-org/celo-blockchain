@@ -405,15 +405,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = big.NewInt(time.Now().Unix())
 	}
 
-	parentExtra, err := types.ExtractIstanbulExtra(parent)
-	if err != nil {
-		return err
-	}
-	types.WriteParentSeal(header, &types.BlockSeal{
-		Bitmap: parentExtra.Bitmap,
-		Seal:   parentExtra.CommittedSeal,
-	})
-
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
