@@ -257,21 +257,25 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 	}
 
 	parent := sb.chain.GetHeader(h.ParentHash, h.Number.Uint64()-1)
-	if parent == nil {
-		return consensus.ErrUnknownAncestor
+	// If the parent was not the genesis block then try to use the parent's
+	// extras as the seal for this block
+	if parent != nil {
+		parentExtras, err := types.ExtractIstanbulExtra(parent)
+		if err != nil {
+			return err
+		}
+
+		block = block.WithParentSeal(
+			&types.BlockSeal{
+				Bitmap: parentExtras.Bitmap,
+				Seal:   parentExtras.CommittedSeal,
+			},
+		)
+	} else {
+		// otherwise initialize with default parent seal
+		block = block.WithParentSeal(&types.EmptyBlockSeal)
 	}
 
-	parentExtras, err := types.ExtractIstanbulExtra(parent)
-	if err != nil {
-		return err
-	}
-
-	block = block.WithParentSeal(
-		&types.BlockSeal{
-			Bitmap: parentExtras.Bitmap,
-			Seal:   parentExtras.CommittedSeal,
-		},
-	)
 	// update block's header
 	block = block.WithSeal(h)
 
