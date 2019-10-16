@@ -39,6 +39,15 @@ func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
 	c.broadcastCommit(sub)
 }
 
+func (c *core) generateCommittedSeal(digest common.Hash) ([]byte, error) {
+	seal := PrepareCommittedSeal(digest)
+	committedSeal, err := c.backend.SignBlockHeader(seal)
+	if err != nil {
+		return nil, err
+	}
+	return committedSeal, nil
+}
+
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
@@ -47,10 +56,19 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	c.broadcast(&istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  encodedSubject,
-	})
+
+	committedSeal, err := c.generateCommittedSeal(sub.Digest)
+	if err != nil {
+		logger.Error("Failed to commit seal", "err", err)
+		return
+	}
+
+	istMsg := istanbul.Message{
+		Code:          istanbul.MsgCommit,
+		Msg:           encodedSubject,
+		CommittedSeal: committedSeal,
+	}
+	c.broadcast(&istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {

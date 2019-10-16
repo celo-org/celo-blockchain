@@ -221,9 +221,15 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
 	msg := &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  payload,
+		Code:          istanbul.MsgCommit,
+		Msg:           payload,
+		CommittedSeal: committedSeal,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
