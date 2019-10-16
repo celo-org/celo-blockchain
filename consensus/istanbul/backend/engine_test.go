@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,7 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -635,7 +635,7 @@ func TestPrepareExtra(t *testing.T) {
 	}
 
 	vanity := make([]byte, types.IstanbulExtraVanity)
-	expectedResult := append(vanity, hexutil.MustDecode("0xf894ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440f862b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000380808080")...)
+	expectedResult := append(vanity, hexutil.MustDecode("0xf897ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440f862b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000380c28080808080")...)
 
 	h := &types.Header{
 		Extra: vanity,
@@ -661,7 +661,7 @@ func TestPrepareExtra(t *testing.T) {
 
 func TestWriteSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf873ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
+	istRawData := hexutil.MustDecode("0xf876ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c28080808080")
 	expectedSeal := make([]byte, types.IstanbulExtraSeal)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
@@ -674,6 +674,7 @@ func TestWriteSeal(t *testing.T) {
 		Bitmap:                    big.NewInt(0),
 		CommittedSeal:             []byte{},
 		EpochData:                 []byte{},
+		ParentSeal:                &types.EmptyBlockSeal,
 	}
 	var expectedErr error
 
@@ -706,7 +707,7 @@ func TestWriteSeal(t *testing.T) {
 
 func TestWriteCommittedSeals(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf8f2ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c8080b8c001020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080")
+	istRawData := hexutil.MustDecode("0xf895ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c80c2808080b86001020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080")
 	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraCommittedSeal-3)...)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
@@ -719,6 +720,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 		Seal:                      []byte{},
 		CommittedSeal:             expectedCommittedSeal,
 		EpochData:                 []byte{},
+		ParentSeal:                &types.EmptyBlockSeal,
 	}
 	var expectedErr error
 

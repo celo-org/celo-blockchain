@@ -351,6 +351,7 @@ func TestValSetChange(t *testing.T) {
 				Seal:                      []byte{},
 				CommittedSeal:             []byte{},
 				EpochData:                 []byte{},
+				ParentSeal:                &types.EmptyBlockSeal,
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)

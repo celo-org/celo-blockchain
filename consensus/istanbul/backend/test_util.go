@@ -32,6 +32,7 @@ func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul
 		AddedValidatorsPublicKeys: publicKeys,
 		Seal:                      []byte{},
 		CommittedSeal:             []byte{},
+		ParentSeal:                &types.EmptyBlockSeal,
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)
