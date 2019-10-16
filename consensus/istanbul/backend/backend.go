@@ -255,6 +255,23 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 	if err != nil {
 		return err
 	}
+
+	parent := sb.chain.GetHeader(h.ParentHash, h.Number.Uint64()-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	parentExtras, err := types.ExtractIstanbulExtra(parent)
+	if err != nil {
+		return err
+	}
+
+	block = block.WithParentSeal(
+		&types.BlockSeal{
+			Bitmap: parentExtras.Bitmap,
+			Seal:   parentExtras.CommittedSeal,
+		},
+	)
 	// update block's header
 	block = block.WithSeal(h)
 
@@ -322,7 +339,8 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// only parent is the genesis block and is not expected to have a valid bls
 	// signature
 	if number > 1 {
-		snap, err := sb.snapshot(sb.chain, block.Number().Uint64()-1, block.ParentHash(), nil)
+		// we need the snapshot from the PREVIOUS block, so we need to get blockNumber-2
+		snap, err := sb.snapshot(sb.chain, block.Number().Uint64()-2, block.ParentHash(), nil)
 		if err != nil {
 			return 0, err
 		}
