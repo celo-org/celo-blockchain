@@ -396,6 +396,28 @@ func (b *Block) WithRandomness(randomness *Randomness) *Block {
 	return block
 }
 
+// WriteParentSealHash writes the extra-data field of the given header with the
+// parent seal's hash.
+func WriteParentSeal(h *Header, parentSeal *BlockSeal) error {
+	if parentSeal == nil {
+		parentSeal = &EmptyBlockSeal
+	}
+
+	istanbulExtra, err := ExtractIstanbulExtra(h)
+	if err != nil {
+		return err
+	}
+
+	istanbulExtra.ParentSeal = parentSeal
+	payload, err := rlp.EncodeToBytes(&istanbulExtra)
+	if err != nil {
+		return err
+	}
+
+	h.Extra = append(h.Extra[:IstanbulExtraVanity], payload...)
+	return nil
+}
+
 // WithBody returns a new block with the given transaction and uncle contents.
 func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomness *Randomness) *Block {
 	block := &Block{
