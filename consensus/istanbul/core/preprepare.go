@@ -74,7 +74,7 @@ func (c *core) getPreprepareMessage(
 		logger.Error("Failed to encode", "view", curView)
 		return nil, err
 	}
-	err2 := c.savePrepareMessageToDisk(messageType, roundNumber, sequenceNumber, preprepare)
+	err2 := c.savePreprepareMessageToDisk(messageType, roundNumber, sequenceNumber, preprepare)
 	if err2 != nil {
 		logger.Error("Failed to write prepare message to the disk", "msg", preprepare)
 		return nil, err2

@@ -10,12 +10,26 @@ import (
 	"path/filepath"
 )
 
+func (c *core) savePreprepareMessageToDisk(
+	messageType uint64,
+	roundNumber *big.Int,
+	sequenceNumber *big.Int,
+	msg []byte) error {
+	fileName, err := c.generateMessageFileName(messageType, roundNumber, sequenceNumber)
+	if err != nil {
+		return err
+	}
+	err2 := writeToDisk(fileName, msg)
+	log.Debug("savePreprepareMessageToDisk/wrote file to the disk", "file", fileName, "error", err2)
+	return err2
+}
+
 func (c *core) savePrepareMessageToDisk(
 	messageType uint64,
 	roundNumber *big.Int,
 	sequenceNumber *big.Int,
 	msg []byte) error {
-	fileName, err := c.generateFileName(messageType, roundNumber, sequenceNumber)
+	fileName, err := c.generateMessageFileName(messageType, roundNumber, sequenceNumber)
 	if err != nil {
 		return err
 	}
@@ -31,7 +45,7 @@ func (c *core) getPreprepareMessageFromDisk(
 	messageType uint64,
 	roundNumber *big.Int,
 	sequenceNumber *big.Int) ([]byte, error) {
-	fileName, err := c.generateFileName(messageType, roundNumber, sequenceNumber)
+	fileName, err := c.generateMessageFileName(messageType, roundNumber, sequenceNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +55,26 @@ func (c *core) getPreprepareMessageFromDisk(
 		return nil, nil
 	}
 	log.Debug("getPreprepareMessageFromDisk/file found on the disk", "file", fileName)
+	return data, err
+}
+
+// getPreprepareMessageFromDisk returns the prepared message
+// If the file does not exist, it returns (nil, nil).
+// It returns an error for all other failure cases.
+func (c *core) getPrepareMessageFromDisk(
+	messageType uint64,
+	roundNumber *big.Int,
+	sequenceNumber *big.Int) ([]byte, error) {
+	fileName, err := c.generateMessageFileName(messageType, roundNumber, sequenceNumber)
+	if err != nil {
+		return nil, err
+	}
+	data, err := ioutil.ReadFile(fileName)
+	if os.IsNotExist(err) {
+		log.Debug("getPrepareMessageFromDisk/file does not exist", "file", fileName)
+		return nil, nil
+	}
+	log.Debug("getPrepareMessageFromDisk/file found on the disk", "file", fileName)
 	return data, err
 }
 
@@ -69,7 +103,7 @@ func (c *core) deleteMessageFromDisk(
 	return nil
 }
 
-func (c *core) generateFileName(
+func (c *core) generateMessageFileName(
 	messageType uint64,
 	roundNumber *big.Int,
 	sequenceNumber *big.Int) (string, error) {

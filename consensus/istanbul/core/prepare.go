@@ -17,6 +17,7 @@
 package core
 
 import (
+	"bytes"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -125,7 +126,14 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	c.acceptPrepare(msg)
+	if err := c.checkNotAlreadySigned(msg); err != nil {
+		return err
+	}
+
+	err = c.acceptPrepare(msg)
+	if err != nil {
+		return err
+	}
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
 	minQuorumSize := c.valSet.MinQuorumSize()
 	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
@@ -168,4 +176,36 @@ func (c *core) acceptPrepare(msg *istanbul.Message) error {
 	}
 
 	return nil
+}
+
+// Returns an error if validator have already signed a different message in the same round and the same sequence
+// earlier. This ensures that this validator does not engage in double signing
+func (c *core) checkNotAlreadySigned(msg *istanbul.Message) error {
+	msgType := istanbul.MsgPrepare
+	currentRound := c.current.Round()
+	currentSequence := c.current.Sequence()
+	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", currentRound, "cur_seq", currentSequence, "func", "checkNotAlreadySigned")
+	previousMsg, err := c.getPrepareMessageFromDisk(msgType, currentRound, currentSequence)
+	if err != nil {
+		logger.Warn("Failed to read prepare message from disk", "err", err)
+		return err
+	}
+	// Everything's fine
+	if previousMsg == nil {
+		return nil
+	}
+
+	newMsg, err := Encode(msg)
+	if err != nil {
+		logger.Error("Failed to encode message into RLP encoding", "msg", msg)
+		return err
+	}
+	// Everything is fine
+	if bytes.Equal(newMsg, previousMsg) {
+		return c.savePrepareMessageToDisk(msgType, currentRound, currentSequence, newMsg)
+	} else {
+		logger.Warn("Validator is being asked to engage in double-signing",
+			"previous message", previousMsg, "new message", msg)
+		return errInvalidPreparedCertificateProposal
+	}
 }
