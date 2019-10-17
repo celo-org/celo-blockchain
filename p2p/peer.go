@@ -114,8 +114,10 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	IsProxied    bool
-	ExternalNode *enode.Node
+	IsProxied bool
+
+	staticNodeLabels  map[string]bool
+	trustedNodeLabels map[string]bool
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -123,7 +125,7 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	node := enode.SignNull(new(enr.Record), id)
 	conn := &conn{fd: pipe, transport: nil, node: node, caps: caps, name: name}
-	peer := newPeer(conn, nil, false)
+	peer := newPeer(conn, nil, false, nil, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
 }
@@ -179,27 +181,19 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-// Validator returns true if the peer is a validator connection
-func (p *Peer) Validator() bool {
-	return p.rw.is(validatorConn)
-}
-
-// Sentry returns true if the peer is a sentry connection
-func (p *Peer) Sentry() bool {
-	return p.rw.is(sentryConn)
-}
-
-func newPeer(conn *conn, protocols []Protocol, IsProxied bool) *Peer {
+func newPeer(conn *conn, protocols []Protocol, IsProxied bool, staticNodeLabels map[string]bool, trustedNodeLabels map[string]bool) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:        conn,
-		running:   protomap,
-		created:   mclock.Now(),
-		disc:      make(chan DiscReason),
-		protoErr:  make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:    make(chan struct{}),
-		log:       log.New("id", conn.node.ID(), "conn", conn.flags),
-		IsProxied: IsProxied,
+		rw:                conn,
+		running:           protomap,
+		created:           mclock.Now(),
+		disc:              make(chan DiscReason),
+		protoErr:          make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:            make(chan struct{}),
+		log:               log.New("id", conn.node.ID(), "conn", conn.flags),
+		IsProxied:         IsProxied,
+		staticNodeLabels:  staticNodeLabels,
+		trustedNodeLabels: trustedNodeLabels,
 	}
 	return p
 }
@@ -450,18 +444,18 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	Enode   string   `json:"enode"` // Node URL
-	ID      string   `json:"id"`    // Unique node identifier
-	Name    string   `json:"name"`  // Name of the node, including client type, version, OS, custom data
-	Caps    []string `json:"caps"`  // Protocols advertised by this peer
-	Network struct {
+	Enode             string   `json:"enode"`           // Node URL
+	ID                string   `json:"id"`              // Unique node identifier
+	Name              string   `json:"name"`            // Name of the node, including client type, version, OS, custom data
+	Caps              []string `json:"caps"`            // Protocols advertised by this peer
+	StaticNodeLabels  []string `json:"staticNodeInfo"`  // Labels for the static node
+	TrustedNodeLabels []string `json:"trustedNodeInfo"` // Labels for the trusted node
+	Network           struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 		Inbound       bool   `json:"inbound"`
 		Trusted       bool   `json:"trusted"`
 		Static        bool   `json:"static"`
-		Validator     bool   `json:"validator"`
-		Sentry        bool   `json:"sentry"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
@@ -486,8 +480,6 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.Inbound = p.rw.is(inboundConn)
 	info.Network.Trusted = p.rw.is(trustedConn)
 	info.Network.Static = p.rw.is(staticDialedConn)
-	info.Network.Validator = p.rw.is(validatorConn)
-	info.Network.Sentry = p.rw.is(sentryConn)
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {
@@ -501,5 +493,18 @@ func (p *Peer) Info() *PeerInfo {
 		}
 		info.Protocols[proto.Name] = protoInfo
 	}
+
+	staticNodeLabels := make([]string, len(p.staticNodeLabels))
+	for label, _ := range p.staticNodeLabels {
+		staticNodeLabels = append(staticNodeLabels, label)
+	}
+	info.StaticNodeLabels = staticNodeLabels
+
+	trustedNodeLabels := make([]string, len(p.trustedNodeLabels))
+	for label, _ := range p.trustedNodeLabels {
+		trustedNodeLabels = append(trustedNodeLabels, label)
+	}
+	info.TrustedNodeLabels = trustedNodeLabels
+
 	return info
 }

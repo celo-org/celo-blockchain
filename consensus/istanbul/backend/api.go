@@ -113,7 +113,7 @@ func (api *API) AddSentry(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	api.istanbul.broadcaster.AddSentryPeer(node, externalNode)
+	api.istanbul.addSentryPeer(node, externalNode)
 	return true, nil
 }
 

@@ -57,6 +57,11 @@ type AnnounceGossipTimestamp struct {
 	timestamp    time.Time
 }
 
+type SentryInfo struct {
+        externalNode *enode.Node
+	peer         *eth.Peer
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -133,6 +138,8 @@ type Backend struct {
 
 	valEnodeShareWg   *sync.WaitGroup
 	valEnodeShareQuit chan struct{}
+
+	sentryNodes     map[enode.ID]sentryInfo
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -569,15 +576,16 @@ func (sb *Backend) GetValidatorPeers() []string {
 }
 
 func (sb *Backend) AddSentryPeer(node, externalNode *enode.Node) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.AddSentryPeer(node, externalNode)
-	}
+     if _, ok := sb.sentryNodes[node.ID]; !ok {
+     	sb.sentryNodes[node.ID] = &{externalNode: externalNode}
+	sb.broadcaster.AddPeer(node, params.SentryNode)
+     }
 }
 
 func (sb *Backend) RemoveSentryPeer(node *enode.Node) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.RemoveSentryPeer(node)
-	}
+     if _, ok := sb.sentryNodes[node.ID]; ok {
+	sb.broadcaster.RemovePeer(node, params.SentryNode)
+     }
 }
 
 func (sb *Backend) GetSentryPeers() [][2]string {

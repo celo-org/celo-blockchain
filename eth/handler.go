@@ -925,7 +925,7 @@ func (pm *ProtocolManager) GetValidatorPeers() []string {
 }
 
 func (pm *ProtocolManager) AddSentryPeer(node, externalNode *enode.Node) error {
-	pm.server.AddSentryPeer(node, externalNode)
+	pm.server.AddPeer(node)
 	return nil
 }
 
