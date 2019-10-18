@@ -410,24 +410,19 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
-	} else {
-		snapshot = state.Snapshot()
 	}
-
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
+	snapshot = state.Snapshot()
 	_, err = gpm.UpdateGasPriceMinimum(header, state)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
-	} else {
-		snapshot = state.Snapshot()
 	}
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+		snapshot = state.Snapshot()
 		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
-		} else {
-			snapshot = state.Snapshot()
 		}
 	}
 
