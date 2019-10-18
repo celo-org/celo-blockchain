@@ -25,7 +25,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -33,7 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -354,6 +354,8 @@ func TestValSetChange(t *testing.T) {
 				Seal:                      []byte{},
 				CommittedSeal:             []byte{},
 				EpochData:                 []byte{},
+				ParentSeal:                []byte{},
+				ParentBitmap:              big.NewInt(0),
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
