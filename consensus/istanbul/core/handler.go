@@ -24,7 +24,11 @@ import (
 )
 
 func (c *core) ParentSeals() *messageSet {
-	return c.current.ParentSeals
+	if c.current != nil {
+		return c.current.ParentSeals
+	} else {
+		return nil
+	}
 }
 
 // Start implements core.Engine.Start

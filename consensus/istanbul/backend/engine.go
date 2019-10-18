@@ -348,9 +348,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 	// modify the block header to include all the ParentSeals
 	parentCommitedSeals := sb.core.ParentSeals()
-	if parentCommitedSeals.Size() != 0 {
-		bitmap, asig := istanbulCore.AggregateSeals(parentCommitedSeals)
-		writeParentSeals(header, bitmap, asig)
+	if parentCommitedSeals != nil {
+		if parentCommitedSeals.Size() != 0 {
+			bitmap, asig := istanbulCore.AggregateSeals(parentCommitedSeals)
+			writeParentSeals(header, bitmap, asig)
+		}
 	}
 
 	return nil
