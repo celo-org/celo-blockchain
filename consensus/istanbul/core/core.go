@@ -292,6 +292,7 @@ func (c *core) startNewRound(round *big.Int) {
 	} else {
 		if c.current != nil {
 			request = c.current.pendingRequest
+			c.deleteMessageFromDisk(c.current.Round(), c.current.Sequence())
 		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),

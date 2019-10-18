@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
-	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -52,22 +51,7 @@ const (
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
 
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/LockedGold.json
-	setCumulativeRewardWeightABI = `[{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "blockReward",
-				"type": "uint256"
-			}
-		],
-		"name": "setCumulativeRewardWeight",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-		}]`
-
+	// TODO(asa): Move this to contract_comm
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	increaseSupplyABI = `[{
 		"constant": false,
@@ -154,9 +138,8 @@ var (
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
 
-	increaseSupplyFuncABI, _            = abi.JSON(strings.NewReader(increaseSupplyABI))
-	totalSupplyFuncABI, _               = abi.JSON(strings.NewReader(totalSupplyABI))
-	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
+	increaseSupplyFuncABI, _ = abi.JSON(strings.NewReader(increaseSupplyABI))
+	totalSupplyFuncABI, _    = abi.JSON(strings.NewReader(totalSupplyABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -415,7 +398,7 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		newValSet, err := validators.GetValidatorSet(header, state)
+		newValSet, err := sb.getNewValidatorSet(header, state)
 		if err != nil {
 			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
 		} else {
@@ -483,24 +466,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		if governanceAddress != nil {
 			state.AddBalance(*governanceAddress, infrastructureBlockReward)
 			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
-		}
-
-		stakerBlockReward := big.NewInt(params.Ether)
-		lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
-		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Debug("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
-		} else if err != nil {
-			log.Error(err.Error())
-		}
-
-		if lockedGoldAddress != nil {
-			state.AddBalance(*lockedGoldAddress, stakerBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-			_, err := contract_comm.MakeCallWithAddress(*lockedGoldAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
-			if err != nil {
-				log.Error("Unable to send epoch rewards to LockedGold", "err", err)
-				return nil, err
-			}
 		}
 
 		// Update totalSupply of GoldToken.
