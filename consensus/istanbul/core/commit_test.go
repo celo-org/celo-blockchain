@@ -20,19 +20,20 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestHandleCommit(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
 
-	proposal := newTestProposal()
+	// create block 4
+	proposal := newTestProposalWithNum(4)
 	expectedSubject := &istanbul.Subject{
 		View: &istanbul.View{
 			Round:    big.NewInt(0),
@@ -42,8 +43,9 @@ func TestHandleCommit(t *testing.T) {
 	}
 
 	testCases := []struct {
-		system      *testSystem
-		expectedErr error
+		system           *testSystem
+		expectedErr      error
+		checkParentSeals bool
 	}{
 		{
 			// normal case
@@ -53,11 +55,9 @@ func TestHandleCommit(t *testing.T) {
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
+					// same view as the expected one to everyone
 					c.current = newTestRoundState(
-						&istanbul.View{
-							Round:    big.NewInt(0),
-							Sequence: big.NewInt(1),
-						},
+						expectedSubject.View,
 						c.valSet,
 					)
 
@@ -69,6 +69,7 @@ func TestHandleCommit(t *testing.T) {
 				return sys
 			}(),
 			nil,
+			false,
 		},
 		{
 			// future message
@@ -88,8 +89,9 @@ func TestHandleCommit(t *testing.T) {
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
-								Round:    big.NewInt(2),
-								Sequence: big.NewInt(3),
+								Round: big.NewInt(0),
+								// proposal from 1 round in the future
+								Sequence: big.NewInt(0).Add(proposal.Number(), common.Big1),
 							},
 							c.valSet,
 						)
@@ -98,9 +100,10 @@ func TestHandleCommit(t *testing.T) {
 				return sys
 			}(),
 			errFutureMessage,
+			false,
 		},
 		{
-			// subject not match
+			// past message
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
@@ -117,8 +120,11 @@ func TestHandleCommit(t *testing.T) {
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
-								Round:    big.NewInt(0),
-								Sequence: big.NewInt(0),
+								Round: big.NewInt(0),
+								// we're 2 blocks before so this is indeed a
+								// very old proposal and will error as expected
+								// with an old error message
+								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big2),
 							},
 							c.valSet,
 						)
@@ -127,6 +133,7 @@ func TestHandleCommit(t *testing.T) {
 				return sys
 			}(),
 			errOldMessage,
+			false,
 		},
 		{
 			// jump state
@@ -155,6 +162,40 @@ func TestHandleCommit(t *testing.T) {
 				return sys
 			}(),
 			nil,
+			false,
+		},
+		{
+			// message from previous sequence
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					if i == 0 {
+						// replica 0 is the proposer
+						c.current = newTestRoundState(
+							expectedSubject.View,
+							c.valSet,
+						)
+						c.state = StatePrepared
+					} else {
+						c.current = newTestRoundState(
+							&istanbul.View{
+								Round: big.NewInt(0),
+								// we're 1 block before, so this should not
+								// error out and actually the commit should be
+								// stored in the ParentSeals field
+								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
+							},
+							c.valSet,
+						)
+					}
+				}
+				return sys
+			}(),
+			nil,
+			true,
 		},
 		// TODO: double send message
 	}
@@ -187,6 +228,15 @@ OUTER:
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
 				continue OUTER
+			}
+		}
+
+		// core should have received a parent seal from each of its neighbours
+		// how can we add our signature to the ParentSeal? Broadcast to ourselve
+		// does not make much sense
+		if test.checkParentSeals {
+			if r0.current.ParentSeals.Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
+				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentSeals.Size(), r0.valSet.Size()-1)
 			}
 		}
 
