@@ -25,12 +25,13 @@ import (
 
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) *roundState {
 	return &roundState{
-		round:      view.Round,
-		sequence:   view.Sequence,
-		Preprepare: newTestPreprepare(view),
-		Prepares:   newMessageSet(validatorSet),
-		Commits:    newMessageSet(validatorSet),
-		mu:         new(sync.RWMutex),
+		round:       view.Round,
+		sequence:    view.Sequence,
+		Preprepare:  newTestPreprepare(view),
+		Prepares:    newMessageSet(validatorSet),
+		ParentSeals: newMessageSet(validatorSet),
+		Commits:     newMessageSet(validatorSet),
+		mu:          new(sync.RWMutex),
 		hasBadProposal: func(hash common.Hash) bool {
 			return false
 		},

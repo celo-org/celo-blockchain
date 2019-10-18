@@ -29,18 +29,25 @@ import (
 // newRoundState creates a new roundState instance with the given view and validatorSet
 func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
-		round:               view.Round,
-		desiredRound:        view.Round,
-		sequence:            view.Sequence,
-		Preprepare:          preprepare,
-		Prepares:            newMessageSet(validatorSet),
-		Commits:             newMessageSet(validatorSet),
+		round:        view.Round,
+		desiredRound: view.Round,
+		sequence:     view.Sequence,
+		Preprepare:   preprepare,
+		Prepares:     newMessageSet(validatorSet),
+		Commits:      newMessageSet(validatorSet),
+		// todo not necessarily this validator set, might be the parent ones
+		ParentSeals:         newMessageSet(validatorSet),
 		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
 		hasBadProposal:      hasBadProposal,
 	}
 }
+
+// sequence -> sequence: commit -> parentcommit
+// round -> round: parentcommit -> parentcommit
+// modify backlog handelr to allow us to accept commits from the previous
+// sequence and put them in to parent commits
 
 // roundState stores the consensus state
 type roundState struct {
@@ -50,6 +57,7 @@ type roundState struct {
 	Preprepare          *istanbul.Preprepare
 	Prepares            *messageSet
 	Commits             *messageSet
+	ParentSeals         *messageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
