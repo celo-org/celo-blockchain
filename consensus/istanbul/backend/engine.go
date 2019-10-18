@@ -345,6 +345,14 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
+
+	// modify the block header to include all the ParentSeals
+	parentCommitedSeals := sb.core.ParentSeals()
+	if parentCommitedSeals.Size() != 0 {
+		bitmap, asig := istanbulCore.AggregateSeals(parentCommitedSeals)
+		writeParentSeals(header, bitmap, asig)
+	}
+
 	return nil
 }
 
@@ -786,12 +794,26 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
+	var bitmap *big.Int
+	var parentSeal []byte
+	extras, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		bitmap = big.NewInt(0)
+		parentSeal = []byte{}
+	} else {
+		bitmap = extras.ParentBitmap
+		parentSeal = extras.ParentSeal
+	}
+
 	ist := &types.IstanbulExtra{
 		AddedValidators:           addedValidatorsAddresses,
 		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
 		RemovedValidators:         removedValidators,
 		Seal:                      []byte{},
 		CommittedSeal:             []byte{},
+		// ensure the ParentSeal does not get overwritten
+		ParentSeal:   parentSeal,
+		ParentBitmap: bitmap,
 	}
 
 	payload, err := rlp.EncodeToBytes(&ist)
@@ -814,6 +836,35 @@ func writeSeal(h *types.Header, seal []byte) error {
 	}
 
 	istanbulExtra.Seal = seal
+	payload, err := rlp.EncodeToBytes(&istanbulExtra)
+	if err != nil {
+		return err
+	}
+
+	h.Extra = append(h.Extra[:types.IstanbulExtraVanity], payload...)
+	return nil
+}
+
+// writeParentSeals writes the extra-data field of a block header with given committed seals.
+func writeParentSeals(h *types.Header, bitmap *big.Int, parentSeals []byte) error {
+	if len(parentSeals) == 0 {
+		return errInvalidCommittedSeals
+	}
+
+	if len(parentSeals) != types.IstanbulExtraCommittedSeal {
+		return errInvalidCommittedSeals
+	}
+
+	istanbulExtra, err := types.ExtractIstanbulExtra(h)
+	if err != nil {
+		return err
+	}
+
+	istanbulExtra.ParentSeal = make([]byte, len(parentSeals))
+	copy(istanbulExtra.ParentSeal, parentSeals)
+	istanbulExtra.ParentBitmap = big.NewInt(0)
+	istanbulExtra.Bitmap.Set(bitmap)
+
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {
 		return err
