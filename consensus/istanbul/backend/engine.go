@@ -405,26 +405,33 @@ func (sb *Backend) EpochSize() uint64 {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
-	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
+	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
-	if err == nil {
-		header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	if err != nil {
+		state.RevertToSnapshot(snapshot)
+	} else {
+		snapshot = state.Snapshot()
 	}
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	_, err = gpm.UpdateGasPriceMinimum(header, state)
-	if err == nil {
-		header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	if err != nil {
+		state.RevertToSnapshot(snapshot)
+	} else {
+		snapshot = state.Snapshot()
 	}
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
-		if err == nil {
-			header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+		if err != nil {
+			state.RevertToSnapshot(snapshot)
+		} else {
+			snapshot = state.Snapshot()
 		}
 	}
 
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 
 	// Assemble and return the final block for sealing
@@ -456,7 +463,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 		// TODO: Use actual uptime metric.
 		// 1.0 in fixidity
 		uptime := math.BigPow(10, 24)
-		log.Info("Updating validator score for address", "address", val.Address(), "uptime", uptime.String())
+		sb.logger.Info("Updating validator score for address", "address", val.Address(), "uptime", uptime.String())
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err != nil {
 			return err
@@ -467,7 +474,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 
 func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	for _, val := range valSet {
-		log.Info("Distributing epoch payment for address", "address", val.Address())
+		sb.logger.Info("Distributing epoch payment for address", "address", val.Address())
 		err := validators.DistributeEpochPayment(header, state, val.Address())
 		if err != nil {
 			return nil
@@ -480,6 +487,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	totalEpochRewards := big.NewInt(0)
 
 	// Fixed epoch reward to the infrastructure fund.
+	// TODO(asa): This should be a fraction of the overal reward to stakers.
 	infrastructureEpochReward := big.NewInt(params.Ether)
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
