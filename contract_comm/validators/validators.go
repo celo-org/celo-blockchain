@@ -61,10 +61,6 @@ const validatorsABIString string = `[
           "type": "string"
         },
         {
-          "name": "url",
-          "type": "string"
-        },
-        {
           "name": "publicKeysData",
           "type": "bytes"
         },
