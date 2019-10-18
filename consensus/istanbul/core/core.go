@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -174,36 +174,45 @@ func (c *core) commit() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
-	bitmap := big.NewInt(0)
-	publicKeys := [][]byte{}
 	if proposal != nil {
-		committedSeals := make([][]byte, c.current.Commits.Size())
-		for i, v := range c.current.Commits.Values() {
-			committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
-			copy(committedSeals[i][:], v.CommittedSeal[:])
-			j, err := c.current.Commits.GetAddressIndex(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
-			}
-			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
-			}
-
-			publicKeys = append(publicKeys, publicKey)
-
-			bitmap.SetBit(bitmap, int(j), 1)
-		}
-		asig, err := blscrypto.AggregateSignatures(committedSeals)
-		if err != nil {
-			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
-		}
-
+		bitmap, asig := AggregateSeals(c.current.Commits)
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.sendNextRoundChange()
 			return
 		}
 	}
+}
+
+// AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
+// signature and bitmap
+// TODO: Maybe return an error instead of panicking?
+func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
+	bitmap := big.NewInt(0)
+	publicKeys := [][]byte{}
+	committedSeals := make([][]byte, seals.Size())
+	for i, v := range seals.Values() {
+		committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
+		copy(committedSeals[i][:], v.CommittedSeal[:])
+		j, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+		}
+		publicKey, err := seals.GetAddressPublicKey(v.Address)
+		if err != nil {
+			panic(fmt.Sprintf("couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
+		}
+
+		publicKeys = append(publicKeys, publicKey)
+
+		bitmap.SetBit(bitmap, int(j), 1)
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		panic("couldn't aggregate signatures")
+	}
+
+	return bitmap, asig
 }
 
 // Generates the next preprepare request and associated round change certificate

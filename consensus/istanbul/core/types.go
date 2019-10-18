@@ -27,6 +27,8 @@ type Engine interface {
 	Stop() error
 	CurrentView() *istanbul.View
 	SetAddress(common.Address)
+	// Validator -> CommittedSeal from Parent Block
+	ParentSeals() *messageSet
 }
 
 type State uint64

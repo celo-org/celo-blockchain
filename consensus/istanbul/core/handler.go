@@ -23,6 +23,10 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
+func (c *core) ParentSeals() *messageSet {
+	return c.current.ParentSeals
+}
+
 // Start implements core.Engine.Start
 func (c *core) Start() error {
 	// Start a new round from last sequence + 1
