@@ -160,7 +160,7 @@ func GetGasToReadErc20Balance(header *types.Header, state vm.StateDB) uint64 {
 	return GetGasCost(header, state, params.ExpectedGasToReadErc20Balance, "gasToReadErc20Balance")
 }
 
-func GetCurrencyGasCost(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
+func GetIntrinsicGasForAlternateGasCurrency(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
 	if gasCurrency == nil {
 		return 0
 	}

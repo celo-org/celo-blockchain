@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
+	"github.com/ethereum/go-ethereum/core/types"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
@@ -89,7 +90,7 @@ type Message interface {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation, homestead bool, header *types.Header, state vm.StateDB, gasCurrency *common.Address) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation && homestead {
@@ -131,6 +132,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error)
 	// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
+	gas += blockchain_parameters.GetIntrinsicGasForAlternateGasCurrency(header, state, gasCurrency)
 
 	return gas, nil
 }
@@ -313,12 +315,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas.
-	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
+	gas, err := IntrinsicGas(st.data, contractCreation, homestead, st.evm.GetHeader(), st.state, msg.GasCurrency())
 	if err != nil {
 		return nil, 0, false, err
 	}
-
-	gas += blockchain_parameters.GetCurrencyGasCost(st.evm.GetHeader(), st.state, msg.GasCurrency())
 
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
