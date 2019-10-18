@@ -117,6 +117,17 @@ func (sb *Backend) NewChainHead() error {
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
+
+		// Set the randomness for proposer selection ordering from the block.
+		if currentBlock.Randomness() != nil {
+			valset.SetRandomness(currentBlock.Randomness().Revealed)
+		}
+		if currentBlock.Randomness() == nil || currentBlock.Randomness().Revealed == (common.Hash{}) {
+			valset.SetRandomness(common.Hash{})
+			sb.logger.Warn("Block contains no revealed randomness: using default for proposer selection", "block number", currentBlock.Number())
+		}
+
+		// Establish connections to new peers and tear down connections to old ones.
 		go sb.RefreshValPeers(valset)
 	}
 
