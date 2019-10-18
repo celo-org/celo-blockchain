@@ -12,6 +12,5 @@ Pod::Spec.new do |s|
   s.source          = { :git => package['repository']['url'], :tag => s.version }
   s.source_files    = 'build/bin/Geth.framework/**/*.h', 'Empty.m'
   s.vendored_libraries  = 'libGeth.a', 'vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a'
-  s.prepare_command     = 'touch Empty.m && ln -sf build/bin/Geth.framework/Versions/A/Geth libGeth.a'
   s.pod_target_xcconfig = { 'OTHER_LDFLAGS' => '-ObjC' }
 end
