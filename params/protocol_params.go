@@ -160,24 +160,24 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForGetValidator                         uint64 = 100 * 1000
-	MaxGasForElectValidators                      uint64 = 50 * 1000000
-	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
-	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
-	MaxGasForTotalSupply                          uint64 = 50 * 1000
-	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
-	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
-	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
-	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
-	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
-	MaxGasForGetMinimumClientVersion              uint64 = 200000
 	MaxGasForCommitments                          uint64 = 2000000
 	MaxGasForComputeCommitment                    uint64 = 2000000
-	MaxGasForRevealAndCommit                      uint64 = 2000000
+	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
+	MaxGasForElectValidators                      uint64 = 50 * 1000000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
 	MaxGasForGetGasPriceMinimum                   uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
-	MaxGasForProposerFraction                     uint64 = 200000
-	MaxGasForMedianRate                           uint64 = 20000
-	MaxGasForGetWhiteList                         uint64 = 20000
+	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
+	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
+	MaxGasForGetMinimumClientVersion              uint64 = 200000
 	MaxGasForGetRegisteredValidators              uint64 = 1000000
+	MaxGasForGetValidator                         uint64 = 100 * 1000
+	MaxGasForGetWhiteList                         uint64 = 20000
+	MaxGasForMedianRate                           uint64 = 20000
+	MaxGasForProposerFraction                     uint64 = 200000
+	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
+	MaxGasForRevealAndCommit                      uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
+	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
+	MaxGasForTotalSupply                          uint64 = 50 * 1000
 )
