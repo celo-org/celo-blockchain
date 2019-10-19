@@ -87,33 +87,40 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 	/*
 		notes (will delete)
-
-		0. pull the validator set for the previous block
-		1. check if the message was signed by a validator from the previous sequence
+		ok 0. pull the validator set for the previous block
+		ok 1. check if the message was signed by a validator from the previous sequence
 		2. is the message that was signed actually the correct commit mesage for
 		that previous block?
 		3. check that the block hash that i signed last round, is the same as the
 		one i received
 	*/
 
-	// TODO: Make these on the previous validator set to account for the edge
-	// case of an epoch block's parent seals
-	_, validator := c.valSet.GetByAddress(msg.Address)
-	if validator == nil {
-		return errInvalidValidatorAddress
-	}
-
-	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
-
 	parentSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
 	if msg.Code == istanbul.MsgCommit && c.currentView().Sequence.Cmp(parentSequencePlusOne) == 0 {
-		// TODO: Add more verification checks
+		// Retrieve the validator set for the previous proposal (which should
+		// match the one broadcast
+		lastProposal, _ := c.backend.LastProposal()
+		parentValset := c.backend.Validators(lastProposal)
+		_, validator := parentValset.GetByAddress(msg.Address)
+		if validator == nil {
+			return errInvalidValidatorAddress
+		}
+		if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+			return errInvalidCommittedSeal
+		}
+		// TODO: What further verification checks are needed? Maybe ensure that
+		// the View we are processing matches the parent proposal? How?
 		c.acceptParentSeal(msg, commit.View)
-		// there is no need to make any quorum checks for the ParentSeal, we're
-		// just trying to get everything that passes the checks
 	} else {
+		_, validator := c.valSet.GetByAddress(msg.Address)
+		if validator == nil {
+			return errInvalidValidatorAddress
+		}
+
+		if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+			return errInvalidCommittedSeal
+		}
+
 		// ensure that the commit is in the current proposal
 		if err := c.verifyCommit(commit); err != nil {
 			return err
