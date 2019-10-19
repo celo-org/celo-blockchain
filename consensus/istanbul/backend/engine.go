@@ -350,6 +350,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	parentCommitedSeals := sb.core.ParentSeals()
 	if parentCommitedSeals != nil {
 		if parentCommitedSeals.Size() != 0 {
+			sb.logger.Info("Storing", "parent seals from", parentCommitedSeals.String())
 			bitmap, asig := istanbulCore.AggregateSeals(parentCommitedSeals)
 			writeParentSeals(header, bitmap, asig)
 		}
