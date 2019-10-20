@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -106,7 +107,7 @@ func (v *BlockValidator) ValidateState(block, parent *types.Block, statedb *stat
 // to keep the baseline gas above the provided floor, and increase it towards the
 // ceil if the blocks are full. If the ceil is exceeded, it will always decrease
 // the gas allowance.
-func CalcGasLimit(parent *types.Block, statedb *state.StateDB, gasFloor, gasCeil uint64) uint64 {
+func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
 	header := parent.Header()
 
 	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
@@ -115,34 +116,7 @@ func CalcGasLimit(parent *types.Block, statedb *state.StateDB, gasFloor, gasCeil
 		return limit
 	}
 
-	// contrib = (parentGasUsed * 3 / 2) / 1024
-	contrib := (parent.GasUsed() + parent.GasUsed()/2) / params.GasLimitBoundDivisor
+	log.Warn("Cannot read block gas limit", "err", err)
 
-	// decay = parentGasLimit / 1024 -1
-	decay := parent.GasLimit()/params.GasLimitBoundDivisor - 1
-
-	/*
-		strategy: gasLimit of block-to-mine is set based on parent's
-		gasUsed value.  if parentGasUsed > parentGasLimit * (2/3) then we
-		increase it, otherwise lower it (or leave it unchanged if it's right
-		at that usage) the amount increased/decreased depends on how far away
-		from parentGasLimit * (2/3) parentGasUsed is.
-	*/
-	limit = parent.GasLimit() - decay + contrib
-	if limit < params.MinGasLimit {
-		limit = params.MinGasLimit
-	}
-	// If we're outside our allowed gas range, we try to hone towards them
-	if limit < gasFloor {
-		limit = parent.GasLimit() + decay
-		if limit > gasFloor {
-			limit = gasFloor
-		}
-	} else if limit > gasCeil {
-		limit = parent.GasLimit() - decay
-		if limit < gasCeil {
-			limit = gasCeil
-		}
-	}
-	return limit
+	return params.GenesisGasLimit
 }
