@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
+	//"github.com/ethereum/go-ethereum/crypto"
 	//"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
 	//"github.com/ethereum/go-ethereum/p2p/enode"
@@ -102,13 +103,9 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	block := sb.currentBlock()
 
 	var enodeUrl string
-	if sb.proxied() {
-		sentryEnodeURLs := sb.GetSentryPeers()
-
-		if len(sentryEnodeURLs) > 0 {
-			// Right now, we assume that there is at most one sentry for this proxied validator
-			enodeUrl = sentryEnodeURLs[0][1]
-
+	if sb.config.Proxied {
+		if sb.sentryNode != nil {
+			enodeUrl = sb.sentryNode.externalNode.String()
 		} else {
 			sb.logger.Debug("Proxied node has no attached sentries")
 			return nil, nil
@@ -276,8 +273,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		block := sb.currentBlock()
 		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: announceMessage.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address(), sb.proxied(), false); err != nil {
+		if err := sb.valEnodeTable.upsert(msg.Address, enodeUrl, announceMessage.View, valSet, sb.ValidatorAddress(), sb.config.Proxied, false); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
 			return err
 		}

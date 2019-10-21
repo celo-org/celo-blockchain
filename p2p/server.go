@@ -166,9 +166,6 @@ type Config struct {
 
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
-
-	// Flag for whether a server instance is a proxy
-	IsProxy bool
 }
 
 // Server manages all peer connections.
@@ -357,7 +354,7 @@ func (srv *Server) RemovePeerLabel(node *enode.Node, label string) {
 
 // AddTrustedPeer adds the given node to a reserved whitelist which allows the
 // node to always connect, even if the slot are full.
-func (srv *Server) AddTrustedPeer(node *enode.Node, label string) {
+func (srv *Server) AddTrustedPeerLabel(node *enode.Node, label string) {
 	select {
 	case srv.addtrustedlabel <- &nodeLabelArgs{node: node, label: label}:
 	case <-srv.quit:
@@ -365,7 +362,7 @@ func (srv *Server) AddTrustedPeer(node *enode.Node, label string) {
 }
 
 // RemoveTrustedPeer removes the given node from the trusted peer set.
-func (srv *Server) RemoveTrustedPeer(node *enode.Node, label string) {
+func (srv *Server) RemoveTrustedPeerLabel(node *enode.Node, label string) {
 	select {
 	case srv.removetrustedlabel <- &nodeLabelArgs{node: node, label: label}:
 	case <-srv.quit:
@@ -822,7 +819,7 @@ running:
 				staticNodeLabels, _ := static[c.node.ID()]
 				trustedNodeLabels, _ := trusted[c.node.ID()]
 
-				p := newPeer(c, srv.Protocols, srv.IsProxy, staticNodeLabels, trustedNodeLabels)
+				p := newPeer(c, srv.Protocols, staticNodeLabels, trustedNodeLabels, srv)
 				// If message events are enabled, pass the peerFeed
 				// to the peer
 				if srv.EnableMsgEvents {

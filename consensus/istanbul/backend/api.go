@@ -113,8 +113,8 @@ func (api *API) AddSentry(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	api.istanbul.addSentryPeer(node, externalNode)
-	return true, nil
+	err = api.istanbul.addSentry(node, externalNode)
+	return true, err
 }
 
 // RemoveSentry removes a node from acting as a sentry
@@ -124,6 +124,16 @@ func (api *API) RemoveSentry(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.broadcaster.RemoveSentryPeer(node)
+	api.istanbul.removeSentry(node)
 	return true, nil
 }
+
+// TODO(kevjue) - implement this
+// SentryInfo retrieves all the information we know about each individual sentry node
+/* func (api *PublicAdminAPI) SentryInfo() ([]*p2p.PeerInfo, error) {
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.SentryInfo(), nil
+} */

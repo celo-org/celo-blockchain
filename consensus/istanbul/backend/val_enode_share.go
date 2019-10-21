@@ -23,8 +23,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -105,7 +107,7 @@ func (sb *Backend) generateValEnodeShareMsg() (*istanbul.Message, error) {
 	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
 		sharedValidatorEnodes[i] = sharedValidatorEnode{
 			Address:  address,
-			EnodeURL: validatorEnode.enodeURL,
+			EnodeURL: validatorEnode.node.String(),
 			View:     validatorEnode.view,
 		}
 		i++
@@ -145,14 +147,13 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 		return nil
 	}
 
-	if sb.broadcaster != nil {
-		sentryPeers := sb.broadcaster.FindSentryPeers()
-		if len(sentryPeers) > 0 {
-			sb.logger.Debug("Sending Istanbul Validator Enode Share payload to sentry peers", "sentry peer count", len(sentryPeers))
-			sb.sendMessage(sentryPeers, istanbulValEnodeShareMsg, msg, nil, true, false, true)
-		} else {
-			sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
-		}
+	if sb.sentryNode != nil && sb.sentryNode.peer != nil {
+		sb.logger.Debug("Sending Istanbul Validator Enode Share payload to sentry peer")
+		peers := make(map[enode.ID]consensus.Peer)
+		peers[sb.sentryNode.node.ID()] = sb.sentryNode.peer
+		sb.sendMessage(peers, istanbulValEnodeShareMsg, msg, nil, true, false, true)
+	} else {
+		sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
 	}
 
 	return nil
@@ -187,11 +188,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 	sb.valEnodeTable.valEnodeTableMu.Lock()
 	defer sb.valEnodeTable.valEnodeTableMu.Unlock()
 	for _, sharedValidatorEnode := range valEnodeShareMessage.ValEnodes {
-		valEnode := &validatorEnode{
-			enodeURL: sharedValidatorEnode.EnodeURL,
-			view:     sharedValidatorEnode.View,
-		}
-		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, valEnode, valSet, sb.Address(), false, true); err != nil {
+		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, sharedValidatorEnode.EnodeURL, sharedValidatorEnode.View, valSet, sb.Address(), false, true); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "error", err)
 		}
 	}

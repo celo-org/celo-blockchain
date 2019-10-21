@@ -18,8 +18,6 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
-
 	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -56,37 +54,27 @@ type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
 	Enqueue(id string, block *types.Block)
 	// FindPeers retrives peers by addresses
-	FindPeers(map[enode.ID]bool) map[enode.ID]Peer
-	// Gets all of the sentry peers
-	FindSentryPeers() map[enode.ID]Peer
-	// GetLocalNode retrieves the node's local node
-	GetLocalNode() *enode.Node
-	// GetNodeKey retrieves the node's private key
-	GetNodeKey() *ecdsa.PrivateKey
-	// Add a new validator peer
-	AddValidatorPeer(enodeURL string) error
-	// Remove a validator peer
-	RemoveValidatorPeer(enodeURL string) error
-	// Gets all of the validator peers' enodeURL
-	GetValidatorPeers() []string
-	// Add a new sentry peer
-	AddSentryPeer(node, externalNode *enode.Node) error
-	// Remove a sentry peer
-	RemoveSentryPeer(node *enode.Node) error
-	// Gets all of the sentry peers' enodeURL
-	GetSentryPeers() [][2]string
-	// Returns the fact of whether this node is a sentry
-	IsSentry() bool
-	// Returns the proxied peer, if this node is a sentry
-	GetProxiedPeer() Peer
-	// Returns if this node is intended to be proxied by sentry nodes
-	Proxied() bool
+	FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]Peer
 }
 
-// Peer defines the interface to communicate with peer
+// p2p.Server defines the interface to get the node's enode, add/remove static and trusted peers
+type P2PServer interface {
+	// Gets this node's enode
+	Self() *enode.Node
+	// AddPeerLabel will add a peer label to the p2p server instance
+	AddPeerLabel(node *enode.Node, label string)
+	// RemovePeerLabel will remove a peer label from the p2p server instance
+	RemovePeerLabel(node *enode.Node, label string)
+	// AddTrustedPeerLabel will add a trusted peer label to the p2p server instance
+	AddTrustedPeerLabel(node *enode.Node, label string)
+	// RemoveTrustedPeerLabel will remove a trusted peer label from the p2p server instance
+	RemoveTrustedPeerLabel(node *enode.Node, label string)
+}
+
+// p2p.Peer defines the interface to communicate with peer
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint64, data interface{}) error
-
+	// Returns the peer's enode
 	Node() *enode.Node
 }

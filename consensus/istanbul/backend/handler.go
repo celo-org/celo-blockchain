@@ -18,10 +18,12 @@ package backend
 
 import (
 	"errors"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -48,12 +50,12 @@ func (sb *Backend) Protocol() consensus.Protocol {
 }
 
 // HandleMsg implements consensus.Handler.HandleMsg
-func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer bool) (bool, error) {
+func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
 	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
-		if (!sb.coreStarted && !sb.broadcaster.IsSentry()) && (msg.Code == istanbulMsg) {
+		if (!sb.coreStarted && !sb.config.Sentry) && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -83,8 +85,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 		sb.knownMessages.Add(hash, true)
 
 		if msg.Code == istanbulMsg {
-			if sb.broadcaster.IsSentry() {
-				if fromProxiedPeer {
+			if sb.config.Sentry {
+				if reflect.DeepEqual(peer, sb.proxiedPeer) {
 					// Received a consensus message from this sentry's proxied validator
 					// Note that we are NOT verifying the signature of the message that is sent from the
 					// proxied validator, since it's a trusted peer and all the other validators will
@@ -99,10 +101,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, fromProxiedPeer b
 					go sb.Broadcast(istMsg.DestAddresses, istMsg, false, false)
 				} else {
 					// Need to forward the message to the proxied validator
-					proxiedPeer := sb.broadcaster.GetProxiedPeer()
 					sb.logger.Debug("Forwarding consensus message to proxied validator")
-					if proxiedPeer != nil {
-						go proxiedPeer.Send(msg.Code, data)
+					if sb.proxiedPeer != nil {
+						go sb.proxiedPeer.Send(msg.Code, data)
 					}
 				}
 			} else {
@@ -126,30 +127,65 @@ func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	sb.broadcaster = broadcaster
 }
 
-func (sb *Backend) NewChainHead() error {
+// SetP2PServer implements consensus.Handler.SetP2PServer
+func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
+	sb.p2pserver = p2pserver
+}
+
+func (sb *Backend) NewWork() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
 
-	// If the last block of the epoch has just been added to the blockchain, then
-	// establish 'validator' type connections to all validators in the upcoming epoch
-	// and disconnect from the ones that are no longer in the val set.
-	currentBlock := sb.currentBlock()
-	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
-		sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "current block number", currentBlock.Number().Uint64())
-		valset := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
-		if _, val := valset.GetByAddress(sb.Address()); val == nil {
+	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+	return nil
+}
+
+func (sb *Backend) NewChainHead(newBlock *types.Block) {
+	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
+		sb.coreMu.RLock()
+		defer sb.coreMu.RUnlock()
+
+		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+
+		valAddress := sb.ValidatorAddress()
+		_, val := valset.GetByAddress(valAddress)
+
+		// Output whether this validator was or wasn't elected for the
+		// new epoch's validator set
+		if sb.coreStarted && val == nil {
 			sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-		if !sb.proxied() {
-			go sb.RefreshValPeers(valset)
+
+		// If this is a sentry or it's non proxied validator and a
+		// new epoch just started, then refresh the validator enode table
+		if sb.config.Sentry || (sb.coreStarted && !sb.config.Proxied) {
+			sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "new block number", newBlock.Number().Uint64())
+			sb.RefreshValPeers(valset)
 		}
 	}
+}
 
-	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
-	return nil
+func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
+	if sb.config.Sentry && isProxiedPeer {
+		sb.proxiedPeer = peer
+	} else if sb.config.Proxied {
+		if peer.Node().ID() == sb.sentryNode.node.ID() {
+			sb.sentryNode.peer = peer
+		}
+	}
+}
+
+func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
+	if sb.config.Sentry && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
+		sb.proxiedPeer = nil
+	} else if sb.config.Proxied {
+		if peer.Node().ID() == sb.sentryNode.node.ID() {
+			sb.sentryNode.peer = nil
+		}
+	}
 }

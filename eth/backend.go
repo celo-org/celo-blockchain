@@ -192,6 +192,22 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+
+		chainHeadCh := make(chan core.ChainHeadEvent)
+		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
+
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					istanbul.NewChainHead(chainHeadEvent.Block)
+				case <-chainHeadSub.Err():
+					return
+				}
+			}
+		}()
 	}
 
 	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, &chainDb)

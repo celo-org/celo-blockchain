@@ -21,39 +21,35 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // Entries for the valEnodeTable
 type validatorEnode struct {
-	enodeURL string
-	view     *istanbul.View
+	node *enode.Node
+	view *istanbul.View
+	peer consensus.Peer
 }
 
 func (ve *validatorEnode) String() string {
-	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.enodeURL, ve.view)
+	return fmt.Sprintf("{node: %s, view: %v}", ve.node, ve.view)
 }
 
 type validatorEnodeTable struct {
 	valEnodeTable        map[common.Address]*validatorEnode
-	reverseValEnodeTable map[string]common.Address // EnodeURL -> Address mapping
-	valEnodeTableMu      *sync.RWMutex             // This mutex protects both valEnodeTable and reverseValEnodeTable, since they are modified at the same time
-
-	// This is used to set and remove the enodeURL validator connections.  Those adds and removes needs to be synchronized with the
-	// updates/inserts/removes to their associated entries in the valEnodeTable.
-	addValidatorPeer    func(enodeURL string)
-	removeValidatorPeer func(enodeURL string)
-
-	address common.Address // Address of the local node
+	reverseValEnodeTable map[enode.ID]common.Address // node ID -> Address mapping
+	valEnodeTableMu      *sync.RWMutex               // This mutex protects both valEnodeTable and reverseValEnodeTable, since they are modified at the same time
+	p2pserver            consensus.P2PServer
 }
 
-func newValidatorEnodeTable(addValidatorPeer func(enodeURL string), removeValidatorPeer func(enodeURL string)) *validatorEnodeTable {
+func newValidatorEnodeTable() *validatorEnodeTable {
 	vet := &validatorEnodeTable{valEnodeTable: make(map[common.Address]*validatorEnode),
-		reverseValEnodeTable: make(map[string]common.Address),
+		reverseValEnodeTable: make(map[enode.ID]common.Address),
 		valEnodeTableMu:      new(sync.RWMutex),
-		addValidatorPeer:     addValidatorPeer,
-		removeValidatorPeer:  removeValidatorPeer}
+	}
 
 	return vet
 }
@@ -72,8 +68,8 @@ func (vet *validatorEnodeTable) getUsingAddress(address common.Address) *validat
 	return vet.valEnodeTable[address]
 }
 
-func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Address, *validatorEnode) {
-	if address, ok := vet.reverseValEnodeTable[enodeURL]; ok {
+func (vet *validatorEnodeTable) getUsingNodeID(nodeID enode.ID) (common.Address, *validatorEnode) {
+	if address, ok := vet.reverseValEnodeTable[nodeID]; ok {
 		return address, vet.getUsingAddress(address)
 	} else {
 		return common.ZeroAddress, nil
@@ -81,46 +77,55 @@ func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Addres
 }
 
 // Locks the valEnodeTable mutex and updates or inserts a validator enode entry by calling upsertNonLocking
-func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
+func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
 	vet.valEnodeTableMu.Lock()
 	defer vet.valEnodeTableMu.Unlock()
 
-	return vet.upsertNonLocking(remoteAddress, newValEnode, valSet, localAddress, isProxied, isSentry)
+	return vet.upsertNonLocking(remoteAddress, newValEnodeURL, newValView, valSet, localAddress, isProxied, isSentry)
 }
 
 // This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
 // This does not lock the table mutex
-func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, newValEnode *validatorEnode, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
-	if oldValEnode := vet.getUsingAddress(remoteAddress); oldValEnode != nil {
+func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localValAddress common.Address, isProxied bool, isSentry bool) error {
+	newValNode, err := enode.ParseV4(newValEnodeURL)
+	if err != nil {
+		log.Error("Invalid Enode", "newValEnodeURL", newValEnodeURL, "err", err)
+		return err
+	}
+
+	if currentValEntry := vet.getUsingAddress(remoteAddress); currentValEntry != nil {
 		// If it is an old message, ignore it.
-		if newValEnode.view.Cmp(oldValEnode.view) <= 0 {
+		if newValView.Cmp(currentValEntry.view) <= 0 {
 			return errOldAnnounceMessage
 		} else {
-			// Check if the valEnodeEntry has been changed
-			if (newValEnode.enodeURL != oldValEnode.enodeURL) || (newValEnode.view.Cmp(oldValEnode.view) > 0) {
-				if newValEnode.enodeURL != oldValEnode.enodeURL {
-					vet.reverseValEnodeTable[newValEnode.enodeURL] = remoteAddress
-					delete(vet.reverseValEnodeTable, oldValEnode.enodeURL)
+			// Check if the validator's enode URL has been changed
+			if (newValEnodeURL != currentValEntry.node.String()) || (newValView.Cmp(currentValEntry.view) > 0) {
+				if newValEnodeURL != currentValEntry.node.String() {
+					vet.reverseValEnodeTable[newValNode.ID()] = remoteAddress
+					delete(vet.reverseValEnodeTable, currentValEntry.node.ID())
 					// Disconnect from the peer
-					vet.removeValidatorPeer(oldValEnode.enodeURL)
+					vet.p2pserver.RemovePeerLabel(currentValEntry.node, "validator")
+					vet.p2pserver.RemoveTrustedPeerLabel(currentValEntry.node, "validator")
 				}
-				vet.valEnodeTable[remoteAddress] = newValEnode
+				vet.valEnodeTable[remoteAddress] = &validatorEnode{node: newValNode, view: newValView}
 				log.Trace("Updated an entry in the valEnodeTable", "address", remoteAddress, "ValidatorEnode", vet.valEnodeTable[remoteAddress].String())
 			}
 		}
 	} else {
-		vet.valEnodeTable[remoteAddress] = newValEnode
-		vet.reverseValEnodeTable[newValEnode.enodeURL] = remoteAddress
+		vet.valEnodeTable[remoteAddress] = &validatorEnode{node: newValNode, view: newValView}
+		vet.reverseValEnodeTable[newValNode.ID()] = remoteAddress
 		log.Trace("Created an entry in the valEnodeTable", "address", remoteAddress, "ValidatorEnode", vet.valEnodeTable[remoteAddress].String())
 	}
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
-	// if this node is also part of the current epoch's valset
-	if _, remoteNode := valSet.GetByAddress(remoteAddress); remoteNode != nil {
-		// TODO: remove `forcePeer` once we can tell if the current node is a proxy
-		// for a validator in the current valSet
-		if _, localNode := valSet.GetByAddress(localAddress); (localNode != nil && !isProxied) || isSentry {
-			vet.addValidatorPeer(newValEnode.enodeURL)
+	// if this node is also part of the current epoch's valset and
+	// the removeAddress does not equal the localValAddress (no need for a sentry to establish a validator
+	// connection to it's validator).
+	if _, remoteVal := valSet.GetByAddress(remoteAddress); remoteVal != nil {
+		// This node should connect only if it's a standalone validator or a sentry of a validator
+		if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil && (!isProxied || isSentry) {
+			vet.p2pserver.AddPeerLabel(newValNode, "validator")
+			vet.p2pserver.AddTrustedPeerLabel(newValNode, "validator")
 		}
 	}
 
@@ -134,28 +139,29 @@ func (vet *validatorEnodeTable) pruneEntries(addressesToKeep map[common.Address]
 	for remoteAddress := range vet.valEnodeTable {
 		if !addressesToKeep[remoteAddress] {
 			log.Trace("Deleting entry from the valEnodeTable and reverseValEnodeTable table", "address", remoteAddress, "valEnodeEntry", vet.valEnodeTable[remoteAddress].String())
-			delete(vet.reverseValEnodeTable, vet.valEnodeTable[remoteAddress].enodeURL)
+			delete(vet.reverseValEnodeTable, vet.valEnodeTable[remoteAddress].node.ID())
 			delete(vet.valEnodeTable, remoteAddress)
 		}
 	}
 }
 
-func (vet *validatorEnodeTable) refreshValPeers(valSet istanbul.ValidatorSet, currentValPeers []string) {
+func (vet *validatorEnodeTable) refreshValPeers(valSet istanbul.ValidatorSet, currentValPeers map[enode.ID]consensus.Peer) {
 	vet.valEnodeTableMu.RLock()
 	defer vet.valEnodeTableMu.RUnlock()
 
 	// Add all of the valSet entries as validator peers
 	for _, val := range valSet.List() {
 		if valEnodeEntry := vet.getUsingAddress(val.Address()); valEnodeEntry != nil {
-			vet.addValidatorPeer(valEnodeEntry.enodeURL)
+			vet.p2pserver.AddPeerLabel(valEnodeEntry.node, "validator")
+			vet.p2pserver.AddTrustedPeerLabel(valEnodeEntry.node, "validator")
 		}
 	}
 
 	// Remove the peers that are not in the valset
-	for _, peerEnodeURL := range currentValPeers {
-		if peerAddress, ok := vet.reverseValEnodeTable[peerEnodeURL]; ok {
+	for id, valPeer := range currentValPeers {
+		if peerAddress, ok := vet.reverseValEnodeTable[id]; ok {
 			if _, src := valSet.GetByAddress(peerAddress); src == nil {
-				vet.removeValidatorPeer(peerEnodeURL)
+				vet.p2pserver.RemovePeerLabel(valPeer.Node(), "validator")
 			}
 		}
 	}

@@ -666,7 +666,7 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 
 	go sb.sendAnnounceMsgs()
 
-	if sb.proxied() {
+	if sb.config.Proxied {
 		go sb.sendValEnodeShareMsgs()
 	}
 

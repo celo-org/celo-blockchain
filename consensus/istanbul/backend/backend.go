@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"math/big"
 	"sync"
@@ -49,6 +48,10 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+
+	// errSentryAlreadySet is returned if a user tries to add a sentry that is already set.
+	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
+	errSentryAlreadySet = errors.New("sentry already set")
 )
 
 // Entries for the recent announce messages
@@ -57,9 +60,10 @@ type AnnounceGossipTimestamp struct {
 	timestamp    time.Time
 }
 
-type SentryInfo struct {
-        externalNode *enode.Node
-	peer         *eth.Peer
+type sentryInfo struct {
+	node         *enode.Node
+	externalNode *enode.Node
+	peer         consensus.Peer
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -85,7 +89,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		valEnodeShareQuit:    make(chan struct{}),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
+	backend.valEnodeTable = newValidatorEnodeTable()
 	return backend
 }
 
@@ -125,6 +129,9 @@ type Backend struct {
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
 
+	// interface to the p2p server
+	p2pserver consensus.P2PServer
+
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
 
@@ -139,7 +146,13 @@ type Backend struct {
 	valEnodeShareWg   *sync.WaitGroup
 	valEnodeShareQuit chan struct{}
 
-	sentryNodes     map[enode.ID]sentryInfo
+	// TODO: Figure out any needed changes for concurrent changes to this
+	// Right now, we assume that there is at most one sentry for a proxied validator
+	sentryNode *sentryInfo
+
+	// TODO: Figure out any needed changes for concurrent changes to this
+	// Right now, we assume that there is at most one proxied peer for a sentry
+	proxiedPeer consensus.Peer
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -178,7 +191,7 @@ func (sb *Backend) Broadcast(destAddresses []common.Address, istMsg *istanbul.Me
 
 	// If the validator is proxied, then add the destAddresses to the message so that the sentry
 	// will know which addresses to forward the message to
-	if sb.proxied() {
+	if sb.config.Proxied {
 		istMsg.DestAddresses = destAddresses
 	}
 
@@ -193,24 +206,24 @@ func (sb *Backend) Gossip(ethMsgCode uint64, istMsg *istanbul.Message, payload [
 }
 
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
-	if sb.proxied() {
-		return sb.broadcaster.FindSentryPeers()
+	if sb.config.Proxied && sb.sentryNode != nil && sb.sentryNode.peer != nil {
+		returnMap := make(map[enode.ID]consensus.Peer)
+		returnMap[sb.sentryNode.peer.Node().ID()] = sb.sentryNode.peer
+
+		return returnMap
 	} else {
-		var targets map[enode.ID]bool = nil
+		targets := make(map[enode.ID]bool)
 
 		if destAddresses != nil {
 			for _, addr := range destAddresses {
 				valNode := sb.valEnodeTable.getUsingAddress(addr)
 
 				if valNode != nil {
-					node, err := enode.ParseV4(valNode.enodeURL)
-					if err != nil {
-						targets[node.ID()] = true
-					}
+					targets[valNode.node.ID()] = true
 				}
 			}
 		}
-		return sb.broadcaster.FindPeers(targets)
+		return sb.broadcaster.FindPeers(targets, "")
 	}
 }
 
@@ -283,19 +296,7 @@ func (sb *Backend) sendMessage(peers map[enode.ID]consensus.Peer, ethMsgCode uin
 }
 
 func (sb *Backend) Enode() *enode.Node {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetLocalNode()
-	} else {
-		return nil
-	}
-}
-
-func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetNodeKey()
-	} else {
-		return nil
-	}
+	return sb.p2pserver.Self()
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -555,44 +556,21 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) AddValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.AddValidatorPeer(enodeURL)
+func (sb *Backend) addSentry(node, externalNode *enode.Node) error {
+	if sb.sentryNode != nil {
+		return errSentryAlreadySet
 	}
+
+	sb.p2pserver.AddPeerLabel(node, "sentry")
+
+	sb.sentryNode = &sentryInfo{node: node, externalNode: externalNode}
+	return nil
 }
 
-func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.RemoveValidatorPeer(enodeURL)
-	}
-}
-
-func (sb *Backend) GetValidatorPeers() []string {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetValidatorPeers()
-	} else {
-		return nil
-	}
-}
-
-func (sb *Backend) AddSentryPeer(node, externalNode *enode.Node) {
-     if _, ok := sb.sentryNodes[node.ID]; !ok {
-     	sb.sentryNodes[node.ID] = &{externalNode: externalNode}
-	sb.broadcaster.AddPeer(node, params.SentryNode)
-     }
-}
-
-func (sb *Backend) RemoveSentryPeer(node *enode.Node) {
-     if _, ok := sb.sentryNodes[node.ID]; ok {
-	sb.broadcaster.RemovePeer(node, params.SentryNode)
-     }
-}
-
-func (sb *Backend) GetSentryPeers() [][2]string {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetSentryPeers()
-	} else {
-		return nil
+func (sb *Backend) removeSentry(node *enode.Node) {
+	if sb.sentryNode != nil && sb.sentryNode.node.ID() == node.ID() {
+		sb.p2pserver.RemovePeerLabel(node, "sentry")
+		sb.sentryNode = nil
 	}
 }
 
@@ -604,18 +582,24 @@ func (sb *Backend) GetSentryPeers() [][2]string {
 func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
 
-	currentValPeers := sb.GetValidatorPeers()
+	currentValPeers := sb.broadcaster.FindPeers(nil, "validator")
 
 	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.Address()); val == nil {
-		for _, peerEnodeURL := range currentValPeers {
-			sb.RemoveValidatorPeer(peerEnodeURL)
+	if _, val := valset.GetByAddress(sb.ValidatorAddress()); val == nil {
+		for _, valPeer := range currentValPeers {
+			sb.p2pserver.RemovePeerLabel(valPeer.Node(), "validator")
 		}
 	} else {
 		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
 	}
 }
 
-func (sb *Backend) proxied() bool {
-	return sb.broadcaster != nil && sb.broadcaster.Proxied()
+func (sb *Backend) ValidatorAddress() common.Address {
+	var localAddress common.Address
+	if sb.config.Sentry && sb.proxiedPeer != nil {
+		localAddress = crypto.PubkeyToAddress(*sb.proxiedPeer.Node().Pubkey())
+	} else {
+		localAddress = sb.Address()
+	}
+	return localAddress
 }

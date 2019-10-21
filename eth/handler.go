@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,11 +78,9 @@ type ProtocolManager struct {
 	chainconfig *params.ChainConfig
 	maxPeers    int
 
-	downloader  *downloader.Downloader
-	fetcher     *fetcher.Fetcher
-	peers       *peerSet
-	valPeers    map[string]bool
-	sentryPeers map[string]bool
+	downloader *downloader.Downloader
+	fetcher    *fetcher.Fetcher
+	peers      *peerSet
 
 	SubProtocols []p2p.Protocol
 
@@ -123,8 +120,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		blockchain:  blockchain,
 		chainconfig: config,
 		peers:       newPeerSet(),
-		valPeers:    make(map[string]bool),
-		sentryPeers: make(map[string]bool),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
@@ -137,6 +132,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
 		handler.SetBroadcaster(manager)
+		handler.SetP2PServer(server)
 	}
 
 	// Figure out whether to allow fast sync or not
@@ -218,15 +214,16 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	log.Debug("Removing Ethereum peer", "peer", id)
 
-	// Unregister the peer from the downloader and Ethereum peer set
+	// Unregister the peer from the downloader, consensus engine, and Ethereum peer set
 	if err := pm.downloader.UnregisterPeer(id); err != nil {
 		log.Error("Peer removal from downloader failed", "peed", id, "err", err)
+	}
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.UnregisterPeer(peer, peer.Peer.Server == pm.proxyServer)
 	}
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "peer", id, "err", err)
 	}
-	delete(pm.valPeers, id)
-	delete(pm.sentryPeers, id)
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
@@ -268,12 +265,6 @@ func (pm *ProtocolManager) Stop() {
 	// sessions which are already established but not added to pm.peers yet
 	// will exit when they try to register.
 	pm.peers.Close()
-	for id := range pm.valPeers {
-		delete(pm.valPeers, id)
-	}
-	for id := range pm.sentryPeers {
-		delete(pm.sentryPeers, id)
-	}
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
@@ -288,11 +279,8 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	isValPeer := p.Validator()
-	isSentryPeer := p.Sentry()
-
-	// Ignore maxPeers if this is a trusted, validator, or sentry peer
-	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)-len(pm.sentryPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer || isSentryPeer) {
+	// Ignore maxPeers if this is a trusted or statically dialed peer
+	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -318,11 +306,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
-	if isValPeer {
-		pm.valPeers[p.id] = true
-	} else if isSentryPeer {
-		pm.sentryPeers[p.id] = true
-	}
 
 	defer pm.removePeer(p.id)
 
@@ -330,6 +313,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
 	}
+
+	// Register the peer with the consensus engine.
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.RegisterPeer(p, p.Peer.Server == pm.proxyServer)
+	}
+
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
 	pm.syncTransactions(p)
@@ -389,7 +378,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 		addr := crypto.PubkeyToAddress(*pubKey)
-		handled, err := handler.HandleMsg(addr, msg, p.IsProxied)
+		handled, err := handler.HandleMsg(addr, msg, p)
 		if handled {
 			return err
 		}
@@ -876,98 +865,15 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool) map[enode.ID]consensus.Peer {
+func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]consensus.Peer {
 	m := make(map[enode.ID]consensus.Peer)
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			m[id] = p
-		}
-	}
-	return m
-}
-
-// FindSentryPeers returns a map of the sentry peers
-func (pm *ProtocolManager) FindSentryPeers() map[enode.ID]consensus.Peer {
-	sentryPeers := make(map[enode.ID]consensus.Peer)
-	for id := range pm.sentryPeers {
-		sentryPeer := pm.peers.Peer(id)
-		id := sentryPeer.Node().ID()
-		sentryPeers[id] = sentryPeer
-	}
-	return sentryPeers
-}
-
-func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
-	node, err := enode.ParseV4(enodeURL)
-	if err != nil {
-		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
-		return err
-	}
-
-	pm.server.AddValidatorPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
-	node, err := enode.ParseV4(enodeURL)
-	if err != nil {
-		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
-		return err
-	}
-
-	pm.server.RemoveValidatorPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) GetValidatorPeers() []string {
-	return pm.server.ValPeers()
-}
-
-func (pm *ProtocolManager) AddSentryPeer(node, externalNode *enode.Node) error {
-	pm.server.AddPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) RemoveSentryPeer(node *enode.Node) error {
-	pm.server.RemoveSentryPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) GetSentryPeers() [][2]string {
-	sentryPeers := pm.server.SentryPeers()
-	returnArray := make([][2]string, len(sentryPeers))
-
-	for i, sp := range sentryPeers {
-		returnArray[i] = [2]string{sp.Node().String(), sp.ExternalNode.String()}
-	}
-
-	return returnArray
-}
-
-func (pm *ProtocolManager) Proxied() bool {
-	return pm.server.Proxied
-}
-
-func (pm *ProtocolManager) GetLocalNode() *enode.Node {
-	return pm.server.Self()
-}
-
-func (pm *ProtocolManager) GetNodeKey() *ecdsa.PrivateKey {
-	return pm.server.PrivateKey
-}
-
-func (pm *ProtocolManager) GetProxiedPeer() consensus.Peer {
-	if pm.IsSentry() {
-		for _, p := range pm.peers.Peers() {
-			if p.IsProxied {
-				return p
+			if p.Peer.StaticNodeLabels[label] || p.Peer.TrustedNodeLabels[label] || label == "" {
+				m[id] = p
 			}
 		}
 	}
-	return nil
-}
-
-func (pm *ProtocolManager) IsSentry() bool {
-	return pm.proxyServer != nil
+	return m
 }

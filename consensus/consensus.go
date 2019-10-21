@@ -129,14 +129,26 @@ type GenesisAccount interface {
 
 // Handler should be implemented if the consensus needs to handle and send peer messages
 type Handler interface {
+	// NewWork handles a new work event from the miner
+	NewWork() error
+
 	// NewChainHead handles a new head block
 	NewChainHead() error
 
 	// HandleMsg handles a message from peer
-	HandleMsg(address common.Address, data p2p.Msg, fromProxiedPeer bool) (bool, error)
+	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
 	// SetBroadcaster sets the broadcaster to send message to peers
 	SetBroadcaster(Broadcaster)
+
+	// SetP2PServer sets the p2p server to connect/disconnect to/from peers
+	SetP2PServer(P2PServer)
+
+	// RegisterPeer will notify the consensus engine that a new peer has been added
+	RegisterPeer(peer Peer, fromProxiedNode bool)
+
+	// UnregisterPeer will notify the consensus engine that a new peer has been removed
+	UnregisterPeer(peer Peer, fromProxiedNode bool)
 }
 
 // PoW is a consensus engine based on proof-of-work.

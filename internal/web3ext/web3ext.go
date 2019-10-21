@@ -215,10 +215,6 @@ web3._extend({
 			getter: 'admin_peers'
 		}),
 		new web3._extend.Property({
-			name: 'sentryInfo',
-			getter: 'admin_sentryInfo'
-		}),
-		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
 		}),
@@ -795,6 +791,10 @@ web3._extend({
 			name: 'removeSentry',
 			call: 'istanbul_removeSentry',
 			params: 1
+		}),
+		new web3._extend.Property({
+			name: 'sentryInfo',
+			getter: 'istanbul_sentryInfo'
 		}),		
 	],
 	properties:

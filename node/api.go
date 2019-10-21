@@ -56,7 +56,7 @@ func (api *PrivateAdminAPI) AddPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.AddPeer(node)
+	server.AddPeerLabel(node, "static")
 	return true, nil
 }
 
@@ -72,7 +72,7 @@ func (api *PrivateAdminAPI) RemovePeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.RemovePeer(node)
+	server.RemovePeerLabel(node, "static")
 	return true, nil
 }
 
@@ -87,7 +87,7 @@ func (api *PrivateAdminAPI) AddTrustedPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.AddTrustedPeer(node)
+	server.AddTrustedPeerLabel(node, "trusted")
 	return true, nil
 }
 
@@ -103,7 +103,7 @@ func (api *PrivateAdminAPI) RemoveTrustedPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.RemoveTrustedPeer(node)
+	server.RemoveTrustedPeerLabel(node, "trusted")
 	return true, nil
 }
 
@@ -302,16 +302,6 @@ func (api *PublicAdminAPI) NodeInfo() (*p2p.NodeInfo, error) {
 		return nil, ErrNodeStopped
 	}
 	return server.NodeInfo(), nil
-}
-
-// SentryInfo retrieves all the information we know about each individual sentry
-// node at the protocol granularity.
-func (api *PublicAdminAPI) SentryInfo() ([]*p2p.PeerInfo, error) {
-	server := api.node.Server()
-	if server == nil {
-		return nil, ErrNodeStopped
-	}
-	return server.SentryInfo(), nil
 }
 
 // Datadir retrieves the current data directory the node is using.

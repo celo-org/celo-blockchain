@@ -114,10 +114,10 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	IsProxied bool
+	StaticNodeLabels  map[string]bool
+	TrustedNodeLabels map[string]bool
 
-	staticNodeLabels  map[string]bool
-	trustedNodeLabels map[string]bool
+	Server *Server
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -125,7 +125,7 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	node := enode.SignNull(new(enr.Record), id)
 	conn := &conn{fd: pipe, transport: nil, node: node, caps: caps, name: name}
-	peer := newPeer(conn, nil, false, nil, nil)
+	peer := newPeer(conn, nil, nil, nil, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
 }
@@ -181,7 +181,7 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-func newPeer(conn *conn, protocols []Protocol, IsProxied bool, staticNodeLabels map[string]bool, trustedNodeLabels map[string]bool) *Peer {
+func newPeer(conn *conn, protocols []Protocol, staticNodeLabels map[string]bool, trustedNodeLabels map[string]bool, server *Server) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
 		rw:                conn,
@@ -191,9 +191,9 @@ func newPeer(conn *conn, protocols []Protocol, IsProxied bool, staticNodeLabels 
 		protoErr:          make(chan error, len(protomap)+1), // protocols + pingLoop
 		closed:            make(chan struct{}),
 		log:               log.New("id", conn.node.ID(), "conn", conn.flags),
-		IsProxied:         IsProxied,
-		staticNodeLabels:  staticNodeLabels,
-		trustedNodeLabels: trustedNodeLabels,
+		StaticNodeLabels:  staticNodeLabels,
+		TrustedNodeLabels: trustedNodeLabels,
+		Server:            server,
 	}
 	return p
 }
@@ -494,14 +494,14 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	staticNodeLabels := make([]string, len(p.staticNodeLabels))
-	for label, _ := range p.staticNodeLabels {
+	staticNodeLabels := make([]string, len(p.StaticNodeLabels))
+	for label, _ := range p.StaticNodeLabels {
 		staticNodeLabels = append(staticNodeLabels, label)
 	}
 	info.StaticNodeLabels = staticNodeLabels
 
-	trustedNodeLabels := make([]string, len(p.trustedNodeLabels))
-	for label, _ := range p.trustedNodeLabels {
+	trustedNodeLabels := make([]string, len(p.TrustedNodeLabels))
+	for label, _ := range p.TrustedNodeLabels {
 		trustedNodeLabels = append(trustedNodeLabels, label)
 	}
 	info.TrustedNodeLabels = trustedNodeLabels
