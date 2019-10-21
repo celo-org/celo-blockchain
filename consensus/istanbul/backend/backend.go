@@ -155,8 +155,8 @@ type Backend struct {
 	// TODO: Figure out any needed changes for concurrent changes to this
 	// Right now, we assume that there is at most one proxied peer for a sentry
 	proxiedPeer consensus.Peer
-	
-	dataDir      string // A read-write data dir to persist files across restarts
+
+	dataDir string // A read-write data dir to persist files across restarts
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -216,9 +216,10 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 
 		return returnMap
 	} else {
-		targets := make(map[enode.ID]bool)
+		var targets map[enode.ID]bool = nil
 
 		if destAddresses != nil {
+			targets = make(map[enode.ID]bool)
 			for _, addr := range destAddresses {
 				valNode := sb.valEnodeTable.getUsingAddress(addr)
 

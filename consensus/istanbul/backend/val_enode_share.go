@@ -45,7 +45,7 @@ type valEnodeShareMessage struct {
 }
 
 func (sve *sharedValidatorEnode) String() string {
-	return fmt.Sprintf("{Address: %v, EnodeURL: %v, View: %v}", sve.View, sve.EnodeURL, sve.View)
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, View: %v}", sve.Address.Hex(), sve.EnodeURL, sve.View)
 }
 
 func (sm *valEnodeShareMessage) String() string {
@@ -180,7 +180,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		return err
 	}
 
-	sb.logger.Trace("Received an Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String())
+	sb.logger.Debug("Received an Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String())
 
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
@@ -188,7 +188,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 	sb.valEnodeTable.valEnodeTableMu.Lock()
 	defer sb.valEnodeTable.valEnodeTableMu.Unlock()
 	for _, sharedValidatorEnode := range valEnodeShareMessage.ValEnodes {
-		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, sharedValidatorEnode.EnodeURL, sharedValidatorEnode.View, valSet, sb.Address(), false, true); err != nil {
+		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, sharedValidatorEnode.EnodeURL, sharedValidatorEnode.View, valSet, sb.ValidatorAddress(), false, true); err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "error", err)
 		}
 	}

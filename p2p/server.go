@@ -707,6 +707,13 @@ func (srv *Server) run(dialstate dialer) {
 		}
 		static[n.ID()][label] = true
 
+		// If already connected, updated val peer counters and set the validatorConn flag in the connection
+		if p, ok := peers[n.ID()]; ok {
+			if p.StaticNodeLabels == nil {
+				p.StaticNodeLabels = static[n.ID()]
+			}
+		}
+
 		dialstate.addStatic(n)
 	}
 
@@ -718,7 +725,9 @@ func (srv *Server) run(dialstate dialer) {
 
 			if len(staticNode) == 0 {
 				dialstate.removeStatic(n)
+
 				if p, ok := peers[n.ID()]; ok {
+					p.StaticNodeLabels = nil
 					p.Disconnect(DiscRequested)
 				}
 
@@ -737,6 +746,11 @@ func (srv *Server) run(dialstate dialer) {
 		// Mark any already-connected peer as trusted
 		if p, ok := peers[n.ID()]; ok {
 			p.rw.set(trustedConn, true)
+
+			// If already connected, updated val peer counters and set the validatorConn flag in the connection
+			if p.TrustedNodeLabels == nil {
+				p.TrustedNodeLabels = trusted[n.ID()]
+			}
 		}
 	}
 
@@ -749,10 +763,12 @@ func (srv *Server) run(dialstate dialer) {
 			if len(trustedNode) == 0 {
 				delete(trusted, n.ID())
 			}
-		}
-		// Unmark any already-connected peer as trusted
-		if p, ok := peers[n.ID()]; ok {
-			p.rw.set(trustedConn, false)
+
+			// Unmark any already-connected peer as trusted
+			if p, ok := peers[n.ID()]; ok {
+				p.rw.set(trustedConn, false)
+				p.TrustedNodeLabels = nil
+			}
 		}
 	}
 

@@ -494,13 +494,13 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	staticNodeLabels := make([]string, len(p.StaticNodeLabels))
+	var staticNodeLabels []string
 	for label, _ := range p.StaticNodeLabels {
 		staticNodeLabels = append(staticNodeLabels, label)
 	}
 	info.StaticNodeLabels = staticNodeLabels
 
-	trustedNodeLabels := make([]string, len(p.TrustedNodeLabels))
+	var trustedNodeLabels []string
 	for label, _ := range p.TrustedNodeLabels {
 		trustedNodeLabels = append(trustedNodeLabels, label)
 	}

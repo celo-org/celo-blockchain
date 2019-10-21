@@ -133,7 +133,7 @@ type Handler interface {
 	NewWork() error
 
 	// NewChainHead handles a new head block
-	NewChainHead() error
+	NewChainHead(*types.Block)
 
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)

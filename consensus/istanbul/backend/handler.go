@@ -54,6 +54,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
+	sb.logger.Debug("HandleMsg called", "address", addr, "msg", msg, "peer.Info()", peer.Node())
+
 	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
 		if (!sb.coreStarted && !sb.config.Sentry) && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
@@ -96,9 +98,11 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 						sb.logger.Error("Failed to decode message from payload", "err", err)
 						return true, err
 					}
+
+					destAddresses := istMsg.DestAddresses
 					istMsg.DestAddresses = []common.Address{}
 					sb.logger.Debug("Got consensus message from proxied validator", "istMg", istMsg)
-					go sb.Broadcast(istMsg.DestAddresses, istMsg, false, false)
+					go sb.Broadcast(destAddresses, istMsg, false, false)
 				} else {
 					// Need to forward the message to the proxied validator
 					sb.logger.Debug("Forwarding consensus message to proxied validator")
@@ -130,6 +134,7 @@ func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 // SetP2PServer implements consensus.Handler.SetP2PServer
 func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
+	sb.valEnodeTable.p2pserver = p2pserver
 }
 
 func (sb *Backend) NewWork() error {
