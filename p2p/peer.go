@@ -495,13 +495,13 @@ func (p *Peer) Info() *PeerInfo {
 	}
 
 	var staticNodeLabels []string
-	for label, _ := range p.StaticNodeLabels {
+	for label := range p.StaticNodeLabels {
 		staticNodeLabels = append(staticNodeLabels, label)
 	}
 	info.StaticNodeLabels = staticNodeLabels
 
 	var trustedNodeLabels []string
-	for label, _ := range p.TrustedNodeLabels {
+	for label := range p.TrustedNodeLabels {
 		trustedNodeLabels = append(trustedNodeLabels, label)
 	}
 	info.TrustedNodeLabels = trustedNodeLabels

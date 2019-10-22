@@ -57,10 +57,6 @@ const (
 
 	// Maximum amount of time allowed for writing a complete message.
 	frameWriteTimeout = 20 * time.Second
-
-	// The maximum number of sentry nodes a proxied node can have.
-	// This will increase in the future.
-	maxSentryNodes = 1
 )
 
 var errServerStopped = errors.New("server stopped")
@@ -832,8 +828,8 @@ running:
 			err := srv.protoHandshakeChecks(peers, inboundCount, c)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
-				staticNodeLabels, _ := static[c.node.ID()]
-				trustedNodeLabels, _ := trusted[c.node.ID()]
+				staticNodeLabels := static[c.node.ID()]
+				trustedNodeLabels := trusted[c.node.ID()]
 
 				p := newPeer(c, srv.Protocols, staticNodeLabels, trustedNodeLabels, srv)
 				// If message events are enabled, pass the peerFeed
