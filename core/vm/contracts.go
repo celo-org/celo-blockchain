@@ -665,15 +665,20 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 }
 
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Trace("Running numberValidators precompile", "input", input, "gas", gas)
 	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
+	log.Trace("numberValidators blockNumber", "blockNumber", blockNumber)
+	headerHash := evm.Context.GetHash(blockNumber.Uint64())
+	log.Trace("numberValidators got header hash", "headerHash", headerHash)
+	validators := evm.Context.Engine.GetValidators(blockNumber, headerHash)
+	log.Trace("numberValidators got validators", "validators", validators)
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
-
+	log.Trace("numberValidators Debited required gas", "gas", gas)
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
-
+	log.Trace("numberValidators", "numberValidators", numberValidators, "numberValidatorsBytes", numberValidatorsBytes)
 	return numberValidatorsBytes, gas, nil
 }
