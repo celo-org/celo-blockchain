@@ -210,7 +210,7 @@ func (sb *Backend) sendIstAnnounce() error {
 		return err
 	}
 
-	sb.Gossip(nil, istanbulAnnounceMsg, payload, true)
+	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	return nil
 }
@@ -304,7 +304,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.lastAnnounceGossipedMu.RUnlock()
 
 	sb.logger.Debug("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
-	sb.Gossip(nil, istanbulAnnounceMsg, payload, true)
+	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()

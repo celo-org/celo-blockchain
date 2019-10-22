@@ -230,7 +230,7 @@ func (sb *Backend) Broadcast(destAddresses []common.Address, msg *istanbul.Messa
 	}
 
 	// send to others
-	sb.Gossip(destAddresses, istanbulMsg, payload, false)
+	sb.Gossip(destAddresses, payload, istanbulMsg, false)
 
 	// send to self
 	if sendMsgToSelf {
@@ -245,7 +245,7 @@ func (sb *Backend) Broadcast(destAddresses []common.Address, msg *istanbul.Messa
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(destAddresses []common.Address, ethMsgCode uint64, payload []byte, ignoreCache bool) error {
+func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
 	peers := sb.getPeersForMessage(destAddresses)
 
 	ids := []string{}

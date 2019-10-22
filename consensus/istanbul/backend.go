@@ -51,8 +51,8 @@ type Backend interface {
 	// Broadcast sends a message to all validators (include self)
 	Broadcast(validators []common.Address, msg *Message, sendToSelf bool) error
 
-	// Gossip sends a message to all peers
-	Gossip(validators []common.Address, ethMsgCode uint64, payload []byte, ignoreCache bool) error
+	// Gossip sends a message to all validators (exclude self)
+	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
