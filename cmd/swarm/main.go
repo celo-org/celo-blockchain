@@ -316,7 +316,7 @@ func bzzd(ctx *cli.Context) error {
 		s := stack.Server()
 
 		for _, n := range cfg.P2P.BootstrapNodes {
-			s.AddPeer(n)
+			s.AddPeerLabel(n, "static")
 		}
 	}()
 
