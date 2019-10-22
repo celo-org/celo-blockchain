@@ -633,14 +633,11 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 }
 
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	blockNumber := evm.Context.BlockNumber
-	headerHash := evm.Context.Header.Hash()
-	validators := evm.Context.Engine.GetValidators(blockNumber, headerHash)
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
-
+	
 	// input is comprised of a single argument:
 	//   index: 32 byte integer representing the index of the validator to get
 	if len(input) < 32 {
@@ -648,6 +645,8 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	}
 
 	index := (&big.Int{}).SetBytes(input[0:32])
+
+	validators := evm.Context.Engine.GetValidators(evm.Context.BlockNumber, common.Hash{})
 
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
@@ -666,17 +665,15 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 }
 
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	log.Trace("Running numberValidators precompile", "input", input, "gas", gas)
-	blockNumber := evm.Context.BlockNumber
-	log.Trace("numberValidators blockNumber", "blockNumber", blockNumber)
-	headerHash := evm.Context.Header.Hash()
-	log.Trace("numberValidators got header hash", "headerHash", headerHash)
-	validators := evm.Context.Engine.GetValidators(blockNumber, headerHash)
-	log.Trace("numberValidators got validators", "validators", validators)
 	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
+	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
+
+	log.Trace("Running numberValidators precompile", "input", input, "gas", gas)
+	validators := evm.Context.Engine.GetValidators(evm.Context.BlockNumber, common.Hash{})
+	log.Trace("numberValidators got validators", "validators", validators)
+
 	log.Trace("numberValidators Debited required gas", "gas", gas)
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
