@@ -176,7 +176,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.BootnodesV4Flag,
 			utils.BootnodesV5Flag,
 			utils.ListenPortFlag,
-			utils.ProxiedValidatorListenPortFlag,
+			utils.ProxiedValidatorListenEndpointFlag,
 			utils.MaxPeersFlag,
 			utils.MaxPendingPeersFlag,
 			utils.NATFlag,

@@ -525,10 +525,10 @@ var (
 		Usage: "Network listening port",
 		Value: 30303,
 	}
-	ProxiedValidatorListenPortFlag = cli.IntFlag{
-		Name:  "proxiedvalidatorport",
-		Usage: "Proxied Validator Network listening port",
-		Value: 30503,
+	ProxiedValidatorListenEndpointFlag = cli.StringFlag{
+		Name:  "proxiedvalidatorendpoint",
+		Usage: "Proxied Validator Network listening endpoint",
+		Value: ":30503",
 	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
@@ -804,8 +804,8 @@ func setListenAddress(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 	if ctx.GlobalIsSet(ListenPortFlag.Name) {
 		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ListenPortFlag.Name))
 	}
-	if ctx.GlobalIsSet(ProxiedValidatorListenPortFlag.Name) {
-		proxyCfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ProxiedValidatorListenPortFlag.Name))
+	if ctx.GlobalIsSet(ProxiedValidatorListenEndpointFlag.Name) {
+		proxyCfg.ListenAddr = ctx.GlobalString(ProxiedValidatorListenEndpointFlag.Name)
 	}
 }
 

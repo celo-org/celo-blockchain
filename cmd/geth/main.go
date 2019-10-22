@@ -97,7 +97,7 @@ var (
 		utils.CacheGCFlag,
 		utils.TrieCacheGenFlag,
 		utils.ListenPortFlag,
-		utils.ProxiedValidatorListenPortFlag,
+		utils.ProxiedValidatorListenEndpointFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
