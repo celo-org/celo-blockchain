@@ -634,7 +634,8 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
+	headerHash := evm.Context.Header.Hash()
+	validators := evm.Context.Engine.GetValidators(blockNumber, headerHash)
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
@@ -668,7 +669,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	log.Trace("Running numberValidators precompile", "input", input, "gas", gas)
 	blockNumber := evm.Context.BlockNumber
 	log.Trace("numberValidators blockNumber", "blockNumber", blockNumber)
-	headerHash := evm.Context.GetHash(blockNumber.Uint64())
+	headerHash := evm.Context.Header.Hash()
 	log.Trace("numberValidators got header hash", "headerHash", headerHash)
 	validators := evm.Context.Engine.GetValidators(blockNumber, headerHash)
 	log.Trace("numberValidators got validators", "validators", validators)
