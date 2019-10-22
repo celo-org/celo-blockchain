@@ -23,10 +23,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -147,11 +145,22 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 		return nil
 	}
 
+	// Sign the announce message
+	if err := msg.Sign(sb.Sign); err != nil {
+		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
+		return err
+	}
+
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
+		return err
+	}
+
 	if sb.sentryNode != nil && sb.sentryNode.peer != nil {
 		sb.logger.Debug("Sending Istanbul Validator Enode Share payload to sentry peer")
-		peers := make(map[enode.ID]consensus.Peer)
-		peers[sb.sentryNode.node.ID()] = sb.sentryNode.peer
-		sb.sendMessage(peers, istanbulValEnodeShareMsg, msg, nil, true, false, true)
+		go sb.sentryNode.peer.Send(istanbulValEnodeShareMsg, payload)
 	} else {
 		sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
 	}

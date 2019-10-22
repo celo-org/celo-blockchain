@@ -190,25 +190,6 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.FilteredList()
 }
 
-// Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(destAddresses []common.Address, istMsg *istanbul.Message, sendMsgToSelf bool, signMsg bool) error {
-
-	// If the validator is proxied, then add the destAddresses to the message so that the sentry
-	// will know which addresses to forward the message to
-	if sb.config.Proxied {
-		istMsg.DestAddresses = destAddresses
-	}
-
-	sb.logger.Debug("Called broadcast", "istMsg", istMsg, "destAddresses", common.ConvertToStringSlice(destAddresses))
-
-	return sb.sendMessage(sb.getPeersForMessage(destAddresses), istanbulMsg, istMsg, nil, false, sendMsgToSelf, signMsg)
-}
-
-// Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(ethMsgCode uint64, istMsg *istanbul.Message, payload []byte, ignoreCache bool) error {
-	return sb.sendMessage(sb.getPeersForMessage(nil), ethMsgCode, istMsg, payload, ignoreCache, false, true)
-}
-
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied && sb.sentryNode != nil && sb.sentryNode.peer != nil {
 		returnMap := make(map[enode.ID]consensus.Peer)
@@ -232,7 +213,41 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 	}
 }
 
-func (sb *Backend) sendMessage(peers map[enode.ID]consensus.Peer, ethMsgCode uint64, msg *istanbul.Message, payload []byte, ignoreCache bool, sendMsgToSelf bool, signMsg bool) error {
+// Broadcast implements istanbul.Backend.Broadcast
+func (sb *Backend) Broadcast(destAddresses []common.Address, msg *istanbul.Message, sendMsgToSelf bool) error {
+	sb.logger.Debug("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
+
+	// If the validator is proxied, then add the destAddresses to the message so that the sentry
+	// will know which addresses to forward the message to
+	if sb.config.Proxied {
+		msg.DestAddresses = destAddresses
+	}
+
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		return err
+	}
+
+	// send to others
+	sb.Gossip(destAddresses, istanbulMsg, payload, false)
+
+	// send to self
+	if sendMsgToSelf {
+		msg := istanbul.MessageEvent{
+			Payload: payload,
+		}
+
+		go sb.istanbulEventMux.Post(msg)
+	}
+
+	return nil
+}
+
+// Gossip implements istanbul.Backend.Gossip
+func (sb *Backend) Gossip(destAddresses []common.Address, ethMsgCode uint64, payload []byte, ignoreCache bool) error {
+	peers := sb.getPeersForMessage(destAddresses)
+
 	ids := []string{}
 	enodeURLs := []string{}
 
@@ -241,25 +256,7 @@ func (sb *Backend) sendMessage(peers map[enode.ID]consensus.Peer, ethMsgCode uin
 		enodeURLs = append(enodeURLs, p.Node().String())
 	}
 
-	sb.logger.Debug("Called sendMessage", "ethMsgCode", ethMsgCode, "ids", ids, "enodeURLs", enodeURLs, "istmsg", msg)
-	if msg != nil {
-		var err error
-
-		if signMsg {
-			// Sign the message
-			if err = msg.Sign(sb.Sign); err != nil {
-				sb.logger.Error("Error in signing an Istanbul Message", "ethMsgCode", ethMsgCode, "IstanbulMsg", msg.String(), "err", err)
-				return err
-			}
-		}
-
-		// Convert to payload
-		payload, err = msg.Payload()
-		if err != nil {
-			sb.logger.Error("Error in converting Istanbul Message to payload", "IstanbulMsg", msg.String(), "IstMsg", msg.String(), "err", err)
-			return err
-		}
-	}
+	sb.logger.Debug("Gossip message", "ethMsgCode", ethMsgCode, "ids", ids, "enodeURLs", enodeURLs)
 
 	var hash common.Hash
 	if !ignoreCache {
@@ -288,13 +285,6 @@ func (sb *Backend) sendMessage(peers map[enode.ID]consensus.Peer, ethMsgCode uin
 
 			go p.Send(ethMsgCode, payload)
 		}
-	}
-
-	if sendMsgToSelf {
-		msg := istanbul.MessageEvent{
-			Payload: payload,
-		}
-		go sb.istanbulEventMux.Post(msg)
 	}
 
 	return nil

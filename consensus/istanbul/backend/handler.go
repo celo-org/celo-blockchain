@@ -102,7 +102,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 					destAddresses := istMsg.DestAddresses
 					istMsg.DestAddresses = []common.Address{}
 					sb.logger.Debug("Got consensus message from proxied validator", "istMg", istMsg)
-					go sb.Broadcast(destAddresses, istMsg, false, false)
+					go sb.Broadcast(destAddresses, istMsg, false)
 				} else {
 					// Need to forward the message to the proxied validator
 					sb.logger.Debug("Forwarding consensus message to proxied validator")

@@ -117,13 +117,28 @@ func (c *core) SetAddress(address common.Address) {
 	c.logger = log.New("address", address)
 }
 
-func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
-
+func (c *core) finalizeMessage(msg *istanbul.Message) (*istanbul.Message, error) {
 	// Add sender address
 	msg.Address = c.Address()
 
-	if err := c.backend.Broadcast(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), msg, true, true); err != nil {
+	if err := msg.Sign(c.backend.Sign); err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
+func (c *core) broadcast(msg *istanbul.Message) {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
+
+	msg, err := c.finalizeMessage(msg)
+	if err != nil {
+		logger.Error("Failed to finalize message", "msg", msg, "err", err)
+		return
+	}
+
+	// Broadcast payload
+	if err := c.backend.Broadcast(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), msg, true); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}

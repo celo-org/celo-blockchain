@@ -197,7 +197,20 @@ func (sb *Backend) sendIstAnnounce() error {
 		return nil
 	}
 
-	sb.Gossip(istanbulAnnounceMsg, istMsg, nil, true)
+	// Sign the announce message
+	if err := istMsg.Sign(sb.Sign); err != nil {
+		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", istMsg.String(), "err", err)
+		return err
+	}
+
+	// Convert to payload
+	payload, err := istMsg.Payload()
+	if err != nil {
+		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
+		return err
+	}
+
+	sb.Gossip(nil, istanbulAnnounceMsg, payload, true)
 
 	return nil
 }
@@ -291,7 +304,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.lastAnnounceGossipedMu.RUnlock()
 
 	sb.logger.Debug("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
-	sb.Gossip(istanbulAnnounceMsg, nil, payload, true)
+	sb.Gossip(nil, istanbulAnnounceMsg, payload, true)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()

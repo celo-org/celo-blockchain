@@ -49,10 +49,10 @@ type Backend interface {
 	EventMux() *event.TypeMux
 
 	// Broadcast sends a message to all validators (include self)
-	Broadcast(validators []common.Address, istMsg *Message, sendToSelf bool, signMsg bool) error
+	Broadcast(validators []common.Address, msg *Message, sendToSelf bool) error
 
 	// Gossip sends a message to all peers
-	Gossip(ethMsgCode uint64, istMsg *Message, payload []byte, ignoreCache bool) error
+	Gossip(validators []common.Address, ethMsgCode uint64, payload []byte, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
