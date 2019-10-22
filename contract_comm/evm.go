@@ -227,20 +227,20 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
-			log.Debug("Contract not yet deployed", "contractId", registryId)
+			log.Debug("Contract not yet registered", "function", funcName, "registryId", registryId)
 			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Debug("Contract Address Registry not yet deployed")
+			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", registryId)
 			return 0, err
 		} else {
-			log.Error("Error in contract communication", "contract id", registryId, "error", err)
+			log.Error("Error in getting registered address", "function", funcName, "registryId", registryId, "err", err)
 			return 0, err
 		}
 	}
 
 	gasLeft, err := executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
 	if err != nil {
-		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", registryId)
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", registryId, "err", err)
 	}
 	return gasLeft, err
 }

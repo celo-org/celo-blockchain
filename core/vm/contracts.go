@@ -637,14 +637,14 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 		return nil, gas, err
 	}
 
-	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
-
 	// input is comprised of a single argument:
 	//   index: 32 byte integer representing the index of the validator to get
 	if len(input) < 32 {
 		return nil, gas, ErrInputLength
 	}
+
+	blockNumber := evm.Context.BlockNumber
+	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
 
 	index := (&big.Int{}).SetBytes(input[0:32])
 
@@ -668,6 +668,10 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
+	}
+
+	if len(input) != 0 {
+		return nil, gas, ErrInputLength
 	}
 
 	blockNumber := evm.Context.BlockNumber

@@ -437,6 +437,9 @@ func (sb *Backend) updateValidatorScoresAndDistributeEpochPaymentsAndRewards(hea
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
+	if len(valSet) == 0 {
+		sb.logger.Error("Unable to fetch validator set to update scores and distribute payments and rewards")
+	}
 
 	err := sb.updateValidatorScores(header, state, valSet)
 	if err != nil {

@@ -135,12 +135,12 @@ func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.Stat
 	var values []*big.Int
 	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
 	if err != nil {
-		log.Error("DistributeEpochRewards, error calling getTotalVotesForEligibleValidatorGroups", "err", err)
+		log.Error("Error calling getTotalVotesForEligibleValidatorGroups", "err", err)
 	}
 
 	voteTotals := make([]voteTotal, len(groups))
 	for i, group := range groups {
-		log.Info("Got group vote total", "group", group, "value", values[i])
+		log.Trace("Got group vote total", "group", group, "value", values[i])
 		voteTotals[i].Group = group
 		voteTotals[i].Value = values[i]
 	}
