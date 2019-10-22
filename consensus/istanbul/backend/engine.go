@@ -703,8 +703,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	numberIter := number
 
-	log.Trace("Retrieving snapshot", "number", number)
-
 	// If numberIter is not the last block of an epoch, then adjust it to be the last block of the previous epoch
 	if !istanbul.IsLastBlockOfEpoch(numberIter, sb.config.Epoch) {
 		epochNum := istanbul.GetEpochNumber(numberIter, sb.config.Epoch)
@@ -721,15 +719,12 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	for ; ; numberIter = numberIter - sb.config.Epoch {
 		// If an in-memory snapshot was found, use that
 		if s, ok := sb.recents.Get(numberIter); ok {
-			log.Trace("snapshot found in-memory", "s", s)
 			snap = s.(*Snapshot)
-			log.Trace("snapshot type asserted", "snapshot", snap.toJSONStruct())
 			break
 		}
 
 		if numberIter == number {
 			blockHash = hash
-			log.Trace("snapshot numberIter equals number", "blockHash", blockHash)
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)
 			if header == nil {
@@ -792,7 +787,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 	}
 
-	log.Trace("Most recent snapshot found", "number", numberIter, "snapshot", snap.toJSONStruct())
+	log.Trace("Most recent snapshot found", "number", numberIter)
 	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
@@ -839,8 +834,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	returnSnap.Number = number
 	returnSnap.Hash = hash
-
-	log.Trace("returning snapshot", "snapshot", returnSnap.toJSONStruct())
 
 	return returnSnap, nil
 }
