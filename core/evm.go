@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// NOTE: Any changes made to this file should be duplicated to contract_comm/evm.go!
+
 // ChainContext supports retrieving chain data and consensus parameters
 // from the block chain to be used during transaction processing.
 type ChainContext interface {

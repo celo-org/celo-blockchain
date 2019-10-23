@@ -31,12 +31,15 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// NOTE: Any changes made to this file should be duplicated to core/evm.go!
+
 var (
 	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
 )
 
 // TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
+
 // ChainContext supports retrieving chain data and consensus parameters
 // from the blockchain to be used during transaction processing.
 type ChainContext interface {

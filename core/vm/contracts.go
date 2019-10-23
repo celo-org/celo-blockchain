@@ -83,10 +83,10 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
-	log.Trace("Running precompiled contract", "input", input, "contract caller address", contract.CallerAddress, "contract gas", contract.Gas)
+	log.Trace("Running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas)
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
 	contract.UseGas(contract.Gas - gas)
-	log.Trace("Finished running precompiled contract", "input", input, "contract caller address", contract.CallerAddress, "contract gas", contract.Gas, "gas left", gas)
+	log.Trace("Finished running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas, "gas_left", gas)
 	return ret, err
 }
 
@@ -631,6 +631,9 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the validators that are required to sign this current, not yet sealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
@@ -645,7 +648,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 
 	index := (&big.Int{}).SetBytes(input[0:32])
 
-	validators := evm.Context.Engine.GetValidators(evm.Context.BlockNumber, common.Hash{})
+	validators := evm.Context.Engine.GetValidators(big.NewInt(int64(evm.Context.BlockNumber.Uint64()-1)), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
@@ -663,13 +666,20 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the number of validators that are required to sign this current, not yet sealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil || len(input) != 0 {
+	if err != nil {
 		return nil, gas, err
 	}
 
-	validators := evm.Context.Engine.GetValidators(evm.Context.BlockNumber, common.Hash{})
+	if len(input) !=0 {
+		return nil, gas, ErrInputLength
+	}
+
+	validators := evm.Context.Engine.GetValidators(big.NewInt(int64(evm.Context.BlockNumber.Uint64()-1)), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)

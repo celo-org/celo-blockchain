@@ -154,7 +154,6 @@ const (
 	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
 	MaxGasToReadErc20Balance      uint64 = 30 * 1000
 
-	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
