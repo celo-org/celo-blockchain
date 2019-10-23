@@ -187,7 +187,7 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 	return err
 }
 
-// Random performs an internal call to the EVM to retreive the current randomness from the official Random contract.
+// Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.
 func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
 	randomness := common.Hash{}
 	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForComputeCommitment, header, state)
