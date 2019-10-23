@@ -184,14 +184,13 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
-	logger.Trace("Got round change message", "message_round", roundView.Round)
 
 	// Skip to the highest round we know one honest validator is at, but
-	// don't start a round until we a quorum who want to start a given round.
+	// don't start a round until we have a quorum who want to start a given round.
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
 
-	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
+	logger.Trace("Got round change message", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
