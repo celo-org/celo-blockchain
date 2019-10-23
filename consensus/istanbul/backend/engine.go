@@ -707,7 +707,6 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	if !istanbul.IsLastBlockOfEpoch(numberIter, sb.config.Epoch) {
 		epochNum := istanbul.GetEpochNumber(numberIter, sb.config.Epoch)
 		numberIter = istanbul.GetEpochLastBlockNumber(epochNum-1, sb.config.Epoch)
-		log.Trace("snapshot numberIter is not last block of epoch", "epochNum", epochNum, "numberIter", numberIter)
 	}
 
 	// At this point, numberIter will always be the last block number of an epoch.  Namely, it will be
