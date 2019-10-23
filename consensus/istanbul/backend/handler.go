@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -119,12 +120,12 @@ func (sb *Backend) NewChainHead() error {
 		}
 
 		// Set the randomness for proposer selection ordering from the block.
-		if currentBlock.Randomness() != nil {
-			valset.SetRandomness(currentBlock.Randomness().Revealed)
-		}
-		if currentBlock.Randomness() == nil || currentBlock.Randomness().Revealed == (common.Hash{}) {
+		seed, err := random.Random(currentBlock.Header(), nil)
+		if err == nil {
+			valset.SetRandomness(seed)
+		} else {
 			valset.SetRandomness(common.Hash{})
-			sb.logger.Warn("Block contains no revealed randomness: using default for proposer selection", "block number", currentBlock.Number())
+			sb.logger.Warn("Could not get randomness for block proposer selection", "block number", currentBlock.Number(), "error", err)
 		}
 
 		// Establish connections to new peers and tear down connections to old ones.
