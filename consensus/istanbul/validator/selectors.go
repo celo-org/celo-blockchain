@@ -41,7 +41,7 @@ func randFromHash(hash common.Hash) *rand.Rand {
 	return rand.New(rand.NewSource(int64(seed)))
 }
 
-// ShuffledRoundRobinProposer selects the next proposer on each sequence and round change according to a shuffled list.
+// ShuffledRoundRobinProposer selects the next proposer with a round robin strategy according to a shuffled order.
 func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, seed common.Hash) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
@@ -54,7 +54,7 @@ func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Ad
 	return valSet.FilteredList()[shuffle[idx%uint64(valSet.Size())]]
 }
 
-// RoundRobinProposer selects the next proposer in the validator list on each round and sequence change.
+// RoundRobinProposer selects the next proposer with a round robin strategy according to storage order.
 func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, _ common.Hash) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
@@ -66,7 +66,7 @@ func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, r
 	return valSet.FilteredList()[idx%uint64(valSet.Size())]
 }
 
-// StickyProposer selects the next proposer in the list on round changes, but maintains the same on sequence chnages.
+// StickyProposer selects the next proposer with a sticky strategy, advancing on round change.
 func StickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, _ common.Hash) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
