@@ -92,8 +92,8 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 		if hash, ok := cache[n]; ok {
 			return hash
 		}
-		// Not cached, iterate the blocks and cache the hashes
-		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
+		// Not cached, iterate the blocks and cache the hashes (up to a limit of 256)
+		for i, header := 0, chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil && i < 257; i, header = i+1, chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
 			cache[header.Number.Uint64()-1] = header.ParentHash
 			if n == header.Number.Uint64()-1 {
 				return header.ParentHash
