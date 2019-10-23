@@ -101,8 +101,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	if msg.Code == istanbul.MsgCommit && c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
 		// Retrieve the validator set for the previous proposal (which should
 		// match the one broadcast
-		lastProposal, _ := c.backend.LastProposal()
-		parentValset := c.backend.Validators(lastProposal)
+		parentValset := c.backend.ParentValidators(c.current.Proposal())
 		_, validator := parentValset.GetByAddress(msg.Address)
 		if validator == nil {
 			return errInvalidValidatorAddress
