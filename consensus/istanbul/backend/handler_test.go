@@ -22,9 +22,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
+
+type MockPeer struct{}
+
+func (p *MockPeer) Send(msgcode uint64, data interface{}) error {
+	return nil
+}
+
+func (p *MockPeer) Node() *enode.Node {
+	return nil
+}
 
 func TestIstanbulMessage(t *testing.T) {
 	_, backend := newBlockChain(1, true)
@@ -47,7 +58,7 @@ func TestIstanbulMessage(t *testing.T) {
 	}
 
 	// 2. this message should be in cache after we handle it
-	_, err := backend.HandleMsg(addr, msg, false)
+	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
 	if err != nil {
 		t.Fatalf("handle message failed: %v", err)
 	}

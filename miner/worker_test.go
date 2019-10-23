@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
@@ -249,6 +250,8 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	istanbulDataDirName := string(rand.Int())
 	dataDir := filepath.Join("/tmp", istanbulDataDirName)
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
+	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
+	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

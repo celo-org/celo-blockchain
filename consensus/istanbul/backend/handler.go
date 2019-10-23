@@ -54,7 +54,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	sb.logger.Debug("HandleMsg called", "address", addr, "msg", msg, "peer.Info()", peer.Node())
+	sb.logger.Debug("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
 
 	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
 		if (!sb.coreStarted && !sb.config.Sentry) && (msg.Code == istanbulMsg) {

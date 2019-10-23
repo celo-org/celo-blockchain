@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
@@ -122,6 +123,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b.SetChain(blockchain, blockchain.CurrentBlock)
+	b.SetBroadcaster(&consensustest.MockBroadcaster{})
+	b.SetP2PServer(&consensustest.MockP2PServer{})
 
 	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
@@ -201,7 +204,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
-			b.SetBroadcaster(&MockBroadcaster{privateKey: key})
 			break
 		}
 	}
