@@ -355,7 +355,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		if parentCommittedSeals.Size() != 0 {
 			sb.logger.Info("Storing", "parent seals from", parentCommittedSeals.String())
 			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
-			writeParentCommits(header, bitmap, asig)
+			writeCommittedSeals(header, bitmap, asig, true)
 		}
 	} else {
 		return errNoParentCommits
@@ -853,42 +853,15 @@ func writeSeal(h *types.Header, seal []byte) error {
 	return nil
 }
 
-// writeParentCommits writes the extra-data field of a block header with given committed seals.
-func writeParentCommits(h *types.Header, bitmap *big.Int, parentCommits []byte) error {
-	if len(parentCommits) == 0 {
+// writeCommittedSeals writes the extra-data field of a block header with given committed
+// seals. If isParent is set to true, then it will write to the fields related
+// to the parent commits of the block
+func writeCommittedSeals(h *types.Header, bitmap *big.Int, seal []byte, isParent bool) error {
+	if len(seal) == 0 {
 		return errInvalidCommittedSeals
 	}
 
-	if len(parentCommits) != types.IstanbulExtraCommittedSeal {
-		return errInvalidCommittedSeals
-	}
-
-	istanbulExtra, err := types.ExtractIstanbulExtra(h)
-	if err != nil {
-		return err
-	}
-
-	istanbulExtra.ParentCommit = make([]byte, len(parentCommits))
-	copy(istanbulExtra.ParentCommit, parentCommits)
-	istanbulExtra.ParentBitmap = big.NewInt(0)
-	istanbulExtra.Bitmap.Set(bitmap)
-
-	payload, err := rlp.EncodeToBytes(&istanbulExtra)
-	if err != nil {
-		return err
-	}
-
-	h.Extra = append(h.Extra[:types.IstanbulExtraVanity], payload...)
-	return nil
-}
-
-// writeCommittedSeals writes the extra-data field of a block header with given committed seals.
-func writeCommittedSeals(h *types.Header, bitmap *big.Int, committedSeals []byte) error {
-	if len(committedSeals) == 0 {
-		return errInvalidCommittedSeals
-	}
-
-	if len(committedSeals) != types.IstanbulExtraCommittedSeal {
+	if len(seal) != types.IstanbulExtraCommittedSeal {
 		return errInvalidCommittedSeals
 	}
 
@@ -897,10 +870,13 @@ func writeCommittedSeals(h *types.Header, bitmap *big.Int, committedSeals []byte
 		return err
 	}
 
-	istanbulExtra.CommittedSeal = make([]byte, len(committedSeals))
-	copy(istanbulExtra.CommittedSeal, committedSeals)
-	istanbulExtra.Bitmap = big.NewInt(0)
-	istanbulExtra.Bitmap.Set(bitmap)
+	if isParent {
+		istanbulExtra.ParentCommit = seal
+		istanbulExtra.ParentBitmap = bitmap
+	} else {
+		istanbulExtra.CommittedSeal = seal
+		istanbulExtra.Bitmap = bitmap
+	}
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {
