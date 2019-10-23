@@ -675,7 +675,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 		return nil, gas, err
 	}
 
-	if len(input) !=0 {
+	if len(input) != 0 {
 		return nil, gas, ErrInputLength
 	}
 
