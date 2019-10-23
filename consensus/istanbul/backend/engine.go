@@ -347,11 +347,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	time.Sleep(delay)
 
 	// modify the block header to include all the ParentSeals
-	parentCommitedSeals := sb.core.ParentSeals()
-	if parentCommitedSeals != nil {
-		if parentCommitedSeals.Size() != 0 {
-			sb.logger.Info("Storing", "parent seals from", parentCommitedSeals.String())
-			bitmap, asig := istanbulCore.AggregateSeals(parentCommitedSeals)
+	parentCommittedSeals := sb.core.ParentSeals()
+	if parentCommittedSeals != nil {
+		if parentCommittedSeals.Size() != 0 {
+			sb.logger.Info("Storing", "parent seals from", parentCommittedSeals.String())
+			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
 			writeParentSeals(header, bitmap, asig)
 		}
 	}
