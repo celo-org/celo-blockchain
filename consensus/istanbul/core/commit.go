@@ -95,8 +95,10 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		one i received
 	*/
 
-	parentSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
-	if msg.Code == istanbul.MsgCommit && c.currentView().Sequence.Cmp(parentSequencePlusOne) == 0 {
+	msgSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
+	// if the received view's sequence +1 equals the current view, then the
+	// received view corresponsd to the parent block
+	if msg.Code == istanbul.MsgCommit && c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
 		// Retrieve the validator set for the previous proposal (which should
 		// match the one broadcast
 		lastProposal, _ := c.backend.LastProposal()
