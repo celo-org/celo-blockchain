@@ -72,6 +72,13 @@ func (vet *validatorEnodeTable) getUsingAddress(address common.Address) *validat
 	return vet.valEnodeTable[address]
 }
 
+func (vet *validatorEnodeTable) getEnodeURLUsingAddress(address common.Address) string {
+	if val, ok := vet.valEnodeTable[address]; ok {
+		return val.enodeURL
+	}
+	return ""
+}
+
 func (vet *validatorEnodeTable) getUsingEnodeURL(enodeURL string) (common.Address, *validatorEnode) {
 	if address, ok := vet.reverseValEnodeTable[enodeURL]; ok {
 		return address, vet.getUsingAddress(address)

@@ -31,11 +31,14 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/les"
@@ -70,10 +73,11 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server *p2p.Server        // Peer-to-peer server to retrieve networking infos
-	eth    *eth.Ethereum      // Full Ethereum service if monitoring a full node
-	les    *les.LightEthereum // Light Ethereum service if monitoring a light node
-	engine consensus.Engine   // Consensus engine to retrieve variadic block fields
+	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend *istanbulBackend.Backend // Istanbul consensus backend
 
 	node string // Name of the node to display on the monitoring page
 	pass string // Password to authorize access to the monitoring page
@@ -99,14 +103,15 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		engine = lesServ.Engine()
 	}
 	return &Service{
-		eth:    ethServ,
-		les:    lesServ,
-		engine: engine,
-		node:   parts[1],
-		pass:   parts[3],
-		host:   parts[4],
-		pongCh: make(chan struct{}),
-		histCh: make(chan []uint64, 1),
+		eth:     ethServ,
+		les:     lesServ,
+		engine:  engine,
+		backend: engine.(*istanbulBackend.Backend),
+		node:    parts[1],
+		pass:    parts[3],
+		host:    parts[4],
+		pongCh:  make(chan struct{}),
+		histCh:  make(chan []uint64, 1),
 	}, nil
 }
 
@@ -398,10 +403,7 @@ func (s *Service) login(conn *websocket.Conn) error {
 		},
 		Secret: s.pass,
 	}
-	login := map[string][]interface{}{
-		"emit": {"hello", auth},
-	}
-	if err := websocket.JSON.Send(conn, login); err != nil {
+	if err := s.sendStats(conn, "hello", auth); err != nil {
 		return err
 	}
 	// Retrieve the remote ack or connection termination
@@ -437,13 +439,11 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	// Send the current time to the ethstats server
 	start := time.Now()
 
-	ping := map[string][]interface{}{
-		"emit": {"node-ping", map[string]string{
-			"id":         s.node,
-			"clientTime": start.String(),
-		}},
+	ping := map[string]interface{}{
+		"id":         s.node,
+		"clientTime": start.String(),
 	}
-	if err := websocket.JSON.Send(conn, ping); err != nil {
+	if err := s.sendStats(conn, "node-ping", ping); err != nil {
 		return err
 	}
 	// Wait for the pong request to arrive back
@@ -459,32 +459,37 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	// Send back the measured latency
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
-	stats := map[string][]interface{}{
-		"emit": {"latency", map[string]string{
-			"id":      s.node,
-			"latency": latency,
-		}},
+	stats := map[string]interface{}{
+		"id":      s.node,
+		"latency": latency,
 	}
-	return websocket.JSON.Send(conn, stats)
+	return s.sendStats(conn, "latency", stats)
+}
+
+type validatorInfo struct {
+	Address      common.Address `json:"address"`
+	BLSPublicKey []byte         `json:"blsPublicKey"`
+	NodeUrl      string         `json:"nodeUrl"`
 }
 
 // blockStats is the information to report about individual blocks.
 type blockStats struct {
-	Number      *big.Int       `json:"number"`
-	Hash        common.Hash    `json:"hash"`
-	ParentHash  common.Hash    `json:"parentHash"`
-	Timestamp   *big.Int       `json:"timestamp"`
-	Miner       common.Address `json:"miner"`
-	GasUsed     uint64         `json:"gasUsed"`
-	GasLimit    uint64         `json:"gasLimit"`
-	Diff        string         `json:"difficulty"`
-	TotalDiff   string         `json:"totalDifficulty"`
-	Txs         []txStats      `json:"transactions"`
-	TxHash      common.Hash    `json:"transactionsRoot"`
-	Root        common.Hash    `json:"stateRoot"`
-	Uncles      uncleStats     `json:"uncles"`
-	EpochSize   uint64         `json:"epochSize"`
-	BlockRemain uint64         `json:"blockRemain"`
+	Number      *big.Int        `json:"number"`
+	Hash        common.Hash     `json:"hash"`
+	ParentHash  common.Hash     `json:"parentHash"`
+	Timestamp   *big.Int        `json:"timestamp"`
+	Miner       common.Address  `json:"miner"`
+	GasUsed     uint64          `json:"gasUsed"`
+	GasLimit    uint64          `json:"gasLimit"`
+	Diff        string          `json:"difficulty"`
+	TotalDiff   string          `json:"totalDifficulty"`
+	Txs         []txStats       `json:"transactions"`
+	TxHash      common.Hash     `json:"transactionsRoot"`
+	Root        common.Hash     `json:"stateRoot"`
+	Uncles      uncleStats      `json:"uncles"`
+	EpochSize   uint64          `json:"epochSize"`
+	BlockRemain uint64          `json:"blockRemain"`
+	Validators  []validatorInfo `json:"validators"`
 }
 
 // txStats is the information to report about individual transactions.
@@ -503,6 +508,49 @@ func (s uncleStats) MarshalJSON() ([]byte, error) {
 	return []byte("[]"), nil
 }
 
+func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
+	nodeKey := s.backend.GetNodeKey()
+	pubkey := crypto.FromECDSAPub(&nodeKey.PublicKey)
+	msg, _ := json.Marshal(stats)
+	msgHash := crypto.Keccak256Hash(msg)
+	signature, _ := crypto.Sign(msgHash.Bytes(), nodeKey)
+
+	// Server-side verification in go:
+	// 	sig := signature[:len(signature)-1]
+	// 	verified := crypto.VerifySignature(pubkey, msgHash.Bytes(), sig)
+	//
+	// Client-side verification in JS:
+	//	const { Keccak } = require('sha3');
+	//  const EC = require('elliptic').ec;
+	// 	const hasher = new Keccak(256)
+	// 	const ec = new EC('secp256k1');
+	// 	hasher.update(JSON.stringify(stats))
+	// 	const msgHash = hasher.digest('hex')
+	// 	const pubkey = ec.keyFromPublic(pubkey.substr(2), 'hex')
+	// 	const signature = {
+	//   r : signature.substr(2, 64),
+	// 	 s : signature.substr(66, 64)
+	//  }
+	//  verified = pubkey.verify(msgHash, signature)
+
+	proof := map[string]interface{}{
+		"signature": hexutil.Encode(signature),
+		"publicKey": hexutil.Encode(pubkey),
+		"msgHash":   msgHash.Hex(),
+	}
+
+	signedStats := map[string]interface{}{
+		"stats": stats,
+		"proof": proof,
+	}
+
+	report := map[string][]interface{}{
+		"emit": {action, signedStats},
+	}
+
+	return websocket.JSON.Send(conn, report)
+}
+
 // reportBlock retrieves the current chain head and reports it to the stats server.
 func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	// Gather the block details from the header or block chain
@@ -515,10 +563,8 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 		"id":    s.node,
 		"block": details,
 	}
-	report := map[string][]interface{}{
-		"emit": {"block", stats},
-	}
-	return websocket.JSON.Send(conn, report)
+
+	return s.sendStats(conn, "block", stats)
 }
 
 // assembleBlockStats retrieves any required metadata to report a single block
@@ -555,11 +601,23 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		txs = []txStats{}
 	}
 	// Assemble and return the block stats
-	author, _ := s.engine.Author(header)
+	author, _ := s.backend.Author(header)
+	// fmt.Println(author, s.backend.Author())
 
 	// Add epoch info
 	epochSize := s.eth.Config().Istanbul.Epoch
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
+	// Add validator enode list
+	valsWithoutEnode := s.backend.GetValidators(block.Number(), block.Hash())
+
+	validators := make([]validatorInfo, 0, len(valsWithoutEnode))
+	for i := range valsWithoutEnode {
+		validators = append(validators, validatorInfo{
+			Address:      valsWithoutEnode[i].Address(),
+			BLSPublicKey: valsWithoutEnode[i].BLSPublicKey(),
+			NodeUrl:      s.backend.GetValidatorEnodeUsingAddress(valsWithoutEnode[i].Address()),
+		})
+	}
 
 	return &blockStats{
 		Number:      header.Number,
@@ -577,6 +635,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Uncles:      uncles,
 		EpochSize:   epochSize,
 		BlockRemain: blockRemain,
+		Validators:  validators,
 	}
 }
 
@@ -635,10 +694,8 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		"id":      s.node,
 		"history": history,
 	}
-	report := map[string][]interface{}{
-		"emit": {"history", stats},
-	}
-	return websocket.JSON.Send(conn, report)
+
+	return s.sendStats(conn, "history", stats)
 }
 
 // pendStats is the information to report about pending transactions.
@@ -665,10 +722,8 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 			Pending: pending,
 		},
 	}
-	report := map[string][]interface{}{
-		"emit": {"pending", stats},
-	}
-	return websocket.JSON.Send(conn, report)
+
+	return s.sendStats(conn, "pending", stats)
 }
 
 // nodeStats is the information to report about the local node.
@@ -720,8 +775,6 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 			Uptime:   100,
 		},
 	}
-	report := map[string][]interface{}{
-		"emit": {"stats", stats},
-	}
-	return websocket.JSON.Send(conn, report)
+
+	return s.sendStats(conn, "stats", stats)
 }
