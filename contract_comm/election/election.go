@@ -181,8 +181,8 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			}
 		}
 
-		sort.Slice(voteTotals, func(i, j int) bool {
-			return voteTotals[i].Value.Cmp(voteTotals[j].Value) < 0
+		sort.Slice(voteTotals, func(j, k int) bool {
+			return voteTotals[j].Value.Cmp(voteTotals[k].Value) < 0
 		})
 
 		lesser := common.ZeroAddress
