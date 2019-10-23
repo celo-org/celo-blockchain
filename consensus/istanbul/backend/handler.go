@@ -117,16 +117,6 @@ func (sb *Backend) NewChainHead() error {
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-
-		// Set the randomness for proposer selection ordering from the block.
-		seed, err := sb.randomnessAtBlock(currentBlock)
-		if err == nil {
-			valset.SetRandomness(seed)
-		} else {
-			valset.SetRandomness(common.Hash{})
-			sb.logger.Warn("Could not get randomness for block proposer selection", "block number", currentBlock.Number(), "error", err)
-		}
-
 		// Establish connections to new peers and tear down connections to old ones.
 		go sb.RefreshValPeers(valset)
 	}
