@@ -323,7 +323,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
-		log.Error("Transaction failed provide intrinsic gas", "err", err, "gas", gas)
+		log.Error("Transaction failed provide intrinsic gas", "err", err,
+			"gas required", gas,
+			"gas provided", st.msg.Gas(),
+			"gas currency", st.msg.GasCurrency())
 		return nil, 0, false, vm.ErrOutOfGas
 	}
 
