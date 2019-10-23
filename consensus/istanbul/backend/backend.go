@@ -162,7 +162,7 @@ func (sb *Backend) Close() error {
 func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	valSet := sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
 
-	seed, err := validatorRandomnessAtBlockNumber(proposal.Number().Uint64(), proposal.Hash())
+	seed, err := sb.validatorRandomnessAtBlockNumber(proposal.Number().Uint64(), proposal.Hash())
 	if err != nil {
 		sb.logger.Error("Failed to set randomness for proposer selection", "number", proposal.Number().Uint64(), "hash", proposal.Hash(), "error", err)
 	}
@@ -497,7 +497,7 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 	if block, ok := proposal.(*types.Block); ok {
 		valSet := sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
 
-		seed, err := validatorRandomnessAtBlockNumber(proposal.Number().Uint64()-1, block.ParentHash())
+		seed, err := sb.validatorRandomnessAtBlockNumber(proposal.Number().Uint64()-1, block.ParentHash())
 		if err != nil {
 			sb.logger.Error("Failed to set randomness for proposer selection", "number", proposal.Number().Uint64()-1, "hash", block.ParentHash(), "error", err)
 		}
