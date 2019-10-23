@@ -31,6 +31,7 @@ func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64
 	return 0
 }
 
+// TODO: Pull ordering from smart contract and deprecate this function.
 func randFromHash(hash common.Hash) *rand.Rand {
 	// Reduce the hash to 64 bits to use as the seed.
 	var seed uint64
