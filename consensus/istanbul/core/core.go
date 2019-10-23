@@ -353,40 +353,18 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
-	if roundChange { // Can a roundChange occur with c.current being nil?
-		var pendingRequest *istanbul.Request
-		var preparedCertificate istanbul.PreparedCertificate
-		var parentCommits *messageSet
-		if c.current != nil {
-			pendingRequest = c.current.pendingRequest
-			preparedCertificate = c.current.preparedCertificate
-			parentCommits = c.current.ParentCommits
-		} else {
-			pendingRequest = nil
-			preparedCertificate = istanbul.EmptyPreparedCertificate()
-			parentCommits = nil
-		}
-
-		c.current = newRoundState(view, validatorSet, nil, pendingRequest, preparedCertificate, c.backend.HasBadProposal)
-		// round changes copy over the ParentCommits
-		if parentCommits != nil {
-			c.current.ParentCommits = parentCommits
-		}
+	if roundChange && c.current != nil {
+		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
 	} else {
-		var parentCommits *messageSet
+		var commits *messageSet
 		if c.current != nil {
-			// if it was not a round change (ie. a sequence change),
-			// we modify our ParentCommits to the last sequence's commits
-			parentCommits = c.current.Commits
+			commits = c.current.Commits
 		} else {
-			parentCommits = nil
+			commits = nil
 		}
-
-		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.backend.HasBadProposal)
-
-		if parentCommits != nil {
-			c.current.ParentCommits = parentCommits
-		}
+		// if it was not a round change (ie. a sequence change),
+		// we modify our ParentCommits to the last sequence's commits
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), commits, c.backend.HasBadProposal)
 	}
 }
 

@@ -27,16 +27,19 @@ import (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits *messageSet, hasBadProposal func(hash common.Hash) bool) *roundState {
+	// in case we passed empty parent commits, initialize them
+	if parentCommits == nil {
+		parentCommits = newMessageSet(validatorSet)
+	}
 	return &roundState{
-		round:        view.Round,
-		desiredRound: view.Round,
-		sequence:     view.Sequence,
-		Preprepare:   preprepare,
-		Prepares:     newMessageSet(validatorSet),
-		Commits:      newMessageSet(validatorSet),
-		// todo not necessarily this validator set, might be the parent ones
-		ParentCommits:       newMessageSet(validatorSet),
+		round:               view.Round,
+		desiredRound:        view.Round,
+		sequence:            view.Sequence,
+		Preprepare:          preprepare,
+		Prepares:            newMessageSet(validatorSet),
+		Commits:             newMessageSet(validatorSet),
+		ParentCommits:       parentCommits,
 		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
