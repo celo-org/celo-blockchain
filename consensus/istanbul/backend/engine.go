@@ -85,6 +85,9 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errNoParentCommits is returned when there are no commits gossipped to our node for a block
+	// from the previous sequence
+	errNoParentCommits = errors.New("no parent commits found for parent block")
 )
 
 var (
@@ -346,14 +349,16 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
 
-	// modify the block header to include all the ParentSeals
-	parentCommittedSeals := sb.core.ParentSeals()
+	// modify the block header to include all the ParentCommits
+	parentCommittedSeals := sb.core.ParentCommits()
 	if parentCommittedSeals != nil {
 		if parentCommittedSeals.Size() != 0 {
 			sb.logger.Info("Storing", "parent seals from", parentCommittedSeals.String())
 			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
-			writeParentSeals(header, bitmap, asig)
+			writeParentCommits(header, bitmap, asig)
 		}
+	} else {
+		return errNoParentCommits
 	}
 
 	return nil
@@ -798,14 +803,14 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 	}
 
 	var bitmap *big.Int
-	var parentSeal []byte
+	var parentCommit []byte
 	extras, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
 		bitmap = big.NewInt(0)
-		parentSeal = []byte{}
+		parentCommit = []byte{}
 	} else {
 		bitmap = extras.ParentBitmap
-		parentSeal = extras.ParentSeal
+		parentCommit = extras.ParentCommit
 	}
 
 	ist := &types.IstanbulExtra{
@@ -814,8 +819,8 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 		RemovedValidators:         removedValidators,
 		Seal:                      []byte{},
 		CommittedSeal:             []byte{},
-		// ensure the ParentSeal does not get overwritten
-		ParentSeal:   parentSeal,
+		// ensure the ParentCommit does not get overwritten
+		ParentCommit: parentCommit,
 		ParentBitmap: bitmap,
 	}
 
@@ -848,13 +853,13 @@ func writeSeal(h *types.Header, seal []byte) error {
 	return nil
 }
 
-// writeParentSeals writes the extra-data field of a block header with given committed seals.
-func writeParentSeals(h *types.Header, bitmap *big.Int, parentSeals []byte) error {
-	if len(parentSeals) == 0 {
+// writeParentCommits writes the extra-data field of a block header with given committed seals.
+func writeParentCommits(h *types.Header, bitmap *big.Int, parentCommits []byte) error {
+	if len(parentCommits) == 0 {
 		return errInvalidCommittedSeals
 	}
 
-	if len(parentSeals) != types.IstanbulExtraCommittedSeal {
+	if len(parentCommits) != types.IstanbulExtraCommittedSeal {
 		return errInvalidCommittedSeals
 	}
 
@@ -863,8 +868,8 @@ func writeParentSeals(h *types.Header, bitmap *big.Int, parentSeals []byte) erro
 		return err
 	}
 
-	istanbulExtra.ParentSeal = make([]byte, len(parentSeals))
-	copy(istanbulExtra.ParentSeal, parentSeals)
+	istanbulExtra.ParentCommit = make([]byte, len(parentCommits))
+	copy(istanbulExtra.ParentCommit, parentCommits)
 	istanbulExtra.ParentBitmap = big.NewInt(0)
 	istanbulExtra.Bitmap.Set(bitmap)
 

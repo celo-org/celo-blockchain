@@ -110,7 +110,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		}
 		// TODO: What further verification checks are needed? Maybe ensure that
 		// the View we are processing matches the parent proposal? How?
-		c.acceptParentSeal(msg, commit.View)
+		c.acceptParentCommit(msg, commit.View)
 	} else {
 		_, validator := c.valSet.GetByAddress(msg.Address)
 		if validator == nil {
@@ -182,11 +182,11 @@ func (c *core) acceptCommit(msg *istanbul.Message) error {
 	return nil
 }
 
-func (c *core) acceptParentSeal(msg *istanbul.Message, view *istanbul.View) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentSeal")
+func (c *core) acceptParentCommit(msg *istanbul.Message, view *istanbul.View) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentCommit")
 
-	// Add the ParentSeal to current round state
-	if err := c.current.ParentSeals.Add(msg); err != nil {
+	// Add the ParentCommit to current round state
+	if err := c.current.ParentCommits.Add(msg); err != nil {
 		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
 		return err
 	}

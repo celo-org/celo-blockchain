@@ -354,7 +354,7 @@ func TestValSetChange(t *testing.T) {
 				Seal:                      []byte{},
 				CommittedSeal:             []byte{},
 				EpochData:                 []byte{},
-				ParentSeal:                []byte{},
+				ParentCommit:              []byte{},
 				ParentBitmap:              big.NewInt(0),
 			}
 

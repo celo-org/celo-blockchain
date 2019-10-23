@@ -356,37 +356,36 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 	if roundChange { // Can a roundChange occur with c.current being nil?
 		var pendingRequest *istanbul.Request
 		var preparedCertificate istanbul.PreparedCertificate
-		var parentSeals *messageSet
+		var parentCommits *messageSet
 		if c.current != nil {
 			pendingRequest = c.current.pendingRequest
 			preparedCertificate = c.current.preparedCertificate
-			parentSeals = c.current.ParentSeals
+			parentCommits = c.current.ParentCommits
 		} else {
 			pendingRequest = nil
 			preparedCertificate = istanbul.EmptyPreparedCertificate()
-			parentSeals = nil
+			parentCommits = nil
 		}
 
 		c.current = newRoundState(view, validatorSet, nil, pendingRequest, preparedCertificate, c.backend.HasBadProposal)
-		// round changes copy over the ParentSeals
-		if parentSeals != nil {
-			c.current.ParentSeals = parentSeals
+		// round changes copy over the ParentCommits
+		if parentCommits != nil {
+			c.current.ParentCommits = parentCommits
 		}
 	} else {
-		var parentSeals *messageSet
+		var parentCommits *messageSet
 		if c.current != nil {
 			// if it was not a round change (ie. a sequence change),
-			// we modify our ParentSeals to the last round's commits
-			// round changes copy over the ParentSeals
-			parentSeals = c.current.Commits
+			// we modify our ParentCommits to the last sequence's commits
+			parentCommits = c.current.Commits
 		} else {
-			parentSeals = nil
+			parentCommits = nil
 		}
 
 		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.backend.HasBadProposal)
 
-		if parentSeals != nil {
-			c.current.ParentSeals = parentSeals
+		if parentCommits != nil {
+			c.current.ParentCommits = parentCommits
 		}
 	}
 }

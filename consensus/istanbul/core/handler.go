@@ -23,9 +23,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (c *core) ParentSeals() *messageSet {
+func (c *core) ParentCommits() *messageSet {
 	if c.current != nil {
-		return c.current.ParentSeals
+		return c.current.ParentCommits
 	} else {
 		return nil
 	}

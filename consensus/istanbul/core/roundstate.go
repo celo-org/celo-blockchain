@@ -36,7 +36,7 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prep
 		Prepares:     newMessageSet(validatorSet),
 		Commits:      newMessageSet(validatorSet),
 		// todo not necessarily this validator set, might be the parent ones
-		ParentSeals:         newMessageSet(validatorSet),
+		ParentCommits:       newMessageSet(validatorSet),
 		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
@@ -57,7 +57,7 @@ type roundState struct {
 	Preprepare          *istanbul.Preprepare
 	Prepares            *messageSet
 	Commits             *messageSet
-	ParentSeals         *messageSet
+	ParentCommits       *messageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 

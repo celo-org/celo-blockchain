@@ -695,7 +695,7 @@ func TestWriteSeal(t *testing.T) {
 		Bitmap:                    big.NewInt(0),
 		CommittedSeal:             []byte{},
 		EpochData:                 []byte{},
-		ParentSeal:                []byte{},
+		ParentCommit:              []byte{},
 		ParentBitmap:              big.NewInt(0),
 	}
 	var expectedErr error
@@ -743,7 +743,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 		CommittedSeal:             expectedCommittedSeal,
 		EpochData:                 []byte{},
 		ParentBitmap:              big.NewInt(0),
-		ParentSeal:                []byte{},
+		ParentCommit:              []byte{},
 	}
 	var expectedErr error
 

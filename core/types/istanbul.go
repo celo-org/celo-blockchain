@@ -56,10 +56,11 @@ type IstanbulExtra struct {
 	CommittedSeal []byte
 	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
 	EpochData []byte
-	// ParentBitmap is a bitmap having an active bit for each validator that signed this block
+	// ParentBitmap is a bitmap having an active bit for each validator that
+	// signed on the previous block
 	ParentBitmap *big.Int
-	// Parentseal is the bitmap & seal of the validators which signed on the previous block
-	ParentSeal []byte
+	// ParentCommit is the aggregated BLS signature resulting from commits of the validators which signed on the previous block
+	ParentCommit []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -73,7 +74,7 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.CommittedSeal,
 		ist.EpochData,
 		ist.ParentBitmap,
-		ist.ParentSeal,
+		ist.ParentCommit,
 	})
 }
 
@@ -88,12 +89,12 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		CommittedSeal             []byte
 		EpochData                 []byte
 		ParentBitmap              *big.Int
-		ParentSeal                []byte
+		ParentCommit              []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData, ist.ParentBitmap, ist.ParentSeal = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData, istanbulExtra.ParentBitmap, istanbulExtra.ParentSeal
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData, ist.ParentBitmap, ist.ParentCommit = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData, istanbulExtra.ParentBitmap, istanbulExtra.ParentCommit
 	return nil
 }
 

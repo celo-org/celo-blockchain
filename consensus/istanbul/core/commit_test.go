@@ -43,9 +43,9 @@ func TestHandleCommit(t *testing.T) {
 	}
 
 	testCases := []struct {
-		system           *testSystem
-		expectedErr      error
-		checkParentSeals bool
+		system             *testSystem
+		expectedErr        error
+		checkParentCommits bool
 	}{
 		{
 			// normal case
@@ -185,7 +185,7 @@ func TestHandleCommit(t *testing.T) {
 								Round: big.NewInt(0),
 								// we're 1 block before, so this should not
 								// error out and actually the commit should be
-								// stored in the ParentSeals field
+								// stored in the ParentCommits field
 								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
 							},
 							c.valSet,
@@ -232,11 +232,11 @@ OUTER:
 		}
 
 		// core should have received a parent seal from each of its neighbours
-		// how can we add our signature to the ParentSeal? Broadcast to ourselve
+		// how can we add our signature to the ParentCommit? Broadcast to ourselve
 		// does not make much sense
-		if test.checkParentSeals {
-			if r0.current.ParentSeals.Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
-				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentSeals.Size(), r0.valSet.Size()-1)
+		if test.checkParentCommits {
+			if r0.current.ParentCommits.Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
+				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits.Size(), r0.valSet.Size()-1)
 			}
 		}
 
