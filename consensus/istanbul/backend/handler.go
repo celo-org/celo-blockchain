@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -120,7 +119,7 @@ func (sb *Backend) NewChainHead() error {
 		}
 
 		// Set the randomness for proposer selection ordering from the block.
-		seed, err := random.Random(currentBlock.Header(), nil)
+		seed, err := sb.randomnessAtBlock(currentBlock)
 		if err == nil {
 			valset.SetRandomness(seed)
 		} else {

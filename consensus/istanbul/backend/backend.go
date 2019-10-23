@@ -30,6 +30,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -373,6 +374,14 @@ func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB
 	}
 	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
 	return newValSet, err
+}
+
+func (sb *Backend) randomnessAtBlock(block *types.Block) (common.Hash, error) {
+	state, err := sb.stateAt(block.Hash())
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return random.Random(block.Header(), state)
 }
 
 func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
