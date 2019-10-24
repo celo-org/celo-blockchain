@@ -30,6 +30,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -50,6 +51,9 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+
+	// errNoBlockHeader is returned when the requested block header could not be found.
+	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
 
 // Entries for the recent announce messages
@@ -156,7 +160,15 @@ func (sb *Backend) Close() error {
 
 // Validators implements istanbul.Backend.Validators
 func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
-	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+	valSet := sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+
+	seed, err := sb.validatorRandomnessAtBlockNumber(proposal.Number().Uint64(), proposal.Hash())
+	if err != nil {
+		sb.logger.Error("Failed to set randomness for proposer selection", "number", proposal.Number().Uint64(), "hash", proposal.Hash(), "error", err)
+	}
+	valSet.SetRandomness(seed)
+
+	return valSet
 }
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
@@ -375,6 +387,18 @@ func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB
 	return newValSet, err
 }
 
+func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.Hash) (common.Hash, error) {
+	header := sb.chain.GetHeader(hash, number)
+	if header == nil {
+		return common.Hash{}, errNoBlockHeader
+	}
+	state, err := sb.stateAt(header.Hash())
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return random.Random(header, state)
+}
+
 func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
 	header := block.Header()
 
@@ -471,7 +495,15 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 // ParentValidators implements istanbul.Backend.GetParentValidators
 func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	if block, ok := proposal.(*types.Block); ok {
-		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
+		valSet := sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
+
+		seed, err := sb.validatorRandomnessAtBlockNumber(proposal.Number().Uint64()-1, block.ParentHash())
+		if err != nil {
+			sb.logger.Error("Failed to set randomness for proposer selection", "number", proposal.Number().Uint64()-1, "hash", block.ParentHash(), "error", err)
+		}
+		valSet.SetRandomness(seed)
+
+		return valSet
 	}
 	return validator.NewSet(nil, sb.config.ProposerPolicy)
 }
