@@ -648,9 +648,6 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 		return nil, gas, ErrInputLength
 	}
 
-	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
-
 	index := (&big.Int{}).SetBytes(input[0:32])
 
 	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
