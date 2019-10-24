@@ -161,6 +161,7 @@ func (sb *Backend) Close() error {
 // Validators implements istanbul.Backend.Validators
 func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	valSet := sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+	sb.logger.Trace("ProposerPolicy", "proposer_polcy", valSet.Policy())
 
 	seed, err := sb.validatorRandomnessAtBlockNumber(proposal.Number().Uint64(), proposal.Hash())
 	if err != nil {
