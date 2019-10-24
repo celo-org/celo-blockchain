@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -123,6 +124,13 @@ var (
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
 	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
+
+	// Function is "getOrComputeTobinTax()"
+	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
+	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -158,7 +166,6 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForGetMinimumClientVersion uint64 = 200000
 	MaxGasForCommitments             uint64 = 2000000
 	MaxGasForComputeCommitment       uint64 = 2000000
 	MaxGasForRevealAndCommit         uint64 = 2000000
@@ -170,4 +177,6 @@ const (
 	MaxGasForGetRegisteredValidators uint64 = 1000000
 	MaxGasForGetValidator            uint64 = 100 * 1000
 	MaxGasForElectValidators         uint64 = 50 * 1000000
+	MaxGasForGetMinimumClientVersion uint64 = 200000
+	MaxGasForGetOrComputeTobinTax    uint64 = 100000
 )
