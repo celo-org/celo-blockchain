@@ -183,7 +183,6 @@ func (vet *ValidatorEnodeDB) String() string {
 // GetEnodeURLFromAddress will return the enodeURL for a address if it's kwown
 func (vet *ValidatorEnodeDB) GetEnodeURLFromAddress(address common.Address) (string, error) {
 	entry, err := vet.getAddressEntry(address)
-
 	if err != nil {
 		return "", err
 	}
@@ -196,21 +195,22 @@ func (vet *ValidatorEnodeDB) GetAddressFromEnodeURL(enodeURL string) (common.Add
 	if err != nil {
 		return common.ZeroAddress, err
 	}
-
 	return common.BytesToAddress(rawEntry), nil
 }
 
-// Upsert will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
+// Upsert will update or insert a validator enode entry; given that the existing entry
+// is older (determined by view parameter) that the new one
 func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL string, view *istanbul.View) (string, error) {
-	oldValEnode, err := vet.getAddressEntry(remoteAddress)
+	currentEntry, err := vet.getAddressEntry(remoteAddress)
 	isNew := err == leveldb.ErrNotFound
 
 	// Check errors
 	if !isNew && err != nil {
 		return "", err
 	}
+
 	// If it is an old message, ignore it.
-	if err == nil && view.Cmp(oldValEnode.view) <= 0 {
+	if err == nil && view.Cmp(currentEntry.view) <= 0 {
 		return "", errOldAnnounceMessage
 	}
 
@@ -224,7 +224,7 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 
 	// If update, remove old enode entry
 	if !isNew {
-		batch.Delete(enodeURLKey(oldValEnode.enodeURL))
+		batch.Delete(enodeURLKey(currentEntry.enodeURL))
 	}
 
 	batch.Put(enodeURLKey(enodeURL), remoteAddress.Bytes())
@@ -239,7 +239,7 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 	if isNew {
 		return "", err
 	}
-	return oldValEnode.enodeURL, err
+	return currentEntry.enodeURL, err
 }
 
 // RemoveEntry will remove an entry from the table

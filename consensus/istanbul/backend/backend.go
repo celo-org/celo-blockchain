@@ -244,6 +244,7 @@ func (sb *Backend) Enode() *enode.Node {
 }
 
 // GetNodeKey gets the Node PrivateKey
+// which is the key used to encrypt messages in the p2p layer
 func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetNodeKey()
