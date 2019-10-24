@@ -181,38 +181,38 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 	}{{
 		lastProposer: addrs[0],
 		round:        0,
-		want:         validators[2],
+		want:         validators[1],
 	}, {
 		lastProposer: addrs[0],
 		round:        1,
-		want:         validators[3],
+		want:         validators[4],
 	}, {
 		lastProposer: addrs[0],
 		round:        2,
-		want:         validators[0],
+		want:         validators[2],
 	}, {
 		lastProposer: addrs[2],
 		round:        2,
-		want:         validators[4],
+		want:         validators[1],
 	}, {
 		lastProposer: addrs[2],
 		round:        3,
-		want:         validators[2],
+		want:         validators[4],
 	}, {
 		lastProposer: addrs[0],
 		round:        0,
 		seed:         testSeed,
-		want:         validators[0],
+		want:         validators[4],
 	}, {
 		lastProposer: addrs[0],
 		round:        1,
 		seed:         testSeed,
-		want:         validators[4],
+		want:         validators[2],
 	}, {
 		lastProposer: addrs[0],
 		round:        2,
 		seed:         testSeed,
-		want:         validators[2],
+		want:         validators[1],
 	}, {
 		lastProposer: common.Address{},
 		round:        3,
