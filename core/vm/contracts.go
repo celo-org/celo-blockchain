@@ -631,7 +631,7 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
-// Return the validators that are required to sign this current, not yet sealed, block. If this block is
+// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
@@ -666,7 +666,7 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
-// Return the number of validators that are required to sign this current, not yet sealed, block. If this block is
+// Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
