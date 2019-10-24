@@ -84,29 +84,12 @@ const (
       "type": "function"
     }
 ]`
-	randomAbi = `[
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "random",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }
-]`
 )
 
 var (
 	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
-	randomFuncABI, _            = abi.JSON(strings.NewReader(randomAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("db-randomness-prefix")
 )
@@ -185,11 +168,4 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
 	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue, header, state)
 	return err
-}
-
-// Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.
-func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
-	randomness := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForComputeCommitment, header, state)
-	return randomness, err
 }
