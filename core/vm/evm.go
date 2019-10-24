@@ -515,30 +515,29 @@ func getOrComputeTobinTaxFunctionSelector() []byte {
 
 // TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-		if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
-			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
+	if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
+		log.Trace("Error in tobin transfer", "error", err)
+		return gas, err
+	}
+
+	if amount.Cmp(big.NewInt(0)) != 0 && err == nil {
+		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
+		if err != nil {
+			return gas, err
 		}
 
-		if err == nil {
-			ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
-			if err != nil {
+		// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
+		// each of which is equivalent to 32 bytes
+		if binary.Size(ret) == 64 {
+			numerator := new(big.Int).SetBytes(ret[0:32])
+			denominator := new(big.Int).SetBytes(ret[32:64])
+			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 
-			}
-
-			// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-			// each of which is equivalent to 32 bytes
-			if err == nil && binary.Size(ret) == 64 {
-				numerator := new(big.Int).SetBytes(ret[0:32])
-				denominator := new(big.Int).SetBytes(ret[32:64])
-				tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-
-				evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-				evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-				return gas, nil
-			}
+			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
+			return gas, nil
 		}
 	}
 	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
