@@ -494,7 +494,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.GetHeader(hash, lastBlockInPreviousEpoch)
+	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
 	if header == nil {
 		return common.Hash{}, errNoBlockHeader
 	}
