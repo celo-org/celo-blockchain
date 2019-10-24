@@ -192,19 +192,20 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 	return err
 }
 
-func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address) error {
+func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address, maxPayment *big.Int) (*big.Int, error) {
+	var epochPayment *big.Int
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"distributeEpochPayment",
-		[]interface{}{address},
-		nil,
+		[]interface{}{address, maxPayment},
+		&epochPayment,
 		params.MaxGasForDistributeEpochPayment,
 		common.Big0,
 		header,
 		state,
 	)
-	return err
+	return epochPayment, err
 }
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {

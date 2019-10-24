@@ -413,7 +413,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
-		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochPaymentsAndRewards(header, state)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
 		}

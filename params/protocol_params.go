@@ -113,17 +113,19 @@ var (
 	// Celo registered contract IDs.
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
-	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 	ElectionRegistryId             = makeRegistryId("Election")
+	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
-	ReserveRegistryId              = makeRegistryId("Reserve")
+	LockedGoldRegistryId           = makeRegistryId("LockedGold")
 	RandomRegistryId               = makeRegistryId("Random")
+	ReserveRegistryId              = makeRegistryId("Reserve")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
+	StableTokenRegistryId          = makeRegistryId("StableToken")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
-	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -160,24 +162,25 @@ const (
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForCommitments                          uint64 = 2000000
-	MaxGasForComputeCommitment                    uint64 = 2000000
-	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
-	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
-	MaxGasForElectValidators                      uint64 = 50 * 1000000
-	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
-	MaxGasForGetGasPriceMinimum                   uint64 = 2000000
-	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
-	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
-	MaxGasForGetMinimumClientVersion              uint64 = 200000
-	MaxGasForGetRegisteredValidators              uint64 = 1000000
-	MaxGasForGetValidator                         uint64 = 100 * 1000
-	MaxGasForGetWhiteList                         uint64 = 20000
-	MaxGasForMedianRate                           uint64 = 20000
-	MaxGasForProposerFraction                     uint64 = 200000
-	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
-	MaxGasForRevealAndCommit                      uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
-	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
-	MaxGasForTotalSupply                          uint64 = 50 * 1000
+	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
+	MaxGasForCommitments                           uint64 = 2000000
+	MaxGasForComputeCommitment                     uint64 = 2000000
+	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
+	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
+	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
+	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
+	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
+	MaxGasForGetMinimumClientVersion               uint64 = 200000
+	MaxGasForGetRegisteredValidators               uint64 = 1000000
+	MaxGasForGetValidator                          uint64 = 100 * 1000
+	MaxGasForGetWhiteList                          uint64 = 20000
+	MaxGasForMedianRate                            uint64 = 20000
+	MaxGasForProposerFraction                      uint64 = 200000
+	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
+	MaxGasForRevealAndCommit                       uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
+	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
+	MaxGasForTotalSupply                           uint64 = 50 * 1000
 )
