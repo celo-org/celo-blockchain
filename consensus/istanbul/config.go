@@ -21,7 +21,6 @@ type ProposerPolicy uint64
 const (
 	RoundRobin ProposerPolicy = iota
 	Sticky
-	ShuffledRoundRobin
 )
 
 type Config struct {
@@ -34,6 +33,6 @@ type Config struct {
 var DefaultConfig = &Config{
 	RequestTimeout: 3000,
 	BlockPeriod:    1,
-	ProposerPolicy: ShuffledRoundRobin,
+	ProposerPolicy: RoundRobin,
 	Epoch:          30000,
 }
