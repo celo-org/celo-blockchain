@@ -193,7 +193,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
 			}
 		} else if err != leveldb.ErrNotFound {
-			log.Warn("Unable to read valEnodeTable", "err", err, "addr", addr)
+			log.Error("Unable to read valEnodeTable", "err", err, "addr", addr)
 		}
 	}
 

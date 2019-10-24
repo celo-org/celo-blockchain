@@ -598,7 +598,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 			if err == nil {
 				sb.AddValidatorPeer(enodeURL)
 			} else if err != leveldb.ErrNotFound {
-				sb.logger.Warn("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
+				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
 		}
 
@@ -610,7 +610,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 					sb.RemoveValidatorPeer(peerEnodeURL)
 				}
 			} else if err != leveldb.ErrNotFound {
-				sb.logger.Warn("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
+				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
 		}
 	}

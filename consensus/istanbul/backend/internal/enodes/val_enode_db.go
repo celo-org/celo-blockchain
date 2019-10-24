@@ -180,7 +180,7 @@ func (vet *ValidatorEnodeDB) String() string {
 	return b.String()
 }
 
-// GetEnodeURLFromAddress will return the enodeURL for a address if it's kwown
+// GetEnodeURLFromAddress will return the enodeURL for an address if it's known
 func (vet *ValidatorEnodeDB) GetEnodeURLFromAddress(address common.Address) (string, error) {
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
@@ -189,7 +189,7 @@ func (vet *ValidatorEnodeDB) GetEnodeURLFromAddress(address common.Address) (str
 	return entry.enodeURL, nil
 }
 
-// GetAddressFromEnodeURL will return the address for a enodeURL if it's kwown
+// GetAddressFromEnodeURL will return the address for an enodeURL if it's known
 func (vet *ValidatorEnodeDB) GetAddressFromEnodeURL(enodeURL string) (common.Address, error) {
 	rawEntry, err := vet.db.Get(enodeURLKey(enodeURL), nil)
 	if err != nil {
