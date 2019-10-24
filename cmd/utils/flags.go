@@ -660,6 +660,11 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
+	IstanbulProposerPolicyFlag = cli.Uint64Flag{
+		Name:  "istanbul.proposerpolicy",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
+		Value: eth.DefaultConfig.Istanbul.ProposerPolicy,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1165,6 +1170,9 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+	}
+	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
+		cfg.Istanbul.ProposerPolicy = ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name)
 	}
 }
 
