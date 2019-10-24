@@ -85,8 +85,10 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
+	log.Trace("Running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas)
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
 	contract.UseGas(contract.Gas - gas)
+	log.Trace("Finished running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas, "gas_left", gas)
 	return ret, err
 }
 
@@ -631,6 +633,9 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
@@ -648,6 +653,8 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 
 	index := (&big.Int{}).SetBytes(input[0:32])
 
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
@@ -664,6 +671,9 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
@@ -674,12 +684,10 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 		return nil, gas, ErrInputLength
 	}
 
-	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
-
 	return numberValidatorsBytes, gas, nil
 }
 

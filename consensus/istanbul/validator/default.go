@@ -17,7 +17,6 @@
 package validator
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"reflect"
@@ -52,8 +51,7 @@ type defaultSet struct {
 
 	proposer    istanbul.Validator
 	validatorMu sync.RWMutex
-	selector    istanbul.ProposerSelector
-	randomness  common.Hash
+	selector    istanbul.ProposalSelector
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.ProposerPolicy) *defaultSet {
@@ -69,17 +67,9 @@ func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.Proposer
 	if valSet.Size() > 0 {
 		valSet.proposer = valSet.GetByIndex(0)
 	}
-
-	switch policy {
-	case istanbul.Sticky:
-		valSet.selector = StickyProposer
-	case istanbul.RoundRobin:
-		valSet.selector = RoundRobinProposer
-	case istanbul.ShuffledRoundRobin:
-		valSet.selector = ShuffledRoundRobinProposer
-	default:
-		// Programming error.
-		panic(fmt.Sprintf("unknown proposer selection policy: %v", policy))
+	valSet.selector = roundRobinProposer
+	if policy == istanbul.Sticky {
+		valSet.selector = stickyProposer
 	}
 
 	return valSet
@@ -164,7 +154,51 @@ func (valSet *defaultSet) IsProposer(address common.Address) bool {
 func (valSet *defaultSet) CalcProposer(lastProposer common.Address, round uint64) {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	valSet.proposer = valSet.selector(valSet, lastProposer, round, valSet.randomness)
+	valSet.proposer = valSet.selector(valSet, lastProposer, round)
+}
+
+func calcSeed(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) uint64 {
+	offset := 0
+	if idx := valSet.GetFilteredIndex(proposer); idx >= 0 {
+		offset = idx
+	}
+	return uint64(offset) + round
+}
+
+func emptyAddress(addr common.Address) bool {
+	return addr == common.Address{}
+}
+
+func roundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
+	if valSet.Size() == 0 {
+		return nil
+	}
+	seed := uint64(0)
+	if emptyAddress(proposer) {
+		seed = round
+	} else {
+		seed = calcSeed(valSet, proposer, round) + 1
+	}
+
+	filteredList := valSet.FilteredList()
+	pick := seed % uint64(valSet.Size())
+	return filteredList[pick]
+}
+
+func stickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
+	if valSet.Size() == 0 {
+		return nil
+	}
+	seed := uint64(0)
+	if emptyAddress(proposer) {
+		seed = round
+	} else {
+		seed = calcSeed(valSet, proposer, round)
+	}
+
+	filteredList := valSet.FilteredList()
+	pick := seed % uint64(valSet.Size())
+	return filteredList[pick]
 }
 
 func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) bool {
@@ -244,10 +278,8 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
 
+func (valSet *defaultSet) Policy() istanbul.ProposerPolicy { return valSet.policy }
+
 func (valSet *defaultSet) MinQuorumSize() int {
 	return int(math.Ceil(float64(2*valSet.Size()) / 3))
 }
-
-func (valSet *defaultSet) Policy() istanbul.ProposerPolicy { return valSet.policy }
-
-func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }

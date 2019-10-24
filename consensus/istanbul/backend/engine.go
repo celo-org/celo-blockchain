@@ -709,6 +709,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	if len(headers) > 0 {
 		var err error
+		log.Trace("Snapshot headers len greater than 0", "headers", headers)
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
 			log.Error("Unable to apply headers to snapshots", "headers", headers)

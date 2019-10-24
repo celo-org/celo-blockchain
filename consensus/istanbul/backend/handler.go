@@ -117,7 +117,6 @@ func (sb *Backend) NewChainHead() error {
 		} else {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
-		// Establish connections to new peers and tear down connections to old ones.
 		go sb.RefreshValPeers(valset)
 	}
 

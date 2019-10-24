@@ -74,7 +74,7 @@ const (
 	MemoryGas        uint64 = 3     // Times the address of the (highest referenced byte in memory + 1). NOTE: referencing happens on read, write and in instructions such as RETURN and CALL.
 	TxDataNonZeroGas uint64 = 68    // Per byte of data attached to a transaction that is not equal to zero. NOTE: Not payable on data of calls between transactions.
 
-	MaxCodeSize = 49152 // Maximum bytecode to permit for a contract
+	MaxCodeSize = 65536 // Maximum bytecode to permit for a contract (2^16)
 
 	// Precompiled contract gas prices
 
@@ -155,7 +155,6 @@ const (
 	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
 	MaxGasToReadErc20Balance      uint64 = 30 * 1000
 
-	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
