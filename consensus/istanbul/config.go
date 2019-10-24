@@ -19,9 +19,9 @@ package istanbul
 type ProposerPolicy uint64
 
 const (
-	RoundRobin ProposerPolicy = iota
+	ShuffledRoundRobin ProposerPolicy = iota
+	RoundRobin
 	Sticky
-	ShuffledRoundRobin
 )
 
 type Config struct {
