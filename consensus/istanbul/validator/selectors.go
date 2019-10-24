@@ -49,7 +49,7 @@ func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Ad
 	shuffle := randFromHash(seed).Perm(valSet.Size())
 	reverse := make([]int, len(shuffle))
 	for i, n := range shuffle {
-		reverse[i] = i
+		reverse[n] = i
 	}
 	idx := round
 	if proposer != (common.Address{}) {
