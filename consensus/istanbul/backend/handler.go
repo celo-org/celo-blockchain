@@ -44,7 +44,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{22},
+		Lengths:  []uint64{20},
 		Primary:  true,
 	}
 }
@@ -110,7 +110,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 						go sb.proxiedPeer.Send(msg.Code, data)
 					}
 				}
-			} else {
+			} else { // The case when this node is a validator
 				go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 					Payload: data,
 				})
@@ -166,7 +166,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 		}
 
-		// If this is a sentry or it's non proxied validator and a
+		// If this is a sentry or a non proxied validator and a
 		// new epoch just started, then refresh the validator enode table
 		if sb.config.Sentry || (sb.coreStarted && !sb.config.Proxied) {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "new block number", newBlock.Number().Uint64())
@@ -176,6 +176,9 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
+	// TODO - For added security, we may want the node keys of the proxied validators to be
+	//        registered with the sentry, and verify that all newly connected proxied peer has
+	//        the correct node key
 	if sb.config.Sentry && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {

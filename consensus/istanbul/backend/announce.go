@@ -137,7 +137,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	for addr := range regAndActiveVals {
 		// TODO - Need to encrypt using the remote validator's validator key
 		encryptedEnodeURL := []byte(enodeUrl)
-		fmt.Printf("appending (%s, %s)\n", addr.Hex(), enodeUrl)
 		encryptedEnodeURLs = append(encryptedEnodeURLs, [][]byte{addr.Bytes(), encryptedEnodeURL})
 	}
 
@@ -146,8 +145,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		EnodeURLHash:       istanbul.RLPHash(enodeUrl),
 		View:               view,
 	}
-
-	fmt.Printf("anounceMessage is %s\n", announceMessage.String())
 
 	announceBytes, err := rlp.EncodeToBytes(announceMessage)
 	if err != nil {
@@ -162,7 +159,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		CommittedSeal: []byte{},
 	}
 
-	sb.logger.Debug("Broadcasting an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+	sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 
 	return msg, nil
 }
@@ -247,11 +244,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if sb.coreStarted {
 		var enodeUrl string
 		for _, entry := range announceMessage.EncryptedEnodeURLs {
-			fmt.Printf("announce enodeurl entry: %s %s %s\n", common.BytesToAddress(entry[0]).Hex(), string(entry[1]), sb.Address().Hex())
 			if bytes.Equal(entry[0], sb.Address().Bytes()) {
 				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
 				enodeUrl = string(entry[1])
-				fmt.Printf("Found my entry: %s\n", enodeUrl)
 				block := sb.currentBlock()
 				valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 

@@ -148,11 +148,9 @@ type Backend struct {
 	valEnodeShareWg   *sync.WaitGroup
 	valEnodeShareQuit chan struct{}
 
-	// TODO: Figure out any needed changes for concurrent changes to this
 	// Right now, we assume that there is at most one sentry for a proxied validator
 	sentryNode *sentryInfo
 
-	// TODO: Figure out any needed changes for concurrent changes to this
 	// Right now, we assume that there is at most one proxied peer for a sentry
 	proxiedPeer consensus.Peer
 
@@ -190,12 +188,18 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.FilteredList()
 }
 
+// This function will return the peers with the addresses in the "destAddresses" paramater.
+// If this is a proxied validator, then it will return the sentry.
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
-	if sb.config.Proxied && sb.sentryNode != nil && sb.sentryNode.peer != nil {
-		returnMap := make(map[enode.ID]consensus.Peer)
-		returnMap[sb.sentryNode.peer.Node().ID()] = sb.sentryNode.peer
+	if sb.config.Proxied {
+		if sb.sentryNode != nil && sb.sentryNode.peer != nil {
+			returnMap := make(map[enode.ID]consensus.Peer)
+			returnMap[sb.sentryNode.peer.Node().ID()] = sb.sentryNode.peer
 
-		return returnMap
+			return returnMap
+		} else {
+			return nil
+		}
 	} else {
 		var targets map[enode.ID]bool = nil
 
@@ -251,9 +255,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 	ids := []string{}
 	enodeURLs := []string{}
 
-	for a, p := range peers {
-		ids = append(ids, a.String())
-		enodeURLs = append(enodeURLs, p.Node().String())
+	for id, peer := range peers {
+		ids = append(ids, id.String())
+		enodeURLs = append(enodeURLs, peer.Node().String())
 	}
 
 	sb.logger.Debug("Gossip message", "ethMsgCode", ethMsgCode, "ids", ids, "enodeURLs", enodeURLs)

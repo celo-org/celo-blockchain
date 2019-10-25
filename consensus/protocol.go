@@ -18,7 +18,6 @@
 package consensus
 
 import (
-	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -57,7 +56,7 @@ type Broadcaster interface {
 	FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]Peer
 }
 
-// p2p.Server defines the interface to get the node's enode, add/remove static and trusted peers
+// Server defines the interface for a p2p.server to get the local node's enode and to addlabel/removelabel for static/trusted peers
 type P2PServer interface {
 	// Gets this node's enode
 	Self() *enode.Node
@@ -71,7 +70,7 @@ type P2PServer interface {
 	RemoveTrustedPeerLabel(node *enode.Node, label string)
 }
 
-// p2p.Peer defines the interface to communicate with peer
+// Peer defines the interface for a p2p.peer
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint64, data interface{}) error
