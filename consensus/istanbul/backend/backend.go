@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
@@ -84,7 +85,7 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
+	backend.valEnodeTable = enodes.NewValidatorEnodeTable()
 	return backend
 }
 
@@ -130,7 +131,7 @@ type Backend struct {
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
 
-	valEnodeTable *validatorEnodeTable
+	valEnodeTable *enodes.ValidatorEnodeTable
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
@@ -154,6 +155,7 @@ func (sb *Backend) Address() common.Address {
 	return sb.address
 }
 
+// Close the backend
 func (sb *Backend) Close() error {
 	return nil
 }
@@ -226,20 +228,20 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 	return nil
 }
 
+// Enode for backend
 func (sb *Backend) Enode() *enode.Node {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetLocalNode()
-	} else {
-		return nil
 	}
+	return nil
 }
 
+// GetNodeKey gets the Node PrivateKey
 func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetNodeKey()
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (sb *Backend) GetDataDir() string {
@@ -583,6 +585,20 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 			sb.RemoveValidatorPeer(peerEnodeURL)
 		}
 	} else {
-		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
+		// Add all of the valSet entries as validator peers
+		for _, val := range valset.List() {
+			if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address()); ok {
+				sb.AddValidatorPeer(enodeURL)
+			}
+		}
+
+		// Remove the peers that are not in the valset
+		for _, peerEnodeURL := range currentValPeers {
+			if peerAddress, ok := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL); ok {
+				if _, src := valset.GetByAddress(peerAddress); src == nil {
+					sb.RemoveValidatorPeer(peerEnodeURL)
+				}
+			}
+		}
 	}
 }
