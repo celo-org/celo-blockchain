@@ -681,7 +681,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 		return nil, gas, ErrInputLength
 	}
 
-	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
