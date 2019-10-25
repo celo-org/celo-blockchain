@@ -31,10 +31,12 @@ func (b *MockBroadcaster) FindPeers(targets map[enode.ID]bool, label string) map
 	return make(map[enode.ID]consensus.Peer)
 }
 
-type MockP2PServer struct{}
+type MockP2PServer struct {
+	Node *enode.Node
+}
 
 func (serv *MockP2PServer) Self() *enode.Node {
-	return nil
+	return serv.Node
 }
 
 func (serv *MockP2PServer) AddPeerLabel(node *enode.Node, label string) {}

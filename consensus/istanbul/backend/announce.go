@@ -18,22 +18,17 @@ package backend
 
 import (
 	"bytes"
-	// "crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	mrand "math/rand"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	//"github.com/ethereum/go-ethereum/crypto"
-	//"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/log"
-	//"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -42,14 +37,13 @@ import (
 // define the istanbul announce message
 
 type announceMessage struct {
-	IncompleteEnodeURL    string
-	EncryptedEndpointData [][][]byte
-	EnodeURLHash          common.Hash
-	View                  *istanbul.View
+	EncryptedEnodeURLs [][][]byte
+	EnodeURLHash       common.Hash
+	View               *istanbul.View
 }
 
 func (am *announceMessage) String() string {
-	return fmt.Sprintf("{View: %v, IncompleteEnodeURL: %v}", am.View, am.IncompleteEnodeURL)
+	return fmt.Sprintf("{View: %v, EnodeURLHash: %v}", am.View, am.EnodeURLHash.Hex())
 }
 
 // ==============================================
@@ -58,22 +52,21 @@ func (am *announceMessage) String() string {
 
 // EncodeRLP serializes am into the Ethereum RLP format.
 func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.IncompleteEnodeURL, am.EncryptedEndpointData, am.EnodeURLHash, am.View})
+	return rlp.Encode(w, []interface{}{am.EncryptedEnodeURLs, am.EnodeURLHash, am.View})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
 func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		IncompleteEnodeURL    string
-		EncryptedEndpointData [][][]byte
-		EnodeURLHash          common.Hash
-		View                  *istanbul.View
+		EncryptedEnodeURLs [][][]byte
+		EnodeURLHash       common.Hash
+		View               *istanbul.View
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.IncompleteEnodeURL, am.EncryptedEndpointData, am.EnodeURLHash, am.View = msg.IncompleteEnodeURL, msg.EncryptedEndpointData, msg.EnodeURLHash, msg.View
+	am.EncryptedEnodeURLs, am.EnodeURLHash, am.View = msg.EncryptedEnodeURLs, msg.EnodeURLHash, msg.View
 	return nil
 }
 
@@ -121,8 +114,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		enodeUrl = selfEnode.String()
 	}
 	view := sb.core.CurrentView()
-	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
-	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
 
 	regAndActiveVals, err := validators.RetrieveRegisteredValidators(nil, nil)
 	// The validator contract may not be deployed yet.
@@ -141,33 +132,22 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		regAndActiveVals[val.Address()] = true
 	}
 
-	encryptedEndpoints := make([][][]byte, 0)
+	// encryptedEnodeURLs is an array of (validator address, encrypted enode urls) tuples
+	encryptedEnodeURLs := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
-		// TODO: Can we and should we encrypt with the bls public key? It will where down the ledger device faster
-		// for the decryptions.
-		// if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
-		// validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
-		// pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
-		// encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
-
-		var err error = nil
-		if _, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
-			encryptedEndpoint := []byte(endpointData)
-
-			if err != nil {
-				log.Warn("Unable to unmarshal public key", "err", err)
-			} else {
-				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
-			}
-		}
+		// TODO - Need to encrypt using the remote validator's validator key
+		encryptedEnodeURL := []byte(enodeUrl)
+		fmt.Printf("appending (%s, %s)\n", addr.Hex(), enodeUrl)
+		encryptedEnodeURLs = append(encryptedEnodeURLs, [][]byte{addr.Bytes(), encryptedEnodeURL})
 	}
 
 	announceMessage := &announceMessage{
-		IncompleteEnodeURL:    incompleteEnodeUrl,
-		EncryptedEndpointData: encryptedEndpoints,
-		EnodeURLHash:          istanbul.RLPHash(enodeUrl),
-		View:                  view,
+		EncryptedEnodeURLs: encryptedEnodeURLs,
+		EnodeURLHash:       istanbul.RLPHash(enodeUrl),
+		View:               view,
 	}
+
+	fmt.Printf("anounceMessage is %s\n", announceMessage.String())
 
 	announceBytes, err := rlp.EncodeToBytes(announceMessage)
 	if err != nil {
@@ -265,30 +245,21 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		// Decrypt the EnodeURL
-		// TODO Re-enable decryption of the enodeURL
-		// nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
-
-		encryptedEndpoint := []byte("")
-		for _, entry := range announceMessage.EncryptedEndpointData {
+		var enodeUrl string
+		for _, entry := range announceMessage.EncryptedEnodeURLs {
+			fmt.Printf("announce enodeurl entry: %s %s %s\n", common.BytesToAddress(entry[0]).Hex(), string(entry[1]), sb.Address().Hex())
 			if bytes.Equal(entry[0], sb.Address().Bytes()) {
-				encryptedEndpoint = entry[1]
+				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
+				enodeUrl = string(entry[1])
+				fmt.Printf("Found my entry: %s\n", enodeUrl)
+				block := sb.currentBlock()
+				valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+
+				if err := sb.valEnodeTable.upsert(msg.Address, enodeUrl, announceMessage.View, valSet, sb.ValidatorAddress(), sb.config.Proxied, false); err != nil {
+					sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
+					return err
+				}
 			}
-		}
-		// endpointBytes, err := nodeKey.Decrypt(encryptedEndpoint, nil, nil)
-		var err error = nil
-		endpointBytes := encryptedEndpoint
-		if err != nil && len(encryptedEndpoint) > 0 {
-			sb.logger.Warn("Error in decrypting endpoint", "err", err)
-		}
-		enodeUrl := announceMessage.IncompleteEnodeURL + string(endpointBytes)
-
-		block := sb.currentBlock()
-		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
-		if err := sb.valEnodeTable.upsert(msg.Address, enodeUrl, announceMessage.View, valSet, sb.ValidatorAddress(), sb.config.Proxied, false); err != nil {
-			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
-			return err
 		}
 	}
 
