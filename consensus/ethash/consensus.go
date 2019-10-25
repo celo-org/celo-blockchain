@@ -85,6 +85,10 @@ func (ethash *Ethash) GetValidators(blockNumber *big.Int, headerHash common.Hash
 	return []istanbul.Validator{}
 }
 
+func (ethash *Ethash) EpochSize() uint64 {
+	return 0
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules of the
 // stock Ethereum ethash engine.
 func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {

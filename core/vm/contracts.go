@@ -59,6 +59,7 @@ var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecomp
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
 var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
 var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
+var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -79,6 +80,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	proofOfPossessionAddress:  &proofOfPossession{},
 	getValidatorAddress:       &getValidator{},
 	numberValidatorsAddress:   &numberValidators{},
+	epochSizeAddress:          &epochSize{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -684,4 +686,21 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
 	return numberValidatorsBytes, gas, nil
+}
+
+type epochSize struct{}
+
+func (c *epochSize) RequiredGas(input []byte) uint64 {
+	return params.GetEpochSizeGas
+}
+
+func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+	epochSize := big.NewInt(0).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
+
+	return epochSizeBytes, gas, nil
 }
