@@ -1,7 +1,7 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   entrypoint: "bash"
-  args: [ "-c", "docker build -t us.gcr.io/$PROJECT_ID/geth:${echo $BRANCH_NAME | sed 's,/,-,g}  ."]
+  args: [ "-c", "docker build -t us.gcr.io/$PROJECT_ID/geth:${echo $BRANCH_NAME | sed 's,/,-,g'}  ."]
   waitFor: ["-"]
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA', '-f', 'Dockerfile.alltools', '.' ]
