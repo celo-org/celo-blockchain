@@ -113,7 +113,6 @@ var (
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
 	LockedGoldRegistryId           = makeRegistryId("LockedGold")
-	ElectionRegistryId             = makeRegistryId("Election")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
@@ -168,6 +167,5 @@ const (
 	MaxGasForMedianRate              uint64 = 20000
 	MaxGasForGetWhiteList            uint64 = 20000
 	MaxGasForGetRegisteredValidators uint64 = 1000000
-	MaxGasForGetValidator            uint64 = 100 * 1000
-	MaxGasForElectValidators         uint64 = 50 * 1000000
+	MaxGasForGetValidators           uint64 = 10000000
 )

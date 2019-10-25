@@ -45,7 +45,19 @@ const validatorsABIString string = `[
     "stateMutability": "view",
     "type": "function"
   },
-  {
+  {"constant": true,
+              "inputs": [],
+        "name": "getValidators",
+        "outputs": [
+       {
+            "name": "",
+      "type": "address[]"
+       }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+       }, {
         "name": "getValidator",
         "inputs": [
           {
@@ -54,6 +66,10 @@ const validatorsABIString string = `[
           }
         ],
         "outputs": [
+          {
+            "name": "identifier",
+            "type": "string"
+          },
           {
             "name": "name",
             "type": "string"
@@ -90,16 +106,25 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 	return regVals, nil
 }
 
-func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
-	var validatorData []istanbul.ValidatorData
-	for _, addr := range validatorAddresses {
+func GetValidatorSet(header *types.Header, state vm.StateDB) ([]istanbul.ValidatorData, error) {
+	var newValSet []istanbul.ValidatorData
+	var newValSetAddresses []common.Address
+	// Get the new epoch's validator set
+	// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidators", []interface{}{}, &newValSetAddresses, params.MaxGasForGetValidators, header, state)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, addr := range newValSetAddresses {
 		validator := struct {
+			Identifier     string
 			Name           string
 			Url            string
 			PublicKeysData []byte
 			Affiliation    common.Address
 		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidators, header, state)
 		if err != nil {
 			return nil, err
 		}
@@ -108,10 +133,10 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 			return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
 		}
 		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
-		validatorData = append(validatorData, istanbul.ValidatorData{
+		newValSet = append(newValSet, istanbul.ValidatorData{
 			addr,
 			blsPublicKey,
 		})
 	}
-	return validatorData, nil
+	return newValSet, nil
 }
