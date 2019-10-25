@@ -11,6 +11,6 @@ substitutions:
   _NEW_BRANCH_NAME: $_SANITIZED_BRANCH_NAME
 images:
 - 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA'
-- 'us.gcr.io/$PROJECT_ID/geth:$_SANITIZED_BRANCH_NAME'
+- 'us.gcr.io/$PROJECT_ID/geth'
 - 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA'
 timeout: 2700s
