@@ -1,12 +1,16 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'us.gcr.io/$PROJECT_ID/geth:$BRANCH_NAME', '-t', 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA', '.' ]
+  entrypoint: "bash"
+  args: [ "-c", "_SANITIZED_BRANCH_NAME=`echo $BRANCH_NAME | sed -r 's,/,-,g'`; docker build -t us.gcr.io/$PROJECT_ID/geth:$BRANCH_NAME -t us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA ."]
   waitFor: ["-"]
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA', '-f', 'Dockerfile.alltools', '.' ]
   waitFor: ["-"]
+substitutions:
+  _NEW_BRANCH_NAME: $_SANITIZED_BRANCH_NAME
 images:
 - 'us.gcr.io/$PROJECT_ID/geth:$COMMIT_SHA'
-- 'us.gcr.io/$PROJECT_ID/geth:$BRANCH_NAME'
+- 'us.gcr.io/$PROJECT_ID/geth:$_SANITIZED_BRANCH_NAME'
 - 'gcr.io/$PROJECT_ID/geth-all:$COMMIT_SHA'
 timeout: 2700s
