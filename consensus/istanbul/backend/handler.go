@@ -137,6 +137,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.valEnodeTable.p2pserver = p2pserver
 }
 
+// This function is called by worker.go whenever it gets a newWork event.
 func (sb *Backend) NewWork() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
@@ -148,6 +149,10 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
+// This function is called by all nodes.
+// At the end of each epoch, this function will
+//    1)  Output if it is or isn't an elected validator if it has mining turned on.
+//    2)  Refresh the validator connections if it's a sentry or non proxied validator
 func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
 		sb.coreMu.RLock()
