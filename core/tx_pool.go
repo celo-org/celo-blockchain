@@ -672,7 +672,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
 	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-		log.Debug("gas price less than current gas price minimum", "gasPriceMinimum", gasPriceMinimum, "err", err)
+		log.Debug("unable to fetch gas price minimum", "err", err)
 		return err
 	}
 

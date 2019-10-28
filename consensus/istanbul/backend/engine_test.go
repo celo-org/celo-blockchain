@@ -20,7 +20,11 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -106,7 +110,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return signatureBytes, nil
 	}
 
-	b, _ := New(config, memDB).(*Backend)
+	dataDir := createRandomDataDir()
+	b, _ := New(config, memDB, dataDir).(*Backend)
 	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
@@ -204,6 +209,22 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	contract_comm.SetInternalEVMHandler(blockchain)
 
 	return blockchain, b
+}
+
+func createRandomDataDir() string {
+	rand.Seed(time.Now().UnixNano())
+	for {
+		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000)
+		dataDir := filepath.Join("/tmp", dirName)
+		err := os.Mkdir(dataDir, 0700)
+		if os.IsExist(err) {
+			continue // Re-try
+		}
+		if err != nil {
+			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
+		}
+		return dataDir
+	}
 }
 
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
