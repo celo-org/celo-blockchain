@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -299,6 +300,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Warn("Stats server sent non-broadcast", "msg", msg)
 			return
 		}
+		fmt.Println("command", msg)
 		command, ok := msg["emit"][0].(string)
 		if !ok {
 			log.Warn("Invalid stats server message type", "type", msg["emit"][0])
@@ -466,6 +468,11 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	return s.sendStats(conn, "latency", stats)
 }
 
+type validatorStats struct {
+	Registered []validatorInfo `json:"registered"`
+	Elected    []validatorInfo `json:"elected"`
+}
+
 type validatorInfo struct {
 	Address      common.Address `json:"address"`
 	BLSPublicKey []byte         `json:"blsPublicKey"`
@@ -474,22 +481,22 @@ type validatorInfo struct {
 
 // blockStats is the information to report about individual blocks.
 type blockStats struct {
-	Number      *big.Int        `json:"number"`
-	Hash        common.Hash     `json:"hash"`
-	ParentHash  common.Hash     `json:"parentHash"`
-	Timestamp   *big.Int        `json:"timestamp"`
-	Miner       common.Address  `json:"miner"`
-	GasUsed     uint64          `json:"gasUsed"`
-	GasLimit    uint64          `json:"gasLimit"`
-	Diff        string          `json:"difficulty"`
-	TotalDiff   string          `json:"totalDifficulty"`
-	Txs         []txStats       `json:"transactions"`
-	TxHash      common.Hash     `json:"transactionsRoot"`
-	Root        common.Hash     `json:"stateRoot"`
-	Uncles      uncleStats      `json:"uncles"`
-	EpochSize   uint64          `json:"epochSize"`
-	BlockRemain uint64          `json:"blockRemain"`
-	Validators  []validatorInfo `json:"validators"`
+	Number      *big.Int       `json:"number"`
+	Hash        common.Hash    `json:"hash"`
+	ParentHash  common.Hash    `json:"parentHash"`
+	Timestamp   *big.Int       `json:"timestamp"`
+	Miner       common.Address `json:"miner"`
+	GasUsed     uint64         `json:"gasUsed"`
+	GasLimit    uint64         `json:"gasLimit"`
+	Diff        string         `json:"difficulty"`
+	TotalDiff   string         `json:"totalDifficulty"`
+	Txs         []txStats      `json:"transactions"`
+	TxHash      common.Hash    `json:"transactionsRoot"`
+	Root        common.Hash    `json:"stateRoot"`
+	Uncles      uncleStats     `json:"uncles"`
+	EpochSize   uint64         `json:"epochSize"`
+	BlockRemain uint64         `json:"blockRemain"`
+	Validators  validatorStats `json:"validators"`
 }
 
 // txStats is the information to report about individual transactions.
@@ -602,20 +609,28 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	}
 	// Assemble and return the block stats
 	author, _ := s.backend.Author(header)
-	// fmt.Println(author, s.backend.Author())
 
 	// Add epoch info
 	epochSize := s.eth.Config().Istanbul.Epoch
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
-	// Add validator enode list
-	valsWithoutEnode := s.backend.GetValidators(block.Number(), block.Hash())
 
-	validators := make([]validatorInfo, 0, len(valsWithoutEnode))
-	for i := range valsWithoutEnode {
-		validators = append(validators, validatorInfo{
-			Address:      valsWithoutEnode[i].Address(),
-			BLSPublicKey: valsWithoutEnode[i].BLSPublicKey(),
-			NodeUrl:      s.backend.GetValidatorEnodeUsingAddress(valsWithoutEnode[i].Address()),
+	// Add validator enode list
+	valsElectedWithoutEnode := s.backend.GetValidators(block.Number(), block.Hash())
+
+	valsElected := make([]validatorInfo, 0, len(valsElectedWithoutEnode))
+	for i := range valsElectedWithoutEnode {
+		valsElected = append(valsElected, validatorInfo{
+			Address:      valsElectedWithoutEnode[i].Address(),
+			BLSPublicKey: valsElectedWithoutEnode[i].BLSPublicKey(),
+			// NodeUrl:      s.backend.GetValidatorEnodeUsingAddress(valsElectedWithoutEnode[i].Address()),
+		})
+	}
+
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
+	valsRegistered := make([]validatorInfo, 0, len(valsRegisteredMap))
+	for _, address := range valsRegisteredMap {
+		valsRegistered = append(valsRegistered, validatorInfo{
+			Address: address,
 		})
 	}
 
@@ -635,7 +650,10 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Uncles:      uncles,
 		EpochSize:   epochSize,
 		BlockRemain: blockRemain,
-		Validators:  validators,
+		Validators: validatorStats{
+			Elected:    valsElected,
+			Registered: valsRegistered,
+		},
 	}
 }
 

@@ -156,8 +156,6 @@ type Istanbul interface {
 
 	GetNodeKey() *ecdsa.PrivateKey
 
-	GetValidatorEnodeUsingAddress(address common.Address) string
-
 	SetChain(chain ChainReader, currentBlock func() *types.Block)
 
 	// Start starts the engine

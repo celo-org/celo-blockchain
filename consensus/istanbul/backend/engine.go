@@ -104,10 +104,6 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 	return ecrecover(header)
 }
 
-func (sb *Backend) GetValidatorEnodeUsingAddress(address common.Address) string {
-	return sb.valEnodeTable.getEnodeURLUsingAddress(address)
-}
-
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifying the seal may be done optionally here, or explicitly
 // via the VerifySeal method.
