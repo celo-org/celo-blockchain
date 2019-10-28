@@ -354,6 +354,15 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
 			writeCommittedSeals(header, bitmap, asig, true)
 		}
+	} else {
+		// if we were not gossipped any commits, then just copy over the seals
+		// we have from the previous block (this is better than posting an empty
+		// ParentSeals field)
+		parentExtra, err := types.ExtractIstanbulExtra(parent)
+		if err != nil {
+			return err
+		}
+		writeCommittedSeals(header, parentExtra.Bitmap, parentExtra.CommittedSeal, true)
 	}
 
 	return nil
