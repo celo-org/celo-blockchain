@@ -85,9 +85,6 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-	// errNoParentCommits is returned when there are no commits gossipped to our node for a block
-	// from the previous sequence
-	errNoParentCommits = errors.New("no parent commits found for parent block")
 )
 
 var (
@@ -357,8 +354,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
 			writeCommittedSeals(header, bitmap, asig, true)
 		}
-	} else {
-		return errNoParentCommits
 	}
 
 	return nil
