@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
 
@@ -109,8 +110,12 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
 			return errInvalidCommittedSeal
 		}
-		// TODO: What further verification checks are needed? Maybe ensure that
-		// the View we are processing matches the parent proposal? How?
+		// Ensure that the commit's digest (ie the received proposal's hash)
+		// matches the saved last proposal's hash
+		lastProposal, _ := c.backend.LastProposal()
+		if lastProposal.Number().Uint64() > 0 && commit.Digest != lastProposal.Hash() {
+			return fmt.Errorf("parent block does not match. Expected %v. Got %v", lastProposal.Hash().String(), commit.Digest.String())
+		}
 		c.acceptParentCommit(msg, commit.View)
 	} else {
 		_, validator := c.valSet.GetByAddress(msg.Address)
