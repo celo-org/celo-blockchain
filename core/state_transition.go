@@ -132,7 +132,9 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, header *types.H
 	// min(gas sent - gas charged, maxGasForDebitAndCreditTransactions) extra.
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
-	gas += blockchain_parameters.GetIntrinsicGasForAlternateGasCurrency(header, state, gasCurrency)
+	if gasCurrency != nil {
+		gas += blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state, gasCurrency)
+	}
 
 	return gas, nil
 }

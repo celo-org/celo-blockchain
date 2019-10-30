@@ -56,7 +56,7 @@ const (
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "gasForDebitFromTransactions",
+		"name": "intrinsicGasForAlternativeGasCurrency",
 		"outputs": [
 		  {
 			"name": "",
@@ -66,35 +66,7 @@ const (
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  },
-	  {
-		"constant": true,
-		"inputs": [],
-		"name": "gasForCreditToTransactions",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  },
-	  {
-		"constant": true,
-		"inputs": [],
-		"name": "gasToReadErc20Balance",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }	  
+	  }
 ]`
 )
 
@@ -141,33 +113,15 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 		state,
 	)
 	if err != nil {
-		log.Info("Default gas", "gas", defaultGas, "method", method)
+		log.Trace("Default gas", "gas", defaultGas, "method", method)
 		return defaultGas
 	}
-	log.Info("Reading gas", "gas", gas)
+	log.Trace("Reading gas", "gas", gas)
 	return gas.Uint64()
 }
 
-func GetGasForDebitFromTransactions(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.ExpectedGasForDebitFromTransactions, "gasForDebitFromTransactions")
-}
-
-func GetGasForCreditToTransactions(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.ExpectedGasForCreditToTransactions, "gasForCreditToTransactions")
-}
-
-func GetGasToReadErc20Balance(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.ExpectedGasToReadErc20Balance, "gasToReadErc20Balance")
-}
-
-func GetIntrinsicGasForAlternateGasCurrency(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
-	if gasCurrency == nil {
-		return 0
-	}
-	gasForDebitFromTransactions := GetGasForDebitFromTransactions(header, state)
-	gasForCreditToTransactions := GetGasForCreditToTransactions(header, state)
-	gasToReadErc20Balance := GetGasToReadErc20Balance(header, state)
-	return 3*gasForCreditToTransactions + gasForDebitFromTransactions + gasToReadErc20Balance
+func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
+	return GetGasCost(header, state, params.AdditionalGasForNonGoldCurrencies, "intrinsicGasForAlternativeGasCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
