@@ -74,7 +74,7 @@ const (
 	MemoryGas        uint64 = 3     // Times the address of the (highest referenced byte in memory + 1). NOTE: referencing happens on read, write and in instructions such as RETURN and CALL.
 	TxDataNonZeroGas uint64 = 68    // Per byte of data attached to a transaction that is not equal to zero. NOTE: Not payable on data of calls between transactions.
 
-	MaxCodeSize = 49152 // Maximum bytecode to permit for a contract
+	MaxCodeSize = 65536 // Maximum bytecode to permit for a contract (2^16)
 
 	// Precompiled contract gas prices
 
@@ -97,8 +97,9 @@ const (
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas      uint64 = 5000 // Cost of reading a validator's address
+	ProofOfPossessionGas uint64 = 50000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas      uint64 = 5000  // Cost of reading a validator's address.
+	GetEpochSizeGas      uint64 = 1000  // Cost of querying the number of blocks in an epoch.
 )
 
 var (
@@ -113,6 +114,7 @@ var (
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
 	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	ElectionRegistryId             = makeRegistryId("Election")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
@@ -153,20 +155,28 @@ const (
 	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
 	MaxGasToReadErc20Balance      uint64 = 30 * 1000
 
-	MaxGasToReadTobinTax uint64 = 50 * 1000
 	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
 	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
 
 	// Contract communication gas limits
-	MaxGasForGetMinimumClientVersion uint64 = 200000
-	MaxGasForCommitments             uint64 = 2000000
-	MaxGasForComputeCommitment       uint64 = 2000000
-	MaxGasForRevealAndCommit         uint64 = 2000000
-	MaxGasForGetGasPriceMinimum      uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum   uint64 = 2000000
-	MaxGasForProposerFraction        uint64 = 200000
-	MaxGasForMedianRate              uint64 = 20000
-	MaxGasForGetWhiteList            uint64 = 20000
-	MaxGasForGetRegisteredValidators uint64 = 1000000
-	MaxGasForGetValidators           uint64 = 10000000
+	MaxGasForCommitments                          uint64 = 2000000
+	MaxGasForComputeCommitment                    uint64 = 2000000
+	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
+	MaxGasForElectValidators                      uint64 = 50 * 1000000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
+	MaxGasForGetGasPriceMinimum                   uint64 = 2000000
+	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
+	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
+	MaxGasForGetMinimumClientVersion              uint64 = 200000
+	MaxGasForGetRegisteredValidators              uint64 = 1000000
+	MaxGasForGetValidator                         uint64 = 100 * 1000
+	MaxGasForGetWhiteList                         uint64 = 20000
+	MaxGasForMedianRate                           uint64 = 20000
+	MaxGasForProposerFraction                     uint64 = 200000
+	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
+	MaxGasForRevealAndCommit                      uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
+	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
+	MaxGasForTotalSupply                          uint64 = 50 * 1000
 )
