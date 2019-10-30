@@ -59,6 +59,7 @@ var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecomp
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
 var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
 var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
+var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -79,12 +80,15 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	proofOfPossessionAddress:  &proofOfPossession{},
 	getValidatorAddress:       &getValidator{},
 	numberValidatorsAddress:   &numberValidators{},
+	epochSizeAddress:          &epochSize{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
+	log.Trace("Running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas)
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
 	contract.UseGas(contract.Gas - gas)
+	log.Trace("Finished running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas, "gas_left", gas)
 	return ret, err
 }
 
@@ -629,9 +633,10 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
@@ -644,6 +649,8 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	}
 
 	index := (&big.Int{}).SetBytes(input[0:32])
+
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
@@ -661,16 +668,39 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
+// Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	blockNumber := evm.Context.BlockNumber
-	validators := evm.Context.Engine.GetValidators(blockNumber, evm.Context.GetHash(blockNumber.Uint64()))
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
+	if len(input) != 0 {
+		return nil, gas, ErrInputLength
+	}
+
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
-
 	return numberValidatorsBytes, gas, nil
+}
+
+type epochSize struct{}
+
+func (c *epochSize) RequiredGas(input []byte) uint64 {
+	return params.GetEpochSizeGas
+}
+
+func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+	epochSize := big.NewInt(0).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
+
+	return epochSizeBytes, gas, nil
 }

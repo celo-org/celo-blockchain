@@ -36,7 +36,6 @@ func TestValidatorSet(t *testing.T) {
 	testNewValidatorSet(t)
 	testNormalValSet(t)
 	testEmptyValSet(t)
-	testStickyProposer(t)
 	testAddAndRemoveValidator(t)
 	testQuorumSizes(t)
 }
@@ -101,26 +100,6 @@ func testNormalValSet(t *testing.T) {
 	invalidAddr := common.HexToAddress("0x9535b2e7faaba5288511d89341d94a38063a349b")
 	if _, val := valSet.GetByAddress(invalidAddr); val != nil {
 		t.Errorf("validator mismatch: have %v, want nil", val)
-	}
-	// test get proposer
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val1)
-	}
-	// test calculate proposer
-	lastProposer := addr1
-	valSet.CalcProposer(lastProposer, uint64(0))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val2) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val2)
-	}
-	valSet.CalcProposer(lastProposer, uint64(3))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val1)
-	}
-	// test empty last proposer
-	lastProposer = common.Address{}
-	valSet.CalcProposer(lastProposer, uint64(3))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val2) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val2)
 	}
 }
 
@@ -193,40 +172,6 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.RemoveValidators(big.NewInt(4))                                                          // remove third validator
 	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 0 { // validators set should have the same padded size but reduced size
 		t.Error("the size of validator set should be 0")
-	}
-}
-
-func testStickyProposer(t *testing.T) {
-	b1 := common.Hex2Bytes(testAddress)
-	b2 := common.Hex2Bytes(testAddress2)
-	addr1 := common.BytesToAddress(b1)
-	addr2 := common.BytesToAddress(b2)
-	val1 := New(addr1, []byte{})
-	val2 := New(addr2, []byte{})
-
-	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
-	valSet := newDefaultSet(validators, istanbul.Sticky)
-
-	// test get proposer
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val1)
-	}
-	// test calculate proposer
-	lastProposer := addr1
-	valSet.CalcProposer(lastProposer, uint64(0))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val1) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val1)
-	}
-
-	valSet.CalcProposer(lastProposer, uint64(1))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val2) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val2)
-	}
-	// test empty last proposer
-	lastProposer = common.Address{}
-	valSet.CalcProposer(lastProposer, uint64(3))
-	if val := valSet.GetProposer(); !reflect.DeepEqual(val, val2) {
-		t.Errorf("proposer mismatch: have %v, want %v", val, val2)
 	}
 }
 
