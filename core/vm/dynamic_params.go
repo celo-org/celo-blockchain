@@ -16,7 +16,7 @@ const (
                               "inputs": [
                                    {
                                        "name": "identifier",
-                                       "type": "string"
+                                       "type": "bytes32"
                                    }
                               ],
                               "name": "getAddressFor",
@@ -36,14 +36,7 @@ var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-
-type regAddrCacheEntry struct {
-	address             *common.Address
-	registryStorageHash common.Hash
-	registryCodeHash    common.Hash
-}
-
-func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, error) {
+func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
@@ -54,7 +47,8 @@ func GetRegisteredAddressWithEvm(registryId string, evm *EVM) (*common.Address, 
 	var contractAddress common.Address
 	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, 20000)
 
-	if err == abi.ErrEmptyOutput {
+	// TODO(asa): Why was this change necessary?
+	if err == abi.ErrEmptyOutput || err == errExecutionReverted {
 		log.Trace("Registry contract not deployed")
 		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {

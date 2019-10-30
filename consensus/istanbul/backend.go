@@ -60,7 +60,7 @@ type Backend interface {
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(Proposal, Validator) (time.Duration, error)
+	Verify(Proposal) (time.Duration, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
@@ -99,4 +99,7 @@ type Backend interface {
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
+
+	// GetDataDir returns a read-write enabled data dir in which data will persist across restarts.
+	GetDataDir() string
 }

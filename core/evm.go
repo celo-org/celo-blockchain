@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// NOTE: Any changes made to this file should be duplicated to contract_comm/evm.go!
+
 // ChainContext supports retrieving chain data and consensus parameters
 // from the block chain to be used during transaction processing.
 type ChainContext interface {
@@ -57,6 +59,11 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		beneficiary = *author
 	}
 
+	var engine consensus.Engine
+	if chain != nil {
+		engine = chain.Engine()
+	}
+
 	return vm.Context{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
@@ -68,6 +75,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		Difficulty:  new(big.Int).Set(header.Difficulty),
 		GasLimit:    header.GasLimit,
 		GasPrice:    new(big.Int).Set(msg.GasPrice()),
+		Engine:      engine,
 	}
 }
 
@@ -86,8 +94,8 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 		if hash, ok := cache[n]; ok {
 			return hash
 		}
-		// Not cached, iterate the blocks and cache the hashes
-		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
+		// Not cached, iterate the blocks and cache the hashes (up to a limit of 256)
+		for i, header := 0, chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil && i <= 256; i, header = i+1, chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
 			cache[header.Number.Uint64()-1] = header.ParentHash
 			if n == header.Number.Uint64()-1 {
 				return header.ParentHash

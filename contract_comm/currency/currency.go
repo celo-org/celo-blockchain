@@ -140,9 +140,9 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 	}
 
 	// Given value of val and rates n1/d1 and n2/d2 the function below does
-	// (val * n1 * d2) / (d1 * n2)
-	numerator := new(big.Int).Mul(val, new(big.Int).Mul(exchangeRateFrom.Numerator, exchangeRateTo.Denominator))
-	denominator := new(big.Int).Mul(exchangeRateFrom.Denominator, exchangeRateTo.Numerator)
+	// (val * d1 * n2) / (n1 * d2)
+	numerator := new(big.Int).Mul(val, new(big.Int).Mul(exchangeRateFrom.Denominator, exchangeRateTo.Numerator))
+	denominator := new(big.Int).Mul(exchangeRateFrom.Numerator, exchangeRateTo.Denominator)
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
@@ -168,11 +168,11 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 	}
 
 	// Below code block is basically evaluating this comparison:
-	// val1 * exchangeRate1.Numerator/exchangeRate1.Denominator < val2 * exchangeRate2.Numerator/exchangeRate2.Denominator
+	// val1 * exchangeRate1.Denominator/exchangeRate1.Numerator < val2 * exchangeRate2.Denominator/exchangeRate2.Numerator
 	// It will transform that comparison to this, to remove having to deal with fractional values.
-	// val1 * exchangeRate1.Numerator * exchangeRate2.Denominator < val2 * exchangeRate2.Numerator * exchangeRate1.Denominator
-	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Numerator, exchangeRate2.Denominator))
-	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Numerator, exchangeRate1.Denominator))
+	// val1 * exchangeRate1.Denominator * exchangeRate2.Numerator < val2 * exchangeRate2.Denominator * exchangeRate1.Numerator
+	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Denominator, exchangeRate2.Numerator))
+	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Denominator, exchangeRate1.Numerator))
 	return leftSide.Cmp(rightSide)
 }
 
@@ -185,7 +185,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, 20000, nil, nil); err != nil {
+		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil); err != nil {
 			if err == errors.ErrSmartContractNotDeployed {
 				log.Warn("Registry address lookup failed", "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
@@ -221,17 +221,18 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, g
 //-------------------------------
 func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
-	gasCurrencyWhiteListAddress, err := contract_comm.GetRegisteredAddress(params.GasCurrencyWhitelistRegistryId, nil, nil)
+
+	_, err := contract_comm.MakeStaticCall(params.GasCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else {
-			log.Error("Registry address lookup failed", "err", err)
+			log.Error("getWhitelist invocation failed", "err", err)
 		}
 		return returnList, err
 	}
 
-	_, err = contract_comm.MakeStaticCallWithAddress(*gasCurrencyWhiteListAddress, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, 20000, header, state)
+	log.Trace("getWhitelist invocation success")
 	return returnList, err
 }
 

@@ -1,0 +1,11 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'us.gcr.io/$PROJECT_ID/geth:$BRANCH_NAME', '.' ]
+  waitFor: ["-"]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/geth-all:$BRANCH_NAME', '-f', 'Dockerfile.alltools', '.' ]
+  waitFor: ["-"]
+images:
+- 'us.gcr.io/$PROJECT_ID/geth:$BRANCH_NAME'
+- 'gcr.io/$PROJECT_ID/geth-all:$BRANCH_NAME'
+timeout: 2700s

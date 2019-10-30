@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -266,6 +267,14 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 // from the signature in the header's extra-data section.
 func (c *Clique) Author(header *types.Header) (common.Address, error) {
 	return ecrecover(header, c.signatures)
+}
+
+func (c *Clique) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
+	return []istanbul.Validator{}
+}
+
+func (c *Clique) EpochSize() uint64 {
+	return 0
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.

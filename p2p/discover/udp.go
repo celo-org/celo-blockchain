@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
+
 // Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
@@ -43,6 +45,7 @@ var (
 	errTimeout          = errors.New("RPC timeout")
 	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
+	errBadNetworkId     = errors.New("bad networkId")
 )
 
 // Timeouts
@@ -72,6 +75,8 @@ type (
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
+		NetworkId  uint64
+
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
@@ -312,6 +317,7 @@ func (t *udp) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) <-ch
 		From:       t.ourEndpoint(),
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
+		NetworkId:  t.localNode.NetworkId(),
 	}
 	packet, hash, err := encodePacket(t.priv, pingPacket, req)
 	if err != nil {
@@ -451,16 +457,18 @@ func (t *udp) loop() {
 			var matched bool // whether any replyMatcher considered the reply acceptable.
 			for el := plist.Front(); el != nil; el = el.Next() {
 				p := el.Value.(*replyMatcher)
-				if p.from == r.from && p.ptype == r.ptype && p.ip.Equal(r.ip) {
-					ok, requestDone := p.callback(r.data)
-					matched = matched || ok
-					// Remove the matcher if callback indicates that all replies have been received.
-					if requestDone {
-						p.errc <- nil
-						plist.Remove(el)
+				if p.from == r.from && p.ptype == r.ptype {
+					if t.pingIPFromPacket || p.ip.Equal(r.ip) {
+						ok, requestDone := p.callback(r.data)
+						matched = matched || ok
+						// Remove the matcher if callback indicates that all replies have been received.
+						if requestDone {
+							p.errc <- nil
+							plist.Remove(el)
+						}
+						// Reset the continuous timeout counter (time drift detection)
+						contTimeouts = 0
 					}
-					// Reset the continuous timeout counter (time drift detection)
-					contTimeouts = 0
 				}
 			}
 			r.matched <- matched
@@ -553,7 +561,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (packet, 
 	// add the hash to the front. Note: this doesn't protect the
 	// packet in any way. Our public key will be part of this hash in
 	// The future.
-	hash = crypto.Keccak256(packet[macSize:])
+	hash = crypto.Keccak256(packet[macSize:], celoClientSalt)
 	copy(packet, hash)
 	return packet, hash, nil
 }
@@ -611,7 +619,7 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 		return nil, encPubkey{}, nil, errPacketTooSmall
 	}
 	hash, sig, sigdata := buf[:macSize], buf[macSize:headSize], buf[headSize:]
-	shouldhash := crypto.Keccak256(buf[macSize:])
+	shouldhash := crypto.Keccak256(buf[macSize:], celoClientSalt)
 	if !bytes.Equal(hash, shouldhash) {
 		return nil, encPubkey{}, nil, errBadHash
 	}
@@ -641,6 +649,9 @@ func decodePacket(buf []byte) (packet, encPubkey, []byte, error) {
 // Packet Handlers
 
 func (req *ping) preverify(t *udp, from *net.UDPAddr, fromID enode.ID, fromKey encPubkey) error {
+	if t.localNode.NetworkId() != req.NetworkId {
+		return errBadNetworkId
+	}
 	if expired(req.Expiration) {
 		return errExpired
 	}
