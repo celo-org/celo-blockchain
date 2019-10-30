@@ -39,7 +39,9 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/les"
@@ -97,10 +99,16 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename:secret@host:port", url)
 	}
 	// Assemble and return the stats service
-	var engine consensus.Engine
+	var (
+		engine consensus.Engine
+		id     string
+	)
 	if ethServ != nil {
+		etherBase, _ := ethServ.Etherbase()
+		id = strings.ToLower(etherBase.String())
 		engine = ethServ.Engine()
 	} else {
+		id = parts[1]
 		engine = lesServ.Engine()
 	}
 	return &Service{
@@ -108,7 +116,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		les:     lesServ,
 		engine:  engine,
 		backend: engine.(*istanbulBackend.Backend),
-		node:    parts[1],
+		node:    id,
 		pass:    parts[3],
 		host:    parts[4],
 		pongCh:  make(chan struct{}),
@@ -300,7 +308,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Warn("Stats server sent non-broadcast", "msg", msg)
 			return
 		}
-		fmt.Println("command", msg)
+
 		command, ok := msg["emit"][0].(string)
 		if !ok {
 			log.Warn("Invalid stats server message type", "type", msg["emit"][0])
@@ -370,9 +378,10 @@ type nodeInfo struct {
 
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
-	ID     string   `json:"id"`
-	Info   nodeInfo `json:"info"`
-	Secret string   `json:"secret"`
+	ID      string         `json:"id"`
+	Address common.Address `json:"address"`
+	Info    nodeInfo       `json:"info"`
+	Secret  string         `json:"secret"`
 }
 
 // login tries to authorize the client at the remote server.
@@ -380,7 +389,11 @@ func (s *Service) login(conn *websocket.Conn) error {
 	// Construct and send the login authentication
 	infos := s.server.NodeInfo()
 
-	var network, protocol string
+	var (
+		etherBase common.Address
+		network   string
+		protocol  string
+	)
 	p := s.engine.Protocol()
 	if info := infos.Protocols[p.Name]; info != nil {
 		network = fmt.Sprintf("%d", info.(*eth.NodeInfo).Network)
@@ -389,8 +402,12 @@ func (s *Service) login(conn *websocket.Conn) error {
 		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
+	if s.eth != nil {
+		etherBase, _ = s.eth.Etherbase()
+	}
 	auth := &authMsg{
-		ID: s.node,
+		ID:      s.node,
+		Address: etherBase,
 		Info: nodeInfo{
 			Name:     s.node,
 			Node:     infos.Name,
@@ -474,9 +491,12 @@ type validatorStats struct {
 }
 
 type validatorInfo struct {
-	Address      common.Address `json:"address"`
-	BLSPublicKey []byte         `json:"blsPublicKey"`
-	NodeUrl      string         `json:"nodeUrl"`
+	Address       common.Address `json:"address"`
+	Name          string         `json:"name"`
+	Url           string         `json:"url"`
+	BLSPublicKey  []byte         `json:"blsPublicKey"`
+	NodePublicKey string         `json:"nodeUrl"`
+	Affiliation   common.Address `json:"affiliation"`
 }
 
 // blockStats is the information to report about individual blocks.
@@ -580,6 +600,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
 		header *types.Header
+		state  vm.StateDB
 		td     *big.Int
 		txs    []txStats
 		uncles []*types.Header
@@ -590,6 +611,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			block = s.eth.BlockChain().CurrentBlock()
 		}
 		header = block.Header()
+		state, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
 		txs = make([]txStats, len(block.Transactions()))
@@ -604,6 +626,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		} else {
 			header = s.les.BlockChain().CurrentHeader()
 		}
+		state, _ = s.les.BlockChain().State()
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -622,15 +645,26 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		valsElected = append(valsElected, validatorInfo{
 			Address:      valsElectedWithoutEnode[i].Address(),
 			BLSPublicKey: valsElectedWithoutEnode[i].BLSPublicKey(),
-			// NodeUrl:      s.backend.GetValidatorEnodeUsingAddress(valsElectedWithoutEnode[i].Address()),
+			// NodePublicKey: s.backend.valEnodeTable.GetEnodeURLFromAddress(valsElectedWithoutEnode[i].Address()),
 		})
 	}
 
 	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
 	valsRegistered := make([]validatorInfo, 0, len(valsRegisteredMap))
+
 	for _, address := range valsRegisteredMap {
+		var valData validators.ValidatorContractData
+		valData, _ = validators.GetValidator(
+			s.eth.BlockChain().CurrentHeader(),
+			state,
+			address)
+
 		valsRegistered = append(valsRegistered, validatorInfo{
-			Address: address,
+			Address:      address,
+			Name:         valData.Name,
+			Url:          valData.Url,
+			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
+			Affiliation:  valData.Affiliation,
 		})
 	}
 
@@ -749,6 +783,7 @@ type nodeStats struct {
 	Active   bool `json:"active"`
 	Syncing  bool `json:"syncing"`
 	Mining   bool `json:"mining"`
+	Elected  bool `json:"elected"`
 	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
 	GasPrice int  `json:"gasPrice"`
@@ -760,14 +795,31 @@ type nodeStats struct {
 func (s *Service) reportStats(conn *websocket.Conn) error {
 	// Gather the syncing and mining infos from the local miner instance
 	var (
-		mining   bool
-		hashrate int
-		syncing  bool
-		gasprice int
+		etherBase common.Address
+		mining    bool
+		elected   bool
+		hashrate  int
+		syncing   bool
+		gasprice  int
 	)
 	if s.eth != nil {
+		etherBase, _ = s.eth.Etherbase()
+		block := s.eth.BlockChain().CurrentBlock()
+
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
+
+		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
+		var valsElectedAddresses = make([]common.Address, len(valsElected))
+
+		elected = false
+
+		for i := range valsElected {
+			valsElectedAddresses = append(valsElectedAddresses, valsElected[i].Address())
+			if valsElected[i].Address() == etherBase {
+				elected = true
+			}
+		}
 
 		sync := s.eth.Downloader().Progress()
 		syncing = s.eth.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
@@ -782,10 +834,12 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	log.Trace("Sending node details to ethstats")
 
 	stats := map[string]interface{}{
-		"id": s.node,
+		"id":      s.node,
+		"address": etherBase,
 		"stats": &nodeStats{
 			Active:   true,
 			Mining:   mining,
+			Elected:  elected,
 			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,
