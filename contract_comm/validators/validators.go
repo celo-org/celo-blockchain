@@ -133,7 +133,7 @@ const validatorsABIString string = `[
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 
-func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[common.Address]bool, error) {
+func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
@@ -141,13 +141,7 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) (map[c
 		return nil, err
 	}
 
-	returnMap := make(map[common.Address]bool)
-
-	for _, address := range regVals {
-		returnMap[address] = true
-	}
-
-	return returnMap, nil
+	return regVals, nil
 }
 
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {

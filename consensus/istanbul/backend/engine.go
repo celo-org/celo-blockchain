@@ -31,7 +31,7 @@ import (
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -82,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errOldMessage is returned when the received announce message's block number is earlier
-	// than a previous received message
-	errOldAnnounceMessage = errors.New("old announce message")
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
@@ -709,6 +706,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	if len(headers) > 0 {
 		var err error
+		log.Trace("Snapshot headers len greater than 0", "headers", headers)
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
 			log.Error("Unable to apply headers to snapshots", "headers", headers)
