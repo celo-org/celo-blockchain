@@ -144,7 +144,6 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
 		validator := struct {
-			Url            string
 			PublicKeysData []byte
 			Affiliation    common.Address
 			Score          *big.Int

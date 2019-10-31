@@ -120,7 +120,6 @@ func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Addr
 	// Get the new epoch's validator set
 	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidators", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
 	if err != nil {
-		log.Error("GetElectedValidators failed", "err", err)
 		return nil, err
 	}
 	return newValSet, nil
