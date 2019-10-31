@@ -98,13 +98,13 @@ const (
 )
 
 var (
-	gasPriceMinimumABI, _                      = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackProposerFraction *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum  *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier     *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _                 = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackBurnFraction    *BurnFraction = &BurnFraction{big.NewInt(0), big.NewInt(1)}
+	FallbackGasPriceMinimum *big.Int      = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier    *big.Int      = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
-type ProposerFraction struct {
+type BurnFraction struct {
 	Numerator   *big.Int
 	Denominator *big.Int
 }
@@ -176,24 +176,24 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 	return updatedGasPriceMinimum, err
 }
 
-// Returns the fraction of the gasprice min that should be allocated to the proposer
-func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFraction, error) {
-	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
+// Returns the fraction of the gasprice min should be burned.
+func GetBurnFraction(header *types.Header, state vm.StateDB) (*BurnFraction, error) {
+	burnFraction := [2]*big.Int{FallbackBurnFraction.Numerator, FallbackBurnFraction.Denominator} // As a fallback, do not burn gas fees.
 
 	_, err := contract_comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"proposerFraction_",
 		[]interface{}{},
-		&infraFraction,
-		params.MaxGasForProposerFraction,
+		&burnFraction,
+		params.MaxGasForBurnFraction,
 		header,
 		state,
 	)
 
 	if err != nil {
-		return FallbackProposerFraction, err
+		return FallbackBurnFraction, err
 	}
 
-	return &ProposerFraction{infraFraction[0], infraFraction[1]}, err
+	return &BurnFraction{burnFraction[0], burnFraction[1]}, err
 }
