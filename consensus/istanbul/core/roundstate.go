@@ -47,11 +47,6 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prep
 	}
 }
 
-// sequence -> sequence: commit -> parentcommit
-// round -> round: parentcommit -> parentcommit
-// modify backlog handelr to allow us to accept commits from the previous
-// sequence and put them in to parent commits
-
 // roundState stores the consensus state
 type roundState struct {
 	round               *big.Int

@@ -60,10 +60,9 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	// as soon as we move on to the next sequence, we discard any messages from
 	// a previous sequence as invalid old messages if they are not Commits
 	if view.Cmp(c.currentView()) < 0 {
-		// let commits from previous views through so that the handler adds them
-		// to the view's parent commits.
-		// TODO: Should we let old rounds through as well? The view.Cmp function
-		// returns <0 if the sequences are equal and uses the round as a tiebreaker.
+		// let commits from previous sequencse through so that the handler adds them
+		// to the view's parent commits (the round does not matter in this case,
+		// since all rounds after a block is "locked" should be the same)
 		viewSequencePlusOne := big.NewInt(0).Add(view.Sequence, common.Big1)
 		// if the received view's sequence +1 equals the current view, then the
 		// received view corresponsd to the parent block

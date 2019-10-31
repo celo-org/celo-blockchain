@@ -86,20 +86,10 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return err
 	}
 
-	/*
-		notes (will delete)
-		ok 0. pull the validator set for the previous block
-		ok 1. check if the message was signed by a validator from the previous sequence
-		2. is the message that was signed actually the correct commit mesage for
-		that previous block?
-		3. check that the block hash that i signed last round, is the same as the
-		one i received
-	*/
-
 	msgSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
 	// if the received view's sequence +1 equals the current view, then the
 	// received view corresponsd to the parent block
-	if msg.Code == istanbul.MsgCommit && c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
+	if c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
 		// Retrieve the validator set for the previous proposal (which should
 		// match the one broadcast
 		parentValset := c.backend.ParentValidators(c.current.Proposal())
