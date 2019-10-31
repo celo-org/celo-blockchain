@@ -1,4 +1,5 @@
-use rand::{Rand, Rng};
+use rand::{Rng, distributions::{Standard, Distribution}};
+use crate::UniformRand;
 use std::{
     cmp::Ordering,
     io::{Read, Result as IoResult, Write},
@@ -220,6 +221,36 @@ impl<P: Fp6Parameters> PartialOrd for Fp6<P> {
     }
 }
 
+impl<P: Fp6Parameters> From<u128> for Fp6<P> {
+    fn from(other: u128) -> Self {
+        Self::new(other.into(), Fp3::zero())
+    }
+}
+
+impl<P: Fp6Parameters> From<u64> for Fp6<P> {
+    fn from(other: u64) -> Self {
+        Self::new(other.into(), Fp3::zero())
+    }
+}
+
+impl<P: Fp6Parameters> From<u32> for Fp6<P> {
+    fn from(other: u32) -> Self {
+        Self::new(other.into(), Fp3::zero())
+    }
+}
+
+impl<P: Fp6Parameters> From<u16> for Fp6<P> {
+    fn from(other: u16) -> Self {
+        Self::new(other.into(), Fp3::zero())
+    }
+}
+
+impl<P: Fp6Parameters> From<u8> for Fp6<P> {
+    fn from(other: u8) -> Self {
+        Self::new(other.into(), Fp3::zero())
+    }
+}
+
 impl<P: Fp6Parameters> ToBytes for Fp6<P> {
     #[inline]
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
@@ -247,15 +278,13 @@ impl<P: Fp6Parameters> Neg for Fp6<P> {
     }
 }
 
-impl<P: Fp6Parameters> Rand for Fp6<P> {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Fp6 {
-            c0:          rng.gen(),
-            c1:          rng.gen(),
-            _parameters: PhantomData,
-        }
+impl<P: Fp6Parameters> Distribution<Fp6<P>> for Standard {
+    #[inline]
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Fp6<P> {
+        Fp6::new(UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
+
 
 impl<'a, P: Fp6Parameters> Add<&'a Fp6<P>> for Fp6<P> {
     type Output = Self;

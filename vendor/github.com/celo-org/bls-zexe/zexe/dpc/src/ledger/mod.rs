@@ -1,38 +1,25 @@
+pub use crypto_primitives::merkle_tree::*;
 use crate::dpc::Transaction;
-use algebra::bytes::ToBytes;
 use crate::Error;
 use rand::Rng;
 
 pub mod ideal_ledger;
 pub use self::ideal_ledger::*;
 
-pub trait LedgerDigest: Clone + ToBytes + Default + Eq {
-    type Parameters: Clone + Default;
-}
-pub trait LedgerWitness<D: LedgerDigest>: Clone + Default {
-    fn dummy_witness() -> Self;
-}
-
 pub trait Ledger {
-    type Parameters: Clone + Default;
-    type LedgerStateDigest: LedgerDigest<Parameters = Self::Parameters>;
+    type Parameters: MerkleTreeConfig;
 
     type Commitment;
-    type CommWitness: Clone + LedgerWitness<Self::LedgerStateDigest>;
-
     type SerialNumber;
-    type SnWitness: LedgerWitness<Self::LedgerStateDigest>;
-
     type Memo;
-    type MemoWitness: LedgerWitness<Self::LedgerStateDigest>;
 
     type Transaction: Transaction;
 
-    fn setup<R: Rng>(rng: &mut R) -> Result<Self::Parameters, Error>;
+    fn setup<R: Rng>(rng: &mut R) -> Result<MerkleTreeParams<Self::Parameters>, Error>;
 
     /// Creates an empty ledger
     fn new(
-        parameters: Self::Parameters,
+        parameters: MerkleTreeParams<Self::Parameters>,
         dummy_cm: Self::Commitment,
         dummy_sn: Self::SerialNumber,
         dummy_memo: Self::Memo,
@@ -42,44 +29,44 @@ pub trait Ledger {
     fn len(&self) -> usize;
 
     /// Return the parameters used to construct the ledger data structure.
-    fn parameters(&self) -> &Self::Parameters;
+    fn parameters(&self) -> &MerkleTreeParams<Self::Parameters>;
 
     /// Append a (valid) transaction tx to the ledger.
     fn push(&mut self, transaction: Self::Transaction) -> Result<(), Error>;
 
     /// Return a short digest of the current state of the transaction set data
     /// structure.
-    fn digest(&self) -> Option<Self::LedgerStateDigest>;
+    fn digest(&self) -> Option<MerkleTreeDigest<Self::Parameters>>;
 
     /// Check that st_{ts} is a valid digest for some (past) ledger state.
-    fn validate_digest(&self, digest: &Self::LedgerStateDigest) -> bool;
+    fn validate_digest(&self, digest: &MerkleTreeDigest<Self::Parameters>) -> bool;
 
     fn contains_cm(&self, cm: &Self::Commitment) -> bool;
     fn contains_sn(&self, sn: &Self::SerialNumber) -> bool;
     fn contains_memo(&self, memo: &Self::Memo) -> bool;
 
-    fn prove_cm(&self, cm: &Self::Commitment) -> Result<Self::CommWitness, Error>;
-    fn prove_sn(&self, sn: &Self::SerialNumber) -> Result<Self::SnWitness, Error>;
-    fn prove_memo(&self, memo: &Self::Memo) -> Result<Self::MemoWitness, Error>;
+    fn prove_cm(&self, cm: &Self::Commitment) -> Result<MerkleTreePath<Self::Parameters>, Error>;
+    fn prove_sn(&self, sn: &Self::SerialNumber) -> Result<MerkleTreePath<Self::Parameters>, Error>;
+    fn prove_memo(&self, memo: &Self::Memo) -> Result<MerkleTreePath<Self::Parameters>, Error>;
 
     fn verify_cm(
-        params: &Self::Parameters,
-        digest: &Self::LedgerStateDigest,
+        parameters: &MerkleTreeParams<Self::Parameters>,
+        digest: &MerkleTreeDigest<Self::Parameters>,
         cm: &Self::Commitment,
-        witness: &Self::CommWitness,
+        witness: &MerkleTreePath<Self::Parameters>,
     ) -> bool;
 
     fn verify_sn(
-        params: &Self::Parameters,
-        digest: &Self::LedgerStateDigest,
+        parameters: &MerkleTreeParams<Self::Parameters>,
+        digest: &MerkleTreeDigest<Self::Parameters>,
         sn: &Self::SerialNumber,
-        witness: &Self::SnWitness,
+        witness: &MerkleTreePath<Self::Parameters>,
     ) -> bool;
 
     fn verify_memo(
-        params: &Self::Parameters,
-        digest: &Self::LedgerStateDigest,
+        parameters: &MerkleTreeParams<Self::Parameters>,
+        digest: &MerkleTreeDigest<Self::Parameters>,
         memo: &Self::Memo,
-        witness: &Self::MemoWitness,
+        witness: &MerkleTreePath<Self::Parameters>,
     ) -> bool;
 }
