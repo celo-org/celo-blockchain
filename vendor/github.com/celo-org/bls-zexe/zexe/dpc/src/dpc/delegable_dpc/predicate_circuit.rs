@@ -1,16 +1,16 @@
+use crypto_primitives::CommitmentScheme;
 use crate::{
-    crypto_primitives::CommitmentScheme,
     delegable_dpc::*,
     dpc::{delegable_dpc::DPCRecord, Record},
-    gadgets::Assignment,
+    constraints::Assignment,
 };
-use snark_gadgets::{uint8::UInt8, utils::AllocGadget};
+use r1cs_std::prelude::*;
 use std::io::{Result as IoResult, Write};
 
-use algebra::{bytes::ToBytes, utils::ToEngineFr, PairingEngine};
+use algebra::{bytes::ToBytes, ToConstraintField};
 
 // We'll use these interfaces to construct our circuit.
-use snark::{Circuit, ConstraintSystem, SynthesisError};
+use r1cs_core::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 
 use crate::Error;
 
@@ -112,15 +112,15 @@ pub struct PredicateLocalData<C: DelegableDPCComponents> {
 }
 
 // Convert each component to bytes and pack into field elements.
-impl<C: DelegableDPCComponents> ToEngineFr<C::E> for PredicateLocalData<C>
+impl<C: DelegableDPCComponents> ToConstraintField<C::CoreCheckF> for PredicateLocalData<C>
 where
-    <C::LocalDataComm as CommitmentScheme>::Output: ToEngineFr<C::E>,
-    <C::LocalDataComm as CommitmentScheme>::Parameters: ToEngineFr<C::E>,
+    <C::LocalDataComm as CommitmentScheme>::Output: ToConstraintField<C::CoreCheckF>,
+    <C::LocalDataComm as CommitmentScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
 {
-    fn to_engine_fr(&self) -> Result<Vec<<C::E as PairingEngine>::Fr>, Error> {
-        let mut v = ToEngineFr::<C::E>::to_engine_fr([self.position].as_ref())?;
-        v.extend_from_slice(&self.local_data_comm_pp.to_engine_fr()?);
-        v.extend_from_slice(&self.local_data_comm.to_engine_fr()?);
+    fn to_field_elements(&self) -> Result<Vec<C::CoreCheckF>, Error> {
+        let mut v = ToConstraintField::<C::CoreCheckF>::to_field_elements([self.position].as_ref())?;
+        v.extend_from_slice(&self.local_data_comm_pp.to_field_elements()?);
+        v.extend_from_slice(&self.local_data_comm.to_field_elements()?);
         Ok(v)
     }
 }
@@ -161,8 +161,8 @@ impl<C: DelegableDPCComponents> EmptyPredicateCircuit<C> {
     }
 }
 
-impl<C: DelegableDPCComponents> Circuit<C::E> for EmptyPredicateCircuit<C> {
-    fn synthesize<CS: ConstraintSystem<C::E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
+impl<C: DelegableDPCComponents> ConstraintSynthesizer<C::CoreCheckF> for EmptyPredicateCircuit<C> {
+    fn generate_constraints<CS: ConstraintSystem<C::CoreCheckF>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
         let _position = UInt8::alloc_input_vec(cs.ns(|| "Alloc position"), &[self.position])?;
 
         let _local_data_comm_pp =
