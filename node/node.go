@@ -176,15 +176,11 @@ func (n *Node) Start() error {
 		// discovery databases.
 		n.proxyServerConfig = n.config.ProxyP2P
 		n.proxyServerConfig.NoDiscovery = true
+		// There can only be 1 peer within the internal network
+		n.proxyServerConfig.MaxPeers = 1
 		n.proxyServerConfig.PrivateKey = n.config.NodeKey()
 		n.proxyServerConfig.Name = n.config.NodeName()
 		n.proxyServerConfig.Logger = n.log
-		if n.proxyServerConfig.StaticNodes == nil {
-			n.proxyServerConfig.StaticNodes = n.config.ProxiedNodes()
-		}
-		// if n.proxyServerConfig.TrustedNodes == nil {
-		// 	n.proxyServerConfig.TrustedNodes = n.config.TrustedNodes()
-		// }
 		if n.proxyServerConfig.NodeDatabase == "" {
 			n.proxyServerConfig.NodeDatabase = n.config.ProxiedNodeDB()
 		}

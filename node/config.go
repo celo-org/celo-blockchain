@@ -42,7 +42,6 @@ const (
 	datadirDefaultKeyStore     = "keystore"           // Path within the datadir to the keystore
 	datadirStaticNodes         = "static-nodes.json"  // Path within the datadir to the static node list
 	datadirTrustedNodes        = "trusted-nodes.json" // Path within the datadir to the trusted node list
-	datadirProxiedNodes        = "proxied-nodes.json" // Path within the datadir to the proxied node list
 	datadirNodeDatabase        = "nodes"              // Path within the datadir to store the node infos
 	datadirProxiedNodeDatabase = "proxied-nodes"
 )
@@ -285,7 +284,6 @@ var isOldGethResource = map[string]bool{
 	"nodekey":            true,
 	"static-nodes.json":  false, // no warning for these because they have their
 	"trusted-nodes.json": false, // own separate warning.
-	"proxied-nodes.json": false,
 }
 
 // ResolvePath resolves path in the instance directory.
@@ -366,11 +364,6 @@ func (c *Config) StaticNodes() []*enode.Node {
 // TrustedNodes returns a list of node enode URLs configured as trusted nodes.
 func (c *Config) TrustedNodes() []*enode.Node {
 	return c.parsePersistentNodes(&c.trustedNodesWarning, c.ResolvePath(datadirTrustedNodes))
-}
-
-// ProxiedNodes returns a list of node enode URLs configured as trusted nodes.
-func (c *Config) ProxiedNodes() []*enode.Node {
-	return c.parsePersistentNodes(&c.proxiedNodesWarning, c.ResolvePath(datadirProxiedNodes))
 }
 
 // parsePersistentNodes parses a list of discovery node URLs loaded from a .json
