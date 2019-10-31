@@ -374,7 +374,7 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignPoP()
+	signature, err := privateKey.SignPoP(a.Address.Bytes())
 	if err != nil {
 		return nil, err
 	}

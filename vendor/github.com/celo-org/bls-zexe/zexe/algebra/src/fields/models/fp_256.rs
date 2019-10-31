@@ -1,4 +1,3 @@
-use rand::Rand;
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     fmt::{Display, Formatter, Result as FmtResult},
@@ -370,6 +369,14 @@ impl<P: Fp256Parameters> SquareRootField for Fp256<P> {
     }
 }
 
+impl_prime_field_from_int!(Fp256, u128, Fp256Parameters);
+impl_prime_field_from_int!(Fp256, u64, Fp256Parameters);
+impl_prime_field_from_int!(Fp256, u32, Fp256Parameters);
+impl_prime_field_from_int!(Fp256, u16, Fp256Parameters);
+impl_prime_field_from_int!(Fp256, u8, Fp256Parameters);
+
+impl_prime_field_standard_sample!(Fp256, Fp256Parameters);
+
 impl<P: Fp256Parameters> ToBytes for Fp256<P> {
     #[inline]
     fn write<W: Write>(&self, writer: W) -> IoResult<()> {
@@ -466,22 +473,6 @@ impl<P: Fp256Parameters> Neg for Fp256<P> {
             Fp256::<P>(tmp, PhantomData)
         } else {
             self
-        }
-    }
-}
-
-impl<P: Fp256Parameters> Rand for Fp256<P> {
-    #[inline]
-    fn rand<R: ::rand::Rng>(rng: &mut R) -> Self {
-        loop {
-            let mut tmp = Fp256::<P>(BigInteger::rand(rng), PhantomData);
-
-            // Mask away the unused bits at the beginning.
-            tmp.0.as_mut()[3] &= 0xffffffffffffffff >> P::REPR_SHAVE_BITS;
-
-            if tmp.is_valid() {
-                return tmp;
-            }
         }
     }
 }
