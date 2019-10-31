@@ -58,7 +58,8 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	}
 
 	// as soon as we move on to the next sequence, we discard any messages from
-	// a previous sequence as invalid old messages if they are not Commits
+	// a past sequence as invalid old messages unless they are Commits of the
+	// previous sequence
 	if view.Cmp(c.currentView()) < 0 {
 		// let commits from previous sequencse through so that the handler adds them
 		// to the view's parent commits (the round does not matter in this case,

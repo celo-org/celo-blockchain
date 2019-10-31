@@ -244,9 +244,15 @@ func TestValSetChange(t *testing.T) {
 			Mixhash:    types.IstanbulDigest,
 			Config:     params.TestChainConfig,
 		}
+		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
+		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
 		b := genesis.ToBlock(nil)
-		extra, _ := assembleExtra(b.Header(), []istanbul.ValidatorData{}, validators)
-		genesis.ExtraData = extra
+		h := b.Header()
+		err := writeValidatorSetDiff(h, []istanbul.ValidatorData{}, validators)
+		if err != nil {
+			t.Errorf("Could not update genesis validator set, got err: %v", err)
+		}
+		genesis.ExtraData = h.Extra
 		db := ethdb.NewMemDatabase()
 
 		config := istanbul.DefaultConfig

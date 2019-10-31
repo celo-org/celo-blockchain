@@ -382,21 +382,11 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 
 			// add validators in snapshot to extraData's validators section
-			extra, err := assembleExtra(header, snap.validators(), newValSet)
-			if err != nil {
-				return err
-			}
-			header.Extra = extra
-			return nil
+			return writeValidatorSetDiff(header, snap.validators(), newValSet)
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
-	extra, err := assembleExtra(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
-	if err != nil {
-		return err
-	}
-	header.Extra = extra
-	return nil
+	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
 // Returns whether or not a particular header represents the last block in the epoch.
@@ -785,18 +775,14 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	return addr, nil
 }
 
-// assembleExtra returns a extra-data of the given header and validators
-func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) ([]byte, error) {
-	var buf bytes.Buffer
-
+// writeValidatorSetDiff updates the header extras to the new valset diff
+func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
 	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
 	if len(header.Extra) < types.IstanbulExtraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
 	}
-	buf.Write(header.Extra[:types.IstanbulExtraVanity])
 
 	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
-
 	addedValidatorsAddresses, addedValidatorsPublicKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
 
 	if len(addedValidators) > 0 || removedValidators.BitLen() > 0 {
@@ -806,34 +792,30 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
-	var bitmap *big.Int
-	var parentCommit []byte
 	extras, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
-		bitmap = big.NewInt(0)
-		parentCommit = []byte{}
+		// if the extras could not be calculated, initialize a new struct with
+		// the validator diff set
+		extras = &types.IstanbulExtra{
+			AddedValidators:           addedValidatorsAddresses,
+			AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
+			RemovedValidators:         removedValidators,
+		}
 	} else {
-		bitmap = extras.ParentBitmap
-		parentCommit = extras.ParentCommit
+		// otherwise update the diff in the existing extras
+		extras.AddedValidators = addedValidatorsAddresses
+		extras.AddedValidatorsPublicKeys = addedValidatorsPublicKeys
+		extras.RemovedValidators = removedValidators
 	}
 
-	ist := &types.IstanbulExtra{
-		AddedValidators:           addedValidatorsAddresses,
-		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
-		RemovedValidators:         removedValidators,
-		Seal:                      []byte{},
-		CommittedSeal:             []byte{},
-		// ensure the ParentCommit does not get overwritten
-		ParentCommit: parentCommit,
-		ParentBitmap: bitmap,
-	}
-
-	payload, err := rlp.EncodeToBytes(&ist)
+	// update the header's extra with the new diff
+	payload, err := rlp.EncodeToBytes(extras)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], payload...)
 
-	return append(buf.Bytes(), payload...), nil
+	return nil
 }
 
 // writeSeal writes the extra-data field of the given header with the given seals.

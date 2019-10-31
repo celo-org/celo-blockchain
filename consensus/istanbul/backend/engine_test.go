@@ -43,6 +43,7 @@ import (
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
@@ -655,29 +656,50 @@ func TestPrepareExtra(t *testing.T) {
 		make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 
-	vanity := make([]byte, types.IstanbulExtraVanity)
-	expectedResult := append(vanity, hexutil.MustDecode("0xf896ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440f862b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003808080808080")...)
-
+	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: [][]byte{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      []byte{},
+		Bitmap:                    big.NewInt(0),
+		CommittedSeal:             []byte{},
+		EpochData:                 []byte{},
+		ParentCommit:              []byte{},
+		ParentBitmap:              big.NewInt(0),
+	})
 	h := &types.Header{
-		Extra: vanity,
+		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
 
-	payload, err := assembleExtra(h, oldValidators, newValidators)
+	err = writeValidatorSetDiff(h, oldValidators, newValidators)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
 
-	if !reflect.DeepEqual(payload, expectedResult) {
-		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
+	// the header must have the updated extra data
+	updatedExtra, err := types.ExtractIstanbulExtra(h)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
 
-	// append useless information to extra-data
-	h.Extra = append(vanity, make([]byte, 15)...)
-
-	payload, err = assembleExtra(h, oldValidators, newValidators)
-	if !reflect.DeepEqual(payload, expectedResult) {
-		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
+	var updatedExtraVals []istanbul.ValidatorData
+	for i := range updatedExtra.AddedValidators {
+		updatedExtraVals = append(updatedExtraVals, istanbul.ValidatorData{
+			Address:      updatedExtra.AddedValidators[i],
+			BLSPublicKey: updatedExtra.AddedValidatorsPublicKeys[i],
+		})
 	}
+
+	if !reflect.DeepEqual(updatedExtraVals, newValidators) {
+		t.Errorf("validators were not properly updated")
+	}
+
+	// the validators which were removed were 2, so the bitmpa is 11, meaning it
+	// should be 3
+	if updatedExtra.RemovedValidators.Cmp(big.NewInt(3)) != 0 {
+		t.Errorf("Invalid removed validators bitmap, got %v, want %v", updatedExtra.RemovedValidators, big.NewInt(3))
+	}
+
 }
 
 func TestWriteSeal(t *testing.T) {
