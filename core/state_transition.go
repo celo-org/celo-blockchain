@@ -66,7 +66,6 @@ type StateTransition struct {
 	state           vm.StateDB
 	evm             *vm.EVM
 	gasPriceMinimum *big.Int
-	burnFraction    *gpm.BurnFraction
 }
 
 // Message represents a message sent to a contract.
@@ -80,6 +79,7 @@ type Message interface {
 	// nil correspond to Celo Gold (native currency).
 	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	GasCurrency() *common.Address
+	// TODO: GasFeeRecipient is currently inactive and will be replaced by GatewayFeeRecipient.
 	GasFeeRecipient() *common.Address
 	Value() *big.Int
 
@@ -141,7 +141,6 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.GasCurrency(), evm.GetHeader(), evm.GetStateDB())
-	burnFraction, _ := gpm.GetBurnFraction(evm.GetHeader(), evm.GetStateDB())
 
 	return &StateTransition{
 		gp:              gp,
@@ -152,7 +151,6 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 		data:            msg.Data(),
 		state:           evm.StateDB,
 		gasPriceMinimum: gasPriceMinimum,
-		burnFraction:    burnFraction,
 	}
 }
 
@@ -378,10 +376,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
-	// Divide the base into a portion which will be burned and a portion that will be credited to the infrastructure fund.
-	// Note: It is crucial that no portion of the base is given to the proposer.
-	burnedTxFee := new(big.Int).Div(new(big.Int).Mul(baseTxFee, st.burnFraction.Numerator), st.burnFraction.Denominator)
-	infraFundTxFee := new(big.Int).Sub(baseTxFee, burnedTxFee)
 
 	if err = st.creditGas(st.evm.Coinbase, tipTxFee, msg.GasCurrency()); err != nil {
 		return nil, 0, false, err
@@ -389,12 +383,12 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, evm)
 	if err != nil {
-		log.Trace("Cannot credit gas fee to infrastructure fund", "error", err)
+		log.Trace("Cannot credit gas fee to infrastructure fund: burning the fee", "error", err, "fee", baseTxFee)
 		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 			return nil, 0, false, err
 		}
 	} else {
-		if err = st.creditGas(*governanceAddress, infraFundTxFee, msg.GasCurrency()); err != nil {
+		if err = st.creditGas(*governanceAddress, baseTxFee, msg.GasCurrency()); err != nil {
 			return nil, 0, false, err
 		}
 	}

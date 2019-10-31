@@ -35,24 +35,6 @@ const (
 	gasPriceMinimumABIString = `[
     {
       "constant": true,
-      "inputs": [],
-      "name": "proposerFraction_",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
       "inputs": [
         {
           "name": "_tokenAddress",
@@ -98,16 +80,10 @@ const (
 )
 
 var (
-	gasPriceMinimumABI, _                 = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackBurnFraction    *BurnFraction = &BurnFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum *big.Int      = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier    *big.Int      = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _            = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gasprice min to return if contracts are not found
+	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
-
-type BurnFraction struct {
-	Numerator   *big.Int
-	Denominator *big.Int
-}
 
 func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(currency, header, state)
@@ -174,26 +150,4 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		return nil, err
 	}
 	return updatedGasPriceMinimum, err
-}
-
-// Returns the fraction of the gasprice min should be burned.
-func GetBurnFraction(header *types.Header, state vm.StateDB) (*BurnFraction, error) {
-	burnFraction := [2]*big.Int{FallbackBurnFraction.Numerator, FallbackBurnFraction.Denominator} // As a fallback, do not burn gas fees.
-
-	_, err := contract_comm.MakeStaticCall(
-		params.GasPriceMinimumRegistryId,
-		gasPriceMinimumABI,
-		"proposerFraction_",
-		[]interface{}{},
-		&burnFraction,
-		params.MaxGasForBurnFraction,
-		header,
-		state,
-	)
-
-	if err != nil {
-		return FallbackBurnFraction, err
-	}
-
-	return &BurnFraction{burnFraction[0], burnFraction[1]}, err
 }
