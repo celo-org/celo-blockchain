@@ -298,66 +298,76 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 
 	for {
 		// Retrieve the next generic network packet and bail out on error
-		var msg map[string][]interface{}
+		var msg interface{}
 		if err := websocket.JSON.Receive(conn, &msg); err != nil {
 			log.Warn("Failed to decode stats server message", "err", err)
 			return
 		}
-		log.Trace("Received message from stats server", "msg", msg)
-		if len(msg["emit"]) == 0 {
-			log.Warn("Stats server sent non-broadcast", "msg", msg)
-			return
-		}
 
-		command, ok := msg["emit"][0].(string)
-		if !ok {
-			log.Warn("Invalid stats server message type", "type", msg["emit"][0])
-			return
-		}
-		// If the message is a ping reply, deliver (someone must be listening!)
-		if len(msg["emit"]) == 2 && command == "node-pong" {
-			select {
-			case s.pongCh <- struct{}{}:
-				// Pong delivered, continue listening
-				continue
-			default:
-				// Ping routine dead, abort
-				log.Warn("Stats server pinger seems to have died")
+		switch packet := msg.(type) {
+		case map[string]interface{}:
+			msgEmit, _ := packet["emit"].([]interface{})
+
+			log.Trace("Received message from stats server", "msgEmit", msgEmit)
+			if len(msgEmit) == 0 {
+				log.Warn("Stats server sent non-broadcast", "msgEmit", msgEmit)
 				return
 			}
-		}
-		// If the message is a history request, forward to the event processor
-		if len(msg["emit"]) == 2 && command == "history" {
-			// Make sure the request is valid and doesn't crash us
-			request, ok := msg["emit"][1].(map[string]interface{})
+
+			command, ok := msgEmit[0].(string)
 			if !ok {
-				log.Warn("Invalid stats history request", "msg", msg["emit"][1])
-				s.histCh <- nil
-				continue // Ethstats sometime sends invalid history requests, ignore those
-			}
-			list, ok := request["list"].([]interface{})
-			if !ok {
-				log.Warn("Invalid stats history block list", "list", request["list"])
+				log.Warn("Invalid stats server message type", "type", msgEmit[0])
 				return
 			}
-			// Convert the block number list to an integer list
-			numbers := make([]uint64, len(list))
-			for i, num := range list {
-				n, ok := num.(float64)
-				if !ok {
-					log.Warn("Invalid stats history block number", "number", num)
+			// If the message is a ping reply, deliver (someone must be listening!)
+			if len(msgEmit) == 2 && command == "node-pong" {
+				select {
+				case s.pongCh <- struct{}{}:
+					// Pong delivered, continue listening
+					continue
+				default:
+					// Ping routine dead, abort
+					log.Warn("Stats server pinger seems to have died")
 					return
 				}
-				numbers[i] = uint64(n)
 			}
-			select {
-			case s.histCh <- numbers:
-				continue
-			default:
+			// If the message is a history request, forward to the event processor
+			if len(msgEmit) == 2 && command == "history" {
+				// Make sure the request is valid and doesn't crash us
+				request, ok := msgEmit[1].(map[string]interface{})
+				if !ok {
+					log.Warn("Invalid stats history request", "msg", msgEmit[1])
+					s.histCh <- nil
+					continue // Ethstats sometime sends invalid history requests, ignore those
+				}
+				list, ok := request["list"].([]interface{})
+				if !ok {
+					log.Warn("Invalid stats history block list", "list", request["list"])
+					return
+				}
+				// Convert the block number list to an integer list
+				numbers := make([]uint64, len(list))
+				for i, num := range list {
+					n, ok := num.(float64)
+					if !ok {
+						log.Warn("Invalid stats history block number", "number", num)
+						return
+					}
+					numbers[i] = uint64(n)
+				}
+				select {
+				case s.histCh <- numbers:
+					continue
+				default:
+				}
 			}
+		default:
+			// Report anything else and continue
+			log.Info("Unknown stats message", "msg", msg)
+			// Primus server might want to have a pong or it closes the connection
+			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
+			websocket.JSON.Send(conn, serverTime)
 		}
-		// Report anything else and continue
-		log.Info("Unknown stats message", "msg", msg)
 	}
 }
 
