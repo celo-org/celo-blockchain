@@ -57,10 +57,6 @@ const validatorsABIString string = `[
       "name": "getValidator",
       "outputs": [
         {
-          "name": "name",
-          "type": "string"
-        },
-        {
           "name": "publicKeysData",
           "type": "bytes"
         },
@@ -148,8 +144,6 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
 		validator := struct {
-			Name           string
-			Url            string
 			PublicKeysData []byte
 			Affiliation    common.Address
 			Score          *big.Int
