@@ -150,8 +150,7 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 	if err != nil {
 		return nil, err
 	}
-	scAddress, err := vm.GetRegisteredAddressWithEvm(registryId, vmevm)
-	return scAddress, err
+	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
