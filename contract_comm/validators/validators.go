@@ -57,20 +57,16 @@ const validatorsABIString string = `[
       "name": "getValidator",
       "outputs": [
         {
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "name": "url",
-          "type": "string"
-        },
-        {
           "name": "publicKeysData",
           "type": "bytes"
         },
         {
           "name": "affiliation",
           "type": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256"
         }
       ],
       "payable": false,
@@ -132,10 +128,9 @@ const validatorsABIString string = `[
 ]`
 
 type ValidatorContractData struct {
-	Name           string
-	Url            string
 	PublicKeysData []byte
 	Affiliation    common.Address
+	Score          *big.Int
 }
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
