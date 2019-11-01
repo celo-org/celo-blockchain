@@ -36,10 +36,15 @@ import (
 )
 
 func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
+	err := epoch_rewards.UpdateTargetVotingYield(header, state)
+	if err != nil {
+		return err
+	}
 	validatorEpochPayment, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochPaymentAndRewards(header, state)
 	if err != nil {
 		return err
 	}
+	log.Info("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
 
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -45,11 +46,25 @@ const epochRewardsABIString string = `[
       "payable": false,
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [],
+      "name": "updateTargetVotingYield",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
 ]
 `
 
 var epochRewardsABI, _ = abi.JSON(strings.NewReader(epochRewardsABIString))
+
+func UpdateTargetVotingYield(header *types.Header, state vm.StateDB) error {
+	_, err := contract_comm.MakeCall(params.EpochRewardsRegistryId, epochRewardsABI, "updateTargetVotingYield", []interface{}{}, nil, params.MaxGasForUpdateTargetVotingYield, common.Big0, header, state, false)
+	return err
+}
 
 func CalculateTargetEpochPaymentAndRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, error) {
 	var validatorEpochPayment *big.Int

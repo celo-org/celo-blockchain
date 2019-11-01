@@ -176,11 +176,12 @@ const (
 	MaxGasForGetRegisteredValidators               uint64 = 1000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
+	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForMedianRate                            uint64 = 20000
 	MaxGasForProposerFraction                      uint64 = 200000
-	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
+	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
 )

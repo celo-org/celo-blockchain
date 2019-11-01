@@ -77,17 +77,25 @@ const validatorsABIString string = `[
       "stateMutability": "view",
       "type": "function"
     },
-
-					    {
+    {
       "constant": false,
       "inputs": [
         {
           "name": "validator",
           "type": "address"
+        },
+        {
+          "name": "maxPayment",
+          "type": "uint256"
         }
       ],
       "name": "distributeEpochPayment",
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
