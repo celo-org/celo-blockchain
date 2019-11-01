@@ -198,7 +198,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 				break
 			}
 		}
-		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state)
+		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state, false)
 		if err != nil {
 			return totalRewards, err
 		}

@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -28,14 +27,34 @@ import (
 )
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Election.json
-const epochRewardsABIString string = ``
+const epochRewardsABIString string = `[
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "calculateTargetEpochPaymentAndRewards",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+]
+`
 
 var epochRewardsABI, _ = abi.JSON(strings.NewReader(epochRewardsABIString))
 
 func CalculateTargetEpochPaymentAndRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, error) {
 	var validatorEpochPayment *big.Int
 	var totalVoterRewards *big.Int
-	_, err := contract_comm.MakeCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochPaymentAndRewards", []interface{}{}, &[]interface{}{&validatorEpochPayment, &totalVoterRewards}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, common.Big0, header, state)
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochPaymentAndRewards", []interface{}{}, &[]interface{}{&validatorEpochPayment, &totalVoterRewards}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
 	if err != nil {
 		return nil, nil, err
 	}

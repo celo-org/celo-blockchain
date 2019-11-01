@@ -182,6 +182,7 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 		common.Big0,
 		header,
 		state,
+		false,
 	)
 	return err
 }
@@ -198,6 +199,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 		common.Big0,
 		header,
 		state,
+		false,
 	)
 	return epochPayment, err
 }
