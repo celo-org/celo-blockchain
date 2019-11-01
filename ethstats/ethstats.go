@@ -504,6 +504,7 @@ type validatorInfo struct {
 	Address       common.Address `json:"address"`
 	Name          string         `json:"name"`
 	Url           string         `json:"url"`
+	Score         string         `json:"score"`
 	BLSPublicKey  []byte         `json:"blsPublicKey"`
 	NodePublicKey string         `json:"nodeUrl"`
 	Affiliation   common.Address `json:"affiliation"`
@@ -671,8 +672,9 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 
 		valsRegistered = append(valsRegistered, validatorInfo{
 			Address:      address,
-			Name:         valData.Name,
-			Url:          valData.Url,
+			Score:        fmt.Sprintf("%d", valData.Score),
+			Name:         address.String(),
+			Url:          "no url",
 			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
 			Affiliation:  valData.Affiliation,
 		})
