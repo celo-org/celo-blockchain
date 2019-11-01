@@ -393,7 +393,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-	return ret, st.gasUsed(), vmerr != nil, err
+	return ret, st.gasUsed(), vmerr != nil, nil
 }
 
 func (st *StateTransition) refundGas() error {
