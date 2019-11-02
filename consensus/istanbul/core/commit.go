@@ -88,10 +88,10 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 	msgSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
 	// if the received view's sequence +1 equals the current view, then the
-	// received view corresponsd to the parent block
+	// received view corresponds to the parent block
 	if c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
 		// Retrieve the validator set for the previous proposal (which should
-		// match the one broadcast
+		// match the one broadcast)
 		parentValset := c.backend.ParentValidators(c.current.Proposal())
 		_, validator := parentValset.GetByAddress(msg.Address)
 		if validator == nil {

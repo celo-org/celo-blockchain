@@ -61,12 +61,12 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	// a past sequence as invalid old messages unless they are Commits of the
 	// previous sequence
 	if view.Cmp(c.currentView()) < 0 {
-		// let commits from previous sequencse through so that the handler adds them
+		// let commits from previous sequence through so that the handler adds them
 		// to the view's parent commits (the round does not matter in this case,
 		// since all rounds after a block is "locked" should be the same)
 		viewSequencePlusOne := big.NewInt(0).Add(view.Sequence, common.Big1)
 		// if the received view's sequence +1 equals the current view, then the
-		// received view corresponsd to the parent block
+		// received view corresponds to the parent block
 		if msgCode == istanbul.MsgCommit && c.currentView().Sequence.Cmp(viewSequencePlusOne) == 0 {
 			return nil
 		}

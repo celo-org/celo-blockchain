@@ -248,7 +248,7 @@ func TestValSetChange(t *testing.T) {
 		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
 		b := genesis.ToBlock(nil)
 		h := b.Header()
-		err := writeValidatorSetDiff(h, []istanbul.ValidatorData{}, validators)
+		err := assembleExtra(h, []istanbul.ValidatorData{}, validators)
 		if err != nil {
 			t.Errorf("Could not update genesis validator set, got err: %v", err)
 		}
