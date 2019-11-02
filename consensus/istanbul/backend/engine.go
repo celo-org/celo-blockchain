@@ -382,11 +382,11 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 
 			// add validators in snapshot to extraData's validators section
-			return writeValidatorSetDiff(header, snap.validators(), newValSet)
+			return assembleExtra(header, snap.validators(), newValSet)
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
-	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
+	return assembleExtra(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
 // Returns whether or not a particular header represents the last block in the epoch.
@@ -775,8 +775,9 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	return addr, nil
 }
 
-// writeValidatorSetDiff updates the header extras to the new valset diff
-func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
+// assembleExtra initializes the header's Extra field with any changes in the
+// validator set that occurred since the last block
+func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
 	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
 	if len(header.Extra) < types.IstanbulExtraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
@@ -792,20 +793,18 @@ func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorD
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
-	extras, err := types.ExtractIstanbulExtra(header)
-	if err != nil {
-		// if the extras could not be calculated, initialize a new struct with
-		// the validator diff set
-		extras = &types.IstanbulExtra{
-			AddedValidators:           addedValidatorsAddresses,
-			AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
-			RemovedValidators:         removedValidators,
-		}
-	} else {
-		// otherwise update the diff in the existing extras
-		extras.AddedValidators = addedValidatorsAddresses
-		extras.AddedValidatorsPublicKeys = addedValidatorsPublicKeys
-		extras.RemovedValidators = removedValidators
+	// if the extras could not be calculated, initialize a new struct with
+	// the validator diff set
+	extras := &types.IstanbulExtra{
+		AddedValidators:           addedValidatorsAddresses,
+		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
+		RemovedValidators:         removedValidators,
+		Seal:                      []byte{},
+		Bitmap:                    big.NewInt(0),
+		CommittedSeal:             []byte{},
+		EpochData:                 []byte{},
+		ParentBitmap:              big.NewInt(0),
+		ParentCommit:              []byte{},
 	}
 
 	// update the header's extra with the new diff

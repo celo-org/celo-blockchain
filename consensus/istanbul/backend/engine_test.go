@@ -671,7 +671,7 @@ func TestPrepareExtra(t *testing.T) {
 		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
 
-	err = writeValidatorSetDiff(h, oldValidators, newValidators)
+	err = assembleExtra(h, oldValidators, newValidators)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
