@@ -175,7 +175,12 @@ func (c *core) commit() {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
+		c.logger.Debug("PARENT COMMITS IN CORE", "parent commit", c.current.ParentCommits)
 		bitmap, asig := AggregateSeals(c.current.Commits)
+		block, _ := proposal.(*types.Block)
+		header := block.Header()
+		extra, _ := types.ExtractIstanbulExtra(header)
+		c.logger.Debug("PARENT COMMITS IN HEADER in CORE", "parent commit", extra.ParentCommit)
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.sendNextRoundChange()
 			return
@@ -188,7 +193,6 @@ func (c *core) commit() {
 // TODO: Maybe return an error instead of panicking?
 func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
 	bitmap := big.NewInt(0)
-	publicKeys := [][]byte{}
 	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
@@ -197,12 +201,9 @@ func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
 		if err != nil {
 			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
 		}
-		publicKey, err := seals.GetAddressPublicKey(v.Address)
 		if err != nil {
 			panic(fmt.Sprintf("couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
 		}
-
-		publicKeys = append(publicKeys, publicKey)
 
 		bitmap.SetBit(bitmap, int(j), 1)
 	}
@@ -213,6 +214,38 @@ func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
 	}
 
 	return bitmap, asig
+}
+
+// Combines a BLS aggregated signature with an array of signatures. Accounts for
+// double aggregating the same signature by only adding aggregating if the
+// validator was not found in the previous bitmap.
+// This function assumes that the provided seals' validator set is the same one
+// which produced the provided bitmap
+func UnionOfSeals(bitmap *big.Int, aggregatedSig []byte, seals *messageSet) (*big.Int, []byte) {
+	// Check who already has signed the message
+	newBitmap := bitmap
+	committedSeals := [][]byte{}
+	committedSeals = append(committedSeals, aggregatedSig)
+	for _, v := range seals.Values() {
+		valIndex, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+		}
+
+		// if the bit was not set, this means we should add this signature to
+		// the batch
+		if bitmap.Bit(int(valIndex)) == 0 {
+			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
+			committedSeals = append(committedSeals, v.CommittedSeal)
+		}
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		panic("couldn't aggregate signatures")
+	}
+
+	return newBitmap, asig
 }
 
 // Generates the next preprepare request and associated round change certificate
