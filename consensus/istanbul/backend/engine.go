@@ -369,7 +369,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
-	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
+	log.Debug("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		newValSet, err := sb.getNewValidatorSet(header, state)
 		if err == nil {
@@ -805,6 +805,12 @@ func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, new
 		ParentCommit:              []byte{},
 	}
 
+	extra, err := types.ExtractIstanbulExtra(header)
+	if extra != nil {
+		extras.ParentCommit = extra.ParentCommit
+		extras.ParentBitmap = extra.ParentBitmap
+	}
+
 	// update the header's extra with the new diff
 	payload, err := rlp.EncodeToBytes(extras)
 	if err != nil {
@@ -850,7 +856,20 @@ func writeCommittedSeals(h *types.Header, bitmap *big.Int, seal []byte, isParent
 
 	istanbulExtra, err := types.ExtractIstanbulExtra(h)
 	if err != nil {
-		return err
+		// if the extras could not be calculated, initialize a new struct with
+		// everything empty (since we may call this function before the extras
+		// for this header have been assembled)
+		istanbulExtra = &types.IstanbulExtra{
+			AddedValidators:           []common.Address{},
+			AddedValidatorsPublicKeys: [][]byte{},
+			RemovedValidators:         big.NewInt(0),
+			Seal:                      []byte{},
+			Bitmap:                    big.NewInt(0),
+			CommittedSeal:             []byte{},
+			EpochData:                 []byte{},
+			ParentBitmap:              big.NewInt(0),
+			ParentCommit:              []byte{},
+		}
 	}
 
 	if isParent {
@@ -864,6 +883,11 @@ func writeCommittedSeals(h *types.Header, bitmap *big.Int, seal []byte, isParent
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {
 		return err
+	}
+
+	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
+	if len(h.Extra) < types.IstanbulExtraVanity {
+		h.Extra = append(h.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(h.Extra))...)
 	}
 
 	h.Extra = append(h.Extra[:types.IstanbulExtraVanity], payload...)
