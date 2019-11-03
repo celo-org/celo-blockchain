@@ -52,6 +52,9 @@ var (
 	// errInvalidSignature is returned when given signature is not signed by given
 	// address.
 	errInvalidSignature = errors.New("invalid signature")
+	// errInsufficientSeals is returned when there is not enough signatures to
+	// pass the 2F+1 quorum check.
+	errInsufficientSeals = errors.New("not enough seals to reach quorum")
 	// errUnknownBlock is returned when the list of validators or header is requested for a block
 	// that is not part of the local blockchain.
 	errUnknownBlock = errors.New("unknown block")
@@ -249,7 +252,8 @@ func (sb *Backend) verifySigner(chain consensus.ChainReader, header *types.Heade
 	return nil
 }
 
-// verifyCommittedSeals checks whether every committed seal is signed by one of the parent's validators
+// verifyCommittedSeals checks whether the seal and parent-seal in the header is
+// signed on by the block's validators and the parent block's validators respectively
 func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// We don't need to verify committed seals in the genesis block
@@ -272,7 +276,29 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	return sb.checkValidatorSignatures(header.Hash(), validators, extra.Bitmap, extra.CommittedSeal)
+	err = sb.checkValidatorSignatures(header.Hash(), validators, extra.Bitmap, extra.CommittedSeal)
+	if err != nil {
+		return err
+	}
+
+	// If there are 2 parents, the last item will be a non-genesis block
+	if len(parents) > 1 {
+		// the last element of the provided parents is going to be the one we need
+		parent := parents[len(parents)-1]
+		// Check the signatures on the parent header by the parent block's
+		// validator set (might be different from `validators` if the current
+		// block was an epoch block)
+		prevParents := make([]*types.Header, len(parents)-1)
+		copy(prevParents, parents[:len(parents)-1])
+		snap, err := sb.snapshot(chain, parent.Number.Uint64()-1, parent.ParentHash, prevParents)
+		if err != nil {
+			return err
+		}
+		parentValidators := snap.ValSet.Copy()
+		return sb.checkValidatorSignatures(parent.Hash(), parentValidators, extra.ParentBitmap, extra.ParentCommit)
+	}
+
+	return nil
 }
 
 func (sb *Backend) checkValidatorSignatures(headerHash common.Hash, validators istanbul.ValidatorSet, bitmap *big.Int, seal []byte) error {
@@ -289,7 +315,7 @@ func (sb *Backend) checkValidatorSignatures(headerHash common.Hash, validators i
 	// The length of validSeal should be larger than number of faulty node + 1
 	if len(publicKeys) < validators.MinQuorumSize() {
 		sb.logger.Error("not enough signatures to form a quorum", "public keys", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
-		return errInvalidCommittedSeals
+		return errInsufficientSeals
 	}
 	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, seal, false)
 	if err != nil {

@@ -775,7 +775,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
-	if bytes.Compare(istExtra.CommittedSeal, expectedSeal) != 0 {
+	if !bytes.Equal(istExtra.CommittedSeal, expectedSeal) {
 		t.Errorf("committed seal mismatch: have %v, want %v", istExtra.CommittedSeal, expectedSeal)
 	}
 
@@ -783,7 +783,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 		t.Errorf("bitmap mismatch: have %v, want %v", istExtra.Bitmap, expectedBitmap)
 	}
 
-	if bytes.Compare(istExtra.ParentCommit, expectedSeal) != 0 {
+	if !bytes.Equal(istExtra.ParentCommit, expectedSeal) {
 		t.Errorf("extra data mismatch: have %v, want %v", istExtra.ParentCommit, expectedSeal)
 	}
 

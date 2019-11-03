@@ -175,12 +175,7 @@ func (c *core) commit() {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
-		c.logger.Debug("PARENT COMMITS IN CORE", "parent commit", c.current.ParentCommits)
 		bitmap, asig := AggregateSeals(c.current.Commits)
-		block, _ := proposal.(*types.Block)
-		header := block.Header()
-		extra, _ := types.ExtractIstanbulExtra(header)
-		c.logger.Debug("PARENT COMMITS IN HEADER in CORE", "parent commit", extra.ParentCommit)
 		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
 			c.sendNextRoundChange()
 			return
