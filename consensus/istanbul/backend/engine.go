@@ -344,22 +344,23 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	time.Sleep(delay)
 
 	// modify the block header to include all the ParentCommits
-	parentCommittedSeals := sb.core.ParentCommits()
-	if parentCommittedSeals != nil {
-		if parentCommittedSeals.Size() != 0 {
-			sb.logger.Debug("Storing", "parent seals from", parentCommittedSeals.String())
-			bitmap, asig := istanbulCore.AggregateSeals(parentCommittedSeals)
-			writeCommittedSeals(header, bitmap, asig, true)
-		}
-	} else {
-		// if we were not gossipped any commits, then just copy over the seals
-		// we have from the previous block (this is better than posting an empty
-		// ParentSeals field)
+	// only do this for blocks which start with block 1 as a parent
+	if header.Number.Uint64() > 1 {
+		// copy over the seals we have saved the previous block
 		parentExtra, err := types.ExtractIstanbulExtra(parent)
 		if err != nil {
 			return err
 		}
-		writeCommittedSeals(header, parentExtra.Bitmap, parentExtra.CommittedSeal, true)
+		bitmap := parentExtra.Bitmap
+		asig := parentExtra.CommittedSeal
+
+		parentGossipedSeals := sb.core.ParentCommits()
+		// if we had any seals gossiped to us, proceed to add them to the
+		// already aggregated signature
+		if parentGossipedSeals != nil && parentGossipedSeals.Size() != 0 {
+			bitmap, asig = istanbulCore.UnionOfSeals(bitmap, asig, parentGossipedSeals)
+		}
+		return writeCommittedSeals(header, bitmap, asig, true)
 	}
 
 	return nil
