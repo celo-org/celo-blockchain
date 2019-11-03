@@ -395,7 +395,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
 func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
-	log.Debug("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
+	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		newValSet, err := sb.getNewValidatorSet(header, state)
 		if err == nil {
@@ -406,11 +406,11 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			}
 
 			// add validators in snapshot to extraData's validators section
-			return assembleExtra(header, snap.validators(), newValSet)
+			return writeValidatorSetDiff(header, snap.validators(), newValSet)
 		}
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
-	return assembleExtra(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
+	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
 // Returns whether or not a particular header represents the last block in the epoch.
@@ -799,9 +799,9 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	return addr, nil
 }
 
-// assembleExtra initializes the header's Extra field with any changes in the
+// writeValidatorSetDiff initializes the header's Extra field with any changes in the
 // validator set that occurred since the last block
-func assembleExtra(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
+func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
 	// compensate the lack bytes if header.Extra is not enough IstanbulExtraVanity bytes.
 	if len(header.Extra) < types.IstanbulExtraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
