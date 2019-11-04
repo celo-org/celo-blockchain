@@ -218,38 +218,39 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 }
 
 // Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(destAddresses []common.Address, msg *istanbul.Message, sendMsgToSelf bool) error {
+func (sb *Backend) BroadcastIstMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Debug("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
-	// If the validator is proxied, then add the destAddresses to the message so that the sentry
-	// will know which addresses to forward the message to
-	if sb.config.Proxied {
-		msg.DestAddresses = destAddresses
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
+	// send to others
+	if err := sb.Gossip(destAddresses, payload, istanbulMsg, false); err != nil {
 		return err
 	}
 
-	// send to others
-	sb.Gossip(destAddresses, payload, istanbulMsg, false)
-
 	// send to self
-	if sendMsgToSelf {
-		msg := istanbul.MessageEvent{
-			Payload: payload,
-		}
-
-		go sb.istanbulEventMux.Post(msg)
+	msg := istanbul.MessageEvent{
+		Payload: payload,
 	}
+
+	go sb.istanbulEventMux.Post(msg)
 
 	return nil
 }
 
 // Gossip implements istanbul.Backend.Gossip
 func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
+	if sb.config.Proxied && ethMsgCode == istanbulMsg {
+		fwdMsg := istanbul.Message{DestAddresses: destAddresses, Msg: payload}
+
+		var err error
+		// Note that we are not signing the fwd message.  The message that is being wrapped is already signed.
+		payload, err = fwdMsg.Payload()
+		if err != nil {
+			return err
+		}
+
+		ethMsgCode = istanbulFwdMsg
+	}
+
 	peers := sb.getPeersForMessage(destAddresses)
 
 	ids := []string{}

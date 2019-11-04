@@ -32,6 +32,7 @@ const (
 	istanbulMsg              = 0x11
 	istanbulAnnounceMsg      = 0x12
 	istanbulValEnodeShareMsg = 0x13
+	istanbulFwdMsg           = 0x14
 )
 
 var (
@@ -44,7 +45,7 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{20},
+		Lengths:  []uint64{21},
 		Primary:  true,
 	}
 }
@@ -56,7 +57,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 	sb.logger.Debug("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
 
-	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) {
+	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) || (msg.Code == istanbulFwdMsg) {
 		if (!sb.coreStarted && !sb.config.Sentry) && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
@@ -88,33 +89,43 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		if msg.Code == istanbulMsg {
 			if sb.config.Sentry {
+				// Verify that this message is not from the proxied peer
 				if reflect.DeepEqual(peer, sb.proxiedPeer) {
-					// Received a consensus message from this sentry's proxied validator
-					// Note that we are NOT verifying the signature of the message that is sent from the
-					// proxied validator, since it's a trusted peer and all the other validators will
-					// verify the signature.
-					istMsg := new(istanbul.Message)
-					if err := istMsg.FromPayload(data, nil); err != nil {
-						sb.logger.Error("Failed to decode message from payload", "err", err)
-						return true, err
-					}
+					sb.logger.Debug("Got a consensus message from the proxied valiator.  Ignoring it")
+					return true, nil
+				}
 
-					destAddresses := istMsg.DestAddresses
-					istMsg.DestAddresses = []common.Address{}
-					sb.logger.Debug("Got consensus message from proxied validator", "istMg", istMsg)
-					go sb.Broadcast(destAddresses, istMsg, false)
-				} else {
-					// Need to forward the message to the proxied validator
-					sb.logger.Debug("Forwarding consensus message to proxied validator")
-					if sb.proxiedPeer != nil {
-						go sb.proxiedPeer.Send(msg.Code, data)
-					}
+				// Need to forward the message to the proxied validator
+				sb.logger.Debug("Forwarding consensus message to proxied validator")
+				if sb.proxiedPeer != nil {
+					go sb.proxiedPeer.Send(msg.Code, data)
 				}
 			} else { // The case when this node is a validator
 				go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 					Payload: data,
 				})
 			}
+		} else if msg.Code == istanbulFwdMsg {
+			// Ignore the message if this node it not a sentry
+			if !sb.config.Sentry {
+				sb.logger.Debug("Got a forward consensus message and this node is not a sentry.  Ignoring it")
+				return true, nil
+			}
+
+			// Verify that it's coming from the proxied peer
+			if !reflect.DeepEqual(peer, sb.proxiedPeer) {
+				sb.logger.Debug("Got a forwardx consensus message from a non proxied valiator.  Ignoring it")
+				return true, nil
+			}
+
+			fwdMsg := new(istanbul.Message)
+			if err := fwdMsg.FromPayload(data, nil); err != nil {
+				sb.logger.Error("Failed to decode message from payload", "err", err)
+				return true, err
+			}
+
+			sb.logger.Debug("Forwarding a consensus message")
+			go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulMsg, false)
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
 		} else if msg.Code == istanbulValEnodeShareMsg {

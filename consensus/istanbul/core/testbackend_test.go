@@ -97,16 +97,11 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) Broadcast(validators []common.Address, message *istanbul.Message, ignoreCache bool) error {
+func (self *testSystemBackend) BroadcastIstMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
-	payload, err := message.Payload()
-	if err != nil {
-		return err
-	}
-
-	self.sentMsgs = append(self.sentMsgs, payload)
+	self.sentMsgs = append(self.sentMsgs, message)
 	self.sys.queuedMessage <- istanbul.MessageEvent{
-		Payload: payload,
+		Payload: message,
 	}
 	return nil
 }
@@ -193,11 +188,13 @@ func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) ista
 }
 
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
-	finalizedMsg, err := self.engine.(*core).finalizeMessage(msg)
+	message := new(istanbul.Message)
+	data, err := self.engine.(*core).finalizeMessage(msg)
 	if err != nil {
-		return *finalizedMsg, err
+		return *message, err
 	}
-	return *finalizedMsg, err
+	err = message.FromPayload(data, self.engine.(*core).validateFn)
+	return *message, err
 }
 
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
