@@ -208,7 +208,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Sentry && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
 	} else if sb.config.Proxied {
-		if peer.Node().ID() == sb.sentryNode.node.ID() {
+		if sb.sentryNode != nil && peer.Node().ID() == sb.sentryNode.node.ID() {
 			sb.sentryNode.peer = nil
 		}
 	}
