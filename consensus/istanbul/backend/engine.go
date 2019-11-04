@@ -281,21 +281,30 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		return err
 	}
 
-	// If there are 2 parents, the last item will be a non-genesis block
-	if len(parents) > 1 {
-		// the last element of the provided parents is going to be the one we need
-		parent := parents[len(parents)-1]
-		// Check the signatures on the parent header by the parent block's
-		// validator set (might be different from `validators` if the current
-		// block was an epoch block)
-		prevParents := make([]*types.Header, len(parents)-1)
-		copy(prevParents, parents[:len(parents)-1])
-		snap, err := sb.snapshot(chain, parent.Number.Uint64()-1, parent.ParentHash, prevParents)
-		if err != nil {
-			return err
+	// Check parent signatures only after block 1.
+	// The genesis block is skipped since it has no parents
+	// The first block is also skipped since its parent
+	// is the genesis block which contains no parent signatures
+	if number > 1 {
+		sb.logger.Trace("verifyCommittedSeals: verifying parent seal for block", "num", number)
+		var parentValidators istanbul.ValidatorSet
+		if number%sb.config.Epoch == 1 {
+			snap, err := sb.snapshot(chain, number-2, common.Hash{}, nil)
+			if err != nil {
+				return err
+			}
+			parentValidators = snap.ValSet.Copy()
+		} else {
+			parentValidators = validators.Copy()
 		}
-		parentValidators := snap.ValSet.Copy()
-		return sb.checkValidatorSignatures(parent.Hash(), parentValidators, extra.ParentBitmap, extra.ParentCommit)
+
+		// Check the signatures made by the validator set corresponding to the
+		// parent block's hash. We use header.ParentHash to handle both
+		// ultralight and non-ultralight cases.
+		// parent.Hash() would correspond to the previous epoch
+		// block in ultralight, while the extra.ParentCommit is made on the block which was
+		// immediately before the current block.
+		return sb.checkValidatorSignatures(header.ParentHash, parentValidators, extra.ParentBitmap, extra.ParentCommit)
 	}
 
 	return nil
@@ -311,8 +320,9 @@ func (sb *Backend) checkValidatorSignatures(headerHash common.Hash, validators i
 			publicKeys = append(publicKeys, pubKey)
 		}
 	}
+	sb.logger.Debug("checkValidatorSignatures: args", "bitmap", bitmap.Bits(), "seal", common.ToHex(seal), "proposal", common.ToHex(proposalSeal), "pubkeys", publicKeys, "validators", validators.List())
 
-	// The length of validSeal should be larger than number of faulty node + 1
+	// The length of a valid seal should be greater than the minimum quorum size
 	if len(publicKeys) < validators.MinQuorumSize() {
 		sb.logger.Error("not enough signatures to form a quorum", "public keys", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
@@ -371,7 +381,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 	// modify the block header to include all the ParentCommits
 	// only do this for blocks which start with block 1 as a parent
-	if header.Number.Uint64() > 1 {
+	if number > 1 {
 		// copy over the seals we have saved the previous block
 		parentExtra, err := types.ExtractIstanbulExtra(parent)
 		if err != nil {
@@ -381,10 +391,23 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		asig := parentExtra.CommittedSeal
 
 		parentGossipedSeals := sb.core.ParentCommits()
-		// if we had any seals gossiped to us, proceed to add them to the
-		// already aggregated signature
 		if parentGossipedSeals != nil && parentGossipedSeals.Size() != 0 {
-			bitmap, asig = istanbulCore.UnionOfSeals(bitmap, asig, parentGossipedSeals)
+			sb.logger.Debug("backend.Prepare: taking union of parent seals", "valset", parentGossipedSeals.String(), "num", number)
+			// if we had any seals gossiped to us, proceed to add them to the
+			// already aggregated signature
+			sb.logger.Debug("backend.Prepare: parent seal before", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
+			newBitmap, newAsig := istanbulCore.UnionOfSeals(bitmap, asig, parentGossipedSeals)
+			parentValidators := sb.getValidators(parent.Number.Uint64(), parent.Hash())
+			// only update to use the union if we indeed provided a valid aggregate signature for this block
+			if err := sb.checkValidatorSignatures(parent.Hash(), parentValidators, newBitmap, newAsig); err != nil {
+				sb.logger.Debug("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
+			} else {
+				bitmap = newBitmap
+				asig = newAsig
+				sb.logger.Debug("backend.Prepare: parent seal updated!", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
+			}
+		} else {
+			sb.logger.Debug("backend.Prepare: no seals were gossipped")
 		}
 		return writeCommittedSeals(header, bitmap, asig, true)
 	}
@@ -711,7 +734,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	}
 
 	log.Trace("Most recent snapshot found", "number", numberIter)
-	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retreived/created from above).
+	// Calculate the returned snapshot by applying epoch headers' val set diffs to the intermediate snapshot (the one that is retrieved/created from above).
 	// This will involve retrieving all of those headers into an array, and then call snapshot.apply on that array and the intermediate snapshot.
 	// Note that the callee of this method may have passed in a set of previous headers, so we may be able to use some of them.
 	for numberIter+sb.config.Epoch <= number {
