@@ -408,7 +408,6 @@ var (
 		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
 		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
 	}
-
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -983,11 +982,7 @@ func MakePasswordList(ctx *cli.Context) []string {
 
 func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 	setNodeKey(ctx, cfg, proxyCfg)
-
-	// TODO(kevjue):  Right now the sentry will use the same network interface for both of the
-	//                networking interfaces.  They will need to have separate ones soon.
 	setNAT(ctx, cfg, proxyCfg)
-
 	setListenAddress(ctx, cfg, proxyCfg)
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)

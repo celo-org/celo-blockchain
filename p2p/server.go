@@ -114,9 +114,6 @@ type Config struct {
 	// IP networks contained in the list are considered.
 	NetRestrict *netutil.Netlist `toml:",omitempty"`
 
-	// Proxied indicates the node is proxied by sentry nodes.
-	Proxied bool
-
 	// PingIPFromPacket uses the IP address from p2p discovery ping packet
 	// rather than the UDP header. See https://github.com/celo-org/celo-blockchain/pull/301
 	PingIPFromPacket bool

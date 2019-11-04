@@ -230,9 +230,7 @@ func (sb *Backend) BroadcastIstMsg(destAddresses []common.Address, payload []byt
 	msg := istanbul.MessageEvent{
 		Payload: payload,
 	}
-
 	go sb.istanbulEventMux.Post(msg)
-
 	return nil
 }
 
@@ -291,7 +289,6 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 			go p.Send(ethMsgCode, payload)
 		}
 	}
-
 	return nil
 }
 
