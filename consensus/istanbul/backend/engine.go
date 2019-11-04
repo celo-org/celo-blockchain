@@ -653,8 +653,10 @@ func (sb *Backend) Stop() error {
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
 
-	sb.valEnodeShareQuit <- struct{}{}
-	sb.valEnodeShareWg.Wait()
+	if sb.config.Proxied {
+		sb.valEnodeShareQuit <- struct{}{}
+		sb.valEnodeShareWg.Wait()
+	}
 	return nil
 }
 

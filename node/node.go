@@ -465,6 +465,11 @@ func (n *Node) Stop() error {
 	n.services = nil
 	n.server = nil
 
+	if n.proxyServer != nil {
+		n.proxyServer.Stop()
+		n.proxyServer = nil
+	}
+
 	// Release instance directory lock.
 	if n.instanceDirLock != nil {
 		if err := n.instanceDirLock.Release(); err != nil {
