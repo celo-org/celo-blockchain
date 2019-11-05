@@ -139,8 +139,8 @@ const (
 )
 
 const (
-    // Default intrinsic gas cost of transactions paying for gas in alternative currencies.
-    IntrinsicGasForAlternativeGasCurrency uint64 = 134000
+	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
+	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
 
 	// Contract communication gas limits
 	MaxGasForCommitments                          uint64 = 2000000
@@ -165,5 +165,5 @@ const (
 	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
 	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
 	MaxGasForTotalSupply                          uint64 = 50 * 1000
-	MaxGasToReadErc20Balance      				  uint64 = 100000
+	MaxGasToReadErc20Balance                      uint64 = 100000
 )
