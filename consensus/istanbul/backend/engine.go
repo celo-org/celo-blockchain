@@ -638,10 +638,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 			if len(sb.config.SentryNodes) != 1 {
 				sb.logger.Warn("Currently only 1 sentry is supported.  Will be connecting to only the first specified enode", "enodeUrl", sb.config.SentryNodes[0][0].String())
 			}
-		}
 
-		if err := sb.addSentry(sb.config.SentryNodes[0][0], sb.config.SentryNodes[0][1]); err != nil {
-			sb.logger.Warn("Issue in adding sentry on istanbul start", "err", err)
+			if err := sb.addSentry(sb.config.SentryNodes[0][0], sb.config.SentryNodes[0][1]); err != nil {
+				sb.logger.Warn("Issue in adding sentry on istanbul start", "err", err)
+			}
 		}
 	}
 
