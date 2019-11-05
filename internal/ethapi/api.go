@@ -1229,8 +1229,12 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 			if err != nil {
 				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state)
+			} else {
+				log.Warn("Cannot read intrinsic gas for alternative gas currency", "err", err)
+				*(*uint64)(args.Gas) = defaultGas
 			}
 		}
+		log.Info("Setting default gas", "gas", args.Gas)
 	}
 	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
