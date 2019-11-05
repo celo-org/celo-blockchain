@@ -6,7 +6,7 @@ geth-defaults: &geth-defaults
 
 rust-defaults: &rust-defaults
   docker:
-    - image: circleci/rust:1.36.0
+    - image: circleci/rust:1.37.0
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
@@ -46,8 +46,8 @@ jobs:
           name: Setup Rust language
           command: |
             set -euo pipefail
-            rustup install 1.36.0
-            rustup default 1.36.0
+            rustup install 1.37.0
+            rustup default 1.37.0
       - run:
           name: Compile bls-zexe
           command: |

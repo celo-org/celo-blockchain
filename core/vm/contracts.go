@@ -601,25 +601,26 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
 	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
 	// the total length of input required is the sum of these constants
-	if len(input) < blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
+	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
 		return nil, gas, ErrInputLength
 	}
+	addressBytes := input[:common.AddressLength]
 
-	publicKeyBytes := input[:blscrypto.PUBLICKEYBYTES]
+	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
 	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
 	if err != nil {
 		return nil, gas, err
 	}
 	defer publicKey.Destroy()
 
-	signatureBytes := input[blscrypto.PUBLICKEYBYTES : blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
+	signatureBytes := input[common.AddressLength+blscrypto.PUBLICKEYBYTES : common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
 	signature, err := bls.DeserializeSignature(signatureBytes)
 	if err != nil {
 		return nil, gas, err
 	}
 	defer signature.Destroy()
 
-	err = publicKey.VerifyPoP(signature)
+	err = publicKey.VerifyPoP(addressBytes, signature)
 	if err != nil {
 		return nil, gas, err
 	}
