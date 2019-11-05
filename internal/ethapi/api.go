@@ -1231,7 +1231,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state)
 			} else {
 				log.Warn("Cannot read intrinsic gas for alternative gas currency", "err", err)
-				*(*uint64)(args.Gas) = defaultGas
+				*(*uint64)(args.Gas) = defaultGas + params.IntrinsicGasForAlternativeGasCurrency
 			}
 		}
 	}
