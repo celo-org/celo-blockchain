@@ -1,29 +1,25 @@
-use algebra::PairingEngine;
 use crate::Error;
-use snark::{Circuit, ConstraintSystem, SynthesisError};
+use r1cs_core::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 
-use crate::{
-    crypto_primitives::{CommitmentScheme, FixedLengthCRH, SignatureScheme},
-    gadgets::Assignment,
-};
+use crypto_primitives::{CommitmentScheme, FixedLengthCRH, SignatureScheme, merkle_tree::*};
 
 use crate::{
     dpc::delegable_dpc::{
         AddressSecretKey, CommCRHSigPublicParameters, DPCRecord, DelegableDPCComponents,
     },
-    gadgets::dpc::delegable_dpc::execute_core_checks_gadget,
-    ledger::LedgerDigest,
+    constraints::delegable_dpc::execute_core_checks_gadget,
+    constraints::Assignment,
 };
 
-use algebra::utils::ToEngineFr;
+use algebra::ToConstraintField;
 
 pub struct CoreChecksVerifierInput<C: DelegableDPCComponents> {
     // Commitment and CRH parameters
     pub comm_crh_sig_pp: CommCRHSigPublicParameters<C>,
 
     // Ledger parameters and digest
-    pub ledger_pp:     <C::D as LedgerDigest>::Parameters,
-    pub ledger_digest: C::D,
+    pub ledger_pp:     MerkleTreeParams<C::MerkleTreeConfig>,
+    pub ledger_digest: MerkleTreeDigest<C::MerkleTreeConfig>,
 
     // Input record serial numbers and death predicate commitments
     pub old_serial_numbers: Vec<<C::S as SignatureScheme>::PublicKey>,
@@ -37,54 +33,54 @@ pub struct CoreChecksVerifierInput<C: DelegableDPCComponents> {
     pub memo:            [u8; 32],
 }
 
-impl<C: DelegableDPCComponents> ToEngineFr<C::E> for CoreChecksVerifierInput<C>
+impl<C: DelegableDPCComponents> ToConstraintField<C::CoreCheckF> for CoreChecksVerifierInput<C>
 where
-    <C::AddrC as CommitmentScheme>::Parameters: ToEngineFr<C::E>,
-    <C::AddrC as CommitmentScheme>::Output: ToEngineFr<C::E>,
+    <C::AddrC as CommitmentScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
+    <C::AddrC as CommitmentScheme>::Output: ToConstraintField<C::CoreCheckF>,
 
-    <C::RecC as CommitmentScheme>::Parameters: ToEngineFr<C::E>,
-    <C::RecC as CommitmentScheme>::Output: ToEngineFr<C::E>,
+    <C::RecC as CommitmentScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
+    <C::RecC as CommitmentScheme>::Output: ToConstraintField<C::CoreCheckF>,
 
-    <C::SnNonceH as FixedLengthCRH>::Parameters: ToEngineFr<C::E>,
+    <C::SnNonceH as FixedLengthCRH>::Parameters: ToConstraintField<C::CoreCheckF>,
 
-    <C::PredVkComm as CommitmentScheme>::Parameters: ToEngineFr<C::E>,
-    <C::PredVkComm as CommitmentScheme>::Output: ToEngineFr<C::E>,
+    <C::PredVkComm as CommitmentScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
+    <C::PredVkComm as CommitmentScheme>::Output: ToConstraintField<C::CoreCheckF>,
 
-    <C::LocalDataComm as CommitmentScheme>::Parameters: ToEngineFr<C::E>,
-    <C::LocalDataComm as CommitmentScheme>::Output: ToEngineFr<C::E>,
+    <C::LocalDataComm as CommitmentScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
+    <C::LocalDataComm as CommitmentScheme>::Output: ToConstraintField<C::CoreCheckF>,
 
-    <C::S as SignatureScheme>::Parameters: ToEngineFr<C::E>,
-    <C::S as SignatureScheme>::PublicKey: ToEngineFr<C::E>,
+    <C::S as SignatureScheme>::Parameters: ToConstraintField<C::CoreCheckF>,
+    <C::S as SignatureScheme>::PublicKey: ToConstraintField<C::CoreCheckF>,
 
-    C::D: ToEngineFr<C::E>,
-    <C::D as LedgerDigest>::Parameters: ToEngineFr<C::E>,
+    MerkleTreeParams<C::MerkleTreeConfig>: ToConstraintField<C::CoreCheckF>,
+    MerkleTreeDigest<C::MerkleTreeConfig>: ToConstraintField<C::CoreCheckF>,
 {
-    fn to_engine_fr(&self) -> Result<Vec<<C::E as PairingEngine>::Fr>, Error> {
+    fn to_field_elements(&self) -> Result<Vec<C::CoreCheckF>, Error> {
         let mut v = Vec::new();
 
-        v.extend_from_slice(&self.comm_crh_sig_pp.addr_comm_pp.to_engine_fr()?);
-        v.extend_from_slice(&self.comm_crh_sig_pp.rec_comm_pp.to_engine_fr()?);
-        v.extend_from_slice(&self.comm_crh_sig_pp.local_data_comm_pp.to_engine_fr()?);
-        v.extend_from_slice(&self.comm_crh_sig_pp.pred_vk_comm_pp.to_engine_fr()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.addr_comm_pp.to_field_elements()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.rec_comm_pp.to_field_elements()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.local_data_comm_pp.to_field_elements()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.pred_vk_comm_pp.to_field_elements()?);
 
-        v.extend_from_slice(&self.comm_crh_sig_pp.sn_nonce_crh_pp.to_engine_fr()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.sn_nonce_crh_pp.to_field_elements()?);
 
-        v.extend_from_slice(&self.comm_crh_sig_pp.sig_pp.to_engine_fr()?);
+        v.extend_from_slice(&self.comm_crh_sig_pp.sig_pp.to_field_elements()?);
 
-        v.extend_from_slice(&self.ledger_pp.to_engine_fr()?);
-        v.extend_from_slice(&self.ledger_digest.to_engine_fr()?);
+        v.extend_from_slice(&self.ledger_pp.to_field_elements()?);
+        v.extend_from_slice(&self.ledger_digest.to_field_elements()?);
 
         for sn in &self.old_serial_numbers {
-            v.extend_from_slice(&sn.to_engine_fr()?);
+            v.extend_from_slice(&sn.to_field_elements()?);
         }
 
         for cm in &self.new_commitments {
-            v.extend_from_slice(&cm.to_engine_fr()?);
+            v.extend_from_slice(&cm.to_field_elements()?);
         }
 
-        v.extend_from_slice(&self.predicate_comm.to_engine_fr()?);
-        v.extend_from_slice(&ToEngineFr::<C::E>::to_engine_fr(self.memo.as_ref())?);
-        v.extend_from_slice(&self.local_data_comm.to_engine_fr()?);
+        v.extend_from_slice(&self.predicate_comm.to_field_elements()?);
+        v.extend_from_slice(&ToConstraintField::<C::CoreCheckF>::to_field_elements(self.memo.as_ref())?);
+        v.extend_from_slice(&self.local_data_comm.to_field_elements()?);
 
         Ok(v)
     }
@@ -95,13 +91,13 @@ where
 pub struct CoreChecksCircuit<C: DelegableDPCComponents> {
     // Parameters
     comm_crh_sig_parameters: Option<CommCRHSigPublicParameters<C>>,
-    ledger_parameters:       Option<<C::D as LedgerDigest>::Parameters>,
+    ledger_parameters:       Option<MerkleTreeParams<C::MerkleTreeConfig>>,
 
-    ledger_digest: Option<C::D>,
+    ledger_digest: Option<MerkleTreeDigest<C::MerkleTreeConfig>>,
 
     // Inputs for old records.
     old_records:             Option<Vec<DPCRecord<C>>>,
-    old_witnesses:           Option<Vec<C::LCW>>,
+    old_witnesses:           Option<Vec<MerkleTreePath<C::MerkleTreeConfig>>>,
     old_address_secret_keys: Option<Vec<AddressSecretKey<C>>>,
     old_serial_numbers:      Option<Vec<<C::S as SignatureScheme>::PublicKey>>,
 
@@ -124,15 +120,15 @@ pub struct CoreChecksCircuit<C: DelegableDPCComponents> {
 impl<C: DelegableDPCComponents> CoreChecksCircuit<C> {
     pub fn blank(
         comm_crh_sig_parameters: &CommCRHSigPublicParameters<C>,
-        ledger_parameters: &<C::D as LedgerDigest>::Parameters,
+        ledger_parameters:       &MerkleTreeParams<C::MerkleTreeConfig>,
     ) -> Self {
         let num_input_records = C::NUM_INPUT_RECORDS;
         let num_output_records = C::NUM_OUTPUT_RECORDS;
-        let digest = C::D::default();
+        let digest = MerkleTreeDigest::<C::MerkleTreeConfig>::default();
 
         let old_sn = vec![<C::S as SignatureScheme>::PublicKey::default(); num_input_records];
         let old_records = vec![DPCRecord::default(); num_input_records];
-        let old_witnesses = vec![C::LCW::default(); num_input_records];
+        let old_witnesses = vec![MerkleTreePath::default(); num_input_records];
         let old_address_secret_keys = vec![AddressSecretKey::default(); num_input_records];
 
         let new_cm = vec![<C::RecC as CommitmentScheme>::Output::default(); num_output_records];
@@ -154,7 +150,7 @@ impl<C: DelegableDPCComponents> CoreChecksCircuit<C> {
             ledger_parameters:       Some(ledger_parameters.clone()),
 
             // Digest
-            ledger_digest: Some(digest.clone()),
+            ledger_digest: Some(digest),
 
             // Input records
             old_records:             Some(old_records),
@@ -180,14 +176,14 @@ impl<C: DelegableDPCComponents> CoreChecksCircuit<C> {
     pub fn new(
         // Parameters
         comm_amd_crh_parameters: &CommCRHSigPublicParameters<C>,
-        ledger_parameters: &<C::D as LedgerDigest>::Parameters,
+        ledger_parameters:       &MerkleTreeParams<C::MerkleTreeConfig>,
 
         // Digest
-        ledger_digest: &C::D,
+        ledger_digest: &MerkleTreeDigest<C::MerkleTreeConfig>,
 
         // Old records
         old_records: &[DPCRecord<C>],
-        old_witnesses: &[C::LCW],
+        old_witnesses: &[MerkleTreePath<C::MerkleTreeConfig>],
         old_address_secret_keys: &[AddressSecretKey<C>],
         old_serial_numbers: &[<C::S as SignatureScheme>::PublicKey],
 
@@ -250,8 +246,8 @@ impl<C: DelegableDPCComponents> CoreChecksCircuit<C> {
     }
 }
 
-impl<C: DelegableDPCComponents> Circuit<C::E> for CoreChecksCircuit<C> {
-    fn synthesize<CS: ConstraintSystem<C::E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
+impl<C: DelegableDPCComponents> ConstraintSynthesizer<C::CoreCheckF> for CoreChecksCircuit<C> {
+    fn generate_constraints<CS: ConstraintSystem<C::CoreCheckF>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
         execute_core_checks_gadget::<C, CS>(
             cs,
             // Params

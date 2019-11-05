@@ -1,18 +1,20 @@
 use super::instantiated::*;
 use algebra::{
-    curves::{bls12_377::Bls12_377, sw6::SW6},
+    fields::bls12_377::fr::Fr,
+    fields::bls12_377::fq::Fq,
     to_bytes, ToBytes,
 };
-use rand::{SeedableRng, XorShiftRng};
+use rand::SeedableRng;
+use rand_xorshift::XorShiftRng;
 #[cfg(debug_assertions)]
-use snark::gm17::PreparedVerifyingKey;
+use gm17::PreparedVerifyingKey;
 
-use crate::crypto_primitives::FixedLengthCRH;
+use crypto_primitives::FixedLengthCRH;
 
-use snark::ConstraintSystem;
+use r1cs_core::ConstraintSystem;
 
-use crate::gadgets::dpc::plain_dpc::{execute_core_checks_gadget, execute_proof_check_gadget};
-use snark_gadgets::test_constraint_system::TestConstraintSystem;
+use crate::constraints::plain_dpc::{execute_core_checks_gadget, execute_proof_check_gadget};
+use r1cs_std::test_constraint_system::TestConstraintSystem;
 
 use crate::dpc::{
     plain_dpc::{predicate::PrivatePredInput, predicate_circuit::*, ExecuteContext, DPC},
@@ -23,7 +25,7 @@ use crate::ledger::Ledger;
 
 #[test]
 fn test_execute_constraint_systems() {
-    let mut rng = XorShiftRng::from_seed([0x5dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+    let mut rng = XorShiftRng::seed_from_u64(1231275789u64);
     // Generate parameters for the ledger, commitment schemes, CRH, and the
     // "always-accept" predicate.
     let ledger_parameters = MerkleTreeIdealLedger::setup(&mut rng).expect("Ledger setup failed");
@@ -132,7 +134,7 @@ fn test_execute_constraint_systems() {
 
     //////////////////////////////////////////////////////////////////////////
     // Check that the core check constraint system was satisfied.
-    let mut core_cs = TestConstraintSystem::<Bls12_377>::new();
+    let mut core_cs = TestConstraintSystem::<Fr>::new();
 
     execute_core_checks_gadget::<_, _>(
         &mut core_cs.ns(|| "Core checks"),
@@ -173,11 +175,11 @@ fn test_execute_constraint_systems() {
     assert!(core_cs.is_satisfied());
 
     // Check that the proof check constraint system was satisfied.
-    let mut pf_check_cs = TestConstraintSystem::<SW6>::new();
+    let mut pf_check_cs = TestConstraintSystem::<Fq>::new();
 
     let mut old_proof_and_vk = vec![];
     for i in 0..NUM_INPUT_RECORDS {
-        use crate::crypto_primitives::nizk::NIZK;
+        use crypto_primitives::nizk::NIZK;
         let proof = PredicateNIZK::prove(
             &pred_nizk_pp.pk,
             EmptyPredicateCircuit::new(&comm_and_crh_pp, &local_data_comm, i as u8),
@@ -205,7 +207,7 @@ fn test_execute_constraint_systems() {
 
     let mut new_proof_and_vk = vec![];
     for i in 0..NUM_OUTPUT_RECORDS {
-        use crate::crypto_primitives::nizk::NIZK;
+        use crypto_primitives::nizk::NIZK;
         let proof = PredicateNIZK::prove(
             &pred_nizk_pp.pk,
             EmptyPredicateCircuit::new(&comm_and_crh_pp, &local_data_comm, i as u8),
