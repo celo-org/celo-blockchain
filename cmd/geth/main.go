@@ -145,6 +145,7 @@ var (
 		utils.IstanbulProxiedFlag,
 		utils.SentryFlag,
 		utils.VersionCheckFlag,
+		utils.IstanbulSentriesFlag,
 	}
 
 	rpcFlags = []cli.Flag{

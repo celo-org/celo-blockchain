@@ -16,6 +16,8 @@
 
 package istanbul
 
+import "github.com/ethereum/go-ethereum/p2p/enode"
+
 type ProposerPolicy uint64
 
 const (
@@ -24,12 +26,13 @@ const (
 )
 
 type Config struct {
-	RequestTimeout uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod    uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
-	Epoch          uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	Sentry         bool           `toml:",omitempty"` // Specifies if this node is a sentry for a validator
-	Proxied        bool           `toml:",omitempty"` // Specifies if this validator is proxied by a sentry
+	RequestTimeout uint64           `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod    uint64           `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy ProposerPolicy   `toml:",omitempty"` // The policy for proposer selection
+	Epoch          uint64           `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	Sentry         bool             `toml:",omitempty"` // Specifies if this node is a sentry for a validator
+	Proxied        bool             `toml:",omitempty"` // Specifies if this validator is proxied by a sentry
+	SentryNodes    [][2]*enode.Node `toml:",omitempty"` // Specifies the sentries this proxied validator should connect to
 }
 
 var DefaultConfig = &Config{

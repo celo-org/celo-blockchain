@@ -674,6 +674,10 @@ var (
 		Name:  "istanbul.proxied",
 		Usage: fmt.Sprintf("Specifies whether this node will be proxied by sentry nodes. This option requires that --%s is also used.  It will also disables discovery.", MiningEnabledFlag.Name),
 	}
+	IstanbulSentriesFlag = cli.StringFlag{
+		Name:  "istanbul.sentries",
+		Usage: fmt.Sprintf("Comma separated enode URL pairs for proxied validators"),
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1196,6 +1200,28 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(SentryFlag.Name) {
 		cfg.Istanbul.Sentry = ctx.GlobalBool(SentryFlag.Name)
+	}
+	if ctx.GlobalIsSet(IstanbulSentriesFlag.Name) {
+		urlPairs := strings.Split(ctx.GlobalString(IstanbulSentriesFlag.Name), ",")
+		cfg.Istanbul.SentryNodes = make([][2]*enode.Node, 0, len(urlPairs))
+		for _, urlPair := range urlPairs {
+			sentryUrlPair := strings.Split(urlPair, ";")
+			if len(sentryUrlPair) != 2 {
+				log.Crit("Invalid sentries list. Each entry must have two urls")
+			}
+
+			internalNode, err := enode.ParseV4(sentryUrlPair[0])
+			if err != nil {
+				log.Crit("Sentry internal URL invalid", "enode", sentryUrlPair[0], "err", err)
+			}
+
+			externalNode, err := enode.ParseV4(sentryUrlPair[1])
+			if err != nil {
+				log.Crit("Sentry external URL invalid", "enode", sentryUrlPair[1], "err", err)
+			}
+
+			cfg.Istanbul.SentryNodes = append(cfg.Istanbul.SentryNodes, [2]*enode.Node{internalNode, externalNode})
+		}
 	}
 
 }
