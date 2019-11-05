@@ -48,11 +48,8 @@ extern crate bench_utils;
 #[macro_use]
 extern crate derivative;
 
-pub mod common;
-pub mod config;
-pub mod crypto_primitives;
 pub(crate) mod dpc;
-pub mod gadgets;
+pub mod constraints;
 pub mod ledger;
 pub mod predicates;
 

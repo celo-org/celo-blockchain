@@ -27,8 +27,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/election"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -49,6 +52,9 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+
+	// errNoBlockHeader is returned when the requested block header could not be found.
+	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
 
 // Entries for the recent announce messages
@@ -58,7 +64,7 @@ type AnnounceGossipTimestamp struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	recentMessages, _ := lru.NewARC(inmemoryPeers)
@@ -76,9 +82,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
+		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = newValidatorEnodeTable(backend.AddValidatorPeer, backend.RemoveValidatorPeer)
+	backend.valEnodeTable = enodes.NewValidatorEnodeTable()
 	return backend
 }
 
@@ -124,10 +131,11 @@ type Backend struct {
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
 
-	valEnodeTable *validatorEnodeTable
+	valEnodeTable *enodes.ValidatorEnodeTable
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
+	dataDir      string // A read-write data dir to persist files across restarts
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -147,13 +155,14 @@ func (sb *Backend) Address() common.Address {
 	return sb.address
 }
 
+// Close the backend
 func (sb *Backend) Close() error {
 	return nil
 }
 
 // Validators implements istanbul.Backend.Validators
 func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
-	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
@@ -219,20 +228,24 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 	return nil
 }
 
+// Enode for backend
 func (sb *Backend) Enode() *enode.Node {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetLocalNode()
-	} else {
-		return nil
 	}
+	return nil
 }
 
+// GetNodeKey gets the Node PrivateKey
 func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetNodeKey()
-	} else {
-		return nil
 	}
+	return nil
+}
+
+func (sb *Backend) GetDataDir() string {
+	return sb.dataDir
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -359,6 +372,15 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, err
 }
 
+func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
+	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	if err != nil {
+		return nil, err
+	}
+	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
+	return newValSet, err
+}
+
 func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Block, state *state.StateDB) error {
 	header := block.Header()
 
@@ -368,11 +390,10 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		return err
 	}
 
-	newValSet, err := validators.GetValidatorSet(block.Header(), state)
+	newValSet, err := sb.getNewValidatorSet(block.Header(), state)
 	if err != nil {
-		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", istExtra.RemovedValidators.Text(16))
+			log.Error("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", istExtra.RemovedValidators.Text(16))
 			return errInvalidValidatorSetDiff
 		}
 	} else {
@@ -396,7 +417,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		}
 
 		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || removedValidators.Cmp(istExtra.RemovedValidators) != 0 || !istanbul.CompareValidatorPublicKeySlices(addedValidatorsPublicKeys, istExtra.AddedValidatorsPublicKeys) {
-			log.Warn("verifyValSetDiff - Invalid val set diff. Comparison failed. ", "got addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "got removedValidators", istExtra.RemovedValidators.Text(16), "got addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(istExtra.AddedValidatorsPublicKeys), "expected addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "expected removedValidators", removedValidators.Text(16), "expected addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(addedValidatorsPublicKeys))
+			log.Error("verifyValSetDiff - Invalid val set diff. Comparison failed. ", "got addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "got removedValidators", istExtra.RemovedValidators.Text(16), "got addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(istExtra.AddedValidatorsPublicKeys), "expected addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "expected removedValidators", removedValidators.Text(16), "expected addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(addedValidatorsPublicKeys))
 			return errInvalidValidatorSetDiff
 		}
 	}
@@ -455,7 +476,7 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 // ParentValidators implements istanbul.Backend.GetParentValidators
 func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	if block, ok := proposal.(*types.Block); ok {
-		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
+		return sb.getOrderedValidators(block.Number().Uint64()-1, block.ParentHash())
 	}
 	return validator.NewSet(nil, sb.config.ProposerPolicy)
 }
@@ -463,9 +484,44 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
+		sb.logger.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}
 	return snap.ValSet
+}
+
+// validatorRandomnessAtBlockNumber calls into the EVM to get the randomness to use in proposer ordering at a given block.
+func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.Hash) (common.Hash, error) {
+	lastBlockInPreviousEpoch := number
+	if number > 0 {
+		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
+	}
+	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
+	if header == nil {
+		return common.Hash{}, errNoBlockHeader
+	}
+	state, err := sb.stateAt(header.Hash())
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return random.Random(header, state)
+}
+
+func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
+	valSet := sb.getValidators(number, hash)
+	if valSet.Size() == 0 {
+		return valSet
+	}
+
+	if valSet.Policy() == istanbul.ShuffledRoundRobin {
+		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
+		if err != nil {
+			sb.logger.Error("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+		}
+		valSet.SetRandomness(seed)
+	}
+
+	return valSet
 }
 
 func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
@@ -528,6 +584,20 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 			sb.RemoveValidatorPeer(peerEnodeURL)
 		}
 	} else {
-		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
+		// Add all of the valSet entries as validator peers
+		for _, val := range valset.List() {
+			if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address()); ok {
+				sb.AddValidatorPeer(enodeURL)
+			}
+		}
+
+		// Remove the peers that are not in the valset
+		for _, peerEnodeURL := range currentValPeers {
+			if peerAddress, ok := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL); ok {
+				if _, src := valset.GetByAddress(peerAddress); src == nil {
+					sb.RemoveValidatorPeer(peerEnodeURL)
+				}
+			}
+		}
 	}
 }

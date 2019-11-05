@@ -17,6 +17,7 @@
 package core
 
 import (
+	"github.com/ethereum/go-ethereum/log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,27 +30,61 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		curView := c.currentView()
-		preprepare, err := Encode(&istanbul.Preprepare{
-			View:                   curView,
-			Proposal:               request.Proposal,
-			RoundChangeCertificate: roundChangeCertificate,
-		})
+		preprepare, err := c.getPreprepareMessage(request, roundChangeCertificate, logger)
 		if err != nil {
-			logger.Error("Failed to encode", "view", curView)
+			logger.Error("Failed to prepare message")
 			return
 		}
-		logger.Trace("Sending preprepare")
-		c.broadcast(&istanbul.Message{
+
+		msg := &istanbul.Message{
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
-		})
+		}
+		logger.Trace("Sending pre-prepare", "msg", msg)
+		c.broadcast(msg)
 	}
+}
+
+func (c *core) getPreprepareMessage(
+	request *istanbul.Request,
+	roundChangeCertificate istanbul.RoundChangeCertificate,
+	logger log.Logger) ([]byte, error) {
+	curView := c.currentView()
+	messageType := istanbul.MsgPreprepare
+	roundNumber := c.current.Round()
+	sequenceNumber := c.current.Sequence()
+	existingPreparedMessage, err := c.getPreprepareMessageFromDisk(
+		messageType, roundNumber, sequenceNumber)
+	if err != nil {
+		logger.Error("Failed to get prepared message from disk", "view", curView)
+		return nil, err
+	}
+
+	if existingPreparedMessage != nil {
+		logger.Info("Got previously prepared messaged from the disk", "msg", existingPreparedMessage)
+		return existingPreparedMessage, nil
+	}
+
+	preprepare, err := Encode(&istanbul.Preprepare{
+		View:                   curView,
+		Proposal:               request.Proposal,
+		RoundChangeCertificate: roundChangeCertificate,
+	})
+	if err != nil {
+		logger.Error("Failed to encode", "view", curView)
+		return nil, err
+	}
+	err2 := c.savePrepareMessageToDisk(messageType, roundNumber, sequenceNumber, preprepare)
+	if err2 != nil {
+		logger.Error("Failed to write prepare message to the disk", "msg", preprepare)
+		return nil, err2
+	}
+	return preprepare, nil
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare", "tag", "handleMsg")
-	logger.Trace("Got pre-prepare message")
+	logger.Trace("Got pre-prepare message", "msg", msg)
 
 	// Decode PRE-PREPARE
 	var preprepare *istanbul.Preprepare

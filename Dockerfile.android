@@ -26,8 +26,8 @@ ENV GOPATH=$HOME/go
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH=$PATH:$HOME/.cargo/bin
-RUN rustup install 1.36.0
-RUN rustup default 1.36.0
+RUN rustup install 1.37.0
+RUN rustup default 1.37.0
 RUN rustup target add aarch64-linux-android
 RUN rustup target add armv7-linux-androideabi
 RUN rustup target add i686-linux-android
