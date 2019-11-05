@@ -1234,7 +1234,6 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 				*(*uint64)(args.Gas) = defaultGas
 			}
 		}
-		log.Info("Setting default gas", "gas", args.Gas)
 	}
 	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
