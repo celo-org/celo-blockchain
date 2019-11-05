@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -120,8 +119,8 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 	return gas.Uint64()
 }
 
-func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB, gasCurrency *common.Address) uint64 {
-	return GetGasCost(header, state, params.AdditionalGasForNonGoldCurrencies, "intrinsicGasForAlternativeGasCurrency")
+func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.IntrinsicGasForAlternativeGasCurrency, "intrinsicGasForAlternativeGasCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
