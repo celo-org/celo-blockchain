@@ -81,7 +81,7 @@ const (
 
 var (
 	gasPriceMinimumABI, _            = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gasprice min to return if contracts are not found
+	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gas price minimum to return if unable to fetch from contract
 	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
