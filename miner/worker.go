@@ -25,7 +25,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -189,41 +188,35 @@ type worker struct {
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
-	// Verification Service
-	verificationService string
-	verificationMu      sync.RWMutex
-	lastBlockVerified   uint64
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, db *ethdb.Database) *worker {
 	worker := &worker{
-		config:              config,
-		engine:              engine,
-		eth:                 eth,
-		mux:                 mux,
-		chain:               eth.BlockChain(),
-		gasFloor:            gasFloor,
-		gasCeil:             gasCeil,
-		isLocalBlock:        isLocalBlock,
-		verificationService: verificationService,
-		localUncles:         make(map[common.Hash]*types.Block),
-		remoteUncles:        make(map[common.Hash]*types.Block),
-		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:        make(map[common.Hash]*task),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:           make(chan *newWorkReq),
-		taskCh:              make(chan *task),
-		resultCh:            make(chan *types.Block, resultQueueSize),
-		exitCh:              make(chan struct{}),
-		startCh:             make(chan struct{}, 1),
-		resubmitIntervalCh:  make(chan time.Duration),
-		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		db:                  db,
+		config:             config,
+		engine:             engine,
+		eth:                eth,
+		mux:                mux,
+		chain:              eth.BlockChain(),
+		gasFloor:           gasFloor,
+		gasCeil:            gasCeil,
+		isLocalBlock:       isLocalBlock,
+		localUncles:        make(map[common.Hash]*types.Block),
+		remoteUncles:       make(map[common.Hash]*types.Block),
+		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:       make(map[common.Hash]*task),
+		txsCh:              make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:          make(chan *newWorkReq),
+		taskCh:             make(chan *task),
+		resultCh:           make(chan *types.Block, resultQueueSize),
+		exitCh:             make(chan struct{}),
+		startCh:            make(chan struct{}, 1),
+		resubmitIntervalCh: make(chan time.Duration),
+		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
+		db:                 db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -395,22 +388,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-
-			processAttestationRequestsUpTo := func(number uint64) {
-				w.verificationMu.Lock()
-				defer w.verificationMu.Unlock()
-				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
-					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time().Uint64()+params.AttestationExpirySeconds >= uint64(now) {
-						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
-					} else {
-						break
-					}
-				}
-				w.lastBlockVerified = number
-			}
-			go processAttestationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in

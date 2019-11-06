@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -57,8 +56,6 @@ var (
 
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
-
-	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -178,7 +175,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
