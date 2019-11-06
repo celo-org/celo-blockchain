@@ -366,39 +366,55 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 
-	// Distribute transaction fees
-	err = st.refundGas()
+	st.refundGas()
+
+	err = st.distributeTxFees()
 	if err != nil {
-		log.Error("Failed to refund gas", "err", err)
 		return nil, 0, false, err
-	}
-
-	gasUsed := new(big.Int).SetUint64(st.gasUsed())
-	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
-	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
-	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
-	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
-
-	if err = st.creditGas(st.evm.Coinbase, tipTxFee, msg.GasCurrency()); err != nil {
-		return nil, 0, false, err
-	}
-
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, evm)
-	if err != nil {
-		log.Trace("Cannot credit gas fee to infrastructure fund: burning the fee", "error", err, "fee", baseTxFee)
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-			return nil, 0, false, err
-		}
-	} else {
-		if err = st.creditGas(*governanceAddress, baseTxFee, msg.GasCurrency()); err != nil {
-			return nil, 0, false, err
-		}
 	}
 
 	return ret, st.gasUsed(), vmerr != nil, nil
 }
 
-func (st *StateTransition) refundGas() error {
+// distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
+func (st *StateTransition) distributeTxFees() error {
+	// Determine the refund and transaction fee to be distributed.
+	refund := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
+	gasUsed := new(big.Int).SetUint64(st.gasUsed())
+	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
+
+	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
+	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
+	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
+
+	if err := st.creditGas(st.evm.Coinbase, tipTxFee, st.msg.GasCurrency()); err != nil {
+		return err
+	}
+
+	// Send the base of the transaction fee to the infrastructure fund.
+	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+	if err != nil {
+		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+			return err
+		}
+		log.Trace("Cannot credit gas fee to infrastructure fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+		refund.Add(refund, baseTxFee)
+	} else {
+		if err = st.creditGas(*governanceAddress, baseTxFee, st.msg.GasCurrency()); err != nil {
+			return err
+		}
+	}
+
+	err = st.creditGas(st.msg.From(), refund, st.msg.GasCurrency())
+	if err != nil {
+		log.Error("Failed to refund gas", "err", err)
+		return err
+	}
+	return nil
+}
+
+// refundGas adds unused gas back the state transition and gas pool.
+func (st *StateTransition) refundGas() {
 	refund := st.state.GetRefund()
 	// Apply refund counter, capped to half of the used gas.
 	if refund > st.gasUsed()/2 {
@@ -406,13 +422,9 @@ func (st *StateTransition) refundGas() error {
 	}
 
 	st.gas += refund
-	// Return ETH for remaining gas, exchanged at the original rate.
-	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	err := st.creditGas(st.msg.From(), remaining, st.msg.GasCurrency())
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
 	st.gp.AddGas(st.gas)
-	return err
 }
 
 // gasUsed returns the amount of gas used up by the state transition.
