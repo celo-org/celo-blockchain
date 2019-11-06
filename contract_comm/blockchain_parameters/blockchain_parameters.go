@@ -174,7 +174,6 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		state,
 	)
 	if err != nil {
-		log.Warn("Cannot read block gas limit", "err", err)
 		return params.DefaultGasLimit, err
 	}
 	return gasLimit.Uint64(), err

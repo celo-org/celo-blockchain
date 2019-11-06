@@ -118,5 +118,5 @@ func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
 
 	log.Warn("Cannot read block gas limit", "err", err)
 
-	return params.GenesisGasLimit
+	return params.DefaultGasLimit
 }
