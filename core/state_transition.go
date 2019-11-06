@@ -377,22 +377,24 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
-	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
-
-	if err = st.creditGas(st.evm.Coinbase, tipTxFee, msg.GasCurrency()); err != nil {
-		return nil, 0, false, err
-	}
+	var remainingTxFee *big.Int
 
 	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, evm)
 	if err != nil {
-		log.Trace("Cannot credit gas fee to infrastructure fund: burning the fee", "error", err, "fee", baseTxFee)
 		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 			return nil, 0, false, err
 		}
+		log.Warn("Cannot credit gas fee to infrastructure fund: crediting entire tx fee to proposer", "error", err, "fee", baseTxFee)
+		remainingTxFee = totalTxFee
 	} else {
 		if err = st.creditGas(*governanceAddress, baseTxFee, msg.GasCurrency()); err != nil {
 			return nil, 0, false, err
 		}
+		remainingTxFee = new(big.Int).Sub(totalTxFee, baseTxFee)
+	}
+
+	if err = st.creditGas(st.evm.Coinbase, remainingTxFee, msg.GasCurrency()); err != nil {
+		return nil, 0, false, err
 	}
 
 	return ret, st.gasUsed(), vmerr != nil, nil
