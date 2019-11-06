@@ -23,9 +23,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	commerrs "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -89,7 +91,7 @@ type Message interface {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *common.Address) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation, homestead bool, header *types.Header, state vm.StateDB, gasCurrency *common.Address) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation && homestead {
@@ -132,7 +134,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, gasCurrency *co
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if gasCurrency != nil {
-		gas += params.AdditionalGasForNonGoldCurrencies
+		gas += blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state)
 	}
 
 	return gas, nil
@@ -315,7 +317,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas.
-	gas, err := IntrinsicGas(st.data, contractCreation, homestead, msg.GasCurrency())
+	gas, err := IntrinsicGas(st.data, contractCreation, homestead, st.evm.GetHeader(), st.state, msg.GasCurrency())
 	if err != nil {
 		return nil, 0, false, err
 	}
