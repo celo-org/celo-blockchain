@@ -21,25 +21,18 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/contract_comm"
-	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
-	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
@@ -51,54 +44,6 @@ const (
 	inmemoryPeers                 = 40
 	inmemoryMessages              = 1024
 	mobileAllowedClockSkew uint64 = 5
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/LockedGold.json
-	setCumulativeRewardWeightABI = `[{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "blockReward",
-				"type": "uint256"
-			}
-		],
-		"name": "setCumulativeRewardWeight",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-		}]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	increaseSupplyABI = `[{
-		"constant": false,
-		"inputs": [
-		  {
-			"name": "amount",
-			"type": "uint256"
-		  }
-		],
-		"name": "increaseSupply",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-		}]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
-	totalSupplyABI = `[{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }]`
 )
 
 var (
@@ -137,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errOldMessage is returned when the received announce message's block number is earlier
-	// than a previous received message
-	errOldAnnounceMessage = errors.New("old announce message")
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
@@ -153,10 +95,6 @@ var (
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
-
-	increaseSupplyFuncABI, _            = abi.JSON(strings.NewReader(increaseSupplyABI))
-	totalSupplyFuncABI, _               = abi.JSON(strings.NewReader(totalSupplyABI))
-	setCumulativeRewardWeightFuncABI, _ = abi.JSON(strings.NewReader(setCumulativeRewardWeightABI))
 )
 
 // Author retrieves the Ethereum address of the account that minted the given
@@ -415,10 +353,8 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
-		newValSet, err := validators.GetValidatorSet(header, state)
-		if err != nil {
-			log.Error("Istanbul.Finalize - Error in retrieving the validator set. Using the previous epoch's validator set", "err", err)
-		} else {
+		newValSet, err := sb.getNewValidatorSet(header, state)
+		if err == nil {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 			if err != nil {
@@ -443,9 +379,14 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return nil
 }
 
-// TODO(brice): This needs a comment.
+// Returns whether or not a particular header represents the last block in the epoch.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
+}
+
+// Returns the size of epochs in blocks.
+func (sb *Backend) EpochSize() uint64 {
+	return sb.config.Epoch
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
@@ -454,76 +395,24 @@ func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+
+	snapshot := state.Snapshot()
+	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
+	if err != nil {
+		state.RevertToSnapshot(snapshot)
+	}
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	updatedGasPriceMinimum, err := gpm.UpdateGasPriceMinimum(header, state)
-	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
-		log.Debug("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
-	} else if err != nil {
-		log.Error("Error in updating gas price minimum", "error", err, "updatedGasPriceMinimum", updatedGasPriceMinimum)
+	snapshot = state.Snapshot()
+	_, err = gpm.UpdateGasPriceMinimum(header, state)
+	if err != nil {
+		state.RevertToSnapshot(snapshot)
 	}
 
-	goldTokenAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
-	if err == contract_errors.ErrSmartContractNotDeployed || err == contract_errors.ErrRegistryContractNotDeployed {
-		log.Debug("Registry address lookup failed", "err", err)
-	} else if err != nil {
-		log.Error(err.Error())
-	}
-	// Add block rewards only if goldtoken smart contract has been initialized
-	if goldTokenAddress != nil {
-		totalBlockRewards := big.NewInt(0)
-
-		infrastructureBlockReward := big.NewInt(params.Ether)
-		governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
-		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Debug("Registry address lookup failed", "err", err)
-		} else if err != nil {
-			log.Error(err.Error())
-		}
-
-		if governanceAddress != nil {
-			state.AddBalance(*governanceAddress, infrastructureBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, infrastructureBlockReward)
-		}
-
-		stakerBlockReward := big.NewInt(params.Ether)
-		lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
-		if err == contract_errors.ErrSmartContractNotDeployed {
-			log.Debug("Registry address lookup failed", "err", err, "contract id", params.LockedGoldRegistryId)
-		} else if err != nil {
-			log.Error(err.Error())
-		}
-
-		if lockedGoldAddress != nil {
-			state.AddBalance(*lockedGoldAddress, stakerBlockReward)
-			totalBlockRewards.Add(totalBlockRewards, stakerBlockReward)
-			_, err := contract_comm.MakeCallWithAddress(*lockedGoldAddress, setCumulativeRewardWeightFuncABI, "setCumulativeRewardWeight", []interface{}{stakerBlockReward}, nil, 1000000, common.Big0, header, state)
-			if err != nil {
-				log.Error("Unable to send epoch rewards to LockedGold", "err", err)
-				return nil, err
-			}
-		}
-
-		// Update totalSupply of GoldToken.
-		if totalBlockRewards.Cmp(common.Big0) > 0 {
-			var totalSupply *big.Int
-			if _, err := contract_comm.MakeStaticCallWithAddress(*goldTokenAddress, totalSupplyFuncABI, "totalSupply", []interface{}{}, &totalSupply, 1000000, header, state); err != nil || totalSupply == nil {
-				log.Error("Unable to retrieve total supply from the Gold token smart contract", "err", err)
-				return nil, err
-			}
-			if totalSupply.Cmp(common.Big0) == 0 { // totalSupply not yet initialized
-				data, err := sb.db.Get(core.DBGenesisSupplyKey)
-				if err != nil {
-					log.Error("Unable to fetch genesisSupply from db", "err", err)
-					return nil, err
-				}
-				genesisSupply := new(big.Int)
-				genesisSupply.SetBytes(data)
-				totalBlockRewards.Add(totalBlockRewards, genesisSupply)
-			}
-			if _, err := contract_comm.MakeCallWithAddress(*goldTokenAddress, increaseSupplyFuncABI, "increaseSupply", []interface{}{totalBlockRewards}, nil, 1000000, common.Big0, header, state); err != nil {
-				log.Error("Unable to increment goldTotalSupply for block reward", "err", err)
-				return nil, err
-			}
+	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+		snapshot = state.Snapshot()
+		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
+		if err != nil {
+			state.RevertToSnapshot(snapshot)
 		}
 	}
 
@@ -817,6 +706,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	if len(headers) > 0 {
 		var err error
+		log.Trace("Snapshot headers len greater than 0", "headers", headers)
 		snap, err = snap.apply(headers, sb.db)
 		if err != nil {
 			log.Error("Unable to apply headers to snapshots", "headers", headers)

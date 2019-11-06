@@ -18,6 +18,8 @@ package miner
 
 import (
 	"math/big"
+	"math/rand"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -244,7 +246,9 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	istanbulDataDirName := string(rand.Int())
+	dataDir := filepath.Join("/tmp", istanbulDataDirName)
+	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
