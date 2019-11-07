@@ -219,27 +219,27 @@ type parityChainSpec struct {
 	} `json:"engine"`
 
 	Params struct {
-		AccountStartNonce        hexutil.Uint64       `json:"accountStartNonce"`
-		MaximumExtraDataSize     hexutil.Uint64       `json:"maximumExtraDataSize"`
-		NetworkID                hexutil.Uint64       `json:"networkID"`
-		ChainID                  hexutil.Uint64       `json:"chainID"`
-		MaxCodeSize              hexutil.Uint64       `json:"maxCodeSize"`
-		MaxCodeSizeTransition    hexutil.Uint64       `json:"maxCodeSizeTransition"`
-		EIP98Transition          hexutil.Uint64       `json:"eip98Transition"`
-		EIP150Transition         hexutil.Uint64       `json:"eip150Transition"`
-		EIP160Transition         hexutil.Uint64       `json:"eip160Transition"`
-		EIP161abcTransition      hexutil.Uint64       `json:"eip161abcTransition"`
-		EIP161dTransition        hexutil.Uint64       `json:"eip161dTransition"`
-		EIP155Transition         hexutil.Uint64       `json:"eip155Transition"`
-		EIP140Transition         hexutil.Uint64       `json:"eip140Transition"`
-		EIP211Transition         hexutil.Uint64       `json:"eip211Transition"`
-		EIP214Transition         hexutil.Uint64       `json:"eip214Transition"`
-		EIP658Transition         hexutil.Uint64       `json:"eip658Transition"`
-		EIP145Transition         hexutil.Uint64       `json:"eip145Transition"`
-		EIP1014Transition        hexutil.Uint64       `json:"eip1014Transition"`
-		EIP1052Transition        hexutil.Uint64       `json:"eip1052Transition"`
-		EIP1283Transition        hexutil.Uint64       `json:"eip1283Transition"`
-		EIP1283DisableTransition hexutil.Uint64       `json:"eip1283DisableTransition"`
+		AccountStartNonce        hexutil.Uint64 `json:"accountStartNonce"`
+		MaximumExtraDataSize     hexutil.Uint64 `json:"maximumExtraDataSize"`
+		NetworkID                hexutil.Uint64 `json:"networkID"`
+		ChainID                  hexutil.Uint64 `json:"chainID"`
+		MaxCodeSize              hexutil.Uint64 `json:"maxCodeSize"`
+		MaxCodeSizeTransition    hexutil.Uint64 `json:"maxCodeSizeTransition"`
+		EIP98Transition          hexutil.Uint64 `json:"eip98Transition"`
+		EIP150Transition         hexutil.Uint64 `json:"eip150Transition"`
+		EIP160Transition         hexutil.Uint64 `json:"eip160Transition"`
+		EIP161abcTransition      hexutil.Uint64 `json:"eip161abcTransition"`
+		EIP161dTransition        hexutil.Uint64 `json:"eip161dTransition"`
+		EIP155Transition         hexutil.Uint64 `json:"eip155Transition"`
+		EIP140Transition         hexutil.Uint64 `json:"eip140Transition"`
+		EIP211Transition         hexutil.Uint64 `json:"eip211Transition"`
+		EIP214Transition         hexutil.Uint64 `json:"eip214Transition"`
+		EIP658Transition         hexutil.Uint64 `json:"eip658Transition"`
+		EIP145Transition         hexutil.Uint64 `json:"eip145Transition"`
+		EIP1014Transition        hexutil.Uint64 `json:"eip1014Transition"`
+		EIP1052Transition        hexutil.Uint64 `json:"eip1052Transition"`
+		EIP1283Transition        hexutil.Uint64 `json:"eip1283Transition"`
+		EIP1283DisableTransition hexutil.Uint64 `json:"eip1283DisableTransition"`
 	} `json:"params"`
 
 	Genesis struct {
