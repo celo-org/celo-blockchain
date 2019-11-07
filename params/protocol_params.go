@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	DefaultGasLimit      uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
+	DefaultGasLimit uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
 
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
 	ExpByteGas            uint64 = 10    // Times ceil(log256(exponent)) for the EXP instruction.

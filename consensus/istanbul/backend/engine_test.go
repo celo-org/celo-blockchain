@@ -214,7 +214,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func createRandomDataDir() string {
 	rand.Seed(time.Now().UnixNano())
 	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000)
+		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
 		dataDir := filepath.Join("/tmp", dirName)
 		err := os.Mkdir(dataDir, 0700)
 		if os.IsExist(err) {
