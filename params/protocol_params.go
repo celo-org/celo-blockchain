@@ -141,47 +141,32 @@ const (
 )
 
 const (
-	// TODO(asa): Make these operations less expensive by charging only what is used.
-	// The problem is we don't know how much to refund until the refund is complete.
-	// If these values are changed, "setDefaults" will need updating.
-
-	// The plan is to have these values set within a system smart contract,
-	// and that they are read during runtime.  They could then be changed via
-	// governance.
-	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
-	MaxGasForDebitFromTransactions      uint64 = 46 * 1000
-
-	ExpectedGasForCreditToTransactions uint64 = 32 * 1000
-	MaxGasForCreditToTransactions      uint64 = 64 * 1000
-
-	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
-	MaxGasToReadErc20Balance      uint64 = 30 * 1000
-
-	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
-	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
+	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
+	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
 
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
 	MaxGasForCommitments                           uint64 = 2000000
 	MaxGasForComputeCommitment                     uint64 = 2000000
+	MaxGasForCreditToTransactions                  uint64 = 100000
+	MaxGasForDebitFromTransactions                 uint64 = 100000
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
-	MaxGasForGetAddressFor                         uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
 	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
-	MaxGasForGetMinimumClientVersion               uint64 = 200000
 	MaxGasForGetRegisteredValidators               uint64 = 1000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForMedianRate                            uint64 = 20000
 	MaxGasForProposerFraction                      uint64 = 200000
+	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
-	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
+	MaxGasToReadErc20Balance                       uint64 = 100000
 )
