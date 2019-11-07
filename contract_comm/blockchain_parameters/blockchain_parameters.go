@@ -176,5 +176,5 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 	if err != nil {
 		return params.DefaultGasLimit, err
 	}
-	return gasLimit.Uint64(), err
+	return gasLimit.Uint64(), nil
 }

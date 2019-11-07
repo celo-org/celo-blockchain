@@ -44,10 +44,8 @@ type alethGenesisSpec struct {
 		EIP158ForkBlock         hexutil.Uint64         `json:"EIP158ForkBlock"`
 		ByzantiumForkBlock      hexutil.Uint64         `json:"byzantiumForkBlock"`
 		ConstantinopleForkBlock hexutil.Uint64         `json:"constantinopleForkBlock"`
-		MinGasLimit             hexutil.Uint64         `json:"minGasLimit"`
 		MaxGasLimit             hexutil.Uint64         `json:"maxGasLimit"`
 		TieBreakingGas          bool                   `json:"tieBreakingGas"`
-		GasLimitBoundDivisor    math2.HexOrDecimal64   `json:"gasLimitBoundDivisor"`
 		MinimumDifficulty       *hexutil.Big           `json:"minimumDifficulty"`
 		DifficultyBoundDivisor  *math2.HexOrDecimal256 `json:"difficultyBoundDivisor"`
 		DurationLimit           *math2.HexOrDecimal256 `json:"durationLimit"`
@@ -124,11 +122,9 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
-	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
 	spec.Params.MaxGasLimit = (hexutil.Uint64)(math.MaxInt64)
 	spec.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
 	spec.Params.DifficultyBoundDivisor = (*math2.HexOrDecimal256)(params.DifficultyBoundDivisor)
-	spec.Params.GasLimitBoundDivisor = (math2.HexOrDecimal64)(params.GasLimitBoundDivisor)
 	spec.Params.DurationLimit = (*math2.HexOrDecimal256)(params.DurationLimit)
 	spec.Params.BlockReward = (*hexutil.Big)(ethash.FrontierBlockReward)
 
@@ -225,8 +221,6 @@ type parityChainSpec struct {
 	Params struct {
 		AccountStartNonce        hexutil.Uint64       `json:"accountStartNonce"`
 		MaximumExtraDataSize     hexutil.Uint64       `json:"maximumExtraDataSize"`
-		MinGasLimit              hexutil.Uint64       `json:"minGasLimit"`
-		GasLimitBoundDivisor     math2.HexOrDecimal64 `json:"gasLimitBoundDivisor"`
 		NetworkID                hexutil.Uint64       `json:"networkID"`
 		ChainID                  hexutil.Uint64       `json:"chainID"`
 		MaxCodeSize              hexutil.Uint64       `json:"maxCodeSize"`
@@ -354,8 +348,6 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 	}
 
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
-	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
-	spec.Params.GasLimitBoundDivisor = (math2.HexOrDecimal64)(params.GasLimitBoundDivisor)
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaxCodeSize = params.MaxCodeSize

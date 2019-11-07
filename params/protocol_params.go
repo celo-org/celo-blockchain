@@ -26,8 +26,7 @@ import (
 const (
 	GasLimitBoundDivisor uint64 = 1024     // The bound divisor of the gas limit, used in update calculations.
 	MinGasLimit          uint64 = 5000     // Minimum the gas limit may ever be.
-	GenesisGasLimit      uint64 = 4712388  // Gas limit of the Genesis block.
-	DefaultGasLimit      uint64 = 10000000 // Gas limit of the Genesis block.
+	DefaultGasLimit      uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
 
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
 	ExpByteGas            uint64 = 10    // Times ceil(log256(exponent)) for the EXP instruction.
