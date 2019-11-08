@@ -51,7 +51,36 @@ const (
 			"payable": false,
 			"stateMutability": "view",
 			"type": "function"
-	}]`
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "blockGasLimit",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  },
+	  {
+		"constant": true,
+		"inputs": [],
+		"name": "intrinsicGasForAlternativeGasCurrency",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  }
+]`
 )
 
 var blockchainParametersABI abi.ABI
@@ -73,7 +102,7 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 		"getMinimumClientVersion",
 		[]interface{}{},
 		&version,
-		params.MaxGasForGetGasPriceMinimum,
+		params.MaxGasForReadBlockchainParameter,
 		header,
 		state,
 	)
@@ -81,6 +110,31 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 		return nil, err
 	}
 	return &params.VersionInfo{version[0].Uint64(), version[1].Uint64(), version[2].Uint64()}, nil
+}
+
+func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
+	var gas *big.Int
+	var err error
+	_, err = contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		method,
+		[]interface{}{},
+		&gas,
+		params.MaxGasForReadBlockchainParameter,
+		header,
+		state,
+	)
+	if err != nil {
+		log.Trace("Default gas", "gas", defaultGas, "method", method)
+		return defaultGas
+	}
+	log.Trace("Reading gas", "gas", gas)
+	return gas.Uint64()
+}
+
+func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.IntrinsicGasForAlternativeGasCurrency, "intrinsicGasForAlternativeGasCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
@@ -105,4 +159,22 @@ func SpawnCheck() {
 			CheckMinimumVersion(nil, nil)
 		}
 	}()
+}
+
+func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
+	var gasLimit *big.Int
+	_, err := contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"blockGasLimit",
+		[]interface{}{},
+		&gasLimit,
+		params.MaxGasForReadBlockchainParameter,
+		header,
+		state,
+	)
+	if err != nil {
+		return params.DefaultGasLimit, err
+	}
+	return gasLimit.Uint64(), nil
 }

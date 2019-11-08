@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -1225,7 +1226,13 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		} else {
 			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
 			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
-			*(*uint64)(args.Gas) = defaultGas + params.AdditionalGasForNonGoldCurrencies
+			state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+			if err != nil {
+				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state)
+			} else {
+				log.Warn("Cannot read intrinsic gas for alternative gas currency", "err", err)
+				*(*uint64)(args.Gas) = defaultGas + params.IntrinsicGasForAlternativeGasCurrency
+			}
 		}
 	}
 	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
