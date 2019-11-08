@@ -214,7 +214,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func createRandomDataDir() string {
 	rand.Seed(time.Now().UnixNano())
 	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000)
+		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
 		dataDir := filepath.Join("/tmp", dirName)
 		err := os.Mkdir(dataDir, 0700)
 		if os.IsExist(err) {
@@ -270,7 +270,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     parent.Number().Add(parent.Number(), common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+		GasLimit:   core.CalcGasLimit(parent, nil),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(config.BlockPeriod)),
