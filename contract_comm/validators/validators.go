@@ -35,7 +35,7 @@ const validatorsABIString string = `[
   {
     "constant": true,
     "inputs": [],
-    "name": "getRegisteredValidators",
+    "name": "getRegisteredValidatorSigners",
     "outputs": [
     {
       "name": "",
@@ -50,11 +50,11 @@ const validatorsABIString string = `[
       "constant": true,
       "inputs": [
         {
-          "name": "account",
+          "name": "validator",
           "type": "address"
         }
       ],
-      "name": "getValidator",
+      "name": "getValidatorFromSigner",
       "outputs": [
         {
           "name": "publicKeysData",
@@ -85,7 +85,7 @@ const validatorsABIString string = `[
           "type": "uint256"
         }
       ],
-      "name": "distributeEpochPayment",
+      "name": "distributeEpochPaymentsFromSigner",
       "outputs": [
         {
           "name": "",
@@ -108,7 +108,7 @@ const validatorsABIString string = `[
           "type": "uint256"
         }
       ],
-      "name": "updateValidatorScore",
+      "name": "updateValidatorScoreFromSigner",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -122,7 +122,7 @@ const validatorsABIString string = `[
           "type": "address"
         }
       ],
-      "name": "getMembershipInLastEpoch",
+      "name": "getMembershipInLastEpochFromSigner",
       "outputs": [
         {
           "name": "",
@@ -141,7 +141,7 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +156,7 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 			Affiliation    common.Address
 			Score          *big.Int
 		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorFromSigner", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"updateValidatorScore",
+		"updateValidatorScoreFromSigner",
 		[]interface{}{address, uptime},
 		nil,
 		params.MaxGasForUpdateValidatorScore,
@@ -194,7 +194,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"distributeEpochPayment",
+		"distributeEpochPaymentsFromSigner",
 		[]interface{}{address, maxPayment},
 		&epochPayment,
 		params.MaxGasForDistributeEpochPayment,
@@ -208,7 +208,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {
 	var group common.Address
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpoch", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpochFromSigner", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
