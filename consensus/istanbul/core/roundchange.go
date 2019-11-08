@@ -185,7 +185,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		return err
 	}
 
-	// Skip to the highest round we know one honest validator is at, but
+	// Skip to the highest round we know F+1 (one honest validator) is at, but
 	// don't start a round until we have a quorum who want to start a given round.
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
@@ -261,11 +261,9 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 
 	for k, rms := range rcs.msgsForRound {
 		if rms.Size() == 0 || k < round.Uint64() {
-			if rms != nil {
-				for _, msg := range rms.Values() {
-					if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok && k == latestRound {
-						delete(rcs.latestRoundForVal, msg.Address)
-					}
+			for _, msg := range rms.Values() {
+				if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok {
+					delete(rcs.latestRoundForVal, msg.Address)
 				}
 			}
 			delete(rcs.msgsForRound, k)
