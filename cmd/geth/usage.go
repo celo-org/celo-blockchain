@@ -84,7 +84,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
 			utils.EtherbaseFlag,
-			utils.SentryFlag,
 		},
 	},
 	{
@@ -176,7 +175,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.BootnodesV4Flag,
 			utils.BootnodesV5Flag,
 			utils.ListenPortFlag,
-			utils.ProxiedValidatorListenEndpointFlag,
 			utils.MaxPeersFlag,
 			utils.MaxPendingPeersFlag,
 			utils.NATFlag,
@@ -240,8 +238,16 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.IstanbulRequestTimeoutFlag,
 			utils.IstanbulBlockPeriodFlag,
-			utils.IstanbulProxiedFlag,
-			utils.IstanbulSentriesFlag,
+		},
+	},
+	{
+		Name: "PROXY",
+		Flags: []cli.Flag{
+			utils.ProxyFlag,
+			utils.ProxyInternalFacingEndpointFlag,
+			utils.ProxiedValidatorAddressFlag,
+			utils.ProxiedFlag,
+			utils.ProxyEnodeURLPairFlag,
 		},
 	},
 	{

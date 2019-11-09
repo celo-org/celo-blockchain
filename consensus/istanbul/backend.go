@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SignerFn is a signer callback function to request a hash to be signed by a
@@ -39,16 +38,13 @@ type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
 
-	// Enode returns the owner's enode
-	Enode() *enode.Node
-
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
 
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// Broadcast sends a message to all validators (include self)
+	// BroadcastIstMsg sends a message to all validators (include self)
 	BroadcastIstMsg(validators []common.Address, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)

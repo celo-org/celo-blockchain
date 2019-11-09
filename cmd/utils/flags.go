@@ -207,10 +207,6 @@ var (
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
-	SentryFlag = cli.BoolFlag{
-		Name:  "sentry",
-		Usage: fmt.Sprintf("Specifies whether this node is a sentry.  This can't be used with the --%s option", MiningEnabledFlag.Name),
-	}
 
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
@@ -524,11 +520,6 @@ var (
 		Usage: "Network listening port",
 		Value: 30303,
 	}
-	ProxiedValidatorListenEndpointFlag = cli.StringFlag{
-		Name:  "proxiedvalidatorendpoint",
-		Usage: "Proxied Validator Network listening endpoint",
-		Value: ":30503",
-	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
 		Usage: "Comma separated enode URLs for P2P discovery bootstrap (set v4+v5 instead for light servers)",
@@ -670,13 +661,30 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
-	IstanbulProxiedFlag = cli.BoolFlag{
-		Name:  "istanbul.proxied",
-		Usage: fmt.Sprintf("Specifies whether this node will be proxied by sentry nodes. This option requires that --%s is also used.  It will also disables discovery.", MiningEnabledFlag.Name),
+
+	// Proxy node settings
+	ProxyFlag = cli.BoolFlag{
+		Name:  "proxy.proxy",
+		Usage: "Specifies whether this node is a proxy",
 	}
-	IstanbulSentriesFlag = cli.StringFlag{
-		Name:  "istanbul.sentries",
-		Usage: fmt.Sprintf("Comma separated enode URL pairs for proxied validators"),
+	ProxyInternalFacingEndpointFlag = cli.StringFlag{
+		Name:  "proxy.internalendpoint",
+		Usage: "Specifies the internal facing endpoint for this proxy to listen to",
+		Value: ":30503",
+	}
+	ProxiedValidatorAddressFlag = cli.StringFlag{
+		Name:  "proxy.proxiedvalidatoraddress",
+		Usage: "Address of the proxied validator",
+	}
+
+	// Proxied validator settings
+	ProxiedFlag = cli.BoolFlag{
+		Name:  "proxy.proxied",
+		Usage: "Specifies whether this validator will be proxied by a proxy node",
+	}
+	ProxyEnodeURLPairFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "proxy enode URL pair separated by a semicolon.  The format should be <internal facing enode URL>;<external facing enode URL>",
 	}
 )
 
@@ -706,7 +714,7 @@ func MakeDataDir(ctx *cli.Context) string {
 // setNodeKey creates a node key from set command line flags, either loading it
 // from a file or as a specified hex value. If neither flags were provided, this
 // method returns nil and an emphemeral key is to be generated.
-func setNodeKey(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
+func setNodeKey(ctx *cli.Context, cfg *p2p.Config) {
 	var (
 		hex  = ctx.GlobalString(NodeKeyHexFlag.Name)
 		file = ctx.GlobalString(NodeKeyFileFlag.Name)
@@ -721,13 +729,11 @@ func setNodeKey(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 			Fatalf("Option %q: %v", NodeKeyFileFlag.Name, err)
 		}
 		cfg.PrivateKey = key
-		proxyCfg.PrivateKey = key
 	case hex != "":
 		if key, err = crypto.HexToECDSA(hex); err != nil {
 			Fatalf("Option %q: %v", NodeKeyHexFlag.Name, err)
 		}
 		cfg.PrivateKey = key
-		proxyCfg.PrivateKey = key
 	}
 }
 
@@ -803,24 +809,20 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 
 // setListenAddress creates a TCP listening address string from set command
 // line flags.
-func setListenAddress(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
+func setListenAddress(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(ListenPortFlag.Name) {
 		cfg.ListenAddr = fmt.Sprintf(":%d", ctx.GlobalInt(ListenPortFlag.Name))
-	}
-	if ctx.GlobalIsSet(ProxiedValidatorListenEndpointFlag.Name) {
-		proxyCfg.ListenAddr = ctx.GlobalString(ProxiedValidatorListenEndpointFlag.Name)
 	}
 }
 
 // setNAT creates a port mapper from command line flags.
-func setNAT(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
+func setNAT(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(NATFlag.Name) {
 		natif, err := nat.Parse(ctx.GlobalString(NATFlag.Name))
 		if err != nil {
 			Fatalf("Option %s: %v", NATFlag.Name, err)
 		}
 		cfg.NAT = natif
-		proxyCfg.NAT = natif
 	}
 }
 
@@ -984,15 +986,14 @@ func MakePasswordList(ctx *cli.Context) []string {
 	return lines
 }
 
-func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
-	setNodeKey(ctx, cfg, proxyCfg)
-	setNAT(ctx, cfg, proxyCfg)
-	setListenAddress(ctx, cfg, proxyCfg)
+func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
+	setNodeKey(ctx, cfg)
+	setNAT(ctx, cfg)
+	setListenAddress(ctx, cfg)
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
 	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
-	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
@@ -1024,13 +1025,13 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
 
-	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient || ctx.GlobalBool(IstanbulProxiedFlag.Name) {
+	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient {
 		cfg.NoDiscovery = true
 	}
 	if ctx.GlobalBool(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
 	}
-	if ctx.GlobalIsSet(UseInMemoryDiscoverTableFlag.Name) {
+	if ctx.GlobalBool(UseInMemoryDiscoverTableFlag.Name) {
 		cfg.UseInMemoryNodeDatabase = true
 	}
 
@@ -1063,7 +1064,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config, proxyCfg *p2p.Config) {
 
 // SetNodeConfig applies node-related command line flags to the config.
 func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
-	SetP2PConfig(ctx, &cfg.P2P, &cfg.ProxyP2P)
+	SetP2PConfig(ctx, &cfg.P2P)
 	setIPC(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setWS(ctx, cfg)
@@ -1078,9 +1079,6 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(NoUSBFlag.Name) {
 		cfg.NoUSB = ctx.GlobalBool(NoUSBFlag.Name)
-	}
-	if ctx.GlobalIsSet(SentryFlag.Name) {
-		cfg.Sentry = ctx.GlobalBool(SentryFlag.Name)
 	}
 }
 
@@ -1195,38 +1193,66 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulProxiedFlag.Name) {
-		cfg.Istanbul.Proxied = ctx.GlobalBool(IstanbulProxiedFlag.Name)
-	}
-	if ctx.GlobalIsSet(SentryFlag.Name) {
-		cfg.Istanbul.Sentry = ctx.GlobalBool(SentryFlag.Name)
-	}
-	if ctx.GlobalIsSet(IstanbulSentriesFlag.Name) {
-		urlPairs := strings.Split(ctx.GlobalString(IstanbulSentriesFlag.Name), ",")
-		cfg.Istanbul.SentryNodes = make([][2]*enode.Node, 0, len(urlPairs))
-		for _, urlPair := range urlPairs {
-			sentryUrlPair := strings.Split(urlPair, ";")
-			if len(sentryUrlPair) != 2 {
-				log.Crit("Invalid sentries list. Each entry must have two urls")
-			}
-
-			internalNode, err := enode.ParseV4(sentryUrlPair[0])
-			if err != nil {
-				log.Crit("Sentry internal URL invalid", "enode", sentryUrlPair[0], "err", err)
-			}
-
-			externalNode, err := enode.ParseV4(sentryUrlPair[1])
-			if err != nil {
-				log.Crit("Sentry external URL invalid", "enode", sentryUrlPair[1], "err", err)
-			}
-
-			cfg.Istanbul.SentryNodes = append(cfg.Istanbul.SentryNodes, [2]*enode.Node{internalNode, externalNode})
-		}
-	}
-
 }
 
-// checkExclusive verifies that only a single isntance of the provided flags was
+func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
+	setNodeKey(ctx, proxyCfg)
+	setNAT(ctx, proxyCfg)
+	if ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
+		proxyCfg.ListenAddr = ctx.GlobalString(ProxyInternalFacingEndpointFlag.Name)
+	}
+
+	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+}
+
+// Set all of the proxy related configurations.
+// These configs span the top level node and istanbul module configuration
+func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) {
+	checkExclusive(ctx, ProxyFlag, ProxiedFlag)
+
+	if ctx.GlobalIsSet(ProxyFlag.Name) {
+		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
+		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
+
+		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxiedValidatorAddressFlag.Name, ProxyFlag.Name)
+		} else {
+			proxiedValidatorAddress := ctx.String(ProxiedValidatorAddressFlag.Name)
+			if !common.IsHexAddress(proxiedValidatorAddress) {
+				Fatalf("Invalid address used for option --%s", ProxiedValidatorAddressFlag.Name)
+			}
+			ethCfg.Istanbul.ProxiedValidatorAddress = common.HexToAddress(proxiedValidatorAddress)
+		}
+
+		setProxyP2PConfig(ctx, &nodeCfg.ProxyP2P)
+	}
+
+	if ctx.GlobalIsSet(ProxiedFlag.Name) {
+		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
+
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
+		} else {
+			proxyEnodeURLPair := strings.Split(ProxyEnodeURLPairFlag.Name, ";")
+
+			var err error
+
+			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
+				log.Crit("Proxy internal facing enodeURL invalid", "enodeURL", proxyEnodeURLPair[0], "err", err)
+			}
+
+			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
+				log.Crit("Proxy external facing enodeURL invalid", "enodeURL", proxyEnodeURLPair[1], "err", err)
+			}
+		}
+
+		if !ctx.GlobalBool(NoDiscoverFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", NoDiscoverFlag.Name, ProxiedFlag.Name)
+		}
+	}
+}
+
+// checkExclusive verifies that only a single instance of the provided flags was
 // set by the user. Each flag might optionally be followed by a string type to
 // specialize it further.
 func checkExclusive(ctx *cli.Context, args ...interface{}) {

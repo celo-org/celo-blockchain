@@ -700,7 +700,7 @@ func (srv *Server) run(dialstate dialer) {
 		}
 		static[n.ID()][label] = true
 
-		// If already connected, updated val peer counters and set the validatorConn flag in the connection
+		// If already connected, set the peer's static node label set
 		if p, ok := peers[n.ID()]; ok {
 			if p.StaticNodeLabels == nil {
 				p.StaticNodeLabels = static[n.ID()]

@@ -97,7 +97,6 @@ var (
 		utils.CacheGCFlag,
 		utils.TrieCacheGenFlag,
 		utils.ListenPortFlag,
-		utils.ProxiedValidatorListenEndpointFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
@@ -142,10 +141,12 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
-		utils.IstanbulProxiedFlag,
-		utils.SentryFlag,
 		utils.VersionCheckFlag,
-		utils.IstanbulSentriesFlag,
+		utils.ProxyFlag,
+		utils.ProxyInternalFacingEndpointFlag,
+		utils.ProxiedValidatorAddressFlag,
+		utils.ProxiedFlag,
+		utils.ProxyEnodeURLPairFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -343,17 +344,17 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	}()
 
 	// Miners and sentries only makes sense if a full Ethereum node is running
-	if ctx.GlobalBool(utils.SentryFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" || ctx.GlobalString(utils.SyncModeFlag.Name) == "ultralight" {
-			utils.Fatalf("Light and Ultralight clients do not support mining or acting as a sentry")
+			utils.Fatalf("Light and Ultralight clients do not support mining or running as a proxy")
 		}
 	}
 
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		// Sentries can't mine
-		if ctx.GlobalBool(utils.SentryFlag.Name) {
-			utils.Fatalf("Sentries can't mine")
+		if ctx.GlobalBool(utils.ProxyFlag.Name) {
+			utils.Fatalf("Proxies can't mine")
 		}
 
 		var ethereum *eth.Ethereum

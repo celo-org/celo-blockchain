@@ -50,9 +50,12 @@ var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 
-	// errSentryAlreadySet is returned if a user tries to add a sentry that is already set.
+	// errProxyAlreadySet is returned if a user tries to add a proxy that is already set.
 	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
-	errSentryAlreadySet = errors.New("sentry already set")
+	errProxyAlreadySet = errors.New("proxy already set")
+
+	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
+	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 )
 
 // Entries for the recent announce messages
@@ -61,10 +64,11 @@ type AnnounceGossipTimestamp struct {
 	timestamp    time.Time
 }
 
-type sentryInfo struct {
-	node         *enode.Node
-	externalNode *enode.Node
-	peer         consensus.Peer
+// Information about the proxy for a proxied validator
+type proxyInfo struct {
+	node         *enode.Node    // Enode for the internal network interface
+	externalNode *enode.Node    // Enode for the external network interface
+	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the senty
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -148,10 +152,9 @@ type Backend struct {
 	valEnodeShareWg   *sync.WaitGroup
 	valEnodeShareQuit chan struct{}
 
-	// Right now, we assume that there is at most one sentry for a proxied validator
-	sentryNode *sentryInfo
+	proxyNode *proxyInfo
 
-	// Right now, we assume that there is at most one proxied peer for a sentry
+	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
 
 	dataDir string // A read-write data dir to persist files across restarts
@@ -188,13 +191,13 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.FilteredList()
 }
 
-// This function will return the peers with the addresses in the "destAddresses" paramater.
-// If this is a proxied validator, then it will return the sentry.
+// This function will return the peers with the addresses in the "destAddresses" parameter.
+// If this is a proxied validator, then it will return the proxy.
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied {
-		if sb.sentryNode != nil && sb.sentryNode.peer != nil {
+		if sb.proxyNode != nil && sb.proxyNode.peer != nil {
 			returnMap := make(map[enode.ID]consensus.Peer)
-			returnMap[sb.sentryNode.peer.Node().ID()] = sb.sentryNode.peer
+			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
 
 			return returnMap
 		} else {
@@ -251,16 +254,6 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 
 	peers := sb.getPeersForMessage(destAddresses)
 
-	ids := []string{}
-	enodeURLs := []string{}
-
-	for id, peer := range peers {
-		ids = append(ids, id.String())
-		enodeURLs = append(enodeURLs, peer.Node().String())
-	}
-
-	sb.logger.Debug("Gossip message", "ethMsgCode", ethMsgCode, "ids", ids, "enodeURLs", enodeURLs)
-
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
@@ -290,10 +283,6 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 		}
 	}
 	return nil
-}
-
-func (sb *Backend) Enode() *enode.Node {
-	return sb.p2pserver.Self()
 }
 
 func (sb *Backend) GetDataDir() string {
@@ -566,21 +555,21 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) addSentry(node, externalNode *enode.Node) error {
-	if sb.sentryNode != nil {
-		return errSentryAlreadySet
+func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
+	if sb.proxyNode != nil {
+		return errProxyAlreadySet
 	}
 
-	sb.p2pserver.AddPeerLabel(node, "sentry")
+	sb.p2pserver.AddPeerLabel(node, "proxy")
 
-	sb.sentryNode = &sentryInfo{node: node, externalNode: externalNode}
+	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
 	return nil
 }
 
-func (sb *Backend) removeSentry(node *enode.Node) {
-	if sb.sentryNode != nil && sb.sentryNode.node.ID() == node.ID() {
-		sb.p2pserver.RemovePeerLabel(node, "sentry")
-		sb.sentryNode = nil
+func (sb *Backend) removeProxy(node *enode.Node) {
+	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
+		sb.p2pserver.RemovePeerLabel(node, "proxy")
+		sb.proxyNode = nil
 	}
 }
 
@@ -606,8 +595,8 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 
 func (sb *Backend) ValidatorAddress() common.Address {
 	var localAddress common.Address
-	if sb.config.Sentry && sb.proxiedPeer != nil {
-		localAddress = crypto.PubkeyToAddress(*sb.proxiedPeer.Node().Pubkey())
+	if sb.config.Proxy {
+		localAddress = sb.config.ProxiedValidatorAddress
 	} else {
 		localAddress = sb.Address()
 	}

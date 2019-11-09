@@ -96,11 +96,11 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	return validatorsAddresses, nil
 }
 
-// AddSentry peers with a remote node that acts as a sentry, even if slots are full
-func (api *API) AddSentry(url, externalUrl string) (bool, error) {
+// AddProxy peers with a remote node that acts as a proxy, even if slots are full
+func (api *API) AddProxy(url, externalUrl string) (bool, error) {
 	if !api.istanbul.config.Proxied {
-		api.istanbul.logger.Error("Add sentry node failed: this node is not configured to be proxied")
-		return false, errors.New("Can't add sentry for node that is not configured to be proxied")
+		api.istanbul.logger.Error("Add proxy node failed: this node is not configured to be proxied")
+		return false, errors.New("Can't add proxy for node that is not configured to be proxied")
 	}
 
 	node, err := enode.ParseV4(url)
@@ -113,27 +113,27 @@ func (api *API) AddSentry(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	err = api.istanbul.addSentry(node, externalNode)
+	err = api.istanbul.addProxy(node, externalNode)
 	return true, err
 }
 
-// RemoveSentry removes a node from acting as a sentry
-func (api *API) RemoveSentry(url string) (bool, error) {
-	// Try to remove the url as a sentry and return
+// RemoveProxy removes a node from acting as a proxy
+func (api *API) RemoveProxy(url string) (bool, error) {
+	// Try to remove the url as a proxy and return
 	node, err := enode.ParseV4(url)
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.removeSentry(node)
+	api.istanbul.removeProxy(node)
 	return true, nil
 }
 
 // TODO(kevjue) - implement this
-// SentryInfo retrieves all the information we know about each individual sentry node
-/* func (api *PublicAdminAPI) SentryInfo() ([]*p2p.PeerInfo, error) {
+// ProxyInfo retrieves all the information we know about each individual proxy node
+/* func (api *PublicAdminAPI) ProxyInfo() ([]*p2p.PeerInfo, error) {
 	server := api.node.Server()
 	if server == nil {
 		return nil, ErrNodeStopped
 	}
-	return server.SentryInfo(), nil
+	return server.ProxyInfo(), nil
 } */

@@ -69,8 +69,8 @@ type Config struct {
 	// in memory.
 	DataDir string
 
-	// Specifies if this node is a sentry
-	Sentry bool
+	// Specifies if this node is a proxy
+	Proxy bool
 
 	// Configuration of peer-to-peer networking.
 	P2P      p2p.Config

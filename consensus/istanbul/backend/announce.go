@@ -97,21 +97,14 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 
 	var enodeUrl string
 	if sb.config.Proxied {
-		if sb.sentryNode != nil {
-			enodeUrl = sb.sentryNode.externalNode.String()
+		if sb.proxyNode != nil {
+			enodeUrl = sb.proxyNode.externalNode.String()
 		} else {
-			sb.logger.Debug("Proxied node has no attached sentries")
-			return nil, nil
+			sb.logger.Error("Proxied node is not connected to a proxy")
+			return nil, errNoProxyConnection
 		}
 	} else {
-		selfEnode := sb.Enode()
-
-		if selfEnode == nil {
-			sb.logger.Error("Enode is nil in sendIstAnnounce")
-			return nil, nil
-		}
-
-		enodeUrl = selfEnode.String()
+		enodeUrl = sb.p2pserver.Self().String()
 	}
 	view := sb.core.CurrentView()
 
@@ -149,6 +142,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	announceBytes, err := rlp.EncodeToBytes(announceMessage)
 	if err != nil {
 		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceMsg", announceMessage.String(), "err", err)
+		return nil, err
 	}
 
 	msg := &istanbul.Message{
@@ -238,6 +232,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	err = rlp.DecodeBytes(msg.Msg, &announceMessage)
 	if err != nil {
 		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		return err
 	}
 
 	// Save in the valEnodeTable if mining
@@ -269,7 +264,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	sb.logger.Debug("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossipedMu.Lock()

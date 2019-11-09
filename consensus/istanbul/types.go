@@ -358,7 +358,7 @@ func (m *Message) PayloadNoSigAndDestAddrs() ([]byte, error) {
 		Address:       m.Address,
 		Signature:     []byte{},
 		CommittedSeal: m.CommittedSeal,
-		// Don't include the DestAddresses in the payload to sign, since the sentry will need to
+		// Don't include the DestAddresses in the payload to sign, since the proxy will need to
 		// set it to an empty array when sending it off to other validators/sentries
 		DestAddresses: []common.Address{},
 	})

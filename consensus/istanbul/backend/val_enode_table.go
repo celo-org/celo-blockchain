@@ -77,16 +77,16 @@ func (vet *validatorEnodeTable) getUsingNodeID(nodeID enode.ID) (common.Address,
 }
 
 // Locks the valEnodeTable mutex and updates or inserts a validator enode entry by calling upsertNonLocking
-func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isSentry bool) error {
+func (vet *validatorEnodeTable) upsert(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localAddress common.Address, isProxied bool, isProxy bool) error {
 	vet.valEnodeTableMu.Lock()
 	defer vet.valEnodeTableMu.Unlock()
 
-	return vet.upsertNonLocking(remoteAddress, newValEnodeURL, newValView, valSet, localAddress, isProxied, isSentry)
+	return vet.upsertNonLocking(remoteAddress, newValEnodeURL, newValView, valSet, localAddress, isProxied, isProxy)
 }
 
 // This function will update or insert a validator enode entry.  It will also do the associated set/remove to the validator connection.
 // This does not lock the table mutex
-func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localValAddress common.Address, isProxied bool, isSentry bool) error {
+func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, newValEnodeURL string, newValView *istanbul.View, valSet istanbul.ValidatorSet, localValAddress common.Address, isProxied bool, isProxy bool) error {
 	newValNode, err := enode.ParseV4(newValEnodeURL)
 	if err != nil {
 		log.Error("Invalid Enode", "newValEnodeURL", newValEnodeURL, "err", err)
@@ -119,11 +119,11 @@ func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, n
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset and
-	// the removeAddress does not equal the localValAddress (no need for a sentry to establish a validator
+	// the remoteAddress does not equal the localValAddress (no need for a proxy to establish a validator
 	// connection to it's validator).
 	if _, remoteVal := valSet.GetByAddress(remoteAddress); remoteVal != nil {
-		// This node should connect only if it's a standalone validator or a sentry of a validator
-		if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil && (!isProxied || isSentry) {
+		// This node should connect only if it's a standalone validator or a proxy of a validator
+		if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil && (!isProxied || isProxy) {
 			vet.p2pserver.AddPeerLabel(newValNode, "validator")
 			vet.p2pserver.AddTrustedPeerLabel(newValNode, "validator")
 		}

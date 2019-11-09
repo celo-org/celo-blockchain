@@ -93,8 +93,6 @@ type core struct {
 	sequenceMeter metrics.Meter
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
-
-	isProxied bool
 }
 
 // Appends the current view and state to the given context.

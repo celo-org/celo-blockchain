@@ -16,7 +16,10 @@
 
 package istanbul
 
-import "github.com/ethereum/go-ethereum/p2p/enode"
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+)
 
 type ProposerPolicy uint64
 
@@ -26,13 +29,19 @@ const (
 )
 
 type Config struct {
-	RequestTimeout uint64           `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod    uint64           `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy ProposerPolicy   `toml:",omitempty"` // The policy for proposer selection
-	Epoch          uint64           `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	Sentry         bool             `toml:",omitempty"` // Specifies if this node is a sentry for a validator
-	Proxied        bool             `toml:",omitempty"` // Specifies if this validator is proxied by a sentry
-	SentryNodes    [][2]*enode.Node `toml:",omitempty"` // Specifies the sentries this proxied validator should connect to
+	RequestTimeout uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod    uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	Epoch          uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+
+	// Proxy Configs
+	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
+	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
+
+	// Proxied Validator Configs
+	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
+	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
+	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }
 
 var DefaultConfig = &Config{
@@ -40,6 +49,6 @@ var DefaultConfig = &Config{
 	BlockPeriod:    1,
 	ProposerPolicy: RoundRobin,
 	Epoch:          30000,
-	Sentry:         false,
+	Proxy:          false,
 	Proxied:        false,
 }

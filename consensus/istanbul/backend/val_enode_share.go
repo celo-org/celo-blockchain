@@ -145,30 +145,30 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 		return nil
 	}
 
-	// Sign the announce message
+	// Sign the validator enode share message
 	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in signing an Istanbul ValEnodeShare Message", "ValEnodeShareMsg", msg.String(), "err", err)
 		return err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
-		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in converting Istanbul ValEnodeShare Message to payload", "ValEnodeShareMsg", msg.String(), "err", err)
 		return err
 	}
 
-	if sb.sentryNode != nil && sb.sentryNode.peer != nil {
-		sb.logger.Debug("Sending Istanbul Validator Enode Share payload to sentry peer")
-		go sb.sentryNode.peer.Send(istanbulValEnodeShareMsg, payload)
+	if sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		sb.logger.Debug("Sending Istanbul Validator Enode Share payload to proxy peer")
+		go sb.proxyNode.peer.Send(istanbulValEnodeShareMsg, payload)
 	} else {
-		sb.logger.Warn("No sentry peers, cannot send Istanbul Validator Enode Share message")
+		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enode Share message")
 	}
 
 	return nil
 }
 
-// TODO: once we add a command line flag indicating a sentry is proxying for a
+// TODO: once we add a command line flag indicating a proxy is proxying for a
 // certain validator, add a check in here to make sure the message came from
 // the correct validator.
 func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
@@ -202,7 +202,7 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		}
 	}
 
-	sb.logger.Debug("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+	sb.logger.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
 
 	return nil
 }

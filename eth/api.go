@@ -109,7 +109,7 @@ func NewPrivateMinerAPI(e *Ethereum) *PrivateMinerAPI {
 // number of threads allowed to use and updates the minimum price required by the
 // transaction pool.
 func (api *PrivateMinerAPI) Start(threads *int) error {
-	if api.e.config.Istanbul.Sentry {
+	if api.e.config.Istanbul.Proxy {
 		return errors.New("Can't mine if node is a sentry")
 	}
 

@@ -55,10 +55,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	sb.logger.Debug("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
+	sb.logger.Trace("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
 
 	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) || (msg.Code == istanbulFwdMsg) {
-		if (!sb.coreStarted && !sb.config.Sentry) && (msg.Code == istanbulMsg) {
+		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -88,7 +88,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		sb.knownMessages.Add(hash, true)
 
 		if msg.Code == istanbulMsg {
-			if sb.config.Sentry {
+			if sb.config.Proxy {
 				// Verify that this message is not from the proxied peer
 				if reflect.DeepEqual(peer, sb.proxiedPeer) {
 					sb.logger.Debug("Got a consensus message from the proxied valiator.  Ignoring it")
@@ -106,15 +106,15 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				})
 			}
 		} else if msg.Code == istanbulFwdMsg {
-			// Ignore the message if this node it not a sentry
-			if !sb.config.Sentry {
-				sb.logger.Debug("Got a forward consensus message and this node is not a sentry.  Ignoring it")
+			// Ignore the message if this node it not a proxy
+			if !sb.config.Proxy {
+				sb.logger.Debug("Got a forward consensus message and this node is not a proxy.  Ignoring it")
 				return true, nil
 			}
 
 			// Verify that it's coming from the proxied peer
 			if !reflect.DeepEqual(peer, sb.proxiedPeer) {
-				sb.logger.Debug("Got a forwardx consensus message from a non proxied valiator.  Ignoring it")
+				sb.logger.Debug("Got a forward consensus message from a non proxied valiator.  Ignoring it")
 				return true, nil
 			}
 
@@ -163,7 +163,7 @@ func (sb *Backend) NewWork() error {
 // This function is called by all nodes.
 // At the end of each epoch, this function will
 //    1)  Output if it is or isn't an elected validator if it has mining turned on.
-//    2)  Refresh the validator connections if it's a sentry or non proxied validator
+//    2)  Refresh the validator connections if it's a proxy or non proxied validator
 func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
 		sb.coreMu.RLock()
@@ -171,20 +171,19 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
 
-		valAddress := sb.ValidatorAddress()
-		_, val := valset.GetByAddress(valAddress)
-
 		// Output whether this validator was or wasn't elected for the
 		// new epoch's validator set
-		if sb.coreStarted && val == nil {
-			sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
-		} else {
-			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
+		if sb.coreStarted {
+			if _, val := valset.GetByAddress(sb.ValidatorAddress()); val != nil {
+				sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
+			} else {
+				sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
+			}
 		}
 
-		// If this is a sentry or a non proxied validator and a
+		// If this is a proxy or a non proxied validator and a
 		// new epoch just started, then refresh the validator enode table
-		if sb.config.Sentry || (sb.coreStarted && !sb.config.Proxied) {
+		if sb.config.Proxy || (sb.coreStarted && !sb.config.Proxied) {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "new block number", newBlock.Number().Uint64())
 			sb.RefreshValPeers(valset)
 		}
@@ -193,23 +192,25 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
-	//        registered with the sentry, and verify that all newly connected proxied peer has
+	//        registered with the proxy, and verify that all newly connected proxied peer has
 	//        the correct node key
-	if sb.config.Sentry && isProxiedPeer {
+	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
-		if peer.Node().ID() == sb.sentryNode.node.ID() {
-			sb.sentryNode.peer = peer
+		if peer.Node().ID() == sb.proxyNode.node.ID() {
+			sb.proxyNode.peer = peer
+		} else {
+			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
 		}
 	}
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
-	if sb.config.Sentry && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
+	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
 	} else if sb.config.Proxied {
-		if sb.sentryNode != nil && peer.Node().ID() == sb.sentryNode.node.ID() {
-			sb.sentryNode.peer = nil
+		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
+			sb.proxyNode.peer = nil
 		}
 	}
 }

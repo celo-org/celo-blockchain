@@ -632,17 +632,13 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	go sb.sendAnnounceMsgs()
 
 	if sb.config.Proxied {
-		go sb.sendValEnodeShareMsgs()
-
-		if sb.config.SentryNodes != nil {
-			if len(sb.config.SentryNodes) != 1 {
-				sb.logger.Warn("Currently only 1 sentry is supported.  Will be connecting to only the first specified enode", "enodeUrl", sb.config.SentryNodes[0][0].String())
-			}
-
-			if err := sb.addSentry(sb.config.SentryNodes[0][0], sb.config.SentryNodes[0][1]); err != nil {
-				sb.logger.Warn("Issue in adding sentry on istanbul start", "err", err)
+		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
+			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
+				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
 			}
 		}
+
+		go sb.sendValEnodeShareMsgs()
 	}
 
 	return nil
@@ -667,8 +663,8 @@ func (sb *Backend) Stop() error {
 		sb.valEnodeShareQuit <- struct{}{}
 		sb.valEnodeShareWg.Wait()
 
-		if sb.sentryNode != nil {
-			sb.removeSentry(sb.sentryNode.node)
+		if sb.proxyNode != nil {
+			sb.removeProxy(sb.proxyNode.node)
 		}
 	}
 	return nil
