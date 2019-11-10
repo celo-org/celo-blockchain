@@ -44,10 +44,8 @@ type alethGenesisSpec struct {
 		EIP158ForkBlock         hexutil.Uint64         `json:"EIP158ForkBlock"`
 		ByzantiumForkBlock      hexutil.Uint64         `json:"byzantiumForkBlock"`
 		ConstantinopleForkBlock hexutil.Uint64         `json:"constantinopleForkBlock"`
-		MinGasLimit             hexutil.Uint64         `json:"minGasLimit"`
 		MaxGasLimit             hexutil.Uint64         `json:"maxGasLimit"`
 		TieBreakingGas          bool                   `json:"tieBreakingGas"`
-		GasLimitBoundDivisor    math2.HexOrDecimal64   `json:"gasLimitBoundDivisor"`
 		MinimumDifficulty       *hexutil.Big           `json:"minimumDifficulty"`
 		DifficultyBoundDivisor  *math2.HexOrDecimal256 `json:"difficultyBoundDivisor"`
 		DurationLimit           *math2.HexOrDecimal256 `json:"durationLimit"`
@@ -124,11 +122,9 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
-	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
 	spec.Params.MaxGasLimit = (hexutil.Uint64)(math.MaxInt64)
 	spec.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
 	spec.Params.DifficultyBoundDivisor = (*math2.HexOrDecimal256)(params.DifficultyBoundDivisor)
-	spec.Params.GasLimitBoundDivisor = (math2.HexOrDecimal64)(params.GasLimitBoundDivisor)
 	spec.Params.DurationLimit = (*math2.HexOrDecimal256)(params.DurationLimit)
 	spec.Params.BlockReward = (*hexutil.Big)(ethash.FrontierBlockReward)
 
@@ -223,29 +219,27 @@ type parityChainSpec struct {
 	} `json:"engine"`
 
 	Params struct {
-		AccountStartNonce        hexutil.Uint64       `json:"accountStartNonce"`
-		MaximumExtraDataSize     hexutil.Uint64       `json:"maximumExtraDataSize"`
-		MinGasLimit              hexutil.Uint64       `json:"minGasLimit"`
-		GasLimitBoundDivisor     math2.HexOrDecimal64 `json:"gasLimitBoundDivisor"`
-		NetworkID                hexutil.Uint64       `json:"networkID"`
-		ChainID                  hexutil.Uint64       `json:"chainID"`
-		MaxCodeSize              hexutil.Uint64       `json:"maxCodeSize"`
-		MaxCodeSizeTransition    hexutil.Uint64       `json:"maxCodeSizeTransition"`
-		EIP98Transition          hexutil.Uint64       `json:"eip98Transition"`
-		EIP150Transition         hexutil.Uint64       `json:"eip150Transition"`
-		EIP160Transition         hexutil.Uint64       `json:"eip160Transition"`
-		EIP161abcTransition      hexutil.Uint64       `json:"eip161abcTransition"`
-		EIP161dTransition        hexutil.Uint64       `json:"eip161dTransition"`
-		EIP155Transition         hexutil.Uint64       `json:"eip155Transition"`
-		EIP140Transition         hexutil.Uint64       `json:"eip140Transition"`
-		EIP211Transition         hexutil.Uint64       `json:"eip211Transition"`
-		EIP214Transition         hexutil.Uint64       `json:"eip214Transition"`
-		EIP658Transition         hexutil.Uint64       `json:"eip658Transition"`
-		EIP145Transition         hexutil.Uint64       `json:"eip145Transition"`
-		EIP1014Transition        hexutil.Uint64       `json:"eip1014Transition"`
-		EIP1052Transition        hexutil.Uint64       `json:"eip1052Transition"`
-		EIP1283Transition        hexutil.Uint64       `json:"eip1283Transition"`
-		EIP1283DisableTransition hexutil.Uint64       `json:"eip1283DisableTransition"`
+		AccountStartNonce        hexutil.Uint64 `json:"accountStartNonce"`
+		MaximumExtraDataSize     hexutil.Uint64 `json:"maximumExtraDataSize"`
+		NetworkID                hexutil.Uint64 `json:"networkID"`
+		ChainID                  hexutil.Uint64 `json:"chainID"`
+		MaxCodeSize              hexutil.Uint64 `json:"maxCodeSize"`
+		MaxCodeSizeTransition    hexutil.Uint64 `json:"maxCodeSizeTransition"`
+		EIP98Transition          hexutil.Uint64 `json:"eip98Transition"`
+		EIP150Transition         hexutil.Uint64 `json:"eip150Transition"`
+		EIP160Transition         hexutil.Uint64 `json:"eip160Transition"`
+		EIP161abcTransition      hexutil.Uint64 `json:"eip161abcTransition"`
+		EIP161dTransition        hexutil.Uint64 `json:"eip161dTransition"`
+		EIP155Transition         hexutil.Uint64 `json:"eip155Transition"`
+		EIP140Transition         hexutil.Uint64 `json:"eip140Transition"`
+		EIP211Transition         hexutil.Uint64 `json:"eip211Transition"`
+		EIP214Transition         hexutil.Uint64 `json:"eip214Transition"`
+		EIP658Transition         hexutil.Uint64 `json:"eip658Transition"`
+		EIP145Transition         hexutil.Uint64 `json:"eip145Transition"`
+		EIP1014Transition        hexutil.Uint64 `json:"eip1014Transition"`
+		EIP1052Transition        hexutil.Uint64 `json:"eip1052Transition"`
+		EIP1283Transition        hexutil.Uint64 `json:"eip1283Transition"`
+		EIP1283DisableTransition hexutil.Uint64 `json:"eip1283DisableTransition"`
 	} `json:"params"`
 
 	Genesis struct {
@@ -354,8 +348,6 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 	}
 
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
-	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
-	spec.Params.GasLimitBoundDivisor = (math2.HexOrDecimal64)(params.GasLimitBoundDivisor)
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaxCodeSize = params.MaxCodeSize
