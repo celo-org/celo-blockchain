@@ -618,6 +618,11 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	}
 	sb.commitCh = make(chan *types.Block, 1)
 
+	if sb.newEpoch != nil {
+		close(sb.newEpoch)
+	}
+	sb.newEpoch = make(chan struct{})
+
 	sb.hasBadBlock = hasBadBlock
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock

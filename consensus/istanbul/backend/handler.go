@@ -179,6 +179,8 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 			} else {
 				sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
 			}
+
+			sb.newEpoch <- struct{}{}
 		}
 
 		// If this is a proxy or a non proxied validator and a

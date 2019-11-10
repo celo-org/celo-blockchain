@@ -158,6 +158,8 @@ type Backend struct {
 	proxiedPeer consensus.Peer
 
 	dataDir string // A read-write data dir to persist files across restarts
+
+	newEpoch chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize

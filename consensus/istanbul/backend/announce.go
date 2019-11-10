@@ -80,11 +80,10 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 	for {
 		select {
-		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+		case <-sb.newEpoch:
 			go sb.sendIstAnnounce()
-
+		case <-ticker.C:
+			go sb.sendIstAnnounce()
 		case <-sb.announceQuit:
 			ticker.Stop()
 			return
