@@ -48,7 +48,7 @@ type Protocol struct {
 	Primary bool
 }
 
-// Protocol Manager defines the interface to enqueue blocks to fetcher, find peer
+// Broadcaster defines the interface to enqueue blocks to fetcher, find peer
 type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
 	Enqueue(id string, block *types.Block)

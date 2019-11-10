@@ -99,9 +99,9 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 }
 
 func (sb *Backend) generateValEnodeShareMsg() (*istanbul.Message, error) {
+	sb.valEnodeTable.valEnodeTableMu.RLock()
 	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
 	i := 0
-	sb.valEnodeTable.valEnodeTableMu.RLock()
 	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
 		sharedValidatorEnodes[i] = sharedValidatorEnode{
 			Address:  address,

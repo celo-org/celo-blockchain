@@ -162,6 +162,7 @@ func (vet *validatorEnodeTable) refreshValPeers(valSet istanbul.ValidatorSet, cu
 		if peerAddress, ok := vet.reverseValEnodeTable[id]; ok {
 			if _, src := valSet.GetByAddress(peerAddress); src == nil {
 				vet.p2pserver.RemovePeerLabel(valPeer.Node(), "validator")
+				vet.p2pserver.RemoveTrustedPeerLabel(valPeer.Node(), "validator")
 			}
 		}
 	}

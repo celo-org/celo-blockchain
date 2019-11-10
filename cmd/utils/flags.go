@@ -207,7 +207,6 @@ var (
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
-
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
 		Name:  metrics.DashboardEnabledFlag,
@@ -684,7 +683,7 @@ var (
 	}
 	ProxyEnodeURLPairFlag = cli.StringFlag{
 		Name:  "proxy.proxyenodeurlpair",
-		Usage: "proxy enode URL pair separated by a semicolon.  The format should be <internal facing enode URL>;<external facing enode URL>",
+		Usage: "proxy enode URL pair separated by a semicolon.  The format should be \"<internal facing enode URL>;<external facing enode URL>\"",
 	}
 )
 
@@ -1224,7 +1223,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			ethCfg.Istanbul.ProxiedValidatorAddress = common.HexToAddress(proxiedValidatorAddress)
 		}
 
-		setProxyP2PConfig(ctx, &nodeCfg.ProxyP2P)
+		if !ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyInternalFacingEndpointFlag.Name, ProxyFlag.Name)
+		} else {
+			setProxyP2PConfig(ctx, &nodeCfg.ProxyP2P)
+		}
 	}
 
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
@@ -1233,10 +1236,9 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
 		} else {
-			proxyEnodeURLPair := strings.Split(ProxyEnodeURLPairFlag.Name, ";")
+			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
 
 			var err error
-
 			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
 				log.Crit("Proxy internal facing enodeURL invalid", "enodeURL", proxyEnodeURLPair[0], "err", err)
 			}
