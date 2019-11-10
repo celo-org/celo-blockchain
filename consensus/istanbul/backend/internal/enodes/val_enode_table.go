@@ -64,9 +64,8 @@ func NewValidatorEnodeTable() *ValidatorEnodeTable {
 
 func (vet *ValidatorEnodeTable) String() string {
 	var b strings.Builder
-	b.WriteString("ValEnodeTable:")
 	for _, valEnode := range vet.valEnodeTable {
-		fmt.Fprintf(&b, "%s\t", valEnode.String())
+		fmt.Fprintf(&b, "%s\n", valEnode.String())
 	}
 	return b.String()
 }

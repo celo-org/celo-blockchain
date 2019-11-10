@@ -143,7 +143,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	for {
 		select {
@@ -337,7 +337,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == enodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeURL && time.Since(lastGossipTs.timestamp) < time.Second {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
