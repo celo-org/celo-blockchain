@@ -151,8 +151,8 @@ const (
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForGetAddressFor                         uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
-	MaxGasForGetAddressFor                         uint64 = 100 * 1000
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
 	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
@@ -165,7 +165,7 @@ const (
 	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
-	MaxGasForUpdateTargetVotingYield               uint64 = 500 * 1000
+	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
 	MaxGasToReadErc20Balance                       uint64 = 100000
