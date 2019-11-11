@@ -140,9 +140,6 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-	// Maintains a queue of Celo attestation requests
-	// TODO(asa): Save this in StateDB
-	AttestationRequests []types.AttestationRequest
 
 	DontMeterGas bool
 }

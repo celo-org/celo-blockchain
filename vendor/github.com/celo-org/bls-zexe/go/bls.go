@@ -130,9 +130,10 @@ func (self *PrivateKey) SignMessage(message []byte, extraData []byte, shouldUseC
 	return signature, nil
 }
 
-func (self *PrivateKey) SignPoP() (*Signature, error) {
+func (self *PrivateKey) SignPoP(message []byte, ) (*Signature, error) {
 	signature := &Signature{}
-	success := C.sign_pop(self.ptr, &signature.ptr)
+	messagePtr, messageLen := sliceToPtr(message)
+	success := C.sign_pop(self.ptr, messagePtr, messageLen, &signature.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -192,9 +193,10 @@ func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signatu
 	return nil
 }
 
-func (self *PublicKey) VerifyPoP(signature *Signature) error {
+func (self *PublicKey) VerifyPoP(message []byte, signature *Signature) error {
 	var verified C.bool
-	success := C.verify_pop(self.ptr, signature.ptr, &verified)
+	messagePtr, messageLen := sliceToPtr(message)
+	success := C.verify_pop(self.ptr, messagePtr, messageLen, signature.ptr, &verified)
 	if !success {
 		return GeneralError
 	}

@@ -63,11 +63,20 @@
 			"revisionTime": "2017-11-28T15:02:46Z"
 		},
 		{
-			"checksumSHA1": "m/Y2cBPGMZtrcahKuvfsX8AL5lE=",
+			"checksumSHA1": "4pRLCwBiYI4iGBFVvWVDJs0R1Os=",
 			"path": "github.com/celo-org/bls-zexe",
-			"revision": "85fd6198a5935eb02827a56c3d0b09d949d0f604",
-			"revisionTime": "2019-08-09T17:32:43Z",
+			"revision": "11b1ba076a9fb85ba1f4b4a6e806ceacc5ad07f9",
+			"revisionTime": "2019-10-17T17:21:04Z",
 			"tree": true
+		},
+		{
+			"path": "github.com/celo/bls-zexe",
+			"revision": "",
+			"tree": true
+		},
+		{
+			"path": "github.com/celo/bls-zexe^",
+			"revision": ""
 		},
 		{
 			"checksumSHA1": "cDMtzKmdTx4CcIpP4broa+16X9g=",
@@ -636,6 +645,12 @@
 			"revisionTime": "2018-06-15T20:27:29Z"
 		},
 		{
+			"checksumSHA1": "K5O+57CNS1+isvmgo+oKwYc10yk=",
+			"path": "golang.org/x/crypto/blake2s",
+			"revision": "87dc89f01550277dc22b74ffcf4cd89fa2f40f4c",
+			"revisionTime": "2019-10-11T18:31:21Z"
+		},
+		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
 			"path": "golang.org/x/crypto/cast5",
 			"revision": "ff983b9c42bc9fbf91556e191cc8efb585c16908",
@@ -960,5 +975,5 @@
 			"revisionTime": "2017-08-11T01:42:03Z"
 		}
 	],
-	"rootPath": "github.com/celo-org/geth"
+	"rootPath": "github.com/celo/celo-blockchain"
 }

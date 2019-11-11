@@ -1,4 +1,5 @@
-use rand::{Rand, Rng};
+use rand::{Rng, distributions::{Standard, Distribution}};
+use crate::UniformRand;
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     io::{Read, Result as IoResult, Write},
@@ -269,6 +270,41 @@ impl<P: Fp3Parameters> PartialOrd for Fp3<P> {
     }
 }
 
+impl<P: Fp3Parameters> From<u128> for Fp3<P> {
+    fn from(other: u128) -> Self {
+        let fe: P::Fp = other.into();
+        Self::new(fe, P::Fp::zero(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp3Parameters> From<u64> for Fp3<P> {
+    fn from(other: u64) -> Self {
+        let fe: P::Fp = other.into();
+        Self::new(fe, P::Fp::zero(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp3Parameters> From<u32> for Fp3<P> {
+    fn from(other: u32) -> Self {
+        let fe: P::Fp = other.into();
+        Self::new(fe, P::Fp::zero(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp3Parameters> From<u16> for Fp3<P> {
+    fn from(other: u16) -> Self {
+        let fe: P::Fp = other.into();
+        Self::new(fe, P::Fp::zero(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp3Parameters> From<u8> for Fp3<P> {
+    fn from(other: u8) -> Self {
+        let fe: P::Fp = other.into();
+        Self::new(fe, P::Fp::zero(), P::Fp::zero())
+    }
+}
+
 impl<P: Fp3Parameters> ToBytes for Fp3<P> {
     #[inline]
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
@@ -300,14 +336,10 @@ impl<P: Fp3Parameters> Neg for Fp3<P> {
     }
 }
 
-impl<P: Fp3Parameters> Rand for Fp3<P> {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Fp3 {
-            c0:          rng.gen(),
-            c1:          rng.gen(),
-            c2:          rng.gen(),
-            _parameters: PhantomData,
-        }
+impl<P: Fp3Parameters> Distribution<Fp3<P>> for Standard {
+    #[inline]
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Fp3<P> {
+        Fp3::new(UniformRand::rand(rng), UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
 
@@ -406,12 +438,6 @@ impl<'a, P: Fp3Parameters> DivAssign<&'a Self> for Fp3<P> {
     #[inline]
     fn div_assign(&mut self, other: &Self) {
         self.mul_assign(&other.inverse().unwrap());
-    }
-}
-
-impl<'a, P: Fp3Parameters> From<&'a [bool]> for Fp3<P> {
-    fn from(_bits: &[bool]) -> Self {
-        unimplemented!()
     }
 }
 
