@@ -501,7 +501,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-// TobinTransfer performs a transfer that also takes a tax from the sent amount and gives it to the reserve.
+// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
