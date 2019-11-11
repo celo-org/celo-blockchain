@@ -176,7 +176,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.DefaultGasLimit, params.DefaultGasLimit, nil, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
