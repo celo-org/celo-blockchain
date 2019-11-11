@@ -90,8 +90,6 @@ const (
 	Bn256PairingPerPointGas uint64 = 80000  // Per-point price for an elliptic curve pairing check
 
 	// Celo precompiled contracts
-	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
@@ -133,10 +131,6 @@ func makeRegistryId(contractName string) [32]byte {
 
 	return id
 }
-
-const (
-	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
-)
 
 const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
