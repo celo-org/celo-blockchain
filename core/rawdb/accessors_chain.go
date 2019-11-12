@@ -315,6 +315,7 @@ func WriteReceipts(db DatabaseWriter, hash common.Hash, number uint64, receipts 
 	if err := db.Put(blockReceiptsKey(number, hash), bytes); err != nil {
 		log.Crit("Failed to store block receipts", "err", err)
 	}
+	log.Info("storing receipts", "len", len(receipts))
 }
 
 // DeleteReceipts removes all receipt data associated with a block hash.
