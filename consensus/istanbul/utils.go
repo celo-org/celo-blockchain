@@ -122,7 +122,7 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	var addedValidators []ValidatorData
 	for _, newVal := range newValSet {
 		index, ok := oldValSetIndices[newVal.Address]
-		if ok && oldValSet[index].BLSPublicKey == newVal.BLSPublicKey {
+		if ok && bytes.Equal(oldValSet[index].BLSPublicKey, newVal.BLSPublicKey) {
 			// We found a common validator.  Pop from the map
 			delete(valSetMap, newVal.Address)
 		} else {
