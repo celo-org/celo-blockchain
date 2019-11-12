@@ -381,18 +381,28 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
-	if roundChange && c.current != nil {
-		c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
-	} else {
-		var commits *messageSet
-		if c.current != nil {
-			commits = c.current.Commits
+	lastProposal, _ := c.backend.LastProposal()
+	if c.current != nil {
+		if roundChange {
+			c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
 		} else {
-			commits = nil
+			if c.current.Preprepare != nil && c.current.Preprepare.Proposal.Hash() == lastProposal.Hash() {
+				// if it was not a round change (ie. a sequence change)
+				// with a matching PrePrepare proposal hash to the chain head
+				// we use this sequence's commits as the ParentCommits field
+				// in the next round
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits, c.backend.HasBadProposal)
+			} else {
+				// if the hashes did not match or if the PrePrepare was nil (unlikely),
+				// then we will initialize an empty ParentCommits field with
+				// the validator set of the last proposal
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentValidators(lastProposal)), c.backend.HasBadProposal)
+			}
 		}
-		// if it was not a round change (ie. a sequence change),
-		// we modify our ParentCommits to the last sequence's commits
-		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), commits, c.backend.HasBadProposal)
+	} else {
+		// When the current round is nil, we must start with the current validator set in the parent commits
+		// either `validatorSet` or `backend.Validators(lastProposal)` works here
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet), c.backend.HasBadProposal)
 	}
 }
 
