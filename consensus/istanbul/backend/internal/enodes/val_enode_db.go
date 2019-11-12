@@ -220,14 +220,16 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 		return "", err
 	}
 
+	hasOldValueChanged := !isNew && currentEntry.enodeURL == enodeURL
+
 	batch := new(leveldb.Batch)
 
-	// If update, remove old enode entry
-	if !isNew {
+	if hasOldValueChanged {
 		batch.Delete(enodeURLKey(currentEntry.enodeURL))
+		batch.Put(enodeURLKey(enodeURL), remoteAddress.Bytes())
+	} else if isNew {
+		batch.Put(enodeURLKey(enodeURL), remoteAddress.Bytes())
 	}
-
-	batch.Put(enodeURLKey(enodeURL), remoteAddress.Bytes())
 	batch.Put(addressKey(remoteAddress), rawEntry)
 
 	err = vet.db.Write(batch, nil)
@@ -236,10 +238,10 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 	}
 	log.Trace("Upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", enodeURL)
 
-	if isNew {
-		return "", err
+	if hasOldValueChanged {
+		return currentEntry.enodeURL, nil
 	}
-	return currentEntry.enodeURL, err
+	return "", nil
 }
 
 // RemoveEntry will remove an entry from the table
