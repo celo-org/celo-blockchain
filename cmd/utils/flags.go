@@ -882,7 +882,7 @@ func makeDatabaseHandles() int {
 		if err != nil {
 			Fatalf("Failed to retrieve current file descriptor limit: %v", err)
 		}
-		return int(current / 2)
+		return current / 2
 	}
 	return int(raised / 2) // Leave half for networking and other stuff
 }
