@@ -322,25 +322,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		oldEnodeURL, err := sb.valEnodeTable.Upsert(msg.Address, enodeURL, msg.View)
+		err := sb.valEnodeTable.Upsert(msg.Address, enodeURL, msg.View)
 		if err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
-		}
-
-		// Disconnect from old peer
-		if oldEnodeURL != "" {
-			sb.RemoveValidatorPeer(oldEnodeURL)
-		}
-
-		// Connect to the remote peer if it's part of the current epoch's valset and
-		// if this node is also part of the current epoch's valset
-		block := sb.currentBlock()
-		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-		if _, remoteNode := valSet.GetByAddress(msg.Address); remoteNode != nil {
-			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
-				sb.AddValidatorPeer(enodeURL)
-			}
 		}
 	}
 

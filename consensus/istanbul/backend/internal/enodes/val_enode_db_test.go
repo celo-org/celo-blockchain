@@ -22,13 +22,23 @@ func view(sequence, round int64) *istanbul.View {
 	}
 }
 
+type mockListener struct{}
+
+func (ml *mockListener) ValidatorPeerAdded(enodeURL string, address common.Address) {
+
+}
+
+func (ml *mockListener) ValidatorPeerRemoved(enodeURL string) {
+
+}
+
 func TestSimpleCase(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("")
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
-	_, err = vet.Upsert(addressA, "http://XXXX", view(0, 1))
+	err = vet.Upsert(addressA, "http://XXXX", view(0, 1))
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -51,30 +61,30 @@ func TestSimpleCase(t *testing.T) {
 }
 
 func TestUpsertOldValue(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("")
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
-	_, err = vet.Upsert(addressA, "http://XXXX", view(0, 2))
+	err = vet.Upsert(addressA, "http://XXXX", view(0, 2))
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
 
 	// trying to insert an old value
-	_, err = vet.Upsert(addressA, "http://YYYY", view(0, 1))
+	err = vet.Upsert(addressA, "http://YYYY", view(0, 1))
 	if err == nil {
 		t.Fatal("Upsert should have failed")
 	}
 }
 
 func TestDeleteEntry(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("")
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
-	_, err = vet.Upsert(addressA, "http://XXXX", view(0, 2))
+	err = vet.Upsert(addressA, "http://XXXX", view(0, 2))
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -95,7 +105,7 @@ func TestDeleteEntry(t *testing.T) {
 }
 
 func TestPruneEntries(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("")
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
@@ -141,7 +151,7 @@ func TestRLPEntries(t *testing.T) {
 }
 
 func TestTableToString(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("")
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}

@@ -98,7 +98,7 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath)
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, &validatorPeerListener{sb: backend})
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -568,27 +568,7 @@ func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) AddValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.AddValidatorPeer(enodeURL)
-	}
-}
-
-func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.RemoveValidatorPeer(enodeURL)
-	}
-}
-
-func (sb *Backend) GetValidatorPeers() []string {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetValidatorPeers()
-	} else {
-		return nil
-	}
-}
-
-// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
@@ -596,19 +576,23 @@ func (sb *Backend) GetValidatorPeers() []string {
 func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
 
-	currentValPeers := sb.GetValidatorPeers()
+	if sb.broadcaster == nil {
+		return
+	}
+
+	currentValPeers := sb.broadcaster.GetValidatorPeers()
 
 	// Disconnect all validator peers if this node is not in the valset
 	if _, val := valset.GetByAddress(sb.Address()); val == nil {
 		for _, peerEnodeURL := range currentValPeers {
-			sb.RemoveValidatorPeer(peerEnodeURL)
+			sb.broadcaster.RemoveValidatorPeer(peerEnodeURL)
 		}
 	} else {
 		// Add all of the valSet entries as validator peers
 		for _, val := range valset.List() {
 			enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address())
 			if err == nil {
-				sb.AddValidatorPeer(enodeURL)
+				sb.broadcaster.AddValidatorPeer(enodeURL)
 			} else if err != leveldb.ErrNotFound {
 				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
@@ -619,11 +603,35 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 			peerAddress, err := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL)
 			if err == nil {
 				if _, src := valset.GetByAddress(peerAddress); src == nil {
-					sb.RemoveValidatorPeer(peerEnodeURL)
+					sb.broadcaster.RemoveValidatorPeer(peerEnodeURL)
 				}
 			} else if err != leveldb.ErrNotFound {
 				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
 		}
+	}
+}
+
+type validatorPeerListener struct {
+	sb *Backend
+}
+
+func (vpl *validatorPeerListener) ValidatorPeerAdded(enodeURL string, address common.Address) {
+	if vpl.sb.broadcaster != nil {
+		// Connect to the remote peer if it's part of the current epoch's valset and
+		// if this node is also part of the current epoch's valset
+		block := vpl.sb.currentBlock()
+		valSet := vpl.sb.getValidators(block.Number().Uint64(), block.Hash())
+		if _, remoteNode := valSet.GetByAddress(address); remoteNode != nil {
+			if _, localNode := valSet.GetByAddress(vpl.sb.Address()); localNode != nil {
+				vpl.sb.broadcaster.AddValidatorPeer(enodeURL)
+			}
+		}
+	}
+}
+
+func (vpl *validatorPeerListener) ValidatorPeerRemoved(enodeURL string) {
+	if vpl.sb.broadcaster != nil {
+		vpl.sb.broadcaster.RemoveValidatorPeer(enodeURL)
 	}
 }
