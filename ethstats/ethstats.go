@@ -61,6 +61,9 @@ const (
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
+
+	// valSetInterval is the frequency in blocks to send the validator set
+	valSetInterval = 10
 )
 
 type txPool interface {
@@ -103,12 +106,14 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		engine consensus.Engine
 		id     string
 	)
+	id = parts[1]
 	if ethServ != nil {
-		etherBase, _ := ethServ.Etherbase()
-		id = strings.ToLower(etherBase.String())
 		engine = ethServ.Engine()
+		etherBase, err := ethServ.Etherbase()
+		if err == nil {
+			id = strings.ToLower(etherBase.String())
+		}
 	} else {
-		id = parts[1]
 		engine = lesServ.Engine()
 	}
 	return &Service{
@@ -495,21 +500,6 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	return s.sendStats(conn, "latency", stats)
 }
 
-type validatorStats struct {
-	Registered []validatorInfo `json:"registered"`
-	Elected    []validatorInfo `json:"elected"`
-}
-
-type validatorInfo struct {
-	Address       common.Address `json:"address"`
-	Name          string         `json:"name"`
-	Url           string         `json:"url"`
-	Score         string         `json:"score"`
-	BLSPublicKey  []byte         `json:"blsPublicKey"`
-	NodePublicKey string         `json:"nodeUrl"`
-	Affiliation   common.Address `json:"affiliation"`
-}
-
 // blockStats is the information to report about individual blocks.
 type blockStats struct {
 	Number      *big.Int       `json:"number"`
@@ -527,7 +517,7 @@ type blockStats struct {
 	Uncles      uncleStats     `json:"uncles"`
 	EpochSize   uint64         `json:"epochSize"`
 	BlockRemain uint64         `json:"blockRemain"`
-	Validators  validatorStats `json:"validators"`
+	Validators  validatorSet   `json:"validators"`
 }
 
 // txStats is the information to report about individual transactions.
@@ -538,13 +528,6 @@ type txStats struct {
 // uncleStats is a custom wrapper around an uncle array to force serializing
 // empty arrays instead of returning null for them.
 type uncleStats []*types.Header
-
-func (s uncleStats) MarshalJSON() ([]byte, error) {
-	if uncles := ([]*types.Header)(s); len(uncles) > 0 {
-		return json.Marshal(uncles)
-	}
-	return []byte("[]"), nil
-}
 
 func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
 	nodeKey := s.backend.GetNodeKey()
@@ -615,6 +598,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		td     *big.Int
 		txs    []txStats
 		uncles []*types.Header
+		valSet validatorSet
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -648,36 +632,9 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	epochSize := s.eth.Config().Istanbul.Epoch
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
 
-	// Add validator enode list
-	valsElectedWithoutEnode := s.backend.GetValidators(block.Number(), block.Hash())
-
-	valsElected := make([]validatorInfo, 0, len(valsElectedWithoutEnode))
-	for i := range valsElectedWithoutEnode {
-		valsElected = append(valsElected, validatorInfo{
-			Address:      valsElectedWithoutEnode[i].Address(),
-			BLSPublicKey: valsElectedWithoutEnode[i].BLSPublicKey(),
-			// NodePublicKey: s.backend.valEnodeTable.GetEnodeURLFromAddress(valsElectedWithoutEnode[i].Address()),
-		})
-	}
-
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
-	valsRegistered := make([]validatorInfo, 0, len(valsRegisteredMap))
-
-	for _, address := range valsRegisteredMap {
-		var valData validators.ValidatorContractData
-		valData, _ = validators.GetValidator(
-			s.eth.BlockChain().CurrentHeader(),
-			state,
-			address)
-
-		valsRegistered = append(valsRegistered, validatorInfo{
-			Address:      address,
-			Score:        fmt.Sprintf("%d", valData.Score),
-			Name:         address.String(),
-			Url:          "no url",
-			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
-			Affiliation:  valData.Affiliation,
-		})
+	// only assemble every valSetInterval blocks
+	if block.Number().Uint64()%valSetInterval == 0 {
+		valSet = s.assembleValidatorSet(block, state)
 	}
 
 	return &blockStats{
@@ -696,11 +653,66 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Uncles:      uncles,
 		EpochSize:   epochSize,
 		BlockRemain: blockRemain,
-		Validators: validatorStats{
-			Elected:    valsElected,
-			Registered: valsRegistered,
-		},
+		Validators:  valSet,
 	}
+}
+
+type validatorSet struct {
+	Registered []validatorInfo  `json:"registered"`
+	Elected    []common.Address `json:"elected"`
+}
+
+type validatorInfo struct {
+	Address      common.Address `json:"address"`
+	Name         string         `json:"name"`
+	Url          string         `json:"url"`
+	Score        string         `json:"score"`
+	BLSPublicKey []byte         `json:"blsPublicKey"`
+	Affiliation  common.Address `json:"affiliation"`
+}
+
+func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) validatorSet {
+	var (
+		valSet         validatorSet
+		valsRegistered []validatorInfo
+		valsElected    []common.Address
+	)
+
+	// Add set of registered validators
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
+	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
+
+	for _, address := range valsRegisteredMap {
+		var valData validators.ValidatorContractData
+		valData, _ = validators.GetValidator(
+			s.eth.BlockChain().CurrentHeader(),
+			state,
+			address)
+
+		valsRegistered = append(valsRegistered, validatorInfo{
+			Address:      address,
+			Score:        fmt.Sprintf("%d", valData.Score),
+			Name:         address.String(),
+			Url:          "no url",
+			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
+			Affiliation:  valData.Affiliation,
+		})
+	}
+
+	// Add addresses of elected validators
+	valsElectedList := s.backend.GetValidators(block.Number(), block.Hash())
+
+	valsElected = make([]common.Address, 0, len(valsElectedList))
+	for i := range valsElectedList {
+		valsElected = append(valsElected, valsElectedList[i].Address())
+	}
+
+	valSet = validatorSet{
+		Elected:    valsElected,
+		Registered: valsRegistered,
+	}
+
+	return valSet
 }
 
 // reportHistory retrieves the most recent batch of blocks and reports it to the
@@ -821,13 +833,9 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
 
-		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
-		var valsElectedAddresses = make([]common.Address, len(valsElected))
-
 		elected = false
-
+		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
 		for i := range valsElected {
-			valsElectedAddresses = append(valsElectedAddresses, valsElected[i].Address())
 			if valsElected[i].Address() == etherBase {
 				elected = true
 			}
