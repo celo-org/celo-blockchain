@@ -197,7 +197,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
 	}
 
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, &chainDb)
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
 	eth.APIBackend = &EthAPIBackend{eth}
