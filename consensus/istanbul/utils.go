@@ -108,6 +108,7 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	return firstBlockNum + (epochSize - 1)
 }
 
+// TODO(asa): Make this return a diff if at least one of the address/blskey changes. Right now, only returns diff if address changes.
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
 	oldValSetMap := make(map[common.Address]int)

@@ -126,12 +126,14 @@ func (c *ecrecover) RequiredGas(input []byte) uint64 {
 }
 
 func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Info("called ecrecover", "intpu", hexutil.Encode(input))
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
 	pubKey, err := ecrecoverHelper(input)
+	log.Info("recovered public key", "pubkey", hexutil.Encode(pubKey))
 	// make sure the public key is a valid one
 	if err != nil || pubKey == nil {
 		return nil, gas, nil
@@ -149,6 +151,7 @@ func (c *ecrecoverPublicKey) RequiredGas(input []byte) uint64 {
 }
 
 func (c *ecrecoverPublicKey) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Info("called ecrecover publickey", "intpu", hexutil.Encode(input))
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
@@ -159,6 +162,7 @@ func (c *ecrecoverPublicKey) Run(input []byte, caller common.Address, evm *EVM, 
 	if err != nil || pubKey == nil {
 		return nil, gas, nil
 	}
+	log.Info("recovered public key", "pubkey", hexutil.Encode(pubKey))
 
 	// the first byte of pubkey is bitcoin heritage
 	return pubKey[1:], gas, nil
@@ -584,16 +588,19 @@ func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
 }
 
 func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Info("Called proofofpossession")
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	// input is comprised of 2 arguments:
+	// input is comprised of 3 arguments:
+	//   address:   20 bytes, an address used to generate the proof-of-possession
 	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
-	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
+	//   signature: 96 bytes, representing the signature on `address` (defined as a const in bls package)
 	// the total length of input required is the sum of these constants
 	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
+		log.Error("ProofOfPoss", "len1", len(input), "len2", common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES)
 		return nil, gas, ErrInputLength
 	}
 	addressBytes := input[:common.AddressLength]
@@ -601,6 +608,7 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
 	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
 	if err != nil {
+		log.Error("error deserializing public key", "err", err)
 		return nil, gas, err
 	}
 	defer publicKey.Destroy()
@@ -608,12 +616,14 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	signatureBytes := input[common.AddressLength+blscrypto.PUBLICKEYBYTES : common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
 	signature, err := bls.DeserializeSignature(signatureBytes)
 	if err != nil {
+		log.Error("error deserializing signature", "err", err)
 		return nil, gas, err
 	}
 	defer signature.Destroy()
 
 	err = publicKey.VerifyPoP(addressBytes, signature)
 	if err != nil {
+		log.Error("error verifying pop", "err", err)
 		return nil, gas, err
 	}
 

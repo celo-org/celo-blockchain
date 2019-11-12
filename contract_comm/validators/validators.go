@@ -54,23 +54,11 @@ const validatorsABIString string = `[
           "type": "address"
         }
       ],
-      "name": "getValidatorFromSigner",
+      "name": "getValidatorBlsKeyFromSigner",
       "outputs": [
-        {
-          "name": "ecdsaKey",
-          "type": "bytes"
-        },
         {
           "name": "blsKey",
           "type": "bytes"
-        },
-        {
-          "name": "affiliation",
-          "type": "address"
-        },
-        {
-          "name": "score",
-          "type": "uint256"
         }
       ],
       "payable": false,
@@ -155,25 +143,17 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
-		validator := struct {
-			ecdsaKey    []byte
-			blsKey      []byte
-			Affiliation common.Address
-			Score       *big.Int
-		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorFromSigner", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
+		var blsKey []byte
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
-		if len(validator.ecdsaKey) != 64 {
-			return nil, fmt.Errorf("length of ECDSA key incorrect. Expected 64, got %d", len(validator.ecdsaKey))
-		}
-		if len(validator.blsKey) != blscrypto.PUBLICKEYBYTES {
-			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(validator.blsKey))
+		if len(blsKey) != blscrypto.PUBLICKEYBYTES {
+			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
 		}
 		validatorData = append(validatorData, istanbul.ValidatorData{
 			addr,
-			validator.blsKey,
+			blsKey,
 		})
 	}
 	return validatorData, nil
