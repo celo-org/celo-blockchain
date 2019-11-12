@@ -401,6 +401,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
+
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	snapshot = state.Snapshot()
 	_, err = gpm.UpdateGasPriceMinimum(header, state)
@@ -410,7 +411,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
-		err = sb.updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochPaymentsAndRewards(header, state)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
 		}
