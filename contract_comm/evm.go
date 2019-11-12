@@ -130,19 +130,19 @@ type InternalEVMHandler struct {
 }
 
 func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, false)
+	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, true)
 }
 
-func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, true)
+func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
+	gasLeft, err := makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, false)
+	if err == nil && finaliseState {
+		state.Finalise(true)
+	}
+	return gasLeft, err
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, false)
-}
-
-func MakeCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB) (uint64, error) {
-	return executeEVMFunction(scAddress, abi, funcName, args, returnObj, gas, value, header, state, true)
+	return makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, true)
 }
 
 func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
@@ -184,7 +184,7 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	return evm, nil
 }
 
-func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, mutateState bool) (uint64, error) {
+func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
@@ -192,18 +192,14 @@ func executeEVMFunction(scAddress common.Address, abi abi.ABI, funcName string, 
 
 	var gasLeft uint64
 
-	if mutateState {
-		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
-	} else {
+	if static {
 		gasLeft, err = vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
+	} else {
+		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
 	}
 	if err != nil {
-		log.Error("Error when invoking evm function", "err", err)
+		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress)
 		return gasLeft, err
-	}
-
-	if mutateState {
-		state.Finalise(true)
 	}
 
 	return gasLeft, nil
@@ -219,7 +215,7 @@ func SetInternalEVMHandler(chain ChainContext) {
 	}
 }
 
-func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, shouldMutate bool) (uint64, error) {
+func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
 	scAddress, err := GetRegisteredAddress(registryId, header, state)
 
 	if err != nil {
@@ -235,7 +231,7 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 		}
 	}
 
-	gasLeft, err := executeEVMFunction(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, shouldMutate)
+	gasLeft, err := makeCallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
 	if err != nil {
 		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", registryId, "err", err)
 	}

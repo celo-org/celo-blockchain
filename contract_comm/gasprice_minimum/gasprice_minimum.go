@@ -145,6 +145,7 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		big.NewInt(0),
 		header,
 		state,
+		false,
 	)
 	if err != nil {
 		return nil, err
