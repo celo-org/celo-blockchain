@@ -52,7 +52,6 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
-var ecrecoverPublicKeyAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
@@ -73,13 +72,12 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	ecrecoverPublicKeyAddress: &ecrecoverPublicKey{},
-	transferAddress:           &transfer{},
-	fractionMulExpAddress:     &fractionMulExp{},
-	proofOfPossessionAddress:  &proofOfPossession{},
-	getValidatorAddress:       &getValidator{},
-	numberValidatorsAddress:   &numberValidators{},
-	epochSizeAddress:          &epochSize{},
+	transferAddress:          &transfer{},
+	fractionMulExpAddress:    &fractionMulExp{},
+	proofOfPossessionAddress: &proofOfPossession{},
+	getValidatorAddress:      &getValidator{},
+	numberValidatorsAddress:  &numberValidators{},
+	epochSizeAddress:         &epochSize{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -99,7 +97,19 @@ func debitRequiredGas(p PrecompiledContract, input []byte, gas uint64) (uint64, 
 	return gas - requiredGas, nil
 }
 
-func ecrecoverHelper(input []byte) ([]byte, error) {
+// ECRECOVER implemented as a native contract.
+type ecrecover struct{}
+
+func (c *ecrecover) RequiredGas(input []byte) uint64 {
+	return params.EcrecoverGas
+}
+
+func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	const ecRecoverInputLength = 128
 
 	input = common.RightPadBytes(input, ecRecoverInputLength)
@@ -112,60 +122,17 @@ func ecrecoverHelper(input []byte) ([]byte, error) {
 
 	// tighter sig s values input homestead only apply to tx sigs
 	if !allZero(input[32:63]) || !crypto.ValidateSignatureValues(v, r, s, false) {
-		return nil, nil
+		return nil, gas, nil
 	}
 	// v needs to be at the end for libsecp256k1
-	return crypto.Ecrecover(input[:32], append(input[64:128], v))
-}
-
-// ECRECOVER implemented as a native contract. This variant returns the address.
-type ecrecover struct{}
-
-func (c *ecrecover) RequiredGas(input []byte) uint64 {
-	return params.EcrecoverGas
-}
-
-func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	log.Info("called ecrecover", "intpu", hexutil.Encode(input))
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-
-	pubKey, err := ecrecoverHelper(input)
-	log.Info("recovered public key", "pubkey", hexutil.Encode(pubKey))
+	pubKey, err := crypto.Ecrecover(input[:32], append(input[64:128], v))
 	// make sure the public key is a valid one
-	if err != nil || pubKey == nil {
+	if err != nil {
 		return nil, gas, nil
 	}
 
 	// the first byte of pubkey is bitcoin heritage
 	return common.LeftPadBytes(crypto.Keccak256(pubKey[1:])[12:], 32), gas, nil
-}
-
-// ECRECOVER implemented as a native contract. This variant returns the full public key.
-type ecrecoverPublicKey struct{}
-
-func (c *ecrecoverPublicKey) RequiredGas(input []byte) uint64 {
-	return params.EcrecoverGas
-}
-
-func (c *ecrecoverPublicKey) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	log.Info("called ecrecover publickey", "intpu", hexutil.Encode(input))
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-
-	pubKey, err := ecrecoverHelper(input)
-	// make sure the public key is a valid one
-	if err != nil || pubKey == nil {
-		return nil, gas, nil
-	}
-	log.Info("recovered public key", "pubkey", hexutil.Encode(pubKey))
-
-	// the first byte of pubkey is bitcoin heritage
-	return pubKey[1:], gas, nil
 }
 
 // SHA256 implemented as a native contract.
@@ -588,7 +555,6 @@ func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
 }
 
 func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	log.Info("Called proofofpossession")
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
@@ -600,7 +566,6 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	//   signature: 96 bytes, representing the signature on `address` (defined as a const in bls package)
 	// the total length of input required is the sum of these constants
 	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
-		log.Error("ProofOfPoss", "len1", len(input), "len2", common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES)
 		return nil, gas, ErrInputLength
 	}
 	addressBytes := input[:common.AddressLength]
@@ -608,7 +573,6 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
 	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
 	if err != nil {
-		log.Error("error deserializing public key", "err", err)
 		return nil, gas, err
 	}
 	defer publicKey.Destroy()
@@ -616,14 +580,12 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	signatureBytes := input[common.AddressLength+blscrypto.PUBLICKEYBYTES : common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
 	signature, err := bls.DeserializeSignature(signatureBytes)
 	if err != nil {
-		log.Error("error deserializing signature", "err", err)
 		return nil, gas, err
 	}
 	defer signature.Destroy()
 
 	err = publicKey.VerifyPoP(addressBytes, signature)
 	if err != nil {
-		log.Error("error verifying pop", "err", err)
 		return nil, gas, err
 	}
 

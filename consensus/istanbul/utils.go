@@ -108,22 +108,21 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	return firstBlockNum + (epochSize - 1)
 }
 
-// TODO(asa): Make this return a diff if at least one of the address/blskey changes. Right now, only returns diff if address changes.
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
 	valSetMap := make(map[common.Address]bool)
-	oldValSetMap := make(map[common.Address]int)
+	oldValSetIndices := make(map[common.Address]int)
 
 	for i, oldVal := range oldValSet {
 		if (oldVal.Address != common.Address{}) {
 			valSetMap[oldVal.Address] = true
-			oldValSetMap[oldValSet[i].Address] = i
+			oldValSetIndices[oldValSet[i].Address] = i
 		}
 	}
 
-	removedValidatorsBitmap := big.NewInt(0)
 	var addedValidators []ValidatorData
 	for _, newVal := range newValSet {
-		if _, ok := valSetMap[newVal.Address]; ok {
+		index, ok := oldValSetIndices[newVal.Address]
+		if ok && oldValSet[index].BLSPublicKey == newVal.BLSPublicKey {
 			// We found a common validator.  Pop from the map
 			delete(valSetMap, newVal.Address)
 		} else {
@@ -135,8 +134,9 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 		}
 	}
 
+	removedValidatorsBitmap := big.NewInt(0)
 	for rmVal := range valSetMap {
-		removedValidatorsBitmap = removedValidatorsBitmap.SetBit(removedValidatorsBitmap, oldValSetMap[rmVal], 1)
+		removedValidatorsBitmap = removedValidatorsBitmap.SetBit(removedValidatorsBitmap, oldValSetIndices[rmVal], 1)
 	}
 
 	return addedValidators, removedValidatorsBitmap
