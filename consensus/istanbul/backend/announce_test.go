@@ -76,7 +76,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	if url, ok := b.valEnodeTable.GetEnodeURLFromAddress(validatorAddr); ok {
+	if url, err := b.valEnodeTable.GetEnodeURLFromAddress(validatorAddr); err == nil {
 		if url != enodeURL[:strings.Index(enodeURL, "@")] {
 			t.Errorf("Expected %v, got %v instead", enodeURL[:strings.Index(enodeURL, "@")], url)
 		}
@@ -93,7 +93,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	if url, ok := b.valEnodeTable.GetEnodeURLFromAddress(validatorAddr); ok {
+	if url, err := b.valEnodeTable.GetEnodeURLFromAddress(validatorAddr); err == nil {
 		if url != enodeURL {
 			t.Errorf("Expected %v, but got %v instead", enodeURL, url)
 		}
