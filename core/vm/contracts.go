@@ -52,6 +52,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
+var ecrecoverPublicKeyAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 1)))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
@@ -72,12 +73,13 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:          &transfer{},
-	fractionMulExpAddress:    &fractionMulExp{},
-	proofOfPossessionAddress: &proofOfPossession{},
-	getValidatorAddress:      &getValidator{},
-	numberValidatorsAddress:  &numberValidators{},
-	epochSizeAddress:         &epochSize{},
+	ecrecoverPublicKeyAddress: &ecrecoverPublicKey{},
+	transferAddress:           &transfer{},
+	fractionMulExpAddress:     &fractionMulExp{},
+	proofOfPossessionAddress:  &proofOfPossession{},
+	getValidatorAddress:       &getValidator{},
+	numberValidatorsAddress:   &numberValidators{},
+	epochSizeAddress:          &epochSize{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -97,19 +99,7 @@ func debitRequiredGas(p PrecompiledContract, input []byte, gas uint64) (uint64, 
 	return gas - requiredGas, nil
 }
 
-// ECRECOVER implemented as a native contract.
-type ecrecover struct{}
-
-func (c *ecrecover) RequiredGas(input []byte) uint64 {
-	return params.EcrecoverGas
-}
-
-func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-
+func ecrecoverHelper(input []byte) ([]byte, error) {
 	const ecRecoverInputLength = 128
 
 	input = common.RightPadBytes(input, ecRecoverInputLength)
@@ -122,17 +112,56 @@ func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 
 	// tighter sig s values input homestead only apply to tx sigs
 	if !allZero(input[32:63]) || !crypto.ValidateSignatureValues(v, r, s, false) {
-		return nil, gas, nil
+		return nil, nil
 	}
 	// v needs to be at the end for libsecp256k1
-	pubKey, err := crypto.Ecrecover(input[:32], append(input[64:128], v))
-	// make sure the public key is a valid one
+	return crypto.Ecrecover(input[:32], append(input[64:128], v))
+}
+
+// ECRECOVER implemented as a native contract. This variant returns the address.
+type ecrecover struct{}
+
+func (c *ecrecover) RequiredGas(input []byte) uint64 {
+	return params.EcrecoverGas
+}
+
+func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
+		return nil, gas, err
+	}
+
+	pubKey, err := ecrecoverHelper(input)
+	// make sure the public key is a valid one
+	if err != nil || pubKey == nil {
 		return nil, gas, nil
 	}
 
 	// the first byte of pubkey is bitcoin heritage
 	return common.LeftPadBytes(crypto.Keccak256(pubKey[1:])[12:], 32), gas, nil
+}
+
+// ECRECOVER implemented as a native contract. This variant returns the full public key.
+type ecrecoverPublicKey struct{}
+
+func (c *ecrecoverPublicKey) RequiredGas(input []byte) uint64 {
+	return params.EcrecoverGas
+}
+
+func (c *ecrecoverPublicKey) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	pubKey, err := ecrecoverHelper(input)
+	// make sure the public key is a valid one
+	if err != nil || pubKey == nil {
+		return nil, gas, nil
+	}
+
+	// the first byte of pubkey is bitcoin heritage
+	return pubKey[1:], gas, nil
 }
 
 // SHA256 implemented as a native contract.

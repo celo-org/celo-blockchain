@@ -32,32 +32,36 @@ import (
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 const validatorsABIString string = `[
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "getRegisteredValidatorSigners",
-    "outputs": [
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "getRegisteredValidatorSigners",
+			"outputs": [
+			{
+				"name": "",
+				"type": "address[]"
+			}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
     {
-      "name": "",
-      "type": "address[]"
-    }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-	    {
       "constant": true,
       "inputs": [
         {
-          "name": "validator",
+          "name": "signer",
           "type": "address"
         }
       ],
       "name": "getValidatorFromSigner",
       "outputs": [
         {
-          "name": "publicKeysData",
+          "name": "ecdsaKey",
+          "type": "bytes"
+        },
+        {
+          "name": "blsKey",
           "type": "bytes"
         },
         {
@@ -152,22 +156,24 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
 		validator := struct {
-			PublicKeysData []byte
-			Affiliation    common.Address
-			Score          *big.Int
+			ecdsaKey    []byte
+			blsKey      []byte
+			Affiliation common.Address
+			Score       *big.Int
 		}{}
 		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorFromSigner", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
-		expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-		if len(validator.PublicKeysData) != expectedLength {
-			return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+		if len(validator.ecdsaKey) != 64 {
+			return nil, fmt.Errorf("length of ECDSA key incorrect. Expected 64, got %d", len(validator.ecdsaKey))
 		}
-		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
+		if len(validator.blsKey) != blscrypto.PUBLICKEYBYTES {
+			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(validator.blsKey))
+		}
 		validatorData = append(validatorData, istanbul.ValidatorData{
 			addr,
-			blsPublicKey,
+			validator.blsKey,
 		})
 	}
 	return validatorData, nil
