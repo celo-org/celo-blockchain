@@ -334,6 +334,7 @@ func Filter(vs []string, pred func(string) bool) []string {
 
 func doTest(cmdline []string) {
 	coverage := flag.Bool("coverage", false, "Whether to record code coverage")
+	race := flag.Bool("race", false, "Whether to test for races")
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 
@@ -355,6 +356,9 @@ func doTest(cmdline []string) {
 	gotest.Args = append(gotest.Args, "-p", "1", "-timeout", "5m")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
+	}
+	if *race {
+		gotest.Args = append(gotest.Args, "-race")
 	}
 
 	gotest.Args = append(gotest.Args, packages...)
