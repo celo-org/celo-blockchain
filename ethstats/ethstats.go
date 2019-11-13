@@ -86,7 +86,6 @@ type Service struct {
 	backend *istanbulBackend.Backend // Istanbul consensus backend
 
 	node string // Name of the node to display on the monitoring page
-	pass string // Password to authorize access to the monitoring page
 	host string // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
@@ -96,16 +95,17 @@ type Service struct {
 // New returns a monitoring service ready for stats reporting.
 func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Service, error) {
 	// Parse the netstats connection url
-	re := regexp.MustCompile("([^:@]*)(:([^@]*))?@(.+)")
+	re := regexp.MustCompile("([^:@]*)?@(.+)")
 	parts := re.FindStringSubmatch(url)
-	if len(parts) != 5 {
-		return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename:secret@host:port", url)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
 	}
 	// Assemble and return the stats service
 	var (
 		engine consensus.Engine
 		id     string
 	)
+	fmt.Println("parts", parts)
 	id = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
@@ -122,8 +122,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		engine:  engine,
 		backend: engine.(*istanbulBackend.Backend),
 		node:    id,
-		pass:    parts[3],
-		host:    parts[4],
+		host:    parts[2],
 		pongCh:  make(chan struct{}),
 		histCh:  make(chan []uint64, 1),
 	}, nil
@@ -396,7 +395,6 @@ type authMsg struct {
 	ID      string         `json:"id"`
 	Address common.Address `json:"address"`
 	Info    nodeInfo       `json:"info"`
-	Secret  string         `json:"secret"`
 }
 
 // login tries to authorize the client at the remote server.
@@ -435,7 +433,6 @@ func (s *Service) login(conn *websocket.Conn) error {
 			Client:   "0.1.1",
 			History:  true,
 		},
-		Secret: s.pass,
 	}
 	if err := s.sendStats(conn, "hello", auth); err != nil {
 		return err
