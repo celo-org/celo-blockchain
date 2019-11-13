@@ -271,7 +271,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	}
 
 	// Check the signatures on the current header
-	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
+	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
@@ -286,8 +286,11 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	// The first block is also skipped since its parent
 	// is the genesis block which contains no parent signatures
 	if number > 1 {
-		sb.logger.Trace("verifyCommittedSeals: verifying parent seal for block", "num", number)
+		sb.logger.Trace("verifyCommittedSeals: verifying parent seals for block", "num", number)
 		var parentValidators istanbul.ValidatorSet
+		// The first block in an epoch will have a different validator set than the block
+		// before it. If the current block is the first block in an epoch, we need to fetch the previous
+		// validator set to validate the parent signatures.
 		if number%sb.config.Epoch == 1 {
 			snap, err := sb.snapshot(chain, number-2, common.Hash{}, nil)
 			if err != nil {
@@ -392,22 +395,22 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 		parentGossipedSeals := sb.core.ParentCommits()
 		if parentGossipedSeals != nil && parentGossipedSeals.Size() != 0 {
-			sb.logger.Debug("backend.Prepare: taking union of parent seals", "valset", parentGossipedSeals.String(), "num", number)
+			sb.logger.Trace("backend.Prepare: taking union of parent seals", "valset", parentGossipedSeals.String(), "num", number)
 			// if we had any seals gossiped to us, proceed to add them to the
 			// already aggregated signature
-			sb.logger.Debug("backend.Prepare: parent seal before", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
+			sb.logger.Trace("backend.Prepare: parent seal before", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
 			newBitmap, newAsig := istanbulCore.UnionOfSeals(bitmap, asig, parentGossipedSeals)
 			parentValidators := sb.getValidators(parent.Number.Uint64(), parent.Hash())
 			// only update to use the union if we indeed provided a valid aggregate signature for this block
 			if err := sb.checkValidatorSignatures(parent.Hash(), parentValidators, newBitmap, newAsig); err != nil {
-				sb.logger.Debug("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
+				sb.logger.Trace("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
 			} else {
 				bitmap = newBitmap
 				asig = newAsig
-				sb.logger.Debug("backend.Prepare: parent seal updated!", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
+				sb.logger.Trace("backend.Prepare: parent seal updated!", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
 			}
 		} else {
-			sb.logger.Debug("backend.Prepare: no seals were gossipped")
+			sb.logger.Trace("backend.Prepare: no seals were gossipped")
 		}
 		return writeCommittedSeals(header, bitmap, asig, true)
 	}
