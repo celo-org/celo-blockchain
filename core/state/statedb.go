@@ -141,15 +141,14 @@ func (self *StateDB) ClearLogs() {
 	self.logSize = 0
 }
 
-func (self *StateDB) AddLog(item *types.Log) {
+func (self *StateDB) AddLog(log *types.Log) {
 	self.journal.append(addLogChange{txhash: self.thash})
-	log.Info("Adding log", "txhash", self.thash)
 
-	item.TxHash = self.thash
-	item.BlockHash = self.bhash
-	item.TxIndex = uint(self.txIndex)
-	item.Index = self.logSize
-	self.logs[self.thash] = append(self.logs[self.thash], item)
+	log.TxHash = self.thash
+	log.BlockHash = self.bhash
+	log.TxIndex = uint(self.txIndex)
+	log.Index = self.logSize
+	self.logs[self.thash] = append(self.logs[self.thash], log)
 	self.logSize++
 }
 

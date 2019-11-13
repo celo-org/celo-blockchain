@@ -425,7 +425,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		receipt.Logs = state.Logs()
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		receipts = append(receipts, receipt)
-		log.Info("Making block", "len", len(receipts), "logs", len(receipt.Logs))
 	}
 
 	// Assemble and return the final block for sealing

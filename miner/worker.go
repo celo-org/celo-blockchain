@@ -1074,7 +1074,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		receipt.Logs = s.Logs()
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		receipts = append(receipts, receipt)
-		log.Info("committing logs", "len", len(receipt.Logs))
 	}
 
 	if err != nil {
