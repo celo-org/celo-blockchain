@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -242,11 +243,18 @@ func (sb *Backend) BroadcastIstMsg(destAddresses []common.Address, payload []byt
 // Gossip implements istanbul.Backend.Gossip
 func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
 	if sb.config.Proxied && ethMsgCode == istanbulMsg {
-		fwdMsg := istanbul.Message{DestAddresses: destAddresses, Msg: payload}
-
 		var err error
-		// Note that we are not signing the fwd message.  The message that is being wrapped is already signed.
-		payload, err = fwdMsg.Payload()
+
+		fwdMessage := &istanbul.ForwardMessage{DestAddresses: destAddresses, Msg: payload}
+		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+		if err != nil {
+			sb.logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+			return err
+		}
+
+		// Note that we are not signing message.  The message that is being wrapped is already signed.
+		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
+		payload, err = msg.Payload()
 		if err != nil {
 			return err
 		}

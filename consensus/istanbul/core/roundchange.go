@@ -76,7 +76,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	decodedMessages := make([]istanbul.RoundChange, len(roundChangeCertificate.RoundChangeMessages))
 	for i, message := range roundChangeCertificate.RoundChangeMessages {
 		// Verify message signed by a validator
-		data, err := message.PayloadNoSigAndDestAddrs()
+		data, err := message.PayloadNoSig()
 		if err != nil {
 			return err
 		}

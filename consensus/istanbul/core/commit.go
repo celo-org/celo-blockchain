@@ -51,22 +51,24 @@ func (c *core) generateCommittedSeal(digest common.Hash) ([]byte, error) {
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
-	encodedSubject, err := Encode(sub)
-	if err != nil {
-		logger.Error("Failed to encode", "subject", sub)
-		return
-	}
-
 	committedSeal, err := c.generateCommittedSeal(sub.Digest)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)
 		return
 	}
 
-	istMsg := istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           encodedSubject,
+	committedSub := &istanbul.CommittedSubject{
+		Subject:       sub,
 		CommittedSeal: committedSeal,
+	}
+	encodedCommittedSubject, err := Encode(committedSub)
+	if err != nil {
+		logger.Error("Failed to encode committedSubject", committedSub)
+	}
+
+	istMsg := istanbul.Message{
+		Code: istanbul.MsgCommit,
+		Msg:  encodedCommittedSubject,
 	}
 	c.broadcast(&istMsg)
 }
@@ -74,13 +76,13 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 func (c *core) handleCommit(msg *istanbul.Message) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCommit", "tag", "handleMsg")
 	// Decode COMMIT message
-	var commit *istanbul.Subject
+	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)
 	if err != nil {
 		return errFailedDecodeCommit
 	}
 
-	if err := c.checkMessage(istanbul.MsgCommit, commit.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View); err != nil {
 		return err
 	}
 
@@ -93,7 +95,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+	if err := c.verifyCommittedSeal(commit.Subject.Digest, commit.CommittedSeal, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
 
@@ -122,11 +124,11 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.Subject) error {
+func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyCommit")
 
 	sub := c.current.Subject()
-	if !reflect.DeepEqual(commit, sub) {
+	if !reflect.DeepEqual(commit.Subject, sub) {
 		logger.Warn("Inconsistent subjects between commit and proposal", "expected", sub, "got", commit)
 		return errInconsistentSubject
 	}

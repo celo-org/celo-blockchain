@@ -118,9 +118,16 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				return true, nil
 			}
 
-			fwdMsg := new(istanbul.Message)
-			if err := fwdMsg.FromPayload(data, nil); err != nil {
+			msg := new(istanbul.Message)
+			if err := msg.FromPayload(data, nil); err != nil {
 				sb.logger.Error("Failed to decode message from payload", "err", err)
+				return true, err
+			}
+
+			var fwdMsg *istanbul.ForwardMessage
+			err := msg.Decode(&fwdMsg)
+			if err != nil {
+				sb.logger.Error("Failed to decode a ForwardMessage", "err", err)
 				return true, err
 			}
 
