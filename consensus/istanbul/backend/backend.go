@@ -68,22 +68,23 @@ type AnnounceGossipTimestamp struct {
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
+	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
 	if err != nil {
-		backend.logger.Crit("Failed to create recent snapshots cache", "err", err)
+		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
 	recentMessages, err := lru.NewARC(inmemoryPeers)
 	if err != nil {
-		backend.logger.Crit("Failed to create recent messages cache", "err", err)
+		logger.Crit("Failed to create recent messages cache", "err", err)
 	}
 	knownMessages, err := lru.NewARC(inmemoryMessages)
 	if err != nil {
-		backend.logger.Crit("Failed to create known messages cache", "err", err)
+		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
-		logger:               log.New(),
+		logger:               logger,
 		db:                   db,
 		commitCh:             make(chan *types.Block, 1),
 		recentSnapshots:      recentSnapshots,
@@ -98,7 +99,7 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 	backend.core = istanbulCore.New(backend, backend.config)
 	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath)
 	if err != nil {
-		backend.logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
+		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
 	backend.valEnodeTable = table
 
