@@ -68,16 +68,25 @@ type AnnounceGossipTimestamp struct {
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	recentMessages, _ := lru.NewARC(inmemoryPeers)
-	knownMessages, _ := lru.NewARC(inmemoryMessages)
+	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
+	if err != nil {
+		backend.logger.Crit("Failed to create recent snapshots cache", "err", err)
+	}
+	recentMessages, err := lru.NewARC(inmemoryPeers)
+	if err != nil {
+		backend.logger.Crit("Failed to create recent messages cache", "err", err)
+	}
+	knownMessages, err := lru.NewARC(inmemoryMessages)
+	if err != nil {
+		backend.logger.Crit("Failed to create known messages cache", "err", err)
+	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
 		logger:               log.New(),
 		db:                   db,
 		commitCh:             make(chan *types.Block, 1),
-		recents:              recents,
+		recentSnapshots:      recentSnapshots,
 		coreStarted:          false,
 		recentMessages:       recentMessages,
 		knownMessages:        knownMessages,
@@ -127,7 +136,7 @@ type Backend struct {
 	coreMu            sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
-	recents *lru.ARCCache
+	recentSnapshots *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
