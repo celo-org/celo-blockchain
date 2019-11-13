@@ -24,9 +24,7 @@ import (
 )
 
 const (
-	GasLimitBoundDivisor uint64 = 1024    // The bound divisor of the gas limit, used in update calculations.
-	MinGasLimit          uint64 = 5000    // Minimum the gas limit may ever be.
-	GenesisGasLimit      uint64 = 4712388 // Gas limit of the Genesis block.
+	DefaultGasLimit uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
 
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
 	ExpByteGas            uint64 = 10    // Times ceil(log256(exponent)) for the EXP instruction.
@@ -92,8 +90,6 @@ const (
 	Bn256PairingPerPointGas uint64 = 80000  // Per-point price for an elliptic curve pairing check
 
 	// Celo precompiled contracts
-	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
@@ -113,17 +109,19 @@ var (
 	// Celo registered contract IDs.
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
-	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 	ElectionRegistryId             = makeRegistryId("Election")
+	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
-	ReserveRegistryId              = makeRegistryId("Reserve")
+	LockedGoldRegistryId           = makeRegistryId("LockedGold")
 	RandomRegistryId               = makeRegistryId("Random")
+	ReserveRegistryId              = makeRegistryId("Reserve")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
+	StableTokenRegistryId          = makeRegistryId("StableToken")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
-	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -135,35 +133,34 @@ func makeRegistryId(contractName string) [32]byte {
 }
 
 const (
-	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
-)
-
-const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
 	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
 
 	// Contract communication gas limits
-	MaxGasForCommitments                          uint64 = 2000000
-	MaxGasForComputeCommitment                    uint64 = 2000000
-	MaxGasForCreditToTransactions                 uint64 = 100000
-	MaxGasForDebitFromTransactions                uint64 = 100000
-	MaxGasForDistributeEpochPayment               uint64 = 1 * 1000000
-	MaxGasForDistributeEpochRewards               uint64 = 1 * 1000000
-	MaxGasForElectValidators                      uint64 = 50 * 1000000
-	MaxGasForGetEligibleValidatorGroupsVoteTotals uint64 = 1 * 1000000
-	MaxGasForGetGasPriceMinimum                   uint64 = 2000000
-	MaxGasForGetGroupEpochRewards                 uint64 = 50 * 1000
-	MaxGasForGetMembershipInLastEpoch             uint64 = 1 * 1000000
-	MaxGasForGetRegisteredValidators              uint64 = 1000000
-	MaxGasForGetValidator                         uint64 = 100 * 1000
-	MaxGasForGetWhiteList                         uint64 = 20000
-	MaxGasForIncreaseSupply                       uint64 = 50 * 1000
-	MaxGasForMedianRate                           uint64 = 20000
-	MaxGasForProposerFraction                     uint64 = 200000
-	MaxGasForReadBlockchainParameter              uint64 = 20000
-	MaxGasForRevealAndCommit                      uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum                uint64 = 2000000
-	MaxGasForUpdateValidatorScore                 uint64 = 1 * 1000000
-	MaxGasForTotalSupply                          uint64 = 50 * 1000
-	MaxGasToReadErc20Balance                      uint64 = 100000
+	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
+	MaxGasForCommitments                           uint64 = 2000000
+	MaxGasForComputeCommitment                     uint64 = 2000000
+	MaxGasForCreditToTransactions                  uint64 = 100000
+	MaxGasForDebitFromTransactions                 uint64 = 100000
+	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
+	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForGetAddressFor                         uint64 = 1 * 100000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
+	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
+	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
+	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
+	MaxGasForGetRegisteredValidators               uint64 = 1000000
+	MaxGasForGetValidator                          uint64 = 100 * 1000
+	MaxGasForGetWhiteList                          uint64 = 20000
+	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
+	MaxGasForMedianRate                            uint64 = 20000
+	MaxGasForProposerFraction                      uint64 = 200000
+	MaxGasForReadBlockchainParameter               uint64 = 20000
+	MaxGasForRevealAndCommit                       uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
+	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
+	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
+	MaxGasForTotalSupply                           uint64 = 50 * 1000
+	MaxGasToReadErc20Balance                       uint64 = 100000
 )

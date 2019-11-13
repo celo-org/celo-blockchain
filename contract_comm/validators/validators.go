@@ -73,17 +73,25 @@ const validatorsABIString string = `[
       "stateMutability": "view",
       "type": "function"
     },
-
-					    {
+    {
       "constant": false,
       "inputs": [
         {
           "name": "validator",
           "type": "address"
+        },
+        {
+          "name": "maxPayment",
+          "type": "uint256"
         }
       ],
       "name": "distributeEpochPayment",
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
@@ -195,23 +203,26 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 		common.Big0,
 		header,
 		state,
+		false,
 	)
 	return err
 }
 
-func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address) error {
+func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address, maxPayment *big.Int) (*big.Int, error) {
+	var epochPayment *big.Int
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"distributeEpochPayment",
-		[]interface{}{address},
-		nil,
+		[]interface{}{address, maxPayment},
+		&epochPayment,
 		params.MaxGasForDistributeEpochPayment,
 		common.Big0,
 		header,
 		state,
+		false,
 	)
-	return err
+	return epochPayment, err
 }
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {

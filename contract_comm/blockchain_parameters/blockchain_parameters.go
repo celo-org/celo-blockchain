@@ -55,6 +55,20 @@ const (
 	{
 		"constant": true,
 		"inputs": [],
+		"name": "blockGasLimit",
+		"outputs": [
+		  {
+			"name": "",
+			"type": "uint256"
+		  }
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	  },
+	  {
+		"constant": true,
+		"inputs": [],
 		"name": "intrinsicGasForAlternativeGasCurrency",
 		"outputs": [
 		  {
@@ -145,4 +159,22 @@ func SpawnCheck() {
 			CheckMinimumVersion(nil, nil)
 		}
 	}()
+}
+
+func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
+	var gasLimit *big.Int
+	_, err := contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"blockGasLimit",
+		[]interface{}{},
+		&gasLimit,
+		params.MaxGasForReadBlockchainParameter,
+		header,
+		state,
+	)
+	if err != nil {
+		return params.DefaultGasLimit, err
+	}
+	return gasLimit.Uint64(), nil
 }

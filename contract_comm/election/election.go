@@ -96,7 +96,7 @@ const electionABIString string = `[
           "type": "address"
         },
         {
-          "name": "totalEpochRewards",
+          "name": "maxTotalRewards",
           "type": "uint256"
         }
       ],
@@ -147,16 +147,16 @@ func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.Stat
 	return voteTotals, err
 }
 
-func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
+func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.Address, maxRewards *big.Int) (*big.Int, error) {
 	var groupEpochRewards *big.Int
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, totalEpochRewards}, &groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, maxRewards}, &groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
 	if err != nil {
 		return nil, err
 	}
 	return groupEpochRewards, nil
 }
 
-func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address, totalEpochRewards *big.Int) (*big.Int, error) {
+func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []common.Address, maxTotalRewards *big.Int) (*big.Int, error) {
 	totalRewards := big.NewInt(0)
 	voteTotals, err := getTotalVotesForEligibleValidatorGroups(header, state)
 	if err != nil {
@@ -165,7 +165,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 
 	rewards := make([]*big.Int, len(groups))
 	for i, group := range groups {
-		reward, err := getGroupEpochRewards(header, state, group, totalEpochRewards)
+		reward, err := getGroupEpochRewards(header, state, group, maxTotalRewards)
 		if err != nil {
 			return totalRewards, err
 		}
@@ -198,7 +198,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 				break
 			}
 		}
-		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state)
+		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state, false)
 		if err != nil {
 			return totalRewards, err
 		}
