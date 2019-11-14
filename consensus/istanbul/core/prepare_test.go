@@ -382,12 +382,12 @@ OUTER:
 		if decodedMsg.Code != istanbul.MsgCommit {
 			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
 		}
-		var m *istanbul.Subject
+		var m *istanbul.CommittedSubject
 		err = decodedMsg.Decode(&m)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
-		if !reflect.DeepEqual(m, expectedSubject) {
+		if !reflect.DeepEqual(m.Subject, expectedSubject) {
 			t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
 		}
 	}

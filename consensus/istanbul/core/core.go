@@ -173,7 +173,14 @@ func (c *core) commit() {
 		committedSeals := make([][]byte, c.current.Commits.Size())
 		for i, v := range c.current.Commits.Values() {
 			committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
-			copy(committedSeals[i][:], v.CommittedSeal[:])
+
+			var commit *istanbul.CommittedSubject
+			err := v.Decode(&commit)
+			if err != nil {
+				panic(fmt.Sprintf("commit: error in decoding committed subject for address %s", hex.EncodeToString(v.Address[:])))
+			}
+
+			copy(committedSeals[i][:], commit.CommittedSeal[:])
 			j, err := c.current.Commits.GetAddressIndex(v.Address)
 			if err != nil {
 				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))

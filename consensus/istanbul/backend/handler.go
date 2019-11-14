@@ -118,9 +118,19 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				return true, nil
 			}
 
-			fwdMsg := new(istanbul.Message)
-			if err := fwdMsg.FromPayload(data, nil); err != nil {
+			istMsg := new(istanbul.Message)
+
+			// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
+			// the wrapped message is already signed by the proxied validator.
+			if err := istMsg.FromPayload(data, nil); err != nil {
 				sb.logger.Error("Failed to decode message from payload", "err", err)
+				return true, err
+			}
+
+			var fwdMsg *istanbul.ForwardMessage
+			err := istMsg.Decode(&fwdMsg)
+			if err != nil {
+				sb.logger.Error("Failed to decode a ForwardMessage", "err", err)
 				return true, err
 			}
 
