@@ -27,7 +27,7 @@ import (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, hasBadProposal func(hash common.Hash) bool) *roundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits *messageSet, hasBadProposal func(hash common.Hash) bool) *roundState {
 	return &roundState{
 		round:               view.Round,
 		desiredRound:        view.Round,
@@ -35,6 +35,7 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prep
 		Preprepare:          preprepare,
 		Prepares:            newMessageSet(validatorSet),
 		Commits:             newMessageSet(validatorSet),
+		ParentCommits:       parentCommits,
 		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
@@ -50,6 +51,7 @@ type roundState struct {
 	Preprepare          *istanbul.Preprepare
 	Prepares            *messageSet
 	Commits             *messageSet
+	ParentCommits       *messageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
