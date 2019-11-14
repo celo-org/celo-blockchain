@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -40,7 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -52,6 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
+	config.ValidatorEnodeDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {

@@ -183,7 +183,7 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state vm.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue, header, state)
+	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue, header, state, true)
 	return err
 }
 
