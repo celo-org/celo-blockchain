@@ -71,7 +71,7 @@ type Backend interface {
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
 
-	GasFeeRecipient() common.Address
+	GatewayFeeRecipient() common.Address
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

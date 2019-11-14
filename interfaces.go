@@ -113,14 +113,15 @@ type ChainSyncReader interface {
 
 // CallMsg contains parameters for contract calls.
 type CallMsg struct {
-	From            common.Address  // the sender of the 'transaction'
-	To              *common.Address // the destination contract (nil for contract creation)
-	Gas             uint64          // if 0, the call executes with near-infinite gas
-	GasCurrency     *common.Address // 0 for the native currency
-	GasFeeRecipient *common.Address // 0 for returning gas fees to the sender
-	GasPrice        *big.Int        // wei <-> gas exchange ratio
-	Value           *big.Int        // amount of wei sent along with the call
-	Data            []byte          // input data, usually an ABI-encoded contract method invocation
+	From                common.Address  // the sender of the 'transaction'
+	To                  *common.Address // the destination contract (nil for contract creation)
+	Gas                 uint64          // if 0, the call executes with near-infinite gas
+	FeeCurrency         *common.Address // 0 for the native currency
+	GatewayFeeRecipient *common.Address // 0 for no gatway fee
+	GatewayFee          *big.Int        // 0 for no gateway fee
+	GasPrice            *big.Int        // wei <-> gas exchange ratio
+	Value               *big.Int        // amount of wei sent along with the call
+	Data                []byte          // input data, usually an ABI-encoded contract method invocation
 }
 
 // A ContractCaller provides contract calls, essentially transactions that are executed by

@@ -377,22 +377,22 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
 
-	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("Insufficient funds",
 			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
 			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-			"value", tx.Value(), "gas currency", tx.GasCurrency())
+			"value", tx.Value(), "fee currency", tx.FeeCurrency())
 		return core.ErrInsufficientFunds
-	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+	} else if tx.FeeCurrency() != nil {
+		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
 
 		if err != nil {
-			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
+			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
 			return err
 		}
 
-		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
-			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
+		if feeCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
+			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return core.ErrInsufficientFunds
 		}
 
@@ -403,7 +403,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, header, currentState, tx.GasCurrency())
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, header, currentState, tx.FeeCurrency())
 	if err != nil {
 		return err
 	}
@@ -412,10 +412,10 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should have a peer that will accept and broadcast our transaction
-	if tx.GasFeeRecipient() == nil {
+	if tx.GatewayFeeRecipient() == nil {
 		err = pool.relay.HasPeerWithEtherbase(common.Address{})
 	} else {
-		err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
+		err = pool.relay.HasPeerWithEtherbase(*tx.GatewayFeeRecipient())
 	}
 	if err != nil {
 		return err

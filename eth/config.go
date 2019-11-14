@@ -89,7 +89,7 @@ type Config struct {
 	// Light client options
 	LightServ  int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
 	LightPeers int `toml:",omitempty"` // Maximum number of LES client peers
-	// The GasFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	// The GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`

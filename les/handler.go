@@ -361,11 +361,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg, GetEtherbaseMsg}
 
-func (pm *ProtocolManager) verifyGasFeeRecipient(gasFeeRecipient *common.Address) bool {
-	// If this node does not specify an etherbase, accept any GasFeeRecipient. Otherwise,
+func (pm *ProtocolManager) verifyGatewayFeeRecipient(gatewayFeeRecipient *common.Address) bool {
+	// If this node does not specify an etherbase, accept any GatewayFeeRecipient. Otherwise,
 	// reject transactions that don't pay gas fees to this node.
 	if (pm.etherbase != common.Address{}) {
-		if gasFeeRecipient == nil || *gasFeeRecipient != pm.etherbase {
+		if gatewayFeeRecipient == nil || *gatewayFeeRecipient != pm.etherbase {
 			return false
 		}
 	}
@@ -1068,8 +1068,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrRequestRejected, "")
 		}
 		for _, tx := range txs {
-			if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
-				return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
+			if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
+				return errResp(ErrRequestRejected, "Invalid GatewayFeeRecipient")
 			}
 		}
 		pm.txpool.AddRemotes(txs)
@@ -1102,8 +1102,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for i, stat := range stats {
 			if stat.Status == core.TxStatusUnknown {
 				tx := req.Txs[i]
-				if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
-					stats[i].Error = fmt.Sprintf("Invalid GasFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GasFeeRecipient())
+				if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
+					stats[i].Error = fmt.Sprintf("Invalid GatewayFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GatewayFeeRecipient())
 					continue
 				}
 

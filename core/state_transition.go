@@ -166,7 +166,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
-	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "gas currency", msg.FeeCurrency(), "gas fee recipient", msg.GasFeeRecipient(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
+	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
@@ -187,7 +187,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 	return nil
 }
 
-// payFees deducts gas and gateways fees from sender balance and returns error if the sender cannot pay.
+// payFees deducts gas and gateway fees from sender balance and returns error if the sender cannot pay.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	if st.msg.GatewayFee() != nil {
@@ -195,12 +195,12 @@ func (st *StateTransition) payFees() error {
 	}
 
 	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
-		log.Trace("Gas currency not whitelisted", "gas currency address", st.msg.FeeCurrency())
+		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return errNonWhitelistedFeeCurrency
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
-		return errInsufficientBalanceForGas
+		return errInsufficientBalanceForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -333,7 +333,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		log.Error("Transaction failed provide intrinsic gas", "err", err,
 			"gas required", gas,
 			"gas provided", st.msg.Gas(),
-			"gas currency", st.msg.FeeCurrency())
+			"fee currency", st.msg.FeeCurrency())
 		return nil, 0, false, vm.ErrOutOfGas
 	}
 
@@ -394,6 +394,7 @@ func (st *StateTransition) distributeTxFees() error {
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 
 	// Pay gateway fee to the specified recipient.
+	// DO NOT MERGE: Finish this logic.
 	if msg.GatewayFeeRecipient() != nil && msg.GatewayFee() != nil {
 	}
 
@@ -415,7 +416,7 @@ func (st *StateTransition) distributeTxFees() error {
 		}
 	}
 
-	err = st.creditGas(st.msg.From(), refund, st.msg.GasCurrency())
+	err = st.creditGas(st.msg.From(), refund, st.msg.FeeCurrency())
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)
 		return err

@@ -672,14 +672,15 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
-	From            common.Address  `json:"from"`
-	To              *common.Address `json:"to"`
-	Gas             hexutil.Uint64  `json:"gas"`
-	GasPrice        hexutil.Big     `json:"gasPrice"`
-	GasCurrency     *common.Address `json:"gasCurrency"`
-	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
-	Value           hexutil.Big     `json:"value"`
-	Data            hexutil.Bytes   `json:"data"`
+	From                common.Address  `json:"from"`
+	To                  *common.Address `json:"to"`
+	Gas                 hexutil.Uint64  `json:"gas"`
+	GasPrice            hexutil.Big     `json:"gasPrice"`
+	FeeCurrency         *common.Address `json:"feeCurrency"`
+	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"`
+	GatewayFee          hexutil.Big     `json:"gatewayFee"`
+	Value               hexutil.Big     `json:"value"`
+	Data                hexutil.Bytes   `json:"data"`
 }
 
 func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration) ([]byte, uint64, bool, error) {
@@ -707,11 +708,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.GasCurrency)
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.GasCurrency, args.GasFeeRecipient, args.Data, false)
+	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, args.Data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -941,22 +942,23 @@ func (s *PublicBlockChainAPI) rpcOutputBlock(b *types.Block, inclTx bool, fullTx
 
 // RPCTransaction represents a transaction that will serialize to the RPC representation of a transaction
 type RPCTransaction struct {
-	BlockHash        common.Hash     `json:"blockHash"`
-	BlockNumber      *hexutil.Big    `json:"blockNumber"`
-	From             common.Address  `json:"from"`
-	Gas              hexutil.Uint64  `json:"gas"`
-	GasPrice         *hexutil.Big    `json:"gasPrice"`
-	GasCurrency      *common.Address `json:"gasCurrency"`
-	GasFeeRecipient  *common.Address `json:"gasFeeRecipient"`
-	Hash             common.Hash     `json:"hash"`
-	Input            hexutil.Bytes   `json:"input"`
-	Nonce            hexutil.Uint64  `json:"nonce"`
-	To               *common.Address `json:"to"`
-	TransactionIndex hexutil.Uint    `json:"transactionIndex"`
-	Value            *hexutil.Big    `json:"value"`
-	V                *hexutil.Big    `json:"v"`
-	R                *hexutil.Big    `json:"r"`
-	S                *hexutil.Big    `json:"s"`
+	BlockHash           common.Hash     `json:"blockHash"`
+	BlockNumber         *hexutil.Big    `json:"blockNumber"`
+	From                common.Address  `json:"from"`
+	Gas                 hexutil.Uint64  `json:"gas"`
+	GasPrice            *hexutil.Big    `json:"gasPrice"`
+	FeeCurrency         *common.Address `json:"feeCurrency"`
+	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"`
+	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	Hash                common.Hash     `json:"hash"`
+	Input               hexutil.Bytes   `json:"input"`
+	Nonce               hexutil.Uint64  `json:"nonce"`
+	To                  *common.Address `json:"to"`
+	TransactionIndex    hexutil.Uint    `json:"transactionIndex"`
+	Value               *hexutil.Big    `json:"value"`
+	V                   *hexutil.Big    `json:"v"`
+	R                   *hexutil.Big    `json:"r"`
+	S                   *hexutil.Big    `json:"s"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -970,19 +972,20 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	v, r, s := tx.RawSignatureValues()
 
 	result := &RPCTransaction{
-		From:            from,
-		Gas:             hexutil.Uint64(tx.Gas()),
-		GasPrice:        (*hexutil.Big)(tx.GasPrice()),
-		GasCurrency:     tx.GasCurrency(),
-		GasFeeRecipient: tx.GasFeeRecipient(),
-		Hash:            tx.Hash(),
-		Input:           hexutil.Bytes(tx.Data()),
-		Nonce:           hexutil.Uint64(tx.Nonce()),
-		To:              tx.To(),
-		Value:           (*hexutil.Big)(tx.Value()),
-		V:               (*hexutil.Big)(v),
-		R:               (*hexutil.Big)(r),
-		S:               (*hexutil.Big)(s),
+		From:                from,
+		Gas:                 hexutil.Uint64(tx.Gas()),
+		GasPrice:            (*hexutil.Big)(tx.GasPrice()),
+		FeeCurrency:         tx.FeeCurrency(),
+		GatewayFeeRecipient: tx.GatewayFeeRecipient(),
+		GatewayFee:          tx.GatewayFee(),
+		Hash:                tx.Hash(),
+		Input:               hexutil.Bytes(tx.Data()),
+		Nonce:               hexutil.Uint64(tx.Nonce()),
+		To:                  tx.To(),
+		Value:               (*hexutil.Big)(tx.Value()),
+		V:                   (*hexutil.Big)(v),
+		R:                   (*hexutil.Big)(r),
+		S:                   (*hexutil.Big)(s),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -1205,14 +1208,15 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	From            common.Address  `json:"from"`
-	To              *common.Address `json:"to"`
-	Gas             *hexutil.Uint64 `json:"gas"`
-	GasPrice        *hexutil.Big    `json:"gasPrice"`
-	GasCurrency     *common.Address `json:"gasCurrency"`
-	GasFeeRecipient *common.Address `json:"gasFeeRecipient"`
-	Value           *hexutil.Big    `json:"value"`
-	Nonce           *hexutil.Uint64 `json:"nonce"`
+	From                common.Address  `json:"from"`
+	To                  *common.Address `json:"to"`
+	Gas                 *hexutil.Uint64 `json:"gas"`
+	GasPrice            *hexutil.Big    `json:"gasPrice"`
+	FeeCurrency         *common.Address `json:"feeCurrency"`
+	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"`
+	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	Value               *hexutil.Big    `json:"value"`
+	Nonce               *hexutil.Uint64 `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1224,17 +1228,17 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
 		defaultGas := uint64(90000)
-		if args.GasCurrency == nil {
+		if args.FeeCurrency == nil {
 			*(*uint64)(args.Gas) = defaultGas
 		} else {
-			// When paying for gas in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for gas in Celo Gold.
+			// When paying for fees in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for fees in Celo Gold.
 			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
 			state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 			if err != nil {
-				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeGasCurrency(header, state)
+				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
 			} else {
-				log.Warn("Cannot read intrinsic gas for alternative gas currency", "err", err)
-				*(*uint64)(args.Gas) = defaultGas + params.IntrinsicGasForAlternativeGasCurrency
+				log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
+				*(*uint64)(args.Gas) = defaultGas + params.IntrinsicGasForAlternativeFeeCurrency
 			}
 		}
 	}
@@ -1242,7 +1246,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		price, err := b.SuggestPriceInCurrency(ctx, args.GasCurrency)
+		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
 		if err != nil {
 			return err
 		}
@@ -1274,10 +1278,11 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 	}
 
-	if args.GasFeeRecipient == nil {
-		recipient := b.GasFeeRecipient()
+	// DO NOT MERGE: Is this what we want?
+	if args.GatewayFeeRecipient == nil {
+		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
-			args.GasFeeRecipient = &recipient
+			args.GatewayFeeRecipient = &recipient
 		}
 	}
 	return nil
@@ -1291,9 +1296,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.GasCurrency, args.GasFeeRecipient, input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, input)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.

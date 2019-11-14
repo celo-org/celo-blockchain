@@ -209,6 +209,6 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *LesApiBackend) GasFeeRecipient() common.Address {
+func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
 }
