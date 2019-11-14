@@ -544,17 +544,19 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 	if errEtherbase != nil {
 		return errEtherbase
 	}
+
 	account := accounts.Account{Address: etherBase}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
 		return errWallet
 	}
+
 	pubkey, errPubkey := wallet.GetPublicKey(account)
-	pubkeyBytes := crypto.FromECDSAPub(pubkey)
 	if errPubkey != nil {
 		return errPubkey
 	}
-	fmt.Println("pubkey to address", crypto.PubkeyToAddress(*pubkey).Hex())
+	pubkeyBytes := crypto.FromECDSAPub(pubkey)
+
 	signature, errSign := wallet.SignHash(account, msgHash.Bytes())
 	if errSign != nil {
 		return errSign
