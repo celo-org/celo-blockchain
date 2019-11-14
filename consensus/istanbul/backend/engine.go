@@ -612,7 +612,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Retrieve the most recent cached or on disk snapshot.
 	for ; ; numberIter = numberIter - sb.config.Epoch {
 		// If an in-memory snapshot was found, use that
-		if s, ok := sb.recents.Get(numberIter); ok {
+		if s, ok := sb.recentSnapshots.Get(numberIter); ok {
 			snap = s.(*Snapshot)
 			break
 		}
@@ -719,7 +719,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			return nil, err
 		}
 
-		sb.recents.Add(numberIter, snap)
+		sb.recentSnapshots.Add(numberIter, snap)
 	}
 	// Make a copy of the snapshot to return, since a few fields will be modified.
 	// The original snap is probably stored within the LRU cache, so we don't want to

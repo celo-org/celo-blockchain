@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
@@ -152,7 +154,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 			go sb.sendIstAnnounce()
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
 			go sb.sendIstAnnounce()
 
 		case <-sb.announceQuit:
@@ -172,7 +174,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	enodeURL := selfEnode.String()
 	view := sb.core.CurrentView()
-	incompleteEnodeUrl := enodeURL[:strings.Index(enodeURL, "@")]
+	incompleteEnodeURL := enodeURL[:strings.Index(enodeURL, "@")]
 	endpointData := enodeURL[strings.Index(enodeURL, "@"):]
 
 	// If the message is not within the registered validator set, then ignore it
@@ -183,7 +185,8 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	encryptedEndpoints := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
-		if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(addr); ok {
+		enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(addr)
+		if err == nil {
 			validatorEnode, err := enode.ParseV4(enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
 			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
@@ -192,12 +195,14 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 			} else {
 				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
 			}
+		} else if err != leveldb.ErrNotFound {
+			log.Error("Unable to read valEnodeTable", "err", err, "addr", addr)
 		}
 	}
 
 	msg := &announceMessage{
 		Address:               sb.Address(),
-		IncompleteEnodeURL:    incompleteEnodeUrl,
+		IncompleteEnodeURL:    incompleteEnodeURL,
 		EncryptedEndpointData: encryptedEndpoints,
 		View:                  view,
 	}
@@ -370,7 +375,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 
-		sb.valEnodeTable.PruneEntries(regAndActiveVals)
+		err = sb.valEnodeTable.PruneEntries(regAndActiveVals)
+		return err
 	}
 
 	return nil
