@@ -119,6 +119,8 @@ func (sb *Backend) NewChainHead() error {
 		}
 		// Establish connections to new peers and tear down connections to old ones.
 		go sb.RefreshValPeers(valset)
+
+		sb.newEpochCh <- struct{}{}
 	}
 
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})

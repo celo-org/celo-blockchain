@@ -61,8 +61,9 @@ var (
 
 // Entries for the recent announce messages
 type AnnounceGossipTimestamp struct {
-	enodeURL  string
-	timestamp time.Time
+	enodeURL          string
+	destAddressesHash common.Hash
+	timestamp         time.Time
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -153,6 +154,7 @@ type Backend struct {
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 	dataDir      string // A read-write data dir to persist files across restarts
+	newEpochCh   chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -278,7 +280,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 
 	h := block.Header()
 	// Append seals into extra-data
-	err := writeCommittedSeals(h, bitmap, seals)
+	err := writeCommittedSeals(h, bitmap, seals, false)
 	if err != nil {
 		return err
 	}
