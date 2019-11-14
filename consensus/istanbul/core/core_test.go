@@ -51,6 +51,10 @@ func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
 	return block.WithSeal(header)
 }
 
+func newTestProposalWithNum(num int64) istanbul.Proposal {
+	return makeBlock(num)
+}
+
 func newTestProposal() istanbul.Proposal {
 	return makeBlock(1)
 }

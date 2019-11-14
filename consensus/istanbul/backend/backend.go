@@ -280,7 +280,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 
 	h := block.Header()
 	// Append seals into extra-data
-	err := writeCommittedSeals(h, bitmap, seals)
+	err := writeCommittedSeals(h, bitmap, seals, false)
 	if err != nil {
 		return err
 	}
