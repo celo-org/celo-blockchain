@@ -281,11 +281,12 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		return err
 	}
 
-	// Check parent signatures only after block 1.
-	// The genesis block is skipped since it has no parents
-	// The first block is also skipped since its parent
-	// is the genesis block which contains no parent signatures
-	if number > 1 {
+	// The genesis block is skipped since it has no parents.
+	// The first block is also skipped, since its parent
+	// is the genesis block which contains no parent signatures.
+	// The parent commit messages are only used for the uptime calculation,
+	// so ultralight clients don't need to verify them
+	if number > 1 && chain.Config().FullHeaderChainAvailable {
 		sb.logger.Trace("verifyCommittedSeals: verifying parent seals for block", "num", number)
 		var parentValidators istanbul.ValidatorSet
 		// The first block in an epoch will have a different validator set than the block
