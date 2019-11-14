@@ -915,6 +915,8 @@ running:
 			c.cont <- srv.postHandshakeChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)
 
 		case c := <-srv.checkpointAddPeer:
+			srv.log.Debug("PRE Adding p2p peer")
+
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
 			err := srv.addPeerChecks(peers, inboundCount, c, numConnectedValPeers, numInboundValPeers)

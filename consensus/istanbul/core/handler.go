@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -146,6 +147,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
+	logger.Debug("Receiving: ", "payload", hexutil.Encode(payload))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Error("Failed to decode message from payload", "err", err)
 		return err

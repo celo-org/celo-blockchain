@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -53,7 +54,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 	}
-	c.validateFn = c.checkValidatorSignature
+	c.validateFn = nil //c.checkValidatorSignature
 	return c
 }
 
@@ -158,6 +159,8 @@ func (c *core) broadcast(msg *istanbul.Message) {
 		logger.Error("Failed to finalize message", "msg", msg, "err", err)
 		return
 	}
+
+	logger.Debug("Broadcast: ", "msg", msg, "payload", hexutil.Encode(payload))
 
 	// Broadcast payload
 	if err = c.backend.Broadcast(c.valSet, payload); err != nil {

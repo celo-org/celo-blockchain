@@ -168,7 +168,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		return nil, nil
 	}
 
-	enodeUrl := selfEnode.String()
+	enodeUrl := selfEnode.URLv4()
 	view := sb.core.CurrentView()
 	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
 	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
