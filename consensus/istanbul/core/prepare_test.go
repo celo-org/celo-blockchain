@@ -44,13 +44,13 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	}{
 		{
 			// Valid PREPARED certificate
-			sys.getPreparedCertificate(t, view, proposal),
+			sys.getPreparedCertificate(t, []istanbul.View{view}, proposal),
 			nil,
 		},
 		{
 			// Invalid PREPARED certificate, duplicate message
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				return preparedCertificate
 			}(),
@@ -63,7 +63,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(10),
 				}
-				preparedCertificate := sys.getPreparedCertificate(t, futureView, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{futureView}, proposal)
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateMsgView,
@@ -71,8 +71,8 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		{
 			// Invalid PREPARED certificate, includes preprepare message
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
-				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, view, proposal))
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
 				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
 				return preparedCertificate
 			}(),
@@ -81,12 +81,23 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		{
 			// Invalid PREPARED certificate, hash mismatch
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				preparedCertificate.Proposal = makeBlock(1)
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDigestMismatch,
+		},
+		{
+			// Invalid PREPARED certificate, view inconsistencies
+			func() istanbul.PreparedCertificate {
+				var view2 istanbul.View
+				view2.Sequence = big.NewInt(view.Sequence.Int64())
+				view2.Round = big.NewInt(view.Round.Int64() + 1)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view, view2}, proposal)
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateInconsistentViews,
 		},
 		{
 			// Empty certificate
@@ -153,9 +164,11 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
 					t,
-					istanbul.View{
-						Round:    big.NewInt(0),
-						Sequence: big.NewInt(1),
+					[]istanbul.View{
+						{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
 					},
 					proposal)
 
@@ -186,9 +199,11 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
 					t,
-					istanbul.View{
-						Round:    big.NewInt(0),
-						Sequence: big.NewInt(10),
+					[]istanbul.View{
+						{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(10),
+						},
 					},
 					proposal)
 
