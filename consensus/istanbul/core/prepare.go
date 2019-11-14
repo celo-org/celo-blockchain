@@ -146,6 +146,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
