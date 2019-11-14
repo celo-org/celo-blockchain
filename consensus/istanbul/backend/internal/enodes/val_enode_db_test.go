@@ -24,13 +24,10 @@ func view(sequence, round int64) *istanbul.View {
 
 type mockListener struct{}
 
-func (ml *mockListener) ValidatorPeerAdded(enodeURL string, address common.Address) {
-
-}
-
-func (ml *mockListener) ValidatorPeerRemoved(enodeURL string) {
-
-}
+func (ml *mockListener) AddValidatorPeer(enodeURL string, address common.Address) {}
+func (ml *mockListener) RemoveValidatorPeer(enodeURL string)                      {}
+func (ml *mockListener) ReplaceValidatorPeers(newEnodeURLs []string)              {}
+func (ml *mockListener) ClearValidatorPeers()                                     {}
 
 func TestSimpleCase(t *testing.T) {
 	vet, err := OpenValidatorEnodeDB("", &mockListener{})

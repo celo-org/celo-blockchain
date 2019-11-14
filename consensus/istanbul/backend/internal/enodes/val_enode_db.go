@@ -57,13 +57,19 @@ var (
 	errOldAnnounceMessage = errors.New("old announce message")
 )
 
-// ValidatorEnodeListener is listener to Add/Remove events. Events execute within write lock
-type ValidatorEnodeListener interface {
-	// ValidatorPeerAdded adds a validator peer
-	ValidatorPeerAdded(enodeURL string, address common.Address)
+// ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
+type ValidatorEnodeHandler interface {
+	// AddValidatorPeer adds a validator peer
+	AddValidatorPeer(enodeURL string, address common.Address)
 
-	// ValidatorPeerRemoved removes a validator peer
-	ValidatorPeerRemoved(enodeURL string)
+	// RemoveValidatorPeer removes a validator peer
+	RemoveValidatorPeer(enodeURL string)
+
+	// ReplaceValidatorPeers replace all validator peers for new list of enodeURLs
+	ReplaceValidatorPeers(newEnodeURLs []string)
+
+	// Clear all validator peers
+	ClearValidatorPeers()
 }
 
 func addressKey(address common.Address) []byte {
@@ -108,14 +114,15 @@ func (ve *addressEntry) DecodeRLP(s *rlp.Stream) error {
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	db       *leveldb.DB //the actual DB
-	lock     sync.RWMutex
-	listener ValidatorEnodeListener
+	db      *leveldb.DB //the actual DB
+	lock    sync.RWMutex
+	handler ValidatorEnodeHandler
+	logger  log.Logger
 }
 
 // OpenValidatorEnodeDB opens a validator enode database for storing and retrieving infos about validator
 // enodes. If no path is given an in-memory, temporary database is constructed.
-func OpenValidatorEnodeDB(path string, listener ValidatorEnodeListener) (*ValidatorEnodeDB, error) {
+func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	var db *leveldb.DB
 	var err error
 	if path == "" {
@@ -128,8 +135,9 @@ func OpenValidatorEnodeDB(path string, listener ValidatorEnodeListener) (*Valida
 		return nil, err
 	}
 	return &ValidatorEnodeDB{
-		db:       db,
-		listener: listener,
+		db:      db,
+		handler: handler,
+		logger:  log.New(),
 	}, nil
 }
 
@@ -197,7 +205,7 @@ func (vet *ValidatorEnodeDB) String() string {
 	})
 
 	if err != nil {
-		log.Error("ValidatorEnodeDB.String error", "err", err)
+		vet.logger.Error("ValidatorEnodeDB.String error", "err", err)
 	}
 
 	return b.String()
@@ -218,6 +226,10 @@ func (vet *ValidatorEnodeDB) GetEnodeURLFromAddress(address common.Address) (str
 func (vet *ValidatorEnodeDB) GetAddressFromEnodeURL(enodeURL string) (common.Address, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
+	return vet.getAddressFromEnodeURL(enodeURL)
+}
+
+func (vet *ValidatorEnodeDB) getAddressFromEnodeURL(enodeURL string) (common.Address, error) {
 	rawEntry, err := vet.db.Get(enodeURLKey(enodeURL), nil)
 	if err != nil {
 		return common.ZeroAddress, err
@@ -266,12 +278,12 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 	if err != nil {
 		return err
 	}
-	log.Trace("Upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", enodeURL)
+	vet.logger.Trace("Upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", enodeURL)
 
 	if hasOldValueChanged {
-		vet.listener.ValidatorPeerRemoved(currentEntry.enodeURL)
+		vet.handler.RemoveValidatorPeer(currentEntry.enodeURL)
 	}
-	vet.listener.ValidatorPeerAdded(enodeURL, remoteAddress)
+	vet.handler.AddValidatorPeer(enodeURL, remoteAddress)
 	return nil
 }
 
@@ -294,7 +306,7 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	batch := new(leveldb.Batch)
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *addressEntry) error {
 		if !addressesToKeep[address] {
-			log.Trace("Deleting entry from valEnodeTable", "address", address)
+			vet.logger.Trace("Deleting entry from valEnodeTable", "address", address)
 			fmt.Println("Deleting entry for", address.String())
 			return vet.addDeleteToBatch(batch, address)
 		}
@@ -307,6 +319,30 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	return vet.db.Write(batch, nil)
 }
 
+func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAddress common.Address) {
+	// We use a R lock since we don't modify levelDB table
+	vet.lock.RLock()
+	defer vet.lock.RUnlock()
+
+	if valset.ContainsByAddress(ourAddress) {
+		// transform address to enodeURLs
+		newEnodeURLs := []string{}
+		for _, val := range valset.List() {
+			entry, err := vet.getAddressEntry(val.Address())
+			if err == nil {
+				newEnodeURLs = append(newEnodeURLs, entry.enodeURL)
+			} else if err != leveldb.ErrNotFound {
+				vet.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
+			}
+		}
+
+		vet.handler.ReplaceValidatorPeers(newEnodeURLs)
+	} else {
+		// Disconnect all validator peers if this node is not in the valset
+		vet.handler.ClearValidatorPeers()
+	}
+}
+
 func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address common.Address) error {
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
@@ -315,7 +351,7 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 
 	batch.Delete(addressKey(address))
 	batch.Delete(enodeURLKey(entry.enodeURL))
-	vet.listener.ValidatorPeerRemoved(entry.enodeURL)
+	vet.handler.RemoveValidatorPeer(entry.enodeURL)
 	return nil
 }
 

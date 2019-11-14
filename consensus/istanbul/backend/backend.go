@@ -23,8 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/syndtr/goleveldb/leveldb"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -98,7 +96,7 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, &validatorPeerListener{sb: backend})
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, &validatorPeerHandler{sb: backend})
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -580,58 +578,57 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 		return
 	}
 
-	currentValPeers := sb.broadcaster.GetValidatorPeers()
-
-	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.Address()); val == nil {
-		for _, peerEnodeURL := range currentValPeers {
-			sb.broadcaster.RemoveValidatorPeer(peerEnodeURL)
-		}
-	} else {
-		// Add all of the valSet entries as validator peers
-		for _, val := range valset.List() {
-			enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address())
-			if err == nil {
-				sb.broadcaster.AddValidatorPeer(enodeURL)
-			} else if err != leveldb.ErrNotFound {
-				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
-			}
-		}
-
-		// Remove the peers that are not in the valset
-		for _, peerEnodeURL := range currentValPeers {
-			peerAddress, err := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL)
-			if err == nil {
-				if _, src := valset.GetByAddress(peerAddress); src == nil {
-					sb.broadcaster.RemoveValidatorPeer(peerEnodeURL)
-				}
-			} else if err != leveldb.ErrNotFound {
-				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
-			}
-		}
-	}
+	sb.valEnodeTable.RefreshValPeers(valset, sb.Address())
 }
 
-type validatorPeerListener struct {
+type validatorPeerHandler struct {
 	sb *Backend
 }
 
-func (vpl *validatorPeerListener) ValidatorPeerAdded(enodeURL string, address common.Address) {
+func (vpl *validatorPeerHandler) AddValidatorPeer(enodeURL string, address common.Address) {
 	if vpl.sb.broadcaster != nil {
 		// Connect to the remote peer if it's part of the current epoch's valset and
 		// if this node is also part of the current epoch's valset
 		block := vpl.sb.currentBlock()
 		valSet := vpl.sb.getValidators(block.Number().Uint64(), block.Hash())
-		if _, remoteNode := valSet.GetByAddress(address); remoteNode != nil {
-			if _, localNode := valSet.GetByAddress(vpl.sb.Address()); localNode != nil {
-				vpl.sb.broadcaster.AddValidatorPeer(enodeURL)
-			}
+		if valSet.ContainsByAddress(address) && valSet.ContainsByAddress(vpl.sb.Address()) {
+			vpl.sb.broadcaster.AddValidatorPeer(enodeURL)
 		}
 	}
 }
 
-func (vpl *validatorPeerListener) ValidatorPeerRemoved(enodeURL string) {
+func (vpl *validatorPeerHandler) RemoveValidatorPeer(enodeURL string) {
 	if vpl.sb.broadcaster != nil {
 		vpl.sb.broadcaster.RemoveValidatorPeer(enodeURL)
+	}
+}
+
+func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newEnodeURLs []string) {
+	if vpl.sb.broadcaster != nil {
+		var enodeURLSet map[string]bool
+		for _, enodeURL := range newEnodeURLs {
+			enodeURLSet[enodeURL] = true
+		}
+
+		// Remove old Validator Peers
+		for _, enodeURL := range vpl.sb.broadcaster.GetValidatorPeers() {
+			if !enodeURLSet[enodeURL] {
+				vpl.sb.broadcaster.RemoveValidatorPeer(enodeURL)
+			}
+		}
+
+		// Add new Validator Peers (adds all even but add is noOp on already existent ones)
+		for _, enodeURL := range newEnodeURLs {
+			vpl.sb.broadcaster.AddValidatorPeer(enodeURL)
+		}
+	}
+
+}
+
+func (vpl *validatorPeerHandler) ClearValidatorPeers() {
+	if vpl.sb.broadcaster != nil {
+		for _, enodeURL := range vpl.sb.broadcaster.GetValidatorPeers() {
+			vpl.sb.broadcaster.RemoveValidatorPeer(enodeURL)
+		}
 	}
 }
