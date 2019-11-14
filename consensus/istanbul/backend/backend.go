@@ -605,7 +605,7 @@ func (vpl *validatorPeerHandler) RemoveValidatorPeer(enodeURL string) {
 
 func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newEnodeURLs []string) {
 	if vpl.sb.broadcaster != nil {
-		var enodeURLSet map[string]bool
+		enodeURLSet := make(map[string]bool)
 		for _, enodeURL := range newEnodeURLs {
 			enodeURLSet[enodeURL] = true
 		}
