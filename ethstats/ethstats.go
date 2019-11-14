@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
@@ -535,33 +536,56 @@ type txStats struct {
 type uncleStats []*types.Header
 
 func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
-	nodeKey := s.backend.GetNodeKey()
-	pubkey := crypto.FromECDSAPub(&nodeKey.PublicKey)
+
 	msg, _ := json.Marshal(stats)
 	msgHash := crypto.Keccak256Hash(msg)
-	signature, _ := crypto.Sign(msgHash.Bytes(), nodeKey)
 
-	// Server-side verification in go:
+	etherBase, errEtherbase := s.eth.Etherbase()
+	if errEtherbase != nil {
+		return errEtherbase
+	}
+	account := accounts.Account{Address: etherBase}
+	wallet, errWallet := s.eth.AccountManager().Find(account)
+	if errWallet != nil {
+		return errWallet
+	}
+	pubkey, errPubkey := wallet.GetPublicKey(account)
+	pubkeyBytes := crypto.FromECDSAPub(pubkey)
+	if errPubkey != nil {
+		return errPubkey
+	}
+	fmt.Println("pubkey to address", crypto.PubkeyToAddress(*pubkey).Hex())
+	signature, errSign := wallet.SignHash(account, msgHash.Bytes())
+	if errSign != nil {
+		return errSign
+	}
+
+	/* Server-side verification in go: */
 	// 	sig := signature[:len(signature)-1]
 	// 	verified := crypto.VerifySignature(pubkey, msgHash.Bytes(), sig)
-	//
-	// Client-side verification in JS:
+	//				& address == crypto.PubkeyToAddress(*pubkey).Hex()
+
+	/* Client-side verification in JS: */
 	//	const { Keccak } = require('sha3');
 	//  const EC = require('elliptic').ec;
-	// 	const hasher = new Keccak(256)
+	// 	const addressHasher = new Keccak(256)
+	//  addressHasher.update(publicKey.substr(4), 'hex')
+	// 	const msgHasher = new Keccak(256)
+	// 	msgHasher.update(JSON.stringify(stats))
 	// 	const ec = new EC('secp256k1');
-	// 	hasher.update(JSON.stringify(stats))
-	// 	const msgHash = hasher.digest('hex')
-	// 	const pubkey = ec.keyFromPublic(pubkey.substr(2), 'hex')
+	// 	const pubkey = ec.keyFromPublic(publicKey.substr(2), 'hex')
 	// 	const signature = {
 	//   r : signature.substr(2, 64),
 	// 	 s : signature.substr(66, 64)
 	//  }
 	//  verified = pubkey.verify(msgHash, signature)
+	//				&& address == addressHasher.digest('hex').substr(24)
+	//				&& msgHash == msgHasher.digest('hex')
 
 	proof := map[string]interface{}{
 		"signature": hexutil.Encode(signature),
-		"publicKey": hexutil.Encode(pubkey),
+		"address":   etherBase,
+		"publicKey": hexutil.Encode(pubkeyBytes),
 		"msgHash":   msgHash.Hex(),
 	}
 

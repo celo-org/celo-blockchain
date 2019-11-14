@@ -18,6 +18,7 @@
 package accounts
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 
 	ethereum "github.com/ethereum/go-ethereum"
@@ -105,6 +106,7 @@ type Wallet interface {
 	SignHashBLS(account Account, hash []byte) ([]byte, error)
 	SignMessageBLS(account Account, msg []byte, extraData []byte) ([]byte, error)
 	GenerateProofOfPossession(account Account) ([]byte, error)
+    GetPublicKey(account Account) (*ecdsa.PublicKey, error)
 
 	// SignTx requests the wallet to sign the given transaction.
 	//
