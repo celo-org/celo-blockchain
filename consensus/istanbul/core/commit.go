@@ -111,11 +111,13 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
-		logger.Trace("Got enough prepares and commits to generate a PreparedCertificate")
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+		c.setState(StatePrepared)
+		c.sendCommit()
 	}
 
 	return nil

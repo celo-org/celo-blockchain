@@ -61,7 +61,15 @@ func (s *roundState) GetPrepareOrCommitSize() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.getPrepareOrCommitSize()
+	result := s.Prepares.Size() + s.Commits.Size()
+
+	// find duplicate one
+	for _, m := range s.Prepares.Values() {
+		if s.Commits.Get(m.Address) != nil {
+			result--
+		}
+	}
+	return result
 }
 
 func (s *roundState) Subject() *istanbul.Subject {
@@ -141,51 +149,36 @@ func (s *roundState) Sequence() *big.Int {
 	return s.sequence
 }
 
-func (s *roundState) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.preparedCertificate = preparedCertificate
-}
-
 func (s *roundState) CreateAndSetPreparedCertificate(quorumSize int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	prepareOrCommitSize := s.getPrepareOrCommitSize()
-	if prepareOrCommitSize >= quorumSize {
-		messages := make([]istanbul.Message, prepareOrCommitSize)
-		i := 0
-		for _, message := range s.Prepares.Values() {
+	messages := make([]istanbul.Message, quorumSize)
+	i := 0
+	for _, message := range s.Prepares.Values() {
+		if i == quorumSize {
+			break
+		}
+		messages[i] = *message
+		i++
+	}
+	for _, message := range s.Commits.Values() {
+		if i == quorumSize {
+			break
+		}
+		if s.Prepares.Get(message.Address) == nil {
 			messages[i] = *message
 			i++
 		}
-		for _, message := range s.Commits.Values() {
-			if s.Prepares.Get(message.Address) == nil {
-				messages[i] = *message
-				i++
-			}
-		}
-		s.preparedCertificate = istanbul.PreparedCertificate{
-			Proposal:                s.Preprepare.Proposal,
-			PrepareOrCommitMessages: messages,
-		}
-		return nil
-	} else {
+	}
+	if i != quorumSize {
 		return errFailedCreatePreparedCertificate
 	}
-}
-
-func (s *roundState) getPrepareOrCommitSize() int {
-	result := s.Prepares.Size() + s.Commits.Size()
-
-	// find duplicate one
-	for _, m := range s.Prepares.Values() {
-		if s.Commits.Get(m.Address) != nil {
-			result--
-		}
+	s.preparedCertificate = istanbul.PreparedCertificate{
+		Proposal:                s.Preprepare.Proposal,
+		PrepareOrCommitMessages: messages,
 	}
-	return result
+	return nil
 }
 
 // The DecodeRLP method should read one value from the given
