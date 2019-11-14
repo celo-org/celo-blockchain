@@ -35,24 +35,6 @@ const (
 	gasPriceMinimumABIString = `[
     {
       "constant": true,
-      "inputs": [],
-      "name": "proposerFraction_",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
       "inputs": [
         {
           "name": "_tokenAddress",
@@ -98,16 +80,10 @@ const (
 )
 
 var (
-	gasPriceMinimumABI, _                      = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	FallbackProposerFraction *ProposerFraction = &ProposerFraction{big.NewInt(0), big.NewInt(1)}
-	FallbackGasPriceMinimum  *big.Int          = big.NewInt(0) // gasprice min to return if contracts are not found
-	suggestionMultiplier     *big.Int          = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
+	gasPriceMinimumABI, _            = abi.JSON(strings.NewReader(gasPriceMinimumABIString))
+	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gas price minimum to return if unable to fetch from contract
+	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
-
-type ProposerFraction struct {
-	Numerator   *big.Int
-	Denominator *big.Int
-}
 
 func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(currency, header, state)
@@ -175,26 +151,4 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		return nil, err
 	}
 	return updatedGasPriceMinimum, err
-}
-
-// Returns the fraction of the gasprice min that should be allocated to the proposer
-func GetProposerFraction(header *types.Header, state vm.StateDB) (*ProposerFraction, error) {
-	infraFraction := [2]*big.Int{big.NewInt(0), big.NewInt(1)} // Give everything to the miner as Fallback
-
-	_, err := contract_comm.MakeStaticCall(
-		params.GasPriceMinimumRegistryId,
-		gasPriceMinimumABI,
-		"proposerFraction_",
-		[]interface{}{},
-		&infraFraction,
-		params.MaxGasForProposerFraction,
-		header,
-		state,
-	)
-
-	if err != nil {
-		return FallbackProposerFraction, err
-	}
-
-	return &ProposerFraction{infraFraction[0], infraFraction[1]}, err
 }
