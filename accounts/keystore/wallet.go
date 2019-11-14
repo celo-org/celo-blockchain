@@ -114,7 +114,7 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
 		return nil, accounts.ErrUnknownAccount
 	}
-	// Account seems valid, request the keystore to sign
+	// Account seems valid, request the public key
 	return w.keystore.GetPublicKey(account)
 }
 

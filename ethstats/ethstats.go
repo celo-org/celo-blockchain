@@ -567,17 +567,17 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 
 	/* Client-side verification in JS: */
 	//	const { Keccak } = require('sha3');
-	//  const EC = require('elliptic').ec;
+	// 	const EC = require('elliptic').ec;
 	// 	const addressHasher = new Keccak(256)
-	//  addressHasher.update(publicKey.substr(4), 'hex')
+	// 	addressHasher.update(publicKey.substr(4), 'hex')
 	// 	const msgHasher = new Keccak(256)
 	// 	msgHasher.update(JSON.stringify(stats))
 	// 	const ec = new EC('secp256k1');
 	// 	const pubkey = ec.keyFromPublic(publicKey.substr(2), 'hex')
 	// 	const signature = {
-	//   r : signature.substr(2, 64),
-	// 	 s : signature.substr(66, 64)
-	//  }
+	//		r : signature.substr(2, 64),
+	//		s : signature.substr(66, 64)
+	//	}
 	//  verified = pubkey.verify(msgHash, signature)
 	//				&& address == addressHasher.digest('hex').substr(24)
 	//				&& msgHash == msgHasher.digest('hex')
