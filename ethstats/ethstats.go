@@ -64,6 +64,15 @@ const (
 
 	// valSetInterval is the frequency in blocks to send the validator set
 	valSetInterval = 10
+
+	actionBlock    = "block"
+	actionHello    = "hello"
+	actionHistory  = "history"
+	actionLatency  = "latency"
+	actionNodePing = "node-ping"
+	actionNodePong = "node-pong"
+	actionPending  = "pending"
+	actionStats    = "stats"
 )
 
 type txPool interface {
@@ -105,7 +114,6 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		engine consensus.Engine
 		id     string
 	)
-	fmt.Println("parts", parts)
 	id = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
@@ -324,7 +332,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 				return
 			}
 			// If the message is a ping reply, deliver (someone must be listening!)
-			if len(msgEmit) == 2 && command == "node-pong" {
+			if len(msgEmit) == 2 && command == actionNodePong {
 				select {
 				case s.pongCh <- struct{}{}:
 					// Pong delivered, continue listening
@@ -336,7 +344,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 				}
 			}
 			// If the message is a history request, forward to the event processor
-			if len(msgEmit) == 2 && command == "history" {
+			if len(msgEmit) == 2 && command == actionHistory {
 				// Make sure the request is valid and doesn't crash us
 				request, ok := msgEmit[1].(map[string]interface{})
 				if !ok {
@@ -367,7 +375,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			}
 		default:
 			// Report anything else and continue
-			log.Info("Unknown stats message", "msg", msg)
+			log.Info("Ping from websocket server", "msg", msg)
 			// Primus server might want to have a pong or it closes the connection
 			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
 			websocket.JSON.Send(conn, serverTime)
@@ -417,6 +425,8 @@ func (s *Service) login(conn *websocket.Conn) error {
 	}
 	if s.eth != nil {
 		etherBase, _ = s.eth.Etherbase()
+	} else {
+		etherBase = s.node
 	}
 	auth := &authMsg{
 		ID:      s.node,
@@ -434,7 +444,7 @@ func (s *Service) login(conn *websocket.Conn) error {
 			History:  true,
 		},
 	}
-	if err := s.sendStats(conn, "hello", auth); err != nil {
+	if err := s.sendStats(conn, actionHello, auth); err != nil {
 		return err
 	}
 	// Retrieve the remote ack or connection termination
@@ -474,7 +484,7 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 		"id":         s.node,
 		"clientTime": start.String(),
 	}
-	if err := s.sendStats(conn, "node-ping", ping); err != nil {
+	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
 		return err
 	}
 	// Wait for the pong request to arrive back
@@ -494,7 +504,7 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 		"id":      s.node,
 		"latency": latency,
 	}
-	return s.sendStats(conn, "latency", stats)
+	return s.sendStats(conn, actionLatency, stats)
 }
 
 // blockStats is the information to report about individual blocks.
@@ -582,7 +592,7 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 		"block": details,
 	}
 
-	return s.sendStats(conn, "block", stats)
+	return s.sendStats(conn, actionBlock, stats)
 }
 
 // assembleBlockStats retrieves any required metadata to report a single block
@@ -662,7 +672,6 @@ type validatorSet struct {
 type validatorInfo struct {
 	Address      common.Address `json:"address"`
 	Name         string         `json:"name"`
-	Url          string         `json:"url"`
 	Score        string         `json:"score"`
 	BLSPublicKey []byte         `json:"blsPublicKey"`
 	Affiliation  common.Address `json:"affiliation"`
@@ -690,7 +699,6 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 			Address:      address,
 			Score:        fmt.Sprintf("%d", valData.Score),
 			Name:         address.String(),
-			Url:          "no url",
 			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
 			Affiliation:  valData.Affiliation,
 		})
@@ -768,7 +776,7 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		"history": history,
 	}
 
-	return s.sendStats(conn, "history", stats)
+	return s.sendStats(conn, actionHistory, stats)
 }
 
 // pendStats is the information to report about pending transactions.
@@ -796,7 +804,7 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 		},
 	}
 
-	return s.sendStats(conn, "pending", stats)
+	return s.sendStats(conn, actionPending, stats)
 }
 
 // nodeStats is the information to report about the local node.
@@ -865,5 +873,5 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		},
 	}
 
-	return s.sendStats(conn, "stats", stats)
+	return s.sendStats(conn, actionStats, stats)
 }
