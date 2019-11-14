@@ -155,7 +155,6 @@ const (
 	MaxGasForGetWhiteList                          uint64 = 20000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForMedianRate                            uint64 = 20000
-	MaxGasForProposerFraction                      uint64 = 200000
 	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000

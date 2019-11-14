@@ -53,6 +53,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
+	config.ValidatorEnodeDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {

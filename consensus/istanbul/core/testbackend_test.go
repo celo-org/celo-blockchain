@@ -463,7 +463,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -475,9 +475,9 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, 
 		var err error
 		var msg istanbul.Message
 		if i%2 == 0 {
-			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getCommitMessage(view, proposal)
+			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)
