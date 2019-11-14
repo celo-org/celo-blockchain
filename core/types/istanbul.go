@@ -39,6 +39,38 @@ var (
 	ErrInvalidIstanbulHeaderExtra = errors.New("invalid istanbul header extra-data")
 )
 
+type IstanbulSeal struct {
+	// Bitmap is a bitmap having an active bit for each validator that signed this block
+	Bitmap *big.Int
+	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	Signature []byte
+	// Round is the round in which the signature was created.
+	Round *big.Int
+}
+
+// EncodeRLP serializes ist into the Ethereum RLP format.
+func (ist *IstanbulSeal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{
+		ist.Bitmap,
+		ist.Signature,
+		ist.Round,
+	})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the istanbul fields from a RLP stream.
+func (ist *IstanbulSeal) DecodeRLP(s *rlp.Stream) error {
+	var istanbulSeal struct {
+		Bitmap    *big.Int
+		Signature []byte
+		Round     *big.Int
+	}
+	if err := s.Decode(&istanbulSeal); err != nil {
+		return err
+	}
+	ist.Bitmap, ist.Signature, ist.Round = istanbulSeal.Bitmap, istanbulSeal.Signature, istanbulSeal.Round
+	return nil
+}
+
 type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
 	AddedValidators []common.Address
@@ -48,10 +80,8 @@ type IstanbulExtra struct {
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
 	Seal []byte
-	// Bitmap is a bitmap having an active bit for each validator that signed this block
-	Bitmap *big.Int
-	// CommittedSeal is an aggregated BLS signature resulting from signatures by each validator that signed this block
-	CommittedSeal []byte
+	// CommittedSeal contains the aggregated BLS signature created via IBFT consensus.
+	CommittedSeal IstanbulSeal
 	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
 	EpochData []byte
 }
@@ -63,7 +93,6 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.AddedValidatorsPublicKeys,
 		ist.RemovedValidators,
 		ist.Seal,
-		ist.Bitmap,
 		ist.CommittedSeal,
 		ist.EpochData,
 	})
@@ -76,14 +105,13 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		AddedValidatorsPublicKeys [][]byte
 		RemovedValidators         *big.Int
 		Seal                      []byte
-		Bitmap                    *big.Int
-		CommittedSeal             []byte
+		CommittedSeal             IstanbulSeal
 		EpochData                 []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
 	return nil
 }
 
@@ -116,8 +144,7 @@ func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 	if !keepSeal {
 		istanbulExtra.Seal = []byte{}
 	}
-	istanbulExtra.CommittedSeal = []byte{}
-	istanbulExtra.Bitmap = big.NewInt(0)
+	istanbulExtra.CommittedSeal = IstanbulSeal{}
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {

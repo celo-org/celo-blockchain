@@ -39,8 +39,8 @@ func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(digest common.Hash) ([]byte, error) {
-	seal := PrepareCommittedSeal(digest)
+func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBlockHeader(seal)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
-	committedSeal, err := c.generateCommittedSeal(sub.Digest)
+	committedSeal, err := c.generateCommittedSeal(sub)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)
 		return
@@ -93,7 +93,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
 
@@ -135,8 +135,8 @@ func (c *core) verifyCommit(commit *istanbul.Subject) error {
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src istanbul.Validator) error {
-	seal := PrepareCommittedSeal(digest)
+func (c *core) verifyCommittedSeal(sub *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
 }
 

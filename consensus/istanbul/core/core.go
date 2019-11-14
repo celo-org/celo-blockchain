@@ -199,7 +199,7 @@ func (c *core) commit() {
 			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
 		}
 
-		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
+		if err := c.backend.Commit(proposal, c.current.Round(), bitmap, asig); err != nil {
 			c.sendNextRoundChange()
 			return
 		}
@@ -404,10 +404,11 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	return istanbul.CheckValidatorSignature(c.valSet, data, sig)
 }
 
-// PrepareCommittedSeal returns a committed seal for the given hash
-func PrepareCommittedSeal(hash common.Hash) []byte {
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
 	buf.Write([]byte{byte(istanbul.MsgCommit)})
 	return buf.Bytes()
 }
