@@ -180,6 +180,42 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
+			// ROUND CHANGE certificate contains PREPARED certificate with inconsistent views among the cert's messages
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for _, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					c.state = StatePreprepared
+					c.current.SetRound(big.NewInt(1))
+					c.current.SetPreprepare(&istanbul.Preprepare{
+						View: &istanbul.View{
+							Round:    big.NewInt(1),
+							Sequence: big.NewInt(2),
+						},
+						Proposal:               makeBlock(2),
+						RoundChangeCertificate: istanbul.RoundChangeCertificate{},
+					})
+				}
+				return sys
+			}(),
+			func(sys *testSystem) istanbul.RoundChangeCertificate {
+				view1 := *(sys.backends[0].engine.(*core).currentView())
+
+				var view2 istanbul.View
+				view2.Sequence = big.NewInt(view1.Sequence.Int64())
+				view2.Round = big.NewInt(view1.Round.Int64() + 1)
+
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view1, view2}, makeBlock(2))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				return roundChangeCertificate
+			},
+			makeBlock(2),
+			errInvalidPreparedCertificateInconsistentViews,
+			false,
+		},
+		{
 			// ROUND CHANGE certificate contains PREPARED certificate for a different block.
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
@@ -201,7 +237,7 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), makeBlock(2))
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(2))
 				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
 				return roundChangeCertificate
 			},
@@ -209,6 +245,7 @@ func TestHandlePreprepare(t *testing.T) {
 			errInvalidPreparedCertificateDigestMismatch,
 			false,
 		},
+
 		{
 			// ROUND CHANGE certificate for N+1 round with valid PREPARED certificates
 			// Round is N+1 to match the correct proposer.
@@ -226,7 +263,7 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, *(sys.backends[0].engine.(*core).currentView()), makeBlock(0))
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(0))
 				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
 				return roundChangeCertificate
 			},
