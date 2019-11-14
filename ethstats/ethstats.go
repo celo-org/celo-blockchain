@@ -425,8 +425,6 @@ func (s *Service) login(conn *websocket.Conn) error {
 	}
 	if s.eth != nil {
 		etherBase, _ = s.eth.Etherbase()
-	} else {
-		etherBase = s.node
 	}
 	auth := &authMsg{
 		ID:      s.node,
