@@ -23,7 +23,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	"github.com/ethereum/go-ethereum/contract_comm/epoch_rewards"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
@@ -33,7 +35,17 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func (sb *Backend) updateValidatorScoresAndDistributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
+func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
+	err := epoch_rewards.UpdateTargetVotingYield(header, state)
+	if err != nil {
+		return err
+	}
+	validatorEpochPayment, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochPaymentAndRewards(header, state)
+	if err != nil {
+		return err
+	}
+	log.Info("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
+
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
@@ -41,19 +53,28 @@ func (sb *Backend) updateValidatorScoresAndDistributeEpochPaymentsAndRewards(hea
 		sb.logger.Error("Unable to fetch validator set to update scores and distribute payments and rewards")
 	}
 
-	err := sb.updateValidatorScores(header, state, valSet)
+	err = sb.updateValidatorScores(header, state, valSet)
 	if err != nil {
 		return err
 	}
-	err = sb.distributeEpochPayments(header, state, valSet)
+
+	totalEpochPayments, err := sb.distributeEpochPayments(header, state, valSet, validatorEpochPayment)
 	if err != nil {
 		return err
 	}
-	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet)
+
+	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet, totalVoterRewards)
 	if err != nil {
 		return err
 	}
-	return sb.increaseGoldTokenTotalSupply(header, state, totalEpochRewards)
+
+	stableTokenAddress, err := contract_comm.GetRegisteredAddress(params.StableTokenRegistryId, header, state)
+	if err != nil {
+		return err
+	}
+	totalEpochPaymentsConvertedToGold, err := currency.Convert(totalEpochPayments, stableTokenAddress, nil)
+
+	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
@@ -70,18 +91,20 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	return nil
 }
 
-func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
+func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxPayment *big.Int) (*big.Int, error) {
+	totalEpochPayments := big.NewInt(0)
 	for _, val := range valSet {
 		sb.logger.Info("Distributing epoch payment for address", "address", val.Address())
-		err := validators.DistributeEpochPayment(header, state, val.Address())
+		epochPayment, err := validators.DistributeEpochPayment(header, state, val.Address(), maxPayment)
 		if err != nil {
-			return nil
+			return totalEpochPayments, nil
 		}
+		totalEpochPayments.Add(totalEpochPayments, epochPayment)
 	}
-	return nil
+	return totalEpochPayments, nil
 }
 
-func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) (*big.Int, error) {
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int) (*big.Int, error) {
 	totalEpochRewards := big.NewInt(0)
 
 	// Fixed epoch reward to the infrastructure fund.
@@ -107,15 +130,11 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		}
 	}
 
-	// One gold
-	// TODO(asa): This should not be fixed.
-	electionRewardsCeiling := math.BigPow(10, 18)
-
 	groups := make([]common.Address, 0, len(groupElectedValidator))
 	for group := range groupElectedValidator {
 		groups = append(groups, group)
 	}
-	electionRewards, err := election.DistributeEpochRewards(header, state, groups, electionRewardsCeiling)
+	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards)
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err

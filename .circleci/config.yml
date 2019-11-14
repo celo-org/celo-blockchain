@@ -69,7 +69,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master 
             yarn install || yarn install
             # separate build to avoid ENOMEM in CI :(
             yarn build --scope @celo/utils
@@ -125,7 +125,7 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/repos/geth
 
-  end-to-end-exit-test:
+  end-to-end-blockchain-parameters-test:
     <<: *end-to-end-defaults
     working_directory: ~/repos
     steps:
@@ -139,7 +139,7 @@ jobs:
             ${GO_LANG_DIR}/go/bin/go version
             export PATH=${PATH}:${GO_LANG_DIR}/go/bin
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_exit.sh local ~/repos/geth
+            ./ci_test_blockchain_parameters.sh local ~/repos/geth
 
   end-to-end-geth-governance-test:
     <<: *end-to-end-defaults
@@ -181,7 +181,7 @@ workflows:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
-      - end-to-end-exit-test:
+      - end-to-end-blockchain-parameters-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe

@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -66,16 +68,26 @@ type AnnounceGossipTimestamp struct {
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	recentMessages, _ := lru.NewARC(inmemoryPeers)
-	knownMessages, _ := lru.NewARC(inmemoryMessages)
+	logger := log.New()
+	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
+	if err != nil {
+		logger.Crit("Failed to create recent snapshots cache", "err", err)
+	}
+	recentMessages, err := lru.NewARC(inmemoryPeers)
+	if err != nil {
+		logger.Crit("Failed to create recent messages cache", "err", err)
+	}
+	knownMessages, err := lru.NewARC(inmemoryMessages)
+	if err != nil {
+		logger.Crit("Failed to create known messages cache", "err", err)
+	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
-		logger:               log.New(),
+		logger:               logger,
 		db:                   db,
 		commitCh:             make(chan *types.Block, 1),
-		recents:              recents,
+		recentSnapshots:      recentSnapshots,
 		coreStarted:          false,
 		recentMessages:       recentMessages,
 		knownMessages:        knownMessages,
@@ -85,7 +97,12 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = enodes.NewValidatorEnodeTable()
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath)
+	if err != nil {
+		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
+	}
+	backend.valEnodeTable = table
+
 	return backend
 }
 
@@ -120,7 +137,7 @@ type Backend struct {
 	coreMu            sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
-	recents *lru.ARCCache
+	recentSnapshots *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
@@ -131,7 +148,7 @@ type Backend struct {
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
 
-	valEnodeTable *enodes.ValidatorEnodeTable
+	valEnodeTable *enodes.ValidatorEnodeDB
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
@@ -157,7 +174,7 @@ func (sb *Backend) Address() common.Address {
 
 // Close the backend
 func (sb *Backend) Close() error {
-	return nil
+	return sb.valEnodeTable.Close()
 }
 
 // Validators implements istanbul.Backend.Validators
@@ -237,6 +254,7 @@ func (sb *Backend) Enode() *enode.Node {
 }
 
 // GetNodeKey gets the Node PrivateKey
+// which is the key used to encrypt messages in the p2p layer
 func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 	if sb.broadcaster != nil {
 		return sb.broadcaster.GetNodeKey()
@@ -586,17 +604,23 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	} else {
 		// Add all of the valSet entries as validator peers
 		for _, val := range valset.List() {
-			if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address()); ok {
+			enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address())
+			if err == nil {
 				sb.AddValidatorPeer(enodeURL)
+			} else if err != leveldb.ErrNotFound {
+				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
 		}
 
 		// Remove the peers that are not in the valset
 		for _, peerEnodeURL := range currentValPeers {
-			if peerAddress, ok := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL); ok {
+			peerAddress, err := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL)
+			if err == nil {
 				if _, src := valset.GetByAddress(peerAddress); src == nil {
 					sb.RemoveValidatorPeer(peerEnodeURL)
 				}
+			} else if err != leveldb.ErrNotFound {
+				sb.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
 			}
 		}
 	}

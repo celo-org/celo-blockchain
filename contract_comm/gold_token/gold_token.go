@@ -77,6 +77,7 @@ func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) erro
 		common.Big0,
 		header,
 		state,
+		false,
 	)
 	return err
 }
