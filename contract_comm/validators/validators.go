@@ -54,7 +54,7 @@ const validatorsABIString string = `[
           "type": "address"
         }
       ],
-      "name": "getValidatorBlsKeyFromSigner",
+      "name": "getValidatorBlsPublicKeyFromSigner",
       "outputs": [
         {
           "name": "blsKey",
@@ -144,7 +144,7 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
 		var blsKey []byte
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
