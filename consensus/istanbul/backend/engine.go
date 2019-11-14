@@ -406,7 +406,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
 			// only update to use the union if we indeed provided a valid aggregate signature for this block
 			if err := sb.checkValidatorSignatures(parent.Hash(), parentValidators, newBitmap, newAsig); err != nil {
-				sb.logger.Error("backend.Prepare: tried to create invalid aggregate signature for parent seals. Not updating to union", "num", parent.Number.Uint64(), "hash", parent.Hash())
+				sb.logger.Error("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
 			} else {
 				bitmap = newBitmap
 				asig = newAsig
