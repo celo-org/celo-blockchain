@@ -401,14 +401,16 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			// already aggregated signature
 			sb.logger.Trace("backend.Prepare: parent seal before", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
 			newBitmap, newAsig := istanbulCore.UnionOfSeals(bitmap, asig, parentGossipedSeals)
-			parentValidators := sb.getValidators(parent.Number.Uint64(), parent.Hash())
+			// need to pass the previous block from the parent to get the parent's validators
+			// (otherwise we'd be getting the validators for the current block)
+			parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
 			// only update to use the union if we indeed provided a valid aggregate signature for this block
 			if err := sb.checkValidatorSignatures(parent.Hash(), parentValidators, newBitmap, newAsig); err != nil {
-				sb.logger.Trace("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
+				sb.logger.Error("backend.Prepare: tried to create invalid aggregate signature for parent seals. Not updating to union", "num", parent.Number.Uint64(), "hash", parent.Hash())
 			} else {
 				bitmap = newBitmap
 				asig = newAsig
-				sb.logger.Trace("backend.Prepare: parent seal updated!", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
+				sb.logger.Debug("backend.Prepare: parent seal updated!", "bitmap", bitmap.Bits(), "sig", common.ToHex(asig))
 			}
 		} else {
 			sb.logger.Trace("backend.Prepare: no seals were gossipped")

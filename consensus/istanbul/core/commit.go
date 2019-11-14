@@ -87,12 +87,13 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	}
 
 	msgSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
-	// if the received view's sequence +1 equals the current view, then the
+	// if the received view's sequence +1 equals the current sequence, then the
 	// received view corresponds to the parent block
 	if c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
+		lastProposal, _ := c.backend.LastProposal()
 		// Retrieve the validator set for the previous proposal (which should
 		// match the one broadcast)
-		parentValset := c.backend.ParentValidators(c.current.Proposal())
+		parentValset := c.backend.ParentValidators(lastProposal)
 		_, validator := parentValset.GetByAddress(msg.Address)
 		if validator == nil {
 			return errInvalidValidatorAddress
@@ -102,7 +103,6 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		}
 		// Ensure that the commit's digest (ie the received proposal's hash)
 		// matches the saved last proposal's hash
-		lastProposal, _ := c.backend.LastProposal()
 		if lastProposal.Number().Uint64() > 0 && commit.Digest != lastProposal.Hash() {
 			return fmt.Errorf("parent block does not match. Expected %v. Got %v", lastProposal.Hash().String(), commit.Digest.String())
 		}
