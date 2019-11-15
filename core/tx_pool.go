@@ -584,8 +584,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return ErrInsufficientFunds
 		}
 	}
-	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul, tx.GasCurrency())
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.chain.CurrentBlock().Header(), pool.currentState, tx.GasCurrency())
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -597,7 +596,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
 	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-		log.Debug("gas price less than current gas price minimum", "gasPriceMinimum", gasPriceMinimum, "err", err)
+		log.Debug("unable to fetch gas price minimum", "err", err)
 		return err
 	}
 

@@ -24,9 +24,7 @@ import (
 )
 
 const (
-	GasLimitBoundDivisor uint64 = 1024    // The bound divisor of the gas limit, used in update calculations.
-	MinGasLimit          uint64 = 5000    // Minimum the gas limit may ever be.
-	GenesisGasLimit      uint64 = 4712388 // Gas limit of the Genesis block.
+	DefaultGasLimit uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
 
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
 	ExpByteGas            uint64 = 10    // Times ceil(log256(exponent)) for the EXP instruction.
@@ -113,7 +111,7 @@ const (
 	// Introduced in Tangerine Whistle (Eip 150)
 	CreateBySelfdestructGas uint64 = 25000
 
-	MaxCodeSize = 49152 // Maximum bytecode to permit for a contract
+	MaxCodeSize = 65536 // Maximum bytecode to permit for a contract (2^16)
 
 	// Precompiled contract gas prices
 
@@ -136,13 +134,12 @@ const (
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
 	// Celo precompiled contracts
-	// TODO(asa): Figure out what the actual gas cost of this contract should be.
-	AttestationRequestGas uint64 = 3000 // Per-message price for sending an SMS. Not an accurate representation of the real cost of sending an SMS.
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas uint64 = 1050 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas      uint64 = 5000 // Cost of reading a validator's address
+	ProofOfPossessionGas uint64 = 50000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas      uint64 = 5000  // Cost of reading a validator's address.
+	GetEpochSizeGas      uint64 = 1000  // Cost of querying the number of blocks in an epoch.
 )
 
 var (
@@ -156,14 +153,18 @@ var (
 	// Celo registered contract IDs.
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
 	AttestationsRegistryId         = makeRegistryId("Attestations")
-	LockedGoldRegistryId           = makeRegistryId("LockedGold")
+	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
+	ElectionRegistryId             = makeRegistryId("Election")
+	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
 	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
-	ReserveRegistryId              = makeRegistryId("Reserve")
+	LockedGoldRegistryId           = makeRegistryId("LockedGold")
 	RandomRegistryId               = makeRegistryId("Random")
+	ReserveRegistryId              = makeRegistryId("Reserve")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
+	StableTokenRegistryId          = makeRegistryId("StableToken")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
 )
 
@@ -176,27 +177,33 @@ func makeRegistryId(contractName string) [32]byte {
 }
 
 const (
-	AttestationExpirySeconds uint64 = 86400 // One day. The Attestations contract will expire verifications well before this, but this prevents us from processing very old requests whenever we go offline and resync.
-)
+	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
+	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
 
-const (
-	// TODO(asa): Make these operations less expensive by charging only what is used.
-	// The problem is we don't know how much to refund until the refund is complete.
-	// If these values are changed, "setDefaults" will need updating.
-
-	// The plan is to have these values set within a system smart contract,
-	// and that they are read during runtime.  They could then be changed via
-	// governance.
-	ExpectedGasForDebitFromTransactions uint64 = 23 * 1000
-	MaxGasForDebitFromTransactions      uint64 = 46 * 1000
-
-	ExpectedGasForCreditToTransactions uint64 = 32 * 1000
-	MaxGasForCreditToTransactions      uint64 = 64 * 1000
-
-	ExpectedGasToReadErc20Balance uint64 = 15 * 1000
-	MaxGasToReadErc20Balance      uint64 = 30 * 1000
-
-	MaxGasToReadTobinTax uint64 = 50 * 1000
-	// We charge for reading the balance, 1 debit, and 3 credits (refunding gas, paying the gas fee recipient, sending to the infrastructure fund)
-	AdditionalGasForNonGoldCurrencies uint64 = 3*ExpectedGasForCreditToTransactions + ExpectedGasForDebitFromTransactions + ExpectedGasToReadErc20Balance
+	// Contract communication gas limits
+	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
+	MaxGasForCommitments                           uint64 = 2000000
+	MaxGasForComputeCommitment                     uint64 = 2000000
+	MaxGasForCreditToTransactions                  uint64 = 100000
+	MaxGasForDebitFromTransactions                 uint64 = 100000
+	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
+	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
+	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForGetAddressFor                         uint64 = 1 * 100000
+	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
+	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
+	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
+	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
+	MaxGasForGetRegisteredValidators               uint64 = 1000000
+	MaxGasForGetValidator                          uint64 = 100 * 1000
+	MaxGasForGetWhiteList                          uint64 = 20000
+	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
+	MaxGasForMedianRate                            uint64 = 20000
+	MaxGasForReadBlockchainParameter               uint64 = 20000
+	MaxGasForRevealAndCommit                       uint64 = 2000000
+	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
+	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
+	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
+	MaxGasForTotalSupply                           uint64 = 50 * 1000
+	MaxGasToReadErc20Balance                       uint64 = 100000
 )

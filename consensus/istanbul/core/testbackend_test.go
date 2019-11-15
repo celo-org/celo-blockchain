@@ -20,6 +20,10 @@ import (
 	"crypto/ecdsa"
 	"math"
 	"math/big"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -54,6 +58,8 @@ type testSystemBackend struct {
 	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
+	// This should be a writeable dir.
+	dataDir string
 }
 
 type testCommittedMsgs struct {
@@ -223,9 +229,15 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
 	msg := &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  payload,
+		Code:          istanbul.MsgCommit,
+		Msg:           payload,
+		CommittedSeal: committedSeal,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
@@ -272,6 +284,10 @@ func (self *testSystemBackend) Enode() *enode.Node {
 }
 
 func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
+
+func (self *testSystemBackend) GetDataDir() string {
+	return self.dataDir
+}
 
 // ==============================================
 //
@@ -403,19 +419,41 @@ func (t *testSystem) stop(core bool) {
 			b.engine.Stop()
 		}
 	}
+	// Cleanup all the saved IBFT persistent files.
+	for _, backend := range t.backends {
+		os.RemoveAll(backend.dataDir)
+	}
 }
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
+	dataDir := createRandomDataDir()
 	backend := &testSystemBackend{
-		id:     id,
-		sys:    t,
-		events: new(event.TypeMux),
-		db:     rawdb.NewMemoryDatabase(),
+		id:      id,
+		sys:     t,
+		events:  new(event.TypeMux),
+		db:      rawdb.NewMemoryDatabase(),
+		dataDir: dataDir,
 	}
 
 	t.backends[id] = backend
 	return backend
+}
+
+func createRandomDataDir() string {
+	rand.Seed(time.Now().UnixNano())
+	for {
+		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
+		dataDir := filepath.Join("/tmp", dirName)
+		err := os.Mkdir(dataDir, 0700)
+		if os.IsExist(err) {
+			continue // Re-try
+		}
+		if err != nil {
+			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
+		}
+		return dataDir
+	}
 }
 
 func (t *testSystem) F() uint64 {
@@ -426,7 +464,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -438,9 +476,9 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, 
 		var err error
 		var msg istanbul.Message
 		if i%2 == 0 {
-			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getCommitMessage(view, proposal)
+			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)

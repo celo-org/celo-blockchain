@@ -243,6 +243,10 @@ func (c *Clique) GetValidators(blockNumber *big.Int, headerHash common.Hash) []i
 	return []istanbul.Validator{}
 }
 
+func (c *Clique) EpochSize() uint64 {
+	return 0
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Clique) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	return c.verifyHeader(chain, header, nil)

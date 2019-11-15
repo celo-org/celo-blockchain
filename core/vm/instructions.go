@@ -763,12 +763,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 		gas += params.CallStipend
 	}
 	ret, returnGas, err := interpreter.evm.Call(contract, toAddr, args, gas, value)
-	// TODO(asa): Consider passing the EVM to RunPrecompiledContract instead.
-	if toAddr == requestAttestationAddress && err == nil {
-		// This should never return an error as we would have returned an error in Call.
-		request, _ := types.DecodeAttestationRequest(ret)
-		interpreter.evm.AttestationRequests = append(interpreter.evm.AttestationRequests, request)
-	}
+
 	if err != nil {
 		stack.push(interpreter.intPool.getZero())
 	} else {

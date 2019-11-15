@@ -17,8 +17,8 @@
 package backend
 
 import (
-	//"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -70,6 +70,7 @@ func TestCheckSignature(t *testing.T) {
 }
 
 func TestCheckValidatorSignature(t *testing.T) {
+
 	vset, keys := newTestValidatorSet(5)
 
 	// 1. Positive test: sign with validator's key should succeed
@@ -178,6 +179,7 @@ func TestCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
+	fmt.Printf("Data dir is %s\n", engine.GetDataDir())
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)

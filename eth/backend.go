@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -54,6 +55,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+const istanbulDataDirName = "istanbul"
 
 type LesServer interface {
 	Start(srvr *p2p.Server)
@@ -265,7 +268,8 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
-		return istanbulBackend.New(&config.Istanbul, db)
+		dataDir := getDataDirOrFail(ctx)
+		return istanbulBackend.New(&config.Istanbul, db, dataDir)
 	}
 
 	// Otherwise assume proof-of-work
@@ -292,6 +296,31 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		engine.SetThreads(-1) // Disable CPU mining
 		return engine
 	}
+}
+
+func getDataDirOrFail(ctx *node.ServiceContext) string {
+	dataDir := ctx.ResolvePath(istanbulDataDirName)
+	if len(dataDir) == 0 {
+		// Fail early
+		// This not being configured will cause a problem later on when Istanbul will try
+		// to preserve state in here
+		panic("Data dir not configured")
+	}
+	mode, err := os.Stat(dataDir)
+	if os.IsNotExist(err) {
+		log.Info("Creating dir", "dir", dataDir)
+		err2 := os.Mkdir(dataDir, 0770)
+		if err2 != nil {
+			panic("Failed to create dir: " + dataDir)
+		}
+
+	} else if !mode.IsDir() {
+		panic("File exists but is not a dir: " + dataDir)
+	}
+	// We can even check whether we have read and write access to dataDir or not
+	// but the checks seems to be missing from rest of the Geth code, so, it feels
+	// a bit overkill here.
+	return dataDir
 }
 
 // APIs return the collection of RPC services the ethereum package offers.

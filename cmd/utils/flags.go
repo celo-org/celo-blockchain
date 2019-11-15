@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -481,11 +482,6 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
-	MinerVerificationServiceFlag = cli.StringFlag{
-		Name:  "miner.verificationpool",
-		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
-		Value: eth.DefaultConfig.Miner.VerificationService,
-	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -687,6 +683,11 @@ var (
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
+	VersionCheckFlag = cli.BoolFlag{
+		Name:  "disable-version-check",
+		Usage: "Disable version check. Use if the parameter is set erroneously",
+	}
+
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
 		Name:  "jspath",
@@ -777,6 +778,11 @@ var (
 		Name:  "istanbul.blockperiod",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
+	}
+	IstanbulProposerPolicyFlag = cli.Uint64Flag{
+		Name:  "istanbul.proposerpolicy",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
+		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
 )
 
@@ -1385,9 +1391,6 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
 		cfg.Noverify = ctx.Bool(MinerNoVerfiyFlag.Name)
 	}
-	if ctx.GlobalIsSet(MinerVerificationServiceFlag.Name) {
-		cfg.VerificationService = ctx.GlobalString(MinerVerificationServiceFlag.Name)
-	}
 }
 
 func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
@@ -1413,13 +1416,17 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 	}
 }
 
-func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
+func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
 		cfg.Istanbul.RequestTimeout = ctx.GlobalUint64(IstanbulRequestTimeoutFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
+		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+	}
+	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 }
 
 // checkExclusive verifies that only a single isntance of the provided flags was
@@ -1493,7 +1500,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	setEthash(ctx, cfg)
 	setMiner(ctx, &cfg.Miner)
 	setWhitelist(ctx, cfg)
-	setIstanbul(ctx, cfg)
+	setIstanbul(ctx, stack, cfg)
 	setLes(ctx, cfg)
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {

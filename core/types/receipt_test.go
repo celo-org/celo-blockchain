@@ -37,7 +37,7 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 		{
 			"StoredReceiptRLP",
 			encodeAsStoredReceiptRLP,
-		}
+		},
 	}
 
 	tx := NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil, nil, nil)

@@ -54,7 +54,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 	}
-	c.validateFn = nil //c.checkValidatorSignature
+	c.validateFn = c.checkValidatorSignature
 	return c
 }
 
@@ -120,17 +120,6 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	var err error
 	// Add sender address
 	msg.Address = c.Address()
-
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	// Sign message
 	data, err := msg.PayloadNoSig()
@@ -306,18 +295,18 @@ func (c *core) startNewRound(round *big.Int) {
 	} else {
 		if c.current != nil {
 			request = c.current.pendingRequest
+			c.deleteMessageFromDisk(c.current.Round(), c.current.Sequence())
 		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+		c.roundChangeSet = newRoundChangeSet(c.valSet)
 	}
 
 	// Update logger
 	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// Clear invalid ROUND CHANGE messages
-	c.roundChangeSet = newRoundChangeSet(c.valSet)
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer

@@ -29,6 +29,7 @@ target
 /build/bin/*
 !/build/bin/geth.aar
 /geth*.zip
+ndk_bundle
 
 # travis
 profile.tmp

@@ -52,12 +52,13 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	}
 
 	seen := make(map[common.Address]bool)
+
+	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
 		if err != nil {
 			return err
 		}
-
 		// Verify message signed by a validator
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
@@ -93,6 +94,15 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		// Verify message for the proper proposal.
 		if subject.Digest != preparedCertificate.Proposal.Hash() {
 			return errInvalidPreparedCertificateDigestMismatch
+		}
+
+		// Verify that the view is the same for all of the messages
+		if view == nil {
+			view = subject.View
+		} else {
+			if view.Cmp(subject.View) != 0 {
+				return errInvalidPreparedCertificateInconsistentViews
+			}
 		}
 
 		// If COMMIT message, verify valid committed seal.

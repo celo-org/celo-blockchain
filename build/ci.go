@@ -264,6 +264,9 @@ func buildFlags(env build.Environment) (flags []string) {
 	}
 	if runtime.GOOS == "darwin" {
 		ld = append(ld, "-s")
+	} else {
+		ld = append(ld, "-extldflags")
+		ld = append(ld, "-pthread")
 	}
 
 	if len(ld) > 0 {
@@ -314,6 +317,7 @@ func Filter(vs []string, pred func(string) bool) []string {
 func doTest(cmdline []string) {
 	coverage := flag.Bool("coverage", false, "Whether to record code coverage")
 	race := flag.Bool("race", false, "Whether to test for races")
+	verbose := flag.Bool("verbose", false, "Verbose output")
 
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
@@ -333,6 +337,9 @@ func doTest(cmdline []string) {
 	}
 	if *race {
 		gotest.Args = append(gotest.Args, "-race")
+	}
+	if *verbose {
+		gotest.Args = append(gotest.Args, "-v")
 	}
 
 	gotest.Args = append(gotest.Args, packages...)
@@ -914,8 +921,9 @@ func doXCodeFramework(cmdline []string) {
 
 	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
+	// Patch gomobile to disable bitcode for now (rust generated bls lib output is not compatible)
+	build.MustRunCommand("sed", "-i", "", `/^[[:space:]]*cflags += \" -fembed-bitcode\"$/s/^/\/\//`, filepath.Join(build.GOPATH(), "src/golang.org/x/mobile/cmd/gomobile/env.go"))
+	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "--tags", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards

@@ -6,7 +6,7 @@ geth-defaults: &geth-defaults
 
 rust-defaults: &rust-defaults
   docker:
-    - image: circleci/rust:1.36.0
+    - image: circleci/rust:1.37.0
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
@@ -46,8 +46,8 @@ jobs:
           name: Setup Rust language
           command: |
             set -euo pipefail
-            rustup install 1.36.0
-            rustup default 1.36.0
+            rustup install 1.37.0
+            rustup default 1.37.0
       - run:
           name: Compile bls-zexe
           command: |
@@ -69,7 +69,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master 
             yarn install || yarn install
             # separate build to avoid ENOMEM in CI :(
             yarn build --scope @celo/utils
@@ -125,6 +125,22 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/repos/geth
 
+  end-to-end-blockchain-parameters-test:
+    <<: *end-to-end-defaults
+    working_directory: ~/repos
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: Geth sync with a standalone node test
+          command: |
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_blockchain_parameters.sh local ~/repos/geth
+
   end-to-end-geth-governance-test:
     <<: *end-to-end-defaults
     # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
@@ -162,6 +178,10 @@ workflows:
             - end-to-end-monorepo-checkout
             - bls-zexe
       - end-to-end-sync-test:
+          requires:
+            - end-to-end-monorepo-checkout
+            - bls-zexe
+      - end-to-end-blockchain-parameters-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe

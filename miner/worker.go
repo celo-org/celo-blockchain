@@ -25,7 +25,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -186,11 +185,6 @@ type worker struct {
 	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
-
-	// Verification Service
-	verificationService string
-	verificationMu      sync.RWMutex
-	lastBlockVerified   uint64
 
 	// Needed for randomness
 	db *ethdb.Database
@@ -392,22 +386,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-
-			processAttestationRequestsUpTo := func(number uint64) {
-				w.verificationMu.Lock()
-				defer w.verificationMu.Unlock()
-				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
-					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time()+params.AttestationExpirySeconds >= uint64(now) {
-						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
-					} else {
-						break
-					}
-				}
-				w.lastBlockVerified = number
-			}
-			go processAttestationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -921,10 +899,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	num := parent.Number()
+	limit := uint64(0)
+	if w.current != nil {
+		limit = core.CalcGasLimit(parent, w.current.state)
+	} else {
+		limit = core.CalcGasLimit(parent, nil)
+	}
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, w.config.GasFloor, w.config.GasCeil),
+		GasLimit:   limit,
 		Extra:      w.extra,
 		Time:       uint64(timestamp),
 	}

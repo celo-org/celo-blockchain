@@ -46,15 +46,6 @@ const (
 	ReceiptStatusSuccessful = uint64(1)
 )
 
-// AttestationRequest represents a request for verification in the Celo ABE protocol.
-type AttestationRequest struct {
-	PhoneHash      common.Hash
-	CodeHash       common.Hash
-	Account        common.Address
-	Verifier       common.Address
-	EncryptedPhone hexutil.Bytes
-}
-
 // Receipt represents the results of a transaction.
 type Receipt struct {
 	// Consensus fields: These fields are defined by the Yellow Paper
@@ -64,11 +55,7 @@ type Receipt struct {
 	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
 	Logs              []*Log `json:"logs"              gencodec:"required"`
 
-	// Celo fields
-	AttestationRequests []AttestationRequest
-
-	// Implementation fields: These fields are added by geth when processing a transaction.
-	// They are stored in the chain database.
+	// Implementation fields (don't reorder!)
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`
 	ContractAddress common.Address `json:"contractAddress"`
 	GasUsed         uint64         `json:"gasUsed" gencodec:"required"`
@@ -99,10 +86,9 @@ type receiptRLP struct {
 
 // storedReceiptRLP is the storage encoding of a receipt.
 type storedReceiptRLP struct {
-	PostStateOrStatus   []byte
-	CumulativeGasUsed   uint64
-	Logs                []*LogForStorage
-	AttestationRequests []AttestationRequest
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Logs              []*LogForStorage
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -114,36 +100,6 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 		r.Status = ReceiptStatusSuccessful
 	}
 	return r
-}
-
-// Decode an AttestationRequest from raw input bytes.
-// Input is expected to be encoded in the following manner:
-// input[0:32]:        bytes32 phoneHash
-// input[32:64]:       bytes32 codeHash
-// input[64:96]:       address account
-// input[96:128]:      address verifier
-// input[128:160]:     s - uint256 start of encryptedPhone data
-// input[s:s+32]:      l - length of encryptedPhoneData
-// input[s+32:s+32+l]: bytes encryptedPhone
-func DecodeAttestationRequest(input []byte) (AttestationRequest, error) {
-	var v AttestationRequest
-	v.PhoneHash = common.BytesToHash(input[0:32])
-	v.Account = common.BytesToAddress(input[64:96])
-	v.CodeHash = common.BytesToHash(input[32:64])
-	v.Verifier = common.BytesToAddress(input[96:128])
-
-	encodedEncryptedPhoneStart := big.NewInt(0)
-	encodedEncryptedPhoneLen := big.NewInt(0)
-
-	encodedEncryptedPhoneStart.SetBytes(input[128:160])
-	encryptedPhoneStart := encodedEncryptedPhoneStart.Uint64()
-
-	encodedEncryptedPhoneLen.SetBytes(input[encryptedPhoneStart:(encryptedPhoneStart + 32)])
-	encryptedPhoneLen := encodedEncryptedPhoneLen.Uint64()
-
-	// TODO(asa): Consider validating the length of EncryptedPhone
-	v.EncryptedPhone = input[(encryptedPhoneStart + 32):(encryptedPhoneStart + 32 + encryptedPhoneLen)]
-	return v, nil
 }
 
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
@@ -210,10 +166,9 @@ type ReceiptForStorage Receipt
 // into an RLP stream.
 func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 	enc := &storedReceiptRLP{
-		PostStateOrStatus:   (*Receipt)(r).statusEncoding(),
-		CumulativeGasUsed:   r.CumulativeGasUsed,
-		Logs:                make([]*LogForStorage, len(r.Logs)),
-		AttestationRequests: r.AttestationRequests,
+		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
+		CumulativeGasUsed: r.CumulativeGasUsed,
+		Logs:              make([]*LogForStorage, len(r.Logs)),
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -242,8 +197,6 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
-
-	r.AttestationRequests = stored.AttestationRequests
 
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 

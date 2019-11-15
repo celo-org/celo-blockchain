@@ -1,15 +1,16 @@
-use algebra::{to_bytes, PairingEngine};
+use algebra::bytes::{FromBytes, ToBytes};
+use algebra::{to_bytes, PrimeField};
 use crate::Error;
-use rand::{Rand, Rng};
+use algebra::UniformRand;
+use rand::Rng;
 use std::marker::PhantomData;
 
+use crypto_primitives::{CommitmentScheme, FixedLengthCRH, NIZK, PRF, merkle_tree::*};
+use crypto_primitives::{CommitmentGadget, FixedLengthCRHGadget, NIZKVerifierGadget, PRFGadget};
 use crate::{
-    crypto_primitives::{CommitmentScheme, FixedLengthCRH, NIZK, PRF},
     dpc::{AddressKeyPair, DPCScheme, Predicate, Record, Transaction},
-    gadgets::{CommitmentGadget, FixedLengthCRHGadget, LCWGadget, NIZKVerifierGadget, PRFGadget},
-    ledger::{Ledger, LedgerDigest, LedgerWitness},
+    ledger::*,
 };
-use algebra::bytes::{FromBytes, ToBytes};
 
 pub mod address;
 use self::address::*;
@@ -49,41 +50,42 @@ pub trait PlainDPCComponents: 'static + Sized {
     const NUM_INPUT_RECORDS: usize;
     const NUM_OUTPUT_RECORDS: usize;
 
-    type E: PairingEngine<Fq = <Self::ProofCheckE as PairingEngine>::Fr>;
-    type ProofCheckE: PairingEngine;
+    type CoreCheckF: PrimeField;
+    type ProofCheckF: PrimeField;
 
-    // Commitment scheme for address contents. Invoked only over `Self::E`.
+    // Commitment scheme for address contents. Invoked only over `Self::CoreCheckF`.
     type AddrC: CommitmentScheme;
-    type AddrCGadget: CommitmentGadget<Self::AddrC, Self::E>;
+    type AddrCGadget: CommitmentGadget<Self::AddrC, Self::CoreCheckF>;
 
-    // Commitment scheme for record contents. Invoked only over `Self::E`.
+    // Commitment scheme for record contents. Invoked only over `Self::CoreCheckF`.
     type RecC: CommitmentScheme;
-    type RecCGadget: CommitmentGadget<Self::RecC, Self::E>;
+    type RecCGadget: CommitmentGadget<Self::RecC, Self::CoreCheckF>;
 
     // Ledger digest type.
-    type D: LedgerDigest + Clone;
+    type MerkleTreeConfig: MerkleTreeConfig;
+    type MerkleTree_HGadget: FixedLengthCRHGadget<<Self::MerkleTreeConfig as MerkleTreeConfig>::H, Self::CoreCheckF>;
 
-    // CRH for computing the serial number nonce. Invoked only over `Self::E`.
+    // CRH for computing the serial number nonce. Invoked only over `Self::CoreCheckF`.
     type SnNonceH: FixedLengthCRH;
-    type SnNonceHGadget: FixedLengthCRHGadget<Self::SnNonceH, Self::E>;
+    type SnNonceHGadget: FixedLengthCRHGadget<Self::SnNonceH, Self::CoreCheckF>;
 
     // CRH for hashes of birth and death verification keys.
     // This is invoked only on the larger curve.
     type PredVkH: FixedLengthCRH;
-    type PredVkHGadget: FixedLengthCRHGadget<Self::PredVkH, Self::ProofCheckE>;
+    type PredVkHGadget: FixedLengthCRHGadget<Self::PredVkH, Self::ProofCheckF>;
 
     // Commitment scheme for committing to hashes of birth and death verification
     // keys
     type PredVkComm: CommitmentScheme;
     // Used to commit to hashes of vkeys on the smaller curve and to decommit hashes
     // of vkeys on the larger curve
-    type PredVkCommGadget: CommitmentGadget<Self::PredVkComm, Self::E>
-        + CommitmentGadget<Self::PredVkComm, Self::ProofCheckE>;
+    type PredVkCommGadget: CommitmentGadget<Self::PredVkComm, Self::CoreCheckF>
+        + CommitmentGadget<Self::PredVkComm, Self::ProofCheckF>;
 
     // Commitment scheme for committing to predicate input. Invoked inside
     // `Self::MainN` and every predicate NIZK.
     type LocalDataComm: CommitmentScheme;
-    type LocalDataCommGadget: CommitmentGadget<Self::LocalDataComm, Self::E>;
+    type LocalDataCommGadget: CommitmentGadget<Self::LocalDataComm, Self::CoreCheckF>;
 
     // NIZK for non-proof-verification checks
     type MainNIZK: NIZK<
@@ -108,20 +110,11 @@ pub trait PlainDPCComponents: 'static + Sized {
 
     // NIZK Verifier gadget for the "dummy predicate" that does nothing with its
     // input.
-    type PredicateNIZKGadget: NIZKVerifierGadget<Self::PredicateNIZK, Self::ProofCheckE>;
+    type PredicateNIZKGadget: NIZKVerifierGadget<Self::PredicateNIZK, Self::ProofCheckF>;
 
-    type LCW: LedgerWitness<Self::D> + Clone;
-    type LCWGadget: LCWGadget<
-        Self::RecC,
-        Self::D,
-        Self::LCW,
-        Self::E,
-        CommitmentGadget = <Self::RecCGadget as CommitmentGadget<Self::RecC, Self::E>>::OutputGadget,
-    >;
-
-    // PRF for computing serial numbers. Invoked only over `Self::E`.
+    // PRF for computing serial numbers. Invoked only over `Self::CoreCheckF`.
     type P: PRF;
-    type PGadget: PRFGadget<Self::P, Self::E>;
+    type PGadget: PRFGadget<Self::P, Self::CoreCheckF>;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -136,12 +129,12 @@ pub struct DPC<Components: PlainDPCComponents> {
 /// stores references to existing information like old records and secret keys.
 pub(crate) struct ExecuteContext<'a, Components: PlainDPCComponents> {
     comm_and_crh_pp: &'a CommAndCRHPublicParameters<Components>,
-    ledger_digest:   Components::D,
+    ledger_digest:   MerkleTreeDigest<Components::MerkleTreeConfig>,
 
     // Old record stuff
     old_address_secret_keys: &'a [AddressSecretKey<Components>],
     old_records:             &'a [DPCRecord<Components>],
-    old_witnesses:           Vec<Components::LCW>,
+    old_witnesses:           Vec<MerkleTreePath<Components::MerkleTreeConfig>>,
     old_serial_numbers:      Vec<<Components::P as PRF>::Output>,
 
     // New record stuff
@@ -195,29 +188,29 @@ impl<Components: PlainDPCComponents> DPC<Components> {
     pub fn generate_comm_and_crh_parameters<R: Rng>(
         rng: &mut R,
     ) -> Result<CommAndCRHPublicParameters<Components>, Error> {
-        let time = timer_start!(|| "Address commitment scheme setup");
+        let time = start_timer!(|| "Address commitment scheme setup");
         let addr_comm_pp = Components::AddrC::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
-        let time = timer_start!(|| "Record commitment scheme setup");
+        let time = start_timer!(|| "Record commitment scheme setup");
         let rec_comm_pp = Components::RecC::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
-        let time = timer_start!(|| "Verification Key Commitment setup");
+        let time = start_timer!(|| "Verification Key Commitment setup");
         let pred_vk_comm_pp = Components::PredVkComm::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
-        let time = timer_start!(|| "Local Data Commitment setup");
+        let time = start_timer!(|| "Local Data Commitment setup");
         let local_data_comm_pp = Components::LocalDataComm::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
-        let time = timer_start!(|| "Serial Nonce CRH setup");
+        let time = start_timer!(|| "Serial Nonce CRH setup");
         let sn_nonce_crh_pp = Components::SnNonceH::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
-        let time = timer_start!(|| "Verification Key CRH setup");
+        let time = start_timer!(|| "Verification Key CRH setup");
         let pred_vk_crh_pp = Components::PredVkH::setup(rng)?;
-        timer_end!(time);
+        end_timer!(time);
 
         let comm_and_crh_pp = CommAndCRHPublicParameters {
             addr_comm_pp,
@@ -255,14 +248,14 @@ impl<Components: PlainDPCComponents> DPC<Components> {
         record: &DPCRecord<Components>,
         address_secret_key: &AddressSecretKey<Components>,
     ) -> Result<<Components::P as PRF>::Output, Error> {
-        let sn_time = timer_start!(|| "Generate serial number");
+        let sn_time = start_timer!(|| "Generate serial number");
         let sk_prf = &address_secret_key.sk_prf;
         let sn_nonce = to_bytes!(record.serial_number_nonce())?;
         // Compute the serial number.
         let prf_input = FromBytes::read(sn_nonce.as_slice())?;
         let prf_seed = FromBytes::read(to_bytes!(sk_prf)?.as_slice())?;
         let sn = Components::P::evaluate(&prf_seed, &prf_input)?;
-        timer_end!(sn_time);
+        end_timer!(sn_time);
         Ok(sn)
     }
 
@@ -276,7 +269,7 @@ impl<Components: PlainDPCComponents> DPC<Components> {
         death_predicate: &DPCPredicate<Components>,
         rng: &mut R,
     ) -> Result<DPCRecord<Components>, Error> {
-        let record_time = timer_start!(|| "Generate record");
+        let record_time = start_timer!(|| "Generate record");
         // Sample new commitment randomness.
         let commitment_randomness = <Components::RecC as CommitmentScheme>::Randomness::rand(rng);
 
@@ -310,7 +303,7 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             commitment_randomness,
             _components: PhantomData,
         };
-        timer_end!(record_time);
+        end_timer!(record_time);
         Ok(record)
     }
 
@@ -364,14 +357,10 @@ impl<Components: PlainDPCComponents> DPC<Components> {
     ) -> Result<ExecuteContext<'a, Components>, Error>
     where
         L: Ledger<
-            Parameters = <Components::D as LedgerDigest>::Parameters,
+            Parameters = Components::MerkleTreeConfig,
             Commitment = <Components::RecC as CommitmentScheme>::Output,
             SerialNumber = <Components::P as PRF>::Output,
-            LedgerStateDigest = Components::D,
-            CommWitness = Components::LCW,
         >,
-        <L as Ledger>::SnWitness: LedgerWitness<Components::D>,
-        <L as Ledger>::MemoWitness: LedgerWitness<Components::D>,
     {
         assert_eq!(Components::NUM_INPUT_RECORDS, old_records.len());
         assert_eq!(Components::NUM_INPUT_RECORDS, old_address_secret_keys.len());
@@ -392,10 +381,10 @@ impl<Components: PlainDPCComponents> DPC<Components> {
 
         // Compute the ledger membership witness and serial number from the old records.
         for (i, record) in old_records.iter().enumerate() {
-            let input_record_time = timer_start!(|| format!("Process input record {}", i));
+            let input_record_time = start_timer!(|| format!("Process input record {}", i));
 
             if record.is_dummy() {
-                old_witnesses.push(Components::LCW::dummy_witness());
+                old_witnesses.push(MerkleTreePath::default());
             } else {
                 let comm = &record.commitment();
                 let witness = ledger.prove_cm(comm)?;
@@ -407,7 +396,7 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             old_serial_numbers.push(sn);
             old_death_pred_hashes.push(record.death_predicate_repr().to_vec());
 
-            timer_end!(input_record_time);
+            end_timer!(input_record_time);
         }
 
         let mut new_records = Vec::with_capacity(Components::NUM_OUTPUT_RECORDS);
@@ -417,8 +406,8 @@ impl<Components: PlainDPCComponents> DPC<Components> {
 
         // Generate new records and commitments for them.
         for j in 0..Components::NUM_OUTPUT_RECORDS {
-            let output_record_time = timer_start!(|| format!("Process output record {}", j));
-            let sn_nonce_time = timer_start!(|| "Generate serial number nonce");
+            let output_record_time = start_timer!(|| format!("Process output record {}", j));
+            let sn_nonce_time = start_timer!(|| "Generate serial number nonce");
 
             // Sample randomness sn_randomness for the CRH input.
             let sn_randomness: [u8; 32] = rng.gen();
@@ -426,7 +415,7 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             let crh_input = to_bytes![j as u8, sn_randomness, joint_serial_numbers]?;
             let sn_nonce = Components::SnNonceH::evaluate(&parameters.sn_nonce_crh_pp, &crh_input)?;
 
-            timer_end!(sn_nonce_time);
+            end_timer!(sn_nonce_time);
 
             let record = Self::generate_record(
                 parameters,
@@ -444,10 +433,10 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             new_birth_pred_hashes.push(record.birth_predicate_repr().to_vec());
             new_records.push(record);
 
-            timer_end!(output_record_time);
+            end_timer!(output_record_time);
         }
 
-        let local_data_comm_timer = timer_start!(|| "Compute predicate input commitment");
+        let local_data_comm_timer = start_timer!(|| "Compute predicate input commitment");
         let mut predicate_input = Vec::new();
         for i in 0..Components::NUM_INPUT_RECORDS {
             let record = &old_records[i];
@@ -485,9 +474,9 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             &predicate_input,
             &local_data_rand,
         )?;
-        timer_end!(local_data_comm_timer);
+        end_timer!(local_data_comm_timer);
 
-        let pred_hash_comm_timer = timer_start!(|| "Compute predicate commitment");
+        let pred_hash_comm_timer = start_timer!(|| "Compute predicate commitment");
         let (predicate_comm, predicate_rand) = {
             let mut input = Vec::new();
             for hash in old_death_pred_hashes {
@@ -506,7 +495,7 @@ impl<Components: PlainDPCComponents> DPC<Components> {
             )?;
             (predicate_comm, predicate_rand)
         };
-        timer_end!(pred_hash_comm_timer);
+        end_timer!(pred_hash_comm_timer);
 
         let ledger_digest = ledger.digest().expect("could not get digest");
 
@@ -535,14 +524,10 @@ impl<Components: PlainDPCComponents> DPC<Components> {
 impl<Components: PlainDPCComponents, L: Ledger> DPCScheme<L> for DPC<Components>
 where
     L: Ledger<
-        Parameters = <Components::D as LedgerDigest>::Parameters,
+        Parameters = Components::MerkleTreeConfig,
         Commitment = <Components::RecC as CommitmentScheme>::Output,
         SerialNumber = <Components::P as PRF>::Output,
-        LedgerStateDigest = Components::D,
-        CommWitness = Components::LCW,
     >,
-    <L as Ledger>::SnWitness: LedgerWitness<Components::D>,
-    <L as Ledger>::MemoWitness: LedgerWitness<Components::D>,
 {
     type AddressKeyPair = AddressPair<Components>;
     type Auxiliary = [u8; 32];
@@ -555,33 +540,33 @@ where
     type Transaction = DPCTransaction<Components>;
     type LocalData = LocalData<Components>;
 
-    fn setup<R: Rng>(ledger_pp: &L::Parameters, rng: &mut R) -> Result<Self::Parameters, Error> {
-        let setup_time = timer_start!(|| "PlainDPC::Setup");
+    fn setup<R: Rng>(ledger_pp: &MerkleTreeParams<Components::MerkleTreeConfig>, rng: &mut R) -> Result<Self::Parameters, Error> {
+        let setup_time = start_timer!(|| "PlainDPC::Setup");
         let comm_and_crh_pp = Self::generate_comm_and_crh_parameters(rng)?;
 
-        let pred_nizk_setup_time = timer_start!(|| "Dummy Predicate NIZK Setup");
+        let pred_nizk_setup_time = start_timer!(|| "Dummy Predicate NIZK Setup");
         let pred_nizk_pp = Self::generate_pred_nizk_parameters(&comm_and_crh_pp, rng)?;
-        timer_end!(pred_nizk_setup_time);
+        end_timer!(pred_nizk_setup_time);
 
         let private_pred_input = PrivatePredInput {
             vk:    pred_nizk_pp.vk.clone(),
             proof: pred_nizk_pp.proof.clone(),
         };
 
-        let nizk_setup_time = timer_start!(|| "Execute Tx Core Checks NIZK Setup");
+        let nizk_setup_time = start_timer!(|| "Execute Tx Core Checks NIZK Setup");
         let core_nizk_pp = Components::MainNIZK::setup(
             CoreChecksCircuit::blank(&comm_and_crh_pp, ledger_pp),
             rng,
         )?;
-        timer_end!(nizk_setup_time);
+        end_timer!(nizk_setup_time);
 
-        let nizk_setup_time = timer_start!(|| "Execute Tx Proof Checks NIZK Setup");
+        let nizk_setup_time = start_timer!(|| "Execute Tx Proof Checks NIZK Setup");
         let proof_check_nizk_pp = Components::ProofCheckNIZK::setup(
             ProofCheckCircuit::blank(&comm_and_crh_pp, &private_pred_input),
             rng,
         )?;
-        timer_end!(nizk_setup_time);
-        timer_end!(setup_time);
+        end_timer!(nizk_setup_time);
+        end_timer!(setup_time);
         Ok(PublicParameters {
             comm_and_crh_pp,
             pred_nizk_pp,
@@ -595,9 +580,9 @@ where
         metadata: &Self::Metadata,
         rng: &mut R,
     ) -> Result<Self::AddressKeyPair, Error> {
-        let create_addr_time = timer_start!(|| "PlainDPC::CreateAddr");
+        let create_addr_time = start_timer!(|| "PlainDPC::CreateAddr");
         let result = Self::create_address_helper(&parameters.comm_and_crh_pp, metadata, rng)?;
-        timer_end!(create_addr_time);
+        end_timer!(create_addr_time);
         Ok(result)
     }
 
@@ -619,7 +604,7 @@ where
         ledger: &L,
         rng: &mut R,
     ) -> Result<(Vec<Self::Record>, Self::Transaction), Error> {
-        let exec_time = timer_start!(|| "PlainDPC::Exec");
+        let exec_time = start_timer!(|| "PlainDPC::Exec");
         let context = Self::execute_helper(
             &parameters.comm_and_crh_pp,
             old_records,
@@ -705,7 +690,7 @@ where
             local_data_comm,
         );
 
-        timer_end!(exec_time);
+        end_timer!(exec_time);
         Ok((new_records, transaction))
     }
 
@@ -714,8 +699,8 @@ where
         transaction: &Self::Transaction,
         ledger: &L,
     ) -> Result<bool, Error> {
-        let verify_time = timer_start!(|| "PlainDPC::Verify");
-        let ledger_time = timer_start!(|| "Ledger checks");
+        let verify_time = start_timer!(|| "PlainDPC::Verify");
+        let ledger_time = start_timer!(|| "Ledger checks");
         for sn in transaction.old_serial_numbers() {
             if ledger.contains_sn(sn) {
                 eprintln!("Ledger contains this serial number already.");
@@ -738,7 +723,7 @@ where
             eprintln!("Ledger digest is invalid.");
             return Ok(false);
         }
-        timer_end!(ledger_time);
+        end_timer!(ledger_time);
 
         let input = CoreChecksVerifierInput {
             comm_and_crh_pp:    parameters.comm_and_crh_pp.clone(),
@@ -773,7 +758,7 @@ where
             eprintln!("Predicate check NIZK didn't verify.");
             return Ok(false);
         }
-        timer_end!(verify_time);
+        end_timer!(verify_time);
         Ok(true)
     }
 }

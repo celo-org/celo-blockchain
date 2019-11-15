@@ -98,6 +98,12 @@ type NodeConfig struct {
 	// scrypt KDF at the expense of security.
 	// See https://geth.ethereum.org/doc/Mobile_Account-management for reference
 	UseLightweightKDF bool
+
+	// IPCPath is the requested location to place the IPC endpoint. If the path is
+	// a simple file name, it is placed inside the data directory (or on the root
+	// pipe path on Windows), whereas if it's a resolvable path name (absolute or
+	// relative), then that specific path is enforced. An empty path disables IPC.
+	IPCPath string
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
@@ -145,7 +151,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		DataDir:           datadir,
 		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,
-		IPCPath:           "geth.ipc",
+		IPCPath:           config.IPCPath,
 		P2P: p2p.Config{
 			NoDiscovery:      true,
 			DiscoveryV5:      false,

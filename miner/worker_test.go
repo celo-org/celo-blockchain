@@ -18,6 +18,8 @@ package miner
 
 import (
 	"math/big"
+	"math/rand"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -63,8 +65,8 @@ var (
 
 	testConfig = &Config{
 		Recommit: time.Second,
-		GasFloor: params.GenesisGasLimit,
-		GasCeil:  params.GenesisGasLimit,
+		GasFloor: 0,
+		GasCeil:  0,
 	}
 )
 
@@ -248,7 +250,9 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, rawdb.NewMemoryDatabase())
+	istanbulDataDirName := string(rand.Int())
+	dataDir := filepath.Join("/tmp", istanbulDataDirName)
+	engine := istanbulBackend.New(istanbul.DefaultConfig, rawdb.NewMemoryDatabase(), dataDir)
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

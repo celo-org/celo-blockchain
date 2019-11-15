@@ -1,7 +1,7 @@
 FROM ubuntu:16.04 as rustbuilder
 RUN apt update && apt install -y curl musl-tools
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-RUN $HOME/.cargo/bin/rustup install 1.36.0 && $HOME/.cargo/bin/rustup default 1.36.0 && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl
+RUN $HOME/.cargo/bin/rustup install 1.37.0 && $HOME/.cargo/bin/rustup default 1.37.0 && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl
 ADD ./vendor /go-ethereum/vendor
 RUN cd /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
 

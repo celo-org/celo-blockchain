@@ -1,6 +1,6 @@
 # celohq/android-client
 
-FROM circleci/rust:1.36.0-buster
+FROM circleci/rust:1.37.0-buster
 
 USER root
 

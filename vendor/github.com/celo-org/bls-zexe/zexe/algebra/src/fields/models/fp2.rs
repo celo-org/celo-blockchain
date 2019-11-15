@@ -1,10 +1,11 @@
-use rand::{Rand, Rng};
+use crate::UniformRand;
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     io::{Read, Result as IoResult, Write},
     marker::PhantomData,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
+use rand::{Rng, distributions::{Standard, Distribution}};
 
 use crate::{
     bytes::{FromBytes, ToBytes},
@@ -12,7 +13,7 @@ use crate::{
 };
 
 pub trait Fp2Parameters: 'static + Send + Sync {
-    type Fp: PrimeField + SquareRootField;
+    type Fp: PrimeField;
 
     const NONRESIDUE: Self::Fp;
 
@@ -160,7 +161,9 @@ impl<P: Fp2Parameters> Field for Fp2<P> {
     }
 }
 
-impl<'a, P: Fp2Parameters> SquareRootField for Fp2<P> {
+impl<'a, P: Fp2Parameters> SquareRootField for Fp2<P> 
+where P::Fp: SquareRootField
+{
     fn legendre(&self) -> LegendreSymbol {
         self.norm().legendre()
     }
@@ -222,6 +225,36 @@ impl<P: Fp2Parameters> PartialOrd for Fp2<P> {
     }
 }
 
+impl<P: Fp2Parameters> From<u128> for Fp2<P> {
+    fn from(other: u128) -> Self {
+        Self::new(other.into(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp2Parameters> From<u64> for Fp2<P> {
+    fn from(other: u64) -> Self {
+        Self::new(other.into(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp2Parameters> From<u32> for Fp2<P> {
+    fn from(other: u32) -> Self {
+        Self::new(other.into(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp2Parameters> From<u16> for Fp2<P> {
+    fn from(other: u16) -> Self {
+        Self::new(other.into(), P::Fp::zero())
+    }
+}
+
+impl<P: Fp2Parameters> From<u8> for Fp2<P> {
+    fn from(other: u8) -> Self {
+        Self::new(other.into(), P::Fp::zero())
+    }
+}
+
 impl<P: Fp2Parameters> ToBytes for Fp2<P> {
     #[inline]
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
@@ -251,9 +284,10 @@ impl<P: Fp2Parameters> Neg for Fp2<P> {
     }
 }
 
-impl<P: Fp2Parameters> Rand for Fp2<P> {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Fp2::new(rng.gen(), rng.gen())
+impl<P: Fp2Parameters> Distribution<Fp2<P>> for Standard {
+    #[inline]
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Fp2<P> {
+        Fp2::new(UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
 

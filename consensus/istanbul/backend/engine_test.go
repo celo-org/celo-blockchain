@@ -20,11 +20,15 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -37,7 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -48,6 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
+	config.ValidatorEnodeDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
@@ -106,7 +111,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return signatureBytes, nil
 	}
 
-	b, _ := New(config, memDB).(*Backend)
+	dataDir := createRandomDataDir()
+	b, _ := New(config, memDB, dataDir).(*Backend)
 	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
@@ -206,6 +212,22 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	return blockchain, b
 }
 
+func createRandomDataDir() string {
+	rand.Seed(time.Now().UnixNano())
+	for {
+		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
+		dataDir := filepath.Join("/tmp", dirName)
+		err := os.Mkdir(dataDir, 0700)
+		if os.IsExist(err) {
+			continue // Re-try
+		}
+		if err != nil {
+			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
+		}
+		return dataDir
+	}
+}
+
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
@@ -249,7 +271,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     parent.Number().Add(parent.Number(), common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+		GasLimit:   core.CalcGasLimit(parent, nil),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       parent.Time() + uint64(config.BlockPeriod),

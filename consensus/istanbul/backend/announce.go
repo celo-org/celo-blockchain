@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
@@ -149,7 +151,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 		select {
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
 			go sb.sendIstAnnounce()
 
 		case <-sb.announceQuit:
@@ -160,7 +162,6 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) generateIstAnnounce() ([]byte, error) {
-	block := sb.currentBlock()
 	selfEnode := sb.Enode()
 
 	if selfEnode == nil {
@@ -168,32 +169,22 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 		return nil, nil
 	}
 
-	enodeUrl := selfEnode.URLv4()
+	enodeURL := selfEnode.URLv4()
 	view := sb.core.CurrentView()
-	incompleteEnodeUrl := enodeUrl[:strings.Index(enodeUrl, "@")]
-	endpointData := enodeUrl[strings.Index(enodeUrl, "@"):]
+	incompleteEnodeURL := enodeURL[:strings.Index(enodeURL, "@")]
+	endpointData := enodeURL[strings.Index(enodeURL, "@"):]
 
-	regAndActiveVals, err := validators.RetrieveRegisteredValidators(nil, nil)
-	// The validator contract may not be deployed yet.
-	// Even if it is deployed, it may not have any registered validators yet.
-	if err == contract_errors.ErrSmartContractNotDeployed || len(regAndActiveVals) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
-		regAndActiveVals = make(map[common.Address]bool)
-	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+	// If the message is not within the registered validator set, then ignore it
+	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	if err != nil {
 		return nil, err
-	}
-
-	// Add active validators regardless
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	for _, val := range valSet.List() {
-		regAndActiveVals[val.Address()] = true
 	}
 
 	encryptedEndpoints := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
-		if validatorEnodeEntry, ok := sb.valEnodeTable.valEnodeTable[addr]; ok {
-			validatorEnode, err := enode.ParseV4(validatorEnodeEntry.enodeURL)
+		enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(addr)
+		if err == nil {
+			validatorEnode, err := enode.ParseV4(enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
 			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
 			if err != nil {
@@ -201,12 +192,14 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 			} else {
 				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
 			}
+		} else if err != leveldb.ErrNotFound {
+			log.Error("Unable to read valEnodeTable", "err", err, "addr", addr)
 		}
 	}
 
 	msg := &announceMessage{
 		Address:               sb.Address(),
-		IncompleteEnodeURL:    incompleteEnodeUrl,
+		IncompleteEnodeURL:    incompleteEnodeURL,
 		EncryptedEndpointData: encryptedEndpoints,
 		View:                  view,
 	}
@@ -244,10 +237,39 @@ func (sb *Backend) sendIstAnnounce() error {
 	return nil
 }
 
+func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
+	validatorsSet := make(map[common.Address]bool)
+
+	registeredValidators, err := validators.RetrieveRegisteredValidators(nil, nil)
+
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == contract_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return validatorsSet, err
+	}
+
+	for _, address := range registeredValidators {
+		validatorsSet[address] = true
+	}
+
+	// Add active validators regardless
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	for _, val := range valSet.List() {
+		validatorsSet[val.Address()] = true
+	}
+
+	return validatorsSet, nil
+}
+
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	sb.logger.Trace("Handling an IstanbulAnnounce message")
 
 	msg := new(announceMessage)
+
 	// Decode message
 	err := msg.FromPayload(payload)
 	if err != nil {
@@ -268,23 +290,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	// If the message is not within the registered validator set, then ignore it
-	regAndActiveVals, err := validators.RetrieveRegisteredValidators(nil, nil)
-
-	// The validator contract may not be deployed yet.
-	// Even if it is deployed, it may not have any registered validators yet.
-	if err == contract_errors.ErrSmartContractNotDeployed || len(regAndActiveVals) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "regAndActiveVals", regAndActiveVals)
-		regAndActiveVals = make(map[common.Address]bool)
-	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	if err != nil {
 		return err
-	}
-
-	// Add active validators regardless
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	for _, val := range valSet.List() {
-		regAndActiveVals[val.Address()] = true
 	}
 
 	if !regAndActiveVals[msg.Address] {
@@ -305,24 +313,36 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if err != nil && len(encryptedEndpoint) > 0 {
 		sb.logger.Warn("Error in decrypting endpoint", "err", err, "encryptedEndpoint", encryptedEndpoint)
 	}
-	enodeUrl := msg.IncompleteEnodeURL + string(endpointBytes)
+	enodeURL := msg.IncompleteEnodeURL + string(endpointBytes)
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		block := sb.currentBlock()
-		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
-		newValEnode := &validatorEnode{enodeURL: enodeUrl, view: msg.View}
-		if err := sb.valEnodeTable.upsert(msg.Address, newValEnode, valSet, sb.Address()); err != nil {
+		oldEnodeURL, err := sb.valEnodeTable.Upsert(msg.Address, enodeURL, msg.View)
+		if err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
+		}
+
+		// Disconnect from old peer
+		if oldEnodeURL != "" {
+			sb.RemoveValidatorPeer(oldEnodeURL)
+		}
+
+		// Connect to the remote peer if it's part of the current epoch's valset and
+		// if this node is also part of the current epoch's valset
+		block := sb.currentBlock()
+		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+		if _, remoteNode := valSet.GetByAddress(msg.Address); remoteNode != nil {
+			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
+				sb.AddValidatorPeer(enodeURL)
+			}
 		}
 	}
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == enodeUrl && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
@@ -335,7 +355,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeUrl, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeURL, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {
@@ -346,7 +366,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 
-		sb.valEnodeTable.pruneEntries(regAndActiveVals)
+		err = sb.valEnodeTable.PruneEntries(regAndActiveVals)
+		return err
 	}
 
 	return nil

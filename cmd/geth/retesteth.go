@@ -269,6 +269,10 @@ func (e *NoRewardEngine) GetValidators(blockNumber *big.Int, headerHash common.H
 	return e.inner.GetValidators(blockNumber, headerHash)
 }
 
+func (e *NoRewardEngine) EpochSize() uint64 {
+	return e.inner.EpochSize()
+}
+
 func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {
 	return e.inner.APIs(chain)
 }
@@ -468,7 +472,9 @@ func (api *RetestethAPI) mineBlock() error {
 	} else {
 		timestamp = parent.Time() + api.blockInterval
 	}
-	gasLimit := core.CalcGasLimit(parent, 9223372036854775807, 9223372036854775807)
+	statedb, err := api.blockchain.StateAt(parent.Root())
+
+	gasLimit := core.CalcGasLimit(parent, statedb) 
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     big.NewInt(int64(api.blockNumber + 1)),
@@ -493,7 +499,6 @@ func (api *RetestethAPI) mineBlock() error {
 			}
 		}
 	}
-	statedb, err := api.blockchain.StateAt(parent.Root())
 	if err != nil {
 		return err
 	}
