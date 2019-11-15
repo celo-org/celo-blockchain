@@ -61,6 +61,8 @@ const (
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
+	//
+	istDelegateSignChanSize = 5
 
 	// valSetInterval is the frequency in blocks to send the validator set
 	valSetInterval = 10
@@ -181,6 +183,10 @@ func (s *Service) loop() {
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
 
+	istDelegateSignCh := make(chan istanbul.MessageEvent, istDelegateSignChanSize)
+	istDelegateSignSub := s.backend.SubscribeNewDelegateSignEvent(istDelegateSignCh)
+	defer istDelegateSignSub.Unsubscribe()
+
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
 		quitCh = make(chan struct{})
@@ -212,6 +218,8 @@ func (s *Service) loop() {
 				default:
 				}
 
+			case delegateSignMsg := <-istDelegateSignCh:
+				log.Warn("woohooooooo !!!!!!!!!! we got a delegateSignMsg inside ethstats", "delegateSignMsg", delegateSignMsg, "delegateSignMsg.Payload", string(delegateSignMsg.Payload))
 			// node stopped
 			case <-txSub.Err():
 				break HandleLoop
@@ -538,6 +546,17 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 
 	msg, _ := json.Marshal(stats)
 	msgHash := crypto.Keccak256Hash(msg)
+
+	proxiedPeer := s.backend.ProxiedPeer()
+	log.Warn("inside sendStats")
+
+	if proxiedPeer != nil {
+		log.Warn("woohoo proxiedPeer isn't nil")
+		// istanbulMsg := 0x11
+		go proxiedPeer.Send(0x15, "woohooooo")
+	}
+
+	return nil
 
 	etherBase, errEtherbase := s.eth.Etherbase()
 	if errEtherbase != nil {

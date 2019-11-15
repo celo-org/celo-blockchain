@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -33,6 +34,7 @@ const (
 	istanbulAnnounceMsg       = 0x12
 	istanbulValEnodesShareMsg = 0x13
 	istanbulFwdMsg            = 0x14
+    istanbulDelegateSign     = 0x15
 )
 
 var (
@@ -147,6 +149,21 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 
 	istMsg := new(istanbul.Message)
 
+    if msg.Code == istanbulDelegateSign {
+        sb.logger.Warn("woohoo! got istanbulDelegateSign message", "msg", msg, "data string", string(data))
+
+        if sb.config.Proxy {
+            // got a signed message from the validator
+            sb.logger.Warn("woohoo this is the proxy, got a signed message")
+            go sb.delegateSignFeed.Send(istanbul.MessageEvent{ Payload: data })
+        } else {
+            // assumes it's the proxied validator
+            sb.logger.Warn("woohoo this is the proxied validator, will send a signed message")
+            sb.proxyNode.peer.Send(istanbulDelegateSign, "signed woohoooo")
+        }
+
+        return true, nil
+    }
 	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
 	// the wrapped message is already signed by the proxied validator.
 	if err := istMsg.FromPayload(payload, nil); err != nil {
@@ -164,6 +181,11 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Forwarding a consensus message")
 	go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
 	return nil
+}
+
+// SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
+func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
+	return sb.delegateSignFeed.Subscribe(ch)
 }
 
 // SetBroadcaster implements consensus.Handler.SetBroadcaster
