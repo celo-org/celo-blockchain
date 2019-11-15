@@ -127,6 +127,9 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
+	// an unauthorized sender
+	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
 )
 
 var (
@@ -643,7 +646,7 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 			}
 		}
 
-		go sb.sendValEnodeShareMsgs()
+		go sb.sendValEnodesShareMsgs()
 	}
 
 	return nil
@@ -665,8 +668,8 @@ func (sb *Backend) Stop() error {
 	sb.announceWg.Wait()
 
 	if sb.config.Proxied {
-		sb.valEnodeShareQuit <- struct{}{}
-		sb.valEnodeShareWg.Wait()
+		sb.valEnodesShareQuit <- struct{}{}
+		sb.valEnodesShareWg.Wait()
 
 		if sb.proxyNode != nil {
 			sb.removeProxy(sb.proxyNode.node)

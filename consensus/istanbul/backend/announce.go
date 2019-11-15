@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -32,18 +31,23 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// ==============================================
+// ===============================================================
 //
-// define the istanbul announce message
+// define the istanbul announce data and announce record structure
 
-type announceMessage struct {
-	EncryptedEnodeURLs [][][]byte
-	EnodeURLHash       common.Hash
-	View               *istanbul.View
+type announceRecord struct {
+	RecipientAddress  common.Address
+	EncryptedEnodeURL []byte
 }
 
-func (am *announceMessage) String() string {
-	return fmt.Sprintf("{View: %v, EnodeURLHash: %v}", am.View, am.EnodeURLHash.Hex())
+type announceData struct {
+	AnnounceRecords []*announceRecord
+	EnodeURLHash    common.Hash
+	View            *istanbul.View
+}
+
+func (ad *announceData) String() string {
+	return fmt.Sprintf("{View: %v, EnodeURLHash: %v}", ad.View, ad.EnodeURLHash.Hex())
 }
 
 // ==============================================
@@ -51,22 +55,41 @@ func (am *announceMessage) String() string {
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
 // EncodeRLP serializes am into the Ethereum RLP format.
-func (am *announceMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{am.EncryptedEnodeURLs, am.EnodeURLHash, am.View})
+func (ar *announceRecord) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ar.RecipientAddress, ar.EncryptedEnodeURL})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
-func (am *announceMessage) DecodeRLP(s *rlp.Stream) error {
+func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		EncryptedEnodeURLs [][][]byte
-		EnodeURLHash       common.Hash
-		View               *istanbul.View
+		RecipientAddress  common.Address
+		EncryptedEnodeURL []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	am.EncryptedEnodeURLs, am.EnodeURLHash, am.View = msg.EncryptedEnodeURLs, msg.EnodeURLHash, msg.View
+	ar.RecipientAddress, ar.EncryptedEnodeURL = msg.RecipientAddress, msg.EncryptedEnodeURL
+	return nil
+}
+
+// EncodeRLP serializes am into the Ethereum RLP format.
+func (ad *announceData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.View})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
+func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		AnnounceRecords []*announceRecord
+		EnodeURLHash    common.Hash
+		View            *istanbul.View
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ad.AnnounceRecords, ad.EnodeURLHash, ad.View = msg.AnnounceRecords, msg.EnodeURLHash, msg.View
 	return nil
 }
 
@@ -124,23 +147,21 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		regAndActiveVals[val.Address()] = true
 	}
 
-	// encryptedEnodeURLs is an array of (validator address, encrypted enode urls) tuples
-	encryptedEnodeURLs := make([][][]byte, 0)
+	announceRecords := make([]*announceRecord, 0, len(regAndActiveVals))
 	for addr := range regAndActiveVals {
 		// TODO - Need to encrypt using the remote validator's validator key
-		encryptedEnodeURL := []byte(enodeUrl)
-		encryptedEnodeURLs = append(encryptedEnodeURLs, [][]byte{addr.Bytes(), encryptedEnodeURL})
+		announceRecords = append(announceRecords, &announceRecord{RecipientAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
 	}
 
-	announceMessage := &announceMessage{
-		EncryptedEnodeURLs: encryptedEnodeURLs,
-		EnodeURLHash:       istanbul.RLPHash(enodeUrl),
-		View:               view,
+	announceData := &announceData{
+		AnnounceRecords: announceRecords,
+		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
+		View:            view,
 	}
 
-	announceBytes, err := rlp.EncodeToBytes(announceMessage)
+	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
-		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceMsg", announceMessage.String(), "err", err)
+		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
 		return nil, err
 	}
 
@@ -152,7 +173,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		CommittedSeal: []byte{},
 	}
 
-	sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+	sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
 
 	return msg, nil
 }
@@ -194,11 +215,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
-	sb.logger.Debug("Handling an IstanbulAnnounce message", "from", msg.Address)
+	sb.logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
-		sb.logger.Debug("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
+		sb.logger.Trace("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
 		return nil
 	}
 
@@ -227,8 +248,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var announceMessage announceMessage
-	err = rlp.DecodeBytes(msg.Msg, &announceMessage)
+	var announceData announceData
+	err = rlp.DecodeBytes(msg.Msg, &announceData)
 	if err != nil {
 		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
@@ -237,38 +258,45 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
 		var enodeUrl string
-		for _, entry := range announceMessage.EncryptedEnodeURLs {
-			if bytes.Equal(entry[0], sb.Address().Bytes()) {
+		for _, announceRecord := range announceData.AnnounceRecords {
+			if announceRecord.RecipientAddress == sb.Address() {
 				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
-				enodeUrl = string(entry[1])
+				enodeUrl = string(announceRecord.EncryptedEnodeURL)
 				block := sb.currentBlock()
 				valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
-				if err := sb.valEnodeTable.upsert(msg.Address, enodeUrl, announceMessage.View, valSet, sb.ValidatorAddress(), sb.config.Proxied, false); err != nil {
-					sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", announceMessage.String(), "error", err)
+				if err := sb.valEnodeTable.upsert(msg.Address, enodeUrl, announceData.View, valSet, sb.ValidatorAddress(), sb.config.Proxied, false); err != nil {
+					sb.logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
 					return err
 				}
+
+				break
 			}
 		}
 	}
 
-	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
+	sb.regossipIstAnnounce(msg, payload, announceData, regAndActiveVals)
+	return nil
+}
+
+func (sb *Backend) regossipIstAnnounce(msg *istanbul.Message, payload []byte, announceData announceData, regAndActiveVals map[common.Address]bool) {
+	// If we gossiped this address/enodeURL within the last 60 seconds and the enodeURLHash didn't change, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if (lastGossipTs.enodeURLHash == announceMessage.EnodeURLHash) && (time.Since(lastGossipTs.timestamp) < time.Minute) {
-			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+		if (lastGossipTs.enodeURLHash == announceData.EnodeURLHash) && (time.Since(lastGossipTs.timestamp) < time.Minute) {
+			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
-			return nil
+			return
 		}
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceMessage.String())
+	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURLHash: announceMessage.EnodeURLHash, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURLHash: announceData.EnodeURLHash, timestamp: time.Now()}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {
@@ -281,6 +309,4 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 		sb.valEnodeTable.pruneEntries(regAndActiveVals)
 	}
-
-	return nil
 }

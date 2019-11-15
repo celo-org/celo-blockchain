@@ -15,11 +15,12 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		_, b = newBlockChain(4, true)
 	}
 
+	senderAddress := b.Address()
 	privateKey, _ := generatePrivateKey()
 
 	// Tests that a validator enode share message without any validator info
 	// in the payload will not result in errors
-	msg, err := b.generateValEnodeShareMsg()
+	msg, err := b.generateValEnodesShareMsg()
 	if err != nil {
 		t.Errorf("error %v", err)
 	}
@@ -29,7 +30,10 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	b.Authorize(getAddress(), signerFn, signerBLSHashFn, signerBLSMessageFn)
 
-	if err = b.handleValEnodeShareMsg(payload); err != nil {
+	// Set the backend's proxied validator address to itself
+	b.config.ProxiedValidatorAddress = senderAddress
+
+	if err = b.handleValEnodesShareMsg(payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 
@@ -49,7 +53,8 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 			Sequence: big.NewInt(0),
 		},
 	}
-	newMsg, err := b.generateValEnodeShareMsg()
+	senderAddress = b.Address()
+	newMsg, err := b.generateValEnodesShareMsg()
 	if err != nil {
 		t.Errorf("error %v", err)
 	}
@@ -61,7 +66,8 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	// created after handling
 	delete(b.valEnodeTable.valEnodeTable, testAddress)
 
-	if err = b.handleValEnodeShareMsg(newPayload); err != nil {
+	b.config.ProxiedValidatorAddress = senderAddress
+	if err = b.handleValEnodesShareMsg(newPayload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

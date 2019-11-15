@@ -38,7 +38,7 @@ type sharedValidatorEnode struct {
 	View     *istanbul.View
 }
 
-type valEnodeShareMessage struct {
+type valEnodesShareData struct {
 	ValEnodes []sharedValidatorEnode
 }
 
@@ -46,9 +46,9 @@ func (sve *sharedValidatorEnode) String() string {
 	return fmt.Sprintf("{Address: %s, EnodeURL: %v, View: %v}", sve.Address.Hex(), sve.EnodeURL, sve.View)
 }
 
-func (sm *valEnodeShareMessage) String() string {
+func (sd *valEnodesShareData) String() string {
 	outputStr := "{ValEnodes:"
-	for _, valEnode := range sm.ValEnodes {
+	for _, valEnode := range sd.ValEnodes {
 		outputStr = fmt.Sprintf("%s %s", outputStr, valEnode.String())
 	}
 	return fmt.Sprintf("%s}", outputStr)
@@ -58,13 +58,13 @@ func (sm *valEnodeShareMessage) String() string {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes sm into the Ethereum RLP format.
-func (sm *valEnodeShareMessage) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sm.ValEnodes})
+// EncodeRLP serializes sd into the Ethereum RLP format.
+func (sd *valEnodesShareData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sd.ValEnodes})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the sm fields from a RLP stream.
-func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the sd fields from a RLP stream.
+func (sd *valEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		ValEnodes []sharedValidatorEnode
 	}
@@ -72,15 +72,15 @@ func (sm *valEnodeShareMessage) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	sm.ValEnodes = msg.ValEnodes
+	sd.ValEnodes = msg.ValEnodes
 	return nil
 }
 
 // This function is meant to be run as a goroutine.  It will periodically gossip validator enode share messages
 // to this node's sentries so that sentries know the enodes of validators
-func (sb *Backend) sendValEnodeShareMsgs() {
-	sb.valEnodeShareWg.Add(1)
-	defer sb.valEnodeShareWg.Done()
+func (sb *Backend) sendValEnodesShareMsgs() {
+	sb.valEnodesShareWg.Add(1)
+	defer sb.valEnodesShareWg.Done()
 
 	ticker := time.NewTicker(time.Minute)
 
@@ -89,16 +89,16 @@ func (sb *Backend) sendValEnodeShareMsgs() {
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
 			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
-			go sb.sendValEnodeShareMsg()
+			go sb.sendValEnodesShareMsg()
 
-		case <-sb.valEnodeShareQuit:
+		case <-sb.valEnodesShareQuit:
 			ticker.Stop()
 			return
 		}
 	}
 }
 
-func (sb *Backend) generateValEnodeShareMsg() (*istanbul.Message, error) {
+func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	sb.valEnodeTable.valEnodeTableMu.RLock()
 	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
 	i := 0
@@ -112,31 +112,31 @@ func (sb *Backend) generateValEnodeShareMsg() (*istanbul.Message, error) {
 	}
 	sb.valEnodeTable.valEnodeTableMu.RUnlock()
 
-	valEnodeShareMessage := &valEnodeShareMessage{
+	valEnodesShareData := &valEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
 	}
 
-	valEnodeShareBytes, err := rlp.EncodeToBytes(valEnodeShareMessage)
+	valEnodesShareBytes, err := rlp.EncodeToBytes(valEnodesShareData)
 	if err != nil {
-		sb.logger.Error("Error encoding Istanbul Validator Enode Share message content", "ValEnodeShareMsg", valEnodeShareMessage.String(), "err", err)
+		sb.logger.Error("Error encoding Istanbul Validator Enodes Share message content", "ValEnodesShareData", valEnodesShareData.String(), "err", err)
 		return nil, err
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbulValEnodeShareMsg,
-		Msg:           valEnodeShareBytes,
+		Code:          istanbulValEnodesShareMsg,
+		Msg:           valEnodesShareBytes,
 		Address:       sb.Address(),
 		Signature:     []byte{},
 		CommittedSeal: []byte{},
 	}
 
-	sb.logger.Trace("Generated a Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String())
+	sb.logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
 	return msg, nil
 }
 
-func (sb *Backend) sendValEnodeShareMsg() error {
-	msg, err := sb.generateValEnodeShareMsg()
+func (sb *Backend) sendValEnodesShareMsg() error {
+	msg, err := sb.generateValEnodesShareMsg()
 	if err != nil {
 		return err
 	}
@@ -147,32 +147,29 @@ func (sb *Backend) sendValEnodeShareMsg() error {
 
 	// Sign the validator enode share message
 	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul ValEnodeShare Message", "ValEnodeShareMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
-		sb.logger.Error("Error in converting Istanbul ValEnodeShare Message to payload", "ValEnodeShareMsg", msg.String(), "err", err)
+		sb.logger.Error("Error in converting Istanbul ValEnodesShare Message to payload", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
 
 	if sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		sb.logger.Debug("Sending Istanbul Validator Enode Share payload to proxy peer")
-		go sb.proxyNode.peer.Send(istanbulValEnodeShareMsg, payload)
+		sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
+		go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
 	} else {
-		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enode Share message")
+		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
 	}
 
 	return nil
 }
 
-// TODO: once we add a command line flag indicating a proxy is proxying for a
-// certain validator, add a check in here to make sure the message came from
-// the correct validator.
-func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
-	sb.logger.Debug("Handling an Istanbul Validator Enode Share message")
+func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
+	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)
 	// Decode message
@@ -182,23 +179,29 @@ func (sb *Backend) handleValEnodeShareMsg(payload []byte) error {
 		return err
 	}
 
-	var valEnodeShareMessage valEnodeShareMessage
-	err = rlp.DecodeBytes(msg.Msg, &valEnodeShareMessage)
+	// Verify that the sender is from the proxied validator
+	if msg.Address != sb.config.ProxiedValidatorAddress {
+		sb.logger.Error("Unauthorized valEnodesShare message", "sender address", msg.Address, "authorized sender address", sb.config.ProxiedValidatorAddress)
+		return errUnauthorizedValEnodesShareMessage
+	}
+
+	var valEnodesShareData valEnodesShareData
+	err = rlp.DecodeBytes(msg.Msg, &valEnodesShareData)
 	if err != nil {
-		sb.logger.Error("Error in decoding received Istanbul Validator Enode Share message content", "err", err, "IstanbulMsg", msg.String())
+		sb.logger.Error("Error in decoding received Istanbul Validator Enodes Share message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
-	sb.logger.Debug("Received an Istanbul Validator Enode Share message", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String())
+	sb.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 
 	sb.valEnodeTable.valEnodeTableMu.Lock()
 	defer sb.valEnodeTable.valEnodeTableMu.Unlock()
-	for _, sharedValidatorEnode := range valEnodeShareMessage.ValEnodes {
+	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, sharedValidatorEnode.EnodeURL, sharedValidatorEnode.View, valSet, sb.ValidatorAddress(), false, true); err != nil {
-			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareMsg", valEnodeShareMessage.String(), "error", err)
+			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareData", valEnodesShareData.String(), "error", err)
 		}
 	}
 

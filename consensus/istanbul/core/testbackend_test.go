@@ -97,7 +97,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) BroadcastIstMsg(validators []common.Address, message []byte) error {
+func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	self.sys.queuedMessage <- istanbul.MessageEvent{

@@ -668,7 +668,7 @@ var (
 	}
 	ProxyInternalFacingEndpointFlag = cli.StringFlag{
 		Name:  "proxy.internalendpoint",
-		Usage: "Specifies the internal facing endpoint for this proxy to listen to",
+		Usage: "Specifies the internal facing endpoint for this proxy to listen to.  The format should be <ip address>:<port>",
 		Value: ":30503",
 	}
 	ProxiedValidatorAddressFlag = cli.StringFlag{
@@ -1213,6 +1213,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 
+		// Mining must be set for proxies
+		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
+		}
+
 		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxiedValidatorAddressFlag.Name, ProxyFlag.Name)
 		} else {
@@ -1233,6 +1238,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
 		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
 
+		// Mining must be set for proxies
+		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
+		}
+
 		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
 		} else {
@@ -1240,11 +1250,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 
 			var err error
 			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
-				log.Crit("Proxy internal facing enodeURL invalid", "enodeURL", proxyEnodeURLPair[0], "err", err)
+				Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
 			}
 
 			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
-				log.Crit("Proxy external facing enodeURL invalid", "enodeURL", proxyEnodeURLPair[1], "err", err)
+				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
 			}
 		}
 

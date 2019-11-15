@@ -343,16 +343,15 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 	}()
 
-	// Miners and sentries only makes sense if a full Ethereum node is running
+	// Miners and proxies only makes sense if a full node is running
 	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" || ctx.GlobalString(utils.SyncModeFlag.Name) == "ultralight" {
-			utils.Fatalf("Light and Ultralight clients do not support mining or running as a proxy")
+		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
+			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
 
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		// Sentries can't mine
 		if ctx.GlobalBool(utils.ProxyFlag.Name) {
 			utils.Fatalf("Proxies can't mine")
 		}

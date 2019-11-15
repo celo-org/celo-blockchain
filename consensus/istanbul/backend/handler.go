@@ -29,10 +29,10 @@ import (
 )
 
 const (
-	istanbulMsg              = 0x11
-	istanbulAnnounceMsg      = 0x12
-	istanbulValEnodeShareMsg = 0x13
-	istanbulFwdMsg           = 0x14
+	istanbulConsensusMsg      = 0x11
+	istanbulAnnounceMsg       = 0x12
+	istanbulValEnodesShareMsg = 0x13
+	istanbulFwdMsg            = 0x14
 )
 
 var (
@@ -57,8 +57,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 	sb.logger.Trace("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
 
-	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodeShareMsg) || (msg.Code == istanbulFwdMsg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulMsg) {
+	if (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) {
+		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -87,7 +87,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		}
 		sb.knownMessages.Add(hash, true)
 
-		if msg.Code == istanbulMsg {
+		if msg.Code == istanbulConsensusMsg {
 			if sb.config.Proxy {
 				// Verify that this message is not from the proxied peer
 				if reflect.DeepEqual(peer, sb.proxiedPeer) {
@@ -125,11 +125,11 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			}
 
 			sb.logger.Debug("Forwarding a consensus message")
-			go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulMsg, false)
+			go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
-		} else if msg.Code == istanbulValEnodeShareMsg {
-			go sb.handleValEnodeShareMsg(data)
+		} else if msg.Code == istanbulValEnodesShareMsg {
+			go sb.handleValEnodesShareMsg(data)
 		}
 
 		return true, nil

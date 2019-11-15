@@ -90,8 +90,8 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		valEnodeShareWg:      new(sync.WaitGroup),
-		valEnodeShareQuit:    make(chan struct{}),
+		valEnodesShareWg:     new(sync.WaitGroup),
+		valEnodesShareQuit:   make(chan struct{}),
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
@@ -149,8 +149,8 @@ type Backend struct {
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 
-	valEnodeShareWg   *sync.WaitGroup
-	valEnodeShareQuit chan struct{}
+	valEnodesShareWg   *sync.WaitGroup
+	valEnodesShareQuit chan struct{}
 
 	proxyNode *proxyInfo
 
@@ -222,12 +222,12 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 	}
 }
 
-// Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) BroadcastIstMsg(destAddresses []common.Address, payload []byte) error {
+// Broadcast implements istanbul.Backend.BroadcastConsensusMsg
+func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Debug("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
 	// send to others
-	if err := sb.Gossip(destAddresses, payload, istanbulMsg, false); err != nil {
+	if err := sb.Gossip(destAddresses, payload, istanbulConsensusMsg, false); err != nil {
 		return err
 	}
 
@@ -241,7 +241,10 @@ func (sb *Backend) BroadcastIstMsg(destAddresses []common.Address, payload []byt
 
 // Gossip implements istanbul.Backend.Gossip
 func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
-	if sb.config.Proxied && ethMsgCode == istanbulMsg {
+
+	// If this is a proxied validator and it wants to send a consensus message,
+	// wrap the consensus message in a forward message.
+	if sb.config.Proxied && ethMsgCode == istanbulConsensusMsg {
 		fwdMsg := istanbul.Message{DestAddresses: destAddresses, Msg: payload}
 
 		var err error

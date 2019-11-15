@@ -44,8 +44,8 @@ type Backend interface {
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// BroadcastIstMsg sends a message to all validators (include self)
-	BroadcastIstMsg(validators []common.Address, payload []byte) error
+	// BroadcastConsensusMsg sends a message to all validators (include self)
+	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
 	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
