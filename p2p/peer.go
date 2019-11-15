@@ -114,8 +114,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	StaticNodeLabels  map[string]bool
-	TrustedNodeLabels map[string]bool
+	StaticNodePurposes  map[string]bool
+	TrustedNodePurposes map[string]bool
 
 	Server *Server
 }
@@ -181,19 +181,19 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-func newPeer(conn *conn, protocols []Protocol, staticNodeLabels map[string]bool, trustedNodeLabels map[string]bool, server *Server) *Peer {
+func newPeer(conn *conn, protocols []Protocol, staticNodePurposes map[string]bool, trustedNodePurposes map[string]bool, server *Server) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:                conn,
-		running:           protomap,
-		created:           mclock.Now(),
-		disc:              make(chan DiscReason),
-		protoErr:          make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:            make(chan struct{}),
-		log:               log.New("id", conn.node.ID(), "conn", conn.flags),
-		StaticNodeLabels:  staticNodeLabels,
-		TrustedNodeLabels: trustedNodeLabels,
-		Server:            server,
+		rw:                  conn,
+		running:             protomap,
+		created:             mclock.Now(),
+		disc:                make(chan DiscReason),
+		protoErr:            make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:              make(chan struct{}),
+		log:                 log.New("id", conn.node.ID(), "conn", conn.flags),
+		StaticNodePurposes:  staticNodePurposes,
+		TrustedNodePurposes: trustedNodePurposes,
+		Server:              server,
 	}
 	return p
 }
@@ -444,13 +444,13 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	Enode             string   `json:"enode"`           // Node URL
-	ID                string   `json:"id"`              // Unique node identifier
-	Name              string   `json:"name"`            // Name of the node, including client type, version, OS, custom data
-	Caps              []string `json:"caps"`            // Protocols advertised by this peer
-	StaticNodeLabels  []string `json:"staticNodeInfo"`  // Labels for the static node
-	TrustedNodeLabels []string `json:"trustedNodeInfo"` // Labels for the trusted node
-	Network           struct {
+	Enode               string   `json:"enode"`           // Node URL
+	ID                  string   `json:"id"`              // Unique node identifier
+	Name                string   `json:"name"`            // Name of the node, including client type, version, OS, custom data
+	Caps                []string `json:"caps"`            // Protocols advertised by this peer
+	StaticNodePurposes  []string `json:"staticNodeInfo"`  // Purposes for the static node
+	TrustedNodePurposes []string `json:"trustedNodeInfo"` // Purposes for the trusted node
+	Network             struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 		Inbound       bool   `json:"inbound"`
@@ -494,17 +494,17 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	var staticNodeLabels []string
-	for label := range p.StaticNodeLabels {
-		staticNodeLabels = append(staticNodeLabels, label)
+	var staticNodePurposes []string
+	for purpose := range p.StaticNodePurposes {
+		staticNodePurposes = append(staticNodePurposes, purpose)
 	}
-	info.StaticNodeLabels = staticNodeLabels
+	info.StaticNodePurposes = staticNodePurposes
 
-	var trustedNodeLabels []string
-	for label := range p.TrustedNodeLabels {
-		trustedNodeLabels = append(trustedNodeLabels, label)
+	var trustedNodePurposes []string
+	for purpose := range p.TrustedNodePurposes {
+		trustedNodePurposes = append(trustedNodePurposes, purpose)
 	}
-	info.TrustedNodeLabels = trustedNodeLabels
+	info.TrustedNodePurposes = trustedNodePurposes
 
 	return info
 }

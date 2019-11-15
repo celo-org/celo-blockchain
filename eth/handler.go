@@ -864,12 +864,12 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]consensus.Peer {
+func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose string) map[enode.ID]consensus.Peer {
 	m := make(map[enode.ID]consensus.Peer)
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			if p.Peer.StaticNodeLabels[label] || p.Peer.TrustedNodeLabels[label] || label == "" {
+			if p.Peer.StaticNodePurposes[purpose] || p.Peer.TrustedNodePurposes[purpose] || purpose == "" {
 				m[id] = p
 			}
 		}

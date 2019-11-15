@@ -53,21 +53,21 @@ type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
 	Enqueue(id string, block *types.Block)
 	// FindPeers retrives peers by addresses
-	FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]Peer
+	FindPeers(targets map[enode.ID]bool, purpose string) map[enode.ID]Peer
 }
 
-// Server defines the interface for a p2p.server to get the local node's enode and to addlabel/removelabel for static/trusted peers
+// Server defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
 type P2PServer interface {
 	// Gets this node's enode
 	Self() *enode.Node
-	// AddPeerLabel will add a peer label to the p2p server instance
-	AddPeerLabel(node *enode.Node, label string)
-	// RemovePeerLabel will remove a peer label from the p2p server instance
-	RemovePeerLabel(node *enode.Node, label string)
-	// AddTrustedPeerLabel will add a trusted peer label to the p2p server instance
-	AddTrustedPeerLabel(node *enode.Node, label string)
-	// RemoveTrustedPeerLabel will remove a trusted peer label from the p2p server instance
-	RemoveTrustedPeerLabel(node *enode.Node, label string)
+	// AddPeer will add a peer to the p2p server instance
+	AddPeer(node *enode.Node, purpose string)
+	// RemovePeer will remove a peer from the p2p server instance
+	RemovePeer(node *enode.Node, purpose string)
+	// AddTrustedPeer will add a trusted peer to the p2p server instance
+	AddTrustedPeer(node *enode.Node, purpose string)
+	// RemoveTrustedPeer will remove a trusted peer from the p2p server instance
+	RemoveTrustedPeer(node *enode.Node, purpose string)
 }
 
 // Peer defines the interface for a p2p.peer

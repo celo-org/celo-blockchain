@@ -104,8 +104,8 @@ func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, n
 					vet.reverseValEnodeTable[newValNode.ID()] = remoteAddress
 					delete(vet.reverseValEnodeTable, currentValEntry.node.ID())
 					// Disconnect from the peer
-					vet.p2pserver.RemovePeerLabel(currentValEntry.node, "validator")
-					vet.p2pserver.RemoveTrustedPeerLabel(currentValEntry.node, "validator")
+					vet.p2pserver.RemovePeer(currentValEntry.node, "validator")
+					vet.p2pserver.RemoveTrustedPeer(currentValEntry.node, "validator")
 				}
 				vet.valEnodeTable[remoteAddress] = &validatorEnode{node: newValNode, view: newValView}
 				log.Trace("Updated an entry in the valEnodeTable", "address", remoteAddress, "ValidatorEnode", vet.valEnodeTable[remoteAddress].String())
@@ -126,8 +126,8 @@ func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, n
 		if _, remoteVal := valSet.GetByAddress(remoteAddress); remoteVal != nil {
 			// This node should connect only if it's a standalone validator or a proxy of a validator
 			if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil {
-				vet.p2pserver.AddPeerLabel(newValNode, "validator")
-				vet.p2pserver.AddTrustedPeerLabel(newValNode, "validator")
+				vet.p2pserver.AddPeer(newValNode, "validator")
+				vet.p2pserver.AddTrustedPeer(newValNode, "validator")
 			}
 		}
 	}
@@ -155,8 +155,8 @@ func (vet *validatorEnodeTable) refreshValPeers(valSet istanbul.ValidatorSet, cu
 	// Add all of the valSet entries as validator peers
 	for _, val := range valSet.List() {
 		if valEnodeEntry := vet.getUsingAddress(val.Address()); valEnodeEntry != nil {
-			vet.p2pserver.AddPeerLabel(valEnodeEntry.node, "validator")
-			vet.p2pserver.AddTrustedPeerLabel(valEnodeEntry.node, "validator")
+			vet.p2pserver.AddPeer(valEnodeEntry.node, "validator")
+			vet.p2pserver.AddTrustedPeer(valEnodeEntry.node, "validator")
 		}
 	}
 
@@ -164,8 +164,8 @@ func (vet *validatorEnodeTable) refreshValPeers(valSet istanbul.ValidatorSet, cu
 	for id, valPeer := range currentValPeers {
 		if peerAddress, ok := vet.reverseValEnodeTable[id]; ok {
 			if _, src := valSet.GetByAddress(peerAddress); src == nil {
-				vet.p2pserver.RemovePeerLabel(valPeer.Node(), "validator")
-				vet.p2pserver.RemoveTrustedPeerLabel(valPeer.Node(), "validator")
+				vet.p2pserver.RemovePeer(valPeer.Node(), "validator")
+				vet.p2pserver.RemoveTrustedPeer(valPeer.Node(), "validator")
 			}
 		}
 	}

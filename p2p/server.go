@@ -186,24 +186,24 @@ type Server struct {
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
-	quit               chan struct{}
-	addstaticlabel     chan *nodeLabelArgs
-	removestaticlabel  chan *nodeLabelArgs
-	addtrustedlabel    chan *nodeLabelArgs
-	removetrustedlabel chan *nodeLabelArgs
-	posthandshake      chan *conn
-	addpeer            chan *conn
-	delpeer            chan peerDrop
-	loopWG             sync.WaitGroup // loop, listenLoop
-	peerFeed           event.Feed
-	log                log.Logger
+	quit          chan struct{}
+	addstatic     chan *nodeArgs
+	removestatic  chan *nodeArgs
+	addtrusted    chan *nodeArgs
+	removetrusted chan *nodeArgs
+	posthandshake chan *conn
+	addpeer       chan *conn
+	delpeer       chan peerDrop
+	loopWG        sync.WaitGroup // loop, listenLoop
+	peerFeed      event.Feed
+	log           log.Logger
 }
 
 type peerOpFunc func(peers map[enode.ID]*Peer)
 
-type nodeLabelArgs struct {
-	node  *enode.Node
-	label string
+type nodeArgs struct {
+	node    *enode.Node
+	purpose string
 }
 
 type peerDrop struct {
@@ -330,34 +330,34 @@ func (srv *Server) PeerCount() int {
 // AddPeer connects to the given node and maintains the connection until the
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
-func (srv *Server) AddPeerLabel(node *enode.Node, label string) {
+func (srv *Server) AddPeer(node *enode.Node, purpose string) {
 	select {
-	case srv.addstaticlabel <- &nodeLabelArgs{node: node, label: label}:
+	case srv.addstatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
 	}
 }
 
 // RemovePeer disconnects from the given node
-func (srv *Server) RemovePeerLabel(node *enode.Node, label string) {
+func (srv *Server) RemovePeer(node *enode.Node, purpose string) {
 	select {
-	case srv.removestaticlabel <- &nodeLabelArgs{node: node, label: label}:
+	case srv.removestatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
 	}
 }
 
 // AddTrustedPeer adds the given node to a reserved whitelist which allows the
 // node to always connect, even if the slot are full.
-func (srv *Server) AddTrustedPeerLabel(node *enode.Node, label string) {
+func (srv *Server) AddTrustedPeer(node *enode.Node, purpose string) {
 	select {
-	case srv.addtrustedlabel <- &nodeLabelArgs{node: node, label: label}:
+	case srv.addtrusted <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
 	}
 }
 
 // RemoveTrustedPeer removes the given node from the trusted peer set.
-func (srv *Server) RemoveTrustedPeerLabel(node *enode.Node, label string) {
+func (srv *Server) RemoveTrustedPeer(node *enode.Node, purpose string) {
 	select {
-	case srv.removetrustedlabel <- &nodeLabelArgs{node: node, label: label}:
+	case srv.removetrusted <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
 	}
 }
@@ -463,10 +463,10 @@ func (srv *Server) Start() (err error) {
 	srv.addpeer = make(chan *conn)
 	srv.delpeer = make(chan peerDrop)
 	srv.posthandshake = make(chan *conn)
-	srv.addstaticlabel = make(chan *nodeLabelArgs)
-	srv.removestaticlabel = make(chan *nodeLabelArgs)
-	srv.addtrustedlabel = make(chan *nodeLabelArgs)
-	srv.removetrustedlabel = make(chan *nodeLabelArgs)
+	srv.addstatic = make(chan *nodeArgs)
+	srv.removestatic = make(chan *nodeArgs)
+	srv.addtrusted = make(chan *nodeArgs)
+	srv.removetrusted = make(chan *nodeArgs)
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
 
@@ -694,33 +694,33 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	addStatic := func(n *enode.Node, label string) {
+	addStatic := func(n *enode.Node, purpose string) {
 		if _, ok := static[n.ID()]; !ok {
 			static[n.ID()] = make(map[string]bool)
 		}
-		static[n.ID()][label] = true
+		static[n.ID()][purpose] = true
 
-		// If already connected, set the peer's static node label set
+		// If already connected, set the peer's static node purpose set
 		if p, ok := peers[n.ID()]; ok {
-			if p.StaticNodeLabels == nil {
-				p.StaticNodeLabels = static[n.ID()]
+			if p.StaticNodePurposes == nil {
+				p.StaticNodePurposes = static[n.ID()]
 			}
 		}
 
 		dialstate.addStatic(n)
 	}
 
-	removeStatic := func(n *enode.Node, label string) {
+	removeStatic := func(n *enode.Node, purpose string) {
 		if staticNode, ok := static[n.ID()]; ok {
-			if _, ok := staticNode[label]; ok {
-				delete(staticNode, label)
+			if _, ok := staticNode[purpose]; ok {
+				delete(staticNode, purpose)
 			}
 
 			if len(staticNode) == 0 {
 				dialstate.removeStatic(n)
 
 				if p, ok := peers[n.ID()]; ok {
-					p.StaticNodeLabels = nil
+					p.StaticNodePurposes = nil
 					p.Disconnect(DiscRequested)
 				}
 
@@ -729,28 +729,28 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	addTrusted := func(n *enode.Node, label string) {
+	addTrusted := func(n *enode.Node, purpose string) {
 		if _, ok := trusted[n.ID()]; !ok {
 			trusted[n.ID()] = make(map[string]bool)
 
 		}
-		trusted[n.ID()][label] = true
+		trusted[n.ID()][purpose] = true
 
 		// Mark any already-connected peer as trusted
 		if p, ok := peers[n.ID()]; ok {
 			p.rw.set(trustedConn, true)
 
 			// If already connected, updated val peer counters and set the validatorConn flag in the connection
-			if p.TrustedNodeLabels == nil {
-				p.TrustedNodeLabels = trusted[n.ID()]
+			if p.TrustedNodePurposes == nil {
+				p.TrustedNodePurposes = trusted[n.ID()]
 			}
 		}
 	}
 
-	removeTrusted := func(n *enode.Node, label string) {
+	removeTrusted := func(n *enode.Node, purpose string) {
 		if trustedNode, ok := trusted[n.ID()]; ok {
-			if _, ok := trustedNode[label]; ok {
-				delete(trustedNode, label)
+			if _, ok := trustedNode[purpose]; ok {
+				delete(trustedNode, purpose)
 			}
 
 			if len(trustedNode) == 0 {
@@ -760,7 +760,7 @@ func (srv *Server) run(dialstate dialer) {
 			// Unmark any already-connected peer as trusted
 			if p, ok := peers[n.ID()]; ok {
 				p.rw.set(trustedConn, false)
-				p.TrustedNodeLabels = nil
+				p.TrustedNodePurposes = nil
 			}
 		}
 	}
@@ -773,28 +773,28 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
-		case addStaticArgs := <-srv.addstaticlabel:
+		case addStaticArgs := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
-			srv.log.Trace("Adding static node", "node", addStaticArgs.node, "label", addStaticArgs.label)
-			addStatic(addStaticArgs.node, addStaticArgs.label)
-		case removeStaticArgs := <-srv.removestaticlabel:
+			srv.log.Trace("Adding static node", "node", addStaticArgs.node, "purpose", addStaticArgs.purpose)
+			addStatic(addStaticArgs.node, addStaticArgs.purpose)
+		case removeStaticArgs := <-srv.removestatic:
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
-			srv.log.Trace("Removing static node", "node", removeStaticArgs.node, "label", removeStaticArgs.label)
-			removeStatic(removeStaticArgs.node, removeStaticArgs.label)
-		case addTrustedArgs := <-srv.addtrustedlabel:
+			srv.log.Trace("Removing static node", "node", removeStaticArgs.node, "purpose", removeStaticArgs.purpose)
+			removeStatic(removeStaticArgs.node, removeStaticArgs.purpose)
+		case addTrustedArgs := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
-			srv.log.Trace("Adding trusted node", "node", addTrustedArgs.node, "label", addTrustedArgs.label)
-			addTrusted(addTrustedArgs.node, addTrustedArgs.label)
-		case removeTrustedArgs := <-srv.removetrustedlabel:
+			srv.log.Trace("Adding trusted node", "node", addTrustedArgs.node, "purpose", addTrustedArgs.purpose)
+			addTrusted(addTrustedArgs.node, addTrustedArgs.purpose)
+		case removeTrustedArgs := <-srv.removetrusted:
 			// This channel is used by RemoveTrustedPeer to remove an enode
 			// from the trusted node set.
-			srv.log.Trace("Removing trusted node", "node", removeTrustedArgs.node, "label", removeTrustedArgs.label)
-			removeTrusted(removeTrustedArgs.node, removeTrustedArgs.label)
+			srv.log.Trace("Removing trusted node", "node", removeTrustedArgs.node, "purpose", removeTrustedArgs.purpose)
+			removeTrusted(removeTrustedArgs.node, removeTrustedArgs.purpose)
 		case op := <-srv.peerOp:
 			// This channel is used by Peers and PeerCount and ValPeers.
 			op(peers)
@@ -825,10 +825,10 @@ running:
 			err := srv.protoHandshakeChecks(peers, inboundCount, c)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
-				staticNodeLabels := static[c.node.ID()]
-				trustedNodeLabels := trusted[c.node.ID()]
+				staticNodePurposes := static[c.node.ID()]
+				trustedNodePurposes := trusted[c.node.ID()]
 
-				p := newPeer(c, srv.Protocols, staticNodeLabels, trustedNodeLabels, srv)
+				p := newPeer(c, srv.Protocols, staticNodePurposes, trustedNodePurposes, srv)
 				// If message events are enabled, pass the peerFeed
 				// to the peer
 				if srv.EnableMsgEvents {

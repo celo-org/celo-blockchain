@@ -572,7 +572,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 		return errProxyAlreadySet
 	}
 
-	sb.p2pserver.AddPeerLabel(node, "proxy")
+	sb.p2pserver.AddPeer(node, "proxy")
 
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
 	return nil
@@ -580,7 +580,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 
 func (sb *Backend) removeProxy(node *enode.Node) {
 	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
-		sb.p2pserver.RemovePeerLabel(node, "proxy")
+		sb.p2pserver.RemovePeer(node, "proxy")
 		sb.proxyNode = nil
 	}
 }
@@ -598,7 +598,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	// Disconnect all validator peers if this node is not in the valset
 	if _, val := valset.GetByAddress(sb.ValidatorAddress()); val == nil {
 		for _, valPeer := range currentValPeers {
-			sb.p2pserver.RemovePeerLabel(valPeer.Node(), "validator")
+			sb.p2pserver.RemovePeer(valPeer.Node(), "validator")
 		}
 	} else {
 		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)

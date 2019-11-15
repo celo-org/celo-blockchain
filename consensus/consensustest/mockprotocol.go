@@ -27,7 +27,7 @@ type MockBroadcaster struct{}
 func (b *MockBroadcaster) Enqueue(id string, block *types.Block) {
 }
 
-func (b *MockBroadcaster) FindPeers(targets map[enode.ID]bool, label string) map[enode.ID]consensus.Peer {
+func (b *MockBroadcaster) FindPeers(targets map[enode.ID]bool, purpose string) map[enode.ID]consensus.Peer {
 	return make(map[enode.ID]consensus.Peer)
 }
 
@@ -39,10 +39,10 @@ func (serv *MockP2PServer) Self() *enode.Node {
 	return serv.Node
 }
 
-func (serv *MockP2PServer) AddPeerLabel(node *enode.Node, label string) {}
+func (serv *MockP2PServer) AddPeer(node *enode.Node, purpose string) {}
 
-func (serv *MockP2PServer) RemovePeerLabel(node *enode.Node, label string) {}
+func (serv *MockP2PServer) RemovePeer(node *enode.Node, purpose string) {}
 
-func (serv *MockP2PServer) AddTrustedPeerLabel(node *enode.Node, label string) {}
+func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose string) {}
 
-func (serv *MockP2PServer) RemoveTrustedPeerLabel(node *enode.Node, label string) {}
+func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose string) {}
