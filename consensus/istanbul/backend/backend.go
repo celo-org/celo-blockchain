@@ -559,6 +559,16 @@ func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
 	return block, proposer
 }
 
+func (sb *Backend) LastSubject() (istanbul.Subject, error) {
+	lastProposal, _ := sb.LastProposal()
+	istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
+	if err != nil {
+		return istanbul.Subject{}, err
+	}
+	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: istExtra.AggregatedSeal.Round}
+	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
+}
+
 func (sb *Backend) HasBadProposal(hash common.Hash) bool {
 	if sb.hasBadBlock == nil {
 		return false

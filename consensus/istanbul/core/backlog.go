@@ -19,7 +19,6 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -60,15 +59,15 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	// to create the ParentAggregatedSeal for our next proposal.
 	if view.Cmp(c.currentView()) < 0 {
 		if msgCode == istanbul.MsgCommit {
+			testLogger.Info("got commit for old view")
 
-			lastProposal, _ := c.backend.LastProposal()
-			istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
+			lastSubject, err := c.backend.LastSubject()
 			if err != nil {
 				return err
 			}
-			lastProposalView := &istanbul.View{Sequence: lastProposal.Number(), Round: istExtra.AggregatedSeal.Round}
-
-			if view.Cmp(lastProposalView) == 0 {
+			testLogger.Info("last subject", "round", lastSubject.View.Round.Uint64(), "seq", lastSubject.View.Sequence.Uint64())
+			testLogger.Info("message subject", "round", view.Round.Uint64(), "seq", view.Sequence.Uint64())
+			if view.Cmp(lastSubject.View) == 0 {
 				return nil
 			}
 		}

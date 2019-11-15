@@ -385,18 +385,18 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
-	lastProposal, _ := c.backend.LastProposal()
 	if c.current != nil {
 		if roundChange {
 			c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
 		} else {
-			istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
-			if err != nil && c.current.Preprepare != nil && c.current.Preprepare.Proposal.Hash() == lastProposal.Hash() && c.current.Round().Cmp(istExtra.AggregatedSeal.Round) == 0 {
+			lastSubject, err := c.backend.LastSubject()
+			if err != nil && c.current.Preprepare != nil && c.current.Preprepare.Proposal.Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
 				// When changing sequences, if our current Commit messages match the latest block in the chain
 				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
 				// in the next round.
 				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits, c.backend.HasBadProposal)
 			} else {
+				lastProposal, _ := c.backend.LastProposal()
 				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
 				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentValidators(lastProposal)), c.backend.HasBadProposal)
 			}

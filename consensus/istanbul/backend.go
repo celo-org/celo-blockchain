@@ -74,6 +74,9 @@ type Backend interface {
 	// LastProposal retrieves latest committed proposal and the address of proposer
 	LastProposal() (Proposal, common.Address)
 
+	// LastSubject retrieves latest committed subject (view and digest)
+	LastSubject() (Subject, error)
+
 	// HasProposal checks if the combination of the given hash and height matches any existing blocks
 	HasProposal(hash common.Hash, number *big.Int) bool
 

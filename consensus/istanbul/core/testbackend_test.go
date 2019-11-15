@@ -173,6 +173,12 @@ func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address
 	return makeBlock(0), common.Address{}
 }
 
+func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
+	lastProposal, _ := self.LastProposal()
+	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
+	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
+}
+
 // Only block height 5 will return true
 func (self *testSystemBackend) HasProposal(hash common.Hash, number *big.Int) bool {
 	return number.Cmp(big.NewInt(5)) == 0

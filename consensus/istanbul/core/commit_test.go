@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -165,11 +166,14 @@ func TestHandleCommit(t *testing.T) {
 			false,
 		},
 		{
-			// message from previous sequence
+			// message from previous sequence and round matching last proposal
+			// this should pass the message check, but will return an error in
+			// handleCheckedCommitForPreviousSequence, because the proposal hashes won't match.
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
+					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{})
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
 					if i == 0 {
@@ -182,10 +186,7 @@ func TestHandleCommit(t *testing.T) {
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
-								Round: big.NewInt(0),
-								// we're 1 block before, so this should not
-								// error out and actually the commit should be
-								// stored in the ParentCommits field
+								Round:    big.NewInt(1),
 								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
 							},
 							c.valSet,
@@ -194,7 +195,7 @@ func TestHandleCommit(t *testing.T) {
 				}
 				return sys
 			}(),
-			nil,
+			errInconsistentSubject,
 			true,
 		},
 		// TODO: double send message
