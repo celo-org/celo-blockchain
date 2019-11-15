@@ -386,7 +386,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
-		logger.Error("Oines: Unable to write empty istanbul extra", "err", err)
 		return err
 	}
 
@@ -498,7 +497,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
 func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	sb.logger.Info("Oines: Called seal")
 	// update the block header timestamp and signature and propose the block to core engine
 	header := block.Header()
 	number := header.Number.Uint64()
@@ -853,20 +851,15 @@ func writeEmptyIstanbulExtra(header *types.Header) error {
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 		EpochData:                 []byte{},
 	}
-	log.Info("In write empty istanbul extra 1")
-	// update the header's extra with the new diff
 	payload, err := rlp.EncodeToBytes(&extra)
-	log.Info("In write empty istanbul extra 2")
 	if err != nil {
-		log.Error("Oines: Unable to encode extra to bytes", "err", err)
 		return err
 	}
+
 	if len(header.Extra) < types.IstanbulExtraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
 	}
-	log.Info("In write empty istanbul extra 3", "extra", hexutil.Encode(header.Extra))
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], payload...)
-	log.Info("In write empty istanbul extra 4")
 
 	return nil
 }
@@ -901,7 +894,6 @@ func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorD
 	// update the header's extra with the new diff
 	payload, err := rlp.EncodeToBytes(extra)
 	if err != nil {
-		log.Error("Oines: Unable to encode extra to bytes", "err", err)
 		return err
 	}
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], payload...)

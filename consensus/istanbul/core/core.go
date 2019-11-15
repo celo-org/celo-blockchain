@@ -255,7 +255,6 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	}
 	// Start with pending request
 	request := c.current.pendingRequest
-	log.Info("Oines: Pending request is", "request", request)
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
 	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
@@ -351,9 +350,6 @@ func (c *core) startNewRound(round *big.Int) {
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
 	c.setState(StateAcceptRequest)
-	if request == nil && roundChange && c.isProposer() {
-		log.Error("Oines: no request to send preprepare for")
-	}
 	if roundChange && c.isProposer() && c.current != nil && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
