@@ -349,7 +349,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	if number == 0 {
 		return nil
 	}
-	// Ensure that the block's timestamp isn't too close to it's parent
+	// Ensure that the block's timestamp isn't too close to its parent
 	var parent *types.Header
 	if len(parents) > 0 {
 		parent = parents[len(parents)-1]
@@ -572,7 +572,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	// Set the correct difficulty
 	header.Difficulty = CalcDifficulty(snap, c.signer)
 
-	// Ensure the extra data has all it's components
+	// Ensure the extra data has all its components
 	if len(header.Extra) < extraPrefix {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraPrefix-len(header.Extra))...)
 	}
