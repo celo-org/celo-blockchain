@@ -123,10 +123,10 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbulValEnodesShareMsg,
-		Msg:           valEnodesShareBytes,
-		Address:       sb.Address(),
-		Signature:     []byte{},
+		Code:      istanbulValEnodesShareMsg,
+		Msg:       valEnodesShareBytes,
+		Address:   sb.Address(),
+		Signature: []byte{},
 	}
 
 	sb.logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())

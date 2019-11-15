@@ -40,6 +40,10 @@ type announceRecord struct {
 	EncryptedEnodeURL []byte
 }
 
+func (ar *announceRecord) String() string {
+	return fmt.Sprintf("{RecipientAddress: %s, EncryptedEnodeURL length: %d}", ar.RecipientAddress.String(), len(ar.EncryptedEnodeURL))
+}
+
 type announceData struct {
 	AnnounceRecords []*announceRecord
 	EnodeURLHash    common.Hash
@@ -47,7 +51,7 @@ type announceData struct {
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{View: %v, EnodeURLHash: %v}", ad.View, ad.EnodeURLHash.Hex())
+	return fmt.Sprintf("{View: %v, EnodeURLHash: %v, AnnounceRecords: %v}", ad.View, ad.EnodeURLHash.Hex(), ad.AnnounceRecords)
 }
 
 // ==============================================

@@ -121,11 +121,14 @@ func (vet *validatorEnodeTable) upsertNonLocking(remoteAddress common.Address, n
 	// if this node is also part of the current epoch's valset and
 	// the remoteAddress does not equal the localValAddress (no need for a proxy to establish a validator
 	// connection to it's validator).
-	if _, remoteVal := valSet.GetByAddress(remoteAddress); remoteVal != nil {
-		// This node should connect only if it's a standalone validator or a proxy of a validator
-		if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil && (!isProxied || isProxy) {
-			vet.p2pserver.AddPeerLabel(newValNode, "validator")
-			vet.p2pserver.AddTrustedPeerLabel(newValNode, "validator")
+	// Proxied validators are not responsible for connecting directly to other validators.
+	if !isProxied || isProxy {
+		if _, remoteVal := valSet.GetByAddress(remoteAddress); remoteVal != nil {
+			// This node should connect only if it's a standalone validator or a proxy of a validator
+			if _, localVal := valSet.GetByAddress(localValAddress); localVal != nil {
+				vet.p2pserver.AddPeerLabel(newValNode, "validator")
+				vet.p2pserver.AddTrustedPeerLabel(newValNode, "validator")
+			}
 		}
 	}
 

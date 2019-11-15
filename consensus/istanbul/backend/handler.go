@@ -91,7 +91,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			if sb.config.Proxy {
 				// Verify that this message is not from the proxied peer
 				if reflect.DeepEqual(peer, sb.proxiedPeer) {
-					sb.logger.Debug("Got a consensus message from the proxied valiator.  Ignoring it")
+					sb.logger.Warn("Got a consensus message from the proxied validator.  Ignoring it")
 					return true, nil
 				}
 
@@ -158,7 +158,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.valEnodeTable.p2pserver = p2pserver
 }
 
-// This function is called by worker.go whenever it gets a newWork event.
+// This function is called by worker.go whenever it gets a newWork event from the miner worker.
 func (sb *Backend) NewWork() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
@@ -209,7 +209,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
-		if peer.Node().ID() == sb.proxyNode.node.ID() {
+		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
 		} else {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())

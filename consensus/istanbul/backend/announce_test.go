@@ -1,7 +1,5 @@
 package backend
 
-/*
-
 import (
 	"net"
 	"testing"
@@ -16,21 +14,14 @@ func TestHandleIstAnnounce(t *testing.T) {
 		_, b = newBlockChain(4, true)
 	}
 
-	valAddresses := b.GetValidators()
+	block := b.currentBlock()
+	valSet := b.getValidators(block.Number().Uint64(), block.Hash())
 
 	val1PrivateKey, _ := generatePrivateKey()
 	val1IPAddress := net.ParseIP("1.2.3.4")
 	val1Node := enode.NewV4(&val1PrivateKey.PublicKey, val1IPAddress, 0, 0)
 	val1Addr := getAddress()
 	val1P2pServer := &consensustest.MockP2PServer{Node: val1Node}
-
-	// Caution - "generateInvalidPrivateKey" is a misnomer.  We just need to get another key that is different
-	//          than the one returned by "generatePrivateKey", and "generateInvalidPrivateKey" does just that.
-	val2PrivateKey, _ := generateInvalidPrivateKey()
-	val2IPAddress := net.ParseIP("4.3.2.1")
-	val2Node := enode.NewV4(&val2PrivateKey.PublicKey, val2IPAddress, 0, 0)
-	val2Addr := getInvalidAddress()
-	val2P2pServer := &consensustest.MockP2PServer{Node: val2Node}
 
 	// Set backend to val1
 	b.SetP2PServer(val1P2pServer)
@@ -42,8 +33,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	payload, _ := istMsg.Payload()
 
 	// Set backend to val2
-	b.SetP2PServer(val2P2pServer)
-	b.Authorize(val2Addr, signerFnInvalid, signerBLSHashFn, signerBLSMessageFn)
+	b.address = valSet.GetByIndex(2).Address()
 
 	// Handle val1's announce message
 	if err = b.handleIstAnnounce(payload); err != nil {
@@ -59,4 +49,3 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("Failed to save enode entry")
 	}
 }
-*/

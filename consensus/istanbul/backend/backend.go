@@ -69,7 +69,7 @@ type AnnounceGossipTimestamp struct {
 type proxyInfo struct {
 	node         *enode.Node    // Enode for the internal network interface
 	externalNode *enode.Node    // Enode for the external network interface
-	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the senty
+	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -225,7 +225,7 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 
 // Broadcast implements istanbul.Backend.BroadcastConsensusMsg
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
-	sb.logger.Debug("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
+	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
 	// send to others
 	if err := sb.Gossip(destAddresses, payload, istanbulConsensusMsg, false); err != nil {
