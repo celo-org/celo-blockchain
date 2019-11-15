@@ -104,6 +104,8 @@ type ValidatorSet interface {
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
 	GetByAddress(addr common.Address) (int, Validator)
+	// CointainByAddress indicates if a validator with the given address is present
+	ContainsByAddress(add common.Address) bool
 
 	// Add validators
 	AddValidators(validators []ValidatorData) bool
