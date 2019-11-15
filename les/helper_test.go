@@ -178,8 +178,7 @@ func newTestProtocolManager(syncmode downloader.SyncMode, blocks int, generator 
 	if lightSync {
 		indexConfig = light.TestClientIndexerConfig
 	}
-	// DO NOT MERGE: At etherbase and gateway fee options here to test those features.
-	pm, err := NewProtocolManager(gspec.Config, indexConfig, syncmode, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup), common.Address{}, new(big.Int))
+	pm, err := NewProtocolManager(gspec.Config, indexConfig, syncmode, NetworkId, evmux, engine, peers, chain, nil, db, odr, nil, nil, make(chan struct{}), new(sync.WaitGroup), common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}

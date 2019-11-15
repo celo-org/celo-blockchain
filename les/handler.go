@@ -363,24 +363,25 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg, GetEtherbaseMsg}
 
-func (pm *ProtocolManager) verifyGatewayFeeRecipient(gatewayFeeRecipient *common.Address) bool {
+func (pm *ProtocolManager) verifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
 	// If this node does not specify an etherbase, accept any GatewayFeeRecipient. Otherwise,
 	// reject transactions that don't pay gas fees to this node.
 	if (pm.etherbase != common.Address{}) {
-		if gatewayFeeRecipient == nil || *gatewayFeeRecipient != pm.etherbase {
-			return false
+		if gatewayFeeRecipient == nil {
+			return fmt.Errorf("gateway fee recipient must be %s, got <nil>", pm.etherbase.String())
 		}
-	}
-	return true
-}
+		if *gatewayFeeRecipient != pm.etherbase {
+			return fmt.Errorf("gateway fee recipient must be %s, got %s", pm.etherbase.String(), (*gatewayFeeRecipient).String())
+		}
 
-func (pm *ProtocolManager) verifyGatewayFee(gatewayFee *big.Int) bool {
-	if pm.gatewayFee != nil {
-		if gatewayFee == nil || gatewayFee.Cmp(pm.gatewayFee) < 0 {
-			return false
+		// Check that the value of the supplied gateway fee is at least the minimum.
+		if pm.gatewayFee != nil && pm.gatewayFee.Cmp(common.Big0) > 0 {
+			if gatewayFee == nil || gatewayFee.Cmp(pm.gatewayFee) < 0 {
+				return fmt.Errorf("gateway fee value must be at least %s, got %s", pm.gatewayFee, gatewayFee)
+			}
 		}
 	}
-	return true
+	return nil
 }
 
 // handleMsg is invoked whenever an inbound message is received from a remote
@@ -1079,11 +1080,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrRequestRejected, "")
 		}
 		for _, tx := range txs {
-			if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
-				return errResp(ErrRequestRejected, "Invalid GatewayFeeRecipient")
-			}
-			if !pm.verifyGatewayFee(tx.GatewayFee()) {
-				return errResp(ErrRequestRejected, "Invalid GatewayFee")
+			if err := pm.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
+				return errResp(ErrRequestRejected, "tx %v: %v", tx, err)
 			}
 		}
 		pm.txpool.AddRemotes(txs)
@@ -1116,15 +1114,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for i, stat := range stats {
 			if stat.Status == core.TxStatusUnknown {
 				tx := req.Txs[i]
-				if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
-					stats[i].Error = fmt.Sprintf("Invalid GatewayFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GatewayFeeRecipient())
+				if err := pm.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
+					stats[i].Error = err.Error()
 					continue
 				}
-				if !pm.verifyGatewayFee(tx.GatewayFee()) {
-					stats[i].Error = fmt.Sprintf("Invalid GatewayFee for node with minimum gateway fee %v, got %v", pm.gatewayFee, tx.GatewayFee())
-					continue
-				}
-
 				if errs := pm.txpool.AddRemotes([]*types.Transaction{tx}); errs[0] != nil {
 					stats[i].Error = errs[0].Error()
 					continue
