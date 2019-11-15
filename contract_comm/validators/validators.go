@@ -135,6 +135,12 @@ const validatorsABIString string = `[
     }
 ]`
 
+type ValidatorContractData struct {
+	PublicKeysData []byte
+	Affiliation    common.Address
+	Score          *big.Int
+}
+
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
@@ -148,21 +154,34 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 	return regVals, nil
 }
 
+func GetValidator(header *types.Header, state vm.StateDB, validatorAddress common.Address) (ValidatorContractData, error) {
+	var validator ValidatorContractData
+	_, err := contract_comm.MakeStaticCall(
+		params.ValidatorsRegistryId,
+		validatorsABI,
+		"getValidator",
+		[]interface{}{validatorAddress},
+		&validator,
+		params.MaxGasForGetValidator,
+		header,
+		state,
+	)
+	if err != nil {
+		return validator, err
+	}
+	expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
+	if len(validator.PublicKeysData) != expectedLength {
+		return validator, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+	}
+	return validator, nil
+}
+
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
-		validator := struct {
-			PublicKeysData []byte
-			Affiliation    common.Address
-			Score          *big.Int
-		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
+		validator, err := GetValidator(header, state, addr)
 		if err != nil {
 			return nil, err
-		}
-		expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-		if len(validator.PublicKeysData) != expectedLength {
-			return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
 		}
 		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
 		validatorData = append(validatorData, istanbul.ValidatorData{

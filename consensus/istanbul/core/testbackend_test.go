@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
@@ -266,14 +266,6 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	}
 
 	return self.finalizeAndReturnMessage(msg)
-}
-
-func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) RemoveValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) GetValidatorPeers() []string {
-	return nil
 }
 
 func (self *testSystemBackend) Enode() *enode.Node {
