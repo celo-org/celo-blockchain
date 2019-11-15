@@ -908,8 +908,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		header.Coinbase = w.coinbase
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
-		log.Error("Failed to prepare header for mining", "err", err)
+		log.Error("Oines: Failed to prepare header for mining", "err", err)
 		return
+	} else {
+		log.Info("Oines: Prepared header for mining")
 	}
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.config.DAOForkBlock; daoBlock != nil {
@@ -1062,12 +1064,14 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+			log.Error("Oines: Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
+		log.Error("Oines: Unable to finalize block")
 		return err
 	}
 	if w.isRunning() {

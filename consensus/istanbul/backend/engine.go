@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
@@ -77,10 +78,10 @@ var (
 	// errInvalidVotingChain is returned if an authorization list is attempted to
 	// be modified via out-of-range or non-contiguous headers.
 	errInvalidVotingChain = errors.New("invalid voting chain")
-	// errInvalidCommittedSeals is returned if the committed seal is not signed by any of parent validators.
-	errInvalidCommittedSeals = errors.New("invalid committed seals")
-	// errEmptyCommittedSeals is returned if the field of committed seals is zero.
-	errEmptyCommittedSeals = errors.New("zero committed seals")
+	// errInvalidAggregatedSeal is returned if the aggregated seal is invalid.
+	errInvalidAggregatedSeal = errors.New("invalid aggregated seal")
+	// errInvalidAggregatedSeal is returned if the aggregated seal is missing.
+	errEmptyAggregatedSeal = errors.New("empty aggregated seal")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
@@ -192,7 +193,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		}
 	}
 
-	return sb.verifyCommittedSeals(chain, header, parents)
+	return sb.verifyAggregatedSeals(chain, header, parents)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -252,9 +253,9 @@ func (sb *Backend) verifySigner(chain consensus.ChainReader, header *types.Heade
 	return nil
 }
 
-// verifyCommittedSeals checks whether the seal and parent-seal in the header is
+// verifyAggregatedSeals checks whether the aggregated seal and parent seal in the header is
 // signed on by the block's validators and the parent block's validators respectively
-func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// We don't need to verify committed seals in the genesis block
 	if number == 0 {
@@ -265,9 +266,10 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	if err != nil {
 		return err
 	}
+
 	// The length of Committed seals should be larger than 0
-	if len(extra.AggregatedSignature.Signature) == 0 {
-		return errEmptyCommittedSeals
+	if len(extra.AggregatedSeal.Signature) == 0 {
+		return errEmptyAggregatedSeal
 	}
 
 	// Check the signatures on the current header
@@ -276,7 +278,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	err = sb.checkValidatorSignatures(header.Hash(), validators, extra.AggregatedSignature)
+	err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
 	if err != nil {
 		return err
 	}
@@ -287,7 +289,7 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 	// The parent commit messages are only used for the uptime calculation,
 	// so ultralight clients don't need to verify them
 	if number > 1 && chain.Config().FullHeaderChainAvailable {
-		sb.logger.Trace("verifyCommittedSeals: verifying parent seals for block", "num", number)
+		sb.logger.Trace("verifyAggregatedSeals: verifying parent seals for block", "num", number)
 		var parentValidators istanbul.ValidatorSet
 		// The first block in an epoch will have a different validator set than the block
 		// before it. If the current block is the first block in an epoch, we need to fetch the previous
@@ -308,30 +310,35 @@ func (sb *Backend) verifyCommittedSeals(chain consensus.ChainReader, header *typ
 		// parent.Hash() would correspond to the previous epoch
 		// block in ultralight, while the extra.ParentCommit is made on the block which was
 		// immediately before the current block.
-		return sb.checkValidatorSignatures(header.ParentHash, parentValidators, extra.ParentAggregatedSignature)
+		return sb.verifyAggregatedSeal(header.ParentHash, parentValidators, extra.ParentAggregatedSeal)
 	}
 
 	return nil
 }
 
-func (sb *Backend) checkValidatorSignatures(headerHash common.Hash, validators istanbul.ValidatorSet, signatures types.IstanbulAggregatedSignature) error {
-	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, signatures.Round)
+func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error {
+	logger := sb.logger.New("func", "Backend.verifyAggregatedSeal()")
+	if len(aggregatedSeal.Signature) != types.IstanbulExtraBlsSignature {
+		return errInvalidAggregatedSeal
+	}
+
+	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
 	publicKeys := [][]byte{}
 	for i := 0; i < validators.PaddedSize(); i++ {
-		if signatures.Bitmap.Bit(i) == 1 {
+		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
 			publicKeys = append(publicKeys, pubKey)
 		}
 	}
 	// The length of a valid seal should be greater than the minimum quorum size
 	if len(publicKeys) < validators.MinQuorumSize() {
-		sb.logger.Error("not enough signatures to form a quorum", "public keys", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
+		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
 	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, signatures.Signature, false)
+	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
 	if err != nil {
-		sb.logger.Error("couldn't verify aggregated signature", "err", err)
+		logger.Error("Unable to verify aggregated signature", "err", err)
 		return errInvalidSignature
 	}
 
@@ -357,6 +364,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
+	logger := sb.logger.New("func", "Backend.Prepare()")
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
@@ -377,6 +385,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = big.NewInt(time.Now().Unix())
 	}
 
+	if err := writeEmptyIstanbulExtra(header); err != nil {
+		logger.Error("Oines: Unable to write empty istanbul extra", "err", err)
+		return err
+	}
+
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
@@ -389,29 +402,28 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		if err != nil {
 			return err
 		}
-		newAggregatedSignature := parentExtra.AggregatedSignature
+		parentAggregatedSeal := parentExtra.AggregatedSeal
 
-		parentGossipedSeals := sb.core.ParentCommits()
-		if parentGossipedSeals != nil && parentGossipedSeals.Size() != 0 {
-			sb.logger.Trace("backend.Prepare: taking union of parent seals", "valset", parentGossipedSeals.String(), "num", number)
+		additionalParentSeals := sb.core.ParentCommits()
+		if additionalParentSeals != nil && additionalParentSeals.Size() != 0 {
+			logger.Trace("Combining additional seals with the parent aggregated seal", "valset", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
 			// if we had any seals gossiped to us, proceed to add them to the
 			// already aggregated signature
-			sb.logger.Trace("backend.Prepare: parent seal before", "bitmap", newAggregatedSignature.Bitmap.Bits(), "sig", common.ToHex(newAggregatedSignature.Signature))
-			unionAggregatedSignature := istanbulCore.UnionOfSeals(parentExtra.AggregatedSignature, parentGossipedSeals)
+			unionAggregatedSeal := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals)
 			// need to pass the previous block from the parent to get the parent's validators
 			// (otherwise we'd be getting the validators for the current block)
 			parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
 			// only update to use the union if we indeed provided a valid aggregate signature for this block
-			if err := sb.checkValidatorSignatures(parent.Hash(), parentValidators, unionAggregatedSignature); err != nil {
-				sb.logger.Error("backend.Prepare: tried to create invalid aggregate signature. not updating to union")
+			if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+				logger.Error("Failed to combine additional seals with parent aggregated seal.")
 			} else {
-				newAggregatedSignature = unionAggregatedSignature
-				sb.logger.Debug("backend.Prepare: parent seal updated!", "bitmap", newAggregatedSignature.Bitmap.Bits(), "sig", common.ToHex(newAggregatedSignature.Signature))
+				parentAggregatedSeal = unionAggregatedSeal
+				logger.Debug("Succeeded in combine additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
 			}
 		} else {
-			sb.logger.Trace("backend.Prepare: no seals were gossipped")
+			sb.logger.Trace("No additional seals to combine with parent aggregated seal")
 		}
-		return writeCommittedSeals(header, newAggregatedSignature.Round, newAggregatedSignature.Bitmap, newAggregatedSignature.Signature, true)
+		return writeAggregatedSeal(header, parentAggregatedSeal, true)
 	}
 
 	return nil
@@ -486,6 +498,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
 func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	sb.logger.Info("Oines: Called seal")
 	// update the block header timestamp and signature and propose the block to core engine
 	header := block.Header()
 	number := header.Number.Uint64()
@@ -829,6 +842,35 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	return addr, nil
 }
 
+func writeEmptyIstanbulExtra(header *types.Header) error {
+	log.Info("In write empty istanbul extra")
+	extra := types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: [][]byte{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+		EpochData:                 []byte{},
+	}
+	log.Info("In write empty istanbul extra 1")
+	// update the header's extra with the new diff
+	payload, err := rlp.EncodeToBytes(&extra)
+	log.Info("In write empty istanbul extra 2")
+	if err != nil {
+		log.Error("Oines: Unable to encode extra to bytes", "err", err)
+		return err
+	}
+	if len(header.Extra) < types.IstanbulExtraVanity {
+		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
+	}
+	log.Info("In write empty istanbul extra 3", "extra", hexutil.Encode(header.Extra))
+	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], payload...)
+	log.Info("In write empty istanbul extra 4")
+
+	return nil
+}
+
 // writeValidatorSetDiff initializes the header's Extra field with any changes in the
 // validator set that occurred since the last block
 func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorData, newValSet []istanbul.ValidatorData) error {
@@ -847,26 +889,19 @@ func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorD
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
-	// if the extras could not be calculated, initialize a new struct with
-	// the validator diff set
-	extras := &types.IstanbulExtra{
-		AddedValidators:           addedValidatorsAddresses,
-		AddedValidatorsPublicKeys: addedValidatorsPublicKeys,
-		RemovedValidators:         removedValidators,
-		Seal:                      []byte{},
-		AggregatedSignature:       types.IstanbulAggregatedSignature{},
-		ParentAggregatedSignature: types.IstanbulAggregatedSignature{},
-		EpochData:                 []byte{},
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return nil
 	}
 
-	extra, err := types.ExtractIstanbulExtra(header)
-	if extra != nil {
-		extras.ParentAggregatedSignature = extra.ParentAggregatedSignature
-	}
+	extra.AddedValidators = addedValidatorsAddresses
+	extra.AddedValidatorsPublicKeys = addedValidatorsPublicKeys
+	extra.RemovedValidators = removedValidators
 
 	// update the header's extra with the new diff
-	payload, err := rlp.EncodeToBytes(extras)
+	payload, err := rlp.EncodeToBytes(extra)
 	if err != nil {
+		log.Error("Oines: Unable to encode extra to bytes", "err", err)
 		return err
 	}
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], payload...)
@@ -874,9 +909,9 @@ func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorD
 	return nil
 }
 
-// writeSeal writes the extra-data field of the given header with the given seals.
+// writeSeal writes the extra-data field of the given header with the given seal.
 func writeSeal(h *types.Header, seal []byte) error {
-	if len(seal)%types.IstanbulExtraSeal != 0 {
+	if len(seal) != types.IstanbulExtraSeal {
 		return errInvalidSignature
 	}
 
@@ -895,42 +930,23 @@ func writeSeal(h *types.Header, seal []byte) error {
 	return nil
 }
 
-// writeCommittedSeals writes the extra-data field of a block header with given committed
+// writeAggregatedSeal writes the extra-data field of a block header with given committed
 // seals. If isParent is set to true, then it will write to the fields related
 // to the parent commits of the block
-func writeCommittedSeals(h *types.Header, round *big.Int, bitmap *big.Int, seal []byte, isParent bool) error {
-	if len(seal) == 0 {
-		return errInvalidCommittedSeals
-	}
-
-	if len(seal) != types.IstanbulExtraBlsSignature {
-		return errInvalidCommittedSeals
+func writeAggregatedSeal(h *types.Header, aggregatedSeal types.IstanbulAggregatedSeal, isParent bool) error {
+	if len(aggregatedSeal.Signature) != types.IstanbulExtraBlsSignature {
+		return errInvalidAggregatedSeal
 	}
 
 	istanbulExtra, err := types.ExtractIstanbulExtra(h)
 	if err != nil {
-		// if the extras could not be calculated, initialize a new struct with
-		// everything empty (since we may call this function before the extras
-		// for this header have been assembled)
-		istanbulExtra = &types.IstanbulExtra{
-			AddedValidators:           []common.Address{},
-			AddedValidatorsPublicKeys: [][]byte{},
-			RemovedValidators:         big.NewInt(0),
-			Seal:                      []byte{},
-			AggregatedSignature:       types.IstanbulAggregatedSignature{},
-			ParentAggregatedSignature: types.IstanbulAggregatedSignature{},
-			EpochData:                 []byte{},
-		}
+		return err
 	}
 
 	if isParent {
-		istanbulExtra.ParentAggregatedSignature.Signature = seal
-		istanbulExtra.ParentAggregatedSignature.Bitmap = bitmap
-		istanbulExtra.ParentAggregatedSignature.Round = round
+		istanbulExtra.ParentAggregatedSeal = aggregatedSeal
 	} else {
-		istanbulExtra.AggregatedSignature.Signature = seal
-		istanbulExtra.AggregatedSignature.Bitmap = bitmap
-		istanbulExtra.AggregatedSignature.Round = round
+		istanbulExtra.AggregatedSeal = aggregatedSeal
 	}
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)

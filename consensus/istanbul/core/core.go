@@ -175,8 +175,12 @@ func (c *core) commit() {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
-		bitmap, asig := AggregateSeals(c.current.Commits)
-		if err := c.backend.Commit(proposal, c.current.Round(), bitmap, asig); err != nil {
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits, c.current.Round())
+		if err != nil {
+			c.sendNextRoundChange()
+			return
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
 			c.sendNextRoundChange()
 			return
 		}
@@ -186,7 +190,7 @@ func (c *core) commit() {
 // AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
 // signature and bitmap
 // TODO: Maybe return an error instead of panicking?
-func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
+func GetAggregatedSeal(seals *messageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
 	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
@@ -194,21 +198,16 @@ func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
 		copy(committedSeals[i][:], v.CommittedSeal[:])
 		j, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
-			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+			return types.IstanbulAggregatedSeal{}, err
 		}
-		if err != nil {
-			panic(fmt.Sprintf("couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
-		}
-
 		bitmap.SetBit(bitmap, int(j), 1)
 	}
 
 	asig, err := blscrypto.AggregateSignatures(committedSeals)
 	if err != nil {
-		panic("couldn't aggregate signatures")
+		return types.IstanbulAggregatedSeal{}, err
 	}
-
-	return bitmap, asig
+	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
 }
 
 // Combines a BLS aggregated signature with an array of signatures. Accounts for
@@ -216,7 +215,7 @@ func AggregateSeals(seals *messageSet) (*big.Int, []byte) {
 // validator was not found in the previous bitmap.
 // This function assumes that the provided seals' validator set is the same one
 // which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSignature, seals *messageSet) types.IstanbulAggregatedSignature {
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals *messageSet) types.IstanbulAggregatedSeal {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
@@ -241,7 +240,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSignature, seals *
 		panic("couldn't aggregate signatures")
 	}
 
-	return types.IstanbulAggregatedSignature{
+	return types.IstanbulAggregatedSeal{
 		Bitmap:    newBitmap,
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
@@ -256,6 +255,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	}
 	// Start with pending request
 	request := c.current.pendingRequest
+	log.Info("Oines: Pending request is", "request", request)
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
 	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
@@ -351,6 +351,9 @@ func (c *core) startNewRound(round *big.Int) {
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
 	c.setState(StateAcceptRequest)
+	if request == nil && roundChange && c.isProposer() {
+		log.Error("Oines: no request to send preprepare for")
+	}
 	if roundChange && c.isProposer() && c.current != nil && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}

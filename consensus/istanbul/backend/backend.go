@@ -269,7 +269,7 @@ func (sb *Backend) GetDataDir() string {
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, round *big.Int, bitmap *big.Int, seals []byte) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -280,14 +280,14 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, round *big.Int, bitmap *bi
 
 	h := block.Header()
 	// Append seals into extra-data
-	err := writeCommittedSeals(h, round, bitmap, seals, false)
+	err := writeAggregatedSeal(h, aggregatedSeal, false)
 	if err != nil {
 		return err
 	}
 	// update block's header
 	block = block.WithSeal(h)
 
-	sb.logger.Info("Committed", "address", sb.Address(), "round", round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
+	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.
 	// - otherwise, we try to insert the block.
@@ -349,7 +349,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
-	if err != nil && err != errEmptyCommittedSeals {
+	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
 			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
