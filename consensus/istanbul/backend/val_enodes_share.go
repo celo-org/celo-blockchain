@@ -76,8 +76,8 @@ func (sd *valEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// This function is meant to be run as a goroutine.  It will periodically gossip validator enode share messages
-// to this node's sentries so that sentries know the enodes of validators
+// This function is meant to be run as a goroutine.  It will periodically send validator enode share messages
+// to this node's proxies so that proxies know the enodes of validators
 func (sb *Backend) sendValEnodesShareMsgs() {
 	sb.valEnodesShareWg.Add(1)
 	defer sb.valEnodesShareWg.Done()
