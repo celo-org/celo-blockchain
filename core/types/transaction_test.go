@@ -38,6 +38,7 @@ var (
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	rightvrsTx, _ = NewTransaction(
@@ -46,6 +47,7 @@ var (
 		big.NewInt(10),
 		2000,
 		big.NewInt(1),
+		nil,
 		nil,
 		nil,
 		common.FromHex("5544"),
@@ -57,10 +59,10 @@ var (
 
 func TestTransactionSigHash(t *testing.T) {
 	var homestead HomesteadSigner
-	if homestead.Hash(emptyTx) != common.HexToHash("fb81b18a3eb793dfd8e02d08613259b548ab2da940434a96737c738269e29080") {
+	if homestead.Hash(emptyTx) != common.HexToHash("0884127f4e682c55978e9e8a4cecc734bf3fa14776a3c2b28adc16855cb3a491") {
 		t.Errorf("empty transaction hash mismatch, got %x", homestead.Hash(emptyTx))
 	}
-	if homestead.Hash(rightvrsTx) != common.HexToHash("05be82cd19ecd9018a33db2ef586bf68cf7731dd36591e8f77e67095ea1884d1") {
+	if homestead.Hash(rightvrsTx) != common.HexToHash("b879218b07bdecfa13fbfcca8ea298aab32d06e5ecd7b021a51b53c5f8919209") {
 		t.Errorf("RightVRS transaction hash mismatch, got %x", homestead.Hash(rightvrsTx))
 	}
 }
@@ -70,7 +72,7 @@ func TestTransactionEncode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}
-	should := common.FromHex("f86303018207d0808094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a3")
+	should := common.FromHex("f86403018207d080808094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a3")
 	if !bytes.Equal(txb, should) {
 		t.Errorf("encoded RLP mismatch, got %x", txb)
 	}
@@ -197,7 +199,7 @@ func TestTxGatewayFee(t *testing.T) {
 		t.FailNow()
 	}
 
-	tx.data.GatewayFee.Set(5)
+	tx.data.GatewayFee.SetInt64(5)
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
@@ -226,7 +228,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 	for start, key := range keys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		for i := 0; i < 25; i++ {
-			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil, nil, nil), signer, key)
+			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil, nil, nil, nil), signer, key)
 			groups[addr] = append(groups[addr], tx)
 		}
 	}
@@ -277,9 +279,9 @@ func TestTransactionJSON(t *testing.T) {
 		var tx *Transaction
 		switch i % 2 {
 		case 0:
-			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, nil, nil, []byte("abcdef"))
+			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, nil, nil, nil, []byte("abcdef"))
 		case 1:
-			tx = NewContractCreation(i, common.Big0, 1, common.Big2, nil, nil, []byte("abcdef"))
+			tx = NewContractCreation(i, common.Big0, 1, common.Big2, nil, nil, nil, []byte("abcdef"))
 		}
 		transactions = append(transactions, tx)
 
