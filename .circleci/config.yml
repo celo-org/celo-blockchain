@@ -19,7 +19,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
-      - run: build/env.sh go run build/ci.go test
+      - run: build/env.sh go run build/ci.go test -verbose
 
   coverage:
     <<: *geth-defaults
