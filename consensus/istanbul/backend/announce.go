@@ -166,11 +166,10 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbulAnnounceMsg,
-		Msg:           announceBytes,
-		Address:       sb.Address(),
-		Signature:     []byte{},
-		CommittedSeal: []byte{},
+		Code:      istanbulAnnounceMsg,
+		Msg:       announceBytes,
+		Address:   sb.Address(),
+		Signature: []byte{},
 	}
 
 	sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())

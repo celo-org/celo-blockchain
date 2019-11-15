@@ -264,6 +264,54 @@ func (b *Subject) String() string {
 	return fmt.Sprintf("{View: %v, Digest: %v}", b.View, b.Digest.String())
 }
 
+type CommittedSubject struct {
+	Subject       *Subject
+	CommittedSeal []byte
+}
+
+// EncodeRLP serializes b into the Ethereum RLP format.
+func (cs *CommittedSubject) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{cs.Subject, cs.CommittedSeal})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (cs *CommittedSubject) DecodeRLP(s *rlp.Stream) error {
+	var committedSubject struct {
+		Subject       *Subject
+		CommittedSeal []byte
+	}
+
+	if err := s.Decode(&committedSubject); err != nil {
+		return err
+	}
+	cs.Subject, cs.CommittedSeal = committedSubject.Subject, committedSubject.CommittedSeal
+	return nil
+}
+
+type ForwardMessage struct {
+	Msg           []byte
+	DestAddresses []common.Address
+}
+
+// EncodeRLP serializes fm into the Ethereum RLP format.
+func (fm *ForwardMessage) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{fm.Msg, fm.DestAddresses})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (fm *ForwardMessage) DecodeRLP(s *rlp.Stream) error {
+	var forwardMessage struct {
+		Msg           []byte
+		DestAddresses []common.Address
+	}
+
+	if err := s.Decode(&forwardMessage); err != nil {
+		return err
+	}
+	fm.Msg, fm.DestAddresses = forwardMessage.Msg, forwardMessage.DestAddresses
+	return nil
+}
+
 const (
 	MsgPreprepare uint64 = iota
 	MsgPrepare
@@ -272,12 +320,10 @@ const (
 )
 
 type Message struct {
-	Code          uint64
-	Msg           []byte
-	Address       common.Address
-	Signature     []byte
-	CommittedSeal []byte
-	DestAddresses []common.Address // This is non nil for consensus messages sent from a proxied validator
+	Code      uint64
+	Msg       []byte
+	Address   common.Address // The sender address
+	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
 }
 
 // ==============================================
@@ -286,24 +332,22 @@ type Message struct {
 
 // EncodeRLP serializes m into the Ethereum RLP format.
 func (m *Message) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal, m.DestAddresses})
+	return rlp.Encode(w, []interface{}{m.Code, m.Msg, m.Address, m.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (m *Message) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Code          uint64
-		Msg           []byte
-		Address       common.Address
-		Signature     []byte
-		CommittedSeal []byte
-		DestAddresses []common.Address
+		Code      uint64
+		Msg       []byte
+		Address   common.Address
+		Signature []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	m.Code, m.Msg, m.Address, m.Signature, m.CommittedSeal, m.DestAddresses = msg.Code, msg.Msg, msg.Address, msg.Signature, msg.CommittedSeal, m.DestAddresses
+	m.Code, m.Msg, m.Address, m.Signature = msg.Code, msg.Msg, msg.Address, msg.Signature
 	return nil
 }
 
@@ -313,7 +357,7 @@ func (m *Message) DecodeRLP(s *rlp.Stream) error {
 
 func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	// Construct and encode a message with no signature
-	payloadNoSig, err := m.PayloadNoSigAndDestAddrs()
+	payloadNoSig, err := m.PayloadNoSig()
 	if err != nil {
 		return err
 	}
@@ -331,7 +375,7 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 	// Validate message (on a message without Signature)
 	if validateFn != nil {
 		var payload []byte
-		payload, err = m.PayloadNoSigAndDestAddrs()
+		payload, err = m.PayloadNoSig()
 		if err != nil {
 			return err
 		}
@@ -351,16 +395,12 @@ func (m *Message) Payload() ([]byte, error) {
 	return rlp.EncodeToBytes(m)
 }
 
-func (m *Message) PayloadNoSigAndDestAddrs() ([]byte, error) {
+func (m *Message) PayloadNoSig() ([]byte, error) {
 	return rlp.EncodeToBytes(&Message{
-		Code:          m.Code,
-		Msg:           m.Msg,
-		Address:       m.Address,
-		Signature:     []byte{},
-		CommittedSeal: m.CommittedSeal,
-		// Don't include the DestAddresses in the payload to sign, since the proxy will need to
-		// set it to an empty array when sending it off to other validators/sentries
-		DestAddresses: []common.Address{},
+		Code:      m.Code,
+		Msg:       m.Msg,
+		Address:   m.Address,
+		Signature: []byte{},
 	})
 }
 

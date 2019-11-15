@@ -53,7 +53,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	seen := make(map[common.Address]bool)
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
-		data, err := message.PayloadNoSigAndDestAddrs()
+		data, err := message.PayloadNoSig()
 		if err != nil {
 			return err
 		}
@@ -80,9 +80,30 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		var subject *istanbul.Subject
-		if err := message.Decode(&subject); err != nil {
-			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-			return err
+		var committedSeal []byte // This is set if the message.Code == MsgCommit
+
+		if message.Code == istanbul.MsgCommit {
+			var committedSubject *istanbul.CommittedSubject
+			err := message.Decode(&committedSubject)
+			if err != nil {
+				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
+				return err
+			}
+			subject = committedSubject.Subject
+			committedSeal = committedSubject.CommittedSeal
+
+			// Verify the committedSeal
+			_, src := c.valSet.GetByAddress(signer)
+			err = c.verifyCommittedSeal(subject.Digest, committedSeal, src)
+			if err != nil {
+				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return err
+			}
+		} else {
+			if err := message.Decode(&subject); err != nil {
+				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+				return err
+			}
 		}
 
 		// Verify message for the proper sequence.
@@ -95,15 +116,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			return errInvalidPreparedCertificateDigestMismatch
 		}
 
-		// If COMMIT message, verify valid committed seal.
-		if message.Code == istanbul.MsgCommit {
-			_, src := c.valSet.GetByAddress(signer)
-			err := c.verifyCommittedSeal(subject.Digest, message.CommittedSeal, src)
-			if err != nil {
-				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
-				return err
-			}
-		}
 	}
 	return nil
 }

@@ -217,25 +217,29 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 }
 
 func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
-	commit := &istanbul.Subject{
+	subject := &istanbul.Subject{
 		View:   &view,
 		Digest: proposal.Hash(),
 	}
 
-	payload, err := Encode(commit)
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(subject.Digest)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: committedSeal,
+	}
+
+	payload, err := Encode(committedSubject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           payload,
-		CommittedSeal: committedSeal,
+		Code: istanbul.MsgCommit,
+		Msg:  payload,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
