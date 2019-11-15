@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	mrand "math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -149,6 +150,8 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 	for {
 		select {
+		case <-sb.newEpochCh:
+			go sb.sendIstAnnounce()
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
 			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
@@ -304,7 +307,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
 	encryptedEndpoint := []byte("")
+	destAddresses := make([]string, 0, len(msg.EncryptedEndpointData))
 	for _, entry := range msg.EncryptedEndpointData {
+		destAddresses = append(destAddresses, common.BytesToAddress(entry[0]).String())
 		if bytes.Equal(entry[0], sb.Address().Bytes()) {
 			encryptedEndpoint = entry[1]
 		}
@@ -339,10 +344,14 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		}
 	}
 
+	// Generate the destAddresses hash
+	sort.Strings(destAddresses)
+	destAddressesHash := istanbul.RLPHash(destAddresses)
+
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == enodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeURL && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
@@ -355,7 +364,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeURL, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeURL, timestamp: time.Now(), destAddressesHash: destAddressesHash}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {

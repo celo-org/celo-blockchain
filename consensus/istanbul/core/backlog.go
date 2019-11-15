@@ -17,6 +17,9 @@
 package core
 
 import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -54,7 +57,19 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errFutureMessage
 	}
 
+	// as soon as we move on to the next sequence, we discard any messages from
+	// a past sequence as invalid old messages unless they are Commits of the
+	// previous sequence
 	if view.Cmp(c.currentView()) < 0 {
+		// Let commits from the previous sequence through so that the handler
+		// adds them to the view's parent commits. The round does not matter in this case,
+		// as we only care that the message's committed seal matches the previous block.
+		viewSequencePlusOne := big.NewInt(0).Add(view.Sequence, common.Big1)
+		// if the received view's sequence +1 equals the current view, then the
+		// received view corresponds to the parent block
+		if msgCode == istanbul.MsgCommit && c.currentView().Sequence.Cmp(viewSequencePlusOne) == 0 {
+			return nil
+		}
 		return errOldMessage
 	}
 

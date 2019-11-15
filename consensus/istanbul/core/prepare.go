@@ -52,6 +52,8 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	}
 
 	seen := make(map[common.Address]bool)
+
+	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
 		if err != nil {
@@ -95,6 +97,15 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			return errInvalidPreparedCertificateDigestMismatch
 		}
 
+		// Verify that the view is the same for all of the messages
+		if view == nil {
+			view = subject.View
+		} else {
+			if view.Cmp(subject.View) != 0 {
+				return errInvalidPreparedCertificateInconsistentViews
+			}
+		}
+
 		// If COMMIT message, verify valid committed seal.
 		if message.Code == istanbul.MsgCommit {
 			_, src := c.valSet.GetByAddress(signer)
@@ -135,6 +146,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)

@@ -178,7 +178,7 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 		{
 			// Valid round change certificate with PREPARED certificate
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				return sys.getRoundChangeCertificate(t, view, sys.getPreparedCertificate(t, view, makeBlock(0)))
+				return sys.getRoundChangeCertificate(t, view, sys.getPreparedCertificate(t, []istanbul.View{view}, makeBlock(0)))
 			},
 			nil,
 		},
@@ -241,7 +241,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// normal case with valid prepared certificate
 			NewTestSystemWithBackend(N, F),
 			func(sys *testSystem) istanbul.PreparedCertificate {
-				return sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).currentView()}, makeBlock(1))
 			},
 			nil,
 		},
@@ -249,7 +249,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// normal case with invalid prepared certificate
 			NewTestSystemWithBackend(N, F),
 			func(sys *testSystem) istanbul.PreparedCertificate {
-				preparedCert := sys.getPreparedCertificate(t, *sys.backends[0].engine.(*core).currentView(), makeBlock(1))
+				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).currentView()}, makeBlock(1))
 				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
 				return preparedCert
 			},
