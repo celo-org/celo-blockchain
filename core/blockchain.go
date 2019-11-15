@@ -786,11 +786,12 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 	signer := types.MakeSigner(config, block.Number())
 
 	transactions, logIndex := block.Transactions(), uint(0)
-	if len(transactions) != len(receipts) {
+	if len(transactions) != len(receipts) && len(transactions) + 1 != len(receipts) {
+		log.Info("Checking", "trlen", len(transactions), "reclen", len(receipts))
 		return errors.New("transaction and receipt count mismatch")
 	}
 
-	for j := 0; j < len(receipts); j++ {
+	for j := 0; j < len(transactions); j++ {
 		// The transaction hash can be retrieved from the transaction itself
 		receipts[j].TxHash = transactions[j].Hash()
 
@@ -812,6 +813,16 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 			receipts[j].Logs[k].BlockHash = block.Hash()
 			receipts[j].Logs[k].TxHash = receipts[j].TxHash
 			receipts[j].Logs[k].TxIndex = uint(j)
+			receipts[j].Logs[k].Index = logIndex
+			logIndex++
+		}
+	}
+	// Handle extra receipt
+	if len(transactions) + 1 == len(receipts) {
+		j := len(transactions)
+		for k := 0; k < len(receipts[j].Logs); k++ {
+			receipts[j].Logs[k].BlockNumber = block.NumberU64()
+			receipts[j].Logs[k].BlockHash = block.Hash()
 			receipts[j].Logs[k].Index = logIndex
 			logIndex++
 		}
