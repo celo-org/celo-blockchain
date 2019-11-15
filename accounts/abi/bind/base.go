@@ -211,7 +211,6 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 		}
 	}
 
-	// DO NOT MERGE: Do I need to address these TODO items immediatly?
 	feeCurrency := opts.FeeCurrency
 	// TODO(nategraf): Add SuggestFeeCurrency to Transactor to get fee currency
 	// Otherwise, the user might not be able to pay in non-native currency for contract

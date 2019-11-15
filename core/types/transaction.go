@@ -97,7 +97,7 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 		GasLimit:            gasLimit,
 		FeeCurrency:         feeCurrency,
 		GatewayFeeRecipient: gatewayFeeRecipient,
-		GatewayFee:          gatewayFee,
+		GatewayFee:          new(big.Int),
 		Price:               new(big.Int),
 		V:                   new(big.Int),
 		R:                   new(big.Int),
@@ -105,6 +105,9 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 	}
 	if amount != nil {
 		d.Amount.Set(amount)
+	}
+	if gatewayFee != nil {
+		d.GatewayFee.Set(gatewayFee)
 	}
 	if gasPrice != nil {
 		d.Price.Set(gasPrice)

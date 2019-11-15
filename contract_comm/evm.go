@@ -34,7 +34,7 @@ import (
 // NOTE: Any changes made to this file should be duplicated to core/evm.go!
 
 var (
-	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, []byte{}, false)
+	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
 )
 

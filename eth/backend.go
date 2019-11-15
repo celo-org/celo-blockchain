@@ -89,10 +89,11 @@ type Ethereum struct {
 
 	APIBackend *EthAPIBackend
 
-	miner     *miner.Miner
-	gasPrice  *big.Int
-	etherbase common.Address
-	blsbase   common.Address
+	miner      *miner.Miner
+	gasPrice   *big.Int
+	gatewayFee *big.Int
+	etherbase  common.Address
+	blsbase    common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
@@ -119,6 +120,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		log.Warn("Sanitizing invalid miner gas price", "provided", config.MinerGasPrice, "updated", DefaultConfig.MinerGasPrice)
 		config.MinerGasPrice = new(big.Int).Set(DefaultConfig.MinerGasPrice)
 	}
+	if config.GatewayFee == nil || config.GatewayFee.Cmp(common.Big0) <= 0 {
+		log.Warn("Sanitizing invalid gateway fee", "provided", config.GatewayFee, "updated", DefaultConfig.GatewayFee)
+		config.GatewayFee = new(big.Int).Set(DefaultConfig.GatewayFee)
+	}
 	// Assemble the Ethereum object
 	chainDb, err := CreateDB(ctx, config, "chaindata")
 	if err != nil {
@@ -141,6 +146,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		shutdownChan:   make(chan bool),
 		networkID:      config.NetworkId,
 		gasPrice:       config.MinerGasPrice,
+		gatewayFee:     config.GatewayFee,
 		etherbase:      config.Etherbase,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
@@ -541,18 +547,26 @@ func (s *Ethereum) StopMining() {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager   { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain        { return s.blockchain }
-func (s *Ethereum) Config() *Config                     { return s.config }
-func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
-func (s *Ethereum) IsListening() bool                   { return true } // Always listening
-func (s *Ethereum) EthVersion() int                     { return int(s.protocolManager.SubProtocols[0].Version) }
-func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
-func (s *Ethereum) GatewayFeeRecipient() common.Address { return s.config.Etherbase }
+func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
+func (s *Ethereum) Config() *Config                    { return s.config }
+func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
+func (s *Ethereum) IsListening() bool                  { return true } // Always listening
+func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
+func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
+func (s *Ethereum) GatewayFee() *big.Int               { return s.gatewayFee }
+
+func (s *Ethereum) GatewayFeeRecipient() common.Address {
+	etherbase, err := s.Etherbase()
+	if err != nil {
+		return common.Address{}
+	}
+	return etherbase
+}
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

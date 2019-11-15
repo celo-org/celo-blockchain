@@ -712,7 +712,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, args.Data, false)
+	msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), args.Data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -977,7 +977,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		GasPrice:            (*hexutil.Big)(tx.GasPrice()),
 		FeeCurrency:         tx.FeeCurrency(),
 		GatewayFeeRecipient: tx.GatewayFeeRecipient(),
-		GatewayFee:          tx.GatewayFee(),
+		GatewayFee:          (*hexutil.Big)(tx.GatewayFee()),
 		Hash:                tx.Hash(),
 		Input:               hexutil.Bytes(tx.Data()),
 		Nonce:               hexutil.Uint64(tx.Nonce()),
@@ -1278,12 +1278,15 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 	}
 
-	// DO NOT MERGE: Is this what we want?
 	if args.GatewayFeeRecipient == nil {
 		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
 			args.GatewayFeeRecipient = &recipient
 		}
+	}
+
+	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil {
+		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
 	}
 	return nil
 }
@@ -1296,9 +1299,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee, input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.

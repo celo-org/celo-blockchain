@@ -105,6 +105,7 @@ type ProtocolManager struct {
 	reqDist     *requestDistributor
 	retriever   *retrieveManager
 	etherbase   common.Address
+	gatewayFee  *big.Int
 
 	downloader *downloader.Downloader
 	fetcher    *lightFetcher
@@ -129,7 +130,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 	syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine,
 	peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database,
 	odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{},
-	wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
+	wg *sync.WaitGroup, etherbase common.Address, gatewayFee *big.Int) (*ProtocolManager, error) {
 	lightSync := !syncMode.SyncFullBlockChain()
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -150,6 +151,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 		wg:          wg,
 		noMorePeers: make(chan struct{}),
 		etherbase:   etherbase,
+		gatewayFee:  gatewayFee,
 	}
 	if odr != nil {
 		manager.retriever = odr.retriever
@@ -366,6 +368,15 @@ func (pm *ProtocolManager) verifyGatewayFeeRecipient(gatewayFeeRecipient *common
 	// reject transactions that don't pay gas fees to this node.
 	if (pm.etherbase != common.Address{}) {
 		if gatewayFeeRecipient == nil || *gatewayFeeRecipient != pm.etherbase {
+			return false
+		}
+	}
+	return true
+}
+
+func (pm *ProtocolManager) verifyGatewayFee(gatewayFee *big.Int) bool {
+	if pm.gatewayFee != nil {
+		if gatewayFee == nil || gatewayFee.Cmp(pm.gatewayFee) < 0 {
 			return false
 		}
 	}
@@ -1071,6 +1082,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
 				return errResp(ErrRequestRejected, "Invalid GatewayFeeRecipient")
 			}
+			if !pm.verifyGatewayFee(tx.GatewayFee()) {
+				return errResp(ErrRequestRejected, "Invalid GatewayFee")
+			}
 		}
 		pm.txpool.AddRemotes(txs)
 
@@ -1104,6 +1118,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				tx := req.Txs[i]
 				if !pm.verifyGatewayFeeRecipient(tx.GatewayFeeRecipient()) {
 					stats[i].Error = fmt.Sprintf("Invalid GatewayFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GatewayFeeRecipient())
+					continue
+				}
+				if !pm.verifyGatewayFee(tx.GatewayFee()) {
+					stats[i].Error = fmt.Sprintf("Invalid GatewayFee for node with minimum gateway fee %v, got %v", pm.gatewayFee, tx.GatewayFee())
 					continue
 				}
 

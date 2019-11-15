@@ -201,7 +201,7 @@ type Transaction struct {
 func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, feeCurrency, gatewayFeeRecipient *Address, gatewayFee *BigInt, data []byte) *Transaction {
 	convertedFeeCurrency := common.BytesToAddress(feeCurrency.GetBytes())
 	convertedGatewayFeeRecipient := common.BytesToAddress(gatewayFeeRecipient.GetBytes())
-	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedFeeCurrency, &convertedGatewayFeeRecipient, common.CopyBytes(data))}
+	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedFeeCurrency, &convertedGatewayFeeRecipient, gatewayFee.bigint, common.CopyBytes(data))}
 }
 
 // NewTransactionFromRLP parses a transaction from an RLP data dump.

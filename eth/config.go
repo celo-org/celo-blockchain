@@ -51,6 +51,7 @@ var DefaultConfig = Config{
 	MinerGasCeil:  8000000,
 	MinerGasPrice: big.NewInt(1),
 	MinerRecommit: 3 * time.Second,
+	GatewayFee:    big.NewInt(10000),
 
 	TxPool: core.DefaultTxPoolConfig,
 
@@ -89,7 +90,9 @@ type Config struct {
 	// Light client options
 	LightServ  int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
 	LightPeers int `toml:",omitempty"` // Maximum number of LES client peers
-	// The GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	// Minimum gateway fee value to serve a transaction from a light client
+	GatewayFee *big.Int `toml:",omitempty"`
+	// Etherebase is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`

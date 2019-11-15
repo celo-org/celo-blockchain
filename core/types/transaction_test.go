@@ -165,8 +165,6 @@ func TestTxAmountChanged(t *testing.T) {
 	}
 }
 
-// Tests that a modified transaction does not produce a valid signature
-
 func TestTxGatewayFeeRecipientChanged(t *testing.T) {
 	_, addr := defaultTestKey()
 
@@ -178,6 +176,28 @@ func TestTxGatewayFeeRecipientChanged(t *testing.T) {
 
 	recipientAddr := common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
 	tx.data.GatewayFeeRecipient = &recipientAddr
+
+	from, err := Sender(HomesteadSigner{}, tx)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if addr == from {
+		t.Error("derived address shouldn't match")
+	}
+}
+
+func TestTxGatewayFee(t *testing.T) {
+	_, addr := defaultTestKey()
+
+	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	tx.data.GatewayFee.Set(5)
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {

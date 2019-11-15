@@ -190,8 +190,10 @@ func (st *StateTransition) useGas(amount uint64) error {
 // payFees deducts gas and gateway fees from sender balance and returns error if the sender cannot pay.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	if st.msg.GatewayFee() != nil {
-		feeVal.Add(st.msg.GatewayFee())
+
+	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
+	if st.msg.GatewayFeeRecipient() != nil {
+		feeVal.Add(feeVal, st.msg.GatewayFee())
 	}
 
 	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
@@ -394,11 +396,15 @@ func (st *StateTransition) distributeTxFees() error {
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 
 	// Pay gateway fee to the specified recipient.
-	// DO NOT MERGE: Finish this logic.
-	if msg.GatewayFeeRecipient() != nil && msg.GatewayFee() != nil {
+	if st.msg.GatewayFeeRecipient() != nil {
+		err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency())
+		if err != nil {
+			log.Error("Failed to credit gateway fee", "err", err)
+			return err
+		}
 	}
 
-	if err := st.creditGas(st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
+	if err := st.creditFee(st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
 		return err
 	}
 
@@ -411,12 +417,12 @@ func (st *StateTransition) distributeTxFees() error {
 		log.Trace("Cannot credit gas fee to infrastructure fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		refund.Add(refund, baseTxFee)
 	} else {
-		if err = st.creditGas(*governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
+		if err = st.creditFee(*governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
 			return err
 		}
 	}
 
-	err = st.creditGas(st.msg.From(), refund, st.msg.FeeCurrency())
+	err = st.creditFee(st.msg.From(), refund, st.msg.FeeCurrency())
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)
 		return err

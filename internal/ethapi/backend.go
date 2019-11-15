@@ -72,6 +72,7 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	GatewayFeeRecipient() common.Address
+	GatewayFee() *big.Int
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

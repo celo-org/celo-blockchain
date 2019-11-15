@@ -203,6 +203,11 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
+	GatewayFeeFlag = BigFlag{
+		Name:  "gatewayfee",
+		Usage: "Required value of gateway fee to serve a light client transaction",
+		Value: eth.DefaultConfig.GatewayFee,
+	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
@@ -1313,6 +1318,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
+	}
+	if ctx.GlobalIsSet(GatewayFeeFlag.Name) {
+		cfg.GatewayFee = GlobalBig(ctx, GatewayFeeFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.
