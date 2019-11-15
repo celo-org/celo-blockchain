@@ -69,7 +69,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b master
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b asaj/bls-sign-round
             yarn install || yarn install
             # separate build to avoid ENOMEM in CI :(
             yarn build --scope @celo/utils
