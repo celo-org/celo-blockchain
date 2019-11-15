@@ -1197,7 +1197,7 @@ func (pool *TxPool) demoteUnexecutables() {
 	}
 }
 
-// ValidateTransactorBalanceCoversTx valdiates transactor has enough funds to cover transaction cost: V + GP * GL.
+// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
 func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
 	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("Insufficient funds",
