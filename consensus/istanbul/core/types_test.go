@@ -23,7 +23,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func testPreprepare(t *testing.T) {
@@ -133,7 +132,7 @@ func testSubjectWithSignature(t *testing.T) {
 		Msg:           subjectPayload,
 		Address:       correctAddress,
 		Signature:     expectedSig,
-		CommittedSeal: types.IstanbulSeal{},
+		CommittedSeal: []byte{},
 	}
 
 	msgPayload, err := m.Payload()

@@ -212,7 +212,7 @@ OUTER:
 			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
 			defer privateKey.Destroy()
 
-			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash())
+			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
@@ -260,7 +260,7 @@ OUTER:
 		// check signatures large than MinQuorumSize
 		signedCount := 0
 		for i := 0; i < r0.valSet.Size(); i++ {
-			if v0.committedMsgs[0].bitmap.Bit(i) == 1 {
+			if v0.committedMsgs[0].aggregatedSeal.Bitmap.Bit(i) == 1 {
 				signedCount++
 			}
 		}
