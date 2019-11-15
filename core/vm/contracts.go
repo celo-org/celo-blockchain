@@ -74,9 +74,9 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
 
 	// Celo Precompiled Contracts
-	transferAddress:           &transfer{},
-	fractionMulExpAddress:     &fractionMulExp{},
-	proofOfPossessionAddress:  &proofOfPossession{},
+	transferAddress:          &transfer{},
+	fractionMulExpAddress:    &fractionMulExp{},
+	proofOfPossessionAddress: &proofOfPossession{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum

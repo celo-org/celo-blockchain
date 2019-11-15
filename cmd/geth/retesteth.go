@@ -474,7 +474,7 @@ func (api *RetestethAPI) mineBlock() error {
 	}
 	statedb, err := api.blockchain.StateAt(parent.Root())
 
-	gasLimit := core.CalcGasLimit(parent, statedb) 
+	gasLimit := core.CalcGasLimit(parent, statedb)
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     big.NewInt(int64(api.blockNumber + 1)),

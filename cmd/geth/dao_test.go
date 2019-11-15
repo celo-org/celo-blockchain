@@ -83,7 +83,7 @@ var daoGenesisForkBlock = big.NewInt(314)
 // set in the database after various initialization procedures and invocations.
 func TestDAOForkBlockNewChain(t *testing.T) {
 	t.Skip()
-	
+
 	for i, arg := range []struct {
 		genesis     string
 		expectBlock *big.Int

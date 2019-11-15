@@ -18,8 +18,8 @@
 package accounts
 
 import (
-	"fmt"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 
 	ethereum "github.com/ethereum/go-ethereum"
