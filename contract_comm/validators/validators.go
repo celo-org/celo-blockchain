@@ -65,6 +65,37 @@ const validatorsABIString string = `[
       "stateMutability": "view",
       "type": "function"
     },
+	  {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "getValidator",
+      "outputs": [
+        {
+          "name": "ecdsaPublicKey",
+          "type": "bytes"
+        },
+        {
+          "name": "blsPublicKey",
+          "type": "bytes"
+        },
+        {
+          "name": "affiliation",
+          "type": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
     {
       "constant": false,
       "inputs": [
@@ -127,6 +158,13 @@ const validatorsABIString string = `[
     }
 ]`
 
+type ValidatorContractData struct {
+	EcdsaPublicKey []byte
+	BlsPublicKey   []byte
+	Affiliation    common.Address
+	Score          *big.Int
+}
+
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
@@ -138,6 +176,27 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 	}
 
 	return regVals, nil
+}
+
+func GetValidator(header *types.Header, state vm.StateDB, validatorAddress common.Address) (ValidatorContractData, error) {
+	var validator ValidatorContractData
+	_, err := contract_comm.MakeStaticCall(
+		params.ValidatorsRegistryId,
+		validatorsABI,
+		"getValidator",
+		[]interface{}{validatorAddress},
+		&validator,
+		params.MaxGasForGetValidator,
+		header,
+		state,
+	)
+	if err != nil {
+		return validator, err
+	}
+	if len(validator.BlsPublicKey) != blscrypto.PUBLICKEYBYTES {
+		return validator, fmt.Errorf("length of bls public key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(validator.BlsPublicKey))
+	}
+	return validator, nil
 }
 
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
