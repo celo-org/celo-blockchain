@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
@@ -269,14 +269,6 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	return self.finalizeAndReturnMessage(msg)
 }
 
-func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) RemoveValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) GetValidatorPeers() []string {
-	return nil
-}
-
 func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
@@ -342,7 +334,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), func(hash common.Hash) bool {
+		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil, func(hash common.Hash) bool {
 			return false
 		})
 	})
@@ -463,7 +455,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -475,9 +467,9 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, 
 		var err error
 		var msg istanbul.Message
 		if i%2 == 0 {
-			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getCommitMessage(view, proposal)
+			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)

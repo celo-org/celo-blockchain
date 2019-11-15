@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -40,9 +40,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
@@ -52,6 +53,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
+	config.ValidatorEnodeDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
@@ -655,34 +657,55 @@ func TestPrepareExtra(t *testing.T) {
 		make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 
-	vanity := make([]byte, types.IstanbulExtraVanity)
-	expectedResult := append(vanity, hexutil.MustDecode("0xf894ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440f862b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000380808080")...)
-
+	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: [][]byte{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      []byte{},
+		Bitmap:                    big.NewInt(0),
+		CommittedSeal:             []byte{},
+		EpochData:                 []byte{},
+		ParentCommit:              []byte{},
+		ParentBitmap:              big.NewInt(0),
+	})
 	h := &types.Header{
-		Extra: vanity,
+		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
 
-	payload, err := assembleExtra(h, oldValidators, newValidators)
+	err = writeValidatorSetDiff(h, oldValidators, newValidators)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
 
-	if !reflect.DeepEqual(payload, expectedResult) {
-		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
+	// the header must have the updated extra data
+	updatedExtra, err := types.ExtractIstanbulExtra(h)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want: nil", err)
 	}
 
-	// append useless information to extra-data
-	h.Extra = append(vanity, make([]byte, 15)...)
-
-	payload, err = assembleExtra(h, oldValidators, newValidators)
-	if !reflect.DeepEqual(payload, expectedResult) {
-		t.Errorf("payload mismatch: have %v, want %v", payload, expectedResult)
+	var updatedExtraVals []istanbul.ValidatorData
+	for i := range updatedExtra.AddedValidators {
+		updatedExtraVals = append(updatedExtraVals, istanbul.ValidatorData{
+			Address:      updatedExtra.AddedValidators[i],
+			BLSPublicKey: updatedExtra.AddedValidatorsPublicKeys[i],
+		})
 	}
+
+	if !reflect.DeepEqual(updatedExtraVals, newValidators) {
+		t.Errorf("validators were not properly updated")
+	}
+
+	// the validators which were removed were 2, so the bitmap is 11, meaning it
+	// should be 3
+	if updatedExtra.RemovedValidators.Cmp(big.NewInt(3)) != 0 {
+		t.Errorf("Invalid removed validators bitmap, got %v, want %v", updatedExtra.RemovedValidators, big.NewInt(3))
+	}
+
 }
 
 func TestWriteSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf873ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
+	istRawData := hexutil.MustDecode("0xf875ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb84100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008080808080")
 	expectedSeal := make([]byte, types.IstanbulExtraSeal)
 	expectedIstExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
@@ -695,6 +718,8 @@ func TestWriteSeal(t *testing.T) {
 		Bitmap:                    big.NewInt(0),
 		CommittedSeal:             []byte{},
 		EpochData:                 []byte{},
+		ParentCommit:              []byte{},
+		ParentBitmap:              big.NewInt(0),
 	}
 	var expectedErr error
 
@@ -727,30 +752,23 @@ func TestWriteSeal(t *testing.T) {
 
 func TestWriteCommittedSeals(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf8f2ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c8080b8c001020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080")
-	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraCommittedSeal-3)...)
-	expectedIstExtra := &types.IstanbulExtra{
-		AddedValidators: []common.Address{
-			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
-		},
-		AddedValidatorsPublicKeys: [][]byte{},
-		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
-		Bitmap:                    big.NewInt(0),
-		Seal:                      []byte{},
-		CommittedSeal:             expectedCommittedSeal,
-		EpochData:                 []byte{},
-	}
-	var expectedErr error
+	istRawData := hexutil.MustDecode("0xf894ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c8080b860010203000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
+	expectedBitmap := big.NewInt(3)
+	expectedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraCommittedSeal-3)...)
 
 	h := &types.Header{
 		Extra: append(vanity, istRawData...),
 	}
 
 	// normal case
-	err := writeCommittedSeals(h, big.NewInt(0), expectedCommittedSeal)
-	if err != expectedErr {
-		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
+	err := writeCommittedSeals(h, expectedBitmap, expectedSeal, false)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
+
+	err = writeCommittedSeals(h, expectedBitmap, expectedSeal, true)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
 	// verify istanbul extra-data
@@ -758,13 +776,30 @@ func TestWriteCommittedSeals(t *testing.T) {
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
-	if !reflect.DeepEqual(istExtra, expectedIstExtra) {
-		t.Errorf("extra data mismatch: have %v, want %v", istExtra, expectedIstExtra)
+	if !bytes.Equal(istExtra.CommittedSeal, expectedSeal) {
+		t.Errorf("committed seal mismatch: have %v, want %v", istExtra.CommittedSeal, expectedSeal)
 	}
 
-	// invalid seal
-	unexpectedCommittedSeal := append(expectedCommittedSeal, make([]byte, 1)...)
-	err = writeCommittedSeals(h, big.NewInt(0), unexpectedCommittedSeal)
+	if istExtra.Bitmap.Uint64() != expectedBitmap.Uint64() {
+		t.Errorf("bitmap mismatch: have %v, want %v", istExtra.Bitmap, expectedBitmap)
+	}
+
+	if !bytes.Equal(istExtra.ParentCommit, expectedSeal) {
+		t.Errorf("extra data mismatch: have %v, want %v", istExtra.ParentCommit, expectedSeal)
+	}
+
+	if istExtra.Bitmap.Uint64() != expectedBitmap.Uint64() {
+		t.Errorf("bitmap mismatch: have %v, want %v", istExtra.Bitmap, expectedBitmap)
+	}
+
+	// try to write an invalid length seal to the CommitedSeal or ParentCommit field
+	unexpectedCommittedSeal := append(expectedSeal, make([]byte, 1)...)
+	err = writeCommittedSeals(h, big.NewInt(0), unexpectedCommittedSeal, false)
+	if err != errInvalidCommittedSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidCommittedSeals)
+	}
+
+	err = writeCommittedSeals(h, big.NewInt(0), unexpectedCommittedSeal, true)
 	if err != errInvalidCommittedSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidCommittedSeals)
 	}

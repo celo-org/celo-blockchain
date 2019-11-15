@@ -2,7 +2,7 @@
 # Takes a build arg called celo_env to pre-download genesis block and static nodes
 # docker build . -f Dockerfile.celo-node --build-arg celo_env=alfajoresstaging -t us.gcr.io/celo-testnet/celo-node:alfajoresstaging
 # docker push us.gcr.io/celo-testnet/celo-node:alfajoresstaging
-FROM us.gcr.io/celo-testnet/geth:027dba2e4584936cc5a8e8993e4e27d28d5247b8
+FROM us.gcr.io/celo-testnet/geth:9575a01c12438e1adc6bb610c891cb5066aaa7aa
 
 ARG celo_env
 
