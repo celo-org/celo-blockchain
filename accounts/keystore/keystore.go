@@ -400,6 +400,19 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error
 	return popBytes, nil
 }
 
+// Retrieve the ECDSA public key for a given account.
+func (ks *KeyStore) GetPublicKey(a accounts.Account) (*ecdsa.PublicKey, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	return &unlockedKey.PrivateKey.PublicKey, nil
+}
+
 // SignTx signs the given transaction with the requested account.
 func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	// Look up the key to sign with and abort if it cannot be found
