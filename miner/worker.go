@@ -1066,12 +1066,11 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	s.ClearLogs()
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 
-	if len(s.Logs()) > 0 {
+	if len(s.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = s.Logs()
+		receipt.Logs = s.GetLogs(common.Hash{})
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		receipts = append(receipts, receipt)
 	}

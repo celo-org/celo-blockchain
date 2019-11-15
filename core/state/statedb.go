@@ -136,11 +136,6 @@ func (self *StateDB) Reset(root common.Hash) error {
 	return nil
 }
 
-func (self *StateDB) ClearLogs() {
-	self.logs = make(map[common.Hash][]*types.Log)
-	self.logSize = 0
-}
-
 func (self *StateDB) AddLog(log *types.Log) {
 	self.journal.append(addLogChange{txhash: self.thash})
 
