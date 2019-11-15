@@ -17,6 +17,7 @@
 package external
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"sync"
@@ -227,6 +228,10 @@ func (api *ExternalSigner) SignMessageBLS(account accounts.Account, msg []byte, 
 }
 
 func (api *ExternalSigner) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (api *ExternalSigner) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error) {
 	return nil, accounts.ErrNotSupported
 }
 

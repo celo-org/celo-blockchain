@@ -24,6 +24,14 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
+func (c *core) ParentCommits() *messageSet {
+	if c.current != nil {
+		return c.current.ParentCommits
+	} else {
+		return nil
+	}
+}
+
 // Start implements core.Engine.Start
 func (c *core) Start() error {
 	// Start a new round from last sequence + 1

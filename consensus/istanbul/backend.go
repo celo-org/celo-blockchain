@@ -89,15 +89,6 @@ type Backend interface {
 	// HasBadProposal returns whether the block with the hash is a bad block
 	HasBadProposal(hash common.Hash) bool
 
-	// AddValidatorPeer adds a validator peer
-	AddValidatorPeer(enodeURL string)
-
-	// RemoveValidatorPeer removes a validator peer
-	RemoveValidatorPeer(enodeURL string)
-
-	// Get's all of the validator peers' enodeURL
-	GetValidatorPeers() []string
-
 	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 

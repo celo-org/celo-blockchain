@@ -37,9 +37,9 @@ func TestCheckMessage(t *testing.T) {
 		logger: testLogger,
 		state:  StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
-			Sequence: big.NewInt(1),
-			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(2),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 	}
 
 	// invalid view format
@@ -51,9 +51,46 @@ func TestCheckMessage(t *testing.T) {
 	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
 	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
-	// future sequence
+	// accept Commits from previous sequence
 	v := &istanbul.View{
-		Sequence: big.NewInt(2),
+		Sequence: big.NewInt(1),
+		// set smaller round so that the roundchange case gets hit
+		Round: big.NewInt(1),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if testCode[j] == istanbul.MsgCommit {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want %v", err, nil)
+				}
+			} else {
+				if err != errOldMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+				}
+			}
+		}
+	}
+
+	// rejects all older sequences
+	v = &istanbul.View{
+		Sequence: big.NewInt(0),
+		Round:    big.NewInt(0),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if err != errOldMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+			}
+		}
+	}
+
+	// future sequence
+	v = &istanbul.View{
+		Sequence: big.NewInt(3),
 		Round:    big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
@@ -68,8 +105,8 @@ func TestCheckMessage(t *testing.T) {
 
 	// future round
 	v = &istanbul.View{
-		Sequence: big.NewInt(1),
-		Round:    big.NewInt(1),
+		Sequence: big.NewInt(2),
+		Round:    big.NewInt(3),
 	}
 	for i := 0; i < len(testStates); i++ {
 		c.state = testStates[i]
@@ -250,7 +287,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 		state: StateAcceptRequest,
 	}
 	c.subscribeEvents()
@@ -355,7 +392,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()

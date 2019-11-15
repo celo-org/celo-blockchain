@@ -17,6 +17,7 @@
 package keystore
 
 import (
+	"crypto/ecdsa"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 
@@ -107,6 +108,16 @@ func (w *keystoreWallet) signHash(account accounts.Account, hash []byte) ([]byte
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignHash(account, hash)
+}
+
+func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error) {
+	// Make sure the requested account is contained within
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the public key
+	return w.keystore.GetPublicKey(account)
 }
 
 func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {

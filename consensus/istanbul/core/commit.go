@@ -17,11 +17,13 @@
 package core
 
 import (
+	"fmt"
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendCommit() {
@@ -84,37 +86,63 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return err
 	}
 
-	if err := c.verifyCommit(commit); err != nil {
-		return err
-	}
+	msgSequencePlusOne := big.NewInt(0).Add(commit.View.Sequence, common.Big1)
+	// if the received view's sequence +1 equals the current sequence, then the
+	// received view corresponds to the parent block
+	if c.currentView().Sequence.Cmp(msgSequencePlusOne) == 0 {
+		lastProposal, _ := c.backend.LastProposal()
+		// Retrieve the validator set for the previous proposal (which should
+		// match the one broadcast)
+		parentValset := c.backend.ParentValidators(lastProposal)
+		_, validator := parentValset.GetByAddress(msg.Address)
+		if validator == nil {
+			return errInvalidValidatorAddress
+		}
+		if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+			return errInvalidCommittedSeal
+		}
+		// Ensure that the commit's digest (ie the received proposal's hash)
+		// matches the saved last proposal's hash
+		if lastProposal.Number().Uint64() > 0 && commit.Digest != lastProposal.Hash() {
+			return fmt.Errorf("parent block does not match. Expected %v. Got %v", lastProposal.Hash().String(), commit.Digest.String())
+		}
+		c.acceptParentCommit(msg, commit.View)
+	} else {
+		_, validator := c.valSet.GetByAddress(msg.Address)
+		if validator == nil {
+			return errInvalidValidatorAddress
+		}
 
-	_, validator := c.valSet.GetByAddress(msg.Address)
-	if validator == nil {
-		return errInvalidValidatorAddress
-	}
+		if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+			return errInvalidCommittedSeal
+		}
 
-	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
-
-	c.acceptCommit(msg)
-	numberOfCommits := c.current.Commits.Size()
-	minQuorumSize := c.valSet.MinQuorumSize()
-	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
-
-	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
-	//
-	// If we already have a proposal, we may have chance to speed up the consensus process
-	// by committing the proposal without PREPARE messages.
-	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
-		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
-		c.commit()
-	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
-		logger.Trace("Got enough prepares and commits to generate a PreparedCertificate")
-		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
+		// ensure that the commit is in the current proposal
+		if err := c.verifyCommit(commit); err != nil {
 			return err
+		}
+
+		c.acceptCommit(msg)
+		numberOfCommits := c.current.Commits.Size()
+		minQuorumSize := c.valSet.MinQuorumSize()
+		logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
+
+		// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
+		//
+		// If we already have a proposal, we may have chance to speed up the consensus process
+		// by committing the proposal without PREPARE messages.
+		// TODO(joshua): Remove state comparisons (or change the cmp function)
+		if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
+			logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
+			c.commit()
+		} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
+			if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+				logger.Error("Failed to create and set preprared certificate", "err", err)
+				return err
+			}
+			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+			c.setState(StatePrepared)
+			c.sendCommit()
 		}
 	}
 
@@ -146,6 +174,18 @@ func (c *core) acceptCommit(msg *istanbul.Message) error {
 	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *core) acceptParentCommit(msg *istanbul.Message, view *istanbul.View) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentCommit")
+
+	// Add the ParentCommit to current round state
+	if err := c.current.ParentCommits.Add(msg); err != nil {
+		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
 		return err
 	}
 

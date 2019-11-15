@@ -18,6 +18,7 @@
 package consensus
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -162,6 +163,8 @@ type PoW interface {
 // Istanbul is a consensus engine to avoid byzantine failure
 type Istanbul interface {
 	Engine
+
+	GetNodeKey() *ecdsa.PrivateKey
 
 	SetChain(chain ChainReader, currentBlock func() *types.Block)
 

@@ -19,6 +19,7 @@ package scwallet
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -615,6 +616,10 @@ func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 }
 
 func (w *Wallet) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (w *Wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error) {
 	return nil, accounts.ErrNotSupported
 }
 
