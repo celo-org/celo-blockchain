@@ -786,8 +786,7 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 	signer := types.MakeSigner(config, block.Number())
 
 	transactions, logIndex := block.Transactions(), uint(0)
-	if len(transactions) != len(receipts) && len(transactions) + 1 != len(receipts) {
-		log.Info("Checking", "trlen", len(transactions), "reclen", len(receipts))
+	if len(transactions) != len(receipts) && len(transactions)+1 != len(receipts) {
 		return errors.New("transaction and receipt count mismatch")
 	}
 
@@ -818,7 +817,7 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 		}
 	}
 	// Handle extra receipt
-	if len(transactions) + 1 == len(receipts) {
+	if len(transactions)+1 == len(receipts) {
 		j := len(transactions)
 		for k := 0; k < len(receipts[j].Logs); k++ {
 			receipts[j].Logs[k].BlockNumber = block.NumberU64()
