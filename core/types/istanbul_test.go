@@ -64,6 +64,7 @@ func TestExtractToIstanbul(t *testing.T) {
 				},
 				AddedValidatorsPublicKeys: [][]byte{},
 				RemovedValidators:         big.NewInt(12), //1100
+				Seal:                      []byte{},
 				AggregatedSeal:            types.IstanbulAggregatedSeal{},
 				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 				EpochData:                 []byte{},

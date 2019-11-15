@@ -404,7 +404,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 
 		additionalParentSeals := sb.core.ParentCommits()
 		if additionalParentSeals != nil && additionalParentSeals.Size() != 0 {
-			logger.Trace("Combining additional seals with the parent aggregated seal", "valset", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
+			logger.Trace("Combining additional seals with the parent aggregated seal", "additionalSeals", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
 			// if we had any seals gossiped to us, proceed to add them to the
 			// already aggregated signature
 			unionAggregatedSeal := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals)
@@ -416,7 +416,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 				logger.Error("Failed to combine additional seals with parent aggregated seal.")
 			} else {
 				parentAggregatedSeal = unionAggregatedSeal
-				logger.Debug("Succeeded in combine additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+				logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
 			}
 		} else {
 			sb.logger.Trace("No additional seals to combine with parent aggregated seal")
@@ -840,7 +840,6 @@ func ecrecover(header *types.Header) (common.Address, error) {
 }
 
 func writeEmptyIstanbulExtra(header *types.Header) error {
-	log.Info("In write empty istanbul extra")
 	extra := types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
 		AddedValidatorsPublicKeys: [][]byte{},
