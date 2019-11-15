@@ -703,39 +703,46 @@ func TestPrepareExtra(t *testing.T) {
 
 func TestWriteSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf875ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00cb84100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008080808080")
-	expectedSeal := make([]byte, types.IstanbulExtraSeal)
-	expectedIstExtra := &types.IstanbulExtra{
+	istExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
 		AddedValidatorsPublicKeys: [][]byte{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
-		Seal:                      expectedSeal,
-		AggregatedSeal:            types.IstanbulAggregatedSeal{},
-		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
 		EpochData:                 []byte{},
 	}
+	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+
+	expectedSeal := hexutil.MustDecode("0x29fe2612266a3965321c23a2e0382cd819e992f293d9a0032439728e41201d2c387cc9de5914a734873d79addb76c59ce73c1085a98b968384811b4ad050dddc56")
+	if len(expectedSeal) != types.IstanbulExtraSeal {
+		t.Errorf("incorrect length for seal: have %v, want %v", len(expectedSeal), types.IstanbulExtraSeal)
+	}
+	expectedIstExtra := istExtra
+	expectedIstExtra.Seal = expectedSeal
+
 	var expectedErr error
 
 	h := &types.Header{
-		Extra: append(vanity, istRawData...),
+		Extra: append(vanity, istExtraRaw...),
 	}
 
 	// normal case
-	err := writeSeal(h, expectedSeal)
+	err = writeSeal(h, expectedSeal)
 	if err != expectedErr {
 		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
 	}
 
 	// verify istanbul extra-data
-	istExtra, err := types.ExtractIstanbulExtra(h)
+	actualIstExtra, err := types.ExtractIstanbulExtra(h)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
-	if !reflect.DeepEqual(istExtra, expectedIstExtra) {
-		t.Errorf("extra data mismatch: have %v, want %v", istExtra, expectedIstExtra)
+	if !reflect.DeepEqual(actualIstExtra, expectedIstExtra) {
+		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
 	}
 
 	// invalid seal
@@ -748,19 +755,36 @@ func TestWriteSeal(t *testing.T) {
 
 func TestWriteAggregatedSeal(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf894ea946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c00c8080b860010203000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808080")
+	istExtra := &types.IstanbulExtra{
+		AddedValidators: []common.Address{
+			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
+			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+		},
+		AddedValidatorsPublicKeys: [][]byte{},
+		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+		EpochData:                 []byte{},
+	}
+	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+
 	aggregatedSeal := types.IstanbulAggregatedSeal{
 		Round:     big.NewInt(2),
 		Bitmap:    big.NewInt(3),
 		Signature: append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraBlsSignature-3)...),
 	}
 
+	expectedIstExtra := istExtra
+	expectedIstExtra.AggregatedSeal = aggregatedSeal
+	expectedIstExtra.ParentAggregatedSeal = aggregatedSeal
+
 	h := &types.Header{
-		Extra: append(vanity, istRawData...),
+		Extra: append(vanity, istExtraRaw...),
 	}
 
 	// normal case
-	err := writeAggregatedSeal(h, aggregatedSeal, false)
+	err = writeAggregatedSeal(h, aggregatedSeal, false)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
@@ -771,15 +795,12 @@ func TestWriteAggregatedSeal(t *testing.T) {
 	}
 
 	// verify istanbul extra-data
-	istExtra, err := types.ExtractIstanbulExtra(h)
+	actualIstExtra, err := types.ExtractIstanbulExtra(h)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
-	if !istExtra.AggregatedSeal.Equals(aggregatedSeal) {
-		t.Errorf("aggregated seal mismatch: have %v, want %v", istExtra.AggregatedSeal.String(), aggregatedSeal.String())
-	}
-	if !istExtra.ParentAggregatedSeal.Equals(aggregatedSeal) {
-		t.Errorf("parent aggregated seal mismatch: have %v, want %v", istExtra.AggregatedSeal.String(), aggregatedSeal.String())
+	if !reflect.DeepEqual(actualIstExtra, expectedIstExtra) {
+		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
 	}
 
 	// try to write an invalid length seal to the CommitedSeal or ParentCommit field

@@ -17,14 +17,12 @@
 package types
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -76,11 +74,7 @@ func (ist *IstanbulAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (ist *IstanbulAggregatedSeal) String() string {
-	return fmt.Sprintf("{round: %s, bitmap: %s, signature: %s}", ist.Round.String(), ist.Bitmap.Text(2), hexutil.Encode(ist.Signature))
-}
-
-func (ist *IstanbulAggregatedSeal) Equals(other IstanbulAggregatedSeal) bool {
-	return bytes.Equal(ist.Signature, other.Signature) && ist.Round.Cmp(other.Round) == 0 && ist.Bitmap.Cmp(other.Bitmap) == 0
+	return fmt.Sprintf("{round: %s, bitmap: %s, signature: %x}", ist.Round.String(), ist.Bitmap.Text(2), ist.Signature)
 }
 
 type IstanbulExtra struct {
