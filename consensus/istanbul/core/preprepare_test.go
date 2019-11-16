@@ -65,6 +65,27 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
+			// proposal sequence doesn't match message sequence
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.valSet = backend.peers
+					if i != 0 {
+						c.state = StateAcceptRequest
+					}
+				}
+				return sys
+			}(),
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
+			makeBlock(3),
+			errInvalidProposal,
+			false,
+		},
+		{
 			// non-proposer
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
@@ -117,14 +138,12 @@ func TestHandlePreprepare(t *testing.T) {
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
-				for i, backend := range sys.backends {
+				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					if i != 0 {
-						c.state = StatePreprepared
-						c.current.SetSequence(big.NewInt(10))
-						c.current.SetRound(big.NewInt(10))
-					}
+					c.state = StatePreprepared
+					c.current.SetSequence(big.NewInt(10))
+					c.current.SetRound(big.NewInt(10))
 				}
 				return sys
 			}(),
@@ -245,7 +264,6 @@ func TestHandlePreprepare(t *testing.T) {
 			errInvalidPreparedCertificateDigestMismatch,
 			false,
 		},
-
 		{
 			// ROUND CHANGE certificate for N+1 round with valid PREPARED certificates
 			// Round is N+1 to match the correct proposer.
@@ -263,11 +281,11 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(0))
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(1))
 				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
 				return roundChangeCertificate
 			},
-			makeBlock(0),
+			makeBlock(1),
 			nil,
 			false,
 		},
