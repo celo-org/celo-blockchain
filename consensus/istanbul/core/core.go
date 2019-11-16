@@ -189,7 +189,6 @@ func (c *core) commit() {
 
 // AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
 // signature and bitmap
-// TODO: Maybe return an error instead of panicking?
 func GetAggregatedSeal(seals *messageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
 	committedSeals := make([][]byte, seals.Size())
