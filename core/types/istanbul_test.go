@@ -24,7 +24,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestHeaderHash(t *testing.T) {
@@ -65,8 +64,8 @@ func TestExtractToIstanbul(t *testing.T) {
 				AddedValidatorsPublicKeys: [][]byte{},
 				RemovedValidators:         big.NewInt(12), //1100
 				Seal:                      []byte{},
-				AggregatedSeal:            types.IstanbulAggregatedSeal{},
-				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+				AggregatedSeal:            IstanbulAggregatedSeal{},
+				ParentAggregatedSeal:      IstanbulAggregatedSeal{},
 				EpochData:                 []byte{},
 			},
 			nil,
