@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -62,8 +63,7 @@ type testSystemBackend struct {
 
 type testCommittedMsgs struct {
 	commitProposal istanbul.Proposal
-	bitmap         *big.Int
-	committedSeals []byte
+	aggregatedSeal types.IstanbulAggregatedSeal
 }
 
 // ==============================================
@@ -120,12 +120,11 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
 	return signatureBytes, nil
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []byte) error {
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal: proposal,
-		bitmap:         bitmap,
-		committedSeals: seals,
+		aggregatedSeal: aggregatedSeal,
 	})
 
 	// fake new head events
@@ -172,6 +171,12 @@ func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address
 	}
 	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
+}
+
+func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
+	lastProposal, _ := self.LastProposal()
+	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
+	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
 // Only block height 5 will return true
@@ -227,7 +232,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
