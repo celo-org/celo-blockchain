@@ -98,7 +98,7 @@ func writeToDisk(filePath string, data []byte) error {
 	if err4 != nil {
 		return err4
 	}
-	log.Debug("Syncing dir %s\n", fpDir.Name())
+	log.Debug("Syncing dir", "dir", fpDir.Name())
 	err5 := fpDir.Sync()
 	if err5 != nil {
 		return err5

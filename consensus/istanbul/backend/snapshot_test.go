@@ -356,12 +356,9 @@ func TestValSetChange(t *testing.T) {
 				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
 				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
 				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
-				Bitmap:                    big.NewInt(0),
-				Seal:                      []byte{},
-				CommittedSeal:             []byte{},
+				AggregatedSeal:            types.IstanbulAggregatedSeal{},
+				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 				EpochData:                 []byte{},
-				ParentCommit:              []byte{},
-				ParentBitmap:              big.NewInt(0),
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
