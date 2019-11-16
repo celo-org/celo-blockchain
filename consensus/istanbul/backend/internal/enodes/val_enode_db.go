@@ -251,6 +251,11 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 		return err
 	}
 
+	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
+	if !isNew && !hasOldValueChanged {
+		return nil
+	}
+
 	// If it is an old message, ignore it.
 	if err == nil && view.Cmp(currentEntry.view) <= 0 {
 		return errOldAnnounceMessage
@@ -261,8 +266,6 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 	if err != nil {
 		return err
 	}
-
-	hasOldValueChanged := !isNew && currentEntry.enodeURL == enodeURL
 
 	batch := new(leveldb.Batch)
 

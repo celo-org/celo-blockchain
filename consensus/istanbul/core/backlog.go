@@ -36,6 +36,8 @@ var (
 // return errFutureMessage if the message view is larger than current view
 // return errOldMessage if the message view is smaller than current view
 func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
+	logger := c.logger.New("state", c.state, "func", "checkMessage", "cur_seq", c.current.Sequence(), "cur_round", c.current.Round(), "msgCode", msgCode, "msg_round", view.Round, "msg_seq", view.Sequence)
+
 	if view == nil || view.Sequence == nil || view.Round == nil {
 		return errInvalidMessage
 	}
@@ -73,6 +75,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 
 	// Round change messages are already let through.
 	if c.state == StateWaitingForNewRound {
+		logger.Trace("In StateWaitingForNewRound, backlogging non-roundchange message")
 		return errFutureMessage
 	}
 
@@ -80,6 +83,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	// other messages are future messages
 	if c.state == StateAcceptRequest {
 		if msgCode > istanbul.MsgPreprepare {
+			logger.Trace("In StateAcceptRequest, backlogging non-preprepare message")
 			return errFutureMessage
 		}
 		return nil

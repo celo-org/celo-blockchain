@@ -32,7 +32,7 @@ func (c *core) sendPrepare() {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	logger.Trace("Sending prepare")
+	logger.Debug("Sending prepare")
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  encodedSubject,
