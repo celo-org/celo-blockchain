@@ -36,7 +36,12 @@ var (
 // return errFutureMessage if the message view is larger than current view
 // return errOldMessage if the message view is smaller than current view
 func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
-	logger := c.logger.New("state", c.state, "func", "checkMessage", "cur_seq", c.current.Sequence(), "cur_round", c.current.Round(), "msgCode", msgCode, "msg_round", view.Round, "msg_seq", view.Sequence)
+	logger := c.logger.New("state", c.state, "func", "checkMessage", "msg_code", msgCode, "msg_round", view.Round, "msg_seq", view.Sequence)
+	if c.current != nil {
+		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
+	} else {
+		logger = logger.New("cur_seq", 0, "cur_round", -1)
+	}
 
 	if view == nil || view.Sequence == nil || view.Round == nil {
 		return errInvalidMessage
