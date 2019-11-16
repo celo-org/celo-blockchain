@@ -142,6 +142,12 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errNotFromProposer
 	}
 
+	// Verify that the proposal is for the sequence number of the view we verified.
+	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number())
+		return errInvalidProposal
+	}
+
 	// Verify the proposal we received
 	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
