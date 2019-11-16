@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"io"
 	mrand "math/rand"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/syndtr/goleveldb/leveldb"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -147,9 +150,11 @@ func (sb *Backend) sendAnnounceMsgs() {
 
 	for {
 		select {
+		case <-sb.newEpochCh:
+			go sb.sendIstAnnounce()
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
 			go sb.sendIstAnnounce()
 
 		case <-sb.announceQuit:
@@ -169,7 +174,7 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	enodeURL := selfEnode.String()
 	view := sb.core.CurrentView()
-	incompleteEnodeUrl := enodeURL[:strings.Index(enodeURL, "@")]
+	incompleteEnodeURL := enodeURL[:strings.Index(enodeURL, "@")]
 	endpointData := enodeURL[strings.Index(enodeURL, "@"):]
 
 	// If the message is not within the registered validator set, then ignore it
@@ -180,7 +185,8 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 
 	encryptedEndpoints := make([][][]byte, 0)
 	for addr := range regAndActiveVals {
-		if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(addr); ok {
+		enodeURL, err := sb.valEnodeTable.GetEnodeURLFromAddress(addr)
+		if err == nil {
 			validatorEnode, err := enode.ParseV4(enodeURL)
 			pubKey := ecies.ImportECDSAPublic(validatorEnode.Pubkey())
 			encryptedEndpoint, err := ecies.Encrypt(rand.Reader, pubKey, []byte(endpointData), nil, nil)
@@ -189,12 +195,14 @@ func (sb *Backend) generateIstAnnounce() ([]byte, error) {
 			} else {
 				encryptedEndpoints = append(encryptedEndpoints, [][]byte{addr.Bytes(), encryptedEndpoint})
 			}
+		} else if err != leveldb.ErrNotFound {
+			log.Error("Unable to read valEnodeTable", "err", err, "addr", addr)
 		}
 	}
 
 	msg := &announceMessage{
 		Address:               sb.Address(),
-		IncompleteEnodeURL:    incompleteEnodeUrl,
+		IncompleteEnodeURL:    incompleteEnodeURL,
 		EncryptedEndpointData: encryptedEndpoints,
 		View:                  view,
 	}
@@ -299,7 +307,9 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	nodeKey := ecies.ImportECDSA(sb.GetNodeKey())
 
 	encryptedEndpoint := []byte("")
+	destAddresses := make([]string, 0, len(msg.EncryptedEndpointData))
 	for _, entry := range msg.EncryptedEndpointData {
+		destAddresses = append(destAddresses, common.BytesToAddress(entry[0]).String())
 		if bytes.Equal(entry[0], sb.Address().Bytes()) {
 			encryptedEndpoint = entry[1]
 		}
@@ -312,32 +322,21 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted {
-		oldEnodeURL, err := sb.valEnodeTable.Upsert(msg.Address, enodeURL, msg.View)
+		err := sb.valEnodeTable.Upsert(msg.Address, enodeURL, msg.View)
 		if err != nil {
 			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceMsg", msg, "error", err)
 			return err
 		}
-
-		// Disconnect from old peer
-		if oldEnodeURL != "" {
-			sb.RemoveValidatorPeer(oldEnodeURL)
-		}
-
-		// Connect to the remote peer if it's part of the current epoch's valset and
-		// if this node is also part of the current epoch's valset
-		block := sb.currentBlock()
-		valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-		if _, remoteNode := valSet.GetByAddress(msg.Address); remoteNode != nil {
-			if _, localNode := valSet.GetByAddress(sb.Address()); localNode != nil {
-				sb.AddValidatorPeer(enodeURL)
-			}
-		}
 	}
+
+	// Generate the destAddresses hash
+	sort.Strings(destAddresses)
+	destAddressesHash := istanbul.RLPHash(destAddresses)
 
 	// If we gossiped this address/enodeURL within the last 60 seconds, then don't regossip
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if lastGossipTs.enodeURL == enodeURL && time.Since(lastGossipTs.timestamp) < time.Minute {
+		if lastGossipTs.enodeURL == enodeURL && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < time.Minute {
 			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "AnnounceMsg", msg)
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
@@ -350,7 +349,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeURL, timestamp: time.Now()}
+	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURL: enodeURL, timestamp: time.Now(), destAddressesHash: destAddressesHash}
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {
@@ -361,7 +360,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 
-		sb.valEnodeTable.PruneEntries(regAndActiveVals)
+		err = sb.valEnodeTable.PruneEntries(regAndActiveVals)
+		return err
 	}
 
 	return nil

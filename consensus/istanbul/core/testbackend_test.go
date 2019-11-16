@@ -27,12 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
@@ -62,8 +63,7 @@ type testSystemBackend struct {
 
 type testCommittedMsgs struct {
 	commitProposal istanbul.Proposal
-	bitmap         *big.Int
-	committedSeals []byte
+	aggregatedSeal types.IstanbulAggregatedSeal
 }
 
 // ==============================================
@@ -120,12 +120,11 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
 	return signatureBytes, nil
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []byte) error {
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal: proposal,
-		bitmap:         bitmap,
-		committedSeals: seals,
+		aggregatedSeal: aggregatedSeal,
 	})
 
 	// fake new head events
@@ -172,6 +171,12 @@ func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address
 	}
 	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
+}
+
+func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
+	lastProposal, _ := self.LastProposal()
+	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
+	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
 // Only block height 5 will return true
@@ -227,7 +232,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit.Digest)
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
@@ -267,14 +272,6 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	}
 
 	return self.finalizeAndReturnMessage(msg)
-}
-
-func (self *testSystemBackend) AddValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) RemoveValidatorPeer(enodeURL string) {}
-
-func (self *testSystemBackend) GetValidatorPeers() []string {
-	return nil
 }
 
 func (self *testSystemBackend) Enode() *enode.Node {
@@ -342,7 +339,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), func(hash common.Hash) bool {
+		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil, func(hash common.Hash) bool {
 			return false
 		})
 	})
@@ -463,7 +460,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -475,9 +472,9 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, view istanbul.View, 
 		var err error
 		var msg istanbul.Message
 		if i%2 == 0 {
-			msg, err = backend.getPrepareMessage(view, proposal.Hash())
+			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getCommitMessage(view, proposal)
+			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)

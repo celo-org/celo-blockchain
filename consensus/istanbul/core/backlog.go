@@ -54,7 +54,20 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return errFutureMessage
 	}
 
+	// Discard messages from previous views, unless they are commits from the previous sequence,
+	// with the same round as what we wound up finalizing, as we would be able to include those
+	// to create the ParentAggregatedSeal for our next proposal.
 	if view.Cmp(c.currentView()) < 0 {
+		if msgCode == istanbul.MsgCommit {
+
+			lastSubject, err := c.backend.LastSubject()
+			if err != nil {
+				return err
+			}
+			if view.Cmp(lastSubject.View) == 0 {
+				return nil
+			}
+		}
 		return errOldMessage
 	}
 

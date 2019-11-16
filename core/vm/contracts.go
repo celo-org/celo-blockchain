@@ -560,9 +560,10 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 		return nil, gas, err
 	}
 
-	// input is comprised of 2 arguments:
+	// input is comprised of 3 arguments:
+	//   address:   20 bytes, an address used to generate the proof-of-possession
 	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
-	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
+	//   signature: 96 bytes, representing the signature on `address` (defined as a const in bls package)
 	// the total length of input required is the sum of these constants
 	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
 		return nil, gas, ErrInputLength
