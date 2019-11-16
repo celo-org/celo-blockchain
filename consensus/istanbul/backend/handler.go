@@ -111,7 +111,16 @@ func (sb *Backend) NewChainHead() error {
 	currentBlock := sb.currentBlock()
 	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
 		sb.logger.Trace("At end of epoch and going to refresh validator peers", "current block number", currentBlock.Number().Uint64())
-		go sb.RefreshValPeers(sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash()))
+		valset := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
+		if _, val := valset.GetByAddress(sb.Address()); val == nil {
+			sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
+		} else {
+			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
+		}
+		// Establish connections to new peers and tear down connections to old ones.
+		go sb.RefreshValPeers(valset)
+
+		sb.newEpochCh <- struct{}{}
 	}
 
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})

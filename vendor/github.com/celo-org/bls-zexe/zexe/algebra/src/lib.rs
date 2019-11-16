@@ -53,14 +53,14 @@ pub use self::fields::*;
 pub mod groups;
 pub use self::groups::*;
 
+mod rand;
+pub use self::rand::*;
+
+
+mod to_field_vec;
+pub use to_field_vec::ToConstraintField;
+
 #[cfg(feature = "parallel")]
 pub mod msm;
 #[cfg(feature = "parallel")]
 pub use self::msm::*;
-
-#[cfg(feature = "parallel")]
-pub mod fft;
-#[cfg(feature = "parallel")]
-pub use self::fft::*;
-
-pub mod utils;

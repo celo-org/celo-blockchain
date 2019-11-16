@@ -25,7 +25,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -189,41 +188,35 @@ type worker struct {
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
-	// Verification Service
-	verificationService string
-	verificationMu      sync.RWMutex
-	lastBlockVerified   uint64
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, db *ethdb.Database) *worker {
 	worker := &worker{
-		config:              config,
-		engine:              engine,
-		eth:                 eth,
-		mux:                 mux,
-		chain:               eth.BlockChain(),
-		gasFloor:            gasFloor,
-		gasCeil:             gasCeil,
-		isLocalBlock:        isLocalBlock,
-		verificationService: verificationService,
-		localUncles:         make(map[common.Hash]*types.Block),
-		remoteUncles:        make(map[common.Hash]*types.Block),
-		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:        make(map[common.Hash]*task),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:           make(chan *newWorkReq),
-		taskCh:              make(chan *task),
-		resultCh:            make(chan *types.Block, resultQueueSize),
-		exitCh:              make(chan struct{}),
-		startCh:             make(chan struct{}, 1),
-		resubmitIntervalCh:  make(chan time.Duration),
-		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		db:                  db,
+		config:             config,
+		engine:             engine,
+		eth:                eth,
+		mux:                mux,
+		chain:              eth.BlockChain(),
+		gasFloor:           gasFloor,
+		gasCeil:            gasCeil,
+		isLocalBlock:       isLocalBlock,
+		localUncles:        make(map[common.Hash]*types.Block),
+		remoteUncles:       make(map[common.Hash]*types.Block),
+		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:       make(map[common.Hash]*task),
+		txsCh:              make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:          make(chan *newWorkReq),
+		taskCh:             make(chan *task),
+		resultCh:           make(chan *types.Block, resultQueueSize),
+		exitCh:             make(chan struct{}),
+		startCh:            make(chan struct{}, 1),
+		resubmitIntervalCh: make(chan time.Duration),
+		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
+		db:                 db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -395,22 +388,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-
-			processAttestationRequestsUpTo := func(number uint64) {
-				w.verificationMu.Lock()
-				defer w.verificationMu.Unlock()
-				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
-					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time().Uint64()+params.AttestationExpirySeconds >= uint64(now) {
-						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
-					} else {
-						break
-					}
-				}
-				w.lastBlockVerified = number
-			}
-			go processAttestationRequestsUpTo(headNumber)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -812,6 +789,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			break
 		}
 		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
+		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
+		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
+		// nonce that is non sequential to the last mined txn for the account.
 		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
@@ -906,10 +886,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	num := parent.Number()
+	limit := uint64(0)
+	if w.current != nil {
+		limit = core.CalcGasLimit(parent, w.current.state)
+	} else {
+		limit = core.CalcGasLimit(parent, nil)
+	}
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
+		GasLimit:   limit,
 		Extra:      w.extra,
 		Time:       big.NewInt(timestamp),
 	}
@@ -1076,12 +1062,14 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
+		log.Error("Unable to finalize block", "err", err)
 		return err
 	}
 	if w.isRunning() {

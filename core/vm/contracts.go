@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
@@ -53,10 +52,12 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 var CeloPrecompiledContractsAddressOffset = byte(0xff)
-var requestAttestationAddress = common.BytesToAddress(append([]byte{0}, CeloPrecompiledContractsAddressOffset))
 var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
 var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
 var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
+var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
+var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
+var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -71,16 +72,20 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	requestAttestationAddress: &requestAttestation{},
-	transferAddress:           &transfer{},
-	fractionMulExpAddress:     &fractionMulExp{},
-	proofOfPossessionAddress:  &proofOfPossession{},
+	transferAddress:          &transfer{},
+	fractionMulExpAddress:    &fractionMulExp{},
+	proofOfPossessionAddress: &proofOfPossession{},
+	getValidatorAddress:      &getValidator{},
+	numberValidatorsAddress:  &numberValidators{},
+	epochSizeAddress:         &epochSize{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contract, evm *EVM) (ret []byte, err error) {
+	log.Trace("Running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas)
 	ret, gas, err := p.Run(input, contract.CallerAddress, evm, contract.Gas)
 	contract.UseGas(contract.Gas - gas)
+	log.Trace("Finished running precompiled contract", "codeaddr", contract.CodeAddr, "input", input, "caller", contract.CallerAddress, "gas", contract.Gas, "gas_left", gas)
 	return ret, err
 }
 
@@ -423,40 +428,6 @@ func (c *bn256Pairing) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	return false32Byte, gas, nil
 }
 
-// Requesting attestation in the Celo address based encryption  protocol is implemented as a
-// native contract.
-type requestAttestation struct{}
-
-func (c *requestAttestation) RequiredGas(input []byte) uint64 {
-	// TODO(asa): Charge less gas when the phone number is invalid.
-	return params.AttestationRequestGas
-}
-
-// Ensures that the input is parsable as a AttestationRequest.
-func (c *requestAttestation) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-
-	abeAddress, err := GetRegisteredAddressWithEvm(params.AttestationsRegistryId, evm)
-
-	if err != nil {
-		return nil, gas, err
-	}
-
-	if caller != *abeAddress {
-		return nil, gas, fmt.Errorf("Unable to call requestAttestation from unpermissioned address")
-	}
-	_, err = types.DecodeAttestationRequest(input)
-	if err != nil {
-		log.Error("[Celo] Unable to decode verification request", "err", err)
-		return nil, gas, err
-	} else {
-		return input, gas, nil
-	}
-}
-
 // Native transfer contract to make Celo Gold ERC20 compatible.
 type transfer struct{}
 
@@ -469,6 +440,15 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 
 	if err != nil {
 		return nil, gas, err
+	}
+
+	// input is comprised of 3 arguments:
+	//   from:  32 bytes representing the address of the sender
+	//   to:    32 bytes representing the address of the recipient
+	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
+	// 3 arguments x 32 bytes each = 96 bytes total input
+	if len(input) < 96 {
+		return nil, gas, ErrInputLength
 	}
 
 	if caller != *celoGoldAddress {
@@ -502,6 +482,19 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
+	}
+
+	// input is comprised of 6 arguments:
+	//   aNumerator:   32 bytes, 256 bit integer, numerator for the first fraction (a)
+	//   aDenominator: 32 bytes, 256 bit integer, denominator for the first fraction (a)
+	//   bNumerator:   32 bytes, 256 bit integer, numerator for the second fraction (b)
+	//   bDenominator: 32 bytes, 256 bit integer, denominator for the second fraction (b)
+	//   exponent:     32 bytes, 256 bit integer, exponent to raise the second fraction (b) to
+	//   decimals:     32 bytes, 256 bit integer, places of precision
+	//
+	// 6 args x 32 bytes each = 192 bytes total input length
+	if len(input) < 192 {
+		return nil, gas, ErrInputLength
 	}
 
 	parseErrorStr := "Error parsing input: unable to parse %s value from %s"
@@ -567,24 +560,111 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 		return nil, gas, err
 	}
 
-	publicKeyBytes := input[:blscrypto.PUBLICKEYBYTES]
+	// input is comprised of 2 arguments:
+	//   publicKey: 48 bytes, representing the public key (defined as a const in bls package)
+	//   signature: 96 bytes, representing the signature (defined as a const in bls package)
+	// the total length of input required is the sum of these constants
+	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
+		return nil, gas, ErrInputLength
+	}
+	addressBytes := input[:common.AddressLength]
+
+	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
 	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
 	if err != nil {
 		return nil, gas, err
 	}
 	defer publicKey.Destroy()
 
-	signatureBytes := input[blscrypto.PUBLICKEYBYTES : blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
+	signatureBytes := input[common.AddressLength+blscrypto.PUBLICKEYBYTES : common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
 	signature, err := bls.DeserializeSignature(signatureBytes)
 	if err != nil {
 		return nil, gas, err
 	}
 	defer signature.Destroy()
 
-	err = publicKey.VerifyPoP(signature)
+	err = publicKey.VerifyPoP(addressBytes, signature)
 	if err != nil {
 		return nil, gas, err
 	}
 
 	return true32Byte, gas, nil
+}
+
+type getValidator struct{}
+
+func (c *getValidator) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorGas
+}
+
+// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
+func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of a single argument:
+	//   index: 32 byte integer representing the index of the validator to get
+	if len(input) < 32 {
+		return nil, gas, ErrInputLength
+	}
+
+	index := (&big.Int{}).SetBytes(input[0:32])
+
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+
+	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+
+	validatorAddress := validators[index.Uint64()].Address()
+	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
+
+	return addressBytes, gas, nil
+}
+
+type numberValidators struct{}
+
+func (c *numberValidators) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorGas
+}
+
+// Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
+// the last in an epoch, note that that may mean one or more of those validators may no longer be elected
+// for subsequent blocks.
+func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	if len(input) != 0 {
+		return nil, gas, ErrInputLength
+	}
+
+	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+
+	numberValidators := big.NewInt(int64(len(validators))).Bytes()
+	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
+	return numberValidatorsBytes, gas, nil
+}
+
+type epochSize struct{}
+
+func (c *epochSize) RequiredGas(input []byte) uint64 {
+	return params.GetEpochSizeGas
+}
+
+func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+	epochSize := big.NewInt(0).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
+
+	return epochSizeBytes, gas, nil
 }

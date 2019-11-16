@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -71,9 +71,8 @@ type core struct {
 	timeoutSub            *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
-	valSet                istanbul.ValidatorSet
-	waitingForRoundChange bool
-	validateFn            func([]byte, []byte) (common.Address, error)
+	valSet     istanbul.ValidatorSet
+	validateFn func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
 	backlogsMu *sync.Mutex
@@ -96,6 +95,21 @@ type core struct {
 	consensusTimer metrics.Timer
 }
 
+// Appends the current view and state to the given context.
+func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+	var seq, round *big.Int
+	state := c.state
+	if c.current != nil {
+		seq = c.current.Sequence()
+		round = c.current.Round()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+	}
+	tmp := c.logger.New(ctx...)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
+}
+
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
@@ -105,17 +119,6 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	var err error
 	// Add sender address
 	msg.Address = c.Address()
-
-	// Add proof of consensus
-	msg.CommittedSeal = []byte{}
-	// Assign the CommittedSeal if it's a COMMIT message and proposal is not nil
-	if msg.Code == istanbul.MsgCommit && c.current.Proposal() != nil {
-		seal := PrepareCommittedSeal(c.current.Proposal().Hash())
-		msg.CommittedSeal, err = c.backend.SignBlockHeader(seal)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	// Sign message
 	data, err := msg.PayloadNoSig()
@@ -137,7 +140,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state)
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -171,54 +174,123 @@ func (c *core) commit() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()
-	bitmap := big.NewInt(0)
-	publicKeys := [][]byte{}
 	if proposal != nil {
-		committedSeals := make([][]byte, c.current.Commits.Size())
-		for i, v := range c.current.Commits.Values() {
-			committedSeals[i] = make([]byte, types.IstanbulExtraCommittedSeal)
-			copy(committedSeals[i][:], v.CommittedSeal[:])
-			j, err := c.current.Commits.GetAddressIndex(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
-			}
-			publicKey, err := c.current.Commits.GetAddressPublicKey(v.Address)
-			if err != nil {
-				panic(fmt.Sprintf("commit: couldn't get public key for address %s", hex.EncodeToString(v.Address[:])))
-			}
-
-			publicKeys = append(publicKeys, publicKey)
-
-			bitmap.SetBit(bitmap, int(j), 1)
-		}
-		asig, err := blscrypto.AggregateSignatures(committedSeals)
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits, c.current.Round())
 		if err != nil {
-			panic("commit: couldn't aggregate signatures which have been verified in the commit phase")
+			c.sendNextRoundChange()
+			return
 		}
-
-		if err := c.backend.Commit(proposal, bitmap, asig); err != nil {
-			c.current.UnlockHash() //Unlock block when insertion fails
+		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
 			c.sendNextRoundChange()
 			return
 		}
 	}
 }
 
+// AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
+// signature and bitmap
+// TODO: Maybe return an error instead of panicking?
+func GetAggregatedSeal(seals *messageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
+	bitmap := big.NewInt(0)
+	committedSeals := make([][]byte, seals.Size())
+	for i, v := range seals.Values() {
+		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
+		copy(committedSeals[i][:], v.CommittedSeal[:])
+		j, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			return types.IstanbulAggregatedSeal{}, err
+		}
+		bitmap.SetBit(bitmap, int(j), 1)
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, err
+	}
+	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
+}
+
+// Combines a BLS aggregated signature with an array of signatures. Accounts for
+// double aggregating the same signature by only adding aggregating if the
+// validator was not found in the previous bitmap.
+// This function assumes that the provided seals' validator set is the same one
+// which produced the provided bitmap
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals *messageSet) types.IstanbulAggregatedSeal {
+	// TODO(asa): Check for round equality...
+	// Check who already has signed the message
+	newBitmap := aggregatedSignature.Bitmap
+	committedSeals := [][]byte{}
+	committedSeals = append(committedSeals, aggregatedSignature.Signature)
+	for _, v := range seals.Values() {
+		valIndex, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+		}
+
+		// if the bit was not set, this means we should add this signature to
+		// the batch
+		if aggregatedSignature.Bitmap.Bit(int(valIndex)) == 0 {
+			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
+			committedSeals = append(committedSeals, v.CommittedSeal)
+		}
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		panic("couldn't aggregate signatures")
+	}
+
+	return types.IstanbulAggregatedSeal{
+		Bitmap:    newBitmap,
+		Signature: asig,
+		Round:     aggregatedSignature.Round,
+	}
+}
+
+// Generates the next preprepare request and associated round change certificate
+func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+	if err != nil {
+		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
+	}
+	// Start with pending request
+	request := c.current.pendingRequest
+	// Search for a valid request in round change messages.
+	// The proposal must come from the prepared certificate with the highest round number.
+	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	maxRound := big.NewInt(-1)
+	for _, message := range roundChangeCertificate.RoundChangeMessages {
+		var roundChangeMsg *istanbul.RoundChange
+		if err := message.Decode(&roundChangeMsg); err != nil {
+			continue
+		}
+		preparedCertificateView := roundChangeMsg.PreparedCertificate.View()
+		if roundChangeMsg.HasPreparedCertificate() && preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
+			maxRound = preparedCertificateView.Round
+			request = &istanbul.Request{
+				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+			}
+		}
+	}
+	return request, roundChangeCertificate, nil
+}
+
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) {
 	var logger log.Logger
 	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0)
+		logger = c.logger.New("cur_round", -1, "cur_seq", 0, "next_round", 0, "next_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence())
+		logger = c.logger.New("cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	roundChange := false
 	// Try to get last proposal
 	lastProposal, lastProposer := c.backend.LastProposal()
 	if c.current == nil {
-		logger.Trace("Start to the initial round")
+		logger.Trace("Start the initial round")
 	} else if lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
+		// Want to be working on the block 1 beyond the last committed block.
 		diff := new(big.Int).Sub(lastProposal.Number(), c.current.Sequence())
 		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
 
@@ -226,13 +298,14 @@ func (c *core) startNewRound(round *big.Int) {
 			c.consensusTimer.UpdateSince(c.consensusTimestamp)
 			c.consensusTimestamp = time.Time{}
 		}
-		logger.Trace("Catch up latest proposal", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
+		logger.Trace("Catch up to the latest proposal.", "number", lastProposal.Number().Uint64(), "hash", lastProposal.Hash())
 	} else if lastProposal.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
-		if round.Cmp(common.Big0) == 0 {
-			// same seq and round, don't need to start new round
+		// Working on the block immediately after the last committed block.
+		if round.Cmp(c.current.Round()) == 0 {
+			logger.Trace("Already in the desired round.")
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "seq", lastProposal.Number().Int64(), "new_round", round, "old_round", c.current.Round())
+			logger.Warn("New round should not be smaller than current round", "lastProposalNumber", lastProposal.Number().Int64(), "new_round", round)
 			return
 		}
 		roundChange = true
@@ -241,74 +314,97 @@ func (c *core) startNewRound(round *big.Int) {
 		return
 	}
 
+	// Generate next view and pre-prepare
 	var newView *istanbul.View
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	var request *istanbul.Request
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
+
+		var err error
+		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+		if err != nil {
+			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+			return
+		}
 	} else {
+		if c.current != nil {
+			request = c.current.pendingRequest
+			c.deleteMessageFromDisk(c.current.Round(), c.current.Sequence())
+		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
 		c.valSet = c.backend.Validators(lastProposal)
+		c.roundChangeSet = newRoundChangeSet(c.valSet)
 	}
 
 	// Update logger
 	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// Clear invalid ROUND CHANGE messages
-	c.roundChangeSet = newRoundChangeSet(c.valSet)
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
-	c.waitingForRoundChange = false
 	c.setState(StateAcceptRequest)
-	if roundChange && c.isProposer() && c.current != nil {
-		// If it is locked, propose the old proposal
-		// If we have pending request, propose pending request
-		if c.current.IsHashLocked() {
-			r := &istanbul.Request{
-				Proposal: c.current.Proposal(), //c.current.Proposal would be the locked proposal by previous proposer, see updateRoundState
-			}
-			c.sendPreprepare(r)
-		} else if c.current.pendingRequest != nil {
-			c.sendPreprepare(c.current.pendingRequest)
-		}
+	if roundChange && c.isProposer() && c.current != nil && request != nil {
+		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.newRoundChangeTimer()
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
-func (c *core) catchUpRound(view *istanbul.View) {
-	logger := c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "old_proposer", c.valSet.GetProposer())
-
-	if view.Round.Cmp(c.current.Round()) > 0 {
-		c.roundMeter.Mark(new(big.Int).Sub(view.Round, c.current.Round()).Int64())
+// All actions that occur when transitioning to waiting for round change state.
+func (c *core) waitForDesiredRound(r *big.Int) {
+	logger := c.logger.New("func", "waitForDesiredRound", "cur_round", c.current.Round(), "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+	// Don't wait for an older round
+	if c.current.DesiredRound().Cmp(r) >= 0 {
+		logger.Debug("New desired round not greater than current desired round")
+		return
 	}
-	c.waitingForRoundChange = true
+	logger.Debug("Waiting for desired round")
 
-	// Need to keep block locked for round catching up
-	c.updateRoundState(view, c.valSet, true)
-	c.roundChangeSet.Clear(view.Round)
-	c.newRoundChangeTimer()
+	desiredView := &istanbul.View{
+		Sequence: new(big.Int).Set(c.current.Sequence()),
+		Round:    new(big.Int).Set(r),
+	}
+	// Perform all of the updates
+	c.setState(StateWaitingForNewRound)
+	c.current.SetDesiredRound(r)
+	_, lastProposer := c.backend.LastProposal()
+	c.valSet.CalcProposer(lastProposer, desiredView.Round.Uint64())
+	c.newRoundChangeTimerForView(desiredView)
 
-	logger.Trace("Catch up round", "new_round", view.Round, "new_seq", view.Sequence, "new_proposer", c.valSet)
+	// Send round change
+	c.sendRoundChange(desiredView.Round)
 }
 
-// updateRoundState updates round state by checking if locking block is necessary
 func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
-	// Lock only if both roundChange is true and it is locked
-	if roundChange && c.current != nil {
-		if c.current.IsHashLocked() {
-			c.current = newRoundState(view, validatorSet, c.current.GetLockedHash(), c.current.Preprepare, c.current.pendingRequest, c.backend.HasBadProposal)
+	// TODO(Joshua): Include desired round here.
+	if c.current != nil {
+		if roundChange {
+			c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
 		} else {
-			c.current = newRoundState(view, validatorSet, common.Hash{}, nil, c.current.pendingRequest, c.backend.HasBadProposal)
+			lastSubject, err := c.backend.LastSubject()
+			if err != nil && c.current.Preprepare != nil && c.current.Preprepare.Proposal.Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+				// When changing sequences, if our current Commit messages match the latest block in the chain
+				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
+				// in the next round.
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits, c.backend.HasBadProposal)
+			} else {
+				lastProposal, _ := c.backend.LastProposal()
+				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentValidators(lastProposal)), c.backend.HasBadProposal)
+			}
 		}
 	} else {
-		c.current = newRoundState(view, validatorSet, common.Hash{}, nil, nil, c.backend.HasBadProposal)
+		// When the current round is nil, we must start with the current validator set in the parent commits
+		// either `validatorSet` or `backend.Validators(lastProposal)` works here
+		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet), c.backend.HasBadProposal)
 	}
 }
 
@@ -340,17 +436,24 @@ func (c *core) stopTimer() {
 }
 
 func (c *core) newRoundChangeTimer() {
+	c.newRoundChangeTimerForView(c.currentView())
+}
+
+func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	c.stopTimer()
 
-	// set timeout based on the round number
 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := c.current.Round().Uint64()
-	if round > 0 {
-		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
+	round := view.Round.Uint64()
+	if round == 0 {
+		// timeout for first round takes into account expected block period
+		timeout += time.Duration(c.config.BlockPeriod) * time.Second
+	} else {
+		// timeout for subsequent rounds adds an exponential backup, capped at 2**5 = 32s
+		timeout += time.Duration(math.Pow(2, math.Min(float64(round), 5.))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{})
+		c.sendEvent(timeoutEvent{view})
 	})
 }
 
@@ -358,10 +461,11 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	return istanbul.CheckValidatorSignature(c.valSet, data, sig)
 }
 
-// PrepareCommittedSeal returns a committed seal for the given hash
-func PrepareCommittedSeal(hash common.Hash) []byte {
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	var buf bytes.Buffer
 	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
 	buf.Write([]byte{byte(istanbul.MsgCommit)})
 	return buf.Bytes()
 }

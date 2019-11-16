@@ -18,11 +18,12 @@ package types
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -31,13 +32,50 @@ var (
 	// to identify whether the block is from Istanbul consensus engine
 	IstanbulDigest = common.HexToHash("0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365")
 
-	IstanbulExtraVanity        = 32                       // Fixed number of extra-data bytes reserved for validator vanity
-	IstanbulExtraCommittedSeal = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal
-	IstanbulExtraSeal          = 65                       // Fixed number of extra-data bytes reserved for validator seal
+	IstanbulExtraVanity       = 32                       // Fixed number of extra-data bytes reserved for validator vanity
+	IstanbulExtraBlsSignature = blscrypto.SIGNATUREBYTES // Fixed number of extra-data bytes reserved for validator seal on the current block
+	IstanbulExtraSeal         = 65                       // Fixed number of extra-data bytes reserved for validator seal
 
 	// ErrInvalidIstanbulHeaderExtra is returned if the length of extra-data is less than 32 bytes
 	ErrInvalidIstanbulHeaderExtra = errors.New("invalid istanbul header extra-data")
+	EmptyBlockSeal                = []byte{}
 )
+
+type IstanbulAggregatedSeal struct {
+	// Bitmap is a bitmap having an active bit for each validator that signed this block
+	Bitmap *big.Int
+	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	Signature []byte
+	// Round is the round in which the signature was created.
+	Round *big.Int
+}
+
+// EncodeRLP serializes ist into the Ethereum RLP format.
+func (ist *IstanbulAggregatedSeal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{
+		ist.Bitmap,
+		ist.Signature,
+		ist.Round,
+	})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the istanbul fields from a RLP stream.
+func (ist *IstanbulAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
+	var istanbulAggregatedSeal struct {
+		Bitmap    *big.Int
+		Signature []byte
+		Round     *big.Int
+	}
+	if err := s.Decode(&istanbulAggregatedSeal); err != nil {
+		return err
+	}
+	ist.Bitmap, ist.Signature, ist.Round = istanbulAggregatedSeal.Bitmap, istanbulAggregatedSeal.Signature, istanbulAggregatedSeal.Round
+	return nil
+}
+
+func (ist *IstanbulAggregatedSeal) String() string {
+	return fmt.Sprintf("{round: %s, bitmap: %s, signature: %x}", ist.Round.String(), ist.Bitmap.Text(2), ist.Signature)
+}
 
 type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
@@ -48,10 +86,10 @@ type IstanbulExtra struct {
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
 	Seal []byte
-	// Bitmap is a bitmap having an active bit for each validator that signed this block
-	Bitmap *big.Int
-	// CommittedSeal is an aggregated BLS signature resulting from signatures by each validator that signed this block
-	CommittedSeal []byte
+	// AggregatedSeal contains the aggregated BLS signature created via IBFT consensus.
+	AggregatedSeal IstanbulAggregatedSeal
+	// ParentAggregatedSeal contains and aggregated BLS signature for the previous block.
+	ParentAggregatedSeal IstanbulAggregatedSeal
 	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
 	EpochData []byte
 }
@@ -63,8 +101,8 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.AddedValidatorsPublicKeys,
 		ist.RemovedValidators,
 		ist.Seal,
-		ist.Bitmap,
-		ist.CommittedSeal,
+		&ist.AggregatedSeal,
+		&ist.ParentAggregatedSeal,
 		ist.EpochData,
 	})
 }
@@ -76,14 +114,14 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		AddedValidatorsPublicKeys [][]byte
 		RemovedValidators         *big.Int
 		Seal                      []byte
-		Bitmap                    *big.Int
-		CommittedSeal             []byte
+		AggregatedSeal            IstanbulAggregatedSeal
+		ParentAggregatedSeal      IstanbulAggregatedSeal
 		EpochData                 []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.Bitmap, ist.CommittedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.Bitmap, istanbulExtra.CommittedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.AggregatedSeal, ist.ParentAggregatedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.AggregatedSeal, istanbulExtra.ParentAggregatedSeal, istanbulExtra.EpochData
 	return nil
 }
 
@@ -103,7 +141,7 @@ func ExtractIstanbulExtra(h *Header) (*IstanbulExtra, error) {
 	return istanbulExtra, nil
 }
 
-// IstanbulFilteredHeader returns a filtered header which some information (like seal, committed seals)
+// IstanbulFilteredHeader returns a filtered header which some information (like seal, aggregated signature)
 // are clean to fulfill the Istanbul hash rules. It returns nil if the extra-data cannot be
 // decoded/encoded by rlp.
 func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
@@ -116,8 +154,7 @@ func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 	if !keepSeal {
 		istanbulExtra.Seal = []byte{}
 	}
-	istanbulExtra.CommittedSeal = []byte{}
-	istanbulExtra.Bitmap = big.NewInt(0)
+	istanbulExtra.AggregatedSeal = IstanbulAggregatedSeal{}
 
 	payload, err := rlp.EncodeToBytes(&istanbulExtra)
 	if err != nil {

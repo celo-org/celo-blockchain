@@ -19,6 +19,7 @@ package backend
 import (
 	//"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -127,7 +128,7 @@ func TestCommit(t *testing.T) {
 		{
 			// normal case
 			nil,
-			make([]byte, types.IstanbulExtraCommittedSeal),
+			make([]byte, types.IstanbulExtraBlsSignature),
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -137,7 +138,7 @@ func TestCommit(t *testing.T) {
 		},
 		{
 			// invalid signature
-			errInvalidCommittedSeals,
+			errInvalidAggregatedSeal,
 			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
@@ -156,7 +157,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, big.NewInt(0), test.expectedSignature); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -178,6 +179,7 @@ func TestCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
+	fmt.Printf("Data dir is %s\n", engine.GetDataDir())
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)

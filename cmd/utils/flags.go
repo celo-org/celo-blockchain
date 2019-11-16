@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -129,7 +130,7 @@ var (
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
 		Usage: "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby, 5=Ottoman)",
-		Value: eth.DefaultConfig.NetworkId,
+		Value: node.DefaultConfig.P2P.NetworkId,
 	}
 	TestnetFlag = cli.BoolFlag{
 		Name:  "testnet",
@@ -398,11 +399,6 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
-	MinerVerificationServiceUrlFlag = cli.StringFlag{
-		Name:  "miner.verificationpool",
-		Usage: "URL to the verification service to be used by the miner to attest users' phone numbers",
-		Value: eth.DefaultConfig.MinerVerificationServiceUrl,
-	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -563,6 +559,15 @@ var (
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
+	UseInMemoryDiscoverTable = cli.BoolFlag{
+		Name:  "use-in-memory-discovery-table",
+		Usage: "Specifies whether to use an in memory discovery table",
+	}
+
+	VersionCheckFlag = cli.BoolFlag{
+		Name:  "disable-version-check",
+		Usage: "Disable version check. Use if the parameter is set erroneously",
+	}
 
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
@@ -650,6 +655,11 @@ var (
 		Name:  "istanbul.blockperiod",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
+	}
+	IstanbulProposerPolicyFlag = cli.Uint64Flag{
+		Name:  "istanbul.proposerpolicy",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
+		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
 )
 
@@ -958,6 +968,8 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServFlag.Name) != 0
 	lightPeers := ctx.GlobalInt(LightPeersFlag.Name)
@@ -992,6 +1004,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
+	}
+	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+		cfg.UseInMemoryNodeDatabase = true
 	}
 
 	// if we're running a light client or server, force enable the v5 peer discovery
@@ -1145,13 +1160,17 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 	}
 }
 
-func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
+func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
 		cfg.Istanbul.RequestTimeout = ctx.GlobalUint64(IstanbulRequestTimeoutFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
+		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+	}
+	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 }
 
 // checkExclusive verifies that only a single isntance of the provided flags was
@@ -1220,7 +1239,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 	setWhitelist(ctx, cfg)
-	setIstanbul(ctx, cfg)
+	setIstanbul(ctx, stack, cfg)
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
@@ -1282,9 +1301,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
 		cfg.MinerNoverify = ctx.Bool(MinerNoVerfiyFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerVerificationServiceUrlFlag.Name) {
-		cfg.MinerVerificationServiceUrl = ctx.GlobalString(MinerVerificationServiceUrlFlag.Name)
 	}
 	if ctx.GlobalIsSet(VMEnableDebugFlag.Name) {
 		// TODO(fjl): force-enable this in --dev mode

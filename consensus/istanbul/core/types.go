@@ -27,6 +27,8 @@ type Engine interface {
 	Stop() error
 	CurrentView() *istanbul.View
 	SetAddress(common.Address)
+	// Validator -> CommittedSeal from Parent Block
+	ParentCommits() *messageSet
 }
 
 type State uint64
@@ -36,6 +38,7 @@ const (
 	StatePreprepared
 	StatePrepared
 	StateCommitted
+	StateWaitingForNewRound
 )
 
 func (s State) String() string {
@@ -47,6 +50,8 @@ func (s State) String() string {
 		return "Prepared"
 	} else if s == StateCommitted {
 		return "Committed"
+	} else if s == StateWaitingForNewRound {
+		return "Waiting for new round"
 	} else {
 		return "Unknown"
 	}

@@ -84,13 +84,29 @@ const (
       "type": "function"
     }
 ]`
-	gasAmount = 1000000
+	randomAbi = `[
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "random",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+]`
 )
 
 var (
 	revealAndCommitFuncABI, _   = abi.JSON(strings.NewReader(revealAndCommitABI))
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
+	randomFuncABI, _            = abi.JSON(strings.NewReader(randomAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("db-randomness-prefix")
 )
@@ -101,8 +117,8 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 
 func address() *common.Address {
 	randomAddress, err := contract_comm.GetRegisteredAddress(params.RandomRegistryId, nil, nil)
-	if err == errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err, "contract id", params.RandomRegistryId)
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+		log.Debug("Registry address lookup failed", "err", err, "contract id", params.RandomRegistryId)
 	} else if err != nil {
 		log.Error(err.Error())
 	}
@@ -120,7 +136,7 @@ func IsRunning() bool {
 // database.
 func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state vm.StateDB, chain consensus.ChainReader, seed []byte) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, gasAmount, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, params.MaxGasForCommitments, header, state)
 	if err != nil {
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err
@@ -153,7 +169,7 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 	commitment := common.Hash{}
 	randomness := crypto.Keccak256Hash(append(seed, header.ParentHash.Bytes()...))
 	// TODO(asa): Make an issue to not have to do this via StaticCall
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, gasAmount, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment, header, state)
 	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
 		log.Error("Failed to save last block parentHash to the database", "err", err)
@@ -167,6 +183,13 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state vm.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, gasAmount, zeroValue, header, state)
+	_, err := contract_comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue, header, state, true)
 	return err
+}
+
+// Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.
+func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
+	randomness := common.Hash{}
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForComputeCommitment, header, state)
+	return randomness, err
 }

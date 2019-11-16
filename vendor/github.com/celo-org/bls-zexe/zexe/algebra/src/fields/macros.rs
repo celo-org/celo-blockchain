@@ -8,6 +8,47 @@ macro_rules! impl_field_into_bigint {
     };
 }
 
+macro_rules! impl_prime_field_standard_sample {
+    ($field: ident, $params: ident) => {
+        impl<P: $params> rand::distributions::Distribution<$field<P>> for rand::distributions::Standard {
+            #[inline]
+            fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> $field<P> {
+                loop {
+                    let mut tmp = $field(rng.sample(rand::distributions::Standard), PhantomData);
+                    // Mask away the unused bits at the beginning.
+                    tmp.0.as_mut().last_mut().map(|val| *val &= std::u64::MAX >> P::REPR_SHAVE_BITS);
+
+                    if tmp.is_valid() {
+                        return tmp;
+                    }
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_prime_field_from_int {
+    ($field: ident, u128, $params: ident) => {
+        impl<P: $params> From<u128> for $field<P> {
+            fn from(other: u128) -> Self {
+                let upper = (other >> 64) as u64;
+                let lower = ((other << 64) >> 64) as u64;
+                let mut default_int = P::BigInt::default();
+                default_int.0[0] = lower;
+                default_int.0[1] = upper;
+                Self::from_repr(default_int)
+            }
+        }
+    };
+    ($field: ident, $int: ident, $params: ident) => {
+        impl<P: $params> From<$int> for $field<P> {
+            fn from(other: $int) -> Self {
+                Self::from_repr(P::BigInt::from(u64::from(other)))
+            }
+        }
+    };
+}
+
 macro_rules! sqrt_impl {
     ($Self:ident, $P:tt, $self:expr) => {{
         use crate::fields::LegendreSymbol::*;

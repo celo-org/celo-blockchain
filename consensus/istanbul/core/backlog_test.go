@@ -28,16 +28,22 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
+	elog "github.com/ethereum/go-ethereum/log"
 )
 
 func TestCheckMessage(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
+	backend := &testSystemBackend{
+		events: new(event.TypeMux),
+	}
 	c := &core{
-		state: StateAcceptRequest,
+		logger:  testLogger,
+		state:   StateAcceptRequest,
+		backend: backend,
 		current: newRoundState(&istanbul.View{
-			Sequence: big.NewInt(1),
-			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(2),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 	}
 
 	// invalid view format
@@ -46,12 +52,65 @@ func TestCheckMessage(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
 	}
 
-	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted}
+	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
 	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
-	// future sequence
+	// accept Commits from sequence, round matching LastSubject
 	v := &istanbul.View{
-		Sequence: big.NewInt(2),
+		Sequence: big.NewInt(0),
+		// set smaller round so that the roundchange case gets hit
+		Round: big.NewInt(1),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if testCode[j] == istanbul.MsgCommit {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want %v", err, nil)
+				}
+			} else {
+				if err != errOldMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+				}
+			}
+		}
+	}
+
+	// rejects Commits from sequence matching LastSubject, round not matching
+	v = &istanbul.View{
+		Sequence: big.NewInt(0),
+		// set smaller round so that we don't accept
+		Round: big.NewInt(0),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if err != errOldMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+			}
+		}
+	}
+
+	// rejects all other older sequences
+	v = &istanbul.View{
+		Sequence: big.NewInt(0),
+		Round:    big.NewInt(0),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if err != errOldMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+			}
+		}
+	}
+
+	// future sequence
+	v = &istanbul.View{
+		Sequence: big.NewInt(3),
 		Round:    big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
@@ -66,8 +125,8 @@ func TestCheckMessage(t *testing.T) {
 
 	// future round
 	v = &istanbul.View{
-		Sequence: big.NewInt(1),
-		Round:    big.NewInt(1),
+		Sequence: big.NewInt(2),
+		Round:    big.NewInt(3),
 	}
 	for i := 0; i < len(testStates); i++ {
 		c.state = testStates[i]
@@ -82,27 +141,6 @@ func TestCheckMessage(t *testing.T) {
 			}
 		}
 	}
-
-	// current view but waiting for round change
-	v = &istanbul.View{
-		Sequence: big.NewInt(1),
-		Round:    big.NewInt(0),
-	}
-	c.waitingForRoundChange = true
-	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == istanbul.MsgRoundChange {
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want nil", err)
-				}
-			} else if err != errFutureMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
-			}
-		}
-	}
-	c.waitingForRoundChange = false
 
 	v = c.currentView()
 	// current view, state = StateAcceptRequest
@@ -163,11 +201,25 @@ func TestCheckMessage(t *testing.T) {
 		}
 	}
 
+	// current view, state = StateWaitingForNewRound
+	c.state = StateWaitingForNewRound
+	for i := 0; i < len(testCode); i++ {
+		err := c.checkMessage(testCode[i], v)
+		if testCode[i] == istanbul.MsgRoundChange {
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+		} else if err != errFutureMessage {
+			t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
+		}
+	}
+
 }
 
 func TestStoreBacklog(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 	}
@@ -183,8 +235,9 @@ func TestStoreBacklog(t *testing.T) {
 	}
 	prepreparePayload, _ := Encode(preprepare)
 	m := &istanbul.Message{
-		Code: istanbul.MsgPreprepare,
-		Msg:  prepreparePayload,
+		Code:    istanbul.MsgPreprepare,
+		Msg:     prepreparePayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg := c.backlogs[p].PopItem()
@@ -200,8 +253,9 @@ func TestStoreBacklog(t *testing.T) {
 	subjectPayload, _ := Encode(subject)
 
 	m = &istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgPrepare,
+		Msg:     subjectPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -211,8 +265,9 @@ func TestStoreBacklog(t *testing.T) {
 
 	// push commit msg
 	m = &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgCommit,
+		Msg:     subjectPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -221,9 +276,16 @@ func TestStoreBacklog(t *testing.T) {
 	}
 
 	// push roundChange msg
+	rc := &istanbul.RoundChange{
+		View:                v,
+		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+	}
+	rcPayload, _ := Encode(rc)
+
 	m = &istanbul.Message{
-		Code: istanbul.MsgRoundChange,
-		Msg:  subjectPayload,
+		Code:    istanbul.MsgRoundChange,
+		Msg:     rcPayload,
+		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
 	msg = c.backlogs[p].PopItem()
@@ -236,15 +298,16 @@ func TestProcessFutureBacklog(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 		backend:    backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 		state: StateAcceptRequest,
 	}
 	c.subscribeEvents()
@@ -298,22 +361,34 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
+	rc := &istanbul.RoundChange{
+		View:                v,
+		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+	}
+	rcPayload, _ := Encode(rc)
+
+	address := common.BytesToAddress([]byte("0xce10ce10"))
+
 	msgs := []*istanbul.Message{
 		{
-			Code: istanbul.MsgPreprepare,
-			Msg:  prepreparePayload,
+			Code:    istanbul.MsgPreprepare,
+			Msg:     prepreparePayload,
+			Address: address,
 		},
 		{
-			Code: istanbul.MsgPrepare,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgPrepare,
+			Msg:     subjectPayload,
+			Address: address,
 		},
 		{
-			Code: istanbul.MsgCommit,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgCommit,
+			Msg:     subjectPayload,
+			Address: address,
 		},
 		{
-			Code: istanbul.MsgRoundChange,
-			Msg:  subjectPayload,
+			Code:    istanbul.MsgRoundChange,
+			Msg:     rcPayload,
+			Address: address,
 		},
 	}
 	for i := 0; i < len(msgs); i++ {
@@ -327,8 +402,9 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		events: new(event.TypeMux),
 		peers:  vset,
 	}
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     log.New("backend", "test", "id", 0),
+		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 		backend:    backend,
@@ -336,7 +412,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()

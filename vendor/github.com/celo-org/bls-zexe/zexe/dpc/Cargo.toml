@@ -23,14 +23,16 @@ edition = "2018"
 
 [dependencies]
 algebra = { path = "../algebra" }
-snark = { path = "../snark" }
-snark-gadgets = { path = "../snark-gadgets" }
+r1cs-core = { path = "../r1cs-core" }
+r1cs-std = { path = "../r1cs-std" }
+crypto-primitives = { path = "../crypto-primitives", features = [ "gm17", "r1cs" ] }
+gm17 = { path = "../gm17" }
 bench-utils = { path = "../bench-utils" }
 
 digest = "0.7"
 blake2 = "0.7"
 
-rand = "0.4"
+rand = { version = "0.7" }
 derivative = "1"
 rayon = "1"
 
@@ -38,34 +40,13 @@ clippy = { version = "*", optional = true }
 
 [dev-dependencies]
 criterion = "0.2"
+rand_xorshift = { version = "0.2" }
 
 ###############################################################################
 
 ################################## Features ###################################
 
 [features]
-timer = [ "bench-utils/timer" ]
+print-trace = [ "bench-utils/print-trace" ]
 
 ###############################################################################
-
-################################# Benchmarks ##################################
-
-[[bench]]
-name = "pedersen_crh"
-path = "benches/crypto_primitives/crh.rs"
-harness = false
-
-[[bench]]
-name = "pedersen_comm"
-path = "benches/crypto_primitives/comm.rs"
-harness = false
-
-[[bench]]
-name = "blake2s_prf"
-path = "benches/crypto_primitives/prf.rs"
-harness = false
-
-[[bench]]
-name = "schnorr_sig"
-path = "benches/crypto_primitives/signature.rs"
-harness = false

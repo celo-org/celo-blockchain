@@ -22,6 +22,8 @@ var (
 	// ErrUnauthorizedAddress is returned when given address cannot be found in
 	// current validator set.
 	ErrUnauthorizedAddress = errors.New("unauthorized address")
+	// ErrInvalidSigner is returned if a message's signature does not correspond to the address in msg.Address
+	ErrInvalidSigner = errors.New("signed by incorrect validator")
 	// ErrStoppedEngine is returned if the engine is stopped
 	ErrStoppedEngine = errors.New("stopped engine")
 	// ErrStartedEngine is returned if the engine is already started

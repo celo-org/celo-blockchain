@@ -18,7 +18,7 @@ To run it with debug logging enabled, execute:
 
 ### Building
 
-To build the project, you should use a recent stable Rust version. We test with 1.36.
+To build the project, you should use a recent stable Rust version. We test with 1.37.
 
 `cargo build`
 

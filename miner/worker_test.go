@@ -18,6 +18,8 @@ package miner
 
 import (
 	"math/big"
+	"math/rand"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -55,8 +57,6 @@ var (
 
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
-
-	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -176,7 +176,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, testVerificationService, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.DefaultGasLimit, params.DefaultGasLimit, nil, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -244,7 +244,9 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	istanbulDataDirName := string(rand.Int())
+	dataDir := filepath.Join("/tmp", istanbulDataDirName)
+	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }
