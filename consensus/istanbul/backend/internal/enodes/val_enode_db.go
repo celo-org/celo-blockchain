@@ -251,14 +251,15 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 		return err
 	}
 
-	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
-	if !isNew && !hasOldValueChanged {
-		return nil
-	}
-
 	// If it is an old message, ignore it.
 	if err == nil && view.Cmp(currentEntry.view) <= 0 {
 		return errOldAnnounceMessage
+	}
+
+	// If we already have an entry for this address and the enode URL hasn't changed, do nothing.
+	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
+	if !isNew && !hasOldValueChanged {
+		return nil
 	}
 
 	// new entry
