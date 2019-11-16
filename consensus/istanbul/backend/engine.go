@@ -847,7 +847,6 @@ func writeEmptyIstanbulExtra(header *types.Header) error {
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	payload, err := rlp.EncodeToBytes(&extra)
 	if err != nil {

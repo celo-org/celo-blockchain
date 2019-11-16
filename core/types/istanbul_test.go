@@ -66,7 +66,6 @@ func TestExtractToIstanbul(t *testing.T) {
 				Seal:                      []byte{},
 				AggregatedSeal:            IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
 				ParentAggregatedSeal:      IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-				EpochData:                 []byte{},
 			},
 			nil,
 		},

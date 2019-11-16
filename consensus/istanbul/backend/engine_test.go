@@ -664,7 +664,6 @@ func TestPrepareExtra(t *testing.T) {
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	})
 	h := &types.Header{
 		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
@@ -713,7 +712,6 @@ func TestWriteSeal(t *testing.T) {
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
 
@@ -765,7 +763,6 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
 

@@ -90,8 +90,6 @@ type IstanbulExtra struct {
 	AggregatedSeal IstanbulAggregatedSeal
 	// ParentAggregatedSeal contains and aggregated BLS signature for the previous block.
 	ParentAggregatedSeal IstanbulAggregatedSeal
-	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
-	EpochData []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -103,7 +101,6 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.Seal,
 		&ist.AggregatedSeal,
 		&ist.ParentAggregatedSeal,
-		ist.EpochData,
 	})
 }
 
@@ -116,12 +113,11 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 		Seal                      []byte
 		AggregatedSeal            IstanbulAggregatedSeal
 		ParentAggregatedSeal      IstanbulAggregatedSeal
-		EpochData                 []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.AggregatedSeal, ist.ParentAggregatedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.AggregatedSeal, istanbulExtra.ParentAggregatedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.AggregatedSeal, ist.ParentAggregatedSeal = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.AggregatedSeal, istanbulExtra.ParentAggregatedSeal
 	return nil
 }
 
