@@ -362,15 +362,13 @@ OUTER:
 			}
 
 			var subject *istanbul.Subject
-			var committedSeal []byte
+			var committedSubject *istanbul.CommittedSubject
 
 			if decodedMsg.Code == istanbul.MsgPrepare {
 				err = decodedMsg.Decode(&subject)
 			} else if decodedMsg.Code == istanbul.MsgCommit {
-				var committedSubject *istanbul.CommittedSubject
 				err = decodedMsg.Decode(&committedSubject)
 				subject = committedSubject.Subject
-				committedSeal = committedSubject.CommittedSeal
 			}
 
 			if err != nil {
@@ -390,8 +388,8 @@ OUTER:
 			if expectedCode == istanbul.MsgCommit {
 				_, srcValidator := c.valSet.GetByAddress(v.address)
 
-				if err := c.verifyCommittedSeal(subject.Digest, committedSeal, srcValidator); err != nil {
-					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, committedSeal)
+				if err := c.verifyCommittedSeal(committedSubject, srcValidator); err != nil {
+					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, committedSubject.CommittedSeal)
 				}
 			}
 		}

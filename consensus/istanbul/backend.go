@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -52,7 +53,7 @@ type Backend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, bitmap *big.Int, seals []byte) error
+	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -68,6 +69,9 @@ type Backend interface {
 
 	// LastProposal retrieves latest committed proposal and the address of proposer
 	LastProposal() (Proposal, common.Address)
+
+	// LastSubject retrieves latest committed subject (view and digest)
+	LastSubject() (Subject, error)
 
 	// HasProposal checks if the combination of the given hash and height matches any existing blocks
 	HasProposal(hash common.Hash, number *big.Int) bool

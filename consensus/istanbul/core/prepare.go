@@ -82,7 +82,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		var subject *istanbul.Subject
-		var committedSeal []byte // This is set if the message.Code == MsgCommit
 
 		if message.Code == istanbul.MsgCommit {
 			var committedSubject *istanbul.CommittedSubject
@@ -91,16 +90,16 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
 				return err
 			}
-			subject = committedSubject.Subject
-			committedSeal = committedSubject.CommittedSeal
 
 			// Verify the committedSeal
 			_, src := c.valSet.GetByAddress(signer)
-			err = c.verifyCommittedSeal(subject.Digest, committedSeal, src)
+			err = c.verifyCommittedSeal(committedSubject, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
 				return err
 			}
+
+			subject = committedSubject.Subject
 		} else {
 			if err := message.Decode(&subject); err != nil {
 				logger.Error("Failed to decode message in PREPARED certificate", "err", err)

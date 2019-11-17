@@ -33,7 +33,7 @@ import (
 const electionABIString string = `[
   {"constant": true,
               "inputs": [],
-        "name": "electValidators",
+        "name": "electValidatorSigners",
         "outputs": [
        {
             "name": "",
@@ -118,7 +118,7 @@ var electionABI, _ = abi.JSON(strings.NewReader(electionABIString))
 func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	// Get the new epoch's validator set
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidators", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
 	if err != nil {
 		return nil, err
 	}
