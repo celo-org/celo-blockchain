@@ -5,7 +5,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -37,8 +39,12 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	if len(b.valEnodeTable.valEnodeTable) > 0 {
-		t.Errorf("The valEnodeTable should be empty")
+	if entries, err := b.valEnodeTable.GetAllValEnodes(); err != nil {
+		t.Errorf("Error in calling GetAllValEndoes: %v", err)
+	} else {
+		if len(entries) > 0 {
+			t.Errorf("The valEnodeTable should be empty")
+		}
 	}
 
 	testAddress := getAddress()
@@ -46,13 +52,13 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	// Test that a validator enode share message will result in the enode
 	// being inserted into the valEnodeTable
-	b.valEnodeTable.valEnodeTable[testAddress] = &validatorEnode{
-		node: testNode,
-		view: &istanbul.View{
+	b.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{testAddress: {
+		Node: testNode,
+		View: &istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(0),
 		},
-	}
+	}})
 	senderAddress = b.Address()
 	newMsg, err := b.generateValEnodesShareMsg()
 	if err != nil {
@@ -64,18 +70,16 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	// Delete the entry in the valEnodeTable so that we can check if it's been
 	// created after handling
-	delete(b.valEnodeTable.valEnodeTable, testAddress)
+	b.valEnodeTable.RemoveEntry(testAddress)
 
 	b.config.ProxiedValidatorAddress = senderAddress
 	if err = b.handleValEnodesShareMsg(newPayload); err != nil {
 		t.Errorf("error %v", err)
 	}
 
-	if b.valEnodeTable.valEnodeTable[testAddress] != nil {
-		if b.valEnodeTable.valEnodeTable[testAddress].node.String() != testNode.String() {
-			t.Errorf("Expected %v, but got %v instead", testNode.String(), b.valEnodeTable.valEnodeTable[testAddress].node.String())
-		}
-	} else {
-		t.Errorf("Failed to save enode entry")
+	if node, err := b.valEnodeTable.GetNodeFromAddress(testAddress); err != nil || node == nil {
+		t.Errorf("Failed to save enode entry. err: %v, node: %s", err, node)
+	} else if node.String() != testNode.String() {
+		t.Errorf("Expected %v, but got %v instead", testNode.String(), node.String())
 	}
 }

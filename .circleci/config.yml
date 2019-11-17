@@ -6,7 +6,7 @@ geth-defaults: &geth-defaults
 
 rust-defaults: &rust-defaults
   docker:
-    - image: circleci/rust:1.36.0
+    - image: circleci/rust:1.37.0
 
 end-to-end-defaults: &end-to-end-defaults
   docker:
@@ -46,8 +46,8 @@ jobs:
           name: Setup Rust language
           command: |
             set -euo pipefail
-            rustup install 1.36.0
-            rustup default 1.36.0
+            rustup install 1.37.0
+            rustup default 1.37.0
       - run:
           name: Compile bls-zexe
           command: |
@@ -125,7 +125,7 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_sync.sh local ~/repos/geth
 
-  end-to-end-exit-test:
+  end-to-end-blockchain-parameters-test:
     <<: *end-to-end-defaults
     working_directory: ~/repos
     steps:
@@ -139,7 +139,7 @@ jobs:
             ${GO_LANG_DIR}/go/bin/go version
             export PATH=${PATH}:${GO_LANG_DIR}/go/bin
             cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_exit.sh local ~/repos/geth
+            ./ci_test_blockchain_parameters.sh local ~/repos/geth
 
   end-to-end-geth-governance-test:
     <<: *end-to-end-defaults
@@ -181,7 +181,7 @@ workflows:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
-      - end-to-end-exit-test:
+      - end-to-end-blockchain-parameters-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe

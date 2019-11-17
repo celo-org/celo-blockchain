@@ -1,6 +1,7 @@
 package blscrypto
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -16,7 +17,8 @@ func TestECDSAToBLS(t *testing.T) {
 	publicKeyBLSBytes, _ := publicKeyBLS.Serialize()
 	t.Logf("public key: %x", publicKeyBLSBytes)
 
-	pop, _ := privateKeyBLS.SignPoP()
+	address, _ := hex.DecodeString("4f837096cd8578c1f14c9644692c444bbb614262")
+	pop, _ := privateKeyBLS.SignPoP(address)
 	popBytes, _ := pop.Serialize()
 	t.Logf("pop: %x", popBytes)
 }

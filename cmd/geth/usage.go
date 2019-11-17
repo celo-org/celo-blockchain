@@ -199,7 +199,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerExtraDataFlag,
 			utils.MinerRecommitIntervalFlag,
 			utils.MinerNoVerfiyFlag,
-			utils.MinerVerificationServiceUrlFlag,
 		},
 	},
 	{
@@ -238,6 +237,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.IstanbulRequestTimeoutFlag,
 			utils.IstanbulBlockPeriodFlag,
+			utils.IstanbulProposerPolicyFlag,
 		},
 	},
 	{

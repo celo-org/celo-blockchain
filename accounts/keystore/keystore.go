@@ -374,7 +374,7 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignPoP()
+	signature, err := privateKey.SignPoP(a.Address.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -398,6 +398,19 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error
 	popBytes = append(popBytes, signatureBytes...)
 
 	return popBytes, nil
+}
+
+// Retrieve the ECDSA public key for a given account.
+func (ks *KeyStore) GetPublicKey(a accounts.Account) (*ecdsa.PublicKey, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	return &unlockedKey.PrivateKey.PublicKey, nil
 }
 
 // SignTx signs the given transaction with the requested account.

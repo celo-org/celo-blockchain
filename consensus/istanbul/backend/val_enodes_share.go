@@ -24,7 +24,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -99,18 +101,21 @@ func (sb *Backend) sendValEnodesShareMsgs() {
 }
 
 func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
-	sb.valEnodeTable.valEnodeTableMu.RLock()
-	sharedValidatorEnodes := make([]sharedValidatorEnode, len(sb.valEnodeTable.valEnodeTable))
-	i := 0
-	for address, validatorEnode := range sb.valEnodeTable.valEnodeTable {
-		sharedValidatorEnodes[i] = sharedValidatorEnode{
-			Address:  address,
-			EnodeURL: validatorEnode.node.String(),
-			View:     validatorEnode.view,
-		}
-		i++
+	vetEntries, err := sb.valEnodeTable.GetAllValEnodes()
+
+	if err != nil {
+		sb.logger.Error("Error in retrieving all the entries from the ValEnodeTable", "err", err)
+		return nil, err
 	}
-	sb.valEnodeTable.valEnodeTableMu.RUnlock()
+
+	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
+	for address, vetEntry := range vetEntries {
+		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
+			Address:  address,
+			EnodeURL: vetEntry.Node.String(),
+			View:     vetEntry.View,
+		})
+	}
 
 	valEnodesShareData := &valEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
@@ -193,14 +198,19 @@ func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
 
 	sb.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-
-	sb.valEnodeTable.valEnodeTableMu.Lock()
-	defer sb.valEnodeTable.valEnodeTableMu.Unlock()
+	upsertBatch := make(map[common.Address]*vet.AddressEntry)
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
-		if err := sb.valEnodeTable.upsertNonLocking(sharedValidatorEnode.Address, sharedValidatorEnode.EnodeURL, sharedValidatorEnode.View, valSet, sb.ValidatorAddress(), false, true); err != nil {
-			sb.logger.Warn("Error in upserting a valenode entry", "IstanbulMsg", msg.String(), "ValEnodeShareData", valEnodesShareData.String(), "error", err)
+		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
+			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
+			continue
+		} else {
+			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, View: sharedValidatorEnode.View}
+		}
+	}
+
+	if len(upsertBatch) > 0 {
+		if err := sb.valEnodeTable.Upsert(upsertBatch); err != nil {
+			sb.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
 		}
 	}
 

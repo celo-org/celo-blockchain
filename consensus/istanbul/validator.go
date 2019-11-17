@@ -87,9 +87,23 @@ type Validators []Validator
 type ValidatorSet interface {
 	// Calculate the proposer
 	CalcProposer(lastProposer common.Address, round uint64)
+	// Get current proposer
+	GetProposer() Validator
+	// Check whether the validator with given address is the current proposer
+	IsProposer(address common.Address) bool
+	// Policy by which this selector chooses proposers
+	Policy() ProposerPolicy
+	// Sets the randomness for use in the proposer policy
+	SetRandomness(seed common.Hash)
+
 	// Return the validator size
 	PaddedSize() int
 	Size() int
+	// Get the maximum number of faulty nodes
+	F() int
+	// Get the minimum quorum size
+	MinQuorumSize() int
+
 	// Return the validator array
 	List() []Validator
 	// Return the validator array without holes
@@ -100,24 +114,18 @@ type ValidatorSet interface {
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
 	GetByAddress(addr common.Address) (int, Validator)
-	// Get current proposer
-	GetProposer() Validator
-	// Check whether the validator with given address is a proposer
-	IsProposer(address common.Address) bool
+	// CointainByAddress indicates if a validator with the given address is present
+	ContainsByAddress(add common.Address) bool
+
 	// Add validators
 	AddValidators(validators []ValidatorData) bool
 	// Remove validators
 	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
-	// Get the maximum number of faulty nodes
-	F() int
-	// Get proposer policy
-	Policy() ProposerPolicy
-	// Get the minimum quorum size
-	MinQuorumSize() int
 }
 
 // ----------------------------------------------------------------------------
 
-type ProposalSelector func(ValidatorSet, common.Address, uint64) Validator
+// Returns the block proposer for a round given the last proposer, round number, and randomness.
+type ProposerSelector func(ValidatorSet, common.Address, uint64, common.Hash) Validator

@@ -26,9 +26,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -57,12 +59,20 @@ var (
 
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
+
+	// errNoBlockHeader is returned when the requested block header could not be found.
+	errNoBlockHeader = errors.New("failed to retrieve block header")
+
+	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
+	// than a previous received message
+	errOldAnnounceMessage = errors.New("old announce message")
 )
 
 // Entries for the recent announce messages
 type AnnounceGossipTimestamp struct {
-	enodeURLHash common.Hash
-	timestamp    time.Time
+	enodeURLHash      common.Hash
+	destAddressesHash common.Hash
+	timestamp         time.Time
 }
 
 // Information about the proxy for a proxied validator
@@ -75,16 +85,26 @@ type proxyInfo struct {
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	recentMessages, _ := lru.NewARC(inmemoryPeers)
-	knownMessages, _ := lru.NewARC(inmemoryMessages)
+	logger := log.New()
+	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
+	if err != nil {
+		logger.Crit("Failed to create recent snapshots cache", "err", err)
+	}
+	recentMessages, err := lru.NewARC(inmemoryPeers)
+	if err != nil {
+		logger.Crit("Failed to create recent messages cache", "err", err)
+	}
+	knownMessages, err := lru.NewARC(inmemoryMessages)
+	if err != nil {
+		logger.Crit("Failed to create known messages cache", "err", err)
+	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
-		logger:               log.New(),
+		logger:               logger,
 		db:                   db,
 		commitCh:             make(chan *types.Block, 1),
-		recents:              recents,
+		recentSnapshots:      recentSnapshots,
 		coreStarted:          false,
 		recentMessages:       recentMessages,
 		knownMessages:        knownMessages,
@@ -96,7 +116,17 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = newValidatorEnodeTable()
+
+	var vph enodes.ValidatorEnodeHandler = nil
+	if backend.MaintainValConnections() {
+		vph = &validatorPeerHandler{sb: backend}
+	}
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	if err != nil {
+		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
+	}
+	backend.valEnodeTable = table
+
 	return backend
 }
 
@@ -131,7 +161,7 @@ type Backend struct {
 	coreMu            sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
-	recents *lru.ARCCache
+	recentSnapshots *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
@@ -145,7 +175,7 @@ type Backend struct {
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
 
-	valEnodeTable *validatorEnodeTable
+	valEnodeTable *enodes.ValidatorEnodeDB
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
@@ -158,9 +188,8 @@ type Backend struct {
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
 
-	dataDir string // A read-write data dir to persist files across restarts
-
-	newEpoch chan struct{}
+	dataDir    string // A read-write data dir to persist files across restarts
+	newEpochCh chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -180,13 +209,14 @@ func (sb *Backend) Address() common.Address {
 	return sb.address
 }
 
+// Close the backend
 func (sb *Backend) Close() error {
-	return nil
+	return sb.valEnodeTable.Close()
 }
 
 // Validators implements istanbul.Backend.Validators
 func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
-	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
+	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
@@ -212,10 +242,8 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 		if destAddresses != nil {
 			targets = make(map[enode.ID]bool)
 			for _, addr := range destAddresses {
-				valNode := sb.valEnodeTable.getUsingAddress(addr)
-
-				if valNode != nil {
-					targets[valNode.node.ID()] = true
+				if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
+					targets[valNode.ID()] = true
 				}
 			}
 		}
@@ -313,7 +341,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 
 	h := block.Header()
 	// Append seals into extra-data
-	err := writeCommittedSeals(h, bitmap, seals)
+	err := writeCommittedSeals(h, bitmap, seals, false)
 	if err != nil {
 		return err
 	}
@@ -445,9 +473,8 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 	newValSet, err := sb.getNewValidatorSet(block.Header(), state)
 	if err != nil {
-		log.Error("Istanbul.verifyValSetDiff - Error in retrieving the validator set. Verifying val set diff empty.", "err", err)
 		if len(istExtra.AddedValidators) != 0 || istExtra.RemovedValidators.BitLen() != 0 {
-			log.Warn("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", istExtra.RemovedValidators.Text(16))
+			log.Error("verifyValSetDiff - Invalid val set diff.  Non empty diff when it should be empty.", "addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "removedValidators", istExtra.RemovedValidators.Text(16))
 			return errInvalidValidatorSetDiff
 		}
 	} else {
@@ -471,7 +498,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		}
 
 		if !istanbul.CompareValidatorSlices(addedValidatorsAddresses, istExtra.AddedValidators) || removedValidators.Cmp(istExtra.RemovedValidators) != 0 || !istanbul.CompareValidatorPublicKeySlices(addedValidatorsPublicKeys, istExtra.AddedValidatorsPublicKeys) {
-			log.Warn("verifyValSetDiff - Invalid val set diff. Comparison failed. ", "got addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "got removedValidators", istExtra.RemovedValidators.Text(16), "got addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(istExtra.AddedValidatorsPublicKeys), "expected addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "expected removedValidators", removedValidators.Text(16), "expected addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(addedValidatorsPublicKeys))
+			log.Error("verifyValSetDiff - Invalid val set diff. Comparison failed. ", "got addedValidators", common.ConvertToStringSlice(istExtra.AddedValidators), "got removedValidators", istExtra.RemovedValidators.Text(16), "got addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(istExtra.AddedValidatorsPublicKeys), "expected addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "expected removedValidators", removedValidators.Text(16), "expected addedValidatorsPublicKeys", istanbul.ConvertPublicKeysToStringSlice(addedValidatorsPublicKeys))
 			return errInvalidValidatorSetDiff
 		}
 	}
@@ -530,7 +557,7 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 // ParentValidators implements istanbul.Backend.GetParentValidators
 func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	if block, ok := proposal.(*types.Block); ok {
-		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
+		return sb.getOrderedValidators(block.Number().Uint64()-1, block.ParentHash())
 	}
 	return validator.NewSet(nil, sb.config.ProposerPolicy)
 }
@@ -538,9 +565,44 @@ func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.Validat
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
+		sb.logger.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}
 	return snap.ValSet
+}
+
+// validatorRandomnessAtBlockNumber calls into the EVM to get the randomness to use in proposer ordering at a given block.
+func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.Hash) (common.Hash, error) {
+	lastBlockInPreviousEpoch := number
+	if number > 0 {
+		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
+	}
+	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
+	if header == nil {
+		return common.Hash{}, errNoBlockHeader
+	}
+	state, err := sb.stateAt(header.Hash())
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return random.Random(header, state)
+}
+
+func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
+	valSet := sb.getValidators(number, hash)
+	if valSet.Size() == 0 {
+		return valSet
+	}
+
+	if valSet.Policy() == istanbul.ShuffledRoundRobin {
+		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
+		if err != nil {
+			sb.logger.Error("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+		}
+		valSet.SetRandomness(seed)
+	}
+
+	return valSet
 }
 
 func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
@@ -585,7 +647,7 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 	}
 }
 
-// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
@@ -593,16 +655,11 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
 
-	currentValPeers := sb.broadcaster.FindPeers(nil, "validator")
-
-	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.ValidatorAddress()); val == nil {
-		for _, valPeer := range currentValPeers {
-			sb.p2pserver.RemovePeer(valPeer.Node(), "validator")
-		}
-	} else {
-		sb.valEnodeTable.refreshValPeers(valset, currentValPeers)
+	if sb.broadcaster == nil {
+		return
 	}
+
+	sb.valEnodeTable.RefreshValPeers(valset, sb.Address())
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
@@ -613,4 +670,10 @@ func (sb *Backend) ValidatorAddress() common.Address {
 		localAddress = sb.Address()
 	}
 	return localAddress
+}
+
+// Returns whether this node should maintain validator connections
+// Only proxies and non proxied validators need to connect maintain validator connections
+func (sb *Backend) MaintainValConnections() bool {
+	return sb.config.Proxy || (sb.coreStarted && !sb.config.Proxied)
 }

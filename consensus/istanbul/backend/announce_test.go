@@ -40,10 +40,9 @@ func TestHandleIstAnnounce(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	// Verify that the valenodetable entry correctly got set.
-	if b.valEnodeTable.valEnodeTable[val1Addr] != nil {
-		if b.valEnodeTable.valEnodeTable[val1Addr].node.String() != val1Node.String() {
-			t.Errorf("Expected %v, got %v instead", val1Node.String(), b.valEnodeTable.valEnodeTable[val1Addr].node.String())
+	if node, err := b.valEnodeTable.GetNodeFromAddress(val1Addr); err == nil {
+		if node == nil || node.String() != val1Node.String() {
+			t.Errorf("Expected %v, but got %v instead", val1Node.String(), node)
 		}
 	} else {
 		t.Errorf("Failed to save enode entry")

@@ -159,7 +159,6 @@ func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 // SetP2PServer implements consensus.Handler.SetP2PServer
 func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
-	sb.valEnodeTable.p2pserver = p2pserver
 }
 
 // This function is called by worker.go whenever it gets a newWork event from the miner worker.
@@ -194,12 +193,12 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 				sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
 			}
 
-			sb.newEpoch <- struct{}{}
+			sb.newEpochCh <- struct{}{}
 		}
 
 		// If this is a proxy or a non proxied validator and a
 		// new epoch just started, then refresh the validator enode table
-		if sb.config.Proxy || (sb.coreStarted && !sb.config.Proxied) {
+		if sb.MaintainValConnections() {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "new block number", newBlock.Number().Uint64())
 			sb.RefreshValPeers(valset)
 		}

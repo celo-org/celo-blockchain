@@ -1,4 +1,5 @@
-use rand::{Rand, Rng};
+use rand::{Rng, distributions::{Standard, Distribution}};
+use crate::UniformRand;
 use std::{
     cmp::Ordering,
     io::{Read, Result as IoResult, Write},
@@ -208,9 +209,10 @@ impl<P: Fp12Parameters> std::fmt::Display for Fp12<P> {
     }
 }
 
-impl<P: Fp12Parameters> Rand for Fp12<P> {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Fp12::new(rng.gen(), rng.gen())
+impl<P: Fp12Parameters> Distribution<Fp12<P>> for Standard {
+    #[inline]
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Fp12<P> {
+        Fp12::new(UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
 
@@ -408,12 +410,6 @@ impl<'a, P: Fp12Parameters> DivAssign<&'a Self> for Fp12<P> {
     }
 }
 
-impl<'a, P: Fp12Parameters> From<&'a [bool]> for Fp12<P> {
-    fn from(_bits: &[bool]) -> Self {
-        unimplemented!()
-    }
-}
-
 impl<P: Fp12Parameters> Ord for Fp12<P> {
     #[inline(always)]
     fn cmp(&self, other: &Self) -> Ordering {
@@ -430,6 +426,37 @@ impl<P: Fp12Parameters> PartialOrd for Fp12<P> {
     #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+
+impl<P: Fp12Parameters> From<u128> for Fp12<P> {
+    fn from(other: u128) -> Self {
+        Self::new(other.into(), Fp6::zero())
+    }
+}
+
+impl<P: Fp12Parameters> From<u64> for Fp12<P> {
+    fn from(other: u64) -> Self {
+        Self::new(other.into(), Fp6::zero())
+    }
+}
+
+impl<P: Fp12Parameters> From<u32> for Fp12<P> {
+    fn from(other: u32) -> Self {
+        Self::new(other.into(), Fp6::zero())
+    }
+}
+
+impl<P: Fp12Parameters> From<u16> for Fp12<P> {
+    fn from(other: u16) -> Self {
+        Self::new(other.into(), Fp6::zero())
+    }
+}
+
+impl<P: Fp12Parameters> From<u8> for Fp12<P> {
+    fn from(other: u8) -> Self {
+        Self::new(other.into(), Fp6::zero())
     }
 }
 

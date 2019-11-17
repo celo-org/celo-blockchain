@@ -19,6 +19,7 @@ package usbwallet
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
@@ -502,6 +503,10 @@ func (w *wallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainSt
 // SignHash implements accounts.Wallet, however signing arbitrary data is not
 // supported for hardware wallets, so this method will always return an error.
 func (w *wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (w *wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error) {
 	return nil, accounts.ErrNotSupported
 }
 
