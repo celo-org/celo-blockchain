@@ -116,7 +116,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 type ValidatorEnodeDB struct {
 	db      *leveldb.DB //the actual DB
 	lock    sync.RWMutex
-	handler ValidatorEnodeHandler // this is nil if this node doesn't need to maintain the validator connections
+	handler ValidatorEnodeHandler
 	logger  log.Logger
 }
 
@@ -134,6 +134,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	if err != nil {
 		return nil, err
 	}
+	log.Info("just about to create vet", "handler", handler)
 	return &ValidatorEnodeDB{
 		db:      db,
 		handler: handler,
@@ -299,14 +300,12 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		if err := vet.db.Write(batch, nil); err != nil {
 			return err
 		} else {
-			if vet.handler != nil {
-				for _, node := range peersToRemove {
-					vet.handler.RemoveValidatorPeer(node)
-				}
+			for _, node := range peersToRemove {
+				vet.handler.RemoveValidatorPeer(node)
+			}
 
-				for address, node := range peersToAdd {
-					vet.handler.AddValidatorPeer(node, address)
-				}
+			for address, node := range peersToAdd {
+				vet.handler.AddValidatorPeer(node, address)
 			}
 		}
 	}
@@ -362,6 +361,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAd
 			}
 		}
 
+		vet.logger.Info("hander output", "handler", vet.handler)
 		vet.handler.ReplaceValidatorPeers(newNodes)
 	} else {
 		// Disconnect all validator peers if this node is not in the valset

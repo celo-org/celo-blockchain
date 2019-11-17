@@ -117,10 +117,7 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
-	var vph enodes.ValidatorEnodeHandler = nil
-	if backend.MaintainValConnections() {
-		vph = &validatorPeerHandler{sb: backend}
-	}
+	vph := &validatorPeerHandler{sb: backend}
 	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)

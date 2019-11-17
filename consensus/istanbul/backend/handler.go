@@ -198,10 +198,8 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 		// If this is a proxy or a non proxied validator and a
 		// new epoch just started, then refresh the validator enode table
-		if sb.MaintainValConnections() {
-			sb.logger.Trace("At end of epoch and going to refresh validator peers if not proxied", "new block number", newBlock.Number().Uint64())
-			sb.RefreshValPeers(valset)
-		}
+		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new block number", newBlock.Number().Uint64())
+		sb.RefreshValPeers(valset)
 	}
 }
 

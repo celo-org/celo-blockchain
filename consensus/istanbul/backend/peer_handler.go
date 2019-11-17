@@ -26,6 +26,10 @@ type validatorPeerHandler struct {
 }
 
 func (vpl *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {
+	if !vpl.sb.MaintainValConnections() {
+		return
+	}
+
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
 
@@ -55,10 +59,12 @@ func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
 		}
 	}
 
-	// Add new Validator Peers (adds all the nodes in newNodes.  Note that add is noOp on already existent ones)
-	for _, newNode := range newNodes {
-		vpl.sb.p2pserver.AddPeer(newNode, "validator")
-		vpl.sb.p2pserver.AddTrustedPeer(newNode, "validator")
+	if vpl.sb.MaintainValConnections() {
+		// Add new Validator Peers (adds all the nodes in newNodes.  Note that add is noOp on already existent ones)
+		for _, newNode := range newNodes {
+			vpl.sb.p2pserver.AddPeer(newNode, "validator")
+			vpl.sb.p2pserver.AddTrustedPeer(newNode, "validator")
+		}
 	}
 }
 
