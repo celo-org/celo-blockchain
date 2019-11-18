@@ -146,12 +146,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		return nil, err
 	}
 
-	// Add active validators regardless
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	for _, val := range valSet.List() {
-		regAndActiveVals[val.Address()] = true
-	}
-
 	announceRecords := make([]*announceRecord, 0, len(regAndActiveVals))
 	for addr := range regAndActiveVals {
 		// TODO - Need to encrypt using the remote validator's validator key
