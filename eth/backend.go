@@ -561,10 +561,8 @@ func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManage
 func (s *Ethereum) GatewayFee() *big.Int               { return s.gatewayFee }
 
 func (s *Ethereum) GatewayFeeRecipient() common.Address {
-	etherbase, err := s.Etherbase()
-	if err != nil {
-		return common.Address{}
-	}
+	// Ignore the error as it is acceptable to have an empty gateway fee recipient.
+	etherbase, _ := s.Etherbase()
 	return etherbase
 }
 

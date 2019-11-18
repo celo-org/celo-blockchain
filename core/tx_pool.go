@@ -650,7 +650,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return err
 		}
 
-		if feeCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
+		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
+		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return ErrInsufficientFunds
 		}

@@ -117,7 +117,7 @@ type CallMsg struct {
 	To                  *common.Address // the destination contract (nil for contract creation)
 	Gas                 uint64          // if 0, the call executes with near-infinite gas
 	FeeCurrency         *common.Address // 0 for the native currency
-	GatewayFeeRecipient *common.Address // 0 for no gatway fee
+	GatewayFeeRecipient *common.Address // 0 for no gateway fee
 	GatewayFee          *big.Int        // 0 for no gateway fee
 	GasPrice            *big.Int        // wei <-> gas exchange ratio
 	Value               *big.Int        // amount of wei sent along with the call

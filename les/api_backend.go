@@ -215,6 +215,6 @@ func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 }
 
 func (b *LesApiBackend) GatewayFee() *big.Int {
-	// TODO(nategraf): Create a method to discover the gateway fee values of peers.
+	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
 	return eth.DefaultConfig.GatewayFee
 }

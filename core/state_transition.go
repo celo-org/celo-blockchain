@@ -187,7 +187,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 	return nil
 }
 
-// payFees deducts gas and gateway fees from sender balance and returns error if the sender cannot pay.
+// payFees deducts gas and gateway fees from sender balance and adds the purchases amount of gas to the state.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
@@ -397,8 +397,7 @@ func (st *StateTransition) distributeTxFees() error {
 
 	// Pay gateway fee to the specified recipient.
 	if st.msg.GatewayFeeRecipient() != nil {
-		err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency())
-		if err != nil {
+		if err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency()); err != nil {
 			log.Error("Failed to credit gateway fee", "err", err)
 			return err
 		}
