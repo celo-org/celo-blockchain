@@ -91,6 +91,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		receipt := types.NewReceipt(nil, false, 0)
 		receipt.Logs = statedb.GetLogs(common.Hash{})
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		for i := range receipt.Logs {
+			receipt.Logs[i].TxIndex = uint(len(receipts))
+			receipt.Logs[i].TxHash = block.Hash()
+		}
 		receipts = append(receipts, receipt)
 	}
 

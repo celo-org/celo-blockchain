@@ -822,6 +822,8 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 		for k := 0; k < len(receipts[j].Logs); k++ {
 			receipts[j].Logs[k].BlockNumber = block.NumberU64()
 			receipts[j].Logs[k].BlockHash = block.Hash()
+			receipts[j].Logs[k].TxHash = block.Hash()
+			receipts[j].Logs[k].TxIndex = uint(j)
 			receipts[j].Logs[k].Index = logIndex
 			logIndex++
 		}
