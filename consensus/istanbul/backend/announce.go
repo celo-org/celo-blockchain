@@ -125,8 +125,6 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
-	block := sb.currentBlock()
-
 	var enodeUrl string
 	if sb.config.Proxied {
 		if sb.proxyNode != nil {
