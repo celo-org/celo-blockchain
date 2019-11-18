@@ -158,7 +158,6 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	log.Trace("createEVM called")
 	if internalEvmHandlerSingleton == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}

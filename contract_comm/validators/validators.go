@@ -32,21 +32,40 @@ import (
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 const validatorsABIString string = `[
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "getRegisteredValidators",
-    "outputs": [
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "getRegisteredValidatorSigners",
+			"outputs": [
+			{
+				"name": "",
+				"type": "address[]"
+			}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
     {
-      "name": "",
-      "type": "address[]"
-    }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-	    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "signer",
+          "type": "address"
+        }
+      ],
+      "name": "getValidatorBlsPublicKeyFromSigner",
+      "outputs": [
+        {
+          "name": "blsKey",
+          "type": "bytes"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+	  {
       "constant": true,
       "inputs": [
         {
@@ -57,7 +76,11 @@ const validatorsABIString string = `[
       "name": "getValidator",
       "outputs": [
         {
-          "name": "publicKeysData",
+          "name": "ecdsaPublicKey",
+          "type": "bytes"
+        },
+        {
+          "name": "blsPublicKey",
           "type": "bytes"
         },
         {
@@ -85,7 +108,7 @@ const validatorsABIString string = `[
           "type": "uint256"
         }
       ],
-      "name": "distributeEpochPayment",
+      "name": "distributeEpochPaymentsFromSigner",
       "outputs": [
         {
           "name": "",
@@ -108,7 +131,7 @@ const validatorsABIString string = `[
           "type": "uint256"
         }
       ],
-      "name": "updateValidatorScore",
+      "name": "updateValidatorScoreFromSigner",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -122,7 +145,7 @@ const validatorsABIString string = `[
           "type": "address"
         }
       ],
-      "name": "getMembershipInLastEpoch",
+      "name": "getMembershipInLastEpochFromSigner",
       "outputs": [
         {
           "name": "",
@@ -136,7 +159,8 @@ const validatorsABIString string = `[
 ]`
 
 type ValidatorContractData struct {
-	PublicKeysData []byte
+	EcdsaPublicKey []byte
+	BlsPublicKey   []byte
 	Affiliation    common.Address
 	Score          *big.Int
 }
@@ -147,7 +171,7 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 
@@ -169,9 +193,8 @@ func GetValidator(header *types.Header, state vm.StateDB, validatorAddress commo
 	if err != nil {
 		return validator, err
 	}
-	expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-	if len(validator.PublicKeysData) != expectedLength {
-		return validator, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+	if len(validator.BlsPublicKey) != blscrypto.PUBLICKEYBYTES {
+		return validator, fmt.Errorf("length of bls public key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(validator.BlsPublicKey))
 	}
 	return validator, nil
 }
@@ -179,14 +202,17 @@ func GetValidator(header *types.Header, state vm.StateDB, validatorAddress commo
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
-		validator, err := GetValidator(header, state, addr)
+		var blsKey []byte
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
-		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
+		if len(blsKey) != blscrypto.PUBLICKEYBYTES {
+			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
+		}
 		validatorData = append(validatorData, istanbul.ValidatorData{
 			addr,
-			blsPublicKey,
+			blsKey,
 		})
 	}
 	return validatorData, nil
@@ -196,7 +222,7 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"updateValidatorScore",
+		"updateValidatorScoreFromSigner",
 		[]interface{}{address, uptime},
 		nil,
 		params.MaxGasForUpdateValidatorScore,
@@ -213,7 +239,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"distributeEpochPayment",
+		"distributeEpochPaymentsFromSigner",
 		[]interface{}{address, maxPayment},
 		&epochPayment,
 		params.MaxGasForDistributeEpochPayment,
@@ -227,7 +253,7 @@ func DistributeEpochPayment(header *types.Header, state vm.StateDB, address comm
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {
 	var group common.Address
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpoch", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpochFromSigner", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
