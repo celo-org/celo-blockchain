@@ -227,7 +227,7 @@ func TestCheckMessage(t *testing.T) {
 func TestStoreBacklog(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:            testLogger
+		logger:            testLogger,
 		backlogBySeq:      make(map[uint64]*prque.Prque),
 		backlogCountByVal: make(map[common.Address]int),
 		backlogsMu:        new(sync.Mutex),
@@ -475,7 +475,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), common.Hash{}, nil, nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPrepareCerticate(), nil, nil),
 		valSet: vset,
 	}
 	c.subscribeEvents()
