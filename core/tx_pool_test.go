@@ -92,6 +92,11 @@ func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ec
 	return tx
 }
 
+func lesTransaction(nonce uint64, gaslimit uint64, gatewayFee *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
+	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, &common.Address{}, gatewayFee, nil), types.HomesteadSigner{}, key)
+	return tx
+}
+
 func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
@@ -246,6 +251,7 @@ func TestInvalidTransactions(t *testing.T) {
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
 
+	// Should observe insufficient funds error whne the balance doesn't cover transaction costs.
 	pool.currentState.AddBalance(from, big.NewInt(1))
 	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
 		t.Error("expected", ErrInsufficientFunds)
@@ -253,6 +259,18 @@ func TestInvalidTransactions(t *testing.T) {
 
 	balance := new(big.Int).Add(tx.Value(), new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice()))
 	pool.currentState.AddBalance(from, balance)
+	if err := pool.AddRemote(tx); err != ErrIntrinsicGas {
+		t.Error("expected", ErrIntrinsicGas, "got", err)
+	}
+
+	// Adding a gateway fee should result in insufficient funds again.
+	tx = lesTransaction(0, 100, big.NewInt(50), key)
+	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
+		t.Error("expected", ErrInsufficientFunds)
+	}
+
+	// Should return to intrinsic gas error when gateway fee is covered.
+	pool.currentState.AddBalance(from, tx.GatewayFee())
 	if err := pool.AddRemote(tx); err != ErrIntrinsicGas {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}

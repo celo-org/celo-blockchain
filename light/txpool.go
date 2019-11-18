@@ -381,7 +381,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		log.Debug("Insufficient funds",
 			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
 			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-			"value", tx.Value(), "fee currency", tx.FeeCurrency())
+			"value", tx.Value(), "gateway fee", tx.GatewayFee(), "fee currency", tx.FeeCurrency())
 		return core.ErrInsufficientFunds
 	} else if tx.FeeCurrency() != nil {
 		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
