@@ -257,7 +257,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 	for _, boot := range enodes {
 		old, err := enode.ParseV4(boot.String())
 		if err == nil {
-			stack.Server().AddPeer(old, "static")
+			stack.Server().AddPeer(old, p2p.ExplicitStaticPurpose)
 		}
 	}
 	// Attach to the client and retrieve and interesting metadatas

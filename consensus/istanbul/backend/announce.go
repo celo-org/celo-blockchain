@@ -62,12 +62,12 @@ func (ad *announceData) String() string {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes am into the Ethereum RLP format.
+// EncodeRLP serializes ar into the Ethereum RLP format.
 func (ar *announceRecord) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{ar.DestAddress, ar.EncryptedEnodeURL})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
 func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		DestAddress       common.Address
@@ -81,12 +81,12 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// EncodeRLP serializes am into the Ethereum RLP format.
+// EncodeRLP serializes ad into the Ethereum RLP format.
 func (ad *announceData) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.View})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the am fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
 func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord

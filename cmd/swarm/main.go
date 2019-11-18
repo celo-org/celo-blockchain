@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm"
@@ -316,7 +317,7 @@ func bzzd(ctx *cli.Context) error {
 		s := stack.Server()
 
 		for _, n := range cfg.P2P.BootstrapNodes {
-			s.AddPeer(n, "static")
+			s.AddPeer(n, p2p.ExplicitStaticPurpose)
 		}
 	}()
 

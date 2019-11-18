@@ -201,9 +201,69 @@ type Server struct {
 
 type peerOpFunc func(peers map[enode.ID]*Peer)
 
+// Note that this type is NOT threadsafe.  The reason that it is not is that it's read and written
+// only by the p2p server's single threaded event loop.
+type PurposeFlag uint32
+
+const (
+	NoPurpose              PurposeFlag = 0
+	ExplicitStaticPurpose              = 1 << 0
+	ExplicitTrustedPurpose             = 1 << 1
+	ValidatorPurpose                   = 1 << 2
+	ProxyPurpose                       = 1 << 3
+
+	AnyPurpose = ExplicitStaticPurpose | ExplicitTrustedPurpose | ValidatorPurpose | ProxyPurpose // This value should be the bitwise OR of all possible PurposeFlag values
+)
+
+func NewPurposeFlag() *PurposeFlag {
+	purposeFlag := new(PurposeFlag)
+	*purposeFlag = NoPurpose
+
+	return purposeFlag
+}
+
+func (pf *PurposeFlag) Set(f PurposeFlag, val bool) {
+	if val {
+		*pf |= f
+	} else {
+		*pf &= ^f
+	}
+}
+
+func (pf *PurposeFlag) IsSet(f PurposeFlag) bool {
+	if pf == nil {
+		return false
+	}
+	return (*pf & f) != 0
+}
+
+func (pf *PurposeFlag) NoPurpose() bool {
+	return pf == nil || *pf == NoPurpose
+}
+
+func (pf *PurposeFlag) String() string {
+	s := ""
+	if pf.IsSet(ExplicitStaticPurpose) {
+		s += "-ExplicitStaticPurpose"
+	}
+	if pf.IsSet(ExplicitTrustedPurpose) {
+		s += "-ExplicitTrustedPurpose"
+	}
+	if pf.IsSet(ValidatorPurpose) {
+		s += "-ValidatorPurpose"
+	}
+	if pf.IsSet(ProxyPurpose) {
+		s += "-ProxyPurpose"
+	}
+	if s != "" {
+		s = s[1:]
+	}
+	return s
+}
+
 type nodeArgs struct {
 	node    *enode.Node
-	purpose string
+	purpose PurposeFlag
 }
 
 type peerDrop struct {
@@ -330,7 +390,7 @@ func (srv *Server) PeerCount() int {
 // AddPeer connects to the given node and maintains the connection until the
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
-func (srv *Server) AddPeer(node *enode.Node, purpose string) {
+func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
 	select {
 	case srv.addstatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
@@ -338,7 +398,7 @@ func (srv *Server) AddPeer(node *enode.Node, purpose string) {
 }
 
 // RemovePeer disconnects from the given node
-func (srv *Server) RemovePeer(node *enode.Node, purpose string) {
+func (srv *Server) RemovePeer(node *enode.Node, purpose PurposeFlag) {
 	select {
 	case srv.removestatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
@@ -347,7 +407,7 @@ func (srv *Server) RemovePeer(node *enode.Node, purpose string) {
 
 // AddTrustedPeer adds the given node to a reserved whitelist which allows the
 // node to always connect, even if the slot are full.
-func (srv *Server) AddTrustedPeer(node *enode.Node, purpose string) {
+func (srv *Server) AddTrustedPeer(node *enode.Node, purpose PurposeFlag) {
 	select {
 	case srv.addtrusted <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
@@ -355,7 +415,7 @@ func (srv *Server) AddTrustedPeer(node *enode.Node, purpose string) {
 }
 
 // RemoveTrustedPeer removes the given node from the trusted peer set.
-func (srv *Server) RemoveTrustedPeer(node *enode.Node, purpose string) {
+func (srv *Server) RemoveTrustedPeer(node *enode.Node, purpose PurposeFlag) {
 	select {
 	case srv.removetrusted <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
@@ -643,10 +703,10 @@ func (srv *Server) run(dialstate dialer) {
 	defer srv.nodedb.Close()
 
 	var (
-		static       = make(map[enode.ID]map[string]bool, len(srv.StaticNodes))
+		static       = make(map[enode.ID]*PurposeFlag, len(srv.StaticNodes))
 		peers        = make(map[enode.ID]*Peer)
 		inboundCount = 0
-		trusted      = make(map[enode.ID]map[string]bool, len(srv.TrustedNodes))
+		trusted      = make(map[enode.ID]*PurposeFlag, len(srv.TrustedNodes))
 		taskdone     = make(chan task, maxActiveDialTasks)
 		runningTasks []task
 		queuedTasks  []task // tasks that can't run yet
@@ -654,14 +714,14 @@ func (srv *Server) run(dialstate dialer) {
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup or added via AddTrustedPeer RPC.
 	for _, n := range srv.TrustedNodes {
-		trusted[n.ID()] = make(map[string]bool)
-		trusted[n.ID()]["trusted"] = true
+		trusted[n.ID()] = NewPurposeFlag()
+		trusted[n.ID()].Set(ExplicitTrustedPurpose, true)
 	}
 
 	// Put static nodes specified in a file into a map.
 	for _, n := range srv.StaticNodes {
-		static[n.ID()] = make(map[string]bool)
-		static[n.ID()]["static"] = true
+		static[n.ID()] = NewPurposeFlag()
+		static[n.ID()].Set(ExplicitStaticPurpose, true)
 	}
 
 	// removes t from runningTasks
@@ -694,11 +754,11 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	addStatic := func(n *enode.Node, purpose string) {
+	addStatic := func(n *enode.Node, purpose PurposeFlag) {
 		if _, ok := static[n.ID()]; !ok {
-			static[n.ID()] = make(map[string]bool)
+			static[n.ID()] = NewPurposeFlag()
 		}
-		static[n.ID()][purpose] = true
+		static[n.ID()].Set(purpose, true)
 
 		// If already connected, set the peer's static node purpose set
 		if p, ok := peers[n.ID()]; ok {
@@ -710,13 +770,11 @@ func (srv *Server) run(dialstate dialer) {
 		dialstate.addStatic(n)
 	}
 
-	removeStatic := func(n *enode.Node, purpose string) {
-		if staticNode, ok := static[n.ID()]; ok {
-			if _, ok := staticNode[purpose]; ok {
-				delete(staticNode, purpose)
-			}
+	removeStatic := func(n *enode.Node, purpose PurposeFlag) {
+		if staticPurposes, ok := static[n.ID()]; ok && staticPurposes.IsSet(purpose) {
+			static[n.ID()].Set(purpose, false)
 
-			if len(staticNode) == 0 {
+			if static[n.ID()].NoPurpose() {
 				dialstate.removeStatic(n)
 
 				if p, ok := peers[n.ID()]; ok {
@@ -729,12 +787,12 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	addTrusted := func(n *enode.Node, purpose string) {
+	addTrusted := func(n *enode.Node, purpose PurposeFlag) {
 		if _, ok := trusted[n.ID()]; !ok {
-			trusted[n.ID()] = make(map[string]bool)
+			trusted[n.ID()] = NewPurposeFlag()
 
 		}
-		trusted[n.ID()][purpose] = true
+		trusted[n.ID()].Set(purpose, true)
 
 		// Mark any already-connected peer as trusted
 		if p, ok := peers[n.ID()]; ok {
@@ -747,20 +805,19 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	removeTrusted := func(n *enode.Node, purpose string) {
-		if trustedNode, ok := trusted[n.ID()]; ok {
-			if _, ok := trustedNode[purpose]; ok {
-				delete(trustedNode, purpose)
-			}
+	removeTrusted := func(n *enode.Node, purpose PurposeFlag) {
+		if trustedPurposes, ok := trusted[n.ID()]; ok && trustedPurposes.IsSet(purpose) {
+			trusted[n.ID()].Set(purpose, false)
 
-			if len(trustedNode) == 0 {
+			if trusted[n.ID()].NoPurpose() {
+
+				// Unmark any already-connected peer as trusted
+				if p, ok := peers[n.ID()]; ok {
+					p.rw.set(trustedConn, false)
+					p.TrustedNodePurposes = nil
+				}
+
 				delete(trusted, n.ID())
-			}
-
-			// Unmark any already-connected peer as trusted
-			if p, ok := peers[n.ID()]; ok {
-				p.rw.set(trustedConn, false)
-				p.TrustedNodePurposes = nil
 			}
 		}
 	}

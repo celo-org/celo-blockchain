@@ -114,8 +114,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	StaticNodePurposes  map[string]bool
-	TrustedNodePurposes map[string]bool
+	StaticNodePurposes  *PurposeFlag
+	TrustedNodePurposes *PurposeFlag
 
 	Server *Server
 }
@@ -181,7 +181,7 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-func newPeer(conn *conn, protocols []Protocol, staticNodePurposes map[string]bool, trustedNodePurposes map[string]bool, server *Server) *Peer {
+func newPeer(conn *conn, protocols []Protocol, staticNodePurposes *PurposeFlag, trustedNodePurposes *PurposeFlag, server *Server) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
 		rw:                  conn,
@@ -448,8 +448,8 @@ type PeerInfo struct {
 	ID                  string   `json:"id"`              // Unique node identifier
 	Name                string   `json:"name"`            // Name of the node, including client type, version, OS, custom data
 	Caps                []string `json:"caps"`            // Protocols advertised by this peer
-	StaticNodePurposes  []string `json:"staticNodeInfo"`  // Purposes for the static node
-	TrustedNodePurposes []string `json:"trustedNodeInfo"` // Purposes for the trusted node
+	StaticNodePurposes  string   `json:"staticNodeInfo"`  // Purposes for the static node
+	TrustedNodePurposes string   `json:"trustedNodeInfo"` // Purposes for the trusted node
 	Network             struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
@@ -494,17 +494,8 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	var staticNodePurposes []string
-	for purpose := range p.StaticNodePurposes {
-		staticNodePurposes = append(staticNodePurposes, purpose)
-	}
-	info.StaticNodePurposes = staticNodePurposes
-
-	var trustedNodePurposes []string
-	for purpose := range p.TrustedNodePurposes {
-		trustedNodePurposes = append(trustedNodePurposes, purpose)
-	}
-	info.TrustedNodePurposes = trustedNodePurposes
+	info.StaticNodePurposes = p.StaticNodePurposes.String()
+	info.TrustedNodePurposes = p.TrustedNodePurposes.String()
 
 	return info
 }

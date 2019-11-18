@@ -576,7 +576,7 @@ func (pool *serverPool) dial(entry *poolEntry, knownSelected bool) {
 	log.Debug("Dialing new peer", "lesaddr", entry.node.ID().String()+"@"+addr.strKey(), "set", len(entry.addr), "known", knownSelected)
 	entry.dialed = addr
 	go func() {
-		pool.server.AddPeer(entry.node, "static")
+		pool.server.AddPeer(entry.node, p2p.ExplicitStaticPurpose)
 		select {
 		case <-pool.quit:
 		case <-time.After(dialTimeout):

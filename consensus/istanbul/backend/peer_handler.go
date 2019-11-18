@@ -18,6 +18,7 @@ package backend
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -36,14 +37,14 @@ func (vpl *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address comm
 	block := vpl.sb.currentBlock()
 	valSet := vpl.sb.getValidators(block.Number().Uint64(), block.Hash())
 	if valSet.ContainsByAddress(address) && valSet.ContainsByAddress(vpl.sb.ValidatorAddress()) {
-		vpl.sb.p2pserver.AddPeer(node, "validator")
-		vpl.sb.p2pserver.AddTrustedPeer(node, "validator")
+		vpl.sb.p2pserver.AddPeer(node, p2p.ValidatorPurpose)
+		vpl.sb.p2pserver.AddTrustedPeer(node, p2p.ValidatorPurpose)
 	}
 }
 
 func (vpl *validatorPeerHandler) RemoveValidatorPeer(node *enode.Node) {
-	vpl.sb.p2pserver.RemovePeer(node, "validator")
-	vpl.sb.p2pserver.RemoveTrustedPeer(node, "validator")
+	vpl.sb.p2pserver.RemovePeer(node, p2p.ValidatorPurpose)
+	vpl.sb.p2pserver.RemoveTrustedPeer(node, p2p.ValidatorPurpose)
 }
 
 func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
@@ -53,7 +54,7 @@ func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
 	}
 
 	// Remove old Validator Peers
-	for existingPeerID, existingPeer := range vpl.sb.broadcaster.FindPeers(nodeIDSet, "validator") {
+	for existingPeerID, existingPeer := range vpl.sb.broadcaster.FindPeers(nodeIDSet, p2p.ValidatorPurpose) {
 		if !nodeIDSet[existingPeerID] {
 			vpl.RemoveValidatorPeer(existingPeer.Node())
 		}
@@ -62,15 +63,15 @@ func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
 	if vpl.sb.MaintainValConnections() {
 		// Add new Validator Peers (adds all the nodes in newNodes.  Note that add is noOp on already existent ones)
 		for _, newNode := range newNodes {
-			vpl.sb.p2pserver.AddPeer(newNode, "validator")
-			vpl.sb.p2pserver.AddTrustedPeer(newNode, "validator")
+			vpl.sb.p2pserver.AddPeer(newNode, p2p.ValidatorPurpose)
+			vpl.sb.p2pserver.AddTrustedPeer(newNode, p2p.ValidatorPurpose)
 		}
 	}
 }
 
 func (vpl *validatorPeerHandler) ClearValidatorPeers() {
-	for _, peer := range vpl.sb.broadcaster.FindPeers(nil, "validator") {
-		vpl.sb.p2pserver.RemovePeer(peer.Node(), "validator")
-		vpl.sb.p2pserver.RemoveTrustedPeer(peer.Node(), "validator")
+	for _, peer := range vpl.sb.broadcaster.FindPeers(nil, p2p.ValidatorPurpose) {
+		vpl.sb.p2pserver.RemovePeer(peer.Node(), p2p.ValidatorPurpose)
+		vpl.sb.p2pserver.RemoveTrustedPeer(peer.Node(), p2p.ValidatorPurpose)
 	}
 }

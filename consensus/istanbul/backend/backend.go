@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
@@ -244,7 +245,7 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 				}
 			}
 		}
-		return sb.broadcaster.FindPeers(targets, "")
+		return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 	}
 }
 
@@ -641,7 +642,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 		return errProxyAlreadySet
 	}
 
-	sb.p2pserver.AddPeer(node, "proxy")
+	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
 	return nil
@@ -649,7 +650,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 
 func (sb *Backend) removeProxy(node *enode.Node) {
 	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
-		sb.p2pserver.RemovePeer(node, "proxy")
+		sb.p2pserver.RemovePeer(node, p2p.ProxyPurpose)
 		sb.proxyNode = nil
 	}
 }

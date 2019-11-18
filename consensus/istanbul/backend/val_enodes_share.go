@@ -140,13 +140,14 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 }
 
 func (sb *Backend) sendValEnodesShareMsg() error {
+	if sb.proxyNode == nil || sb.proxyNode.peer == nil {
+		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
+		return nil
+	}
+
 	msg, err := sb.generateValEnodesShareMsg()
 	if err != nil {
 		return err
-	}
-
-	if msg == nil {
-		return nil
 	}
 
 	// Sign the validator enode share message
@@ -162,12 +163,8 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 		return err
 	}
 
-	if sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
-		go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
-	} else {
-		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
-	}
+	sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
+	go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
 
 	return nil
 }
