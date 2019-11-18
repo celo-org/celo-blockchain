@@ -161,6 +161,32 @@ func (s *Service) Stop() error {
 	return nil
 }
 
+func (s *Service) getConnection() (*websocket.Conn, error) {
+	// Resolve the URL, defaulting to TLS, but falling back to none too
+	path := fmt.Sprintf("%s/api", s.host)
+	urls := []string{path}
+
+	if !strings.Contains(path, "://") { // url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+		urls = []string{"wss://" + path, "ws://" + path}
+	}
+	// Establish a websocket connection to the server on any supported URL
+	var (
+		conf *websocket.Config
+		conn *websocket.Conn
+		err  error
+	)
+	for _, url := range urls {
+		if conf, err = websocket.NewConfig(url, "http://localhost/"); err != nil {
+			continue
+		}
+		conf.Dialer = &net.Dialer{Timeout: 5 * time.Second}
+		if conn, err = websocket.DialConfig(conf); err == nil {
+			break
+		}
+	}
+	return conn, err
+}
+
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
 func (s *Service) loop() {
@@ -217,42 +243,39 @@ func (s *Service) loop() {
 				case txCh <- struct{}{}:
 				default:
 				}
-
-			case delegateSignMsg := <-istDelegateSignCh:
-				log.Warn("woohooooooo !!!!!!!!!! we got a delegateSignMsg inside ethstats", "delegateSignMsg", delegateSignMsg, "delegateSignMsg.Payload", string(delegateSignMsg.Payload))
 			// node stopped
 			case <-txSub.Err():
 				break HandleLoop
 			case <-headSub.Err():
 				break HandleLoop
+			case delegateSignMsg := <-istDelegateSignCh:
+				proxiedPeer := s.backend.ProxiedPeer()
+				proxyNode := s.backend.ProxyNode()
+
+				if proxiedPeer != nil {
+					conn, err := s.getConnection()
+
+					if err == nil {
+						report := map[string][]interface{}{
+							"emit": {"proxy", string(delegateSignMsg.Payload)},
+						}
+						websocket.JSON.Send(conn, report)
+					}
+				} else if proxyNode != nil {
+					signedStats, err := s.signHash(delegateSignMsg.Payload)
+					if err == nil {
+						fmt.Println("signed", signedStats)
+						msg, _ := json.Marshal(signedStats)
+						proxyNode.Send(0x15, msg)
+					}
+				}
 			}
 		}
 		close(quitCh)
 	}()
 	// Loop reporting until termination
 	for {
-		// Resolve the URL, defaulting to TLS, but falling back to none too
-		path := fmt.Sprintf("%s/api", s.host)
-		urls := []string{path}
-
-		if !strings.Contains(path, "://") { // url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-			urls = []string{"wss://" + path, "ws://" + path}
-		}
-		// Establish a websocket connection to the server on any supported URL
-		var (
-			conf *websocket.Config
-			conn *websocket.Conn
-			err  error
-		)
-		for _, url := range urls {
-			if conf, err = websocket.NewConfig(url, "http://localhost/"); err != nil {
-				continue
-			}
-			conf.Dialer = &net.Dialer{Timeout: 5 * time.Second}
-			if conn, err = websocket.DialConfig(conf); err == nil {
-				break
-			}
-		}
+		conn, err := s.getConnection()
 		if err != nil {
 			log.Warn("Stats server unreachable", "err", err)
 			time.Sleep(10 * time.Second)
@@ -542,21 +565,66 @@ type txStats struct {
 // empty arrays instead of returning null for them.
 type uncleStats []*types.Header
 
+func (s *Service) signHash(msg []byte) (map[string]interface{}, error) {
+	msgHash := crypto.Keccak256Hash(msg)
+
+	etherBase, errEtherbase := s.eth.Etherbase()
+	if errEtherbase != nil {
+		return nil, errEtherbase
+	}
+
+	account := accounts.Account{Address: etherBase}
+	wallet, errWallet := s.eth.AccountManager().Find(account)
+	if errWallet != nil {
+		return nil, errWallet
+	}
+
+	pubkey, errPubkey := wallet.GetPublicKey(account)
+	if errPubkey != nil {
+		return nil, errPubkey
+	}
+	pubkeyBytes := crypto.FromECDSAPub(pubkey)
+
+	signature, errSign := wallet.SignHash(account, msgHash.Bytes())
+	if errSign != nil {
+		return nil, errSign
+	}
+
+	proof := map[string]interface{}{
+		"signature": hexutil.Encode(signature),
+		"address":   etherBase,
+		"publicKey": hexutil.Encode(pubkeyBytes),
+		"msgHash":   msgHash.Hex(),
+	}
+
+	signedStats := map[string]interface{}{
+		"stats": string(msg),
+		"proof": proof,
+	}
+
+	return signedStats, nil
+}
+
 func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
+
+	proxiedPeer := s.backend.ProxiedPeer()
+
+	if proxiedPeer != nil {
+		fmt.Println("proxiedPeer")
+		statsWithAction := map[string]interface{}{
+			"stats":  stats,
+			"action": action,
+		}
+		msg, _ := json.Marshal(statsWithAction)
+		go proxiedPeer.Send(0x15, msg)
+	}
+
+	if s.backend.ProxyNode() != nil {
+		return nil
+	}
 
 	msg, _ := json.Marshal(stats)
 	msgHash := crypto.Keccak256Hash(msg)
-
-	proxiedPeer := s.backend.ProxiedPeer()
-	log.Warn("inside sendStats")
-
-	if proxiedPeer != nil {
-		log.Warn("woohoo proxiedPeer isn't nil")
-		// istanbulMsg := 0x11
-		go proxiedPeer.Send(0x15, "woohooooo")
-	}
-
-	return nil
 
 	etherBase, errEtherbase := s.eth.Etherbase()
 	if errEtherbase != nil {

@@ -186,6 +186,21 @@ type Backend struct {
 	proxiedPeer consensus.Peer
 
 	newEpochCh chan struct{}
+
+    delegateSignFeed event.Feed
+}
+
+// This is for ethstats communication
+func (sb *Backend) ProxiedPeer() consensus.Peer {
+	return sb.proxiedPeer
+}
+
+// This is for ethstats communication
+func (sb *Backend) ProxyNode() consensus.Peer {
+	if sb.proxyNode != nil {
+		return sb.proxyNode.peer
+	}
+	return nil
 }
 
 // Authorize implements istanbul.Backend.Authorize
