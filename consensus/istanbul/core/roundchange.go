@@ -184,16 +184,14 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
-	logger.Trace("Got round change message", "message_round", roundView.Round)
-
+	// Skip to the highest round we know F+1 (one honest validator) is at, but
+	// don't start a round until we have a quorum who want to start a given round.
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
 
-	logger.Info("handleRoundChange", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
+	logger.Trace("Got round change message", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
-	// TODO(Joshua): Keep ffRound logic to go the highest round that we can guarantee to be an honest timeout, but then
-	// require quorum messages on a particular round?
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Trace("Got quorum round change messages, starting new round.")
 		c.startNewRound(quorumRound)
@@ -234,7 +232,6 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
 	if prevLatestRound, ok := rcs.latestRoundForVal[src]; ok {
 		if prevLatestRound > round {
 			// Reject as we have an RC for a later round from this validator.
-			// logger.Debug("Message is old")
 			return errOldMessage
 		} else if prevLatestRound < round {
 			// Already got an RC for an earlier round from this validator.
@@ -244,7 +241,6 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
 				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
 					delete(rcs.msgsForRound, prevLatestRound)
 				}
-				// logger.Debug("Deleting earlier Round Change Messages")
 			}
 		}
 	}
@@ -253,7 +249,6 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
 
 	if rcs.msgsForRound[round] == nil {
 		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
-		// logger.Debug("Creating new RC message set")
 	}
 	return rcs.msgsForRound[round].Add(msg)
 }
@@ -265,11 +260,9 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 
 	for k, rms := range rcs.msgsForRound {
 		if rms.Size() == 0 || k < round.Uint64() {
-			if rms != nil {
-				for _, msg := range rms.Values() {
-					if latestRound, ok := rcs.latestRoundForVal[msg.Address]; ok && k == latestRound {
-						delete(rcs.latestRoundForVal, msg.Address)
-					}
+			for _, msg := range rms.Values() {
+				if _, ok := rcs.latestRoundForVal[msg.Address]; ok {
+					delete(rcs.latestRoundForVal, msg.Address)
 				}
 			}
 			delete(rcs.msgsForRound, k)
@@ -344,13 +337,12 @@ func (rcs *roundChangeSet) String() string {
 		strings.Join(latestRoundForValStr, ", "))
 }
 
+// Gets a round change certificate for a specific round.
 func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
 	round := r.Uint64()
-	// TODO(Joshua): Think through if this is correct or if we need to include round change
-	// from messages from a larger round.
 	if rcs.msgsForRound[round] != nil && rcs.msgsForRound[round].Size() >= quorumSize {
 		messages := make([]istanbul.Message, rcs.msgsForRound[round].Size())
 		for i, message := range rcs.msgsForRound[round].Values() {

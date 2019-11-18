@@ -143,6 +143,15 @@ func (valSet *defaultSet) GetByAddress(addr common.Address) (int, istanbul.Valid
 	return -1, nil
 }
 
+func (valSet *defaultSet) ContainsByAddress(addr common.Address) bool {
+	for _, val := range valSet.List() {
+		if addr == val.Address() {
+			return true
+		}
+	}
+	return false
+}
+
 func (valSet *defaultSet) GetFilteredIndex(addr common.Address) int {
 	for i, val := range valSet.FilteredList() {
 		if addr == val.Address() {

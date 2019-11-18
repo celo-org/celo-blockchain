@@ -21,7 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func (c *core) sendCommit() {
@@ -41,8 +41,8 @@ func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(digest common.Hash) ([]byte, error) {
-	seal := PrepareCommittedSeal(digest)
+func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBlockHeader(seal)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
-	committedSeal, err := c.generateCommittedSeal(sub.Digest)
+	committedSeal, err := c.generateCommittedSeal(sub)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)
 		return
@@ -74,7 +74,6 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCommit", "tag", "handleMsg")
 	// Decode COMMIT message
 	var commit *istanbul.Subject
 	err := msg.Decode(&commit)
@@ -86,17 +85,50 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return err
 	}
 
-	if err := c.verifyCommit(commit); err != nil {
-		return err
+	// Valid commit messages may be for the current, or previous sequence. We compare against our
+	// current view to find out which.
+	if commit.View.Cmp(c.currentView()) == 0 {
+		return c.handleCheckedCommitForCurrentSequence(msg, commit)
+	} else {
+		return c.handleCheckedCommitForPreviousSequence(msg, commit)
 	}
+}
 
+func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg")
+	lastProposal, _ := c.backend.LastProposal()
+	// Retrieve the validator set for the previous proposal (which should
+	// match the one broadcast)
+	parentValset := c.backend.ParentValidators(lastProposal)
+	_, validator := parentValset.GetByAddress(msg.Address)
+	if validator == nil {
+		return errInvalidValidatorAddress
+	}
+	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, validator); err != nil {
+		return errInvalidCommittedSeal
+	}
+	// Ensure that the commit's digest (ie the received proposal's hash) matches the saved last proposal's hash
+	if lastProposal.Number().Uint64() > 0 && commit.Digest != lastProposal.Hash() {
+		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", lastProposal.Hash().String(), "received", commit.Digest.String())
+		return errInconsistentSubject
+	}
+	return c.acceptParentCommit(msg, commit.View)
+}
+
+func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.Subject) error {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
 	_, validator := c.valSet.GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit.Digest, msg.CommittedSeal, validator); err != nil {
+	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, validator); err != nil {
 		return errInvalidCommittedSeal
+	}
+
+	// ensure that the commit is in the current proposal
+	if err := c.verifyCommit(commit); err != nil {
+		return err
 	}
 
 	c.acceptCommit(msg)
@@ -113,14 +145,16 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
-		logger.Trace("Got enough prepares and commits to generate a PreparedCertificate")
 		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+		c.setState(StatePrepared)
+		c.sendCommit()
 	}
-
 	return nil
+
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
@@ -137,8 +171,8 @@ func (c *core) verifyCommit(commit *istanbul.Subject) error {
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(digest common.Hash, committedSeal []byte, src istanbul.Validator) error {
-	seal := PrepareCommittedSeal(digest)
+func (c *core) verifyCommittedSeal(sub *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
 }
 
@@ -148,6 +182,18 @@ func (c *core) acceptCommit(msg *istanbul.Message) error {
 	// Add the COMMIT message to current round state
 	if err := c.current.Commits.Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *core) acceptParentCommit(msg *istanbul.Message, view *istanbul.View) error {
+	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentCommit")
+
+	// Add the ParentCommit to current round state
+	if err := c.current.ParentCommits.Add(msg); err != nil {
+		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
 		return err
 	}
 
