@@ -347,7 +347,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 
 	// Update logger
-	logger = logger.New("old_proposer", c.valSet.GetProposer());
+	logger = logger.New("old_proposer", c.valSet.GetProposer())
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
@@ -358,7 +358,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "cur_round", newView.Round, "cur_seq", newView.Sequence, "cur_proposer", c.valSet.GetProposer(), "cur_proposer_id", c.valSet.GetProposerIndex(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet)
+	logger.Debug("New round", "cur_round", newView.Round, "cur_seq", newView.Sequence, "cur_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet)
 }
 
 // All actions that occur when transitioning to waiting for round change state.
