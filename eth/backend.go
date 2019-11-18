@@ -547,24 +547,19 @@ func (s *Ethereum) StopMining() {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
-func (s *Ethereum) Config() *Config                    { return s.config }
-func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
-func (s *Ethereum) IsListening() bool                  { return true } // Always listening
-func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
-func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
-func (s *Ethereum) GatewayFee() *big.Int               { return s.gatewayFee }
-
-func (s *Ethereum) GatewayFeeRecipient() common.Address {
-	// Ignore the error as it is acceptable to have an empty gateway fee recipient.
-	etherbase, _ := s.Etherbase()
-	return etherbase
-}
+func (s *Ethereum) AccountManager() *accounts.Manager   { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain        { return s.blockchain }
+func (s *Ethereum) Config() *Config                     { return s.config }
+func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
+func (s *Ethereum) IsListening() bool                   { return true } // Always listening
+func (s *Ethereum) EthVersion() int                     { return int(s.protocolManager.SubProtocols[0].Version) }
+func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
+func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
+func (s *Ethereum) GatewayFee() *big.Int                { return common.Big0 }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
