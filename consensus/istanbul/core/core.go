@@ -118,7 +118,7 @@ func (c *core) SetAddress(address common.Address) {
 func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	var err error
 	// Add sender address
-	msg.Address = c.Address()
+	msg.Address = c.address
 
 	// Sign message
 	data, err := msg.PayloadNoSig()
@@ -163,11 +163,10 @@ func (c *core) currentView() *istanbul.View {
 }
 
 func (c *core) isProposer() bool {
-	v := c.valSet
-	if v == nil {
+	if c.valSet == nil {
 		return false
 	}
-	return v.IsProposer(c.backend.Address())
+	return c.valSet.IsProposer(c.address)
 }
 
 func (c *core) commit() {
@@ -416,10 +415,6 @@ func (c *core) setState(state State) {
 		c.processPendingRequests()
 	}
 	c.processBacklog()
-}
-
-func (c *core) Address() common.Address {
-	return c.address
 }
 
 func (c *core) stopFuturePreprepareTimer() {
