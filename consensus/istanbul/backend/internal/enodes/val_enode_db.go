@@ -256,17 +256,13 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 		return errOldAnnounceMessage
 	}
 
-	// If we already have an entry for this address and the enode URL hasn't changed, do nothing.
-	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
-	if !isNew && !hasOldValueChanged {
-		return nil
-	}
-
 	// new entry
 	rawEntry, err := rlp.EncodeToBytes(&addressEntry{enodeURL, view})
 	if err != nil {
 		return err
 	}
+
+	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
 
 	batch := new(leveldb.Batch)
 
