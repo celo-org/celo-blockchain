@@ -313,7 +313,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence", "cur_seq", lastProposal.Number().Int64())
+		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastProposal.Number().Int64())
 		return
 	}
 
@@ -358,7 +358,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "cur_round", newView.Round, "cur_seq", newView.Sequence, "cur_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer(), "rcsp", &c.roundChangeSet)
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
 // All actions that occur when transitioning to waiting for round change state.

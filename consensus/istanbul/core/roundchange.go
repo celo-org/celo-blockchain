@@ -184,6 +184,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
+
 	// Skip to the highest round we know F+1 (one honest validator) is at, but
 	// don't start a round until we have a quorum who want to start a given round.
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
