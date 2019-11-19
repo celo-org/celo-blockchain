@@ -278,3 +278,19 @@ func AggregateSignatures(signatures []*Signature) (*Signature, error) {
 
 	return aggregatedSignature, nil
 }
+
+func EncodeEpochToBytes(epochIndex uint16, maximumNonSigners uint32, aggregatedPublicKey *PublicKey, addedPublicKeys []*PublicKey) ([]byte, error) {
+	publicKeysPtrs := []*C.struct_PublicKey{}
+	for _, pk := range addedPublicKeys {
+		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
+	}
+	var bytes *C.uchar
+	var size C.int
+	success := C.encode_epoch_block_to_bytes(C.ushort(epochIndex), C.uint(maximumNonSigners), aggregatedPublicKey.ptr, (**C.struct_PublicKey)(unsafe.Pointer(&publicKeysPtrs[0])), C.int(len(publicKeysPtrs)), &bytes, &size)
+	if !success {
+		return nil, GeneralError
+	}
+	defer C.free_vec(bytes, size)
+
+	return C.GoBytes(unsafe.Pointer(bytes), size), nil
+}
