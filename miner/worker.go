@@ -1075,12 +1075,14 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
 
 	block, err := w.engine.FinalizeAndAssemble(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 	if err != nil {
+		log.Error("Unable to finalize block", "err", err)
 		return err
 	}
 	if w.isRunning() {

@@ -529,8 +529,8 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	// Heuristic limit, reject transactions over 32KB to prevent DOS attacks
-	if tx.Size() > 32*1024 {
+	// Heuristic limit, reject transactions over MaxCodeSize to prevent DOS attacks
+	if tx.Size() > params.MaxCodeSize {
 		return ErrOversizedData
 	}
 	// Transactions can't be negative. This may never happen using RLP decoded
@@ -563,26 +563,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	if tx.GasCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(), "from", from.Hex(), "txn cost", tx.Cost().String())
-		return ErrInsufficientFunds
-	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
-
-		if err != nil {
-			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
-			return err
-		}
-
-		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
-			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
-			return ErrInsufficientFunds
-		}
-
-		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String())
-			return ErrInsufficientFunds
-		}
+	// Transactor should have enough funds to cover the costs
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState)
+	if err != nil {
+		return err
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.chain.CurrentBlock().Header(), pool.currentState, tx.GasCurrency())
 	if err != nil {
@@ -1454,6 +1438,35 @@ func (pool *TxPool) demoteUnexecutables() {
 			delete(pool.beats, addr)
 		}
 	}
+}
+
+// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
+	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		log.Debug("Insufficient funds",
+			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "gas currency", tx.GasCurrency(), "balance", currentState.GetBalance(from))
+		return ErrInsufficientFunds
+	} else if tx.GasCurrency() != nil {
+		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+
+		if err != nil {
+			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
+			return err
+		}
+
+		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
+			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
+			return ErrInsufficientFunds
+		}
+
+		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
+			return ErrInsufficientFunds
+		}
+	}
+	return nil
 }
 
 // addressByHeartbeat is an account address tagged with its last activity timestamp.

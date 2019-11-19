@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
-	"math/rand"
-	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -264,8 +262,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		dataDir := filepath.Join("/tmp", string(rand.Int()))
-		engine := New(config, db, dataDir).(*Backend)
+		engine := New(config, db).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
@@ -356,12 +353,9 @@ func TestValSetChange(t *testing.T) {
 				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
 				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
 				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
-				Bitmap:                    big.NewInt(0),
-				Seal:                      []byte{},
-				CommittedSeal:             []byte{},
+				AggregatedSeal:            types.IstanbulAggregatedSeal{},
+				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 				EpochData:                 []byte{},
-				ParentCommit:              []byte{},
-				ParentBitmap:              big.NewInt(0),
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)

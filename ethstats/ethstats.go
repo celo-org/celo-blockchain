@@ -42,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/les"
@@ -692,11 +691,12 @@ type validatorSet struct {
 }
 
 type validatorInfo struct {
-	Address      common.Address `json:"address"`
-	Name         string         `json:"name"`
-	Score        string         `json:"score"`
-	BLSPublicKey []byte         `json:"blsPublicKey"`
-	Affiliation  common.Address `json:"affiliation"`
+	Address        common.Address `json:"address"`
+	Name           string         `json:"name"`
+	Score          string         `json:"score"`
+	BLSPublicKey   []byte         `json:"blsPublicKey"`
+	EcdsaPublicKey []byte         `json:"ecdsaPublicKey"`
+	Affiliation    common.Address `json:"affiliation"`
 }
 
 func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) validatorSet {
@@ -718,11 +718,12 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 			address)
 
 		valsRegistered = append(valsRegistered, validatorInfo{
-			Address:      address,
-			Score:        fmt.Sprintf("%d", valData.Score),
-			Name:         address.String(),
-			BLSPublicKey: valData.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES],
-			Affiliation:  valData.Affiliation,
+			Address:        address,
+			Score:          fmt.Sprintf("%d", valData.Score),
+			Name:           address.String(),
+			BLSPublicKey:   valData.BlsPublicKey,
+			EcdsaPublicKey: valData.EcdsaPublicKey,
+			Affiliation:    valData.Affiliation,
 		})
 	}
 

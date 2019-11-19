@@ -108,7 +108,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		// If COMMIT message, verify valid committed seal.
 		if message.Code == istanbul.MsgCommit {
 			_, src := c.valSet.GetByAddress(signer)
-			err := c.verifyCommittedSeal(subject.Digest, message.CommittedSeal, src)
+			err := c.verifyCommittedSeal(subject, message.CommittedSeal, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
 				return err
@@ -173,7 +173,7 @@ func (c *core) acceptPrepare(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
 
 	// Add the PREPARE message to current round state
-	if err := c.current.Prepares.Add(msg); err != nil {
+	if err := c.current.Prepares().Add(msg); err != nil {
 		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
 		return err
 	}

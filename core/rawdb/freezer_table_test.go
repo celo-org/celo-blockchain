@@ -243,7 +243,10 @@ func TestFreezerRepairDanglingHeadLarge(t *testing.T) {
 	}
 	// And if we open it, we should now be able to read all of them (new values)
 	{
-		f, _ := newCustomTable(os.TempDir(), fname, rm, wm, sg, 50, true)
+		f, err := newCustomTable(os.TempDir(), fname, rm, wm, sg, 50, true)
+		if err != nil {
+			t.Fatal(err)
+		}
 		for y := 1; y < 255; y++ {
 			exp := getChunk(15, ^y)
 			got, err := f.Retrieve(uint64(y))

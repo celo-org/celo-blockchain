@@ -31,6 +31,8 @@ type Proposal interface {
 	// Number retrieves the sequence number of this proposal.
 	Number() *big.Int
 
+	Header() *types.Header
+
 	// Hash retrieves the hash of this proposal.
 	Hash() common.Hash
 
