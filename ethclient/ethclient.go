@@ -79,10 +79,11 @@ func (ec *Client) BlockByNumber(ctx context.Context, number *big.Int) (*types.Bl
 }
 
 type rpcBlock struct {
-	Hash         common.Hash       `json:"hash"`
-	Transactions []rpcTransaction  `json:"transactions"`
-	UncleHashes  []common.Hash     `json:"uncles"`
-	Randomness   *types.Randomness `json:"randomness"`
+	Hash             common.Hash           `json:"hash"`
+	Transactions     []rpcTransaction      `json:"transactions"`
+	UncleHashes      []common.Hash         `json:"uncles"`
+	Randomness       *types.Randomness     `json:"randomness"`
+	EpochSnarkData   *types.EpochSnarkData `json:"epochSnarkData"`
 }
 
 func (ec *Client) getBlock(ctx context.Context, method string, args ...interface{}) (*types.Block, error) {
@@ -147,7 +148,7 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 		}
 		txs[i] = tx.tx
 	}
-	return types.NewBlockWithHeader(head).WithBody(txs, uncles, body.Randomness), nil
+	return types.NewBlockWithHeader(head).WithBody(txs, uncles, body.Randomness, body.EpochSnarkData), nil
 }
 
 // HeaderByHash returns the block header with the given hash.

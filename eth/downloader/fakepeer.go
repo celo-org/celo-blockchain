@@ -126,6 +126,7 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		txs        [][]*types.Transaction
 		uncles     [][]*types.Header
 		randomness []*types.Randomness
+		epochSnarkData []*types.EpochSnarkData
 	)
 	for _, hash := range hashes {
 		block := rawdb.ReadBlock(p.db, hash, *p.hc.GetBlockNumber(hash))
@@ -133,8 +134,9 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		txs = append(txs, block.Transactions())
 		uncles = append(uncles, block.Uncles())
 		randomness = append(randomness, block.Randomness())
+		epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 	}
-	p.dl.DeliverBodies(p.id, txs, uncles, randomness)
+	p.dl.DeliverBodies(p.id, txs, uncles, randomness, epochSnarkData)
 	return nil
 }
 

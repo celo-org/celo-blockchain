@@ -575,19 +575,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		transactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
 		randomness := make([]*types.Randomness, len(request))
+		epochSnarkData := make([]*types.EpochSnarkData, len(request))
 
 		for i, body := range request {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
 			randomness[i] = body.Randomness
+      epochSnarkData[i] = body.EpochSnarkData
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0
+		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 		if filter {
-			transactions, uncles, randomness = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, time.Now())
+			transactions, uncles, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, epochSnarkData, time.Now())
 		}
-		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness)
+		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
+			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness, epochSnarkData)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
 			}

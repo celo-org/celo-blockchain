@@ -97,10 +97,11 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header     *types.Header
-	txs        []*types.Transaction
-	receipts   []*types.Receipt
-	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
+	header         *types.Header
+	txs            []*types.Transaction
+	receipts       []*types.Receipt
+	randomness     *types.Randomness // The types.Randomness of the last block by mined by this worker.
+  epochSnarkData *types.EpochSnarkData
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -726,6 +727,7 @@ func (w *worker) updateSnapshot() {
 		uncles,
 		w.current.receipts,
 		w.current.randomness,
+		w.current.epochSnarkData,
 	)
 
 	w.snapshotState = w.current.state.Copy()
@@ -1011,6 +1013,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		w.current.randomness = &types.EmptyRandomness
 	}
 
+
+  //TODO(kobi): make it correct
+	if w.isRunning() {
+    w.current.epochSnarkData = &types.EmptyEpochSnarkData
+  }
+
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -1067,7 +1075,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		}
 	}
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness, w.current.epochSnarkData)
 	if err != nil {
 		log.Error("Unable to finalize block", "err", err)
 		return err

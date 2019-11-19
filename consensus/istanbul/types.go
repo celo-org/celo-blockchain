@@ -166,6 +166,7 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
+  block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
 		Proposal:                block.WithSeal(emptyHeader),

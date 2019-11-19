@@ -12,10 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var (
+const (
 	PUBLICKEYBYTES = bls.PUBLICKEYBYTES
 	SIGNATUREBYTES = bls.SIGNATUREBYTES
 )
+
+type SerializedPublicKey [PUBLICKEYBYTES]byte
+type SerializedSignature [SIGNATUREBYTES]byte
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	for i := 0; i < 256; i++ {
@@ -144,6 +147,9 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 
 func VerifySignature(publicKey []byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
 	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+	if err != nil {
+		return err
+	}
 	defer publicKeyObj.Destroy()
 
 	signatureObj, err := bls.DeserializeSignature(signature)

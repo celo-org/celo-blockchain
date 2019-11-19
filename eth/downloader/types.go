@@ -44,10 +44,11 @@ func (p *headerPack) Stats() string  { return fmt.Sprintf("%d", len(p.headers)) 
 
 // bodyPack is a batch of block bodies returned by a peer.
 type bodyPack struct {
-	peerID       string
-	transactions [][]*types.Transaction
-	uncles       [][]*types.Header
-	randomness   []*types.Randomness
+	peerID           string
+	transactions     [][]*types.Transaction
+	uncles           [][]*types.Header
+	randomness       []*types.Randomness
+	epochSnarkData   []*types.EpochSnarkData
 }
 
 func (p *bodyPack) PeerId() string { return p.peerID }
