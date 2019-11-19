@@ -218,6 +218,7 @@ func (s *Service) loop() {
 		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
+		signCh = make(chan istanbul.MessageEvent, 1)
 	)
 	go func() {
 		var lastTx mclock.AbsTime
@@ -249,46 +250,9 @@ func (s *Service) loop() {
 			case <-headSub.Err():
 				break HandleLoop
 			case delegateSignMsg := <-istDelegateSignCh:
-				fmt.Println("SIGNEVENT")
-				proxiedPeer := s.backend.ProxiedPeer()
-				proxyNode := s.backend.ProxyNode()
-
-				type StatsPayload struct {
-					Action string      `json:"action"`
-					Stats  interface{} `json:"stats"`
-				}
-
-				var statsPayload StatsPayload
-				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
-				if err == nil {
-					if proxiedPeer != nil {
-						conn, err := s.getConnection()
-						// if err = s.login(conn); err != nil {
-						// 	log.Warn("Stats login failed", "err", err)
-						// 	conn.Close()
-						// 	time.Sleep(10 * time.Second)
-						// 	continue
-						// }
-						if err == nil {
-							report := map[string][]interface{}{
-								"emit": {statsPayload.Action, statsPayload.Stats},
-							}
-							fmt.Println("sending websocket", report)
-							websocket.JSON.Send(conn, report)
-						}
-					} else if proxyNode != nil {
-						signedStats, err := s.signStats(statsPayload.Stats)
-						fmt.Println("Proxied err", err)
-						if err == nil {
-							signedStatsPayload := &StatsPayload{
-								Action: statsPayload.Action,
-								Stats:  signedStats,
-							}
-							fmt.Println("signed stats", signedStats, statsPayload.Stats)
-							msg, _ := json.Marshal(signedStatsPayload)
-							proxyNode.Send(0x15, msg)
-						}
-					}
+				select {
+				case signCh <- delegateSignMsg:
+				default:
 				}
 			}
 		}
@@ -345,11 +309,52 @@ func (s *Service) loop() {
 				if err = s.reportPending(conn); err != nil {
 					log.Warn("Transaction stats report failed", "err", err)
 				}
+			case delegateSignMsg := <-signCh:
+				if err = s.handleDelegate(conn, delegateSignMsg); err != nil {
+					log.Warn("Transaction stats report failed", "err", err)
+				}
 			}
 		}
 		// Make sure the connection is closed
 		conn.Close()
 	}
+}
+
+func (s *Service) handleDelegate(conn *websocket.Conn, delegateSignMsg istanbul.MessageEvent) error {
+	fmt.Println("SIGNEVENT")
+	proxiedPeer := s.backend.ProxiedPeer()
+	proxyNode := s.backend.ProxyNode()
+
+	type StatsPayload struct {
+		Action string      `json:"action"`
+		Stats  interface{} `json:"stats"`
+	}
+
+	var statsPayload StatsPayload
+	err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
+
+	if err != nil {
+		if proxiedPeer != nil {
+			report := map[string][]interface{}{
+				"emit": {statsPayload.Action, statsPayload.Stats},
+			}
+			fmt.Println("sending websocket", report)
+			return websocket.JSON.Send(conn, report)
+		} else if proxyNode != nil {
+			signedStats, err := s.signStats(statsPayload.Stats)
+			fmt.Println("Proxied err", err)
+			if err == nil {
+				signedStatsPayload := &StatsPayload{
+					Action: statsPayload.Action,
+					Stats:  signedStats,
+				}
+				fmt.Println("signed stats", signedStats, statsPayload.Stats)
+				msg, _ := json.Marshal(signedStatsPayload)
+				return proxyNode.Send(0x15, msg)
+			}
+		}
+	}
+	return err
 }
 
 // readLoop loops as long as the connection is alive and retrieves data packets
