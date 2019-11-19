@@ -22,7 +22,6 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -33,7 +32,7 @@ var (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet, hasBadProposal func(hash common.Hash) bool) RoundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet) RoundState {
 	return &roundStateImpl{
 		round:               view.Round,
 		desiredRound:        view.Round,
@@ -45,7 +44,6 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prep
 		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
-		hasBadProposal:      hasBadProposal,
 	}
 }
 
@@ -82,8 +80,7 @@ type roundStateImpl struct {
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
-	mu             *sync.RWMutex
-	hasBadProposal func(hash common.Hash) bool
+	mu *sync.RWMutex
 }
 
 func (s *roundStateImpl) Commits() MessageSet {
