@@ -84,7 +84,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				sb.logger.Warn("woohoo this is the proxied validator, will send a signed message")
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				// @trevor - seems I need to do this to get proxyNode.peer.Send working inside of ethstats... weird
-				sb.proxyNode.peer.Send(istanbulDelegateSign, "")
+				// sb.proxyNode.peer.Send(istanbulDelegateSign, "")
 			}
 
 			return true, nil

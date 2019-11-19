@@ -249,24 +249,45 @@ func (s *Service) loop() {
 			case <-headSub.Err():
 				break HandleLoop
 			case delegateSignMsg := <-istDelegateSignCh:
+				fmt.Println("SIGNEVENT")
 				proxiedPeer := s.backend.ProxiedPeer()
 				proxyNode := s.backend.ProxyNode()
 
-				if proxiedPeer != nil {
-					conn, err := s.getConnection()
+				type StatsPayload struct {
+					Action string      `json:"action"`
+					Stats  interface{} `json:"stats"`
+				}
 
-					if err == nil {
-						report := map[string][]interface{}{
-							"emit": {"proxy", string(delegateSignMsg.Payload)},
+				var statsPayload StatsPayload
+				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
+				if err == nil {
+					if proxiedPeer != nil {
+						conn, err := s.getConnection()
+						// if err = s.login(conn); err != nil {
+						// 	log.Warn("Stats login failed", "err", err)
+						// 	conn.Close()
+						// 	time.Sleep(10 * time.Second)
+						// 	continue
+						// }
+						if err == nil {
+							report := map[string][]interface{}{
+								"emit": {statsPayload.Action, statsPayload.Stats},
+							}
+							fmt.Println("sending websocket", report)
+							websocket.JSON.Send(conn, report)
 						}
-						websocket.JSON.Send(conn, report)
-					}
-				} else if proxyNode != nil {
-					signedStats, err := s.signHash(delegateSignMsg.Payload)
-					if err == nil {
-						fmt.Println("signed", signedStats)
-						msg, _ := json.Marshal(signedStats)
-						proxyNode.Send(0x15, msg)
+					} else if proxyNode != nil {
+						signedStats, err := s.signStats(statsPayload.Stats)
+						fmt.Println("Proxied err", err)
+						if err == nil {
+							signedStatsPayload := &StatsPayload{
+								Action: statsPayload.Action,
+								Stats:  signedStats,
+							}
+							fmt.Println("signed stats", signedStats, statsPayload.Stats)
+							msg, _ := json.Marshal(signedStatsPayload)
+							proxyNode.Send(0x15, msg)
+						}
 					}
 				}
 			}
@@ -565,7 +586,8 @@ type txStats struct {
 // empty arrays instead of returning null for them.
 type uncleStats []*types.Header
 
-func (s *Service) signHash(msg []byte) (map[string]interface{}, error) {
+func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
+	msg, _ := json.Marshal(stats)
 	msgHash := crypto.Keccak256Hash(msg)
 
 	etherBase, errEtherbase := s.eth.Etherbase()
@@ -597,57 +619,6 @@ func (s *Service) signHash(msg []byte) (map[string]interface{}, error) {
 		"msgHash":   msgHash.Hex(),
 	}
 
-	signedStats := map[string]interface{}{
-		"stats": string(msg),
-		"proof": proof,
-	}
-
-	return signedStats, nil
-}
-
-func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
-
-	proxiedPeer := s.backend.ProxiedPeer()
-
-	if proxiedPeer != nil {
-		fmt.Println("proxiedPeer")
-		statsWithAction := map[string]interface{}{
-			"stats":  stats,
-			"action": action,
-		}
-		msg, _ := json.Marshal(statsWithAction)
-		go proxiedPeer.Send(0x15, msg)
-	}
-
-	if s.backend.ProxyNode() != nil {
-		return nil
-	}
-
-	msg, _ := json.Marshal(stats)
-	msgHash := crypto.Keccak256Hash(msg)
-
-	etherBase, errEtherbase := s.eth.Etherbase()
-	if errEtherbase != nil {
-		return errEtherbase
-	}
-
-	account := accounts.Account{Address: etherBase}
-	wallet, errWallet := s.eth.AccountManager().Find(account)
-	if errWallet != nil {
-		return errWallet
-	}
-
-	pubkey, errPubkey := wallet.GetPublicKey(account)
-	if errPubkey != nil {
-		return errPubkey
-	}
-	pubkeyBytes := crypto.FromECDSAPub(pubkey)
-
-	signature, errSign := wallet.SignHash(account, msgHash.Bytes())
-	if errSign != nil {
-		return errSign
-	}
-
 	/* Server-side verification in go: */
 	// 	sig := signature[:len(signature)-1]
 	// 	verified := crypto.VerifySignature(pubkey, msgHash.Bytes(), sig)
@@ -670,16 +641,40 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 	//				&& address == addressHasher.digest('hex').substr(24)
 	//				&& msgHash == msgHasher.digest('hex')
 
-	proof := map[string]interface{}{
-		"signature": hexutil.Encode(signature),
-		"address":   etherBase,
-		"publicKey": hexutil.Encode(pubkeyBytes),
-		"msgHash":   msgHash.Hex(),
-	}
-
 	signedStats := map[string]interface{}{
 		"stats": stats,
 		"proof": proof,
+	}
+
+	return signedStats, nil
+}
+
+func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
+
+	proxiedPeer := s.backend.ProxiedPeer()
+
+	if proxiedPeer != nil {
+		fmt.Println("SEND STATS PROXY")
+		statsWithAction := map[string]interface{}{
+			"stats":  stats,
+			"action": action,
+		}
+		msg, _ := json.Marshal(statsWithAction)
+		go proxiedPeer.Send(0x15, msg)
+		return nil
+	}
+
+	if s.backend.ProxyNode() != nil {
+		fmt.Println("SEND STATS PROXIED")
+		return nil
+	}
+
+	fmt.Println("SEND STATS")
+
+	signedStats, err := s.signStats(stats)
+
+	if err != nil {
+		return err
 	}
 
 	report := map[string][]interface{}{
