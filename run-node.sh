@@ -1,61 +1,54 @@
-###
-# Node runner
-# Usage ./run-node.sh <network> <networkid> <docker image> <port 1> <port 2> <port 3> <syncmode>
-###
+#!/usr/bin/env bash
+set -euo pipefail
 
-NETWORK=${1:-integration}
-NETWORKID=${2:-1101}
-IMAGE=${3:-us.gcr.io/celo-testnet/celo-node:integration}
-PORT1=${4:-8545}
-PORT2=${5:-8546}
-PORT3=${6:-30303}
-SYNCMODE="full"
+# Usage: start_geth.sh [geth dir] [network name] [network id] [sync mode]
+GETH_DIR=${1:-"."}
+# Default to testing the integration network
+NETWORK_NAME=${2:-"integration"}
+NETWORK_ID=${3:-"1101"}
+# Default to testing the full sync mode
+SYNCMODE=${4:-"full"}
 
-mkdir -p ./nodes/
+echo "This will start geth local node from ${GETH_DIR} in '${SYNCMODE}' sync mode which will connect to network '${NETWORK_NAME}'..."
 
-cd ./nodes/ || exit
+echo "Setting constants..."
+DATA_DIR="/tmp/tmp1"
+#rm -rf ${DATA_DIR}
+GENESIS_FILE_PATH="/tmp/genesis_ibft.json"
+GETH_BINARY="${GETH_DIR}/build/bin/geth --datadir ${DATA_DIR}"
 
-if [ ! -d "./keystore/" ]
-then
-  docker run -v "$(pwd)":/root/.celo -it "$IMAGE" account new
-fi
+echo "Building geth..."
+cd ${GETH_DIR} && make -j geth && cd -
+echo "Initializing genesis file..."
+rm -rf ${GENESIS_FILE_PATH}
+curl "https://www.googleapis.com/storage/v1/b/genesis_blocks/o/${NETWORK_NAME}?alt=media" > ${GENESIS_FILE_PATH}
 
-mkdir -p "$NETWORK"
+echo "Initializing data dir..."
+#rm -rf ${DATA_DIR}
+${GETH_BINARY} init ${GENESIS_FILE_PATH} 1>/dev/null
+echo "Initializing static nodes..."
+curl "https://www.googleapis.com/storage/v1/b/static_nodes/o/${NETWORK_NAME}?alt=media" > ${DATA_DIR}/static-nodes.json
 
-cp -r ./keystore/ "$NETWORK"/keystore/
-
-ADDRESS="$(grep -ro '"address": *"[^"]*"' --include='UTC*' ./keystore/ | grep -o '"[^"]*"$' | tr -d '"')"
-
-echo Using Celo address: "$ADDRESS"
-
-cd "$NETWORK" || exit
-
-docker run -v "$(pwd)":/root/.celo \
-           -it \
-           "$IMAGE" \
-           init /celo/genesis.json
-
-docker run -v "$(pwd)":/root/.celo \
-           --entrypoint cp \
-           -it \
-           "$IMAGE" \
-           /celo/static-nodes.json \
-           /root/.celo/
-
-docker run -p 127.0.0.1:"$PORT1":8545 \
-           -p 127.0.0.1:"$PORT2":8546 \
-           -p "$PORT3":30303 \
-           -p "$PORT3":30303/udp \
-           -v "$(pwd)":/root/.celo \
-           -it \
-           "$IMAGE" \
-           --verbosity 3 \
-           --networkid "$NETWORKID" \
-           --syncmode "$SYNCMODE" \
-           --rpc \
-           --rpcaddr 0.0.0.0 \
-           --rpcapi eth,net,web3,debug,admin,personal \
-           --lightserv 90 \
-           --lightpeers 1000 \
-           --maxpeers 1100 \
-           --etherbase "$ADDRESS"
+echo "Running geth..."
+# Run geth in the background
+${GETH_BINARY} --syncmode ${SYNCMODE} \
+   --rpc \
+   --ws \
+   --wsport=8546 \
+   --wsorigins=* \
+   --rpcapi=eth,net,web3,debug,admin,personal,txpool \
+   --debug \
+   --port=30303 \
+   --nodiscover \
+   --rpcport=8545 \
+   --rpcvhosts=* \
+   --networkid="$NETWORK_ID" \
+   --verbosity=3 \
+   --consoleoutput=stdout \
+   --consoleformat=term \
+   --ethstats=${HOSTNAME}:${WS_SECRET:-1234}@localhost:3000 \
+   --rpccorsdomain='*' \
+   --rpcvhosts='*' \
+   --ws \
+   --wsaddr 0.0.0.0 \
+   --wsapi=eth,net,web3,debug
