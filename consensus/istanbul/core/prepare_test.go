@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestVerifyPreparedCertificate(t *testing.T) {
@@ -182,7 +182,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.preparedCertificate = preparedCert
+					c.current.SetPreparedCertificate(preparedCert)
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -217,7 +217,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.preparedCertificate = preparedCert
+					c.current.SetPreparedCertificate(preparedCert)
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -370,7 +370,7 @@ OUTER:
 			if r0.state != StatePreprepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
 			}
-			if r0.current.Prepares.Size() >= r0.valSet.MinQuorumSize() {
+			if r0.current.Prepares().Size() >= r0.valSet.MinQuorumSize() {
 				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
 			}
 
@@ -378,8 +378,8 @@ OUTER:
 		}
 
 		// core should have MinQuorumSize PREPARE messages
-		if r0.current.Prepares.Size() < r0.valSet.MinQuorumSize() {
-			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares.Size())
+		if r0.current.Prepares().Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares().Size())
 		}
 
 		// a message will be delivered to backend if 2F+1
@@ -428,7 +428,7 @@ func TestVerifyPrepare(t *testing.T) {
 		expected error
 
 		prepare    *istanbul.Subject
-		roundState *roundState
+		roundState RoundState
 	}{
 		{
 			// normal case

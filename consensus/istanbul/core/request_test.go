@@ -113,7 +113,7 @@ func TestStoreRequestMsg(t *testing.T) {
 		t.Errorf("the size of pending requests mismatch: have %v, want %v", c.pendingRequests.Size(), len(requests))
 	}
 
-	c.current.sequence = big.NewInt(3)
+	c.current.SetSequence(big.NewInt(3))
 
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
