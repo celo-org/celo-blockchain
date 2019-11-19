@@ -18,12 +18,13 @@ package core
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 // sendNextRoundChange sends the ROUND CHANGE message with current round + 1
@@ -50,7 +51,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 	rc := &istanbul.RoundChange{
 		View:                nextView,
-		PreparedCertificate: c.current.preparedCertificate,
+		PreparedCertificate: c.current.PreparedCertificate(),
 	}
 
 	payload, err := Encode(rc)
@@ -209,7 +210,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
 		validatorSet:      valSet,
-		msgsForRound:      make(map[uint64]*messageSet),
+		msgsForRound:      make(map[uint64]MessageSet),
 		latestRoundForVal: make(map[common.Address]uint64),
 		mu:                new(sync.Mutex),
 	}
@@ -217,7 +218,7 @@ func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 
 type roundChangeSet struct {
 	validatorSet      istanbul.ValidatorSet
-	msgsForRound      map[uint64]*messageSet
+	msgsForRound      map[uint64]MessageSet
 	latestRoundForVal map[common.Address]uint64
 	mu                *sync.Mutex
 }

@@ -20,12 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -379,31 +377,9 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-
-	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("Insufficient funds",
-			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
-			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-			"value", tx.Value(), "gateway fee", tx.GatewayFee(), "fee currency", tx.FeeCurrency())
-		return core.ErrInsufficientFunds
-	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
-
-		if err != nil {
-			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
-			return err
-		}
-
-		if feeCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
-			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
-			return core.ErrInsufficientFunds
-		}
-
-		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
-			return core.ErrInsufficientFunds
-		}
+	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState)
+	if err != nil {
+		return err
 	}
 
 	// Should supply enough intrinsic gas

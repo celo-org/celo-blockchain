@@ -639,27 +639,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	if tx.FeeCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(), "from", from.Hex(), "txn cost", tx.Cost().String())
-		return ErrInsufficientFunds
-	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
-
-		if err != nil {
-			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
-			return err
-		}
-
-		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
-		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
-			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
-			return ErrInsufficientFunds
-		}
-
-		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String())
-			return ErrInsufficientFunds
-		}
+	// Transactor should have enough funds to cover the costs
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState)
+	if err != nil {
+		return err
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, pool.chain.CurrentBlock().Header(), pool.currentState, tx.FeeCurrency())
 	if err != nil {
@@ -1212,6 +1195,36 @@ func (pool *TxPool) demoteUnexecutables() {
 			delete(pool.beats, addr)
 		}
 	}
+}
+
+// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
+	if tx.FeeCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		log.Debug("Insufficient funds",
+			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
+		return ErrInsufficientFunds
+	} else if tx.FeeCurrency() != nil {
+		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+
+		if err != nil {
+			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
+			return err
+		}
+
+		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
+		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
+			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+			return ErrInsufficientFunds
+		}
+
+		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String())
+			return ErrInsufficientFunds
+		}
+	}
+	return nil
 }
 
 // addressByHeartbeat is an account address tagged with its last activity timestamp.

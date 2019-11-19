@@ -26,8 +26,8 @@ import (
 )
 
 // Construct a new message set to accumulate messages for given sequence/view number.
-func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
-	return &messageSet{
+func newMessageSet(valSet istanbul.ValidatorSet) MessageSet {
+	return &messageSetImpl{
 		messagesMu: new(sync.Mutex),
 		messages:   make(map[common.Address]*istanbul.Message),
 		valSet:     valSet,
@@ -36,13 +36,25 @@ func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
 
 // ----------------------------------------------------------------------------
 
-type messageSet struct {
+type MessageSet interface {
+	fmt.Stringer
+	Add(msg *istanbul.Message) error
+	GetAddressIndex(addr common.Address) (uint64, error)
+	GetAddressPublicKey(addr common.Address) ([]byte, error)
+	ValSetSize() uint64
+	Remove(address common.Address)
+	Values() (result []*istanbul.Message)
+	Size() int
+	Get(addr common.Address) *istanbul.Message
+}
+
+type messageSetImpl struct {
 	valSet     istanbul.ValidatorSet
 	messagesMu *sync.Mutex
 	messages   map[common.Address]*istanbul.Message
 }
 
-func (ms *messageSet) Add(msg *istanbul.Message) error {
+func (ms *messageSetImpl) Add(msg *istanbul.Message) error {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -53,7 +65,7 @@ func (ms *messageSet) Add(msg *istanbul.Message) error {
 	return ms.addVerifiedMessage(msg)
 }
 
-func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
+func (ms *messageSetImpl) GetAddressIndex(addr common.Address) (uint64, error) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -65,7 +77,7 @@ func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
 	return uint64(i), nil
 }
 
-func (ms *messageSet) GetAddressPublicKey(addr common.Address) ([]byte, error) {
+func (ms *messageSetImpl) GetAddressPublicKey(addr common.Address) ([]byte, error) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -77,18 +89,18 @@ func (ms *messageSet) GetAddressPublicKey(addr common.Address) ([]byte, error) {
 	return v.BLSPublicKey(), nil
 }
 
-func (ms *messageSet) ValSetSize() uint64 {
+func (ms *messageSetImpl) ValSetSize() uint64 {
 	return uint64(ms.valSet.Size())
 }
 
-func (ms *messageSet) Remove(address common.Address) {
+func (ms *messageSetImpl) Remove(address common.Address) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
 	delete(ms.messages, address)
 }
 
-func (ms *messageSet) Values() (result []*istanbul.Message) {
+func (ms *messageSetImpl) Values() (result []*istanbul.Message) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -99,13 +111,13 @@ func (ms *messageSet) Values() (result []*istanbul.Message) {
 	return result
 }
 
-func (ms *messageSet) Size() int {
+func (ms *messageSetImpl) Size() int {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	return len(ms.messages)
 }
 
-func (ms *messageSet) Get(addr common.Address) *istanbul.Message {
+func (ms *messageSetImpl) Get(addr common.Address) *istanbul.Message {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	return ms.messages[addr]
@@ -113,7 +125,7 @@ func (ms *messageSet) Get(addr common.Address) *istanbul.Message {
 
 // ----------------------------------------------------------------------------
 
-func (ms *messageSet) verify(msg *istanbul.Message) error {
+func (ms *messageSetImpl) verify(msg *istanbul.Message) error {
 	// verify if the message comes from one of the validators
 	if _, v := ms.valSet.GetByAddress(msg.Address); v == nil {
 		return istanbul.ErrUnauthorizedAddress
@@ -121,12 +133,12 @@ func (ms *messageSet) verify(msg *istanbul.Message) error {
 	return nil
 }
 
-func (ms *messageSet) addVerifiedMessage(msg *istanbul.Message) error {
+func (ms *messageSetImpl) addVerifiedMessage(msg *istanbul.Message) error {
 	ms.messages[msg.Address] = msg
 	return nil
 }
 
-func (ms *messageSet) String() string {
+func (ms *messageSetImpl) String() string {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	addresses := make([]string, 0, len(ms.messages))
