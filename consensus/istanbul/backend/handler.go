@@ -176,7 +176,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 
-// This function is called by worker.go whenever it gets a newWork event from the miner worker.
+// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()

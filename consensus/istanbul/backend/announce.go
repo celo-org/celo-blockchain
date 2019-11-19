@@ -248,6 +248,18 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return nil
 	}
 
+	var announceData announceData
+	err = rlp.DecodeBytes(msg.Msg, &announceData)
+	if err != nil {
+		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		return err
+	}
+
+	if view, err := sb.valEnodeTable.GetViewFromAddress(msg.Address); err == nil && announceData.View.Cmp(view) <= 0 {
+		sb.logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
+		return errOldAnnounceMessage
+	}
+
 	// If the message is not within the registered validator set, then ignore it
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
@@ -257,13 +269,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	if !regAndActiveVals[msg.Address] {
 		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "IstanbulMsg", msg.String(), "validators", regAndActiveVals, "err", err)
 		return errUnauthorizedAnnounceMessage
-	}
-
-	var announceData announceData
-	err = rlp.DecodeBytes(msg.Msg, &announceData)
-	if err != nil {
-		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
-		return err
 	}
 
 	var node *enode.Node

@@ -63,6 +63,10 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
+
+	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
+	// than a previous received message
+	errOldAnnounceMessage = errors.New("old announce message")
 )
 
 // Entries for the recent announce messages

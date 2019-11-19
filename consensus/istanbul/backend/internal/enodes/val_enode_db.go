@@ -223,6 +223,17 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 	return entry.Node, nil
 }
 
+// GetViewFromAddress will return the view for an address if it's known
+func (vet *ValidatorEnodeDB) GetViewFromAddress(address common.Address) (*istanbul.View, error) {
+	vet.lock.RLock()
+	defer vet.lock.RUnlock()
+	entry, err := vet.getAddressEntry(address)
+	if err != nil {
+		return nil, err
+	}
+	return entry.View, nil
+}
+
 // GetAddressFromNodeID will return the address for an nodeID if it's known
 func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Address, error) {
 	vet.lock.RLock()
@@ -279,6 +290,13 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		rawEntry, err := rlp.EncodeToBytes(addressEntry)
 		if err != nil {
 			return err
+		}
+
+		// If it's an old message, ignore it
+		if err == nil && addressEntry.View.Cmp(currentEntry.View) <= 0 {
+			vet.logger.Trace("Ignoring the entry because it's view is older than what is stored in the val enode db",
+				"entryAddress", remoteAddress, "entryEnodeURL", addressEntry.Node.String(), "addressView", addressEntry.View)
+			continue
 		}
 
 		hasOldValueChanged := !isNew && currentEntry.Node.String() == addressEntry.Node.String()
