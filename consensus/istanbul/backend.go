@@ -82,9 +82,6 @@ type Backend interface {
 	// ParentValidators returns the validator set of the given proposal's parent block
 	ParentValidators(proposal Proposal) ValidatorSet
 
-	// HasBadProposal returns whether the block with the hash is a bad block
-	HasBadProposal(hash common.Hash) bool
-
 	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 

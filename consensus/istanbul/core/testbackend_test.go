@@ -159,10 +159,6 @@ func (self *testSystemBackend) NewRequest(request istanbul.Proposal) {
 	})
 }
 
-func (self *testSystemBackend) HasBadProposal(hash common.Hash) bool {
-	return false
-}
-
 func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
@@ -343,9 +339,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil, func(hash common.Hash) bool {
-			return false
-		})
+		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil)
 	})
 }
 
