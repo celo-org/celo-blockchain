@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -160,4 +161,8 @@ func VerifySignature(publicKey []byte, message []byte, extraData []byte, signatu
 
 	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
 	return err
+}
+
+func EncodeEpochSnarkData(newValSet []istanbul.ValidatorData, epochIndex uint64) ([]byte, error) {
+	return nil, nil
 }

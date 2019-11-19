@@ -48,6 +48,15 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 	return committedSeal, nil
 }
 
+func (c *core) generateEpochSeal(sub *istanbul.Subject) ([]byte, error) {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
+	committedSeal, err := c.backend.SignBlockHeader(seal)
+	if err != nil {
+		return nil, err
+	}
+	return committedSeal, nil
+}
+
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 

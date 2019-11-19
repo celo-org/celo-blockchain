@@ -428,7 +428,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
-func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
+func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, epochSnarkData *types.EpochSnarkData, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
@@ -436,6 +436,11 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 		if err == nil {
 			// Get the last epoch's validator set
 			snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+			if err != nil {
+				return err
+			}
+
+			encodedEpochSnarkData, err := blscrypto.EncodeEpochSnarkData(newValSet, header.Number.Uint64()/sb.config.Epoch)
 			if err != nil {
 				return err
 			}

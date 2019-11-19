@@ -101,7 +101,7 @@ type environment struct {
 	txs            []*types.Transaction
 	receipts       []*types.Receipt
 	randomness     *types.Randomness // The types.Randomness of the last block by mined by this worker.
-  epochSnarkData *types.EpochSnarkData
+	epochSnarkData *types.EpochSnarkData
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -1013,11 +1013,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		w.current.randomness = &types.EmptyRandomness
 	}
 
-
-  //TODO(kobi): make it correct
+	//TODO(kobi): make it correct
 	if w.isRunning() {
-    w.current.epochSnarkData = &types.EmptyEpochSnarkData
-  }
+		w.current.epochSnarkData = &types.EmptyEpochSnarkData
+	}
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
@@ -1069,7 +1068,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, w.current.epochSnarkData, s); err != nil {
 			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
