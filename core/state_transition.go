@@ -280,7 +280,6 @@ func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCur
 }
 
 func (st *StateTransition) creditFee(to common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	log.Debug("Crediting fee", "recipient", to, "amount", amount, "feeCurrency", feeCurrency)
 	// native currency
 	if feeCurrency == nil {
 		st.state.AddBalance(to, amount)
@@ -397,12 +396,14 @@ func (st *StateTransition) distributeTxFees() error {
 
 	// Pay gateway fee to the specified recipient.
 	if st.msg.GatewayFeeRecipient() != nil {
+		log.Debug("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
 		if err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency()); err != nil {
 			log.Error("Failed to credit gateway fee", "err", err)
 			return err
 		}
 	}
 
+	log.Debug("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
 	if err := st.creditFee(st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
 		return err
 	}
@@ -416,11 +417,13 @@ func (st *StateTransition) distributeTxFees() error {
 		log.Trace("Cannot credit gas fee to infrastructure fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		refund.Add(refund, baseTxFee)
 	} else {
+		log.Debug("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
 		if err = st.creditFee(*governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
 			return err
 		}
 	}
 
+	log.Debug("Crediting refund", "recipient", st.msg.From(), "amount", refund, "feeCurrency", st.msg.FeeCurrency())
 	err = st.creditFee(st.msg.From(), refund, st.msg.FeeCurrency())
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)

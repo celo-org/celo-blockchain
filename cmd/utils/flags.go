@@ -205,7 +205,7 @@ var (
 	}
 	GatewayFeeFlag = BigFlag{
 		Name:  "gatewayfee",
-		Usage: "Required value of gateway fee to serve a light client transaction",
+		Usage: "Minimum value of gateway fee to serve a light client transaction",
 		Value: eth.DefaultConfig.GatewayFee,
 	}
 	BLSbaseFlag = cli.StringFlag{
