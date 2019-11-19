@@ -3,7 +3,7 @@ set -euo pipefail
 
 ###
 # Docker node runner
-# Usage ./run-node.sh <network> <networkid> <docker image> <rpc port> <es port> <port> <syncmode>
+# Usage ./run-node.sh <network> <networkid> <docker image> <rpc port> <ws port> <port> <syncmode>
 ###
 
 NETWORK=${1:-integration}
