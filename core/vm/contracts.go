@@ -19,7 +19,6 @@ package vm
 import (
 	"crypto/sha256"
 	"errors"
-  "encoding/hex"
 	"fmt"
 	"math/big"
 
