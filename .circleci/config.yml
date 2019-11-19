@@ -11,6 +11,8 @@ rust-defaults: &rust-defaults
 end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node10-gcloud
+  environment:
+    CELO_MONOREPO_BRANCH_TO_TEST: master
 
 jobs:
   unit-tests:
@@ -69,7 +71,7 @@ jobs:
           command: |
             set -euo pipefail
             export CELO_MONOREPO_DIR="$PWD"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b asaj/e2e-key-swap
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git ${CELO_MONOREPO_DIR} -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             yarn install || yarn install
             # separate build to avoid ENOMEM in CI :(
             yarn build --scope @celo/utils
