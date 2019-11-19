@@ -20,10 +20,6 @@ import (
 	"crypto/ecdsa"
 	"math"
 	"math/big"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -57,8 +53,6 @@ type testSystemBackend struct {
 	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
-	// This should be a writeable dir.
-	dataDir string
 }
 
 type testCommittedMsgs struct {
@@ -276,10 +270,6 @@ func (self *testSystemBackend) Enode() *enode.Node {
 
 func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 
-func (self *testSystemBackend) GetDataDir() string {
-	return self.dataDir
-}
-
 // ==============================================
 //
 // define the struct that need to be provided for integration tests.
@@ -408,42 +398,20 @@ func (t *testSystem) stop(core bool) {
 			b.engine.Stop()
 		}
 	}
-	// Cleanup all the saved IBFT persistent files.
-	for _, backend := range t.backends {
-		os.RemoveAll(backend.dataDir)
-	}
 }
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
 	ethDB := ethdb.NewMemDatabase()
-	dataDir := createRandomDataDir()
 	backend := &testSystemBackend{
-		id:      id,
-		sys:     t,
-		events:  new(event.TypeMux),
-		db:      ethDB,
-		dataDir: dataDir,
+		id:     id,
+		sys:    t,
+		events: new(event.TypeMux),
+		db:     ethDB,
 	}
 
 	t.backends[id] = backend
 	return backend
-}
-
-func createRandomDataDir() string {
-	rand.Seed(time.Now().UnixNano())
-	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
-		dataDir := filepath.Join("/tmp", dirName)
-		err := os.Mkdir(dataDir, 0700)
-		if os.IsExist(err) {
-			continue // Re-try
-		}
-		if err != nil {
-			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
-		}
-		return dataDir
-	}
 }
 
 func (t *testSystem) F() uint64 {

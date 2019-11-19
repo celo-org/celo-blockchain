@@ -65,7 +65,7 @@ type AnnounceGossipTimestamp struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -93,7 +93,6 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, &validatorPeerHandler{sb: backend})
@@ -151,7 +150,6 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
-	dataDir      string // A read-write data dir to persist files across restarts
 	newEpochCh   chan struct{}
 }
 
@@ -260,10 +258,6 @@ func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 		return sb.broadcaster.GetNodeKey()
 	}
 	return nil
-}
-
-func (sb *Backend) GetDataDir() string {
-	return sb.dataDir
 }
 
 // Commit implements istanbul.Backend.Commit
