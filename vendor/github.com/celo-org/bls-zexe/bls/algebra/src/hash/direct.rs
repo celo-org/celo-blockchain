@@ -16,10 +16,10 @@ impl DirectHasher {
 
 }
 
-fn xof_digest_length_to_node_offset(node_offset: usize, xof_digest_length: usize) -> Result<u64, Box<dyn Error>> {
+fn xof_digest_length_to_node_offset(node_offset: u64, xof_digest_length: usize) -> Result<u64, Box<dyn Error>> {
     let mut xof_digest_length_bytes: [u8; 2] = [0; 2];
     (&mut xof_digest_length_bytes[..]).write_u16::<LittleEndian>(xof_digest_length as u16)?;
-    let offset = (node_offset | ((xof_digest_length_bytes[0] as usize) << 32) | ((xof_digest_length_bytes[1] as usize) << 40)) as u64;
+    let offset = node_offset as u64 | ((xof_digest_length_bytes[0] as u64) << 32) | ((xof_digest_length_bytes[1] as u64) << 40);
     Ok(offset)
 }
 
@@ -53,7 +53,7 @@ impl XOF for DirectHasher {
                 .fanout(0)
                 .max_depth(0)
                 .personal(domain)
-                .node_offset(xof_digest_length_to_node_offset(i, xof_digest_length)?)
+                .node_offset(xof_digest_length_to_node_offset(i as u64, xof_digest_length)?)
                 .to_state()
                 .update(hashed_message)
                 .finalize()
