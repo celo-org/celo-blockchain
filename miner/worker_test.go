@@ -248,8 +248,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	istanbulDataDirName := string(rand.Int())
 	dataDir := filepath.Join("/tmp", istanbulDataDirName)
 
-	var istConfig istanbul.Config
-	istConfig = *istanbul.DefaultConfig
+	var istConfig istanbul.Config = *istanbul.DefaultConfig
 	istConfig.ValidatorEnodeDBPath = filepath.Join(dataDir, "validatorenodes")
 
 	engine := istanbulBackend.New(&istConfig, ethdb.NewMemDatabase(), dataDir)

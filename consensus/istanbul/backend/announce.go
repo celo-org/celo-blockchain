@@ -266,10 +266,6 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
-	if currentEntry, err := sb.valEnodeTable.GetAddressEntry(msg.Address); err == nil && announceData.View.Cmp(currentEntry.View) <= 0 {
-		return errOldAnnounceMessage
-	}
-
 	var node *enode.Node
 	var destAddresses = make([]string, 0, len(announceData.AnnounceRecords))
 	for _, announceRecord := range announceData.AnnounceRecords {

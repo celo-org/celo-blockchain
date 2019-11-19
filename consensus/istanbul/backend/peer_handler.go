@@ -26,52 +26,58 @@ type validatorPeerHandler struct {
 	sb *Backend
 }
 
-func (vpl *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {
-	if !vpl.sb.MaintainValConnections() {
+// Returns whether this node should maintain validator connections
+// Only proxies and non proxied validators need to connect maintain validator connections
+func (vph *validatorPeerHandler) MaintainValConnections() bool {
+	return vph.sb.config.Proxy || (vph.sb.coreStarted && !vph.sb.config.Proxied)
+}
+
+func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {
+	if !vph.MaintainValConnections() {
 		return
 	}
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
 
-	block := vpl.sb.currentBlock()
-	valSet := vpl.sb.getValidators(block.Number().Uint64(), block.Hash())
-	if valSet.ContainsByAddress(address) && valSet.ContainsByAddress(vpl.sb.ValidatorAddress()) {
-		vpl.sb.p2pserver.AddPeer(node, p2p.ValidatorPurpose)
-		vpl.sb.p2pserver.AddTrustedPeer(node, p2p.ValidatorPurpose)
+	block := vph.sb.currentBlock()
+	valSet := vph.sb.getValidators(block.Number().Uint64(), block.Hash())
+	if valSet.ContainsByAddress(address) && valSet.ContainsByAddress(vph.sb.ValidatorAddress()) {
+		vph.sb.p2pserver.AddPeer(node, p2p.ValidatorPurpose)
+		vph.sb.p2pserver.AddTrustedPeer(node, p2p.ValidatorPurpose)
 	}
 }
 
-func (vpl *validatorPeerHandler) RemoveValidatorPeer(node *enode.Node) {
-	vpl.sb.p2pserver.RemovePeer(node, p2p.ValidatorPurpose)
-	vpl.sb.p2pserver.RemoveTrustedPeer(node, p2p.ValidatorPurpose)
+func (vph *validatorPeerHandler) RemoveValidatorPeer(node *enode.Node) {
+	vph.sb.p2pserver.RemovePeer(node, p2p.ValidatorPurpose)
+	vph.sb.p2pserver.RemoveTrustedPeer(node, p2p.ValidatorPurpose)
 }
 
-func (vpl *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
+func (vph *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
 	nodeIDSet := make(map[enode.ID]bool)
 	for _, node := range newNodes {
 		nodeIDSet[node.ID()] = true
 	}
 
 	// Remove old Validator Peers
-	for existingPeerID, existingPeer := range vpl.sb.broadcaster.FindPeers(nodeIDSet, p2p.ValidatorPurpose) {
+	for existingPeerID, existingPeer := range vph.sb.broadcaster.FindPeers(nodeIDSet, p2p.ValidatorPurpose) {
 		if !nodeIDSet[existingPeerID] {
-			vpl.RemoveValidatorPeer(existingPeer.Node())
+			vph.RemoveValidatorPeer(existingPeer.Node())
 		}
 	}
 
-	if vpl.sb.MaintainValConnections() {
+	if vph.MaintainValConnections() {
 		// Add new Validator Peers (adds all the nodes in newNodes.  Note that add is noOp on already existent ones)
 		for _, newNode := range newNodes {
-			vpl.sb.p2pserver.AddPeer(newNode, p2p.ValidatorPurpose)
-			vpl.sb.p2pserver.AddTrustedPeer(newNode, p2p.ValidatorPurpose)
+			vph.sb.p2pserver.AddPeer(newNode, p2p.ValidatorPurpose)
+			vph.sb.p2pserver.AddTrustedPeer(newNode, p2p.ValidatorPurpose)
 		}
 	}
 }
 
-func (vpl *validatorPeerHandler) ClearValidatorPeers() {
-	for _, peer := range vpl.sb.broadcaster.FindPeers(nil, p2p.ValidatorPurpose) {
-		vpl.sb.p2pserver.RemovePeer(peer.Node(), p2p.ValidatorPurpose)
-		vpl.sb.p2pserver.RemoveTrustedPeer(peer.Node(), p2p.ValidatorPurpose)
+func (vph *validatorPeerHandler) ClearValidatorPeers() {
+	for _, peer := range vph.sb.broadcaster.FindPeers(nil, p2p.ValidatorPurpose) {
+		vph.sb.p2pserver.RemovePeer(peer.Node(), p2p.ValidatorPurpose)
+		vph.sb.p2pserver.RemoveTrustedPeer(peer.Node(), p2p.ValidatorPurpose)
 	}
 }

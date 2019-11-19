@@ -216,7 +216,7 @@ func (vet *ValidatorEnodeDB) String() string {
 func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
-	entry, err := vet.GetAddressEntry(address)
+	entry, err := vet.getAddressEntry(address)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 	peersToAdd := make(map[common.Address]*enode.Node)
 
 	for remoteAddress, addressEntry := range valEnodeEntries {
-		currentEntry, err := vet.GetAddressEntry(remoteAddress)
+		currentEntry, err := vet.getAddressEntry(remoteAddress)
 		isNew := err == leveldb.ErrNotFound
 
 		// Check errors
@@ -297,7 +297,8 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 	}
 
 	if batch.Len() > 0 {
-		if err := vet.db.Write(batch, nil); err != nil {
+		err := vet.db.Write(batch, nil)
+		if err != nil {
 			return err
 		} else {
 			for _, node := range peersToRemove {
@@ -353,7 +354,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAd
 		// transform address to enodeURLs
 		newNodes := []*enode.Node{}
 		for _, val := range valset.List() {
-			entry, err := vet.GetAddressEntry(val.Address())
+			entry, err := vet.getAddressEntry(val.Address())
 			if err == nil {
 				newNodes = append(newNodes, entry.Node)
 			} else if err != leveldb.ErrNotFound {
@@ -370,7 +371,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAd
 }
 
 func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address common.Address) error {
-	entry, err := vet.GetAddressEntry(address)
+	entry, err := vet.getAddressEntry(address)
 	if err != nil {
 		return err
 	}
@@ -383,7 +384,7 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 	return nil
 }
 
-func (vet *ValidatorEnodeDB) GetAddressEntry(address common.Address) (*AddressEntry, error) {
+func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEntry, error) {
 	var entry AddressEntry
 	rawEntry, err := vet.db.Get(addressKey(address), nil)
 	if err != nil {
