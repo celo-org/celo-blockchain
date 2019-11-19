@@ -402,7 +402,7 @@ var noGossip = map[int]bool{
 // and all nodes will accept the newly proposed block.
 func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	// Initialize the system with a nil round state so that we properly start round 0.
-	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) RoundState { return nil })
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
@@ -470,7 +470,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 // system enforces that as the only valid proposal for this sequence.
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	// Initialize the system with a nil round state so that we properly start round 0.
-	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) RoundState { return nil })
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core

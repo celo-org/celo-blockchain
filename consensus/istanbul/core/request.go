@@ -40,7 +40,7 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 
 	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
-	c.current.pendingRequest = request
+	c.current.SetPendingRequest(request)
 	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
 	if c.state == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
 		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
@@ -57,7 +57,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 		return errInvalidMessage
 	}
 
-	if c := c.current.sequence.Cmp(request.Proposal.Number()); c > 0 {
+	if c := c.current.Sequence().Cmp(request.Proposal.Number()); c > 0 {
 		return errOldMessage
 	} else if c < 0 {
 		return errFutureMessage
