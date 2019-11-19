@@ -28,13 +28,14 @@ var (
 	// istanbul.MsgPreprepare > istanbul.MsgCommit > istanbul.MsgPrepare
 	msgPriority = map[uint64]int{
 		istanbul.MsgPreprepare: 1,
-		istanbul.MsgCommit:     3,
-		istanbul.MsgPrepare:    2,
+		istanbul.MsgCommit:     2,
+		istanbul.MsgPrepare:    3,
 	}
 
-	acceptMaxFutureViews                = big.NewInt(10)
+	// Do not accept messages for views more than this many sequences in the future.
+	acceptMaxFutureSequence             = big.NewInt(10)
 	acceptMaxFutureMsgsFromOneValidator = 1000
-	acceptMaxFutureMessages             = 100 * 100
+	acceptMaxFutureMessages             = 10 * 1000
 	acceptMaxFutureMessagesPruneBatch   = 100
 )
 
@@ -48,7 +49,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	}
 
 	// Never accept messages too far into the future
-	if view.Sequence.Cmp(new(big.Int).Add(c.currentView().Sequence, acceptMaxFutureViews)) > 0 {
+	if view.Sequence.Cmp(new(big.Int).Add(c.currentView().Sequence, acceptMaxFutureSequence)) > 0 {
 		return errTooFarInTheFutureMessage
 	}
 
@@ -133,6 +134,13 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 			return
 		}
 		v = p.View
+	case istanbul.MsgRoundChange:
+		var p *istanbul.RoundChange
+		err := msg.Decode(&p)
+		if err != nil {
+			return
+		}
+		v = p.View
 	}
 
 	logger.Trace("Store future message", "msg", msg)
@@ -157,7 +165,7 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 
 	backlogForSeq.Push(msg, toPriority(msg.Code, v))
 
-	// Keep backlog below total max size by pruning most distant sequence first
+	// Keep backlog below total max size by pruning future-most sequence first
 	// (we always leave one sequence's entire messages and rely on per-validator limits)
 	if c.backlogTotal > acceptMaxFutureMessages {
 		backlogSeqs := c.getSortedBacklogSeqs()
@@ -256,6 +264,7 @@ func (c *core) processBacklog() {
 				err := c.checkMessage(msg.Code, view)
 				if err != nil {
 					if err == errFutureMessage {
+						// TODO(asa): Why is this unexpected? It could be for a future round...
 						logger.Warn("Unexpected future message!", "msg", msg)
 						//backlog.Push(msg, prio)
 					}
@@ -281,7 +290,7 @@ func toPriority(msgCode uint64, view *istanbul.View) int64 {
 		// msgRoundChange comes first
 		return 0
 	}
-	// FIXME: round will be reset as 0 while new sequence
-	// 10 * Round limits the range of message code is from 0 to 9
+	// 10 * Round limits the range possible message codes to [0, 9]
+	// FIXME: Check for integer overflow
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }
