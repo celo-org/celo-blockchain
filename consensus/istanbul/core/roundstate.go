@@ -68,7 +68,6 @@ type RoundState interface {
 	Sequence() *big.Int
 	CreateAndSetPreparedCertificate(quorumSize int) error
 	PreparedCertificate() istanbul.PreparedCertificate
-	SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate)
 }
 
 // RoundState stores the consensus state
@@ -244,12 +243,6 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.preparedCertificate
-}
-
-func (s *roundStateImpl) SetPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.preparedCertificate = preparedCertificate
 }
 
 // The DecodeRLP method should read one value from the given

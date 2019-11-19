@@ -182,7 +182,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.SetPreparedCertificate(preparedCert)
+					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -217,7 +217,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.SetPreparedCertificate(preparedCert)
+					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer

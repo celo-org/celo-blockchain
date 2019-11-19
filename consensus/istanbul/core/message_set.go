@@ -46,7 +46,6 @@ type MessageSet interface {
 	Values() (result []*istanbul.Message)
 	Size() int
 	Get(addr common.Address) *istanbul.Message
-	// String() string
 }
 
 type messageSetImpl struct {
