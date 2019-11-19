@@ -111,7 +111,7 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 		logger = logger.New("cur_seq", 0, "cur_round", -1)
 	}
 
-	if msg.Address == c.Address() {
+	if msg.Address == c.address {
 		logger.Warn("Backlog from self")
 		return
 	}

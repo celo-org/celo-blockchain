@@ -17,23 +17,16 @@
 package core
 
 import (
-	"sync"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) *roundState {
-	return &roundState{
-		round:         view.Round,
-		sequence:      view.Sequence,
-		Preprepare:    newTestPreprepare(view),
-		Prepares:      newMessageSet(validatorSet),
-		ParentCommits: newMessageSet(validatorSet),
-		Commits:       newMessageSet(validatorSet),
-		mu:            new(sync.RWMutex),
-		hasBadProposal: func(hash common.Hash) bool {
-			return false
-		},
-	}
+func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
+	return newRoundState(
+		view,
+		validatorSet,
+		newTestPreprepare(view),
+		nil,
+		istanbul.PreparedCertificate{},
+		newMessageSet(validatorSet),
+	)
 }
