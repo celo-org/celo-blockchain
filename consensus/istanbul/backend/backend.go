@@ -320,7 +320,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// check bad block
-	if sb.HasBadProposal(block.Hash()) {
+	if sb.hasBadProposal(block.Hash()) {
 		return 0, core.ErrBlacklistedHash
 	}
 
@@ -569,7 +569,7 @@ func (sb *Backend) LastSubject() (istanbul.Subject, error) {
 	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
-func (sb *Backend) HasBadProposal(hash common.Hash) bool {
+func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 	if sb.hasBadBlock == nil {
 		return false
 	}
