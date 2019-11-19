@@ -24,7 +24,7 @@ import (
 )
 
 func (c *core) sendPrepare() {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPrepare")
+	logger := c.newLogger("func", "sendPrepare")
 
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)
@@ -40,7 +40,7 @@ func (c *core) sendPrepare() {
 }
 
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPreparedCertificate")
+	logger := c.newLogger("func", "verifyPreparedCertificate")
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
@@ -88,7 +88,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		// Verify message for the proper sequence.
-		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
 			return errInvalidPreparedCertificateMsgView
 		}
 
@@ -120,7 +120,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare", "tag", "handleMsg")
+	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)

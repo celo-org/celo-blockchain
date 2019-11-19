@@ -25,7 +25,7 @@ import (
 )
 
 func (c *core) sendCommit() {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendCommit")
+	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
 	c.broadcastCommit(sub)
@@ -85,7 +85,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 	// Valid commit messages may be for the current, or previous sequence. We compare against our
 	// current view to find out which.
-	if commit.View.Cmp(c.currentView()) == 0 {
+	if commit.View.Cmp(c.current.View()) == 0 {
 		return c.handleCheckedCommitForCurrentSequence(msg, commit)
 	} else {
 		return c.handleCheckedCommitForPreviousSequence(msg, commit)
