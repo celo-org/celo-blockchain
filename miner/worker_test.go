@@ -247,7 +247,12 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 	istanbulDataDirName := string(rand.Int())
 	dataDir := filepath.Join("/tmp", istanbulDataDirName)
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
+
+	var istConfig istanbul.Config
+	istConfig = *istanbul.DefaultConfig
+	istConfig.ValidatorEnodeDBPath = filepath.Join(dataDir, "validatorenodes")
+
+	engine := istanbulBackend.New(&istConfig, ethdb.NewMemDatabase(), dataDir)
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
