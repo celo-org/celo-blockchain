@@ -239,8 +239,8 @@ OUTER:
 		// how can we add our signature to the ParentCommit? Broadcast to ourselve
 		// does not make much sense
 		if test.checkParentCommits {
-			if r0.current.ParentCommits.Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
-				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits.Size(), r0.valSet.Size()-1)
+			if r0.current.ParentCommits().Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
+				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits().Size(), r0.valSet.Size()-1)
 			}
 		}
 
@@ -250,15 +250,15 @@ OUTER:
 			if r0.state != StatePrepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePrepared)
 			}
-			if r0.current.Commits.Size() > r0.valSet.MinQuorumSize() {
+			if r0.current.Commits().Size() > r0.valSet.MinQuorumSize() {
 				t.Errorf("the size of commit messages should be less than %v", r0.valSet.MinQuorumSize())
 			}
 			continue
 		}
 
 		// core should have min quorum size prepare messages
-		if r0.current.Commits.Size() < r0.valSet.MinQuorumSize() {
-			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits.Size())
+		if r0.current.Commits().Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits().Size())
 		}
 
 		// check signatures large than MinQuorumSize
@@ -293,7 +293,7 @@ func TestVerifyCommit(t *testing.T) {
 	testCases := []struct {
 		expected   error
 		commit     *istanbul.CommittedSubject
-		roundState *roundState
+		roundState RoundState
 	}{
 		{
 			// normal case

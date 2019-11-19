@@ -249,13 +249,13 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
 	// and not for the current preprepare.
-	cachePreprepare := self.engine.(*core).current.Preprepare
-	self.engine.(*core).current.Preprepare = &istanbul.Preprepare{
+	cachePreprepare := self.engine.(*core).current.Preprepare()
+	self.engine.(*core).current.(*roundStateImpl).preprepare = &istanbul.Preprepare{
 		View:     &view,
 		Proposal: proposal,
 	}
 	message, err := self.finalizeAndReturnMessage(msg)
-	self.engine.(*core).current.Preprepare = cachePreprepare
+	self.engine.(*core).current.(*roundStateImpl).preprepare = cachePreprepare
 	return message, err
 }
 
@@ -339,7 +339,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 }
 
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) *roundState {
+	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) RoundState {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
@@ -350,7 +350,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 }
 
 // FIXME: int64 is needed for N and F
-func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) *roundState) *testSystem {
+func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) RoundState) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	validators, blsKeys, keys := generateValidators(int(n))

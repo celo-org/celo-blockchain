@@ -132,7 +132,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	}
 
 	c.acceptCommit(msg)
-	numberOfCommits := c.current.Commits.Size()
+	numberOfCommits := c.current.Commits().Size()
 	minQuorumSize := c.valSet.MinQuorumSize()
 	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
 
@@ -180,7 +180,7 @@ func (c *core) acceptCommit(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptCommit")
 
 	// Add the COMMIT message to current round state
-	if err := c.current.Commits.Add(msg); err != nil {
+	if err := c.current.Commits().Add(msg); err != nil {
 		logger.Error("Failed to record commit message", "msg", msg, "err", err)
 		return err
 	}
@@ -192,7 +192,7 @@ func (c *core) acceptParentCommit(msg *istanbul.Message, view *istanbul.View) er
 	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentCommit")
 
 	// Add the ParentCommit to current round state
-	if err := c.current.ParentCommits.Add(msg); err != nil {
+	if err := c.current.ParentCommits().Add(msg); err != nil {
 		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
 		return err
 	}

@@ -184,7 +184,7 @@ func (c *core) acceptPrepare(msg *istanbul.Message) error {
 	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
 
 	// Add the PREPARE message to current round state
-	if err := c.current.Prepares.Add(msg); err != nil {
+	if err := c.current.Prepares().Add(msg); err != nil {
 		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
 		return err
 	}

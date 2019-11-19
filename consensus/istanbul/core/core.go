@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
@@ -77,7 +78,7 @@ type core struct {
 	backlogs   map[istanbul.Validator]*prque.Prque
 	backlogsMu *sync.Mutex
 
-	current   *roundState
+	current   RoundState
 	handlerWg *sync.WaitGroup
 
 	roundChangeSet   *roundChangeSet
@@ -117,7 +118,7 @@ func (c *core) SetAddress(address common.Address) {
 
 func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	// Add sender address
-	msg.Address = c.Address()
+	msg.Address = c.address
 
 	if err := msg.Sign(c.backend.Sign); err != nil {
 		return nil, err
@@ -156,11 +157,10 @@ func (c *core) currentView() *istanbul.View {
 }
 
 func (c *core) isProposer() bool {
-	v := c.valSet
-	if v == nil {
+	if c.valSet == nil {
 		return false
 	}
-	return v.IsProposer(c.backend.Address())
+	return c.valSet.IsProposer(c.address)
 }
 
 func (c *core) commit() {
@@ -168,7 +168,7 @@ func (c *core) commit() {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits, c.current.Round())
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
 			c.sendNextRoundChange()
 			return
@@ -183,7 +183,7 @@ func (c *core) commit() {
 // AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
 // signature and bitmap
 // TODO: Maybe return an error instead of panicking?
-func GetAggregatedSeal(seals *messageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
+func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
 	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
@@ -215,7 +215,7 @@ func GetAggregatedSeal(seals *messageSet, round *big.Int) (types.IstanbulAggrega
 // validator was not found in the previous bitmap.
 // This function assumes that the provided seals' validator set is the same one
 // which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals *messageSet) types.IstanbulAggregatedSeal {
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) types.IstanbulAggregatedSeal {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
@@ -260,7 +260,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
 	}
 	// Start with pending request
-	request := c.current.pendingRequest
+	request := c.current.PendingRequest()
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
 	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
@@ -338,7 +338,7 @@ func (c *core) startNewRound(round *big.Int) {
 		}
 	} else {
 		if c.current != nil {
-			request = c.current.pendingRequest
+			request = c.current.PendingRequest()
 			c.deleteMessageFromDisk(c.current.Round(), c.current.Sequence())
 		}
 		newView = &istanbul.View{
@@ -393,14 +393,14 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 	// TODO(Joshua): Include desired round here.
 	if c.current != nil {
 		if roundChange {
-			c.current = newRoundState(view, validatorSet, nil, c.current.pendingRequest, c.current.preparedCertificate, c.current.ParentCommits, c.backend.HasBadProposal)
+			c.current = newRoundState(view, validatorSet, nil, c.current.PendingRequest(), c.current.PreparedCertificate(), c.current.ParentCommits(), c.backend.HasBadProposal)
 		} else {
 			lastSubject, err := c.backend.LastSubject()
-			if err != nil && c.current.Preprepare != nil && c.current.Preprepare.Proposal.Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+			if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
 				// When changing sequences, if our current Commit messages match the latest block in the chain
 				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
 				// in the next round.
-				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits, c.backend.HasBadProposal)
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits(), c.backend.HasBadProposal)
 			} else {
 				lastProposal, _ := c.backend.LastProposal()
 				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
@@ -422,10 +422,6 @@ func (c *core) setState(state State) {
 		c.processPendingRequests()
 	}
 	c.processBacklog()
-}
-
-func (c *core) Address() common.Address {
-	return c.address
 }
 
 func (c *core) stopFuturePreprepareTimer() {
