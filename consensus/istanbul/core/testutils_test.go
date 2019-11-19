@@ -17,7 +17,6 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -29,19 +28,5 @@ func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) 
 		nil,
 		istanbul.PreparedCertificate{},
 		newMessageSet(validatorSet),
-		func(hash common.Hash) bool {
-			return false
-		},
 	)
-
-	// return &RoundState{
-	// 	round:         view.Round,
-	// 	sequence:      view.Sequence,
-	// 	Preprepare:    newTestPreprepare(view),
-	// 	Prepares:      newMessageSet(validatorSet),
-	// 	ParentCommits: newMessageSet(validatorSet),
-	// 	Commits:       newMessageSet(validatorSet),
-	// 	mu:            new(sync.RWMutex),
-	// 	hasBadProposal: ,
-	// }
 }
