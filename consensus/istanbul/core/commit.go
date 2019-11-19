@@ -97,10 +97,10 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg")
-	lastProposal, _ := c.backend.LastProposal()
+	lastBlock := c.backend.LastBlock()
 	// Retrieve the validator set for the previous proposal (which should
 	// match the one broadcast)
-	parentValset := c.backend.ParentValidators(lastProposal)
+	parentValset := c.backend.ParentBlockValidators(lastBlock)
 	_, validator := parentValset.GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
@@ -109,8 +109,8 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 		return errInvalidCommittedSeal
 	}
 	// Ensure that the commit's digest (ie the received proposal's hash) matches the saved last proposal's hash
-	if lastProposal.Number().Uint64() > 0 && commit.Subject.Digest != lastProposal.Hash() {
-		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", lastProposal.Hash().String(), "received", commit.Subject.Digest.String())
+	if lastBlock.Number().Uint64() > 0 && commit.Subject.Digest != lastBlock.Hash() {
+		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", lastBlock.Hash().String(), "received", commit.Subject.Digest.String())
 		return errInconsistentSubject
 	}
 	return c.acceptParentCommit(msg, commit.Subject.View)

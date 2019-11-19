@@ -67,20 +67,23 @@ type Backend interface {
 	// the given validator
 	CheckSignature(data []byte, addr common.Address, sig []byte) error
 
-	// LastProposal retrieves latest committed proposal and the address of proposer
-	LastProposal() (Proposal, common.Address)
+	// LastBlock retrieves the last block
+	LastBlock() Proposal
+
+	// LastBlockAndAuthor retrieves the last block alongside the author for that block
+	LastBlockAndAuthor() (Proposal, common.Address)
 
 	// LastSubject retrieves latest committed subject (view and digest)
 	LastSubject() (Subject, error)
 
-	// HasProposal checks if the combination of the given hash and height matches any existing blocks
-	HasProposal(hash common.Hash, number *big.Int) bool
+	// HasBlockMatching checks if the combination of the given hash and height matches any existing blocks
+	HasBlockMatching(hash common.Hash, number *big.Int) bool
 
-	// GetProposer returns the proposer of the given block height
-	GetProposer(number uint64) common.Address
+	// AuthorForBlock returns the proposer of the given block height
+	AuthorForBlock(number uint64) common.Address
 
-	// ParentValidators returns the validator set of the given proposal's parent block
-	ParentValidators(proposal Proposal) ValidatorSet
+	// ParentBlockValidators returns the validator set of the given proposal's parent block
+	ParentBlockValidators(proposal Proposal) ValidatorSet
 
 	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)

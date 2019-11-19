@@ -33,8 +33,11 @@ type Proposal interface {
 
 	Header() *types.Header
 
-	// Hash retrieves the hash of this proposal.
+	// Hash retrieves the hash of this block
 	Hash() common.Hash
+
+	// ParentHash retrieves the hash of this block's parent
+	ParentHash() common.Hash
 
 	EncodeRLP(w io.Writer) error
 
