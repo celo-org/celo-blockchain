@@ -78,11 +78,8 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 
 	// StateAcceptRequest only accepts istanbul.MsgPreprepare
 	// other messages are future messages
-	if c.state == StateAcceptRequest {
-		if msgCode > istanbul.MsgPreprepare {
-			return errFutureMessage
-		}
-		return nil
+	if c.state == StateAcceptRequest && msgCode > istanbul.MsgPreprepare {
+		return errFutureMessage
 	}
 
 	// For states(StatePreprepared, StatePrepared, StateCommitted),
