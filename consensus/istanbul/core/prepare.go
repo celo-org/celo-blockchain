@@ -88,7 +88,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		// Verify message for the proper sequence.
-		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
 			return errInvalidPreparedCertificateMsgView
 		}
 

@@ -97,7 +97,7 @@ type core struct {
 }
 
 // Appends the current view and state to the given context.
-func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round *big.Int
 	state := c.state
 	if c.current != nil {
@@ -108,7 +108,7 @@ func (c *core) NewLogger(ctx ...interface{}) log.Logger {
 		round = big.NewInt(-1)
 	}
 	tmp := c.logger.New(ctx...)
-	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state, "address", c.address)
 }
 
 func (c *core) SetAddress(address common.Address) {
@@ -153,13 +153,6 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	if err = c.backend.Broadcast(c.valSet, payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
-	}
-}
-
-func (c *core) currentView() *istanbul.View {
-	return &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Set(c.current.Round()),
 	}
 }
 
@@ -431,7 +424,7 @@ func (c *core) stopTimer() {
 }
 
 func (c *core) newRoundChangeTimer() {
-	c.newRoundChangeTimerForView(c.currentView())
+	c.newRoundChangeTimerForView(c.current.View())
 }
 
 func (c *core) newRoundChangeTimerForView(view *istanbul.View) {

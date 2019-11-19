@@ -42,7 +42,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 
 	// Round change messages should be in the same sequence but be >= the desired round
 	if msgCode == istanbul.MsgRoundChange {
-		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
+		if view.Sequence.Cmp(c.current.Sequence()) > 0 {
 			return errFutureMessage
 		} else if view.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errOldMessage
@@ -50,14 +50,14 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return nil
 	}
 
-	if view.Cmp(c.currentView()) > 0 {
+	if view.Cmp(c.current.View()) > 0 {
 		return errFutureMessage
 	}
 
 	// Discard messages from previous views, unless they are commits from the previous sequence,
 	// with the same round as what we wound up finalizing, as we would be able to include those
 	// to create the ParentAggregatedSeal for our next proposal.
-	if view.Cmp(c.currentView()) < 0 {
+	if view.Cmp(c.current.View()) < 0 {
 		if msgCode == istanbul.MsgCommit {
 
 			lastSubject, err := c.backend.LastSubject()
@@ -91,12 +91,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "func", "storeBacklog")
-	if c.current != nil {
-		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-	} else {
-		logger = logger.New("cur_seq", 0, "cur_round", -1)
-	}
+	logger := c.newLogger("func", "storeBacklog", "from", msg.Address)
 
 	if msg.Address == c.address {
 		logger.Warn("Backlog from self")
@@ -146,7 +141,7 @@ func (c *core) processBacklog() {
 			continue
 		}
 
-		logger := c.logger.New("from", src, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "processBacklog")
+		logger := c.newLogger("func", "processBacklog", "from", src)
 		isFuture := false
 
 		// We stop processing if
@@ -178,28 +173,29 @@ func (c *core) processBacklog() {
 					view = rc.View
 				}
 			}
+
 			if view == nil {
 				logger.Debug("Nil view", "msg", msg)
 				continue
 			}
+
 			// Push back if it's a future message
 			err := c.checkMessage(msg.Code, view)
-			if err != nil {
-				if err == errFutureMessage {
-					logger.Trace("Stop processing backlog", "msg", msg)
-					backlog.Push(msg, prio)
-					isFuture = true
-					break
-				}
-				logger.Trace("Skip the backlog event", "msg", msg, "err", err)
-				continue
-			}
-			logger.Trace("Post backlog event", "msg", msg)
+			if err == nil {
+				logger.Trace("Post backlog event", "msg", msg)
 
-			go c.sendEvent(backlogEvent{
-				src: src,
-				msg: msg,
-			})
+				go c.sendEvent(backlogEvent{
+					src: src,
+					msg: msg,
+				})
+			} else if err == errFutureMessage {
+				logger.Trace("Stop processing backlog", "msg", msg)
+				backlog.Push(msg, prio)
+				isFuture = true
+			} else {
+				logger.Trace("Skip the backlog event", "msg", msg, "err", err)
+			}
+
 		}
 	}
 }

@@ -29,7 +29,7 @@ import (
 
 // sendNextRoundChange sends the ROUND CHANGE message with current round + 1
 func (c *core) sendNextRoundChange() {
-	cv := c.currentView()
+	cv := c.current.View()
 	c.sendRoundChange(new(big.Int).Add(cv.Round, common.Big1))
 }
 
@@ -37,7 +37,7 @@ func (c *core) sendNextRoundChange() {
 func (c *core) sendRoundChange(round *big.Int) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
 
-	cv := c.currentView()
+	cv := c.current.View()
 	if cv.Round.Cmp(round) >= 0 {
 		logger.Error("Cannot send out the round change")
 		return
