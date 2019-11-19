@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -122,6 +123,13 @@ var (
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	StableTokenRegistryId          = makeRegistryId("StableToken")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
+
+	// Function is "getOrComputeTobinTax()"
+	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
+	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -150,6 +158,7 @@ const (
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
 	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
+	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
 	MaxGasForGetRegisteredValidators               uint64 = 1000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
