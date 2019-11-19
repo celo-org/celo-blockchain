@@ -293,7 +293,7 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if err == nil && addressEntry.View.Cmp(currentEntry.View) <= 0 {
+		if !isNew && addressEntry.View.Cmp(currentEntry.View) <= 0 {
 			vet.logger.Trace("Ignoring the entry because it's view is older than what is stored in the val enode db",
 				"entryAddress", remoteAddress, "entryEnodeURL", addressEntry.Node.String(), "addressView", addressEntry.View)
 			continue
