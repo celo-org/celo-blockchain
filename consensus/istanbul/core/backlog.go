@@ -55,7 +55,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 
 	// Round change messages should be in the same sequence but be >= the desired round
 	if msgCode == istanbul.MsgRoundChange {
-		if view.Sequence.Cmp(c.currentView().Sequence) > 0 {
+		if view.Sequence.Cmp(c.current.Sequence()) > 0 {
 			return errFutureMessage
 		} else if view.Round.Cmp(c.current.DesiredRound()) < 0 {
 			return errOldMessage
@@ -63,14 +63,14 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 		return nil
 	}
 
-	if view.Cmp(c.currentView()) > 0 {
+	if view.Cmp(c.current.View()) > 0 {
 		return errFutureMessage
 	}
 
 	// Discard messages from previous views, unless they are commits from the previous sequence,
 	// with the same round as what we wound up finalizing, as we would be able to include those
 	// to create the ParentAggregatedSeal for our next proposal.
-	if view.Cmp(c.currentView()) < 0 {
+	if view.Cmp(c.current.View()) < 0 {
 		if msgCode == istanbul.MsgCommit {
 
 			lastSubject, err := c.backend.LastSubject()
@@ -91,11 +91,8 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 
 	// StateAcceptRequest only accepts istanbul.MsgPreprepare
 	// other messages are future messages
-	if c.state == StateAcceptRequest {
-		if msgCode > istanbul.MsgPreprepare {
-			return errFutureMessage
-		}
-		return nil
+	if c.state == StateAcceptRequest && msgCode > istanbul.MsgPreprepare {
+		return errFutureMessage
 	}
 
 	// For states(StatePreprepared, StatePrepared, StateCommitted),
@@ -104,12 +101,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "func", "storeBacklog")
-	if c.current != nil {
-		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-	} else {
-		logger = logger.New("cur_seq", 0, "cur_round", -1)
-	}
+	logger := c.newLogger("func", "storeBacklog", "from", msg.Address)
 
 	if msg.Address == c.address {
 		logger.Warn("Backlog from self")
@@ -225,7 +217,7 @@ func (c *core) processBacklog() {
 
 	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.logger.New("state", c.state, "seq", seq)
+		logger := c.newLogger("func", "processBacklog", "from", src)
 
 		if seq < c.currentView().Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
@@ -262,25 +254,22 @@ func (c *core) processBacklog() {
 					return
 				}
 				err := c.checkMessage(msg.Code, view)
-				if err != nil {
-					if err == errFutureMessage {
-						// TODO(asa): Why is this unexpected? It could be for a future round...
-						logger.Warn("Unexpected future message!", "msg", msg)
-						c.storeBacklog(msg, src)
-					}
-					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
-					return
-				}
-				logger.Trace("Post backlog event", "msg", msg)
+				if err == nil {
+					logger.Trace("Post backlog event", "msg", msg)
 
-				go c.sendEvent(backlogEvent{
-					src: src,
-					msg: msg,
-				})
+					go c.sendEvent(backlogEvent{
+						src: src,
+						msg: msg,
+					})
+				} else if err == errFutureMessage {
+					// TODO(asa): Why is this unexpected? It could be for a future round...
+					// FIXME: By pushing back to the backlog, we will never finish draining...
+					logger.Warn("Unexpected future message, pushing back to the backlog", "msg", msg)
+					c.storeBacklog(msg, src)
+				} else {
+					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
+				}
 			})
-		} else {
-			// got on to future messages.
-			return
 		}
 	}
 }

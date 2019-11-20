@@ -150,7 +150,7 @@ func TestCheckMessage(t *testing.T) {
 		}
 	}
 
-	v = c.currentView()
+	v = c.current.View()
 	// current view, state = StateAcceptRequest
 	c.state = StateAcceptRequest
 	for i := 0; i < len(testCode); i++ {
