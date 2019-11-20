@@ -306,13 +306,13 @@ func (s *Service) loop() {
 			go s.readLoop(conn)
 
 			// Send the initial stats so our node looks decent from the get go
-			// if err = s.report(conn); err != nil {
-			// 	log.Warn("Initial stats report failed", "err", err)
-			// 	conn.Close()
-			// 	continue
-			// }
+			if err = s.report(conn, sendCh); err != nil {
+				log.Warn("Initial stats report failed", "err", err)
+				conn.Close()
+				continue
+			}
 			// Keep sending status updates until the connection breaks
-			// fullReport := time.NewTicker(15 * time.Second)
+			fullReport := time.NewTicker(15 * time.Second)
 
 			for err == nil {
 				select {
@@ -320,10 +320,10 @@ func (s *Service) loop() {
 					conn.Close()
 					return
 
-				// case <-fullReport.C:
-				// 	if err = s.report(conn); err != nil {
-				// 		log.Warn("Full stats report failed", "err", err)
-				// 	}
+				case <-fullReport.C:
+					if err = s.report(conn, sendCh); err != nil {
+						log.Warn("Full stats report failed", "err", err)
+					}
 				case list := <-s.histCh:
 					if err = s.reportHistory(conn, list); err != nil {
 						log.Warn("Requested history report failed", "err", err)
@@ -552,8 +552,8 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 // report collects all possible data to report and send it to the stats server.
 // This should only be used on reconnects or rarely to avoid overloading the
 // server. Use the individual methods for reporting subscribed events.
-func (s *Service) report(conn *websocket.Conn) error {
-	if err := s.reportLatency(conn); err != nil {
+func (s *Service) report(conn *websocket.Conn, sendCh chan StatsPayload) error {
+	if err := s.reportLatency(conn, sendCh); err != nil {
 		return err
 	}
 	if err := s.reportBlock(conn, nil); err != nil {
@@ -570,7 +570,7 @@ func (s *Service) report(conn *websocket.Conn) error {
 
 // reportLatency sends a ping request to the server, measures the RTT time and
 // finally sends a latency update.
-func (s *Service) reportLatency(conn *websocket.Conn) error {
+func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan StatsPayload) error {
 	// Send the current time to the ethstats server
 	start := time.Now()
 
@@ -581,11 +581,19 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
 		return err
 	}
-	fmt.Println("NO PING ERRROR")
+	// Proxy needs a delegate send here to get ACK
+	if s.backend.ProxiedPeer() != nil {
+		select {
+		case signedMessage := <-sendCh:
+			err := s.handleDelegateSend(conn, signedMessage)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	// Wait for the pong request to arrive back
 	select {
 	case <-s.pongCh:
-		fmt.Println("PONG DELIVERED")
 		// Pong delivered, report the latency
 	case <-time.After(25 * time.Second):
 		// Ping timeout, abort
