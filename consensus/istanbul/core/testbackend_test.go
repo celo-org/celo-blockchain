@@ -339,7 +339,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, istanbul.EmptyPreparedCertificate(), nil)
+		}, vset)
 	})
 }
 
