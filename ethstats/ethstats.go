@@ -283,11 +283,9 @@ func (s *Service) loop() {
 	// Loop reporting until termination
 	for {
 		if s.backend.ProxyNode() != nil {
-			select {
-			case messageToSign := <-signCh:
-				if err := s.handleDelegateSign(messageToSign); err != nil {
-					log.Warn("Delegate sign failed", "err", err)
-				}
+			messageToSign := <-signCh
+			if err := s.handleDelegateSign(messageToSign); err != nil {
+				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
 			conn, err := s.getConnection()
@@ -583,12 +581,10 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan StatsPayload) 
 	}
 	// Proxy needs a delegate send here to get ACK
 	if s.backend.ProxiedPeer() != nil {
-		select {
-		case signedMessage := <-sendCh:
-			err := s.handleDelegateSend(conn, signedMessage)
-			if err != nil {
-				return err
-			}
+		signedMessage := <-sendCh
+		err := s.handleDelegateSend(conn, signedMessage)
+		if err != nil {
+			return err
 		}
 	}
 	// Wait for the pong request to arrive back
