@@ -14,6 +14,8 @@ Once the dependencies are installed, run
 or, to build the full suite of utilities:
 
     make all
+    
+Note that when changing branches `make clean` may be required.
 
 ## Executables
 
