@@ -80,7 +80,6 @@ func TestUptime(t *testing.T) {
 	}
 	if !reflect.DeepEqual(uptimes, expected) {
 		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
-
 	}
 }
 

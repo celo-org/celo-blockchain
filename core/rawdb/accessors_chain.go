@@ -254,7 +254,7 @@ func ReadTd(db DatabaseReader, hash common.Hash, number uint64) *big.Int {
 	return td
 }
 
-// ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the most recent epoch
+// ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
 func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Uptime {
 	log.Debug("uptime-trace: ReadAccumulatedEpochUptime", "epoch", epoch)
 	data, _ := db.Get(uptimeKey(epoch))
@@ -271,7 +271,7 @@ func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Upti
 	return *uptime
 }
 
-// WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the most recent epoch
+// WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
 func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime []istanbul.Uptime) {
 	log.Debug("uptime-trace: WriteAccumulatedEpochUptime", "epoch", epoch, "uptime", uptime)
 	data, err := rlp.EncodeToBytes(uptime)
@@ -283,7 +283,7 @@ func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime []istan
 	}
 }
 
-// DeleteAccumulatedEpochUptime removes all accumulated uptime data
+// DeleteAccumulatedEpochUptime removes all accumulated uptime data for that epoch
 func DeleteAccumulatedEpochUptime(db DatabaseDeleter, epoch uint64) {
 	log.Debug("uptime-trace: DeleteAccumulatedEpochUptime", "epoch", epoch)
 	if err := db.Delete(uptimeKey(epoch)); err != nil {

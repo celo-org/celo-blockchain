@@ -81,7 +81,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
-	// we need to use the previous 
+	// we need to use the previous
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 	log.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch)
 	for i, val := range valSet {
