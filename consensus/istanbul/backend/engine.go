@@ -458,6 +458,11 @@ func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
+// Returns the size of the lookback window for calculating uptime (in blocks)
+func (sb *Backend) LookbackWindow() uint64 {
+	return sb.config.LookbackWindow
+}
+
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
 // and assembles the final block.
 //
