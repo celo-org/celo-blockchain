@@ -233,7 +233,7 @@ func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]b
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	logger := sb.logger.New("func", "handleIstAnnounce")
 
-	msg := new(announceMessage)
+	msg := new(istanbul.Message)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -241,10 +241,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
-	logger = logger.New("msgAddress", msg.Address, "msg_round", msg.View.Round, "msg_seq", msg.View.Sequence)
-	logger.Trace("Handling an IstanbulAnnounce message")
-
-	sb.logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
+	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
@@ -255,12 +252,14 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	var announceData announceData
 	err = rlp.DecodeBytes(msg.Msg, &announceData)
 	if err != nil {
-		sb.logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
+	logger = logger.New("msgAddress", msg.Address, "msg_round", announceData.View.Round, "msg_seq", announceData.View.Sequence)
+
 	if view, err := sb.valEnodeTable.GetViewFromAddress(msg.Address); err == nil && announceData.View.Cmp(view) <= 0 {
-		sb.logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
+		logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
 		return errOldAnnounceMessage
 	}
 
@@ -289,7 +288,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			enodeUrl := string(announceRecord.EncryptedEnodeURL)
 			node, err = enode.ParseV4(enodeUrl)
 			if err != nil {
-				sb.logger.Error("Error in parsing enodeURL", "enodeUrl", enodeUrl)
+				logger.Error("Error in parsing enodeURL", "enodeUrl", enodeUrl)
 				return err
 			}
 		}
@@ -312,6 +311,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 }
 
 func (sb *Backend) regossipIstAnnounce(msg *istanbul.Message, payload []byte, announceData announceData, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
+	logger := sb.logger.New("func", "regossipIstAnnounce", "msgAddress", msg.Address, "msg_round", announceData.View.Round, "msg_seq", announceData.View.Sequence)
 	// If we gossiped this address/enodeURL within the last 60 seconds and the enodeURLHash and destAddressHash didn't change, then don't regossip
 
 	// Generate the destAddresses hash
