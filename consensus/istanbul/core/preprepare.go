@@ -104,7 +104,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// Check if the message comes from current proposer
-	if !c.isProposer() {
+	if !c.valSet.IsProposer(msg.Address) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
 	}
