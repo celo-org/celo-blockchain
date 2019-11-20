@@ -246,6 +246,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
+		if chainConfig.Istanbul.LookbackWindow != 0 {
+			if chainConfig.Istanbul.LookbackWindow > chainConfig.Istanbul.Epoch {
+				panic("Cannot set lookbackwindow to be larger than the size of an epoch")
+			}
+			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
+		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		dataDir := getDataDirOrFail(ctx)
 		return istanbulBackend.New(&config.Istanbul, db, dataDir)

@@ -997,7 +997,7 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 			}
 		} else {
 			// even though they did not sign, if their last signed block is within the window they should still be considered alive
-			// (we do not reward though blocks whcih were before the first window)
+			// (we do not reward though blocks which were before the first window)
 			if blockNumber > window-1 && uptime[i].LastSignedBlock+window > blockNumber {
 				uptime[i].Score++
 			}

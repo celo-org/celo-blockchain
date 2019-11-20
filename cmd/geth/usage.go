@@ -253,6 +253,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.IstanbulRequestTimeoutFlag,
 			utils.IstanbulBlockPeriodFlag,
 			utils.IstanbulProposerPolicyFlag,
+			utils.IstanbulLookbackWindowFlag,
 		},
 	},
 }

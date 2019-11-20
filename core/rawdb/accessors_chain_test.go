@@ -188,9 +188,10 @@ func TestPartialBlockStorage(t *testing.T) {
 // Tests uptime accumulator storage and retrieval operations.
 func TestUptimeStorage(t *testing.T) {
 	db := ethdb.NewMemDatabase()
+	epoch := uint64(0)
 
 	// Create a test uptime to move around the database and make sure it's really new
-	if entry := ReadAccumulatedEpochUptime(db); entry != nil {
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
 		t.Fatalf("Non existent uptime returned: %v", entry)
 	}
 	// Write and verify the uptime in the database
@@ -207,15 +208,15 @@ func TestUptimeStorage(t *testing.T) {
 		Score:           8,
 		LastSignedBlock: 8,
 	}
-	WriteAccumulatedEpochUptime(db, uptime)
-	if entry := ReadAccumulatedEpochUptime(db); entry == nil {
+	WriteAccumulatedEpochUptime(db, epoch, uptime)
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry == nil {
 		t.Fatalf("Stored uptime not found")
 	} else if !reflect.DeepEqual(entry, uptime) {
 		t.Fatalf("Retrieved uptime mismatch: have %v, want %v", entry, uptime)
 	}
 	// Delete the TD and verify the execution
-	DeleteAccumulatedEpochUptime(db)
-	if entry := ReadAccumulatedEpochUptime(db); entry != nil {
+	DeleteAccumulatedEpochUptime(db, epoch)
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
 		t.Fatalf("Deleted uptime returned: %v", entry)
 	}
 }

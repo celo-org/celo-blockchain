@@ -661,6 +661,11 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
+	IstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "Default number of blocks to use for forgiving downtime",
+		Value: uint64(eth.DefaultConfig.Istanbul.LookbackWindow),
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1166,6 +1171,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+	}
+	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
+		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
