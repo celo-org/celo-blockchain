@@ -595,14 +595,14 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan StatsPayload) 
 	select {
 	case <-s.pongCh:
 		// Pong delivered, report the latency
-	case <-time.After(25 * time.Second):
+	case <-time.After(5 * time.Second):
 		// Ping timeout, abort
 		return errors.New("ping timed out")
 	}
 	latency := strconv.Itoa(int((time.Since(start) / time.Duration(2)).Nanoseconds() / 1000000))
 
 	// Send back the measured latency
-	log.Warn("Sending measured latency to ethstats", "latency", latency)
+	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
 	stats := map[string]interface{}{
 		"id":      s.node,
