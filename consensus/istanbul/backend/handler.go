@@ -29,12 +29,13 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// If you want to add a code, you need to increment the Lengths Array size!
 const (
 	istanbulConsensusMsg      = 0x11
 	istanbulAnnounceMsg       = 0x12
 	istanbulValEnodesShareMsg = 0x13
 	istanbulFwdMsg            = 0x14
-    istanbulDelegateSign     = 0x15
+	istanbulDelegateSign      = 0x15
 )
 
 var (
@@ -47,13 +48,13 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{21},
+		Lengths:  []uint64{22},
 		Primary:  true,
 	}
 }
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg)
+	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) || (msg.Code == istanbulDelegateSign)
 }
 
 // HandleMsg implements consensus.Handler.HandleMsg
@@ -83,8 +84,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				// got a message to sign from the proxy
 				sb.logger.Warn("woohoo this is the proxied validator, will send a signed message")
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
-				// @trevor - seems I need to do this to get proxyNode.peer.Send working inside of ethstats... weird
-				// sb.proxyNode.peer.Send(istanbulDelegateSign, "")
 			}
 
 			return true, nil
@@ -165,21 +164,6 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 
 	istMsg := new(istanbul.Message)
 
-    if msg.Code == istanbulDelegateSign {
-        sb.logger.Warn("woohoo! got istanbulDelegateSign message", "msg", msg, "data string", string(data))
-
-        if sb.config.Proxy {
-            // got a signed message from the validator
-            sb.logger.Warn("woohoo this is the proxy, got a signed message")
-            go sb.delegateSignFeed.Send(istanbul.MessageEvent{ Payload: data })
-        } else {
-            // assumes it's the proxied validator
-            sb.logger.Warn("woohoo this is the proxied validator, will send a signed message")
-            sb.proxyNode.peer.Send(istanbulDelegateSign, "signed woohoooo")
-        }
-
-        return true, nil
-    }
 	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
 	// the wrapped message is already signed by the proxied validator.
 	if err := istMsg.FromPayload(payload, nil); err != nil {

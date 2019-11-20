@@ -422,6 +422,9 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan StatsPayload) error {
 			if err != nil {
 				return err
 			}
+		case <-time.After(5 * time.Second):
+			// Login timeout, abort
+			return errors.New("login timed out")
 		}
 	}
 
@@ -699,7 +702,7 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 			"action": action,
 		}
 		msg, _ := json.Marshal(statsWithAction)
-		s.backend.ProxiedPeer().Send(0x15, msg)
+		go s.backend.ProxiedPeer().Send(0x15, msg)
 		return nil
 	}
 

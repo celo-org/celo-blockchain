@@ -187,7 +187,7 @@ type Backend struct {
 
 	newEpochCh chan struct{}
 
-    delegateSignFeed event.Feed
+	delegateSignFeed event.Feed
 }
 
 // This is for ethstats communication
