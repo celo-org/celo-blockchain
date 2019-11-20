@@ -86,15 +86,9 @@ type Backend interface {
 	// ParentValidators returns the validator set of the given proposal's parent block
 	ParentValidators(proposal Proposal) ValidatorSet
 
-	// HasBadProposal returns whether the block with the hash is a bad block
-	HasBadProposal(hash common.Hash) bool
-
 	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
-
-	// GetDataDir returns a read-write enabled data dir in which data will persist across restarts.
-	GetDataDir() string
 }

@@ -43,7 +43,7 @@ func TestCheckMessage(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 
 	// invalid view format
@@ -142,7 +142,7 @@ func TestCheckMessage(t *testing.T) {
 		}
 	}
 
-	v = c.currentView()
+	v = c.current.View()
 	// current view, state = StateAcceptRequest
 	c.state = StateAcceptRequest
 	for i := 0; i < len(testCode); i++ {
@@ -307,7 +307,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 		state: StateAcceptRequest,
 	}
 	c.subscribeEvents()
@@ -412,7 +412,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil, nil),
+		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
