@@ -32,32 +32,42 @@ var (
 )
 
 // newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet) RoundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet) RoundState {
 	return &roundStateImpl{
-		round:               view.Round,
-		desiredRound:        view.Round,
-		sequence:            view.Sequence,
-		preprepare:          preprepare,
-		prepares:            newMessageSet(validatorSet),
-		commits:             newMessageSet(validatorSet),
+		state:        StateAcceptRequest,
+		round:        view.Round,
+		desiredRound: view.Round,
+		sequence:     view.Sequence,
+
+		// data for current round
+		preprepare: nil,
+		prepares:   newMessageSet(validatorSet),
+		commits:    newMessageSet(validatorSet),
+
+		// data saves across rounds, same sequence
 		parentCommits:       parentCommits,
-		mu:                  new(sync.RWMutex),
 		pendingRequest:      pendingRequest,
 		preparedCertificate: preparedCertificate,
+
+		mu: new(sync.RWMutex),
 	}
 }
 
 type RoundState interface {
+	State() State
+	TransitionToPreprepared(preprepare *istanbul.Preprepare)
+	TransitionToWaitingForNewRound(r *big.Int)
+	TransitionToCommited()
+	TransitionToPrepared(quorumSize int) error
 	GetPrepareOrCommitSize() int
 	Subject() *istanbul.Subject
 	Preprepare() *istanbul.Preprepare
-	SetPreprepare(preprepare *istanbul.Preprepare)
 	Proposal() istanbul.Proposal
-	SetRound(r *big.Int)
 	Round() *big.Int
-	SetDesiredRound(r *big.Int)
 	DesiredRound() *big.Int
-	SetSequence(seq *big.Int)
+	AddCommit(msg *istanbul.Message) error
+	AddPrepare(msg *istanbul.Message) error
+	AddParentCommit(msg *istanbul.Message) error
 	Commits() MessageSet
 	Prepares() MessageSet
 	ParentCommits() MessageSet
@@ -65,12 +75,12 @@ type RoundState interface {
 	PendingRequest() *istanbul.Request
 	Sequence() *big.Int
 	View() *istanbul.View
-	CreateAndSetPreparedCertificate(quorumSize int) error
 	PreparedCertificate() istanbul.PreparedCertificate
 }
 
 // RoundState stores the consensus state
 type roundStateImpl struct {
+	state               State
 	round               *big.Int
 	desiredRound        *big.Int
 	sequence            *big.Int
@@ -92,6 +102,12 @@ func (s *roundStateImpl) Prepares() MessageSet {
 }
 func (s *roundStateImpl) ParentCommits() MessageSet {
 	return s.parentCommits
+}
+
+func (s *roundStateImpl) State() State {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state
 }
 
 func (s *roundStateImpl) View() *istanbul.View {
@@ -142,12 +158,6 @@ func (s *roundStateImpl) Preprepare() *istanbul.Preprepare {
 
 	return s.preprepare
 }
-func (s *roundStateImpl) SetPreprepare(preprepare *istanbul.Preprepare) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.preprepare = preprepare
-}
 
 func (s *roundStateImpl) Proposal() istanbul.Proposal {
 	s.mu.RLock()
@@ -160,13 +170,6 @@ func (s *roundStateImpl) Proposal() istanbul.Proposal {
 	return nil
 }
 
-func (s *roundStateImpl) SetRound(r *big.Int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.round = new(big.Int).Set(r)
-}
-
 func (s *roundStateImpl) Round() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -174,48 +177,30 @@ func (s *roundStateImpl) Round() *big.Int {
 	return s.round
 }
 
-func (s *roundStateImpl) SetDesiredRound(r *big.Int) {
+func (s *roundStateImpl) TransitionToCommited() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.state = StateCommitted
+}
+
+func (s *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepare) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.preprepare = preprepare
+	s.state = StatePreprepared
+}
+
+func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.desiredRound = new(big.Int).Set(r)
+	s.state = StateWaitingForNewRound
 }
 
-func (s *roundStateImpl) DesiredRound() *big.Int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.desiredRound
-}
-
-func (s *roundStateImpl) SetSequence(seq *big.Int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.sequence = seq
-}
-
-func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.pendingRequest = pendingRequest
-}
-
-func (s *roundStateImpl) PendingRequest() *istanbul.Request {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.pendingRequest
-}
-
-func (s *roundStateImpl) Sequence() *big.Int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.sequence
-}
-
-func (s *roundStateImpl) CreateAndSetPreparedCertificate(quorumSize int) error {
+func (s *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -244,7 +229,54 @@ func (s *roundStateImpl) CreateAndSetPreparedCertificate(quorumSize int) error {
 		Proposal:                s.preprepare.Proposal,
 		PrepareOrCommitMessages: messages,
 	}
+
+	s.state = StatePrepared
 	return nil
+}
+
+func (s *roundStateImpl) AddCommit(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.commits.Add(msg)
+}
+
+func (s *roundStateImpl) AddPrepare(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.prepares.Add(msg)
+}
+
+func (s *roundStateImpl) AddParentCommit(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.parentCommits.Add(msg)
+}
+
+func (s *roundStateImpl) DesiredRound() *big.Int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.desiredRound
+}
+
+func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pendingRequest = pendingRequest
+}
+
+func (s *roundStateImpl) PendingRequest() *istanbul.Request {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pendingRequest
+}
+
+func (s *roundStateImpl) Sequence() *big.Int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.sequence
 }
 
 func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {

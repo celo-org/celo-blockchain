@@ -339,7 +339,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil)
+		}, vset, nil, istanbul.EmptyPreparedCertificate(), nil)
 	})
 }
 
@@ -360,7 +360,7 @@ func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState fun
 		backend.blsKey = blsKeys[i]
 
 		core := New(backend, config).(*core)
-		core.state = StateAcceptRequest
+		// core.state = StateAcceptRequest
 		core.current = getRoundState(vset)
 		core.roundChangeSet = newRoundChangeSet(vset)
 		core.valSet = vset

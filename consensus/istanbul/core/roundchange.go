@@ -35,7 +35,7 @@ func (c *core) sendNextRoundChange() {
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
+	logger := c.newLogger("func", "sendRoundChange", "target round", round)
 
 	cv := c.current.View()
 	if cv.Round.Cmp(round) >= 0 {
@@ -152,7 +152,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
+	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange

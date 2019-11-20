@@ -51,7 +51,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
 					if i != 0 {
-						c.state = StateAcceptRequest
+						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
 				}
 				return sys
@@ -72,7 +72,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
 					if i != 0 {
-						c.state = StateAcceptRequest
+						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
 				}
 				return sys
@@ -97,7 +97,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c.valSet = backend.peers
 					if i != 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -118,9 +118,9 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
 					if i != 0 {
-						c.state = StatePreprepared
-						c.current.SetSequence(big.NewInt(10))
-						c.current.SetRound(big.NewInt(10))
+						c.current.(*roundStateImpl).state = StatePreprepared
+						c.current.(*roundStateImpl).sequence = big.NewInt(10)
+						c.current.(*roundStateImpl).round = big.NewInt(10)
 					}
 				}
 				return sys
@@ -140,9 +140,9 @@ func TestHandlePreprepare(t *testing.T) {
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.state = StatePreprepared
-					c.current.SetSequence(big.NewInt(10))
-					c.current.SetRound(big.NewInt(10))
+					c.current.(*roundStateImpl).state = StatePreprepared
+					c.current.(*roundStateImpl).sequence = big.NewInt(10)
+					c.current.(*roundStateImpl).round = big.NewInt(10)
 				}
 				return sys
 			}(),
@@ -162,8 +162,8 @@ func TestHandlePreprepare(t *testing.T) {
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.state = StatePreprepared
-					c.current.SetRound(big.NewInt(1))
+					c.current.(*roundStateImpl).state = StatePreprepared
+					c.current.(*roundStateImpl).round = big.NewInt(1)
 				}
 				return sys
 			}(),
@@ -182,8 +182,8 @@ func TestHandlePreprepare(t *testing.T) {
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.state = StatePreprepared
-					c.current.SetRound(big.NewInt(1))
+					c.current.(*roundStateImpl).state = StatePreprepared
+					c.current.(*roundStateImpl).round = big.NewInt(1)
 				}
 				return sys
 			}(),
@@ -205,9 +205,9 @@ func TestHandlePreprepare(t *testing.T) {
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.state = StatePreprepared
-					c.current.SetRound(big.NewInt(1))
-					c.current.SetPreprepare(&istanbul.Preprepare{
+					c.current.(*roundStateImpl).state = StatePreprepared
+					c.current.(*roundStateImpl).round = big.NewInt(1)
+					c.current.TransitionToPreprepared(&istanbul.Preprepare{
 						View: &istanbul.View{
 							Round:    big.NewInt(1),
 							Sequence: big.NewInt(2),
@@ -241,9 +241,9 @@ func TestHandlePreprepare(t *testing.T) {
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.state = StatePreprepared
-					c.current.SetRound(big.NewInt(1))
-					c.current.SetPreprepare(&istanbul.Preprepare{
+					c.current.(*roundStateImpl).state = StatePreprepared
+					c.current.(*roundStateImpl).round = big.NewInt(1)
+					c.current.TransitionToPreprepared(&istanbul.Preprepare{
 						View: &istanbul.View{
 							Round:    big.NewInt(1),
 							Sequence: big.NewInt(0),
@@ -272,9 +272,9 @@ func TestHandlePreprepare(t *testing.T) {
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.current.SetRound(big.NewInt(int64(N)))
+					c.current.(*roundStateImpl).round = big.NewInt(int64(N))
 					if i != 0 {
-						c.state = StateAcceptRequest
+						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
 				}
 				return sys
@@ -297,9 +297,9 @@ func TestHandlePreprepare(t *testing.T) {
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					c.valSet = backend.peers
-					c.current.SetRound(big.NewInt(int64(N)))
+					c.current.(*roundStateImpl).round = big.NewInt(int64(N))
 					if i != 0 {
-						c.state = StateAcceptRequest
+						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
 				}
 				return sys
@@ -356,8 +356,8 @@ OUTER:
 				continue OUTER
 			}
 
-			if c.state != StatePreprepared {
-				t.Errorf("state mismatch: have %v, want %v", c.state, StatePreprepared)
+			if c.current.State() != StatePreprepared {
+				t.Errorf("state mismatch: have %v, want %v", c.current.State(), StatePreprepared)
 			}
 
 			if !test.existingBlock && !reflect.DeepEqual(c.current.Subject().View, curView) {
