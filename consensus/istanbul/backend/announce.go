@@ -273,7 +273,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	var node *enode.Node
 	var destAddresses = make([]string, 0, len(announceData.AnnounceRecords))
+	var processedAddresses = make(map[common.Address]bool)
 	for _, announceRecord := range announceData.AnnounceRecords {
+		// Don't process duplicate entries or entries that are not in the regAndActive valset
+		if !regAndActiveVals[announceRecord.DestAddress] || processedAddresses[announceRecord.DestAddress] {
+			continue
+		}
+
 		if announceRecord.DestAddress == sb.Address() {
 			// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
 			enodeUrl := string(announceRecord.EncryptedEnodeURL)
@@ -284,6 +290,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 			}
 		}
 		destAddresses = append(destAddresses, announceRecord.DestAddress.String())
+		processedAddresses[announceRecord.DestAddress] = true
 	}
 
 	// Save in the valEnodeTable if mining
