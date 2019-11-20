@@ -264,9 +264,16 @@ func TestStoreBacklog(t *testing.T) {
 	}
 
 	// push commit msg
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}, // celo in hex!
+	}
+
+	committedSubjectPayload, _ := Encode(committedSubject)
+
 	m = &istanbul.Message{
 		Code:    istanbul.MsgCommit,
-		Msg:     subjectPayload,
+		Msg:     committedSubjectPayload,
 		Address: p.Address(),
 	}
 	c.storeBacklog(m, p)
@@ -319,14 +326,18 @@ func TestProcessFutureBacklog(t *testing.T) {
 	}
 	p := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
 	// push a future msg
-	subject := &istanbul.Subject{
-		View:   v,
-		Digest: common.BytesToHash([]byte("1234567890")),
+	committedSubject := &istanbul.CommittedSubject{
+		Subject: &istanbul.Subject{
+			View:   v,
+			Digest: common.BytesToHash([]byte("1234567890")),
+		},
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
 	}
-	subjectPayload, _ := Encode(subject)
+
+	committedSubjectPayload, _ := Encode(committedSubject)
 	m := &istanbul.Message{
 		Code: istanbul.MsgCommit,
-		Msg:  subjectPayload,
+		Msg:  committedSubjectPayload,
 	}
 	c.storeBacklog(m, p)
 	c.processBacklog()
@@ -361,6 +372,12 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
+	}
+	committedSubjectPayload, _ := Encode(committedSubject)
+
 	rc := &istanbul.RoundChange{
 		View:                v,
 		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
@@ -382,7 +399,7 @@ func TestProcessBacklog(t *testing.T) {
 		},
 		{
 			Code:    istanbul.MsgCommit,
-			Msg:     subjectPayload,
+			Msg:     committedSubjectPayload,
 			Address: address,
 		},
 		{
