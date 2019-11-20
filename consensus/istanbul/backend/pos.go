@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -78,11 +80,30 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
-	for _, val := range valSet {
-		// TODO: Use actual uptime metric.
-		// 1.0 in fixidity
-		uptime := math.BigPow(10, 24)
-		sb.logger.Info("Updating validator score for address", "address", val.Address(), "uptime", uptime.String())
+	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
+	sb.logger.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", 2) // sb.LookbackWindow())
+
+	// Since we calculate the uptime at the last block of the epoch
+	// before that block is mined, we cannot take its signatures into account.
+	// As a result, we in total skip the last block and the first `lookbackWindow-1` signatures
+	// within an epoch. e.g. epochSize = 6, window = 2, we only count 4 signatures (skip first and last)
+	denominator := big.NewInt(int64(sb.EpochSize() - 2)) // sb.LookbackWindow()))
+
+	// get all the uptimes for this epoch
+	c := sb.chain.(*core.BlockChain)
+	db := c.GetDatabase()
+	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
+	if uptimes == nil {
+		return errors.New("Invalid accumulated uptime")
+	}
+
+	for i, val := range valSet {
+		// x = score * 10**24
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].Score)), math.BigPow(10, 24))
+		// z = x / y
+		uptime := big.NewInt(0).Div(numerator, denominator)
+
+		sb.logger.Debug("uptime-trace: Updating validator score for address", "index", i, "address", val.Address(), "uptime", uptime)
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err != nil {
 			return err

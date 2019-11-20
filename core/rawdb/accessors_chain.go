@@ -256,9 +256,9 @@ func ReadTd(db DatabaseReader, hash common.Hash, number uint64) *big.Int {
 
 // ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
 func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Uptime {
-	log.Debug("uptime-trace: ReadAccumulatedEpochUptime", "epoch", epoch)
 	data, _ := db.Get(uptimeKey(epoch))
 	if len(data) == 0 {
+		log.Debug("uptime-trace: ReadAccumulatedEpochUptime = EMPTY", "epoch", epoch)
 		return nil
 	}
 	uptime := new([]istanbul.Uptime)
