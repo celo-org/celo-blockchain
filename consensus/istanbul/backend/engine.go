@@ -410,16 +410,19 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			logger.Trace("Combining additional seals with the parent aggregated seal", "additionalSeals", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
 			// if we had any seals gossiped to us, proceed to add them to the
 			// already aggregated signature
-			unionAggregatedSeal := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals)
-			// need to pass the previous block from the parent to get the parent's validators
-			// (otherwise we'd be getting the validators for the current block)
-			parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
-			// only update to use the union if we indeed provided a valid aggregate signature for this block
-			if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
-				logger.Error("Failed to combine additional seals with parent aggregated seal.")
+			if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals); err != nil {
+				logger.Error("Failed to create union of parent aggregated seal", "err", err)
 			} else {
-				parentAggregatedSeal = unionAggregatedSeal
-				logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+				// need to pass the previous block from the parent to get the parent's validators
+				// (otherwise we'd be getting the validators for the current block)
+				parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
+				// only update to use the union if we indeed provided a valid aggregate signature for this block
+				if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+					logger.Error("Failed to combine additional seals with parent aggregated seal.", "err", err)
+				} else {
+					parentAggregatedSeal = unionAggregatedSeal
+					logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+				}
 			}
 		} else {
 			sb.logger.Trace("No additional seals to combine with parent aggregated seal")

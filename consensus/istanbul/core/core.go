@@ -18,8 +18,6 @@ package core
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -175,7 +173,6 @@ func (c *core) commit() {
 
 // AggregateSeals aggregates all the given seals for a given message set to a bls aggregated
 // signature and bitmap
-// TODO: Maybe return an error instead of panicking?
 func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
 	committedSeals := make([][]byte, seals.Size())
@@ -208,7 +205,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 // validator was not found in the previous bitmap.
 // This function assumes that the provided seals' validator set is the same one
 // which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) types.IstanbulAggregatedSeal {
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
@@ -217,13 +214,13 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 	for _, v := range seals.Values() {
 		valIndex, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
-			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+			return types.IstanbulAggregatedSeal{}, err
 		}
 
 		var commit *istanbul.CommittedSubject
 		err = v.Decode(&commit)
 		if err != nil {
-			panic(fmt.Sprintf("couldn't decode committedSubject for address %s", hex.EncodeToString(v.Address[:])))
+			return types.IstanbulAggregatedSeal{}, err
 		}
 
 		// if the bit was not set, this means we should add this signature to
@@ -236,14 +233,14 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 	asig, err := blscrypto.AggregateSignatures(committedSeals)
 	if err != nil {
-		panic("couldn't aggregate signatures")
+		return types.IstanbulAggregatedSeal{}, err
 	}
 
 	return types.IstanbulAggregatedSeal{
 		Bitmap:    newBitmap,
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
-	}
+	}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate
