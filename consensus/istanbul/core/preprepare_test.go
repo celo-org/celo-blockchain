@@ -17,7 +17,6 @@
 package core
 
 import (
-	"bytes"
 	"math/big"
 	"reflect"
 	"testing"
@@ -381,7 +380,15 @@ OUTER:
 			}
 
 			var subject *istanbul.Subject
-			err = decodedMsg.Decode(&subject)
+			var committedSubject *istanbul.CommittedSubject
+
+			if decodedMsg.Code == istanbul.MsgPrepare {
+				err = decodedMsg.Decode(&subject)
+			} else if decodedMsg.Code == istanbul.MsgCommit {
+				err = decodedMsg.Decode(&committedSubject)
+				subject = committedSubject.Subject
+			}
+
 			if err != nil {
 				t.Errorf("error mismatch: have %v, want nil", err)
 			}
@@ -398,12 +405,9 @@ OUTER:
 
 			if expectedCode == istanbul.MsgCommit {
 				_, srcValidator := c.valSet.GetByAddress(v.address)
-				if err := c.verifyCommittedSeal(subject, decodedMsg.CommittedSeal, srcValidator); err != nil {
-					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, decodedMsg.CommittedSeal)
-				}
-			} else {
-				if !bytes.Equal(decodedMsg.CommittedSeal, []byte{}) {
-					t.Errorf("invalid seal.  should be an empty array")
+
+				if err := c.verifyCommittedSeal(committedSubject, srcValidator); err != nil {
+					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, committedSubject.CommittedSeal)
 				}
 			}
 		}

@@ -217,13 +217,16 @@ OUTER:
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
-			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handleCommit(&istanbul.Message{
-				Code:          istanbul.MsgCommit,
-				Msg:           m,
-				Address:       validator.Address(),
-				Signature:     []byte{},
+			committedSubject := &istanbul.CommittedSubject{
+				Subject:       v.engine.(*core).current.Subject(),
 				CommittedSeal: signatureBytes,
+			}
+			m, _ := Encode(committedSubject)
+			if err := r0.handleCommit(&istanbul.Message{
+				Code:      istanbul.MsgCommit,
+				Msg:       m,
+				Address:   validator.Address(),
+				Signature: []byte{},
 			}); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
@@ -289,15 +292,17 @@ func TestVerifyCommit(t *testing.T) {
 
 	testCases := []struct {
 		expected   error
-		commit     *istanbul.Subject
+		commit     *istanbul.CommittedSubject
 		roundState RoundState
 	}{
 		{
 			// normal case
 			expected: nil,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
@@ -307,9 +312,11 @@ func TestVerifyCommit(t *testing.T) {
 		{
 			// old message
 			expected: errInconsistentSubject,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
@@ -319,9 +326,11 @@ func TestVerifyCommit(t *testing.T) {
 		{
 			// different digest
 			expected: errInconsistentSubject,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: common.BytesToHash([]byte("1234567890")),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: common.BytesToHash([]byte("1234567890")),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
@@ -331,9 +340,11 @@ func TestVerifyCommit(t *testing.T) {
 		{
 			// malicious package(lack of sequence)
 			expected: errInconsistentSubject,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
-				Digest: newTestProposal().Hash(),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
+					Digest: newTestProposal().Hash(),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
@@ -343,9 +354,11 @@ func TestVerifyCommit(t *testing.T) {
 		{
 			// wrong prepare message with same sequence but different round
 			expected: errInconsistentSubject,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
@@ -355,9 +368,11 @@ func TestVerifyCommit(t *testing.T) {
 		{
 			// wrong prepare message with same round but different sequence
 			expected: errInconsistentSubject,
-			commit: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
-				Digest: newTestProposal().Hash(),
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
+					Digest: newTestProposal().Hash(),
+				},
 			},
 			roundState: newTestRoundState(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},

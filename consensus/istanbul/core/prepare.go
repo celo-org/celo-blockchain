@@ -82,9 +82,29 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		var subject *istanbul.Subject
-		if err := message.Decode(&subject); err != nil {
-			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-			return err
+
+		if message.Code == istanbul.MsgCommit {
+			var committedSubject *istanbul.CommittedSubject
+			err := message.Decode(&committedSubject)
+			if err != nil {
+				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
+				return err
+			}
+
+			// Verify the committedSeal
+			_, src := c.valSet.GetByAddress(signer)
+			err = c.verifyCommittedSeal(committedSubject, src)
+			if err != nil {
+				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return err
+			}
+
+			subject = committedSubject.Subject
+		} else {
+			if err := message.Decode(&subject); err != nil {
+				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+				return err
+			}
 		}
 
 		// Verify message for the proper sequence.
@@ -103,16 +123,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		} else {
 			if view.Cmp(subject.View) != 0 {
 				return errInvalidPreparedCertificateInconsistentViews
-			}
-		}
-
-		// If COMMIT message, verify valid committed seal.
-		if message.Code == istanbul.MsgCommit {
-			_, src := c.valSet.GetByAddress(signer)
-			err := c.verifyCommittedSeal(subject, message.CommittedSeal, src)
-			if err != nil {
-				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
-				return err
 			}
 		}
 	}

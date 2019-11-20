@@ -18,8 +18,6 @@ package core
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -117,17 +115,10 @@ func (c *core) SetAddress(address common.Address) {
 }
 
 func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
-	var err error
 	// Add sender address
 	msg.Address = c.address
 
-	// Sign message
-	data, err := msg.PayloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	msg.Signature, err = c.backend.Sign(data)
-	if err != nil {
+	if err := msg.Sign(c.backend.Sign); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +141,7 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 
 	// Broadcast payload
-	if err = c.backend.Broadcast(c.valSet, payload); err != nil {
+	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}
@@ -187,7 +178,14 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-		copy(committedSeals[i][:], v.CommittedSeal[:])
+
+		var commit *istanbul.CommittedSubject
+		err := v.Decode(&commit)
+		if err != nil {
+			return types.IstanbulAggregatedSeal{}, err
+		}
+		copy(committedSeals[i][:], commit.CommittedSeal[:])
+
 		j, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
 			return types.IstanbulAggregatedSeal{}, err
@@ -207,7 +205,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 // validator was not found in the previous bitmap.
 // This function assumes that the provided seals' validator set is the same one
 // which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) types.IstanbulAggregatedSeal {
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
@@ -216,27 +214,33 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 	for _, v := range seals.Values() {
 		valIndex, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
-			panic(fmt.Sprintf("couldn't get address index for address %s", hex.EncodeToString(v.Address[:])))
+			return types.IstanbulAggregatedSeal{}, err
+		}
+
+		var commit *istanbul.CommittedSubject
+		err = v.Decode(&commit)
+		if err != nil {
+			return types.IstanbulAggregatedSeal{}, err
 		}
 
 		// if the bit was not set, this means we should add this signature to
 		// the batch
 		if aggregatedSignature.Bitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, v.CommittedSeal)
+			committedSeals = append(committedSeals, commit.CommittedSeal)
 		}
 	}
 
 	asig, err := blscrypto.AggregateSignatures(committedSeals)
 	if err != nil {
-		panic("couldn't aggregate signatures")
+		return types.IstanbulAggregatedSeal{}, err
 	}
 
 	return types.IstanbulAggregatedSeal{
 		Bitmap:    newBitmap,
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
-	}
+	}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate
