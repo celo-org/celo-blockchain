@@ -257,7 +257,7 @@ func (c *core) processBacklog() {
 					}
 				}
 				if view == nil {
-					logger.Debug("Nil view", "msg", msg)
+					logger.Error("Nil view", "msg", msg)
 					// continue
 					return
 				}
@@ -266,7 +266,7 @@ func (c *core) processBacklog() {
 					if err == errFutureMessage {
 						// TODO(asa): Why is this unexpected? It could be for a future round...
 						logger.Warn("Unexpected future message!", "msg", msg)
-						//backlog.Push(msg, prio)
+						c.storeBacklog(msg, src)
 					}
 					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
 					return
