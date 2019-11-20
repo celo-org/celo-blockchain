@@ -661,6 +661,11 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
+	IstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "Default number of blocks to use for forgiving downtime",
+		Value: uint64(eth.DefaultConfig.Istanbul.LookbackWindow),
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
