@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	mrand "math/rand"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -58,6 +60,7 @@ var (
 const (
 	bodyCacheLimit      = 256
 	blockCacheLimit     = 256
+	uptimeCacheLimit    = 16
 	receiptsCacheLimit  = 32
 	maxFutureBlocks     = 256
 	maxTimeFutureBlocks = 30
@@ -122,6 +125,7 @@ type BlockChain struct {
 	receiptsCache *lru.Cache     // Cache for the most recent receipts per block
 	blockCache    *lru.Cache     // Cache for the most recent entire blocks
 	futureBlocks  *lru.Cache     // future blocks are blocks added for later processing
+	uptimeCache   *lru.Cache     // Cache for the most recent uptimes
 
 	quit    chan struct{} // blockchain quit channel
 	running int32         // running must be called atomically
@@ -153,6 +157,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	receiptsCache, _ := lru.New(receiptsCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
+	uptimeCache, _ := lru.New(uptimeCacheLimit)
 	futureBlocks, _ := lru.New(maxFutureBlocks)
 	badBlocks, _ := lru.New(badBlockLimit)
 
@@ -168,6 +173,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		bodyRLPCache:   bodyRLPCache,
 		receiptsCache:  receiptsCache,
 		blockCache:     blockCache,
+		uptimeCache:    uptimeCache,
 		futureBlocks:   futureBlocks,
 		engine:         engine,
 		vmConfig:       vmConfig,
@@ -213,6 +219,11 @@ func (bc *BlockChain) getProcInterrupt() bool {
 // GetVMConfig returns the block chain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
+}
+
+// GetDatabase returns the block chain's database
+func (bc *BlockChain) GetDatabase() ethdb.Database {
+	return bc.db
 }
 
 // loadLastState loads the last known chain state from the database. This method
@@ -924,10 +935,100 @@ func (bc *BlockChain) WriteBlockWithoutState(block *types.Block, td *big.Int) (e
 	return nil
 }
 
+// GetAccumulatedEpochUptime retrieves the accumulated uptime for an epoch from the database,
+// caching it if found.
+func (bc *BlockChain) GetAccumulatedEpochUptime(epoch uint64) []istanbul.Uptime {
+	uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epoch)
+	if uptime == nil {
+		return nil
+	}
+	return uptime
+}
+
+// WriteAccumulatedEpochUptime stores the accumulated uptime for an epoch into the database, also caching it
+// along the way.
+func (bc *BlockChain) WriteAccumulatedEpochUptime(epoch uint64, uptime []istanbul.Uptime) error {
+	rawdb.WriteAccumulatedEpochUptime(bc.db, epoch, uptime)
+	return nil
+}
+
+// https://stackoverflow.com/questions/19105791/is-there-a-big-bitcount/32702348#32702348
+func bitCount(n *big.Int) int {
+	count := 0
+	for _, v := range n.Bits() {
+		count += popcount(uint64(v))
+	}
+	return count
+}
+
+// Straight and simple C to Go translation from https://en.wikipedia.org/wiki/Hamming_weight
+func popcount(x uint64) int {
+	const (
+		m1  = 0x5555555555555555 //binary: 0101...
+		m2  = 0x3333333333333333 //binary: 00110011..
+		m4  = 0x0f0f0f0f0f0f0f0f //binary:  4 zeros,  4 ones ...
+		h01 = 0x0101010101010101 //the sum of 256 to the power of 0,1,2,3...
+	)
+	x -= (x >> 1) & m1             //put count of each 2 bits into those 2 bits
+	x = (x & m2) + ((x >> 2) & m2) //put count of each 4 bits into those 4 bits
+	x = (x + (x >> 4)) & m4        //put count of each 8 bits into those 8 bits
+	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
+}
+
+func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64) []istanbul.Uptime {
+	var validatorsSize uint64
+	if len(uptime) == 0 {
+		// the number of validators is upper bound by 3/2 of the number of 1s in the bitmap
+		// TODO: due to this maybe we create an uptimeScore array which is 1 element bigger than required
+		// is this a problem?
+		validatorsSize = uint64(math.Ceil(float64(bitCount(bitmap)) * 1.5))
+		// TODO: there is no need for more than the specific block if we know when the validator signed last itme
+		uptime = make([]istanbul.Uptime, validatorsSize)
+	} else {
+		validatorsSize = uint64(len(uptime))
+	}
+
+	for i := 0; i < len(uptime); i++ {
+		if bitmap.Bit(i) == 1 {
+			// update their latest signed block and reward them
+			uptime[i].LastSignedBlock = blockNumber
+			if blockNumber >= window-1 {
+				uptime[i].Score++
+			}
+		} else {
+			// even though they did not sign, if their last signed block is within the window they should still be considered alive
+			// (we do not reward though blocks whcih were before the first window)
+			if blockNumber > window-1 && uptime[i].LastSignedBlock+window > blockNumber {
+				uptime[i].Score++
+			}
+
+		}
+	}
+	return uptime
+}
+
 // WriteBlockWithState writes the block and all associated state to the database.
 func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) (status WriteStatus, err error) {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
+
+	if bc.engine.Protocol().Name == "istanbul" {
+		epoch := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+		log.Debug("uptime-trace: WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epoch)
+
+		// Get the bitmap from the previous block
+		extra, err := types.ExtractIstanbulExtra(block.Header())
+		if err != nil {
+			return NonStatTy, errors.New("could not extract block header extra")
+		}
+
+		signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
+		uptime := bc.GetAccumulatedEpochUptime(epoch)
+		uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, 2) // bc.chainConfig.Istanbul.LookbackWindow)
+
+		// write the new score
+		bc.WriteAccumulatedEpochUptime(epoch, uptime)
+	}
 
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
