@@ -269,7 +269,7 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, fee
 }
 
 func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	log.Debug("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
+	log.Trace("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
 	// native currency
 	if feeCurrency == nil {
 		st.state.SubBalance(from, amount)
