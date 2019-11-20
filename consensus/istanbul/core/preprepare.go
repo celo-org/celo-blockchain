@@ -92,7 +92,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			// Broadcast COMMIT if it is an existing block
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
-			if valSet.IsProposer(msg.Address) && c.backend.HasBlockMatching(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+			if valSet.IsProposer(msg.Address) && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
 				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
 				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil

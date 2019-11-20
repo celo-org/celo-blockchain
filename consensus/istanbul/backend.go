@@ -67,17 +67,17 @@ type Backend interface {
 	// the given validator
 	CheckSignature(data []byte, addr common.Address, sig []byte) error
 
-	// LastBlock retrieves the last block
-	LastBlock() Proposal
+	// GetCurrentHeadBlock retrieves the last block
+	GetCurrentHeadBlock() Proposal
 
-	// LastBlockAndAuthor retrieves the last block alongside the author for that block
-	LastBlockAndAuthor() (Proposal, common.Address)
+	// GetCurrentHeadBlockAndAuthorAndAuthor retrieves the last block alongside the author for that block
+	GetCurrentHeadBlockAndAuthorAndAuthor() (Proposal, common.Address)
 
 	// LastSubject retrieves latest committed subject (view and digest)
 	LastSubject() (Subject, error)
 
-	// HasBlockMatching checks if the combination of the given hash and height matches any existing blocks
-	HasBlockMatching(hash common.Hash, number *big.Int) bool
+	// HasBlock checks if the combination of the given hash and height matches any existing blocks
+	HasBlock(hash common.Hash, number *big.Int) bool
 
 	// AuthorForBlock returns the proposer of the given block height
 	AuthorForBlock(number uint64) common.Address

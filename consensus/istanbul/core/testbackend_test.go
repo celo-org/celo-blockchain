@@ -153,7 +153,7 @@ func (self *testSystemBackend) NewRequest(request istanbul.Proposal) {
 	})
 }
 
-func (self *testSystemBackend) LastBlock() istanbul.Proposal {
+func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
 	l := len(self.committedMsgs)
 	if l > 0 {
 		testLogger.Info("have proposal for block", "num", l)
@@ -163,7 +163,7 @@ func (self *testSystemBackend) LastBlock() istanbul.Proposal {
 	return makeBlock(0)
 }
 
-func (self *testSystemBackend) LastBlockAndAuthor() (istanbul.Proposal, common.Address) {
+func (self *testSystemBackend) GetCurrentHeadBlockAndAuthorAndAuthor() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
 		testLogger.Info("have proposal for block", "num", l)
@@ -174,13 +174,13 @@ func (self *testSystemBackend) LastBlockAndAuthor() (istanbul.Proposal, common.A
 }
 
 func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
-	lastProposal := self.LastBlock()
+	lastProposal := self.GetCurrentHeadBlock()
 	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
 	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
 // Only block height 5 will return true
-func (self *testSystemBackend) HasBlockMatching(hash common.Hash, number *big.Int) bool {
+func (self *testSystemBackend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return number.Cmp(big.NewInt(5)) == 0
 }
 

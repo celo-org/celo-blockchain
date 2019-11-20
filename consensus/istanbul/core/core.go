@@ -270,31 +270,31 @@ func (c *core) startNewRound(round *big.Int) {
 
 	roundChange := false
 	// Try to get last proposal
-	lastBlock, lastAuthor := c.backend.LastBlockAndAuthor()
+	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthorAndAuthor()
 	if c.current == nil {
 		logger.Trace("Start the initial round")
-	} else if lastBlock.Number().Cmp(c.current.Sequence()) >= 0 {
+	} else if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
 		// Want to be working on the block 1 beyond the last committed block.
-		diff := new(big.Int).Sub(lastBlock.Number(), c.current.Sequence())
+		diff := new(big.Int).Sub(headBlock.Number(), c.current.Sequence())
 		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
 
 		if !c.consensusTimestamp.IsZero() {
 			c.consensusTimer.UpdateSince(c.consensusTimestamp)
 			c.consensusTimestamp = time.Time{}
 		}
-		logger.Trace("Catch up to the latest proposal.", "number", lastBlock.Number().Uint64(), "hash", lastBlock.Hash())
-	} else if lastBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
+		logger.Trace("Catch up to the latest proposal.", "number", headBlock.Number().Uint64(), "hash", headBlock.Hash())
+	} else if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		// Working on the block immediately after the last committed block.
 		if round.Cmp(c.current.Round()) == 0 {
 			logger.Trace("Already in the desired round.")
 			return
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "lastBlockNumber", lastBlock.Number().Int64(), "new_round", round)
+			logger.Warn("New round should not be smaller than current round", "lastBlockNumber", headBlock.Number().Int64(), "new_round", round)
 			return
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence", "new_seq", lastBlock.Number().Int64())
+		logger.Warn("New sequence should be larger than current sequence", "new_seq", headBlock.Number().Int64())
 		return
 	}
 
@@ -319,10 +319,10 @@ func (c *core) startNewRound(round *big.Int) {
 			request = c.current.PendingRequest()
 		}
 		newView = &istanbul.View{
-			Sequence: new(big.Int).Add(lastBlock.Number(), common.Big1),
+			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
-		c.valSet = c.backend.Validators(lastBlock)
+		c.valSet = c.backend.Validators(headBlock)
 		c.roundChangeSet = newRoundChangeSet(c.valSet)
 	}
 
@@ -331,7 +331,7 @@ func (c *core) startNewRound(round *big.Int) {
 	// New snapshot for new round
 	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
-	c.valSet.CalcProposer(lastAuthor, newView.Round.Uint64())
+	c.valSet.CalcProposer(headAuthor, newView.Round.Uint64())
 	c.setState(StateAcceptRequest)
 	if roundChange && c.current != nil && c.valSet.IsProposer(c.address) && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
@@ -359,8 +359,8 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	// Perform all of the updates
 	c.setState(StateWaitingForNewRound)
 	c.current.SetDesiredRound(r)
-	_, lastAuthor := c.backend.LastBlockAndAuthor()
-	c.valSet.CalcProposer(lastAuthor, desiredView.Round.Uint64())
+	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthorAndAuthor()
+	c.valSet.CalcProposer(headAuthor, desiredView.Round.Uint64())
 	c.newRoundChangeTimerForView(desiredView)
 
 	// Send round change
@@ -380,9 +380,9 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 				// in the next round.
 				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits())
 			} else {
-				lastBlock := c.backend.LastBlock()
+				headBlock := c.backend.GetCurrentHeadBlock()
 				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
-				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentBlockValidators(lastBlock)))
+				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentBlockValidators(headBlock)))
 			}
 		}
 	} else {
