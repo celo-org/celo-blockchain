@@ -19,20 +19,19 @@ package backend
 import (
 	//"bytes"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestSign(t *testing.T) {
@@ -128,7 +127,7 @@ func TestCommit(t *testing.T) {
 		{
 			// normal case
 			nil,
-			make([]byte, types.IstanbulExtraCommittedSeal),
+			make([]byte, types.IstanbulExtraBlsSignature),
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -138,7 +137,7 @@ func TestCommit(t *testing.T) {
 		},
 		{
 			// invalid signature
-			errInvalidCommittedSeals,
+			errInvalidAggregatedSeal,
 			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
@@ -157,7 +156,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, big.NewInt(0), test.expectedSignature); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -179,7 +178,6 @@ func TestCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
-	fmt.Printf("Data dir is %s\n", engine.GetDataDir())
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.GetProposer(1)

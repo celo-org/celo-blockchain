@@ -32,21 +32,40 @@ import (
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 const validatorsABIString string = `[
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "getRegisteredValidators",
-    "outputs": [
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "getRegisteredValidatorSigners",
+			"outputs": [
+			{
+				"name": "",
+				"type": "address[]"
+			}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
     {
-      "name": "",
-      "type": "address[]"
-    }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-	    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "signer",
+          "type": "address"
+        }
+      ],
+      "name": "getValidatorBlsPublicKeyFromSigner",
+      "outputs": [
+        {
+          "name": "blsKey",
+          "type": "bytes"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+	  {
       "constant": true,
       "inputs": [
         {
@@ -57,7 +76,11 @@ const validatorsABIString string = `[
       "name": "getValidator",
       "outputs": [
         {
-          "name": "publicKeysData",
+          "name": "ecdsaPublicKey",
+          "type": "bytes"
+        },
+        {
+          "name": "blsPublicKey",
           "type": "bytes"
         },
         {
@@ -73,17 +96,25 @@ const validatorsABIString string = `[
       "stateMutability": "view",
       "type": "function"
     },
-
-					    {
+    {
       "constant": false,
       "inputs": [
         {
           "name": "validator",
           "type": "address"
+        },
+        {
+          "name": "maxPayment",
+          "type": "uint256"
         }
       ],
-      "name": "distributeEpochPayment",
-      "outputs": [],
+      "name": "distributeEpochPaymentsFromSigner",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
@@ -100,7 +131,7 @@ const validatorsABIString string = `[
           "type": "uint256"
         }
       ],
-      "name": "updateValidatorScore",
+      "name": "updateValidatorScoreFromSigner",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -114,7 +145,7 @@ const validatorsABIString string = `[
           "type": "address"
         }
       ],
-      "name": "getMembershipInLastEpoch",
+      "name": "getMembershipInLastEpochFromSigner",
       "outputs": [
         {
           "name": "",
@@ -127,39 +158,61 @@ const validatorsABIString string = `[
     }
 ]`
 
+type ValidatorContractData struct {
+	EcdsaPublicKey []byte
+	BlsPublicKey   []byte
+	Affiliation    common.Address
+	Score          *big.Int
+}
+
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 
 	return regVals, nil
 }
 
+func GetValidator(header *types.Header, state vm.StateDB, validatorAddress common.Address) (ValidatorContractData, error) {
+	var validator ValidatorContractData
+	_, err := contract_comm.MakeStaticCall(
+		params.ValidatorsRegistryId,
+		validatorsABI,
+		"getValidator",
+		[]interface{}{validatorAddress},
+		&validator,
+		params.MaxGasForGetValidator,
+		header,
+		state,
+	)
+	if err != nil {
+		return validator, err
+	}
+	if len(validator.BlsPublicKey) != blscrypto.PUBLICKEYBYTES {
+		return validator, fmt.Errorf("length of bls public key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(validator.BlsPublicKey))
+	}
+	return validator, nil
+}
+
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
-		validator := struct {
-			PublicKeysData []byte
-			Affiliation    common.Address
-			Score          *big.Int
-		}{}
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidator", []interface{}{addr}, &validator, params.MaxGasForGetValidator, header, state)
+		var blsKey []byte
+		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
-		expectedLength := 64 + blscrypto.PUBLICKEYBYTES + blscrypto.SIGNATUREBYTES
-		if len(validator.PublicKeysData) != expectedLength {
-			return nil, fmt.Errorf("length of publicKeysData incorrect. Expected %d, got %d", expectedLength, len(validator.PublicKeysData))
+		if len(blsKey) != blscrypto.PUBLICKEYBYTES {
+			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
 		}
-		blsPublicKey := validator.PublicKeysData[64 : 64+blscrypto.PUBLICKEYBYTES]
 		validatorData = append(validatorData, istanbul.ValidatorData{
 			addr,
-			blsPublicKey,
+			blsKey,
 		})
 	}
 	return validatorData, nil
@@ -169,35 +222,38 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"updateValidatorScore",
+		"updateValidatorScoreFromSigner",
 		[]interface{}{address, uptime},
 		nil,
 		params.MaxGasForUpdateValidatorScore,
 		common.Big0,
 		header,
 		state,
+		false,
 	)
 	return err
 }
 
-func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address) error {
+func DistributeEpochPayment(header *types.Header, state vm.StateDB, address common.Address, maxPayment *big.Int) (*big.Int, error) {
+	var epochPayment *big.Int
 	_, err := contract_comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
-		"distributeEpochPayment",
-		[]interface{}{address},
-		nil,
+		"distributeEpochPaymentsFromSigner",
+		[]interface{}{address, maxPayment},
+		&epochPayment,
 		params.MaxGasForDistributeEpochPayment,
 		common.Big0,
 		header,
 		state,
+		false,
 	)
-	return err
+	return epochPayment, err
 }
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {
 	var group common.Address
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpoch", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpochFromSigner", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}

@@ -33,12 +33,16 @@ import (
 
 func TestCheckMessage(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
+	backend := &testSystemBackend{
+		events: new(event.TypeMux),
+	}
 	c := &core{
-		logger: testLogger,
-		state:  StateAcceptRequest,
+		logger:  testLogger,
+		state:   StateAcceptRequest,
+		backend: backend,
 		current: newRoundState(&istanbul.View{
-			Sequence: big.NewInt(1),
-			Round:    big.NewInt(0),
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(2),
 		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 
@@ -51,9 +55,62 @@ func TestCheckMessage(t *testing.T) {
 	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
 	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
-	// future sequence
+	// accept Commits from sequence, round matching LastSubject
 	v := &istanbul.View{
-		Sequence: big.NewInt(2),
+		Sequence: big.NewInt(0),
+		// set smaller round so that the roundchange case gets hit
+		Round: big.NewInt(1),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if testCode[j] == istanbul.MsgCommit {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want %v", err, nil)
+				}
+			} else {
+				if err != errOldMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+				}
+			}
+		}
+	}
+
+	// rejects Commits from sequence matching LastSubject, round not matching
+	v = &istanbul.View{
+		Sequence: big.NewInt(0),
+		// set smaller round so that we don't accept
+		Round: big.NewInt(0),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if err != errOldMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+			}
+		}
+	}
+
+	// rejects all other older sequences
+	v = &istanbul.View{
+		Sequence: big.NewInt(0),
+		Round:    big.NewInt(0),
+	}
+	for i := 0; i < len(testStates); i++ {
+		c.state = testStates[i]
+		for j := 0; j < len(testCode); j++ {
+			err := c.checkMessage(testCode[j], v)
+			if err != errOldMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+			}
+		}
+	}
+
+	// future sequence
+	v = &istanbul.View{
+		Sequence: big.NewInt(3),
 		Round:    big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
@@ -68,8 +125,8 @@ func TestCheckMessage(t *testing.T) {
 
 	// future round
 	v = &istanbul.View{
-		Sequence: big.NewInt(1),
-		Round:    big.NewInt(1),
+		Sequence: big.NewInt(2),
+		Round:    big.NewInt(3),
 	}
 	for i := 0; i < len(testStates); i++ {
 		c.state = testStates[i]
@@ -85,7 +142,7 @@ func TestCheckMessage(t *testing.T) {
 		}
 	}
 
-	v = c.currentView()
+	v = c.current.View()
 	// current view, state = StateAcceptRequest
 	c.state = StateAcceptRequest
 	for i := 0; i < len(testCode); i++ {

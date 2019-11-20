@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestVerifyPreparedCertificate(t *testing.T) {
@@ -44,13 +44,13 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	}{
 		{
 			// Valid PREPARED certificate
-			sys.getPreparedCertificate(t, view, proposal),
+			sys.getPreparedCertificate(t, []istanbul.View{view}, proposal),
 			nil,
 		},
 		{
 			// Invalid PREPARED certificate, duplicate message
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				return preparedCertificate
 			}(),
@@ -63,7 +63,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(10),
 				}
-				preparedCertificate := sys.getPreparedCertificate(t, futureView, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{futureView}, proposal)
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateMsgView,
@@ -71,8 +71,8 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		{
 			// Invalid PREPARED certificate, includes preprepare message
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
-				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, view, proposal))
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
 				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
 				return preparedCertificate
 			}(),
@@ -81,12 +81,23 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		{
 			// Invalid PREPARED certificate, hash mismatch
 			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, view, proposal)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				preparedCertificate.Proposal = makeBlock(1)
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDigestMismatch,
+		},
+		{
+			// Invalid PREPARED certificate, view inconsistencies
+			func() istanbul.PreparedCertificate {
+				var view2 istanbul.View
+				view2.Sequence = big.NewInt(view.Sequence.Int64())
+				view2.Round = big.NewInt(view.Round.Int64() + 1)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view, view2}, proposal)
+				return preparedCertificate
+			}(),
+			errInvalidPreparedCertificateInconsistentViews,
 		},
 		{
 			// Empty certificate
@@ -153,9 +164,11 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
 					t,
-					istanbul.View{
-						Round:    big.NewInt(0),
-						Sequence: big.NewInt(1),
+					[]istanbul.View{
+						{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(1),
+						},
 					},
 					proposal)
 
@@ -169,7 +182,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.preparedCertificate = preparedCert
+					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -186,9 +199,11 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
 					t,
-					istanbul.View{
-						Round:    big.NewInt(0),
-						Sequence: big.NewInt(10),
+					[]istanbul.View{
+						{
+							Round:    big.NewInt(0),
+							Sequence: big.NewInt(10),
+						},
 					},
 					proposal)
 
@@ -202,7 +217,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						c.valSet,
 					)
-					c.current.preparedCertificate = preparedCert
+					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -355,7 +370,7 @@ OUTER:
 			if r0.state != StatePreprepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
 			}
-			if r0.current.Prepares.Size() >= r0.valSet.MinQuorumSize() {
+			if r0.current.Prepares().Size() >= r0.valSet.MinQuorumSize() {
 				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
 			}
 
@@ -363,8 +378,8 @@ OUTER:
 		}
 
 		// core should have MinQuorumSize PREPARE messages
-		if r0.current.Prepares.Size() < r0.valSet.MinQuorumSize() {
-			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares.Size())
+		if r0.current.Prepares().Size() < r0.valSet.MinQuorumSize() {
+			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares().Size())
 		}
 
 		// a message will be delivered to backend if 2F+1
@@ -382,12 +397,12 @@ OUTER:
 		if decodedMsg.Code != istanbul.MsgCommit {
 			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
 		}
-		var m *istanbul.Subject
+		var m *istanbul.CommittedSubject
 		err = decodedMsg.Decode(&m)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
-		if !reflect.DeepEqual(m, expectedSubject) {
+		if !reflect.DeepEqual(m.Subject, expectedSubject) {
 			t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
 		}
 	}
@@ -413,7 +428,7 @@ func TestVerifyPrepare(t *testing.T) {
 		expected error
 
 		prepare    *istanbul.Subject
-		roundState *roundState
+		roundState RoundState
 	}{
 		{
 			// normal case

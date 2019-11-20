@@ -140,9 +140,6 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-	// Maintains a queue of Celo attestation requests
-	// TODO(asa): Save this in StateDB
-	AttestationRequests []types.AttestationRequest
 
 	DontMeterGas bool
 }
@@ -504,42 +501,37 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getOrComputeTobinTaxFunctionSelector() []byte {
-	// Function is "getOrComputeTobinTax()"
-	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
-	return hexutil.MustDecode("0x17f9a6f7")
-}
-
-// TobinTransfer performs a transfer that takes a tax from the sent amount and gives it to the reserve
+// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
+// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
+// NB: Gas is not charged or accounted for this calculation.
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 
-	if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
-		log.Trace("Error in tobin transfer", "error", err)
-		return gas, err
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 && err == nil {
-		ret, gas, err := evm.Call(AccountRef(sender), *reserveAddress, getOrComputeTobinTaxFunctionSelector(), gas, big.NewInt(0))
-		if err != nil {
-			return gas, err
+	if amount.Cmp(big.NewInt(0)) != 0 {
+		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+		if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
+			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
 		}
 
-		// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-		// each of which is equivalent to 32 bytes
-		if binary.Size(ret) == 64 {
-			numerator := new(big.Int).SetBytes(ret[0:32])
-			denominator := new(big.Int).SetBytes(ret[32:64])
-			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+		if err == nil {
+			ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+			if err != nil {
+				log.Trace("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err)
+			}
 
-			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-			return gas, nil
+			// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
+			// each of which is equivalent to 32 bytes
+			if err == nil && binary.Size(ret) == 64 {
+				numerator := new(big.Int).SetBytes(ret[0:32])
+				denominator := new(big.Int).SetBytes(ret[32:64])
+				tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+
+				evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+				evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
+				return gas, nil
+			}
 		}
 	}
+
 	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
 	evm.Context.Transfer(db, sender, recipient, amount)

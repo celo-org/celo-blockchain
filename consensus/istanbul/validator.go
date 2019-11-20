@@ -68,6 +68,16 @@ type Validator interface {
 	String() string
 }
 
+func GetAddressesFromValidatorList(validators []Validator) []common.Address {
+	returnList := make([]common.Address, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.Address()
+	}
+
+	return returnList
+}
+
 // ----------------------------------------------------------------------------
 
 type Validators []Validator
@@ -104,6 +114,8 @@ type ValidatorSet interface {
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
 	GetByAddress(addr common.Address) (int, Validator)
+	// CointainByAddress indicates if a validator with the given address is present
+	ContainsByAddress(add common.Address) bool
 
 	// Add validators
 	AddValidators(validators []ValidatorData) bool

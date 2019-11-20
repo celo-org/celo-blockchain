@@ -18,23 +18,22 @@ package miner
 
 import (
 	"math/big"
-	"math/rand"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -57,8 +56,6 @@ var (
 
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
-
-	testVerificationService = ""
 
 	// Test transactions
 	pendingTxs []*types.Transaction
@@ -178,7 +175,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.DefaultGasLimit, params.DefaultGasLimit, nil, testVerificationService, &backend.db)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.DefaultGasLimit, params.DefaultGasLimit, nil, &backend.db)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -246,9 +243,9 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	istanbulDataDirName := string(rand.Int())
-	dataDir := filepath.Join("/tmp", istanbulDataDirName)
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
+	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
+	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

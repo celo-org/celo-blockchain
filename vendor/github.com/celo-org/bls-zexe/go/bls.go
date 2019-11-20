@@ -14,8 +14,8 @@ const MODULUS377 = "844446174942837042424882493878154653137589933515406382793523
 const MODULUSBITS = 253
 const MODULUSMASK = 31 // == 2**(253-(256-8)) - 1
 const PRIVATEKEYBYTES = 32
-const PUBLICKEYBYTES = 48
-const SIGNATUREBYTES = 96
+const PUBLICKEYBYTES = 96
+const SIGNATUREBYTES = 48
 
 var GeneralError = errors.New("General error")
 var NotVerifiedError = errors.New("Not verified")
@@ -277,4 +277,20 @@ func AggregateSignatures(signatures []*Signature) (*Signature, error) {
 	}
 
 	return aggregatedSignature, nil
+}
+
+func EncodeEpochToBytes(epochIndex uint16, maximumNonSigners uint32, aggregatedPublicKey *PublicKey, addedPublicKeys []*PublicKey) ([]byte, error) {
+	publicKeysPtrs := []*C.struct_PublicKey{}
+	for _, pk := range addedPublicKeys {
+		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
+	}
+	var bytes *C.uchar
+	var size C.int
+	success := C.encode_epoch_block_to_bytes(C.ushort(epochIndex), C.uint(maximumNonSigners), aggregatedPublicKey.ptr, (**C.struct_PublicKey)(unsafe.Pointer(&publicKeysPtrs[0])), C.int(len(publicKeysPtrs)), &bytes, &size)
+	if !success {
+		return nil, GeneralError
+	}
+	defer C.free_vec(bytes, size)
+
+	return C.GoBytes(unsafe.Pointer(bytes), size), nil
 }

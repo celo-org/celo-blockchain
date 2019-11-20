@@ -55,6 +55,8 @@ var (
 	errInvalidPreparedCertificateDigestMismatch = errors.New("message in PREPARED certificate for different digest than proposal")
 	// errInvalidRoundChangeViewMismatch is returned when the PREPARED certificate view is greater than the round change view
 	errInvalidRoundChangeViewMismatch = errors.New("View for PREPARED certificate is greater than the view in the round change message")
+	// errInvalidPreparedCertificateInconsistentViews is returned when the PREPARED certificate view is inconsistent among it's messages
+	errInvalidPreparedCertificateInconsistentViews = errors.New("View is inconsistent among the PREPARED certificate messages")
 
 	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
 	errInvalidRoundChangeCertificateNumMsgs = errors.New("invalid number of ROUND CHANGE messages in certificate")
@@ -71,8 +73,6 @@ var (
 	errInvalidCommittedSeal = errors.New("invalid committed seal in COMMIT message")
 	// errMissingRoundChangeCertificate is returned when ROUND CHANGE certificate is missing from a PREPREPARE for round > 0.
 	errMissingRoundChangeCertificate = errors.New("missing ROUND CHANGE certificate in PREPREPARE")
-	// errFailedCreatePreparedCertificate is returned when there aren't enough PREPARE messages to create a PREPARED certificate.
-	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 	// errFailedCreateRoundChangeCertificate is returned when there aren't enough ROUND CHANGE messages to create a ROUND CHANGE certificate.
 	errFailedCreateRoundChangeCertificate = errors.New("failed to create ROUND CHANGE certficate")
 	// errInvalidProposal is returned when a PREPARED certificate exists for proposal A in the ROUND CHANGE certificate for a PREPREPARE with proposal B.

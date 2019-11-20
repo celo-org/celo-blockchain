@@ -25,7 +25,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/abe"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -189,41 +188,35 @@ type worker struct {
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
-	// Verification Service
-	verificationService string
-	verificationMu      sync.RWMutex
-	lastBlockVerified   uint64
-
 	// Needed for randomness
 	db *ethdb.Database
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, verificationService string, db *ethdb.Database) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool, db *ethdb.Database) *worker {
 	worker := &worker{
-		config:              config,
-		engine:              engine,
-		eth:                 eth,
-		mux:                 mux,
-		chain:               eth.BlockChain(),
-		gasFloor:            gasFloor,
-		gasCeil:             gasCeil,
-		isLocalBlock:        isLocalBlock,
-		verificationService: verificationService,
-		localUncles:         make(map[common.Hash]*types.Block),
-		remoteUncles:        make(map[common.Hash]*types.Block),
-		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:        make(map[common.Hash]*task),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:           make(chan *newWorkReq),
-		taskCh:              make(chan *task),
-		resultCh:            make(chan *types.Block, resultQueueSize),
-		exitCh:              make(chan struct{}),
-		startCh:             make(chan struct{}, 1),
-		resubmitIntervalCh:  make(chan time.Duration),
-		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
-		db:                  db,
+		config:             config,
+		engine:             engine,
+		eth:                eth,
+		mux:                mux,
+		chain:              eth.BlockChain(),
+		gasFloor:           gasFloor,
+		gasCeil:            gasCeil,
+		isLocalBlock:       isLocalBlock,
+		localUncles:        make(map[common.Hash]*types.Block),
+		remoteUncles:       make(map[common.Hash]*types.Block),
+		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:       make(map[common.Hash]*task),
+		txsCh:              make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:          make(chan *newWorkReq),
+		taskCh:             make(chan *task),
+		resultCh:           make(chan *types.Block, resultQueueSize),
+		exitCh:             make(chan struct{}),
+		startCh:            make(chan struct{}, 1),
+		resubmitIntervalCh: make(chan time.Duration),
+		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
+		db:                 db,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -396,22 +389,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-			processAttestationRequestsUpTo := func(number uint64) {
-				w.verificationMu.Lock()
-				defer w.verificationMu.Unlock()
-				for blockNum := number; blockNum > w.lastBlockVerified; blockNum-- {
-					block := w.chain.GetBlockByNumber(number)
-					if now := time.Now().Unix(); block.Time().Uint64()+params.AttestationExpirySeconds >= uint64(now) {
-						receipts := w.chain.GetReceiptsByHash(block.Hash())
-						abe.SendAttestationMessages(receipts, block, w.coinbase, w.eth.AccountManager(), w.verificationService)
-					} else {
-						break
-					}
-				}
-				w.lastBlockVerified = number
-			}
-			go processAttestationRequestsUpTo(headNumber)
-
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
@@ -469,7 +446,7 @@ func (w *worker) mainLoop() {
 		select {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewChainHead()
+				h.NewWork()
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
@@ -637,6 +614,10 @@ func (w *worker) resultLoop() {
 				// receipt/log of individual transactions were created.
 				for _, log := range receipt.Logs {
 					log.BlockHash = hash
+					// Handle block finalization receipt
+					if (log.TxHash == common.Hash{}) {
+						log.TxHash = hash
+					}
 				}
 				logs = append(logs, receipt.Logs...)
 			}
@@ -1085,12 +1066,25 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+
+	if len(s.GetLogs(common.Hash{})) > 0 {
+		receipt := types.NewReceipt(nil, false, 0)
+		receipt.Logs = s.GetLogs(common.Hash{})
+		for i := range receipt.Logs {
+			receipt.Logs[i].TxIndex = uint(len(receipts))
+		}
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		receipts = append(receipts, receipt)
+	}
+
 	if err != nil {
+		log.Error("Unable to finalize block", "err", err)
 		return err
 	}
 	if w.isRunning() {

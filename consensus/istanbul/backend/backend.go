@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"math/big"
 	"sync"
@@ -40,7 +39,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -53,39 +54,76 @@ var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 
+	// errProxyAlreadySet is returned if a user tries to add a proxy that is already set.
+	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
+	errProxyAlreadySet = errors.New("proxy already set")
+
+	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
+	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
+
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
+
+	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
+	// than a previous received message
+	errOldAnnounceMessage = errors.New("old announce message")
 )
 
 // Entries for the recent announce messages
 type AnnounceGossipTimestamp struct {
-	enodeURL  string
-	timestamp time.Time
+	enodeURLHash      common.Hash
+	destAddressesHash common.Hash
+	timestamp         time.Time
+}
+
+// Information about the proxy for a proxied validator
+type proxyInfo struct {
+	node         *enode.Node    // Enode for the internal network interface
+	externalNode *enode.Node    // Enode for the external network interface
+	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	recentMessages, _ := lru.NewARC(inmemoryPeers)
-	knownMessages, _ := lru.NewARC(inmemoryMessages)
+	logger := log.New()
+	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
+	if err != nil {
+		logger.Crit("Failed to create recent snapshots cache", "err", err)
+	}
+	recentMessages, err := lru.NewARC(inmemoryPeers)
+	if err != nil {
+		logger.Crit("Failed to create recent messages cache", "err", err)
+	}
+	knownMessages, err := lru.NewARC(inmemoryMessages)
+	if err != nil {
+		logger.Crit("Failed to create known messages cache", "err", err)
+	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
-		logger:               log.New(),
+		logger:               logger,
 		db:                   db,
 		commitCh:             make(chan *types.Block, 1),
-		recents:              recents,
+		recentSnapshots:      recentSnapshots,
 		coreStarted:          false,
 		recentMessages:       recentMessages,
 		knownMessages:        knownMessages,
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		dataDir:              dataDir,
+		valEnodesShareWg:     new(sync.WaitGroup),
+		valEnodesShareQuit:   make(chan struct{}),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
-	backend.valEnodeTable = enodes.NewValidatorEnodeTable()
+
+	vph := &validatorPeerHandler{sb: backend}
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	if err != nil {
+		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
+	}
+	backend.valEnodeTable = table
+
 	return backend
 }
 
@@ -120,10 +158,13 @@ type Backend struct {
 	coreMu            sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
-	recents *lru.ARCCache
+	recentSnapshots *lru.ARCCache
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
+
+	// interface to the p2p server
+	p2pserver consensus.P2PServer
 
 	recentMessages *lru.ARCCache // the cache of peer's messages
 	knownMessages  *lru.ARCCache // the cache of self messages
@@ -131,11 +172,20 @@ type Backend struct {
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
 
-	valEnodeTable *enodes.ValidatorEnodeTable
+	valEnodeTable *enodes.ValidatorEnodeDB
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
-	dataDir      string // A read-write data dir to persist files across restarts
+
+	valEnodesShareWg   *sync.WaitGroup
+	valEnodesShareQuit chan struct{}
+
+	proxyNode *proxyInfo
+
+	// Right now, we assume that there is at most one proxied peer for a proxy
+	proxiedPeer consensus.Peer
+
+	newEpochCh chan struct{}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -157,7 +207,7 @@ func (sb *Backend) Address() common.Address {
 
 // Close the backend
 func (sb *Backend) Close() error {
-	return nil
+	return sb.valEnodeTable.Close()
 }
 
 // Validators implements istanbul.Backend.Validators
@@ -170,10 +220,42 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.FilteredList()
 }
 
-// Broadcast implements istanbul.Backend.Broadcast
-func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error {
+// This function will return the peers with the addresses in the "destAddresses" parameter.
+// If this is a proxied validator, then it will return the proxy.
+func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
+	if sb.config.Proxied {
+		if sb.proxyNode != nil && sb.proxyNode.peer != nil {
+			returnMap := make(map[enode.ID]consensus.Peer)
+			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
+
+			return returnMap
+		} else {
+			return nil
+		}
+	} else {
+		var targets map[enode.ID]bool = nil
+
+		if destAddresses != nil {
+			targets = make(map[enode.ID]bool)
+			for _, addr := range destAddresses {
+				if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
+					targets[valNode.ID()] = true
+				}
+			}
+		}
+		return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
+	}
+}
+
+// Broadcast implements istanbul.Backend.BroadcastConsensusMsg
+func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
+	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
+
 	// send to others
-	sb.Gossip(valSet, payload, istanbulMsg, false)
+	if err := sb.Gossip(destAddresses, payload, istanbulConsensusMsg, false); err != nil {
+		return err
+	}
+
 	// send to self
 	msg := istanbul.MessageEvent{
 		Payload: payload,
@@ -183,28 +265,39 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 }
 
 // Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
+	// If this is a proxied validator and it wants to send a consensus message,
+	// wrap the consensus message in a forward message.
+	if sb.config.Proxied && ethMsgCode == istanbulConsensusMsg {
+		var err error
+
+		fwdMessage := &istanbul.ForwardMessage{DestAddresses: destAddresses, Msg: payload}
+		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+		if err != nil {
+			sb.logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+			return err
+		}
+
+		// Note that we are not signing message.  The message that is being wrapped is already signed.
+		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
+		payload, err = msg.Payload()
+		if err != nil {
+			return err
+		}
+
+		ethMsgCode = istanbulFwdMsg
+	}
+
+	peers := sb.getPeersForMessage(destAddresses)
+
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
 		sb.knownMessages.Add(hash, true)
 	}
 
-	var targets map[common.Address]bool = nil
-
-	if valSet != nil {
-		targets = make(map[common.Address]bool)
-		for _, val := range valSet.List() {
-			if val.Address() != sb.Address() {
-				targets[val.Address()] = true
-			}
-		}
-	}
-
-	if sb.broadcaster != nil && ((valSet == nil) || (len(targets) > 0)) {
-		ps := sb.broadcaster.FindPeers(targets)
-
-		for addr, p := range ps {
+	if len(peers) > 0 {
+		for addr, p := range peers {
 			if !ignoreCache {
 				ms, ok := sb.recentMessages.Get(addr)
 				var m *lru.ARCCache
@@ -221,35 +314,16 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "address", addr)
 
-			go p.Send(msgCode, payload)
+			go p.Send(ethMsgCode, payload)
 		}
 	}
 	return nil
 }
 
-// Enode for backend
-func (sb *Backend) Enode() *enode.Node {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetLocalNode()
-	}
-	return nil
-}
-
-// GetNodeKey gets the Node PrivateKey
-func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetNodeKey()
-	}
-	return nil
-}
-
-func (sb *Backend) GetDataDir() string {
-	return sb.dataDir
-}
-
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []byte) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -260,14 +334,14 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, bitmap *big.Int, seals []b
 
 	h := block.Header()
 	// Append seals into extra-data
-	err := writeCommittedSeals(h, bitmap, seals)
+	err := writeAggregatedSeal(h, aggregatedSeal, false)
 	if err != nil {
 		return err
 	}
 	// update block's header
 	block = block.WithSeal(h)
 
-	sb.logger.Info("Committed", "address", sb.Address(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
+	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.
 	// - otherwise, we try to insert the block.
@@ -302,7 +376,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// check bad block
-	if sb.HasBadProposal(block.Hash()) {
+	if sb.hasBadProposal(block.Hash()) {
 		return 0, core.ErrBlacklistedHash
 	}
 
@@ -329,7 +403,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
-	if err != nil && err != errEmptyCommittedSeals {
+	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
 			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
@@ -541,34 +615,42 @@ func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
 	return block, proposer
 }
 
-func (sb *Backend) HasBadProposal(hash common.Hash) bool {
+func (sb *Backend) LastSubject() (istanbul.Subject, error) {
+	lastProposal, _ := sb.LastProposal()
+	istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
+	if err != nil {
+		return istanbul.Subject{}, err
+	}
+	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: istExtra.AggregatedSeal.Round}
+	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
+}
+
+func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 	if sb.hasBadBlock == nil {
 		return false
 	}
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) AddValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.AddValidatorPeer(enodeURL)
+func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
+	if sb.proxyNode != nil {
+		return errProxyAlreadySet
+	}
+
+	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
+
+	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
+	return nil
+}
+
+func (sb *Backend) removeProxy(node *enode.Node) {
+	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
+		sb.p2pserver.RemovePeer(node, p2p.ProxyPurpose)
+		sb.proxyNode = nil
 	}
 }
 
-func (sb *Backend) RemoveValidatorPeer(enodeURL string) {
-	if sb.broadcaster != nil {
-		sb.broadcaster.RemoveValidatorPeer(enodeURL)
-	}
-}
-
-func (sb *Backend) GetValidatorPeers() []string {
-	if sb.broadcaster != nil {
-		return sb.broadcaster.GetValidatorPeers()
-	} else {
-		return nil
-	}
-}
-
-// This will create 'validator' type peers to all the valset validators, and disconnect from the
+// RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
@@ -576,28 +658,19 @@ func (sb *Backend) GetValidatorPeers() []string {
 func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
 
-	currentValPeers := sb.GetValidatorPeers()
-
-	// Disconnect all validator peers if this node is not in the valset
-	if _, val := valset.GetByAddress(sb.Address()); val == nil {
-		for _, peerEnodeURL := range currentValPeers {
-			sb.RemoveValidatorPeer(peerEnodeURL)
-		}
-	} else {
-		// Add all of the valSet entries as validator peers
-		for _, val := range valset.List() {
-			if enodeURL, ok := sb.valEnodeTable.GetEnodeURLFromAddress(val.Address()); ok {
-				sb.AddValidatorPeer(enodeURL)
-			}
-		}
-
-		// Remove the peers that are not in the valset
-		for _, peerEnodeURL := range currentValPeers {
-			if peerAddress, ok := sb.valEnodeTable.GetAddressFromEnodeURL(peerEnodeURL); ok {
-				if _, src := valset.GetByAddress(peerAddress); src == nil {
-					sb.RemoveValidatorPeer(peerEnodeURL)
-				}
-			}
-		}
+	if sb.broadcaster == nil {
+		return
 	}
+
+	sb.valEnodeTable.RefreshValPeers(valset, sb.Address())
+}
+
+func (sb *Backend) ValidatorAddress() common.Address {
+	var localAddress common.Address
+	if sb.config.Proxy {
+		localAddress = sb.config.ProxiedValidatorAddress
+	} else {
+		localAddress = sb.Address()
+	}
+	return localAddress
 }

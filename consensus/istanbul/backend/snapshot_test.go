@@ -20,12 +20,10 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
-	"math/rand"
-	"path/filepath"
 	"reflect"
 	"testing"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -33,7 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -244,9 +242,15 @@ func TestValSetChange(t *testing.T) {
 			Mixhash:    types.IstanbulDigest,
 			Config:     params.TestChainConfig,
 		}
+		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
+		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
 		b := genesis.ToBlock(nil)
-		extra, _ := assembleExtra(b.Header(), []istanbul.ValidatorData{}, validators)
-		genesis.ExtraData = extra
+		h := b.Header()
+		err := writeValidatorSetDiff(h, []istanbul.ValidatorData{}, validators)
+		if err != nil {
+			t.Errorf("Could not update genesis validator set, got err: %v", err)
+		}
+		genesis.ExtraData = h.Extra
 		db := ethdb.NewMemDatabase()
 
 		config := istanbul.DefaultConfig
@@ -258,8 +262,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		dataDir := filepath.Join("/tmp", string(rand.Int()))
-		engine := New(config, db, dataDir).(*Backend)
+		engine := New(config, db).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
@@ -350,9 +353,8 @@ func TestValSetChange(t *testing.T) {
 				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
 				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
 				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
-				Bitmap:                    big.NewInt(0),
-				Seal:                      []byte{},
-				CommittedSeal:             []byte{},
+				AggregatedSeal:            types.IstanbulAggregatedSeal{},
+				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 				EpochData:                 []byte{},
 			}
 
