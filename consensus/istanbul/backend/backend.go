@@ -84,7 +84,7 @@ type proxyInfo struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -114,7 +114,6 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
 		valEnodesShareWg:     new(sync.WaitGroup),
 		valEnodesShareQuit:   make(chan struct{}),
-		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -186,7 +185,6 @@ type Backend struct {
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
 
-	dataDir    string // A read-write data dir to persist files across restarts
 	newEpochCh chan struct{}
 }
 
@@ -321,10 +319,6 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 		}
 	}
 	return nil
-}
-
-func (sb *Backend) GetDataDir() string {
-	return sb.dataDir
 }
 
 // Commit implements istanbul.Backend.Commit

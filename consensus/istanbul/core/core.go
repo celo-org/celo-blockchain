@@ -97,7 +97,7 @@ type core struct {
 }
 
 // Appends the current view and state to the given context.
-func (c *core) NewLogger(ctx ...interface{}) log.Logger {
+func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round *big.Int
 	state := c.state
 	if c.current != nil {
@@ -108,7 +108,7 @@ func (c *core) NewLogger(ctx ...interface{}) log.Logger {
 		round = big.NewInt(-1)
 	}
 	tmp := c.logger.New(ctx...)
-	return tmp.New("cur_seq", seq, "cur_round", round, "state", state)
+	return tmp.New("cur_seq", seq, "cur_round", round, "state", state, "address", c.address)
 }
 
 func (c *core) SetAddress(address common.Address) {
@@ -146,13 +146,6 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
-	}
-}
-
-func (c *core) currentView() *istanbul.View {
-	return &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Set(c.current.Round()),
 	}
 }
 
@@ -339,7 +332,6 @@ func (c *core) startNewRound(round *big.Int) {
 	} else {
 		if c.current != nil {
 			request = c.current.PendingRequest()
-			c.deleteMessageFromDisk(c.current.Round(), c.current.Sequence())
 		}
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
@@ -366,14 +358,15 @@ func (c *core) startNewRound(round *big.Int) {
 
 // All actions that occur when transitioning to waiting for round change state.
 func (c *core) waitForDesiredRound(r *big.Int) {
-	logger := c.logger.New("func", "waitForDesiredRound", "cur_round", c.current.Round(), "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+	logger := c.newLogger("func", "waitForDesiredRound", "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+
 	// Don't wait for an older round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		logger.Debug("New desired round not greater than current desired round")
 		return
 	}
-	logger.Debug("Waiting for desired round")
 
+	logger.Debug("Waiting for desired round")
 	desiredView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
@@ -438,7 +431,7 @@ func (c *core) stopTimer() {
 }
 
 func (c *core) newRoundChangeTimer() {
-	c.newRoundChangeTimerForView(c.currentView())
+	c.newRoundChangeTimerForView(c.current.View())
 }
 
 func (c *core) newRoundChangeTimerForView(view *istanbul.View) {

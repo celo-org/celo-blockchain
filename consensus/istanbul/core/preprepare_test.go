@@ -170,7 +170,7 @@ func TestHandlePreprepare(t *testing.T) {
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
 				// Duplicate messages
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).current.View()), istanbul.EmptyPreparedCertificate())
 				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
 				return roundChangeCertificate
 			},
@@ -200,14 +200,14 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				view1 := *(sys.backends[0].engine.(*core).currentView())
+				view1 := *(sys.backends[0].engine.(*core).current.View())
 
 				var view2 istanbul.View
 				view2.Sequence = big.NewInt(view1.Sequence.Int64())
 				view2.Round = big.NewInt(view1.Round.Int64() + 1)
 
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view1, view2}, makeBlock(2))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).current.View()), preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(2),
@@ -236,8 +236,8 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(2))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(2))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).current.View()), preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -262,8 +262,8 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).currentView())}, makeBlock(0))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), preparedCertificate)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(0))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).current.View()), preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(0),
@@ -287,7 +287,7 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			}(),
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).currentView()), istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, *(sys.backends[0].engine.(*core).current.View()), istanbul.EmptyPreparedCertificate())
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -304,7 +304,7 @@ OUTER:
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
 
-		curView := r0.currentView()
+		curView := r0.current.View()
 
 		preprepareView := curView
 		if test.existingBlock {
