@@ -128,11 +128,10 @@ func testSubjectWithSignature(t *testing.T) {
 	subjectPayload, _ := Encode(s)
 	// 1. Encode test
 	m := &istanbul.Message{
-		Code:          istanbul.MsgPreprepare,
-		Msg:           subjectPayload,
-		Address:       correctAddress,
-		Signature:     expectedSig,
-		CommittedSeal: []byte{},
+		Code:      istanbul.MsgPreprepare,
+		Msg:       subjectPayload,
+		Address:   correctAddress,
+		Signature: expectedSig,
 	}
 
 	msgPayload, err := m.Payload()

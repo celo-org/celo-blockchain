@@ -20,10 +20,6 @@ import (
 	"crypto/ecdsa"
 	"math"
 	"math/big"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -57,8 +53,6 @@ type testSystemBackend struct {
 	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
-	// This should be a writeable dir.
-	dataDir string
 }
 
 type testCommittedMsgs struct {
@@ -97,7 +91,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message []byte) error {
+func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	self.sys.queuedMessage <- istanbul.MessageEvent{
@@ -105,7 +99,7 @@ func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message [
 	}
 	return nil
 }
-func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte, msgCode uint64, ignoreCache bool) error {
+func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
 	return nil
 }
 
@@ -218,25 +212,29 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 }
 
 func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
-	commit := &istanbul.Subject{
+	subject := &istanbul.Subject{
 		View:   &view,
 		Digest: proposal.Hash(),
 	}
 
-	payload, err := Encode(commit)
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(subject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit)
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: committedSeal,
+	}
+
+	payload, err := Encode(committedSubject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           payload,
-		CommittedSeal: committedSeal,
+		Code: istanbul.MsgCommit,
+		Msg:  payload,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
@@ -275,10 +273,6 @@ func (self *testSystemBackend) Enode() *enode.Node {
 }
 
 func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
-
-func (self *testSystemBackend) GetDataDir() string {
-	return self.dataDir
-}
 
 // ==============================================
 //
@@ -408,42 +402,20 @@ func (t *testSystem) stop(core bool) {
 			b.engine.Stop()
 		}
 	}
-	// Cleanup all the saved IBFT persistent files.
-	for _, backend := range t.backends {
-		os.RemoveAll(backend.dataDir)
-	}
 }
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
 	ethDB := ethdb.NewMemDatabase()
-	dataDir := createRandomDataDir()
 	backend := &testSystemBackend{
-		id:      id,
-		sys:     t,
-		events:  new(event.TypeMux),
-		db:      ethDB,
-		dataDir: dataDir,
+		id:     id,
+		sys:    t,
+		events: new(event.TypeMux),
+		db:     ethDB,
 	}
 
 	t.backends[id] = backend
 	return backend
-}
-
-func createRandomDataDir() string {
-	rand.Seed(time.Now().UnixNano())
-	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
-		dataDir := filepath.Join("/tmp", dirName)
-		err := os.Mkdir(dataDir, 0700)
-		if os.IsExist(err) {
-			continue // Re-try
-		}
-		if err != nil {
-			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
-		}
-		return dataDir
-	}
 }
 
 func (t *testSystem) F() uint64 {
