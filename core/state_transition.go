@@ -187,7 +187,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 	return nil
 }
 
-// payFees deducts gas and gateway fees from sender balance and adds the purchases amount of gas to the state.
+// payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
@@ -396,14 +396,14 @@ func (st *StateTransition) distributeTxFees() error {
 
 	// Pay gateway fee to the specified recipient.
 	if st.msg.GatewayFeeRecipient() != nil {
-		log.Debug("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
+		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
 		if err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency()); err != nil {
 			log.Error("Failed to credit gateway fee", "err", err)
 			return err
 		}
 	}
 
-	log.Debug("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
+	log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
 	if err := st.creditFee(st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
 		return err
 	}
@@ -417,13 +417,13 @@ func (st *StateTransition) distributeTxFees() error {
 		log.Trace("Cannot credit gas fee to infrastructure fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		refund.Add(refund, baseTxFee)
 	} else {
-		log.Debug("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
+		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
 		if err = st.creditFee(*governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
 			return err
 		}
 	}
 
-	log.Debug("Crediting refund", "recipient", st.msg.From(), "amount", refund, "feeCurrency", st.msg.FeeCurrency())
+	log.Trace("Crediting refund", "recipient", st.msg.From(), "amount", refund, "feeCurrency", st.msg.FeeCurrency())
 	err = st.creditFee(st.msg.From(), refund, st.msg.FeeCurrency())
 	if err != nil {
 		log.Error("Failed to refund gas", "err", err)
