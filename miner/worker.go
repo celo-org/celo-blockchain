@@ -614,6 +614,7 @@ func (w *worker) resultLoop() {
 				// receipt/log of individual transactions were created.
 				for _, log := range receipt.Logs {
 					log.BlockHash = hash
+					// Handle block finalization receipt
 					if (log.TxHash == common.Hash{}) {
 						log.TxHash = hash
 					}
