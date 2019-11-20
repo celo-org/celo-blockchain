@@ -49,7 +49,7 @@ type Config struct {
 var DefaultConfig = &Config{
 	RequestTimeout:       3000,
 	BlockPeriod:          1,
-	ProposerPolicy:       RoundRobin,
+	ProposerPolicy:       ShuffledRoundRobin,
 	Epoch:                30000,
 	ValidatorEnodeDBPath: "validatorenodes",
 	Proxy:                false,

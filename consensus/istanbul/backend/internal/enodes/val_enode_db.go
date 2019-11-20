@@ -134,7 +134,6 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	if err != nil {
 		return nil, err
 	}
-	log.Info("just about to create vet", "handler", handler)
 	return &ValidatorEnodeDB{
 		db:      db,
 		handler: handler,
@@ -238,10 +237,7 @@ func (vet *ValidatorEnodeDB) GetViewFromAddress(address common.Address) (*istanb
 func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Address, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
-	return vet.getAddressFromNodeID(nodeID)
-}
 
-func (vet *ValidatorEnodeDB) getAddressFromNodeID(nodeID enode.ID) (common.Address, error) {
 	rawEntry, err := vet.db.Get(nodeIDKey(nodeID), nil)
 	if err != nil {
 		return common.ZeroAddress, err
@@ -249,6 +245,7 @@ func (vet *ValidatorEnodeDB) getAddressFromNodeID(nodeID enode.ID) (common.Addre
 	return common.BytesToAddress(rawEntry), nil
 }
 
+// GetAllValEnodes will return all entries in the valEnodeDB
 func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
@@ -299,7 +296,7 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 			continue
 		}
 
-		hasOldValueChanged := !isNew && currentEntry.Node.String() == addressEntry.Node.String()
+		hasOldValueChanged := !isNew && currentEntry.Node.String() != addressEntry.Node.String()
 
 		if hasOldValueChanged {
 			batch.Delete(nodeIDKey(currentEntry.Node.ID()))
@@ -380,7 +377,6 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAd
 			}
 		}
 
-		vet.logger.Info("hander output", "handler", vet.handler)
 		vet.handler.ReplaceValidatorPeers(newNodes)
 	} else {
 		// Disconnect all validator peers if this node is not in the valset

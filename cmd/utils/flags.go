@@ -1223,7 +1223,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 
-		// Mining must be set for proxies
+		// Mining must not be set for proxies
 		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
 		}
@@ -1248,7 +1248,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
 		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
 
-		// Mining must be set for proxies
+		// Mining must be set for proxied nodes
 		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}

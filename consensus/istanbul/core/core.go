@@ -185,7 +185,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
 		if err != nil {
-			panic(fmt.Sprintf("commit: error in decoding committed subject for address %s", hex.EncodeToString(v.Address[:])))
+			return types.IstanbulAggregatedSeal{}, err
 		}
 		copy(committedSeals[i][:], commit.CommittedSeal[:])
 
