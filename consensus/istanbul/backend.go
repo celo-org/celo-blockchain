@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SignerFn is a signer callback function to request a hash to be signed by a
@@ -40,20 +39,17 @@ type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
 
-	// Enode returns the owner's enode
-	Enode() *enode.Node
-
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
 
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// Broadcast sends a message to all validators (include self)
-	Broadcast(valSet ValidatorSet, payload []byte) error
+	// BroadcastConsensusMsg sends a message to all validators (include self)
+	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error
+	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -86,7 +82,7 @@ type Backend interface {
 	// ParentValidators returns the validator set of the given proposal's parent block
 	ParentValidators(proposal Proposal) ValidatorSet
 
-	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
+	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.

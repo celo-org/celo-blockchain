@@ -559,7 +559,7 @@ var (
 		Name:  "ping-ip-from-packet",
 		Usage: "Has the discovery protocol use the IP address given by a ping packet",
 	}
-	UseInMemoryDiscoverTable = cli.BoolFlag{
+	UseInMemoryDiscoverTableFlag = cli.BoolFlag{
 		Name:  "use-in-memory-discovery-table",
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
@@ -660,6 +660,31 @@ var (
 		Name:  "istanbul.proposerpolicy",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
+	}
+
+	// Proxy node settings
+	ProxyFlag = cli.BoolFlag{
+		Name:  "proxy.proxy",
+		Usage: "Specifies whether this node is a proxy",
+	}
+	ProxyInternalFacingEndpointFlag = cli.StringFlag{
+		Name:  "proxy.internalendpoint",
+		Usage: "Specifies the internal facing endpoint for this proxy to listen to.  The format should be <ip address>:<port>",
+		Value: ":30503",
+	}
+	ProxiedValidatorAddressFlag = cli.StringFlag{
+		Name:  "proxy.proxiedvalidatoraddress",
+		Usage: "Address of the proxied validator",
+	}
+
+	// Proxied validator settings
+	ProxiedFlag = cli.BoolFlag{
+		Name:  "proxy.proxied",
+		Usage: "Specifies whether this validator will be proxied by a proxy node",
+	}
+	ProxyEnodeURLPairFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "proxy enode URL pair separated by a semicolon.  The format should be \"<internal facing enode URL>;<external facing enode URL>\"",
 	}
 )
 
@@ -1004,13 +1029,14 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(MaxPendingPeersFlag.Name) {
 		cfg.MaxPendingPeers = ctx.GlobalInt(MaxPendingPeersFlag.Name)
 	}
-	if ctx.GlobalIsSet(NoDiscoverFlag.Name) || lightClient {
+
+	if ctx.GlobalBool(NoDiscoverFlag.Name) || lightClient {
 		cfg.NoDiscovery = true
 	}
-	if ctx.GlobalIsSet(PingIPFromPacketFlag.Name) {
+	if ctx.GlobalBool(PingIPFromPacketFlag.Name) {
 		cfg.PingIPFromPacket = true
 	}
-	if ctx.GlobalIsSet(UseInMemoryDiscoverTable.Name) {
+	if ctx.GlobalBool(UseInMemoryDiscoverTableFlag.Name) {
 		cfg.UseInMemoryNodeDatabase = true
 	}
 
@@ -1178,7 +1204,77 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 }
 
-// checkExclusive verifies that only a single isntance of the provided flags was
+func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
+	setNodeKey(ctx, proxyCfg)
+	setNAT(ctx, proxyCfg)
+	if ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
+		proxyCfg.ListenAddr = ctx.GlobalString(ProxyInternalFacingEndpointFlag.Name)
+	}
+
+	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+}
+
+// Set all of the proxy related configurations.
+// These configs span the top level node and istanbul module configuration
+func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) {
+	checkExclusive(ctx, ProxyFlag, ProxiedFlag)
+
+	if ctx.GlobalIsSet(ProxyFlag.Name) {
+		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
+		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
+
+		// Mining must not be set for proxies
+		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
+		}
+
+		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxiedValidatorAddressFlag.Name, ProxyFlag.Name)
+		} else {
+			proxiedValidatorAddress := ctx.String(ProxiedValidatorAddressFlag.Name)
+			if !common.IsHexAddress(proxiedValidatorAddress) {
+				Fatalf("Invalid address used for option --%s", ProxiedValidatorAddressFlag.Name)
+			}
+			ethCfg.Istanbul.ProxiedValidatorAddress = common.HexToAddress(proxiedValidatorAddress)
+		}
+
+		if !ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyInternalFacingEndpointFlag.Name, ProxyFlag.Name)
+		} else {
+			setProxyP2PConfig(ctx, &nodeCfg.ProxyP2P)
+		}
+	}
+
+	if ctx.GlobalIsSet(ProxiedFlag.Name) {
+		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
+
+		// Mining must be set for proxied nodes
+		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
+		}
+
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
+		} else {
+			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
+
+			var err error
+			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
+				Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
+			}
+
+			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
+				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
+			}
+		}
+
+		if !ctx.GlobalBool(NoDiscoverFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", NoDiscoverFlag.Name, ProxiedFlag.Name)
+		}
+	}
+}
+
+// checkExclusive verifies that only a single instance of the provided flags was
 // set by the user. Each flag might optionally be followed by a string type to
 // specialize it further.
 func checkExclusive(ctx *cli.Context, args ...interface{}) {

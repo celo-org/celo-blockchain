@@ -446,7 +446,7 @@ func (w *worker) mainLoop() {
 		select {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewChainHead()
+				h.NewWork()
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 

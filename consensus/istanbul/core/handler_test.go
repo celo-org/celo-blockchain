@@ -45,11 +45,10 @@ func TestHandleMsg(t *testing.T) {
 	})
 	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
 	msg := &istanbul.Message{
-		Code:          istanbul.MsgPreprepare,
-		Msg:           m,
-		Address:       v0.Address(),
-		Signature:     []byte{},
-		CommittedSeal: []byte{},
+		Code:      istanbul.MsgPreprepare,
+		Msg:       m,
+		Address:   v0.Address(),
+		Signature: []byte{},
 	}
 
 	_, val := v0.Validators(nil).GetByAddress(v0.Address())
@@ -66,11 +65,10 @@ func TestHandleMsg(t *testing.T) {
 	})
 	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
 	msg = &istanbul.Message{
-		Code:          istanbul.MsgPrepare,
-		Msg:           m,
-		Address:       v0.Address(),
-		Signature:     []byte{},
-		CommittedSeal: []byte{},
+		Code:      istanbul.MsgPrepare,
+		Msg:       m,
+		Address:   v0.Address(),
+		Signature: []byte{},
 	}
 
 	_, val = v0.Validators(nil).GetByAddress(v0.Address())
@@ -87,11 +85,10 @@ func TestHandleMsg(t *testing.T) {
 	})
 	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
 	msg = &istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           m,
-		Address:       v0.Address(),
-		Signature:     []byte{},
-		CommittedSeal: []byte{},
+		Code:      istanbul.MsgCommit,
+		Msg:       m,
+		Address:   v0.Address(),
+		Signature: []byte{},
 	}
 
 	_, val = v0.Validators(nil).GetByAddress(v0.Address())
@@ -108,11 +105,10 @@ func TestHandleMsg(t *testing.T) {
 	})
 	// invalid message code. message code is not exists in list
 	msg = &istanbul.Message{
-		Code:          uint64(99),
-		Msg:           m,
-		Address:       v0.Address(),
-		Signature:     []byte{},
-		CommittedSeal: []byte{},
+		Code:      uint64(99),
+		Msg:       m,
+		Address:   v0.Address(),
+		Signature: []byte{},
 	}
 
 	_, val = v0.Validators(nil).GetByAddress(v0.Address())
