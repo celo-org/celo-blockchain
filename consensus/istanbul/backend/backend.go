@@ -65,7 +65,7 @@ type AnnounceGossipTimestamp struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -93,7 +93,6 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		announceWg:           new(sync.WaitGroup),
 		announceQuit:         make(chan struct{}),
 		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		dataDir:              dataDir,
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, &validatorPeerHandler{sb: backend})
@@ -151,7 +150,6 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
-	dataDir      string // A read-write data dir to persist files across restarts
 	newEpochCh   chan struct{}
 }
 
@@ -238,6 +236,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", msgCode, "address", addr)
 
 			go p.Send(msgCode, payload)
 		}
@@ -260,10 +259,6 @@ func (sb *Backend) GetNodeKey() *ecdsa.PrivateKey {
 		return sb.broadcaster.GetNodeKey()
 	}
 	return nil
-}
-
-func (sb *Backend) GetDataDir() string {
-	return sb.dataDir
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -320,7 +315,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// check bad block
-	if sb.HasBadProposal(block.Hash()) {
+	if sb.hasBadProposal(block.Hash()) {
 		return 0, core.ErrBlacklistedHash
 	}
 
@@ -569,7 +564,7 @@ func (sb *Backend) LastSubject() (istanbul.Subject, error) {
 	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
-func (sb *Backend) HasBadProposal(hash common.Hash) bool {
+func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 	if sb.hasBadBlock == nil {
 		return false
 	}
