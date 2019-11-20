@@ -64,6 +64,7 @@ type RoundState interface {
 	SetPendingRequest(pendingRequest *istanbul.Request)
 	PendingRequest() *istanbul.Request
 	Sequence() *big.Int
+	View() *istanbul.View
 	CreateAndSetPreparedCertificate(quorumSize int) error
 	PreparedCertificate() istanbul.PreparedCertificate
 }
@@ -91,6 +92,16 @@ func (s *roundStateImpl) Prepares() MessageSet {
 }
 func (s *roundStateImpl) ParentCommits() MessageSet {
 	return s.parentCommits
+}
+
+func (s *roundStateImpl) View() *istanbul.View {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return &istanbul.View{
+		Sequence: new(big.Int).Set(s.sequence),
+		Round:    new(big.Int).Set(s.round),
+	}
 }
 
 func (s *roundStateImpl) GetPrepareOrCommitSize() int {

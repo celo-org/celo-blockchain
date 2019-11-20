@@ -91,7 +91,4 @@ type Backend interface {
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
-
-	// GetDataDir returns a read-write enabled data dir in which data will persist across restarts.
-	GetDataDir() string
 }
