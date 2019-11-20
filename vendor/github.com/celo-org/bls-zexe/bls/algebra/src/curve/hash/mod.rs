@@ -1,6 +1,6 @@
 pub mod try_and_increment;
 
-use algebra::curves::models::bls12::{Bls12Parameters, G2Projective};
+use algebra::curves::models::bls12::{Bls12Parameters, G1Projective, G2Projective};
 use std::{
     fmt::{self, Display},
     error::Error,
@@ -25,4 +25,8 @@ impl Error for HashToCurveError {
 
 pub trait HashToG2 {
     fn hash<P: Bls12Parameters>(&self, domain: &[u8], message: &[u8], extra_data: &[u8]) -> Result<G2Projective<P>, Box<dyn Error>>;
+}
+
+pub trait HashToG1 {
+    fn hash<P: Bls12Parameters>(&self, domain: &[u8], message: &[u8], extra_data: &[u8]) -> Result<G1Projective<P>, Box<dyn Error>>;
 }
