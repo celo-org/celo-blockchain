@@ -231,20 +231,24 @@ func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]b
 }
 
 func (sb *Backend) handleIstAnnounce(payload []byte) error {
-	msg := new(istanbul.Message)
+	logger := sb.logger.New("func", "handleIstAnnounce")
+
+	msg := new(announceMessage)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
-		sb.logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
+		logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
+	logger = logger.New("msgAddress", msg.Address, "msg_round", msg.View.Round, "msg_seq", msg.View.Sequence)
+	logger.Trace("Handling an IstanbulAnnounce message")
 
 	sb.logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// If the message is originally from this node, then ignore it
 	if msg.Address == sb.Address() {
-		sb.logger.Trace("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
+		logger.Trace("Received an IstanbulAnnounce message originating from this node. Ignoring it.")
 		return nil
 	}
 
@@ -267,7 +271,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		sb.logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "IstanbulMsg", msg.String(), "validators", regAndActiveVals, "err", err)
+		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -292,11 +296,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		destAddresses = append(destAddresses, announceRecord.DestAddress.String())
 		processedAddresses[announceRecord.DestAddress] = true
 	}
-
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted && node != nil {
 		if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, View: announceData.View}}); err != nil {
-			sb.logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
+			logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
 			return err
 		}
 	}
@@ -317,15 +320,16 @@ func (sb *Backend) regossipIstAnnounce(msg *istanbul.Message, payload []byte, an
 
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if (lastGossipTs.enodeURLHash == announceData.EnodeURLHash) && (bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes())) && (time.Since(lastGossipTs.timestamp) < time.Minute) {
-			sb.logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
+
+		if lastGossipTs.enodeURLHash == announceData.EnodeURLHash && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < time.Minute {
+			logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	sb.logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
+	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	sb.lastAnnounceGossipedMu.Lock()
@@ -336,7 +340,7 @@ func (sb *Backend) regossipIstAnnounce(msg *istanbul.Message, payload []byte, an
 	if (mrand.Int() % 100) <= 5 {
 		for remoteAddress := range sb.lastAnnounceGossiped {
 			if !regAndActiveVals[remoteAddress] {
-				log.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
+				logger.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 				delete(sb.lastAnnounceGossiped, remoteAddress)
 			}
 		}

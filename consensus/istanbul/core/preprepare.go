@@ -44,7 +44,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		}
-		logger.Trace("Sending pre-prepare", "msg", msg)
+		logger.Debug("Sending pre-prepare", "msg", msg)
 		c.broadcast(msg)
 	}
 }

@@ -314,6 +314,7 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", msgCode, "address", addr)
 
 			go p.Send(ethMsgCode, payload)
 		}

@@ -261,7 +261,7 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, gas
 }
 
 func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Debug("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
+	log.Trace("Debiting gas", "from", from, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.SubBalance(from, amount)
@@ -272,7 +272,7 @@ func (st *StateTransition) debitGas(from common.Address, amount *big.Int, gasCur
 }
 
 func (st *StateTransition) creditGas(to common.Address, amount *big.Int, gasCurrency *common.Address) (err error) {
-	log.Debug("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
+	log.Trace("Crediting gas", "recipient", to, "amount", amount, "gasCurrency", gasCurrency)
 	// native currency
 	if gasCurrency == nil {
 		st.state.AddBalance(to, amount)
