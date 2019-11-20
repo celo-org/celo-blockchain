@@ -277,9 +277,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	var node *enode.Node
 	var destAddresses = make([]string, 0, len(announceData.AnnounceRecords))
 	var processedAddresses = make(map[common.Address]bool)
+	var msgHasDupsOrIrrelevantEntries bool = false
 	for _, announceRecord := range announceData.AnnounceRecords {
 		// Don't process duplicate entries or entries that are not in the regAndActive valset
 		if !regAndActiveVals[announceRecord.DestAddress] || processedAddresses[announceRecord.DestAddress] {
+			msgHasDupsOrIrrelevantEntries = true
 			continue
 		}
 
@@ -303,8 +305,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		}
 	}
 
-	if err = sb.regossipIstAnnounce(msg, payload, announceData, regAndActiveVals, destAddresses); err != nil {
-		return err
+	if !msgHasDupsOrIrrelevantEntries {
+		if err = sb.regossipIstAnnounce(msg, payload, announceData, regAndActiveVals, destAddresses); err != nil {
+			return err
+		}
 	}
 
 	return nil
