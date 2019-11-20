@@ -236,6 +236,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", msgCode, "address", addr)
 
 			go p.Send(msgCode, payload)
 		}

@@ -262,7 +262,7 @@ func (vet *ValidatorEnodeDB) Upsert(remoteAddress common.Address, enodeURL strin
 		return err
 	}
 
-	hasOldValueChanged := !isNew && currentEntry.enodeURL == enodeURL
+	hasOldValueChanged := !isNew && currentEntry.enodeURL != enodeURL
 
 	batch := new(leveldb.Batch)
 
