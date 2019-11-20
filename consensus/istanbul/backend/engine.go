@@ -88,6 +88,9 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
+	// an unauthorized sender
+	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
 )
 
 var (
@@ -407,16 +410,19 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			logger.Trace("Combining additional seals with the parent aggregated seal", "additionalSeals", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
 			// if we had any seals gossiped to us, proceed to add them to the
 			// already aggregated signature
-			unionAggregatedSeal := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals)
-			// need to pass the previous block from the parent to get the parent's validators
-			// (otherwise we'd be getting the validators for the current block)
-			parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
-			// only update to use the union if we indeed provided a valid aggregate signature for this block
-			if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
-				logger.Error("Failed to combine additional seals with parent aggregated seal.")
+			if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals); err != nil {
+				logger.Error("Failed to create union of parent aggregated seal", "err", err)
 			} else {
-				parentAggregatedSeal = unionAggregatedSeal
-				logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+				// need to pass the previous block from the parent to get the parent's validators
+				// (otherwise we'd be getting the validators for the current block)
+				parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
+				// only update to use the union if we indeed provided a valid aggregate signature for this block
+				if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+					logger.Error("Failed to combine additional seals with parent aggregated seal.", "err", err)
+				} else {
+					parentAggregatedSeal = unionAggregatedSeal
+					logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+				}
 			}
 		} else {
 			sb.logger.Trace("No additional seals to combine with parent aggregated seal")
@@ -488,6 +494,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+
+	if len(state.GetLogs(common.Hash{})) > 0 {
+		receipt := types.NewReceipt(nil, false, 0)
+		receipt.Logs = state.GetLogs(common.Hash{})
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		receipts = append(receipts, receipt)
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
@@ -630,6 +643,16 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 
 	go sb.sendAnnounceMsgs()
 
+	if sb.config.Proxied {
+		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
+			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
+				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
+			}
+		}
+
+		go sb.sendValEnodesShareMsgs()
+	}
+
 	return nil
 }
 
@@ -647,6 +670,15 @@ func (sb *Backend) Stop() error {
 
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
+
+	if sb.config.Proxied {
+		sb.valEnodesShareQuit <- struct{}{}
+		sb.valEnodesShareWg.Wait()
+
+		if sb.proxyNode != nil {
+			sb.removeProxy(sb.proxyNode.node)
+		}
+	}
 	return nil
 }
 

@@ -446,7 +446,7 @@ func (w *worker) mainLoop() {
 		select {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewChainHead()
+				h.NewWork()
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
@@ -614,6 +614,10 @@ func (w *worker) resultLoop() {
 				// receipt/log of individual transactions were created.
 				for _, log := range receipt.Logs {
 					log.BlockHash = hash
+					// Handle block finalization receipt
+					if (log.TxHash == common.Hash{}) {
+						log.TxHash = hash
+					}
 				}
 				logs = append(logs, receipt.Logs...)
 			}
@@ -1068,6 +1072,17 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+
+	if len(s.GetLogs(common.Hash{})) > 0 {
+		receipt := types.NewReceipt(nil, false, 0)
+		receipt.Logs = s.GetLogs(common.Hash{})
+		for i := range receipt.Logs {
+			receipt.Logs[i].TxIndex = uint(len(receipts))
+		}
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		receipts = append(receipts, receipt)
+	}
+
 	if err != nil {
 		log.Error("Unable to finalize block", "err", err)
 		return err
