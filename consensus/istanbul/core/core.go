@@ -333,12 +333,12 @@ func (c *core) startNewRound(round *big.Int) {
 	// Calculate new proposer
 	c.valSet.CalcProposer(headAuthor, newView.Round.Uint64())
 	c.setState(StateAcceptRequest)
-	if roundChange && c.current != nil && c.valSet.IsProposer(c.address) && request != nil {
+	if roundChange && c.current != nil && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.valSet.IsProposer(c.address))
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
 }
 
 // All actions that occur when transitioning to waiting for round change state.
@@ -390,6 +390,13 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 		// either `validatorSet` or `backend.Validators(lastProposal)` works here
 		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet))
 	}
+}
+
+func (c *core) isProposer() bool {
+	if c.valSet == nil {
+		return false
+	}
+	return c.valSet.IsProposer(c.address)
 }
 
 func (c *core) setState(state State) {

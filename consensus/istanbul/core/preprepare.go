@@ -28,7 +28,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	logger := c.newLogger("func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
-	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.valSet.IsProposer(c.address) {
+	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
 		curView := c.current.View()
 		preprepare, err := Encode(&istanbul.Preprepare{
 			View:                   curView,
@@ -104,7 +104,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// Check if the message comes from current proposer
-	if !c.valSet.IsProposer(msg.Address) {
+	if !c.isProposer() {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
 	}
