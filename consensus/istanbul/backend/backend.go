@@ -600,8 +600,8 @@ func (sb *Backend) GetCurrentHeadBlock() istanbul.Proposal {
 	return sb.currentBlock()
 }
 
-// GetCurrentHeadBlockAndAuthorAndAuthor retrieves the last block alongside the coinbase address for it
-func (sb *Backend) GetCurrentHeadBlockAndAuthorAndAuthor() (istanbul.Proposal, common.Address) {
+// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the coinbase address for it
+func (sb *Backend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address) {
 	block := sb.currentBlock()
 
 	if block.Number().Cmp(common.Big0) == 0 {
@@ -620,7 +620,7 @@ func (sb *Backend) GetCurrentHeadBlockAndAuthorAndAuthor() (istanbul.Proposal, c
 }
 
 func (sb *Backend) LastSubject() (istanbul.Subject, error) {
-	lastProposal, _ := sb.GetCurrentHeadBlockAndAuthorAndAuthor()
+	lastProposal, _ := sb.GetCurrentHeadBlockAndAuthor()
 	istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
 	if err != nil {
 		return istanbul.Subject{}, err

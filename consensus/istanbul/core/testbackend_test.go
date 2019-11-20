@@ -163,7 +163,7 @@ func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
 	return makeBlock(0)
 }
 
-func (self *testSystemBackend) GetCurrentHeadBlockAndAuthorAndAuthor() (istanbul.Proposal, common.Address) {
+func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
 		testLogger.Info("have proposal for block", "num", l)

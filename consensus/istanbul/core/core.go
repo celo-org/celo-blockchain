@@ -270,7 +270,7 @@ func (c *core) startNewRound(round *big.Int) {
 
 	roundChange := false
 	// Try to get last proposal
-	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthorAndAuthor()
+	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 	if c.current == nil {
 		logger.Trace("Start the initial round")
 	} else if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
@@ -359,7 +359,7 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	// Perform all of the updates
 	c.setState(StateWaitingForNewRound)
 	c.current.SetDesiredRound(r)
-	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthorAndAuthor()
+	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 	c.valSet.CalcProposer(headAuthor, desiredView.Round.Uint64())
 	c.newRoundChangeTimerForView(desiredView)
 

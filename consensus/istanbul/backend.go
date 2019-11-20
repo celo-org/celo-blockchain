@@ -70,8 +70,8 @@ type Backend interface {
 	// GetCurrentHeadBlock retrieves the last block
 	GetCurrentHeadBlock() Proposal
 
-	// GetCurrentHeadBlockAndAuthorAndAuthor retrieves the last block alongside the author for that block
-	GetCurrentHeadBlockAndAuthorAndAuthor() (Proposal, common.Address)
+	// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the author for that block
+	GetCurrentHeadBlockAndAuthor() (Proposal, common.Address)
 
 	// LastSubject retrieves latest committed subject (view and digest)
 	LastSubject() (Subject, error)
