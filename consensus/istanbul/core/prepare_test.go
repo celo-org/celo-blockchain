@@ -151,7 +151,7 @@ func TestHandlePrepare(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -186,7 +186,7 @@ func TestHandlePrepare(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -221,7 +221,7 @@ func TestHandlePrepare(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -242,7 +242,7 @@ func TestHandlePrepare(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -271,7 +271,7 @@ func TestHandlePrepare(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -300,7 +300,7 @@ func TestHandlePrepare(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -332,7 +332,7 @@ func TestHandlePrepare(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -365,10 +365,10 @@ OUTER:
 		}
 
 		// prepared is normal case
-		if r0.state != StatePrepared {
+		if r0.current.State() != StatePrepared {
 			// There are not enough PREPARE messages in core
-			if r0.state != StatePreprepared {
-				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
+			if r0.current.State() != StatePreprepared {
+				t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePreprepared)
 			}
 			if r0.current.Prepares().Size() >= r0.valSet.MinQuorumSize() {
 				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)

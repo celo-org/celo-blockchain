@@ -64,7 +64,7 @@ func TestHandleCommit(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					}
 				}
 				return sys
@@ -86,7 +86,7 @@ func TestHandleCommit(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -117,7 +117,7 @@ func TestHandleCommit(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -155,9 +155,9 @@ func TestHandleCommit(t *testing.T) {
 					// only replica0 stays at StatePreprepared
 					// other replicas are at StatePrepared
 					if i != 0 {
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					} else {
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -182,7 +182,7 @@ func TestHandleCommit(t *testing.T) {
 							expectedSubject.View,
 							c.valSet,
 						)
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -245,10 +245,10 @@ OUTER:
 		}
 
 		// prepared is normal case
-		if r0.state != StateCommitted {
+		if r0.current.State() != StateCommitted {
 			// There are not enough commit messages in core
-			if r0.state != StatePrepared {
-				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePrepared)
+			if r0.current.State() != StatePrepared {
+				t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePrepared)
 			}
 			if r0.current.Commits().Size() > r0.valSet.MinQuorumSize() {
 				t.Errorf("the size of commit messages should be less than %v", r0.valSet.MinQuorumSize())

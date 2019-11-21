@@ -146,7 +146,12 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	c.acceptPrepare(msg)
+	// Add the PREPARE message to current round state
+	if err := c.current.AddPrepare(msg); err != nil {
+		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
+		return err
+	}
+
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
 	minQuorumSize := c.valSet.MinQuorumSize()
 	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
@@ -154,14 +159,20 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+	if (preparesAndCommits >= minQuorumSize) && c.current.State().Cmp(StatePrepared) < 0 {
+
+		err := c.current.TransitionToPrepared(minQuorumSize)
+		if err != nil {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.setState(StatePrepared)
+
+		// Process Backlog Messages
+		c.processBacklog()
+
 		c.sendCommit()
+
 	}
 
 	return nil
@@ -169,24 +180,12 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
 func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPrepare")
+	logger := c.newLogger("func", "verifyPrepare")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
 		logger.Warn("Inconsistent subjects between PREPARE and proposal", "expected", sub, "got", prepare)
 		return errInconsistentSubject
-	}
-
-	return nil
-}
-
-func (c *core) acceptPrepare(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
-
-	// Add the PREPARE message to current round state
-	if err := c.current.Prepares().Add(msg); err != nil {
-		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
-		return err
 	}
 
 	return nil
