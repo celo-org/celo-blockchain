@@ -100,7 +100,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	return nil
 }
 
-func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
+func (c *core) storeBacklog(msg *istanbul.Message) {
 	logger := c.newLogger("func", "storeBacklog", "from", msg.Address)
 
 	if msg.Address == c.address {
@@ -142,10 +142,10 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 
 	// Check and inc per-validator future message limit
 	if c.backlogCountByVal[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
-		logger.Trace("Dropping: backlog exceeds per-src cap", "src", src)
+		logger.Trace("Dropping: backlog exceeds per-src cap", "msg.address", msg.Address)
 		return
 	}
-	c.backlogCountByVal[src.Address()]++
+	c.backlogCountByVal[msg.Address]++
 	c.backlogTotal++
 
 	// Add message to per-seq list
@@ -195,18 +195,18 @@ func (c *core) drainBacklogForSeq(seq uint64, cb func(*istanbul.Message, istanbu
 		return
 	}
 
+	// TODO(asa): Only loop N times
 	for !backlogForSeq.Empty() {
 		m := backlogForSeq.PopItem()
 		msg := m.(*istanbul.Message)
 		if cb != nil {
-			_, src := c.valSet.GetByAddress(msg.Address)
-			if src != nil {
-				cb(msg, src)
-			}
+			cb(msg)
 		}
+		// TODO(asa): If falls to 0, remove entry from map
 		c.backlogCountByVal[msg.Address]--
 		c.backlogTotal--
 	}
+	// TODO(asa): Check if empty
 	delete(c.backlogBySeq, seq)
 }
 
@@ -224,7 +224,7 @@ func (c *core) processBacklog() {
 			c.drainBacklogForSeq(seq, nil)
 		} else if seq == c.currentView().Sequence.Uint64() {
 			// Current sequence. Process all in order.
-			c.drainBacklogForSeq(seq, func(msg *istanbul.Message, src istanbul.Validator) {
+			c.drainBacklogForSeq(seq, func(msg *istanbul.Message) {
 				var view *istanbul.View
 				switch msg.Code {
 				case istanbul.MsgPreprepare:
@@ -265,7 +265,7 @@ func (c *core) processBacklog() {
 					// TODO(asa): Why is this unexpected? It could be for a future round...
 					// FIXME: By pushing back to the backlog, we will never finish draining...
 					logger.Warn("Unexpected future message, pushing back to the backlog", "msg", msg)
-					c.storeBacklog(msg, src)
+					c.storeBacklog(msg)
 				} else {
 					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
 				}
