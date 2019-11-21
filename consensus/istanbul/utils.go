@@ -127,7 +127,8 @@ func GetValScoreTallyLastBlockNumber(epochNumber uint64, epochSize uint64) uint6
 	// We stop tallying for epoch "epochNumber" at the second to last block of that epoch.
 	// We can't include that epoch's last block as part of the tally because the epoch val score is calculated
 	// using a tally that is updated AFTER a block is finalized.
-	// TODO (kevjue) - update comment to state difficulty
+	// Note that it's possible to count up to the last block of the epoch, but it's much harder to implement
+	// than couting up to the second to last one.
 
 	return GetEpochLastBlockNumber(epochNumber, epochSize) - 1
 }

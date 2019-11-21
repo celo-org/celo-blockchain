@@ -664,7 +664,7 @@ var (
 	IstanbulLookbackWindowFlag = cli.Uint64Flag{
 		Name:  "istanbul.lookbackwindow",
 		Usage: "Default number of blocks to use for forgiving downtime",
-		Value: uint64(eth.DefaultConfig.Istanbul.LookbackWindow),
+		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 
 	// Proxy node settings

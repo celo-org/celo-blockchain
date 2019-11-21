@@ -82,7 +82,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-	sb.logger.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", 2) // sb.LookbackWindow())
+	sb.logger.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
 
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
@@ -124,14 +124,14 @@ func (sb *Backend) getUptime(validatorIndex int, epoch uint64) (*big.Int, error)
 
 	// skip the math if we've counted more signatures than necessary for that epoch
 	// when does this happen?
-	if uptimes[validatorIndex].Score >= sb.EpochSize()-2+1 { // sb.LookbackWindow()+1 {
+	if uptimes[validatorIndex].Score >= sb.EpochSize()-sb.LookbackWindow()+1 {
 		// 1.0 in fixidity
 		return math.BigPow(10, 24), nil
 	}
 
 	// this will end up being between 0 and 1 but in fixidty
 	numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[validatorIndex].Score)), math.BigPow(10, 24))
-	denominator := big.NewInt(int64(sb.EpochSize() - 2 + 1)) //- sb.LookbackWindow() + 1))
+	denominator := big.NewInt(int64(sb.EpochSize() - sb.LookbackWindow() + 1))
 	validatorUptime := big.NewInt(0).Div(numerator, denominator)
 
 	return validatorUptime, nil

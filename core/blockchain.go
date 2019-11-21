@@ -1016,7 +1016,10 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 		// the lookback window
 		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
 			lastSignedBlock := uptime[i].LastSignedBlock
-			// TODO (kevjue) add comment about 2nd check
+
+			// Note that the second condition in the if condition is not necessary.  But it does
+			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
+			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
 			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
 				uptime[i].Score++
 			}
