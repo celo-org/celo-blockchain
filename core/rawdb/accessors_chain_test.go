@@ -197,15 +197,15 @@ func TestUptimeStorage(t *testing.T) {
 	// Write and verify the uptime in the database
 	uptime := make([]istanbul.Uptime, 3)
 	uptime[0] = istanbul.Uptime{
-		Score:           0,
+		ScoreTally:      0,
 		LastSignedBlock: 1,
 	}
 	uptime[1] = istanbul.Uptime{
-		Score:           2,
+		ScoreTally:      2,
 		LastSignedBlock: 2,
 	}
 	uptime[2] = istanbul.Uptime{
-		Score:           8,
+		ScoreTally:      8,
 		LastSignedBlock: 8,
 	}
 	WriteAccumulatedEpochUptime(db, epoch, uptime)
