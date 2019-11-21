@@ -72,13 +72,13 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	}
 
 	// Round change messages are already let through.
-	if c.state == StateWaitingForNewRound {
+	if c.current.State() == StateWaitingForNewRound {
 		return errFutureMessage
 	}
 
 	// StateAcceptRequest only accepts istanbul.MsgPreprepare
 	// other messages are future messages
-	if c.state == StateAcceptRequest && msgCode > istanbul.MsgPreprepare {
+	if c.current.State() == StateAcceptRequest && msgCode > istanbul.MsgPreprepare {
 		return errFutureMessage
 	}
 

@@ -49,7 +49,7 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
+	logger := c.newLogger("func", "broadcastCommit")
 
 	committedSeal, err := c.generateCommittedSeal(sub)
 	if err != nil {
@@ -96,7 +96,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg")
+	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
 	// Retrieve the validator set for the previous proposal (which should
 	// match the one broadcast)
@@ -108,16 +108,22 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
-	// Ensure that the commit's digest (ie the received proposal's hash) matches the saved last proposal's hash
+	// Ensure that the commit's digest (ie the received proposal's hash) matches the head block's hash
 	if headBlock.Number().Uint64() > 0 && commit.Subject.Digest != headBlock.Hash() {
 		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", headBlock.Hash().String(), "received", commit.Subject.Digest.String())
 		return errInconsistentSubject
 	}
-	return c.acceptParentCommit(msg, commit.Subject.View)
+
+	// Add the ParentCommit to current round state
+	if err := c.current.AddParentCommit(msg); err != nil {
+		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
+		return err
+	}
+	return nil
 }
 
 func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
+	logger := c.newLogger("func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
 	_, validator := c.valSet.GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
@@ -132,7 +138,11 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return err
 	}
 
-	c.acceptCommit(msg)
+	// Add the COMMIT message to current round state
+	if err := c.current.AddCommit(msg); err != nil {
+		logger.Error("Failed to record commit message", "msg", msg, "err", err)
+		return err
+	}
 	numberOfCommits := c.current.Commits().Size()
 	minQuorumSize := c.valSet.MinQuorumSize()
 	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
@@ -142,16 +152,19 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	// If we already have a proposal, we may have chance to speed up the consensus process
 	// by committing the proposal without PREPARE messages.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if numberOfCommits >= minQuorumSize && c.state.Cmp(StateCommitted) < 0 {
+	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
 		c.commit()
-	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.current.State().Cmp(StatePrepared) < 0 {
+		err := c.current.TransitionToPrepared(minQuorumSize)
+		if err != nil {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
+		// Process Backlog Messages
+		c.processBacklog()
+
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.setState(StatePrepared)
 		c.sendCommit()
 	}
 	return nil
@@ -160,7 +173,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
 func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyCommit")
+	logger := c.newLogger("func", "verifyCommit")
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(commit.Subject, sub) {
@@ -175,28 +188,4 @@ func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
 	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
 	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false)
-}
-
-func (c *core) acceptCommit(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptCommit")
-
-	// Add the COMMIT message to current round state
-	if err := c.current.Commits().Add(msg); err != nil {
-		logger.Error("Failed to record commit message", "msg", msg, "err", err)
-		return err
-	}
-
-	return nil
-}
-
-func (c *core) acceptParentCommit(msg *istanbul.Message, view *istanbul.View) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "parent_round", view.Round, "parent_seq", view.Sequence, "func", "acceptParentCommit")
-
-	// Add the ParentCommit to current round state
-	if err := c.current.ParentCommits().Add(msg); err != nil {
-		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
-		return err
-	}
-
-	return nil
 }

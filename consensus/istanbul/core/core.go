@@ -39,7 +39,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		state:              StateAcceptRequest,
 		handlerWg:          new(sync.WaitGroup),
 		logger:             log.New("address", backend.Address()),
 		backend:            backend,
@@ -61,7 +60,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 type core struct {
 	config  *istanbul.Config
 	address common.Address
-	state   State
 	logger  log.Logger
 
 	backend               istanbul.Backend
@@ -97,16 +95,17 @@ type core struct {
 // Appends the current view and state to the given context.
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round *big.Int
-	state := c.state
+	var state State
 	if c.current != nil {
+		state = c.current.State()
 		seq = c.current.Sequence()
 		round = c.current.Round()
 	} else {
 		seq = common.Big0
 		round = big.NewInt(-1)
 	}
-	tmp := c.logger.New(ctx...)
-	return tmp.New("cur_seq", seq, "cur_round", round, "state", state, "address", c.address)
+	logger := c.logger.New(ctx...)
+	return logger.New("cur_seq", seq, "cur_round", round, "state", state, "address", c.address)
 }
 
 func (c *core) SetAddress(address common.Address) {
@@ -132,7 +131,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
+	logger := c.newLogger("func", "broadcast")
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -148,7 +147,10 @@ func (c *core) broadcast(msg *istanbul.Message) {
 }
 
 func (c *core) commit() {
-	c.setState(StateCommitted)
+	c.current.TransitionToCommited()
+
+	// Process Backlog Messages
+	c.processBacklog()
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
@@ -328,11 +330,13 @@ func (c *core) startNewRound(round *big.Int) {
 
 	// Update logger
 	logger = logger.New("old_proposer", c.valSet.GetProposer())
-	// New snapshot for new round
-	c.updateRoundState(newView, c.valSet, roundChange)
 	// Calculate new proposer
 	c.valSet.CalcProposer(headAuthor, newView.Round.Uint64())
-	c.setState(StateAcceptRequest)
+	// New snapshot for new round
+	c.resetRoundState(newView, c.valSet, roundChange)
+	c.processPendingRequests()
+	c.processBacklog()
+
 	if roundChange && c.current != nil && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
@@ -357,38 +361,41 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 		Round:    new(big.Int).Set(r),
 	}
 	// Perform all of the updates
-	c.setState(StateWaitingForNewRound)
-	c.current.SetDesiredRound(r)
+	c.current.TransitionToWaitingForNewRound(r)
+
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
-	c.valSet.CalcProposer(headAuthor, desiredView.Round.Uint64())
+	c.valSet.CalcProposer(headAuthor, r.Uint64())
 	c.newRoundChangeTimerForView(desiredView)
 
+	// Process Backlog Messages
+	c.processBacklog()
+
 	// Send round change
-	c.sendRoundChange(desiredView.Round)
+	c.sendRoundChange(r)
 }
 
-func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
+func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
 	if c.current != nil {
 		if roundChange {
-			c.current = newRoundState(view, validatorSet, nil, c.current.PendingRequest(), c.current.PreparedCertificate(), c.current.ParentCommits())
+			c.current = newRoundState(view, validatorSet, c.current.PendingRequest(), c.current.PreparedCertificate(), c.current.ParentCommits())
 		} else {
 			lastSubject, err := c.backend.LastSubject()
 			if err == nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
 				// When changing sequences, if our current Commit messages match the latest block in the chain
 				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
 				// in the next round.
-				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits())
+				c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits())
 			} else {
 				headBlock := c.backend.GetCurrentHeadBlock()
 				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
-				c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentBlockValidators(headBlock)))
+				c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentBlockValidators(headBlock)))
 			}
 		}
 	} else {
 		// When the current round is nil, we must start with the current validator set in the parent commits
 		// either `validatorSet` or `backend.Validators(lastProposal)` works here
-		c.current = newRoundState(view, validatorSet, nil, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet))
+		c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet))
 	}
 }
 
@@ -397,16 +404,6 @@ func (c *core) isProposer() bool {
 		return false
 	}
 	return c.valSet.IsProposer(c.address)
-}
-
-func (c *core) setState(state State) {
-	if c.state != state {
-		c.state = state
-	}
-	if state == StateAcceptRequest {
-		c.processPendingRequests()
-	}
-	c.processBacklog()
 }
 
 func (c *core) stopFuturePreprepareTimer() {

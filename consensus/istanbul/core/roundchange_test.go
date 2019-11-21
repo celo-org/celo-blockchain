@@ -259,7 +259,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// valid message for future round
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
-				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(10))
+				sys.backends[0].engine.(*core).current.(*roundStateImpl).round = big.NewInt(10)
 				return sys
 			}(),
 			func(_ *testSystem) istanbul.PreparedCertificate {
@@ -271,7 +271,8 @@ func TestHandleRoundChange(t *testing.T) {
 			// invalid message for future sequence
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
-				sys.backends[0].engine.(*core).current.SetSequence(big.NewInt(10))
+				sys.backends[0].engine.(*core).current.(*roundStateImpl).sequence = big.NewInt(10)
+
 				return sys
 			}(),
 			func(_ *testSystem) istanbul.PreparedCertificate {
@@ -283,7 +284,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// invalid message for previous round
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
-				sys.backends[0].engine.(*core).current.SetRound(big.NewInt(0))
+				sys.backends[0].engine.(*core).current.(*roundStateImpl).round = big.NewInt(0)
 				return sys
 			}(),
 			func(_ *testSystem) istanbul.PreparedCertificate {

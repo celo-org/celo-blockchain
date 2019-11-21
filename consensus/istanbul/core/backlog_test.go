@@ -38,12 +38,11 @@ func TestCheckMessage(t *testing.T) {
 	}
 	c := &core{
 		logger:  testLogger,
-		state:   StateAcceptRequest,
 		backend: backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 
 	// invalid view format
@@ -62,7 +61,7 @@ func TestCheckMessage(t *testing.T) {
 		Round: big.NewInt(1),
 	}
 	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
+		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if testCode[j] == istanbul.MsgCommit {
@@ -84,7 +83,7 @@ func TestCheckMessage(t *testing.T) {
 		Round: big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
+		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if err != errOldMessage {
@@ -99,7 +98,7 @@ func TestCheckMessage(t *testing.T) {
 		Round:    big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
+		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if err != errOldMessage {
@@ -114,7 +113,7 @@ func TestCheckMessage(t *testing.T) {
 		Round:    big.NewInt(0),
 	}
 	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
+		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if err != errFutureMessage {
@@ -129,7 +128,7 @@ func TestCheckMessage(t *testing.T) {
 		Round:    big.NewInt(3),
 	}
 	for i := 0; i < len(testStates); i++ {
-		c.state = testStates[i]
+		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if testCode[j] == istanbul.MsgRoundChange {
@@ -144,7 +143,7 @@ func TestCheckMessage(t *testing.T) {
 
 	v = c.current.View()
 	// current view, state = StateAcceptRequest
-	c.state = StateAcceptRequest
+	c.current.(*roundStateImpl).state = StateAcceptRequest
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
@@ -163,7 +162,7 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 	// current view, state = StatePreprepared
-	c.state = StatePreprepared
+	c.current.(*roundStateImpl).state = StatePreprepared
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
@@ -176,7 +175,7 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 	// current view, state = StatePrepared
-	c.state = StatePrepared
+	c.current.(*roundStateImpl).state = StatePrepared
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
@@ -189,7 +188,7 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 	// current view, state = StateCommitted
-	c.state = StateCommitted
+	c.current.(*roundStateImpl).state = StateCommitted
 	for i := 0; i < len(testCode); i++ {
 		err = c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
@@ -202,7 +201,7 @@ func TestCheckMessage(t *testing.T) {
 	}
 
 	// current view, state = StateWaitingForNewRound
-	c.state = StateWaitingForNewRound
+	c.current.(*roundStateImpl).state = StateWaitingForNewRound
 	for i := 0; i < len(testCode); i++ {
 		err := c.checkMessage(testCode[i], v)
 		if testCode[i] == istanbul.MsgRoundChange {
@@ -314,8 +313,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
-		state: StateAcceptRequest,
+		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
@@ -425,12 +423,12 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu: new(sync.Mutex),
 		backend:    backend,
-		state:      State(msg.Code),
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
 	}
+	c.current.(*roundStateImpl).state = State(msg.Code)
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
 
