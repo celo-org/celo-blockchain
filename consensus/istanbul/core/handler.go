@@ -172,7 +172,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
 		if err == errFutureMessage {
-			c.storeBacklog(msg, src)
+			c.storeBacklog(msg)
 		} else if err == errTooFarInTheFutureMessage {
 			logger.Info("Dropping message too far in the future", "msg", msg)
 		}

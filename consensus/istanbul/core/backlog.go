@@ -49,7 +49,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 	}
 
 	// Never accept messages too far into the future
-	if view.Sequence.Cmp(new(big.Int).Add(c.currentView().Sequence, acceptMaxFutureSequence)) > 0 {
+	if view.Sequence.Cmp(new(big.Int).Add(c.CurrentView().Sequence, acceptMaxFutureSequence)) > 0 {
 		return errTooFarInTheFutureMessage
 	}
 
@@ -163,7 +163,7 @@ func (c *core) storeBacklog(msg *istanbul.Message) {
 		backlogSeqs := c.getSortedBacklogSeqs()
 		for i := len(backlogSeqs) - 1; i > 0; i-- {
 			seq := backlogSeqs[i]
-			if seq <= c.currentView().Sequence.Uint64() ||
+			if seq <= c.CurrentView().Sequence.Uint64() ||
 				c.backlogTotal < (acceptMaxFutureMessages-acceptMaxFutureMessagesPruneBatch) {
 				break
 			}
@@ -189,25 +189,28 @@ func (c *core) getSortedBacklogSeqs() []uint64 {
 
 // Drain a backlog for a given sequence, passing each to optional callback.
 // Call with backlogsMu held.
-func (c *core) drainBacklogForSeq(seq uint64, cb func(*istanbul.Message, istanbul.Validator)) {
+func (c *core) drainBacklogForSeq(seq uint64, cb func(*istanbul.Message)) {
 	backlogForSeq := c.backlogBySeq[seq]
 	if backlogForSeq == nil {
 		return
 	}
 
-	// TODO(asa): Only loop N times
-	for !backlogForSeq.Empty() {
+	backlogSize := backlogForSeq.Size()
+	for i := 0; i < backlogSize; i++ {
 		m := backlogForSeq.PopItem()
 		msg := m.(*istanbul.Message)
 		if cb != nil {
 			cb(msg)
 		}
-		// TODO(asa): If falls to 0, remove entry from map
 		c.backlogCountByVal[msg.Address]--
+		if c.backlogCountByVal[msg.Address] == 0 {
+			delete(c.backlogCountByVal, msg.Address)
+		}
 		c.backlogTotal--
 	}
-	// TODO(asa): Check if empty
-	delete(c.backlogBySeq, seq)
+	if backlogForSeq.Size() == 0 {
+		delete(c.backlogBySeq, seq)
+	}
 }
 
 func (c *core) processBacklog() {
@@ -217,12 +220,12 @@ func (c *core) processBacklog() {
 
 	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.newLogger("func", "processBacklog", "from", src)
+		logger := c.newLogger("func", "processBacklog", "for_seq", seq)
 
-		if seq < c.currentView().Sequence.Uint64() {
+		if seq < c.CurrentView().Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
 			c.drainBacklogForSeq(seq, nil)
-		} else if seq == c.currentView().Sequence.Uint64() {
+		} else if seq == c.CurrentView().Sequence.Uint64() {
 			// Current sequence. Process all in order.
 			c.drainBacklogForSeq(seq, func(msg *istanbul.Message) {
 				var view *istanbul.View
@@ -258,13 +261,10 @@ func (c *core) processBacklog() {
 					logger.Trace("Post backlog event", "msg", msg)
 
 					go c.sendEvent(backlogEvent{
-						src: src,
 						msg: msg,
 					})
 				} else if err == errFutureMessage {
-					// TODO(asa): Why is this unexpected? It could be for a future round...
-					// FIXME: By pushing back to the backlog, we will never finish draining...
-					logger.Warn("Unexpected future message, pushing back to the backlog", "msg", msg)
+					logger.Warn("Future message in backlog for seq, pushing back to the backlog", "msg", msg)
 					c.storeBacklog(msg)
 				} else {
 					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
