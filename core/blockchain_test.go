@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -41,6 +43,87 @@ var (
 	canonicalSeed = 1
 	forkSeed      = 2
 )
+
+func TestUptimeSingle(t *testing.T) {
+	var uptimes []istanbul.Uptime
+	uptimes = updateUptime(uptimes, 212, big.NewInt(7), 3, 2, 211)
+	// the first 2 uptime updates do not get scored since they're within the
+	// first window after the epoch block
+	expected := []istanbul.Uptime{
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 211,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 211,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 211,
+		},
+		// plus 2 dummies due to the *2
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 0,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 0,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 0,
+		},
+	}
+	if !reflect.DeepEqual(uptimes, expected) {
+		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
+	}
+}
+
+func TestUptime(t *testing.T) {
+	var uptimes []istanbul.Uptime
+	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
+	bitmaps := []*big.Int{
+		big.NewInt(3), // 011     // Parent aggregated seal for block #1
+		big.NewInt(7), // 111
+		big.NewInt(5), // 101
+		big.NewInt(3), // 011
+		big.NewInt(5), // 101
+		big.NewInt(7), // 111
+		big.NewInt(5), // 101     // Parent aggregated seal for block #7
+	}
+	// assume the first block is the first epoch's block (ie not the genesis)
+	block := uint64(1)
+	for _, bitmap := range bitmaps {
+		// use a window of 2 blocks - ideally we want to expand
+		// these tests to increase our confidence
+		uptimes = updateUptime(uptimes, block, bitmap, 2, 1, 10)
+		block++
+	}
+
+	expected := []istanbul.Uptime{
+		{
+			ScoreTally:      5,
+			LastSignedBlock: 6,
+		},
+		{
+			ScoreTally:      5,
+			LastSignedBlock: 5,
+		},
+		{
+			ScoreTally:      5,
+			LastSignedBlock: 6,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 0,
+		},
+	}
+	if !reflect.DeepEqual(uptimes, expected) {
+		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
+	}
+}
 
 // newCanonical creates a chain database, and injects a deterministic canonical
 // chain. Depending on the full flag, if creates either a full block chain or a

@@ -666,6 +666,11 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
+	IstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
+		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
+	}
 
 	// Proxy node settings
 	ProxyFlag = cli.BoolFlag{
@@ -1202,6 +1207,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+	}
+	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
+		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))

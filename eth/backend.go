@@ -265,6 +265,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
+		if chainConfig.Istanbul.LookbackWindow != 0 {
+			if chainConfig.Istanbul.LookbackWindow >= chainConfig.Istanbul.Epoch-1 {
+				panic("istanbul.lookbackwindow must be less than istanbul.epoch-1")
+			}
+			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
+		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
