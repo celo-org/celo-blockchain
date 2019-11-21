@@ -663,7 +663,7 @@ var (
 	}
 	IstanbulLookbackWindowFlag = cli.Uint64Flag{
 		Name:  "istanbul.lookbackwindow",
-		Usage: "Default number of blocks to use for forgiving downtime",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 

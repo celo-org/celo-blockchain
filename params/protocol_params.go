@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -130,6 +131,9 @@ var (
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
 	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
+
+	// Scale factor for the solidity fixidity library
+	Fixidity1 = math.BigPow(10, 24)
 )
 
 func makeRegistryId(contractName string) [32]byte {

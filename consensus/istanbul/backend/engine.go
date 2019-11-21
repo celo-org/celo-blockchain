@@ -489,7 +489,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
-	sb.logger.Debug("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
+	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochPaymentsAndRewards(header, state)

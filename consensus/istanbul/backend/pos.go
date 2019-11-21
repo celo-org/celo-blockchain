@@ -21,7 +21,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
@@ -81,7 +80,8 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-	logger := sb.logger.New("func", "updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	sb.logger.Trace("Updating validator scores")
 
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
@@ -89,23 +89,24 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	// get all the uptimes for this epoch
 	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
 	// but I believe it's a different database handle
-	c := sb.chain.(*core.BlockChain)
-	db := c.GetDatabase()
+	bc := sb.chain.(*core.BlockChain)
+	db := bc.GetDatabase()
 	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
 	if uptimes == nil {
+		logger.Error("no accumulated uptimes found, will not update validator scores")
 		return errors.New("no accumulated uptimes found, will not update validator scores")
 	}
 
 	for i, val := range valSet {
 		scoreTally := uptimes[i].ScoreTally
 		logger = logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].ScoreTally)), math.BigPow(10, 24))
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].ScoreTally)), params.Fixidity1)
 		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
 
 		if scoreTally > denominator {
 			logger.Error("ScoreTally exceeds max possible")
 			// 1.0 in fixidity
-			uptime = math.BigPow(10, 24)
+			uptime = params.Fixidity1
 		}
 
 		logger.Trace("Updating validator score", "uptime", uptime)
