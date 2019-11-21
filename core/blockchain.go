@@ -993,7 +993,7 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 			uptime[i].LastSignedBlock = blockNumber - 1
 		}
 
-		// If we are within the validator uptime tally window, then update the validator's score if it's last signed block is within
+		// If we are within the validator uptime tally window, then update the validator's score if its last signed block is within
 		// the lookback window
 		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
 			lastSignedBlock := uptime[i].LastSignedBlock

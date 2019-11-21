@@ -51,24 +51,28 @@ func TestUptimeSingle(t *testing.T) {
 	// first window after the epoch block
 	expected := []istanbul.Uptime{
 		{
-			Score:           0,
+			ScoreTally:      0,
 			LastSignedBlock: 211,
 		},
 		{
-			Score:           0,
+			ScoreTally:      0,
 			LastSignedBlock: 211,
 		},
 		{
-			Score:           0,
+			ScoreTally:      0,
 			LastSignedBlock: 211,
 		},
-		// plus 2 dummies due to the *1.5
+		// plus 2 dummies due to the *2
 		{
-			Score:           0,
+			ScoreTally:      0,
 			LastSignedBlock: 0,
 		},
 		{
-			Score:           0,
+			ScoreTally:      0,
+			LastSignedBlock: 0,
+		},
+		{
+			ScoreTally:      0,
 			LastSignedBlock: 0,
 		},
 	}
@@ -100,16 +104,20 @@ func TestUptime(t *testing.T) {
 
 	expected := []istanbul.Uptime{
 		{
-			Score:           5,
+			ScoreTally:      5,
 			LastSignedBlock: 6,
 		},
 		{
-			Score:           5,
+			ScoreTally:      5,
 			LastSignedBlock: 5,
 		},
 		{
-			Score:           5,
+			ScoreTally:      5,
 			LastSignedBlock: 6,
+		},
+		{
+			ScoreTally:      0,
+			LastSignedBlock: 0,
 		},
 	}
 	if !reflect.DeepEqual(uptimes, expected) {
