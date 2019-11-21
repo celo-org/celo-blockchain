@@ -47,7 +47,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		return errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.valSet.MinQuorumSize() {
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return errInvalidPreparedCertificateNumMsgs
 	}
 
@@ -92,7 +92,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 
 			// Verify the committedSeal
-			_, src := c.valSet.GetByAddress(signer)
+			src := c.current.GetValidatorByAddress(signer)
 			err = c.verifyCommittedSeal(committedSubject, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
@@ -153,7 +153,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	}
 
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
-	minQuorumSize := c.valSet.MinQuorumSize()
+	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state

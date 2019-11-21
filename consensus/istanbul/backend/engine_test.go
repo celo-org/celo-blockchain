@@ -141,7 +141,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	if snap == nil {
 		panic("failed to get snapshot")
 	}
-	proposerAddr := snap.ValSet.GetProposer().Address()
+	proposerAddr := b.AuthorForBlock(snap.Number)
+	// proposerAddr := snap.ValSet.GetProposer().Address()
 
 	// find proposer key
 	for _, key := range nodeKeys {

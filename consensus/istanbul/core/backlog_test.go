@@ -36,13 +36,14 @@ func TestCheckMessage(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		logger:  testLogger,
 		backend: backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
-		}, newTestValidatorSet(4)),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 
 	// invalid view format
@@ -305,6 +306,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		events: new(event.TypeMux),
 	}
 	testLogger.SetHandler(elog.StdoutHandler)
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
@@ -313,7 +315,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4)),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
@@ -418,6 +420,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		peers:  vset,
 	}
 	testLogger.SetHandler(elog.StdoutHandler)
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		logger:     testLogger,
 		backlogs:   make(map[istanbul.Validator]*prque.Prque),
@@ -426,7 +429,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4)),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 	c.current.(*roundStateImpl).state = State(msg.Code)
 	c.subscribeEvents()

@@ -21,7 +21,7 @@ import (
 )
 
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	current := newRoundState(view, validatorSet)
+	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0))
 	current.(*roundStateImpl).preprepare = newTestPreprepare(view)
 	return current
 }

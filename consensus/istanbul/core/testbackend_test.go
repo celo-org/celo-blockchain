@@ -331,7 +331,7 @@ func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte, []*ecdsa.Pri
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	validators, _, _ := generateValidators(n)
-	return validator.NewSet(validators, istanbul.RoundRobin)
+	return validator.NewSet(validators)
 }
 
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
@@ -339,7 +339,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		return newRoundState(&istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: big.NewInt(1),
-		}, vset)
+		}, vset, vset.GetByIndex(0))
 	})
 }
 
@@ -349,20 +349,20 @@ func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState fun
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
-	config := istanbul.DefaultConfig
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
 
 	for i := uint64(0); i < n; i++ {
-		vset := validator.NewSet(validators, istanbul.RoundRobin)
+		vset := validator.NewSet(validators)
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, config).(*core)
+		core := New(backend, &config).(*core)
 		core.current = getRoundState(vset)
 		core.roundChangeSet = newRoundChangeSet(vset)
-		core.valSet = vset
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 

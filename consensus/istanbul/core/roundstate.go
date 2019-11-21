@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -31,7 +32,7 @@ var (
 	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 )
 
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator) RoundState {
 	return &roundStateImpl{
 		state:        StateAcceptRequest,
 		round:        view.Round,
@@ -42,8 +43,10 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) Roun
 		preprepare: nil,
 		prepares:   newMessageSet(validatorSet),
 		commits:    newMessageSet(validatorSet),
+		proposer:   proposer,
 
 		// data saves across rounds, same sequence
+		validatorSet:        validatorSet,
 		parentCommits:       newMessageSet(validatorSet),
 		pendingRequest:      nil,
 		preparedCertificate: istanbul.EmptyPreparedCertificate(),
@@ -54,13 +57,17 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) Roun
 
 type RoundState interface {
 	State() State
-	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet)
-	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, parentCommits MessageSet)
+	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator)
+	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet)
 	TransitionToPreprepared(preprepare *istanbul.Preprepare)
-	TransitionToWaitingForNewRound(r *big.Int)
+	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator)
 	TransitionToCommited()
 	TransitionToPrepared(quorumSize int) error
 	GetPrepareOrCommitSize() int
+	GetValidatorByAddress(address common.Address) istanbul.Validator
+	ValidatorSet() istanbul.ValidatorSet
+	Proposer() istanbul.Validator
+	IsProposer(address common.Address) bool
 	Subject() *istanbul.Subject
 	Preprepare() *istanbul.Preprepare
 	Proposal() istanbul.Proposal
@@ -90,8 +97,10 @@ type roundStateImpl struct {
 	preprepare *istanbul.Preprepare
 	prepares   MessageSet
 	commits    MessageSet
+	proposer   istanbul.Validator
 
 	// data saves across rounds, same sequence
+	validatorSet        istanbul.ValidatorSet
 	parentCommits       MessageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
@@ -157,6 +166,35 @@ func (s *roundStateImpl) Subject() *istanbul.Subject {
 	}
 }
 
+func (s *roundStateImpl) IsProposer(address common.Address) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.proposer.Address() == address
+}
+
+func (s *roundStateImpl) Proposer() istanbul.Validator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.proposer
+}
+
+func (s *roundStateImpl) ValidatorSet() istanbul.ValidatorSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.validatorSet
+}
+
+func (s *roundStateImpl) GetValidatorByAddress(address common.Address) istanbul.Validator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	_, validator := s.validatorSet.GetByAddress(address)
+	return validator
+}
+
 func (s *roundStateImpl) Preprepare() *istanbul.Preprepare {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -182,30 +220,34 @@ func (s *roundStateImpl) Round() *big.Int {
 	return s.round
 }
 
-func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet) {
+func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) {
 	s.state = StateAcceptRequest
 	s.round = nextRound
 	s.desiredRound = nextRound
 
+	// TODO MC use old valset
 	s.prepares = newMessageSet(validatorSet)
 	s.commits = newMessageSet(validatorSet)
+	s.proposer = nextProposer
 
 	// ??
 	s.preprepare = nil
 }
 
-func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet) {
+func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.changeRound(nextRound, validatorSet)
+	s.changeRound(nextRound, validatorSet, nextProposer)
 }
 
-func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, parentCommits MessageSet) {
+func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.changeRound(view.Round, validatorSet)
+	s.validatorSet = validatorSet
+
+	s.changeRound(view.Round, validatorSet, nextProposer)
 
 	s.sequence = view.Sequence
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
@@ -228,11 +270,12 @@ func (s *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepare
 	s.state = StatePreprepared
 }
 
-func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int) {
+func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.desiredRound = new(big.Int).Set(r)
+	s.proposer = nextProposer
 	s.state = StateWaitingForNewRound
 }
 

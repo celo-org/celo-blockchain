@@ -556,7 +556,7 @@ func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.Valid
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
 		sb.logger.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
-		return validator.NewSet(nil, sb.config.ProposerPolicy)
+		return validator.NewSet(nil)
 	}
 	return snap.ValSet
 }
@@ -584,7 +584,7 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 		return valSet
 	}
 
-	if valSet.Policy() == istanbul.ShuffledRoundRobin {
+	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
 			sb.logger.Error("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
