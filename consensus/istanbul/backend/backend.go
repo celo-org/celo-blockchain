@@ -187,7 +187,8 @@ type Backend struct {
 
 	newEpochCh chan struct{}
 
-	delegateSignFeed event.Feed
+	delegateSignFeed  event.Feed
+	delegateSignScope event.SubscriptionScope
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -231,6 +232,7 @@ func (sb *Backend) Address() common.Address {
 
 // Close the backend
 func (sb *Backend) Close() error {
+	sb.delegateSignScope.Close()
 	return sb.valEnodeTable.Close()
 }
 
