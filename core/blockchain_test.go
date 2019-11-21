@@ -44,6 +44,39 @@ var (
 	forkSeed      = 2
 )
 
+func TestUptimeSingle(t *testing.T) {
+	var uptimes []istanbul.Uptime
+	uptimes = updateUptime(uptimes, 212, big.NewInt(7), 3, 211)
+	// the first 2 uptime updates do not get scored since they're within the
+	// first window after the epoch block
+	expected := []istanbul.Uptime{
+		istanbul.Uptime{
+			Score:           0,
+			LastSignedBlock: 212,
+		},
+		istanbul.Uptime{
+			Score:           0,
+			LastSignedBlock: 212,
+		},
+		istanbul.Uptime{
+			Score:           0,
+			LastSignedBlock: 212,
+		},
+		// plus 2 dummies due to the *1.5
+		istanbul.Uptime{
+			Score:           0,
+			LastSignedBlock: 0,
+		},
+		istanbul.Uptime{
+			Score:           0,
+			LastSignedBlock: 0,
+		},
+	}
+	if !reflect.DeepEqual(uptimes, expected) {
+		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
+	}
+}
+
 func TestUptime(t *testing.T) {
 	var uptimes []istanbul.Uptime
 	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
@@ -56,26 +89,27 @@ func TestUptime(t *testing.T) {
 		big.NewInt(7), // 111
 		big.NewInt(5), // 101
 	}
-	block := uint64(0)
+	// assume the first block is the first epoch's block (ie not the genesis)
+	block := uint64(1)
 	for _, bitmap := range bitmaps {
 		// use a window of 2 blocks - ideally we want to expand
 		// these tests to increase our confidence
-		uptimes = updateUptime(uptimes, block, bitmap, 2)
+		uptimes = updateUptime(uptimes, block, bitmap, 2, 1)
 		block++
 	}
 
 	expected := []istanbul.Uptime{
 		istanbul.Uptime{
 			Score:           6,
-			LastSignedBlock: 6,
-		},
-		istanbul.Uptime{
-			Score:           6,
-			LastSignedBlock: 5,
+			LastSignedBlock: 7,
 		},
 		istanbul.Uptime{
 			Score:           6,
 			LastSignedBlock: 6,
+		},
+		istanbul.Uptime{
+			Score:           6,
+			LastSignedBlock: 7,
 		},
 	}
 	if !reflect.DeepEqual(uptimes, expected) {

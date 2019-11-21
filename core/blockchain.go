@@ -975,7 +975,7 @@ func popcount(x uint64) int {
 	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
 }
 
-func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64) []istanbul.Uptime {
+func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, firstBlockInEpoch uint64) []istanbul.Uptime {
 	var validatorsSize uint64
 	if len(uptime) == 0 {
 		// the number of validators is upper bound by 3/2 of the number of 1s in the bitmap
@@ -992,7 +992,7 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 		if bitmap.Bit(i) == 1 {
 			// update their latest signed block and reward them
 			uptime[i].LastSignedBlock = blockNumber
-			if blockNumber >= window-1 {
+			if blockNumber >= firstBlockInEpoch+window-1 {
 				uptime[i].Score++
 			}
 		} else {
@@ -1014,6 +1014,11 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 	if bc.engine.Protocol().Name == "istanbul" {
 		epoch := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+
+		firstEpochBlock, err := istanbul.GetEpochFirstBlockNumber(epoch, bc.chainConfig.Istanbul.Epoch)
+		if err != nil {
+			return NonStatTy, errors.New("could not extract block header extra")
+		}
 		log.Debug("uptime-trace: WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epoch)
 
 		// Get the bitmap from the previous block
@@ -1024,7 +1029,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 		signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
 		uptime := bc.GetAccumulatedEpochUptime(epoch)
-		uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, 2) // bc.chainConfig.Istanbul.LookbackWindow)
+		uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, 2, firstEpochBlock) // bc.chainConfig.Istanbul.LookbackWindow)
 
 		// write the new score
 		bc.WriteAccumulatedEpochUptime(epoch, uptime)

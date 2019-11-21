@@ -1172,6 +1172,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
+		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}

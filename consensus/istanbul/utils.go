@@ -87,7 +87,13 @@ func GetEpochNumber(number uint64, epochSize uint64) uint64 {
 	if number == 0 {
 		return 0
 	} else {
-		return (number / epochSize) + 1
+		// last block of epoch, e.g 350%10 => epoch 35
+		if number%epochSize == 0 {
+			return number / epochSize
+		} else {
+			// otherwise the division will return one less epoch and we need to add it ourselves
+			return (number / epochSize) + 1
+		}
 	}
 }
 
