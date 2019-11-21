@@ -56,10 +56,10 @@ func NewHiveParams() *HiveParams {
 
 // Hive manages network connections of the swarm node
 type Hive struct {
-	*HiveParams                   // settings
-	*Kademlia                     // the overlay connectiviy driver
-	Store       state.Store       // storage interface to save peers across sessions
-	addPeer     func(*enode.Node) // server callback to connect to a peer
+	*HiveParams                                    // settings
+	*Kademlia                                      // the overlay connectivity driver
+	Store       state.Store                        // storage interface to save peers across sessions
+	addPeer     func(*enode.Node, p2p.PurposeFlag) // server callback to connect to a peer
 	// bookkeeping
 	lock   sync.Mutex
 	peers  map[enode.ID]*BzzPeer
@@ -145,7 +145,7 @@ func (h *Hive) connect() {
 			continue
 		}
 		log.Trace(fmt.Sprintf("%08x attempt to connect to bee %08x", h.BaseAddr()[:4], addr.Address()[:4]))
-		h.addPeer(under)
+		h.addPeer(under, p2p.ExplicitStaticPurpose)
 	}
 }
 

@@ -446,9 +446,9 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 		}
 		// Wait for all backends to finalize the block.
 		<-time.After(1 * time.Second)
-		expectedCommitted, _ := sys.backends[0].LastProposal()
+		expectedCommitted, _ := sys.backends[0].GetCurrentHeadBlockAndAuthor()
 		for i, b := range sys.backends {
-			committed, _ := b.LastProposal()
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We don't expect any particular block to be committed here. We do expect them to be consistent.
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
@@ -517,7 +517,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 		// Wait for all backends to finalize the block.
 		<-time.After(2 * time.Second)
 		for i, b := range sys.backends {
-			committed, _ := b.LastProposal()
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We expect to commit the block proposed by the first proposer.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
 			if committed.Number().Cmp(common.Big1) != 0 {

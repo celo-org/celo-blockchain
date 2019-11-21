@@ -113,7 +113,7 @@ var (
 	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 	ElectionRegistryId             = makeRegistryId("Election")
 	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
-	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
+	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
@@ -142,7 +142,8 @@ func makeRegistryId(contractName string) [32]byte {
 
 const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
-	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
+	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 166000
 
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000

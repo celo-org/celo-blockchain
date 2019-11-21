@@ -91,7 +91,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message []byte) error {
+func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	self.sys.queuedMessage <- istanbul.MessageEvent{
@@ -99,7 +99,7 @@ func (self *testSystemBackend) Broadcast(valSet istanbul.ValidatorSet, message [
 	}
 	return nil
 }
-func (self *testSystemBackend) Gossip(valSet istanbul.ValidatorSet, message []byte, msgCode uint64, ignoreCache bool) error {
+func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
 	return nil
 }
 
@@ -153,7 +153,17 @@ func (self *testSystemBackend) NewRequest(request istanbul.Proposal) {
 	})
 }
 
-func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address) {
+func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
+	l := len(self.committedMsgs)
+	if l > 0 {
+		testLogger.Info("have proposal for block", "num", l)
+		return self.committedMsgs[l-1].commitProposal
+	}
+	testLogger.Info("do not have proposal for block", "num", 0)
+	return makeBlock(0)
+}
+
+func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
 		testLogger.Info("have proposal for block", "num", l)
@@ -164,21 +174,21 @@ func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address
 }
 
 func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
-	lastProposal, _ := self.LastProposal()
+	lastProposal := self.GetCurrentHeadBlock()
 	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
 	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
 // Only block height 5 will return true
-func (self *testSystemBackend) HasProposal(hash common.Hash, number *big.Int) bool {
+func (self *testSystemBackend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return number.Cmp(big.NewInt(5)) == 0
 }
 
-func (self *testSystemBackend) GetProposer(number uint64) common.Address {
+func (self *testSystemBackend) AuthorForBlock(number uint64) common.Address {
 	return common.Address{}
 }
 
-func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
+func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
 }
 
@@ -212,25 +222,29 @@ func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest comm
 }
 
 func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal istanbul.Proposal) (istanbul.Message, error) {
-	commit := &istanbul.Subject{
+	subject := &istanbul.Subject{
 		View:   &view,
 		Digest: proposal.Hash(),
 	}
 
-	payload, err := Encode(commit)
+	committedSeal, err := self.engine.(*core).generateCommittedSeal(subject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(commit)
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: committedSeal,
+	}
+
+	payload, err := Encode(committedSubject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
 
 	msg := &istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           payload,
-		CommittedSeal: committedSeal,
+		Code: istanbul.MsgCommit,
+		Msg:  payload,
 	}
 
 	// We swap in the provided proposal so that the message is finalized for the provided proposal
