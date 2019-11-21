@@ -18,7 +18,6 @@ package backend
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -82,7 +81,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-	sb.logger.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	logger := sb.logger.New("func", "updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
 
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
@@ -98,43 +97,24 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	}
 
 	for i, val := range valSet {
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].Score)), math.BigPow(10, 24))
+		scoreTally := uptimes[i].ScoreTally
+		logger = logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].ScoreTally)), math.BigPow(10, 24))
 		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
 
-		sb.logger.Debug("uptime-trace: Updating validator score for address", "index", i, "address", val.Address(), "uptime", uptime)
+		if scoreTally > denominator {
+			logger.Error("ScoreTally exceeds max possible")
+			// 1.0 in fixidity
+			uptime = math.BigPow(10, 24)
+		}
+
+		logger.Trace("Updating validator score", "uptime", uptime)
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (sb *Backend) getUptime(validatorIndex int, epoch uint64) (*big.Int, error) {
-	// try to get a handle on the core.blockchain's database
-	// sb.db is a different database (defined in CreateConsensusEngine) :/
-	// is there a better way than this? don't think we want to pollute the interface
-	c := sb.chain.(*core.BlockChain)
-	db := c.GetDatabase()
-	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
-	if uptimes == nil {
-		panic(fmt.Sprintf("could not read uptimes, i: %v", validatorIndex))
-		return nil, errors.New("Invalid accumulated uptime")
-	}
-
-	// skip the math if we've counted more signatures than necessary for that epoch
-	// when does this happen?
-	if uptimes[validatorIndex].Score >= sb.EpochSize()-sb.LookbackWindow()+1 {
-		// 1.0 in fixidity
-		return math.BigPow(10, 24), nil
-	}
-
-	// this will end up being between 0 and 1 but in fixidty
-	numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[validatorIndex].Score)), math.BigPow(10, 24))
-	denominator := big.NewInt(int64(sb.EpochSize() - sb.LookbackWindow() + 1))
-	validatorUptime := big.NewInt(0).Div(numerator, denominator)
-
-	return validatorUptime, nil
 }
 
 func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxPayment *big.Int) (*big.Int, error) {

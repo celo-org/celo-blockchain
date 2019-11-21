@@ -27,12 +27,12 @@ import (
 )
 
 type Uptime struct {
-	Score           uint64
+	ScoreTally      uint64
 	LastSignedBlock uint64
 }
 
 func (u *Uptime) String() string {
-	return fmt.Sprintf("Uptime { score: %v, lastBlock: %v}", u.Score, u.LastSignedBlock)
+	return fmt.Sprintf("Uptime { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
 }
 
 // Proposal supports retrieving height and serialized block to be used during Istanbul consensus.

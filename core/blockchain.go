@@ -948,23 +948,6 @@ func (bc *BlockChain) WriteBlockWithoutState(block *types.Block, td *big.Int) (e
 	return nil
 }
 
-// GetAccumulatedEpochUptime retrieves the accumulated uptime for an epoch from the database,
-// caching it if found.
-func (bc *BlockChain) GetAccumulatedEpochUptime(epoch uint64) []istanbul.Uptime {
-	uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epoch)
-	if uptime == nil {
-		return nil
-	}
-	return uptime
-}
-
-// WriteAccumulatedEpochUptime stores the accumulated uptime for an epoch into the database, also caching it
-// along the way.
-func (bc *BlockChain) WriteAccumulatedEpochUptime(epoch uint64, uptime []istanbul.Uptime) error {
-	rawdb.WriteAccumulatedEpochUptime(bc.db, epoch, uptime)
-	return nil
-}
-
 // https://stackoverflow.com/questions/19105791/is-there-a-big-bitcount/32702348#32702348
 func bitCount(n *big.Int) int {
 	count := 0
@@ -1019,7 +1002,7 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
 			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
 			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
-				uptime[i].Score++
+				uptime[i].ScoreTally++
 			}
 		}
 	}
@@ -1031,6 +1014,10 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
+	// Make sure no inconsistent state is leaked during insertion
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
 	// We are going to update the uptime tally.
 	if bc.engine.Protocol().Name == "istanbul" {
 		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
@@ -1039,7 +1026,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
 
 			// Get the uptime scores
-			uptime := bc.GetAccumulatedEpochUptime(epochNum)
+			uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epochNum)
 
 			// Get the bitmap from the previous block
 			extra, err := types.ExtractIstanbulExtra(block.Header())
@@ -1053,7 +1040,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 			uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
 
 			// Write the new uptime scores
-			bc.WriteAccumulatedEpochUptime(epochNum, uptime)
+			rawdb.WriteAccumulatedEpochUptime(bc.db, epochNum, uptime)
 		}
 	}
 
@@ -1062,9 +1049,6 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	if ptd == nil {
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
-	// Make sure no inconsistent state is leaked during insertion
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
 
 	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
