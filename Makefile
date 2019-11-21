@@ -7,7 +7,6 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-386 geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
@@ -16,6 +15,10 @@ CARGO_exists := $(shell command -v cargo 2> /dev/null)
 RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
 CARGO_LIPO_exists := $(shell command -v cargo-lipo 2> /dev/null)
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
+
+ifdef CARGO_exists
+.PHONY: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
+endif
 
 OS :=
 ifeq ("$(LSB_exists)","")
