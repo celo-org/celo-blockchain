@@ -76,15 +76,12 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		}
 
 		if msg.Code == istanbulDelegateSign {
-			if sb.config.Proxy {
-				// got a signed message from the validator
+			if sb.shouldHandleDelegateSign() {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
-			} else {
-				// got a message to sign from the proxy
-				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				return true, nil
 			}
 
-			return true, nil
+			return true, errors.New("No proxy or proxied validator found")
 		}
 
 		hash := istanbul.RLPHash(data)
@@ -179,6 +176,10 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Forwarding a consensus message")
 	go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
 	return nil
+}
+
+func (sb *Backend) shouldHandleDelegateSign() bool {
+	return sb.IsProxy() || sb.IsProxiedValidator()
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages

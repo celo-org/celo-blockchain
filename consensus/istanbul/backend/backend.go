@@ -190,17 +190,26 @@ type Backend struct {
 	delegateSignFeed event.Feed
 }
 
-// This is for ethstats communication
-func (sb *Backend) ProxiedPeer() consensus.Peer {
-	return sb.proxiedPeer
+func (sb *Backend) IsProxy() bool {
+	return sb.proxiedPeer != nil
 }
 
-// This is for ethstats communication
-func (sb *Backend) ProxyNode() consensus.Peer {
-	if sb.proxyNode != nil {
-		return sb.proxyNode.peer
+func (sb *Backend) IsProxiedValidator() bool {
+	return sb.proxyNode != nil
+}
+
+func (sb *Backend) DelegateMessageToProxy(msg []byte) error {
+	if !sb.IsProxiedValidator() {
+		errors.New("No Proxy found")
 	}
-	return nil
+	return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
+}
+
+func (sb *Backend) DelegateMessageToProxiedValidator(msg []byte) error {
+	if !sb.IsProxy() {
+		errors.New("No Proxied Validator found")
+	}
+	return sb.proxiedPeer.Send(istanbulDelegateSign, msg)
 }
 
 // Authorize implements istanbul.Backend.Authorize

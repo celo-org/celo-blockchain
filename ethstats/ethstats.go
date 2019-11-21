@@ -61,9 +61,15 @@ const (
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
-	//
+	// istDelegateSignChanSize is the size of the channel listening to DelegateSignEvent
 	istDelegateSignChanSize = 5
 
+	// connectionTimeOut waits for the websocket connection to be established
+	connectionTimeOut = 10
+	// delegateSendTimeout waits for the proxy to sign a message
+	delegateSendTimeout = 5
+	// statusUpdateInterval is the frequency of sending full node reports
+	statusUpdateInterval = 15
 	// valSetInterval is the frequency in blocks to send the validator set
 	valSetInterval = 10
 
@@ -226,8 +232,8 @@ func (s *Service) loop() {
 		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
-		signCh = make(chan StatsPayload, istDelegateSignChanSize)
-		sendCh = make(chan StatsPayload, istDelegateSignChanSize)
+		signCh = make(chan *StatsPayload, istDelegateSignChanSize)
+		sendCh = make(chan *StatsPayload, istDelegateSignChanSize)
 	)
 	go func() {
 		var lastTx mclock.AbsTime
@@ -261,20 +267,18 @@ func (s *Service) loop() {
 			case delegateSignMsg := <-istDelegateSignCh:
 				var statsPayload StatsPayload
 				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
-				if err == nil {
-					if s.backend.ProxyNode() != nil {
-						select {
-						case signCh <- statsPayload:
-						default:
-						}
-					}
-					if s.backend.ProxiedPeer() != nil {
-						select {
-						case sendCh <- statsPayload:
-						default:
-						}
-					}
+				if err != nil {
+					break HandleLoop
 				}
+				var channel chan *StatsPayload
+				if s.backend.IsProxy() {
+					// proxy should send to websocket
+					channel = sendCh
+				} else if s.backend.IsProxiedValidator() {
+					// proxied validator should sign
+					channel = signCh
+				}
+				channel <- &statsPayload
 			}
 		}
 		close(quitCh)
@@ -282,7 +286,7 @@ func (s *Service) loop() {
 
 	// Loop reporting until termination
 	for {
-		if s.backend.ProxyNode() != nil {
+		if s.backend.IsProxiedValidator() {
 			messageToSign := <-signCh
 			if err := s.handleDelegateSign(messageToSign); err != nil {
 				log.Warn("Delegate sign failed", "err", err)
@@ -291,14 +295,14 @@ func (s *Service) loop() {
 			conn, err := s.getConnection()
 			if err != nil {
 				log.Warn("Stats server unreachable", "err", err)
-				time.Sleep(10 * time.Second)
+				time.Sleep(connectionTimeOut * time.Second)
 				continue
 			}
 			// Authenticate the client with the server
 			if err = s.login(conn, sendCh); err != nil {
 				log.Warn("Stats login failed", "err", err)
 				conn.Close()
-				time.Sleep(10 * time.Second)
+				time.Sleep(connectionTimeOut * time.Second)
 				continue
 			}
 			go s.readLoop(conn)
@@ -310,7 +314,7 @@ func (s *Service) loop() {
 				continue
 			}
 			// Keep sending status updates until the connection breaks
-			fullReport := time.NewTicker(15 * time.Second)
+			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
 			for err == nil {
 				select {
@@ -372,7 +376,7 @@ type authMsg struct {
 }
 
 // login tries to authorize the client at the remote server.
-func (s *Service) login(conn *websocket.Conn, sendCh chan StatsPayload) error {
+func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Construct and send the login authentication
 	infos := s.server.NodeInfo()
 
@@ -380,17 +384,33 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan StatsPayload) error {
 		etherBase common.Address
 		network   string
 		protocol  string
+		err       error
 	)
 	p := s.engine.Protocol()
 	if info := infos.Protocols[p.Name]; info != nil {
-		network = fmt.Sprintf("%d", info.(*eth.NodeInfo).Network)
+		ethInfo, ok := info.(*eth.NodeInfo)
+		if !ok {
+			return errors.New("Could not resolve NodeInfo")
+		}
+		network = fmt.Sprintf("%d", ethInfo.Network)
 		protocol = fmt.Sprintf("%s/%d", p.Name, p.Versions[0])
 	} else {
-		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
+		lesProtocol, ok := infos.Protocols["les"]
+		if !ok {
+			return errors.New("No less protocol found")
+		}
+		lesInfo, ok := lesProtocol.(*les.NodeInfo)
+		if !ok {
+			return errors.New("Could not resolve NodeInfo")
+		}
+		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
 	if s.eth != nil {
-		etherBase, _ = s.eth.Etherbase()
+		etherBase, err = s.eth.Etherbase()
+		if err != nil {
+			return err
+		}
 	}
 	auth := &authMsg{
 		ID:      s.node,
@@ -413,14 +433,14 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan StatsPayload) error {
 	}
 
 	// Proxy needs a delegate send here to get ACK
-	if s.backend.ProxiedPeer() != nil {
+	if s.backend.IsProxy() {
 		select {
 		case signedMessage := <-sendCh:
 			err := s.handleDelegateSend(conn, signedMessage)
 			if err != nil {
 				return err
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(delegateSendTimeout * time.Second):
 			// Login timeout, abort
 			return errors.New("login timed out")
 		}
@@ -428,36 +448,36 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan StatsPayload) error {
 
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
-	if err := websocket.JSON.Receive(conn, &ack); err != nil || len(ack["emit"]) != 1 || ack["emit"][0] != "ready" {
-		return errors.New("unauthorized")
+	if err := websocket.JSON.Receive(conn, &ack); err != nil {
+		emit, ok := ack["emit"]
+		if !ok {
+			return errors.New("emit not in ack")
+		}
+		if len(emit) != 1 || emit[0] != "ready" {
+			return errors.New("unauthorized")
+		}
 	}
 	return nil
 }
 
-func (s *Service) handleDelegateSign(messageToSign StatsPayload) error {
-
-	if s.backend.ProxyNode() == nil {
-		return errors.New("No Proxy found")
-	}
-
+func (s *Service) handleDelegateSign(messageToSign *StatsPayload) error {
 	signedStats, err := s.signStats(messageToSign.Stats)
-
-	if err == nil {
-		signedMessage := &StatsPayload{
-			Action: messageToSign.Action,
-			Stats:  signedStats,
-		}
-		msg, _ := json.Marshal(signedMessage)
-		return s.backend.ProxyNode().Send(0x15, msg)
+	if err != nil {
+		return err
 	}
-	return err
+
+	signedMessage := &StatsPayload{
+		Action: messageToSign.Action,
+		Stats:  signedStats,
+	}
+	msg, err := json.Marshal(signedMessage)
+	if err != nil {
+		return err
+	}
+	return s.backend.DelegateMessageToProxy(msg)
 }
 
-func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage StatsPayload) error {
-	if s.backend.ProxiedPeer() == nil {
-		return errors.New("No Proxied peer found")
-	}
-
+func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsPayload) error {
 	report := map[string][]interface{}{
 		"emit": {signedMessage.Action, signedMessage.Stats},
 	}
@@ -550,7 +570,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 // report collects all possible data to report and send it to the stats server.
 // This should only be used on reconnects or rarely to avoid overloading the
 // server. Use the individual methods for reporting subscribed events.
-func (s *Service) report(conn *websocket.Conn, sendCh chan StatsPayload) error {
+func (s *Service) report(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	if err := s.reportLatency(conn, sendCh); err != nil {
 		return err
 	}
@@ -568,7 +588,7 @@ func (s *Service) report(conn *websocket.Conn, sendCh chan StatsPayload) error {
 
 // reportLatency sends a ping request to the server, measures the RTT time and
 // finally sends a latency update.
-func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan StatsPayload) error {
+func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Send the current time to the ethstats server
 	start := time.Now()
 
@@ -580,7 +600,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan StatsPayload) 
 		return err
 	}
 	// Proxy needs a delegate send here to get ACK
-	if s.backend.ProxiedPeer() != nil {
+	if s.backend.IsProxy() {
 		signedMessage := <-sendCh
 		err := s.handleDelegateSend(conn, signedMessage)
 		if err != nil {
@@ -637,7 +657,10 @@ type txStats struct {
 type uncleStats []*types.Header
 
 func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
-	msg, _ := json.Marshal(stats)
+	msg, err := json.Marshal(stats)
+	if err != nil {
+		return nil, err
+	}
 	msgHash := crypto.Keccak256Hash(msg)
 
 	etherBase, errEtherbase := s.eth.Etherbase()
@@ -700,18 +723,20 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 }
 
 func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
-	if s.backend.ProxiedPeer() != nil {
+	if s.backend.IsProxy() {
 		statsWithAction := map[string]interface{}{
 			"stats":  stats,
 			"action": action,
 		}
-		msg, _ := json.Marshal(statsWithAction)
-		go s.backend.ProxiedPeer().Send(0x15, msg)
+		msg, err := json.Marshal(statsWithAction)
+		if err != nil {
+			return err
+		}
+		go s.backend.DelegateMessageToProxiedValidator(msg)
 		return nil
 	}
 
 	signedStats, err := s.signStats(stats)
-
 	if err != nil {
 		return err
 	}
