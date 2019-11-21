@@ -50,24 +50,24 @@ func TestUptimeSingle(t *testing.T) {
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block
 	expected := []istanbul.Uptime{
-		istanbul.Uptime{
+		{
 			Score:           0,
 			LastSignedBlock: 211,
 		},
-		istanbul.Uptime{
+		{
 			Score:           0,
 			LastSignedBlock: 211,
 		},
-		istanbul.Uptime{
+		{
 			Score:           0,
 			LastSignedBlock: 211,
 		},
 		// plus 2 dummies due to the *1.5
-		istanbul.Uptime{
+		{
 			Score:           0,
 			LastSignedBlock: 0,
 		},
-		istanbul.Uptime{
+		{
 			Score:           0,
 			LastSignedBlock: 0,
 		},
@@ -99,15 +99,15 @@ func TestUptime(t *testing.T) {
 	}
 
 	expected := []istanbul.Uptime{
-		istanbul.Uptime{
+		{
 			Score:           5,
 			LastSignedBlock: 6,
 		},
-		istanbul.Uptime{
+		{
 			Score:           5,
 			LastSignedBlock: 5,
 		},
-		istanbul.Uptime{
+		{
 			Score:           5,
 			LastSignedBlock: 6,
 		},
