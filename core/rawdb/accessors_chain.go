@@ -258,7 +258,7 @@ func ReadTd(db DatabaseReader, hash common.Hash, number uint64) *big.Int {
 func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Uptime {
 	data, _ := db.Get(uptimeKey(epoch))
 	if len(data) == 0 {
-		log.Debug("uptime-trace: ReadAccumulatedEpochUptime = EMPTY", "epoch", epoch)
+		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
 		return nil
 	}
 	uptime := new([]istanbul.Uptime)
@@ -266,14 +266,11 @@ func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Upti
 		log.Error("Invalid uptime RLP", "err", err)
 		return nil
 	}
-	log.Debug("uptime-trace: ReadAccumulatedEpochUptime(ret)", "epoch", epoch, "uptime", uptime)
-
 	return *uptime
 }
 
 // WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
 func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime []istanbul.Uptime) {
-	log.Debug("uptime-trace: WriteAccumulatedEpochUptime", "epoch", epoch, "uptime", uptime)
 	data, err := rlp.EncodeToBytes(uptime)
 	if err != nil {
 		log.Crit("Failed to RLP encode updated uptime", "err", err)
