@@ -989,14 +989,12 @@ func popcount(x uint64) int {
 }
 
 func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) []istanbul.Uptime {
-	var validatorsSize uint64
+	var validatorsSizeUpperBound uint64
 	if len(uptime) == 0 {
-		// the number of validators is upper bound by 3/2 of the number of 1s in the bitmap
-		// TODO: due to this maybe we create an uptimeScore array which is 1 element bigger than required
-		// is this a problem?
-		validatorsSize = uint64(math.Ceil(float64(bitCount(bitmap)) * 1.5))
-		// TODO: there is no need for more than the specific block if we know when the validator signed last itme
-		uptime = make([]istanbul.Uptime, validatorsSize)
+		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
+		// We multiply by 2 just to be extra cautious of off-by-one errors.
+		validatorsSizeUpperBound = uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
+		uptime = make([]istanbul.Uptime, validatorsSizeUpperBound)
 	}
 
 	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
@@ -1039,7 +1037,6 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 		// We can ignore updating the tally for that block.
 		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
 			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
-			log.Debug("uptime-trace: WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
 
 			// Get the uptime scores
 			uptime := bc.GetAccumulatedEpochUptime(epochNum)
@@ -1047,6 +1044,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 			// Get the bitmap from the previous block
 			extra, err := types.ExtractIstanbulExtra(block.Header())
 			if err != nil {
+				log.Error("Unable to extrace istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
 				return NonStatTy, errors.New("could not extract block header extra")
 			}
 			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap

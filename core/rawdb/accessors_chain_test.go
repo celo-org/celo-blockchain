@@ -214,7 +214,7 @@ func TestUptimeStorage(t *testing.T) {
 	} else if !reflect.DeepEqual(entry, uptime) {
 		t.Fatalf("Retrieved uptime mismatch: have %v, want %v", entry, uptime)
 	}
-	// Delete the TD and verify the execution
+	// Delete the uptime and verify the execution
 	DeleteAccumulatedEpochUptime(db, epoch)
 	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
 		t.Fatalf("Deleted uptime returned: %v", entry)
