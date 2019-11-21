@@ -184,7 +184,6 @@ func (sb *Backend) shouldHandleDelegateSign() bool {
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
 func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
-	// return sb.delegateSignFeed.Subscribe(ch)
 	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 

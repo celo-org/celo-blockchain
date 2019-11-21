@@ -64,8 +64,8 @@ const (
 	// istDelegateSignChanSize is the size of the channel listening to DelegateSignEvent
 	istDelegateSignChanSize = 5
 
-	// connectionTimeOut waits for the websocket connection to be established
-	connectionTimeOut = 10
+	// connectionTimeout waits for the websocket connection to be established
+	connectionTimeout = 10
 	// delegateSendTimeout waits for the proxy to sign a message
 	delegateSendTimeout = 5
 	// statusUpdateInterval is the frequency of sending full node reports
@@ -295,14 +295,14 @@ func (s *Service) loop() {
 			conn, err := s.getConnection()
 			if err != nil {
 				log.Warn("Stats server unreachable", "err", err)
-				time.Sleep(connectionTimeOut * time.Second)
+				time.Sleep(connectionTimeout * time.Second)
 				continue
 			}
 			// Authenticate the client with the server
 			if err = s.login(conn, sendCh); err != nil {
 				log.Warn("Stats login failed", "err", err)
 				conn.Close()
-				time.Sleep(connectionTimeOut * time.Second)
+				time.Sleep(connectionTimeout * time.Second)
 				continue
 			}
 			go s.readLoop(conn)
@@ -449,13 +449,14 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 	if err := websocket.JSON.Receive(conn, &ack); err != nil {
-		emit, ok := ack["emit"]
-		if !ok {
-			return errors.New("emit not in ack")
-		}
-		if len(emit) != 1 || emit[0] != "ready" {
-			return errors.New("unauthorized")
-		}
+		return err
+	}
+	emit, ok := ack["emit"]
+	if !ok {
+		return errors.New("emit not in ack")
+	}
+	if len(emit) != 1 || emit[0] != "ready" {
+		return errors.New("unauthorized")
 	}
 	return nil
 }
@@ -474,7 +475,7 @@ func (s *Service) handleDelegateSign(messageToSign *StatsPayload) error {
 	if err != nil {
 		return err
 	}
-	return s.backend.DelegateMessageToProxy(msg)
+	return s.backend.SendDelegateSignMsgToProxy(msg)
 }
 
 func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsPayload) error {
@@ -732,7 +733,7 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 		if err != nil {
 			return err
 		}
-		go s.backend.DelegateMessageToProxiedValidator(msg)
+		go s.backend.SendDelegateSignMsgToProxiedValidator(msg)
 		return nil
 	}
 
