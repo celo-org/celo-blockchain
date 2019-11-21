@@ -84,11 +84,8 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 	sb.logger.Debug("uptime-trace: updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", 2) // sb.LookbackWindow())
 
-	// Since we calculate the uptime at the last block of the epoch
-	// before that block is mined, we cannot take its signatures into account.
-	// As a result, we in total skip the last block and the first `lookbackWindow-1` signatures
-	// within an epoch. e.g. epochSize = 6, window = 2, we only count 4 signatures (skip first and last)
-	denominator := big.NewInt(int64(sb.EpochSize() - 2)) // sb.LookbackWindow()))
+	// The denominator is the (last block - first block + 1) of the val score tally window
+	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
 
 	// get all the uptimes for this epoch
 	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
@@ -102,7 +99,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 
 	for i, val := range valSet {
 		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].Score)), math.BigPow(10, 24))
-		uptime := big.NewInt(0).Div(numerator, denominator)
+		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
 
 		sb.logger.Debug("uptime-trace: Updating validator score for address", "index", i, "address", val.Address(), "uptime", uptime)
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)

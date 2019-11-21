@@ -988,7 +988,7 @@ func popcount(x uint64) int {
 	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
 }
 
-func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, firstBlockInEpoch uint64) []istanbul.Uptime {
+func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) []istanbul.Uptime {
 	var validatorsSize uint64
 	if len(uptime) == 0 {
 		// the number of validators is upper bound by 3/2 of the number of 1s in the bitmap
@@ -997,24 +997,29 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 		validatorsSize = uint64(math.Ceil(float64(bitCount(bitmap)) * 1.5))
 		// TODO: there is no need for more than the specific block if we know when the validator signed last itme
 		uptime = make([]istanbul.Uptime, validatorsSize)
-	} else {
-		validatorsSize = uint64(len(uptime))
 	}
+
+	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
+	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
+
+	// signedBlockWindowLastBlockNum is just the previous block
+	signedBlockWindowLastBlockNum := blockNumber - 1
+	signedBlockWindowFirstBlockNum := signedBlockWindowLastBlockNum - (window - 1)
 
 	for i := 0; i < len(uptime); i++ {
 		if bitmap.Bit(i) == 1 {
-			// update their latest signed block and reward them
-			uptime[i].LastSignedBlock = blockNumber
-			if blockNumber >= firstBlockInEpoch+window-1 {
-				uptime[i].Score++
-			}
-		} else {
-			// even though they did not sign, if their last signed block is within the window they should still be considered alive
-			// (we do not reward though blocks which were before the first window)
-			if blockNumber > window-1 && uptime[i].LastSignedBlock+window > blockNumber {
-				uptime[i].Score++
-			}
+			// update their latest signed block
+			uptime[i].LastSignedBlock = blockNumber - 1
+		}
 
+		// If we are within the validator uptime tally window, then update the validator's score if it's last signed block is within
+		// the lookback window
+		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
+			lastSignedBlock := uptime[i].LastSignedBlock
+			// TODO (kevjue) add comment about 2nd check
+			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
+				uptime[i].Score++
+			}
 		}
 	}
 	return uptime
@@ -1025,27 +1030,30 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
+	// We are going to update the uptime tally.
 	if bc.engine.Protocol().Name == "istanbul" {
-		epoch := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
+		// We can ignore updating the tally for that block.
+		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
+			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+			log.Debug("uptime-trace: WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
 
-		firstEpochBlock, err := istanbul.GetEpochFirstBlockNumber(epoch, bc.chainConfig.Istanbul.Epoch)
-		if err != nil {
-			return NonStatTy, errors.New("could not extract block header extra")
+			// Get the uptime scores
+			uptime := bc.GetAccumulatedEpochUptime(epochNum)
+
+			// Get the bitmap from the previous block
+			extra, err := types.ExtractIstanbulExtra(block.Header())
+			if err != nil {
+				return NonStatTy, errors.New("could not extract block header extra")
+			}
+			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
+
+			// Update the uptime scores
+			uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
+
+			// Write the new uptime scores
+			bc.WriteAccumulatedEpochUptime(epochNum, uptime)
 		}
-		log.Debug("uptime-trace: WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epoch)
-
-		// Get the bitmap from the previous block
-		extra, err := types.ExtractIstanbulExtra(block.Header())
-		if err != nil {
-			return NonStatTy, errors.New("could not extract block header extra")
-		}
-
-		signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
-		uptime := bc.GetAccumulatedEpochUptime(epoch)
-		uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, 2, firstEpochBlock) // bc.chainConfig.Istanbul.LookbackWindow)
-
-		// write the new score
-		bc.WriteAccumulatedEpochUptime(epoch, uptime)
 	}
 
 	// Calculate the total difficulty of the block
