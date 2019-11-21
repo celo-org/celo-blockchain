@@ -96,7 +96,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
-	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg")
+	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
 	// Retrieve the validator set for the previous proposal (which should
 	// match the one broadcast)

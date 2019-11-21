@@ -360,7 +360,6 @@ func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState fun
 		backend.blsKey = blsKeys[i]
 
 		core := New(backend, config).(*core)
-		// core.state = StateAcceptRequest
 		core.current = getRoundState(vset)
 		core.roundChangeSet = newRoundChangeSet(vset)
 		core.valSet = vset
