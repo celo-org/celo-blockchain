@@ -198,10 +198,10 @@ type Transaction struct {
 }
 
 // NewTransaction creates a new transaction with the given properties.
-func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, gasCurrency, gasFeeRecipient *Address, data []byte) *Transaction {
-	convertedGasCurrency := common.BytesToAddress(gasCurrency.GetBytes())
-	convertedGasFeeRecipient := common.BytesToAddress(gasFeeRecipient.GetBytes())
-	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedGasCurrency, &convertedGasFeeRecipient, common.CopyBytes(data))}
+func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, feeCurrency, gatewayFeeRecipient *Address, gatewayFee *BigInt, data []byte) *Transaction {
+	convertedFeeCurrency := common.BytesToAddress(feeCurrency.GetBytes())
+	convertedGatewayFeeRecipient := common.BytesToAddress(gatewayFeeRecipient.GetBytes())
+	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedFeeCurrency, &convertedGatewayFeeRecipient, gatewayFee.bigint, common.CopyBytes(data))}
 }
 
 // NewTransactionFromRLP parses a transaction from an RLP data dump.

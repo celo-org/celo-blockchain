@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	mrand "math/rand"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -58,6 +60,7 @@ var (
 const (
 	bodyCacheLimit      = 256
 	blockCacheLimit     = 256
+	uptimeCacheLimit    = 16
 	receiptsCacheLimit  = 32
 	maxFutureBlocks     = 256
 	maxTimeFutureBlocks = 30
@@ -122,6 +125,7 @@ type BlockChain struct {
 	receiptsCache *lru.Cache     // Cache for the most recent receipts per block
 	blockCache    *lru.Cache     // Cache for the most recent entire blocks
 	futureBlocks  *lru.Cache     // future blocks are blocks added for later processing
+	uptimeCache   *lru.Cache     // Cache for the most recent uptimes
 
 	quit    chan struct{} // blockchain quit channel
 	running int32         // running must be called atomically
@@ -153,6 +157,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	receiptsCache, _ := lru.New(receiptsCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
+	uptimeCache, _ := lru.New(uptimeCacheLimit)
 	futureBlocks, _ := lru.New(maxFutureBlocks)
 	badBlocks, _ := lru.New(badBlockLimit)
 
@@ -168,6 +173,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		bodyRLPCache:   bodyRLPCache,
 		receiptsCache:  receiptsCache,
 		blockCache:     blockCache,
+		uptimeCache:    uptimeCache,
 		futureBlocks:   futureBlocks,
 		engine:         engine,
 		vmConfig:       vmConfig,
@@ -213,6 +219,11 @@ func (bc *BlockChain) getProcInterrupt() bool {
 // GetVMConfig returns the block chain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
+}
+
+// GetDatabase returns the block chain's database
+func (bc *BlockChain) GetDatabase() ethdb.Database {
+	return bc.db
 }
 
 // loadLastState loads the last known chain state from the database. This method
@@ -786,11 +797,12 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 	signer := types.MakeSigner(config, block.Number())
 
 	transactions, logIndex := block.Transactions(), uint(0)
-	if len(transactions) != len(receipts) {
+	// The receipts may include an additional "block finalization" receipt
+	if len(transactions) != len(receipts) && len(transactions)+1 != len(receipts) {
 		return errors.New("transaction and receipt count mismatch")
 	}
 
-	for j := 0; j < len(receipts); j++ {
+	for j := 0; j < len(transactions); j++ {
 		// The transaction hash can be retrieved from the transaction itself
 		receipts[j].TxHash = transactions[j].Hash()
 
@@ -811,6 +823,18 @@ func SetReceiptsData(config *params.ChainConfig, block *types.Block, receipts ty
 			receipts[j].Logs[k].BlockNumber = block.NumberU64()
 			receipts[j].Logs[k].BlockHash = block.Hash()
 			receipts[j].Logs[k].TxHash = receipts[j].TxHash
+			receipts[j].Logs[k].TxIndex = uint(j)
+			receipts[j].Logs[k].Index = logIndex
+			logIndex++
+		}
+	}
+	// Handle block finalization receipt
+	if len(transactions)+1 == len(receipts) {
+		j := len(transactions)
+		for k := 0; k < len(receipts[j].Logs); k++ {
+			receipts[j].Logs[k].BlockNumber = block.NumberU64()
+			receipts[j].Logs[k].BlockHash = block.Hash()
+			receipts[j].Logs[k].TxHash = block.Hash()
 			receipts[j].Logs[k].TxIndex = uint(j)
 			receipts[j].Logs[k].Index = logIndex
 			logIndex++
@@ -924,19 +948,107 @@ func (bc *BlockChain) WriteBlockWithoutState(block *types.Block, td *big.Int) (e
 	return nil
 }
 
+// https://stackoverflow.com/questions/19105791/is-there-a-big-bitcount/32702348#32702348
+func bitCount(n *big.Int) int {
+	count := 0
+	for _, v := range n.Bits() {
+		count += popcount(uint64(v))
+	}
+	return count
+}
+
+// Straight and simple C to Go translation from https://en.wikipedia.org/wiki/Hamming_weight
+func popcount(x uint64) int {
+	const (
+		m1  = 0x5555555555555555 //binary: 0101...
+		m2  = 0x3333333333333333 //binary: 00110011..
+		m4  = 0x0f0f0f0f0f0f0f0f //binary:  4 zeros,  4 ones ...
+		h01 = 0x0101010101010101 //the sum of 256 to the power of 0,1,2,3...
+	)
+	x -= (x >> 1) & m1             //put count of each 2 bits into those 2 bits
+	x = (x & m2) + ((x >> 2) & m2) //put count of each 4 bits into those 4 bits
+	x = (x + (x >> 4)) & m4        //put count of each 8 bits into those 8 bits
+	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
+}
+
+func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) []istanbul.Uptime {
+	var validatorsSizeUpperBound uint64
+	if len(uptime) == 0 {
+		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
+		// We multiply by 2 just to be extra cautious of off-by-one errors.
+		validatorsSizeUpperBound = uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
+		uptime = make([]istanbul.Uptime, validatorsSizeUpperBound)
+	}
+
+	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
+	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
+
+	// signedBlockWindowLastBlockNum is just the previous block
+	signedBlockWindowLastBlockNum := blockNumber - 1
+	signedBlockWindowFirstBlockNum := signedBlockWindowLastBlockNum - (window - 1)
+
+	for i := 0; i < len(uptime); i++ {
+		if bitmap.Bit(i) == 1 {
+			// update their latest signed block
+			uptime[i].LastSignedBlock = blockNumber - 1
+		}
+
+		// If we are within the validator uptime tally window, then update the validator's score if its last signed block is within
+		// the lookback window
+		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
+			lastSignedBlock := uptime[i].LastSignedBlock
+
+			// Note that the second condition in the if condition is not necessary.  But it does
+			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
+			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
+			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
+				uptime[i].ScoreTally++
+			}
+		}
+	}
+	return uptime
+}
+
 // WriteBlockWithState writes the block and all associated state to the database.
 func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) (status WriteStatus, err error) {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
+
+	// Make sure no inconsistent state is leaked during insertion
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	// We are going to update the uptime tally.
+	if bc.engine.Protocol().Name == "istanbul" {
+		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
+		// We can ignore updating the tally for that block.
+		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
+			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+
+			// Get the uptime scores
+			uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epochNum)
+
+			// Get the bitmap from the previous block
+			extra, err := types.ExtractIstanbulExtra(block.Header())
+			if err != nil {
+				log.Error("Unable to extrace istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
+				return NonStatTy, errors.New("could not extract block header extra")
+			}
+			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
+
+			// Update the uptime scores
+			uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
+
+			// Write the new uptime scores
+			rawdb.WriteAccumulatedEpochUptime(bc.db, epochNum, uptime)
+		}
+	}
 
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
-	// Make sure no inconsistent state is leaked during insertion
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
 
 	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())

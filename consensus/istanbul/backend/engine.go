@@ -464,6 +464,11 @@ func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
+// Returns the size of the lookback window for calculating uptime (in blocks)
+func (sb *Backend) LookbackWindow() uint64 {
+	return sb.config.LookbackWindow
+}
+
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
 // and assembles the final block.
 //
@@ -484,6 +489,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
+	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochPaymentsAndRewards(header, state)
@@ -494,6 +500,13 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+
+	if len(state.GetLogs(common.Hash{})) > 0 {
+		receipt := types.NewReceipt(nil, false, 0)
+		receipt.Logs = state.GetLogs(common.Hash{})
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		receipts = append(receipts, receipt)
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, randomness), nil
