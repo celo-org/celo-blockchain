@@ -7,6 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-386 geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
+.PHONY: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
 
 GOBIN = $(shell pwd)/build/bin
 GO ?= latest
