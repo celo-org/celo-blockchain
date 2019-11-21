@@ -108,7 +108,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
-	// Ensure that the commit's digest (ie the received proposal's hash) matches the saved last proposal's hash
+	// Ensure that the commit's digest (ie the received proposal's hash) matches the head block's hash
 	if headBlock.Number().Uint64() > 0 && commit.Subject.Digest != headBlock.Hash() {
 		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", headBlock.Hash().String(), "received", commit.Subject.Digest.String())
 		return errInconsistentSubject

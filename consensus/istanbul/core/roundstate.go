@@ -200,6 +200,7 @@ func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int) {
 	s.state = StateWaitingForNewRound
 }
 
+// TransitionToPrepared will create a PreparedCertificate and change state to Prepared
 func (s *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
