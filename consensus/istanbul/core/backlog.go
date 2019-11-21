@@ -112,12 +112,16 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 			backlog.Push(msg, toPriority(msg.Code, p.View))
 		}
 	case istanbul.MsgPrepare:
-		fallthrough
-	case istanbul.MsgCommit:
 		var p *istanbul.Subject
 		err := msg.Decode(&p)
 		if err == nil {
 			backlog.Push(msg, toPriority(msg.Code, p.View))
+		}
+	case istanbul.MsgCommit:
+		var cs *istanbul.CommittedSubject
+		err := msg.Decode(&cs)
+		if err == nil {
+			backlog.Push(msg, toPriority(msg.Code, cs.Subject.View))
 		}
 	case istanbul.MsgRoundChange:
 		var p *istanbul.RoundChange
@@ -156,12 +160,16 @@ func (c *core) processBacklog() {
 					view = m.View
 				}
 			case istanbul.MsgPrepare:
-				fallthrough
-			case istanbul.MsgCommit:
 				var sub *istanbul.Subject
 				err := msg.Decode(&sub)
 				if err == nil {
 					view = sub.View
+				}
+			case istanbul.MsgCommit:
+				var cs *istanbul.CommittedSubject
+				err := msg.Decode(&cs)
+				if err == nil {
+					view = cs.Subject.View
 				}
 			case istanbul.MsgRoundChange:
 				var rc *istanbul.RoundChange

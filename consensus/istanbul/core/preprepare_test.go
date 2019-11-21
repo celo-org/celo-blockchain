@@ -149,7 +149,7 @@ func TestHandlePreprepare(t *testing.T) {
 			func(_ *testSystem) istanbul.RoundChangeCertificate {
 				return istanbul.RoundChangeCertificate{}
 			},
-			// In the method testbackend_test.go:HasProposal(), it will return true if the proposal's block number == 5
+			// In the method testbackend_test.go:HasBlockMatching(), it will return true if the proposal's block number == 5
 			makeBlock(5),
 			nil,
 			true,

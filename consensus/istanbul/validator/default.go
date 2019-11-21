@@ -248,7 +248,9 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 		})
 	}
 
-	return NewSet(validators, valSet.policy)
+	valSetCopy := NewSet(validators, valSet.policy)
+	valSetCopy.SetRandomness(valSet.randomness)
+	return valSetCopy
 }
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
