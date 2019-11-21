@@ -118,14 +118,19 @@ func (c *core) storeBacklog(msg *istanbul.Message) {
 		}
 		v = p.View
 	case istanbul.MsgPrepare:
-		fallthrough
-	case istanbul.MsgCommit:
 		var p *istanbul.Subject
 		err := msg.Decode(&p)
 		if err != nil {
 			return
 		}
 		v = p.View
+	case istanbul.MsgCommit:
+		var cs *istanbul.CommittedSubject
+		err := msg.Decode(&cs)
+		if err != nil {
+			return
+		}
+		v = cs.Subject.View
 	case istanbul.MsgRoundChange:
 		var p *istanbul.RoundChange
 		err := msg.Decode(&p)
@@ -237,12 +242,16 @@ func (c *core) processBacklog() {
 						view = m.View
 					}
 				case istanbul.MsgPrepare:
-					fallthrough
-				case istanbul.MsgCommit:
 					var sub *istanbul.Subject
 					err := msg.Decode(&sub)
 					if err == nil {
 						view = sub.View
+					}
+				case istanbul.MsgCommit:
+					var cs *istanbul.CommittedSubject
+					err := msg.Decode(&cs)
+					if err == nil {
+						view = cs.Subject.View
 					}
 				case istanbul.MsgRoundChange:
 					var rc *istanbul.RoundChange

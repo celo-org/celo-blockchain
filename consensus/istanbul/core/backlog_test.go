@@ -257,7 +257,7 @@ func TestStoreBacklog(t *testing.T) {
 		Msg:     prepreparePayload,
 		Address: p1.Address(),
 	}
-	c.storeBacklog(mPreprepare, p1)
+	c.storeBacklog(mPreprepare)
 	msg := c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mPreprepare) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare)
@@ -285,20 +285,27 @@ func TestStoreBacklog(t *testing.T) {
 		Address: p2.Address(),
 	}
 
-	c.storeBacklog(mPreprepare, p1)
-	c.storeBacklog(mPrepare, p1)
-	c.storeBacklog(mPreprepare2, p2)
+	c.storeBacklog(mPreprepare)
+	c.storeBacklog(mPrepare)
+	c.storeBacklog(mPreprepare2)
 
 	if c.backlogCountByVal[p1.Address()] != 3 {
 		t.Errorf("backlogCountByVal mismatch: have %v, want 3", c.backlogCountByVal[p1.Address()])
 	}
 	// push commit msg
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}, // celo in hex!
+	}
+
+	committedSubjectPayload, _ := Encode(committedSubject)
+
 	mCommit := &istanbul.Message{
 		Code:    istanbul.MsgCommit,
-		Msg:     subjectPayload,
+		Msg:     committedSubjectPayload,
 		Address: p1.Address(),
 	}
-	c.storeBacklog(mCommit, p1)
+	c.storeBacklog(mCommit)
 	if c.backlogCountByVal[p2.Address()] != 1 {
 		t.Errorf("backlogCountByVal mismatch: have %v, want 1", c.backlogCountByVal[p2.Address()])
 	}
@@ -353,18 +360,22 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Round:    big.NewInt(10),
 		Sequence: big.NewInt(10),
 	}
-
-	subject := &istanbul.Subject{
-		View:   v,
-		Digest: common.BytesToHash([]byte("1234567890")),
+	committedSubject := &istanbul.CommittedSubject{
+		Subject: &istanbul.Subject{
+			View:   v,
+			Digest: common.BytesToHash([]byte("1234567890")),
+		},
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
 	}
-	subjectPayload, _ := Encode(subject)
+
+	committedSubjectPayload, _ := Encode(committedSubject)
+	// push a future msg
 	mFuture := &istanbul.Message{
 		Code:    istanbul.MsgCommit,
-		Msg:     subjectPayload,
+		Msg:     committedSubjectPayload,
 		Address: valSet.GetByIndex(0).Address(),
 	}
-	c.storeBacklog(mFuture, valSet.GetByIndex(0))
+	c.storeBacklog(mFuture)
 
 	// push a message from the past and check we expire it
 	v0 := &istanbul.View{
@@ -381,7 +392,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Msg:     subjectPayload0,
 		Address: valSet.GetByIndex(1).Address(),
 	}
-	c.storeBacklog(mPast, valSet.GetByIndex(1))
+	c.storeBacklog(mPast)
 
 	backlogSeqs := c.getSortedBacklogSeqs()
 	if len(backlogSeqs) != 1 || backlogSeqs[0] != v.Sequence.Uint64() {
@@ -425,6 +436,12 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
+	committedSubject := &istanbul.CommittedSubject{
+		Subject:       subject,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
+	}
+	committedSubjectPayload, _ := Encode(committedSubject)
+
 	rc := &istanbul.RoundChange{
 		View:                v,
 		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
@@ -446,7 +463,7 @@ func TestProcessBacklog(t *testing.T) {
 		},
 		{
 			Code:    istanbul.MsgCommit,
-			Msg:     subjectPayload,
+			Msg:     committedSubjectPayload,
 			Address: address,
 		},
 		{
@@ -484,7 +501,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 	defer c.unsubscribeEvents()
 
 	msg.Address = vset.GetByIndex(0).Address()
-	c.storeBacklog(msg, vset.GetByIndex(0))
+	c.storeBacklog(msg)
 	c.processBacklog()
 
 	const timeoutDura = 2 * time.Second
