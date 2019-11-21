@@ -18,6 +18,7 @@ package validator
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -42,10 +43,12 @@ func randFromHash(hash common.Hash) *rand.Rand {
 }
 
 // ShuffledRoundRobinProposer selects the next proposer with a round robin strategy according to a shuffled order.
-func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, seed common.Hash) istanbul.Validator {
+func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
 	}
+	seed := valSet.GetRandomness()
+
 	shuffle := randFromHash(seed).Perm(valSet.Size())
 	reverse := make([]int, len(shuffle))
 	for i, n := range shuffle {
@@ -59,7 +62,7 @@ func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Ad
 }
 
 // RoundRobinProposer selects the next proposer with a round robin strategy according to storage order.
-func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, _ common.Hash) istanbul.Validator {
+func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
 	}
@@ -71,7 +74,7 @@ func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, r
 }
 
 // StickyProposer selects the next proposer with a sticky strategy, advancing on round change.
-func StickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64, _ common.Hash) istanbul.Validator {
+func StickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
 	if valSet.Size() == 0 {
 		return nil
 	}
@@ -80,4 +83,20 @@ func StickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 		idx += proposerIndex(valSet, proposer)
 	}
 	return valSet.FilteredList()[idx%uint64(valSet.Size())]
+}
+
+// GetProposerSelector returns the ProposerSelector for the given Policy
+func GetProposerSelector(pp istanbul.ProposerPolicy) istanbul.ProposerSelector {
+	switch pp {
+	case istanbul.Sticky:
+		return StickyProposer
+	case istanbul.RoundRobin:
+		return RoundRobinProposer
+	case istanbul.ShuffledRoundRobin:
+		return ShuffledRoundRobinProposer
+	default:
+		// Programming error.
+		panic(fmt.Sprintf("unknown proposer selection policy: %v", pp))
+		return nil
+	}
 }

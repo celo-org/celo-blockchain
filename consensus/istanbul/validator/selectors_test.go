@@ -46,7 +46,8 @@ func TestStickyProposer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
-	valSet := newDefaultSet(v, istanbul.Sticky)
+	valSet := newDefaultSet(v)
+	selector := GetProposerSelector(istanbul.Sticky)
 
 	cases := []struct {
 		lastProposer common.Address
@@ -78,17 +79,11 @@ func TestStickyProposer(t *testing.T) {
 		want:         validators[3],
 	}}
 
-	t.Run("initial", func(t *testing.T) {
-		if val := valSet.GetProposer(); !reflect.DeepEqual(val, validators[0]) {
-			t.Errorf("proposer mismatch: got %v, want %v", val, validators[0])
-		}
-	})
-
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case:%d", i), func(t *testing.T) {
-			t.Logf("CalcProposer(%s, %d)", c.lastProposer.String(), c.round)
-			valSet.CalcProposer(c.lastProposer, c.round)
-			if val := valSet.GetProposer(); !reflect.DeepEqual(val, c.want) {
+			t.Logf("selectProposer(%s, %d)", c.lastProposer.String(), c.round)
+			proposer := selector(valSet, c.lastProposer, c.round)
+			if val := proposer; !reflect.DeepEqual(val, c.want) {
 				t.Errorf("proposer mismatch: have %v, want %v", val, c.want)
 			}
 		})
@@ -108,7 +103,8 @@ func TestRoundRobinProposer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
-	valSet := newDefaultSet(v, istanbul.RoundRobin)
+	valSet := newDefaultSet(v)
+	selector := GetProposerSelector(istanbul.RoundRobin)
 
 	cases := []struct {
 		lastProposer common.Address
@@ -140,17 +136,11 @@ func TestRoundRobinProposer(t *testing.T) {
 		want:         validators[3],
 	}}
 
-	t.Run("initial", func(t *testing.T) {
-		if val := valSet.GetProposer(); !reflect.DeepEqual(val, validators[0]) {
-			t.Errorf("proposer mismatch: got %v, want %v", val, validators[0])
-		}
-	})
-
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case:%d", i), func(t *testing.T) {
-			t.Logf("CalcProposer(%s, %d)", c.lastProposer.String(), c.round)
-			valSet.CalcProposer(c.lastProposer, c.round)
-			if val := valSet.GetProposer(); !reflect.DeepEqual(val, c.want) {
+			t.Logf("selectProposer(%s, %d)", c.lastProposer.String(), c.round)
+			proposer := selector(valSet, c.lastProposer, c.round)
+			if val := proposer; !reflect.DeepEqual(val, c.want) {
 				t.Errorf("proposer mismatch: have %v, want %v", val, c.want)
 			}
 		})
@@ -170,7 +160,8 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
-	valSet := newDefaultSet(v, istanbul.ShuffledRoundRobin)
+	valSet := newDefaultSet(v)
+	selector := GetProposerSelector(istanbul.ShuffledRoundRobin)
 
 	testSeed := common.HexToHash("f36aa9716b892ec8")
 	cases := []struct {
@@ -219,19 +210,13 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 		want:         validators[0],
 	}}
 
-	t.Run("initial", func(t *testing.T) {
-		if val := valSet.GetProposer(); !reflect.DeepEqual(val, validators[0]) {
-			t.Errorf("proposer mismatch: got %v, want %v", val, validators[0])
-		}
-	})
-
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case:%d", i), func(t *testing.T) {
 			t.Logf("SetRandomness(%s)", c.seed.String())
 			valSet.SetRandomness(c.seed)
-			t.Logf("CalcProposer(%s, %d)", c.lastProposer.String(), c.round)
-			valSet.CalcProposer(c.lastProposer, c.round)
-			if val := valSet.GetProposer(); !reflect.DeepEqual(val, c.want) {
+			t.Logf("selectProposer(%s, %d)", c.lastProposer.String(), c.round)
+			proposer := selector(valSet, c.lastProposer, c.round)
+			if val := proposer; !reflect.DeepEqual(val, c.want) {
 				t.Errorf("proposer mismatch: have %v, want %v", val, c.want)
 			}
 		})

@@ -124,7 +124,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 
 func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
-	_, validator := c.valSet.GetByAddress(msg.Address)
+	validator := c.current.GetValidatorByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
@@ -144,7 +144,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return err
 	}
 	numberOfCommits := c.current.Commits().Size()
-	minQuorumSize := c.valSet.MinQuorumSize()
+	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
