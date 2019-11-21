@@ -213,8 +213,8 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
 			}
-			if err == nil && c.currentView().Cmp(&view) != 0 {
-				t.Errorf("view mismatch for test case %v: have %v, want %v", i, c.currentView(), view)
+			if err == nil && c.current.View().Cmp(&view) != 0 {
+				t.Errorf("view mismatch for test case %v: have %v, want %v", i, c.current.View(), view)
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// normal case with valid prepared certificate
 			NewTestSystemWithBackend(N, F),
 			func(sys *testSystem) istanbul.PreparedCertificate {
-				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).currentView()}, makeBlock(1))
+				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
 			},
 			nil,
 		},
@@ -249,7 +249,7 @@ func TestHandleRoundChange(t *testing.T) {
 			// normal case with invalid prepared certificate
 			NewTestSystemWithBackend(N, F),
 			func(sys *testSystem) istanbul.PreparedCertificate {
-				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).currentView()}, makeBlock(1))
+				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
 				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
 				return preparedCert
 			},
@@ -300,7 +300,7 @@ OUTER:
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
 
-		curView := r0.currentView()
+		curView := r0.current.View()
 		nextView := &istanbul.View{
 			Round:    new(big.Int).Add(curView.Round, common.Big1),
 			Sequence: curView.Sequence,
@@ -402,7 +402,7 @@ var noGossip = map[int]bool{
 // and all nodes will accept the newly proposed block.
 func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	// Initialize the system with a nil round state so that we properly start round 0.
-	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) RoundState { return nil })
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
@@ -446,9 +446,9 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 		}
 		// Wait for all backends to finalize the block.
 		<-time.After(1 * time.Second)
-		expectedCommitted, _ := sys.backends[0].LastProposal()
+		expectedCommitted, _ := sys.backends[0].GetCurrentHeadBlockAndAuthor()
 		for i, b := range sys.backends {
-			committed, _ := b.LastProposal()
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We don't expect any particular block to be committed here. We do expect them to be consistent.
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
@@ -470,7 +470,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 // system enforces that as the only valid proposal for this sequence.
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	// Initialize the system with a nil round state so that we properly start round 0.
-	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) *roundState { return nil })
+	sys := NewTestSystemWithBackendAndCurrentRoundState(4, 1, func(vset istanbul.ValidatorSet) RoundState { return nil })
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
@@ -517,7 +517,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 		// Wait for all backends to finalize the block.
 		<-time.After(2 * time.Second)
 		for i, b := range sys.backends {
-			committed, _ := b.LastProposal()
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We expect to commit the block proposed by the first proposer.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
 			if committed.Number().Cmp(common.Big1) != 0 {

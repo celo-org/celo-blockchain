@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SignerFn is a signer callback function to request a hash to be signed by a
@@ -40,20 +39,17 @@ type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
 
-	// Enode returns the owner's enode
-	Enode() *enode.Node
-
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
 
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// Broadcast sends a message to all validators (include self)
-	Broadcast(valSet ValidatorSet, payload []byte) error
+	// BroadcastConsensusMsg sends a message to all validators (include self)
+	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
 
 	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error
+	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -71,30 +67,27 @@ type Backend interface {
 	// the given validator
 	CheckSignature(data []byte, addr common.Address, sig []byte) error
 
-	// LastProposal retrieves latest committed proposal and the address of proposer
-	LastProposal() (Proposal, common.Address)
+	// GetCurrentHeadBlock retrieves the last block
+	GetCurrentHeadBlock() Proposal
+
+	// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the author for that block
+	GetCurrentHeadBlockAndAuthor() (Proposal, common.Address)
 
 	// LastSubject retrieves latest committed subject (view and digest)
 	LastSubject() (Subject, error)
 
-	// HasProposal checks if the combination of the given hash and height matches any existing blocks
-	HasProposal(hash common.Hash, number *big.Int) bool
+	// HasBlock checks if the combination of the given hash and height matches any existing blocks
+	HasBlock(hash common.Hash, number *big.Int) bool
 
-	// GetProposer returns the proposer of the given block height
-	GetProposer(number uint64) common.Address
+	// AuthorForBlock returns the proposer of the given block height
+	AuthorForBlock(number uint64) common.Address
 
-	// ParentValidators returns the validator set of the given proposal's parent block
-	ParentValidators(proposal Proposal) ValidatorSet
+	// ParentBlockValidators returns the validator set of the given proposal's parent block
+	ParentBlockValidators(proposal Proposal) ValidatorSet
 
-	// HasBadProposal returns whether the block with the hash is a bad block
-	HasBadProposal(hash common.Hash) bool
-
-	// RefreshValPeers will connect all all the validators in the valset and disconnect validator peers that are not in the set
+	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
-
-	// GetDataDir returns a read-write enabled data dir in which data will persist across restarts.
-	GetDataDir() string
 }

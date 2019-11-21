@@ -223,7 +223,7 @@ func initialize(t *testing.T) {
 			peerNodeId := nodes[j].id
 			address, _ := net.ResolveTCPAddr("tcp", nodes[j].server.ListenAddr)
 			peer := enode.NewV4(&peerNodeId.PublicKey, address.IP, address.Port, address.Port)
-			nodes[i].server.AddPeer(peer)
+			nodes[i].server.AddPeer(peer, p2p.ExplicitStaticPurpose)
 		}
 	}
 }
