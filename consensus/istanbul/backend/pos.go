@@ -90,17 +90,17 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	denominator := big.NewInt(int64(sb.EpochSize() - 2)) // sb.LookbackWindow()))
 
 	// get all the uptimes for this epoch
+	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
+	// but I believe it's a different database handle
 	c := sb.chain.(*core.BlockChain)
 	db := c.GetDatabase()
 	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
 	if uptimes == nil {
-		return errors.New("Invalid accumulated uptime")
+		return errors.New("no accumulated uptimes found, will not update validator scores")
 	}
 
 	for i, val := range valSet {
-		// x = score * 10**24
 		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].Score)), math.BigPow(10, 24))
-		// z = x / y
 		uptime := big.NewInt(0).Div(numerator, denominator)
 
 		sb.logger.Debug("uptime-trace: Updating validator score for address", "index", i, "address", val.Address(), "uptime", uptime)

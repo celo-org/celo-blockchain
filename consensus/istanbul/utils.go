@@ -91,7 +91,7 @@ func GetEpochNumber(number uint64, epochSize uint64) uint64 {
 		if number%epochSize == 0 {
 			return number / epochSize
 		} else {
-			// otherwise it'd have returned epoch 36
+			// otherwise the division will return one less epoch and we need to add it ourselves
 			return (number / epochSize) + 1
 		}
 	}
