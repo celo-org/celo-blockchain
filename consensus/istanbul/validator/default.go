@@ -76,7 +76,7 @@ type defaultSet struct {
 }
 
 type defaultSetRLP struct {
-	Validators istanbul.Validators
+	Validators []*defaultValidator
 	Randomness common.Hash
 }
 
@@ -86,19 +86,24 @@ func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
 		return err
 	}
 
+	var validators []istanbul.Validator
+	validators = make([]istanbul.Validator, len(v.Validators), len(v.Validators))
+	for i := range v.Validators {
+		validators[i] = v.Validators[i]
+	}
+
 	*val = defaultSet{
-		validators: v.Validators,
+		validators: validators,
 		randomness: v.Randomness,
 	}
 	return nil
 }
 
 func (val *defaultSet) EncodeRLP(w io.Writer) error {
-	entry := defaultSetRLP{
-		Validators: val.validators,
-		Randomness: val.randomness,
-	}
-	return rlp.Encode(w, entry)
+	return rlp.Encode(w, []interface{}{
+		val.validators,
+		val.randomness,
+	})
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
