@@ -20,11 +20,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
-	"math/rand"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 
@@ -33,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
@@ -112,8 +109,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return signatureBytes, nil
 	}
 
-	dataDir := createRandomDataDir()
-	b, _ := New(config, memDB, dataDir).(*Backend)
+	b, _ := New(config, memDB).(*Backend)
 	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
@@ -124,6 +120,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b.SetChain(blockchain, blockchain.CurrentBlock)
+	b.SetBroadcaster(&consensustest.MockBroadcaster{})
+	b.SetP2PServer(&consensustest.MockP2PServer{})
 
 	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
@@ -203,7 +201,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
-			b.SetBroadcaster(&MockBroadcaster{privateKey: key})
 			break
 		}
 	}
@@ -211,22 +208,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	contract_comm.SetInternalEVMHandler(blockchain)
 
 	return blockchain, b
-}
-
-func createRandomDataDir() string {
-	rand.Seed(time.Now().UnixNano())
-	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
-		dataDir := filepath.Join("/tmp", dirName)
-		err := os.Mkdir(dataDir, 0700)
-		if os.IsExist(err) {
-			continue // Re-try
-		}
-		if err != nil {
-			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
-		}
-		return dataDir
-	}
 }
 
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
@@ -258,7 +239,10 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		genesis.Config.FullHeaderChainAvailable = false
 	}
 	// force enable Istanbul engine
-	genesis.Config.Istanbul = &params.IstanbulConfig{}
+	genesis.Config.Istanbul = &params.IstanbulConfig{
+		Epoch:          10,
+		LookbackWindow: 2,
+	}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = defaultDifficulty
 	genesis.Nonce = emptyNonce.Uint64()

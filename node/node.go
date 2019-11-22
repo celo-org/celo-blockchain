@@ -48,6 +48,9 @@ type Node struct {
 	serverConfig p2p.Config
 	server       *p2p.Server // Currently running P2P networking layer
 
+	proxyServerConfig p2p.Config
+	proxyServer       *p2p.Server
+
 	serviceFuncs []ServiceConstructor     // Service constructors (in dependency order)
 	services     map[reflect.Type]Service // Currently running services
 
@@ -165,6 +168,27 @@ func (n *Node) Start() error {
 	running := &p2p.Server{Config: n.serverConfig}
 	n.log.Info("Starting peer-to-peer node", "instance", n.serverConfig.Name)
 
+	// Initialize the proxy p2p server. This creates the node key and
+	// discovery databases.
+	var proxyRunning *p2p.Server = nil
+	if n.config.Proxy {
+		// Initialize the proxy p2p server. This creates the node key and
+		// discovery databases.
+		n.proxyServerConfig = n.config.ProxyP2P
+		n.proxyServerConfig.NoDiscovery = true
+		// There can only be 1 peer within the internal network
+		n.proxyServerConfig.MaxPeers = 1
+		n.proxyServerConfig.PrivateKey = n.config.NodeKey()
+		n.proxyServerConfig.Name = n.config.NodeName()
+		n.proxyServerConfig.Logger = n.log
+		if n.proxyServerConfig.NodeDatabase == "" {
+			n.proxyServerConfig.NodeDatabase = n.config.ProxiedNodeDB()
+		}
+		proxyRunning = &p2p.Server{Config: n.proxyServerConfig}
+		n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServerConfig.Name)
+		n.log.Info("n.proxyServerConfig", "n.proxyServerConfig", n.proxyServerConfig.ListenAddr)
+	}
+
 	// Otherwise copy and specialize the P2P configuration
 	services := make(map[reflect.Type]Service)
 	for _, constructor := range n.serviceFuncs {
@@ -175,6 +199,7 @@ func (n *Node) Start() error {
 			EventMux:       n.eventmux,
 			AccountManager: n.accman,
 			Server:         running,
+			ProxyServer:    proxyRunning,
 		}
 		for kind, s := range services { // copy needed for threaded access
 			ctx.services[kind] = s
@@ -193,9 +218,17 @@ func (n *Node) Start() error {
 	// Gather the protocols and start the freshly assembled P2P server
 	for _, service := range services {
 		running.Protocols = append(running.Protocols, service.Protocols()...)
+		if proxyRunning != nil {
+			proxyRunning.Protocols = append(proxyRunning.Protocols, service.Protocols()...)
+		}
 	}
 	if err := running.Start(); err != nil {
 		return convertFileLockError(err)
+	}
+	if proxyRunning != nil {
+		if err := proxyRunning.Start(); err != nil {
+			return convertFileLockError(err)
+		}
 	}
 	// Start each of the services
 	started := []reflect.Type{}
@@ -206,6 +239,9 @@ func (n *Node) Start() error {
 				services[kind].Stop()
 			}
 			running.Stop()
+			if proxyRunning != nil {
+				proxyRunning.Stop()
+			}
 
 			return err
 		}
@@ -218,11 +254,15 @@ func (n *Node) Start() error {
 			service.Stop()
 		}
 		running.Stop()
+		if proxyRunning != nil {
+			proxyRunning.Stop()
+		}
 		return err
 	}
 	// Finish initializing the startup
 	n.services = services
 	n.server = running
+	n.proxyServer = proxyRunning
 	n.stop = make(chan struct{})
 
 	return nil
@@ -424,6 +464,11 @@ func (n *Node) Stop() error {
 	n.server.Stop()
 	n.services = nil
 	n.server = nil
+
+	if n.proxyServer != nil {
+		n.proxyServer.Stop()
+		n.proxyServer = nil
+	}
 
 	// Release instance directory lock.
 	if n.instanceDirLock != nil {

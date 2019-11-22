@@ -16,6 +16,11 @@
 
 package istanbul
 
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+)
+
 type ProposerPolicy uint64
 
 const (
@@ -29,7 +34,17 @@ type Config struct {
 	BlockPeriod          uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy       ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	LookbackWindow       uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
 	ValidatorEnodeDBPath string         `toml:",omitempty"` // The location for the validator enodes DB
+
+	// Proxy Configs
+	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
+	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
+
+	// Proxied Validator Configs
+	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
+	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
+	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }
 
 var DefaultConfig = &Config{
@@ -37,5 +52,8 @@ var DefaultConfig = &Config{
 	BlockPeriod:          1,
 	ProposerPolicy:       ShuffledRoundRobin,
 	Epoch:                30000,
+	LookbackWindow:       12,
 	ValidatorEnodeDBPath: "validatorenodes",
+	Proxy:                false,
+	Proxied:              false,
 }

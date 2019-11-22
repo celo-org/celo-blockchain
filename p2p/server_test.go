@@ -148,7 +148,7 @@ func TestServerDial(t *testing.T) {
 	// tell the server to connect
 	tcpAddr := listener.Addr().(*net.TCPAddr)
 	node := enode.NewV4(remid, tcpAddr.IP, tcpAddr.Port, 0)
-	srv.AddPeer(node)
+	srv.AddPeer(node, ExplicitStaticPurpose)
 
 	select {
 	case conn := <-accepted:
@@ -178,11 +178,11 @@ func TestServerDial(t *testing.T) {
 			}
 			done := make(chan bool)
 			go func() {
-				srv.AddTrustedPeer(node)
+				srv.AddTrustedPeer(node, ExplicitTrustedPurpose)
 				if peer := srv.Peers()[0]; !peer.Info().Network.Trusted {
 					t.Errorf("peer is not trusted after AddTrustedPeer: %v", peer)
 				}
-				srv.RemoveTrustedPeer(node)
+				srv.RemoveTrustedPeer(node, ExplicitTrustedPurpose)
 				if peer := srv.Peers()[0]; peer.Info().Network.Trusted {
 					t.Errorf("peer is trusted after RemoveTrustedPeer: %v", peer)
 				}
@@ -400,14 +400,14 @@ func TestServerAtCap(t *testing.T) {
 	}
 
 	// Remove from trusted set and try again
-	srv.RemoveTrustedPeer(newNode(trustedID, nil))
+	srv.RemoveTrustedPeer(newNode(trustedID, nil), ExplicitTrustedPurpose)
 	c = newconn(trustedID)
 	if err := srv.checkpoint(c, srv.posthandshake); err != DiscTooManyPeers {
 		t.Error("wrong error for insert:", err)
 	}
 
 	// Add anotherID to trusted set and try again
-	srv.AddTrustedPeer(newNode(anotherID, nil))
+	srv.AddTrustedPeer(newNode(anotherID, nil), ExplicitTrustedPurpose)
 	c = newconn(anotherID)
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		t.Error("unexpected error for trusted conn @posthandshake:", err)
@@ -456,7 +456,7 @@ func TestServerPeerLimits(t *testing.T) {
 	}
 	conn.Close()
 
-	srv.AddTrustedPeer(clientnode)
+	srv.AddTrustedPeer(clientnode, ExplicitTrustedPurpose)
 
 	// Check that server allows a trusted peer despite being full.
 	conn, _ = net.Pipe()
@@ -470,7 +470,7 @@ func TestServerPeerLimits(t *testing.T) {
 	}
 	conn.Close()
 
-	srv.RemoveTrustedPeer(clientnode)
+	srv.RemoveTrustedPeer(clientnode, ExplicitTrustedPurpose)
 
 	// Check that server is full again.
 	conn, _ = net.Pipe()

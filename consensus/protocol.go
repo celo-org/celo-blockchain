@@ -18,10 +18,8 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -51,26 +49,32 @@ type Protocol struct {
 	Primary bool
 }
 
-// Broadcaster defines the interface to enqueue blocks to fetcher and find peer
+// Broadcaster defines the interface to enqueue blocks to fetcher, find peer
 type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
 	Enqueue(id string, block *types.Block)
 	// FindPeers retrives peers by addresses
-	FindPeers(map[common.Address]bool) map[common.Address]Peer
-	// GetLocalNode retrieves the node's local node
-	GetLocalNode() *enode.Node
-	// GetNodeKey retrieves the node's private key
-	GetNodeKey() *ecdsa.PrivateKey
-	// Add a new validator peer
-	AddValidatorPeer(enodeURL string) error
-	// Remove a validator peer
-	RemoveValidatorPeer(enodeURL string) error
-	// Gets all of the validator peers' enodeURL
-	GetValidatorPeers() []string
+	FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]Peer
 }
 
-// Peer defines the interface to communicate with peer
+// Server defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
+type P2PServer interface {
+	// Gets this node's enode
+	Self() *enode.Node
+	// AddPeer will add a peer to the p2p server instance
+	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)
+	// RemovePeer will remove a peer from the p2p server instance
+	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
+	// AddTrustedPeer will add a trusted peer to the p2p server instance
+	AddTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag)
+	// RemoveTrustedPeer will remove a trusted peer from the p2p server instance
+	RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag)
+}
+
+// Peer defines the interface for a p2p.peer
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint64, data interface{}) error
+	// Returns the peer's enode
+	Node() *enode.Node
 }

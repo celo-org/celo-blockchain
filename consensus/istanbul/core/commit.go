@@ -25,7 +25,7 @@ import (
 )
 
 func (c *core) sendCommit() {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendCommit")
+	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
 	c.broadcastCommit(sub)
@@ -51,76 +51,79 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
-	encodedSubject, err := Encode(sub)
-	if err != nil {
-		logger.Error("Failed to encode", "subject", sub)
-		return
-	}
-
 	committedSeal, err := c.generateCommittedSeal(sub)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)
 		return
 	}
 
-	istMsg := istanbul.Message{
-		Code:          istanbul.MsgCommit,
-		Msg:           encodedSubject,
+	committedSub := &istanbul.CommittedSubject{
+		Subject:       sub,
 		CommittedSeal: committedSeal,
+	}
+	encodedCommittedSubject, err := Encode(committedSub)
+	if err != nil {
+		logger.Error("Failed to encode committedSubject", committedSub)
+	}
+
+	istMsg := istanbul.Message{
+		Code: istanbul.MsgCommit,
+		Msg:  encodedCommittedSubject,
 	}
 	c.broadcast(&istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
 	// Decode COMMIT message
-	var commit *istanbul.Subject
+	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)
 	if err != nil {
 		return errFailedDecodeCommit
 	}
 
-	if err := c.checkMessage(istanbul.MsgCommit, commit.View); err != nil {
+	if err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View); err != nil {
 		return err
 	}
 
 	// Valid commit messages may be for the current, or previous sequence. We compare against our
 	// current view to find out which.
-	if commit.View.Cmp(c.currentView()) == 0 {
+
+	if commit.Subject.View.Cmp(c.current.View()) == 0 {
 		return c.handleCheckedCommitForCurrentSequence(msg, commit)
 	} else {
 		return c.handleCheckedCommitForPreviousSequence(msg, commit)
 	}
 }
 
-func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.Subject) error {
+func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg")
-	lastProposal, _ := c.backend.LastProposal()
+	headBlock := c.backend.GetCurrentHeadBlock()
 	// Retrieve the validator set for the previous proposal (which should
 	// match the one broadcast)
-	parentValset := c.backend.ParentValidators(lastProposal)
+	parentValset := c.backend.ParentBlockValidators(headBlock)
 	_, validator := parentValset.GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
-	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, validator); err != nil {
+	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
 	// Ensure that the commit's digest (ie the received proposal's hash) matches the saved last proposal's hash
-	if lastProposal.Number().Uint64() > 0 && commit.Digest != lastProposal.Hash() {
-		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", lastProposal.Hash().String(), "received", commit.Digest.String())
+	if headBlock.Number().Uint64() > 0 && commit.Subject.Digest != headBlock.Hash() {
+		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", headBlock.Hash().String(), "received", commit.Subject.Digest.String())
 		return errInconsistentSubject
 	}
-	return c.acceptParentCommit(msg, commit.View)
+	return c.acceptParentCommit(msg, commit.Subject.View)
 }
 
-func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.Subject) error {
+func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
 	_, validator := c.valSet.GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit, msg.CommittedSeal, validator); err != nil {
+	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
 
@@ -156,11 +159,11 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.Subject) error {
+func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyCommit")
 
 	sub := c.current.Subject()
-	if !reflect.DeepEqual(commit, sub) {
+	if !reflect.DeepEqual(commit.Subject, sub) {
 		logger.Warn("Inconsistent subjects between commit and proposal", "expected", sub, "got", commit)
 		return errInconsistentSubject
 	}
@@ -169,9 +172,9 @@ func (c *core) verifyCommit(commit *istanbul.Subject) error {
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(sub *istanbul.Subject, committedSeal []byte, src istanbul.Validator) error {
-	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, committedSeal, false)
+func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false)
 }
 
 func (c *core) acceptCommit(msg *istanbul.Message) error {
