@@ -186,6 +186,39 @@ type Backend struct {
 	proxiedPeer consensus.Peer
 
 	newEpochCh chan struct{}
+
+	delegateSignFeed  event.Feed
+	delegateSignScope event.SubscriptionScope
+}
+
+func (sb *Backend) IsProxy() bool {
+	return sb.proxiedPeer != nil
+}
+
+func (sb *Backend) IsProxiedValidator() bool {
+	return sb.proxyNode != nil
+}
+
+// SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
+// if one exists
+func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
+	if !sb.IsProxiedValidator() {
+		err := errors.New("No Proxy found")
+		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
+		return err
+	}
+	return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
+}
+
+// SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
+// proxied validator if one exists
+func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
+	if !sb.IsProxy() {
+		err := errors.New("No Proxied Validator found")
+		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
+		return err
+	}
+	return sb.proxiedPeer.Send(istanbulDelegateSign, msg)
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -207,6 +240,7 @@ func (sb *Backend) Address() common.Address {
 
 // Close the backend
 func (sb *Backend) Close() error {
+	sb.delegateSignScope.Close()
 	return sb.valEnodeTable.Close()
 }
 
