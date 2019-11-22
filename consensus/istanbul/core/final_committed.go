@@ -21,6 +21,5 @@ import "github.com/ethereum/go-ethereum/common"
 func (c *core) handleFinalCommitted() error {
 	logger := c.newLogger("func", "handleFinalCommitted")
 	logger.Trace("Received a final committed proposal")
-	c.startNewRound(common.Big0)
-	return nil
+	return c.startNewRound(common.Big0)
 }

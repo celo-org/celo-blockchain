@@ -17,12 +17,14 @@
 package validator
 
 import (
+	"io"
 	"math"
 	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
@@ -42,6 +44,33 @@ func (val *defaultValidator) String() string {
 	return val.Address().String()
 }
 
+type defaultValidatorRLP struct {
+	Address      common.Address
+	BlsPublicKey []byte
+}
+
+func (val *defaultValidator) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes(val)
+}
+
+func (val *defaultValidator) EncodeRLP(w io.Writer) error {
+	entry := defaultValidatorRLP{
+		Address:      val.address,
+		BlsPublicKey: val.blsPublicKey,
+	}
+	return rlp.Encode(w, entry)
+}
+
+func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
+	var v defaultValidatorRLP
+	if err := stream.Decode(&v); err != nil {
+		return err
+	}
+
+	*val = defaultValidator{v.Address, v.BlsPublicKey}
+	return nil
+}
+
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
@@ -50,6 +79,40 @@ type defaultSet struct {
 	// This is set when we call `getOrderedValidators`
 	// TODO Rename to `EpochState` that has validators & randomness
 	randomness common.Hash
+}
+
+type defaultSetRLP struct {
+	Validators []*defaultValidator
+	Randomness common.Hash
+}
+
+func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
+	var v defaultSetRLP
+	if err := stream.Decode(&v); err != nil {
+		return err
+	}
+
+	validators := make([]istanbul.Validator, len(v.Validators))
+	for i := range v.Validators {
+		validators[i] = v.Validators[i]
+	}
+
+	*val = defaultSet{
+		validators: validators,
+		randomness: v.Randomness,
+	}
+	return nil
+}
+
+func (val *defaultSet) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{
+		val.validators,
+		val.randomness,
+	})
+}
+
+func (val *defaultSet) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes(val)
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {

@@ -154,7 +154,12 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
-		c.commit()
+		err := c.commit()
+		if err != nil {
+			logger.Error("Failed to commit()", "err", err)
+			return err
+		}
+
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.current.State().Cmp(StatePrepared) < 0 {
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
