@@ -35,6 +35,7 @@ type Config struct {
 	ProposerPolicy       ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	ValidatorEnodeDBPath string         `toml:",omitempty"` // The location for the validator enodes DB
+	RoundStateDBPath     string         `toml:",omitempty"` // The location for the round states DB
 
 	// Proxy Configs
 	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
@@ -52,6 +53,7 @@ var DefaultConfig = &Config{
 	ProposerPolicy:       ShuffledRoundRobin,
 	Epoch:                30000,
 	ValidatorEnodeDBPath: "validatorenodes",
+	RoundStateDBPath:     "roundstates",
 	Proxy:                false,
 	Proxied:              false,
 }

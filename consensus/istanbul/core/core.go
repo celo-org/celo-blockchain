@@ -149,8 +149,11 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 }
 
-func (c *core) commit() {
-	c.current.TransitionToCommited()
+func (c *core) commit() error {
+	err := c.current.TransitionToCommited()
+	if err != nil {
+		return err
+	}
 
 	// Process Backlog Messages
 	c.processBacklog()
@@ -160,13 +163,14 @@ func (c *core) commit() {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
 			c.sendNextRoundChange()
-			return
+			return nil
 		}
 		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
 			c.sendNextRoundChange()
-			return
+			return nil
 		}
 	}
+	return nil
 }
 
 // GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
@@ -270,16 +274,14 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 }
 
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
-func (c *core) startNewRound(round *big.Int) {
+func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
 
 	roundChange := false
 	// Try to get last proposal
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 
-	if c.current == nil {
-		logger.Trace("Start the initial round")
-	} else if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
+	if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
 		// Want to be working on the block 1 beyond the last committed block.
 		diff := new(big.Int).Sub(headBlock.Number(), c.current.Sequence())
 		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
@@ -293,15 +295,15 @@ func (c *core) startNewRound(round *big.Int) {
 		// Working on the block immediately after the last committed block.
 		if round.Cmp(c.current.Round()) == 0 {
 			logger.Trace("Already in the desired round.")
-			return
+			return nil
 		} else if round.Cmp(c.current.Round()) < 0 {
 			logger.Warn("New round should not be smaller than current round", "lastBlockNumber", headBlock.Number().Int64(), "new_round", round)
-			return
+			return nil
 		}
 		roundChange = true
 	} else {
 		logger.Warn("New sequence should be larger than current sequence", "new_seq", headBlock.Number().Int64())
-		return
+		return nil
 	}
 
 	// Generate next view and pre-prepare
@@ -309,11 +311,7 @@ func (c *core) startNewRound(round *big.Int) {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var request *istanbul.Request
 
-	var valSet istanbul.ValidatorSet
-	if c.current != nil {
-		valSet = c.current.ValidatorSet()
-	}
-
+	valSet := c.current.ValidatorSet()
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -324,12 +322,10 @@ func (c *core) startNewRound(round *big.Int) {
 		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
 		if err != nil {
 			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return
+			return nil
 		}
 	} else {
-		if c.current != nil {
-			request = c.current.PendingRequest()
-		}
+		request = c.current.PendingRequest()
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 			Round:    new(big.Int),
@@ -338,35 +334,37 @@ func (c *core) startNewRound(round *big.Int) {
 		c.roundChangeSet = newRoundChangeSet(valSet)
 	}
 
-	if c.current != nil {
-		// Update logger
-		logger = logger.New("old_proposer", c.current.Proposer())
-	}
+	logger = logger.New("old_proposer", c.current.Proposer())
 
 	// Calculate new proposer
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
-	c.resetRoundState(newView, valSet, nextProposer, roundChange)
+	err := c.resetRoundState(newView, valSet, nextProposer, roundChange)
+
+	if err != nil {
+		return err
+	}
 
 	// Process backlog
 	c.processPendingRequests()
 	c.processBacklog()
 
-	if roundChange && c.current != nil && c.isProposer() && request != nil {
+	if roundChange && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.newRoundChangeTimer()
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	return nil
 }
 
 // All actions that occur when transitioning to waiting for round change state.
-func (c *core) waitForDesiredRound(r *big.Int) {
+func (c *core) waitForDesiredRound(r *big.Int) error {
 	logger := c.newLogger("func", "waitForDesiredRound", "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
 
 	// Don't wait for an older round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		logger.Debug("New desired round not greater than current desired round")
-		return
+		return nil
 	}
 
 	logger.Debug("Waiting for desired round")
@@ -378,7 +376,10 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 	nextProposer := c.selectProposer(c.current.ValidatorSet(), headAuthor, r.Uint64())
-	c.current.TransitionToWaitingForNewRound(r, nextProposer)
+	err := c.current.TransitionToWaitingForNewRound(r, nextProposer)
+	if err != nil {
+		return err
+	}
 
 	c.newRoundChangeTimerForView(desiredView)
 
@@ -387,33 +388,30 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 
 	// Send round change
 	c.sendRoundChange(r)
+	return nil
 }
 
-func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) {
+func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) error {
 	// TODO(Joshua): Include desired round here.
-	if c.current == nil {
-		// When the current round is nil, we must start with the current validator set in the parent commits
-		// either `validatorSet` or `backend.Validators(lastProposal)` works here
-		c.current = newRoundState(view, validatorSet, nextProposer)
-	} else if roundChange {
-		c.current.StartNewRound(view.Round, validatorSet, nextProposer)
-	} else {
-		// sequence change
-
-		var newParentCommits MessageSet
-		lastSubject, err := c.backend.LastSubject()
-		if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
-			// When changing sequences, if our current Commit messages match the latest block in the chain
-			// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
-			// in the next round.
-			newParentCommits = c.current.Commits()
-		} else {
-			// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
-			headBlock := c.backend.GetCurrentHeadBlock()
-			newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
-		}
-		c.current.StartNewSequence(view, validatorSet, nextProposer, newParentCommits)
+	if roundChange {
+		return c.current.StartNewRound(view.Round, validatorSet, nextProposer)
 	}
+
+	// sequence change
+	var newParentCommits MessageSet
+	lastSubject, err := c.backend.LastSubject()
+	if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+		// When changing sequences, if our current Commit messages match the latest block in the chain
+		// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
+		// in the next round.
+		newParentCommits = c.current.Commits()
+	} else {
+		// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
+		headBlock := c.backend.GetCurrentHeadBlock()
+		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
+	}
+	return c.current.StartNewSequence(view, validatorSet, nextProposer, newParentCommits)
+
 }
 
 func (c *core) isProposer() bool {

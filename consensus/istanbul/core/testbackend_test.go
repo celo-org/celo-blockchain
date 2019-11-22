@@ -351,6 +351,7 @@ func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState fun
 	sys := newTestSystem(n, f, blsKeys)
 	config := *istanbul.DefaultConfig
 	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)

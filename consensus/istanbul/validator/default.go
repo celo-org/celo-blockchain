@@ -17,12 +17,14 @@
 package validator
 
 import (
+	"io"
 	"math"
 	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
@@ -42,12 +44,61 @@ func (val *defaultValidator) String() string {
 	return val.Address().String()
 }
 
+type defaultValidatorRLP struct {
+	Address      common.Address
+	BlsPublicKey []byte
+}
+
+func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
+	var v defaultValidatorRLP
+	if err := stream.Decode(&v); err != nil {
+		return err
+	}
+
+	*val = defaultValidator{v.Address, v.BlsPublicKey}
+	return nil
+}
+
+func (val *defaultValidator) EncodeRLP(w io.Writer) error {
+	entry := defaultValidatorRLP{
+		Address:      val.address,
+		BlsPublicKey: val.blsPublicKey,
+	}
+	return rlp.Encode(w, entry)
+}
+
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
 	validators  istanbul.Validators
 	validatorMu sync.RWMutex
 	randomness  common.Hash
+}
+
+type defaultSetRLP struct {
+	Validators istanbul.Validators
+	Randomness common.Hash
+}
+
+func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
+	var v defaultSetRLP
+	if err := stream.Decode(&v); err != nil {
+		return err
+	}
+
+	*val = defaultSet{
+		validators: v.Validators,
+		randomness: v.Randomness,
+	}
+	return nil
+}
+
+func (val *defaultSet) EncodeRLP(w io.Writer) error {
+	entry := defaultSetRLP{
+		Validators: val.validators,
+		Randomness: val.randomness,
+	}
+	return rlp.Encode(w, entry)
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {

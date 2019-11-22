@@ -32,8 +32,23 @@ func (c *core) ParentCommits() MessageSet {
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
-	// Start a new round from last sequence + 1
-	c.startNewRound(common.Big0)
+	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+	valSet := c.backend.Validators(headBlock)
+
+	nextBlock := new(big.Int).Add(headBlock.Number(), common.Big1)
+	nextProposer := c.selectProposer(valSet, headAuthor, 0)
+	roundState, err := newRoundStateWithPersistence(nextBlock, valSet, nextProposer, c.config.RoundStateDBPath)
+	if err != nil {
+		return err
+	}
+	c.current = roundState
+	c.roundChangeSet = newRoundChangeSet(valSet)
+
+	c.newRoundChangeTimer()
+
+	// Process backlog
+	c.processPendingRequests()
+	c.processBacklog()
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -124,7 +139,9 @@ func (c *core) handleEvents() {
 			}
 			switch ev := event.Data.(type) {
 			case timeoutEvent:
-				c.handleTimeoutMsg(ev.view)
+				if err := c.handleTimeoutMsg(ev.view); err != nil {
+					c.logger.Error("Error on handleTimeoutMsg", "err", err)
+				}
 			}
 		case event, ok := <-c.finalCommittedSub.Chan():
 			if !ok {
@@ -132,7 +149,9 @@ func (c *core) handleEvents() {
 			}
 			switch event.Data.(type) {
 			case istanbul.FinalCommittedEvent:
-				c.handleFinalCommitted()
+				if err := c.handleFinalCommitted(); err != nil {
+					c.logger.Error("Error on handleFinalCommit", "err", err)
+				}
 			}
 		}
 	}
@@ -191,10 +210,10 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
+func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) error {
 	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
 	logger.Trace("Timed out, trying to wait for next round")
 
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
-	c.waitForDesiredRound(nextRound)
+	return c.waitForDesiredRound(nextRound)
 }

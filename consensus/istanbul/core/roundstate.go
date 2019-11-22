@@ -17,14 +17,27 @@
 package core
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"math/big"
+	"os"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/syndtr/goleveldb/leveldb"
+	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/storage"
+)
+
+const (
+	dbVersion    = 1
+	dbVersionKey = "version"  // Version of the database to flush if changes
+	lastViewKey  = "lastView" // Last View that we know of
 )
 
 var (
@@ -55,14 +68,114 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prop
 	}
 }
 
+func newRoundStateWithPersistence(sequence *big.Int, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator, path string) (RoundState, error) {
+	// create DB
+	var db *leveldb.DB
+	var err error
+	if path == "" {
+		db, err = newMemoryDB()
+	} else {
+		db, err = newPersistentDB(path)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	view := &istanbul.View{
+		Sequence: sequence,
+		Round:    common.Big0,
+	}
+
+	lastStoredView, err := getLastStoredView(db)
+
+	if err != nil && err != leveldb.ErrNotFound {
+		db.Close()
+		return nil, err
+	}
+
+	if err == leveldb.ErrNotFound || lastStoredView.Cmp(view) < 0 {
+		return &roundStatePersistence{
+			db:       db,
+			delegate: newRoundState(view, validatorSet, proposer),
+		}, nil
+	}
+
+	lastStoredRoundState, err := getStoredRoundState(db, lastStoredView)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return &roundStatePersistence{
+		db:       db,
+		delegate: lastStoredRoundState,
+	}, nil
+}
+
+// newMemoryDB creates a new in-memory node database without a persistent backend.
+func newMemoryDB() (*leveldb.DB, error) {
+	db, err := leveldb.Open(storage.NewMemStorage(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+// newPersistentNodeDB creates/opens a leveldb backed persistent node database,
+// also flushing its contents in case of a version mismatch.
+func newPersistentDB(path string) (*leveldb.DB, error) {
+	opts := &opt.Options{OpenFilesCacheCapacity: 5}
+	db, err := leveldb.OpenFile(path, opts)
+	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
+		db, err = leveldb.RecoverFile(path, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The nodes contained in the cache correspond to a certain protocol version.
+	// Flush all nodes if the version doesn't match.
+	currentVer := make([]byte, binary.MaxVarintLen64)
+	currentVer = currentVer[:binary.PutVarint(currentVer, int64(dbVersion))]
+
+	blob, err := db.Get([]byte(dbVersionKey), nil)
+	switch err {
+	case leveldb.ErrNotFound:
+		// Version not found (i.e. empty cache), insert it
+		if err := db.Put([]byte(dbVersionKey), currentVer, nil); err != nil {
+			db.Close()
+			return nil, err
+		}
+
+	case nil:
+		// Version present, flush if different
+		if !bytes.Equal(blob, currentVer) {
+			db.Close()
+			if err = os.RemoveAll(path); err != nil {
+				return nil, err
+			}
+			return newPersistentDB(path)
+		}
+	}
+	return db, nil
+}
+
 type RoundState interface {
-	State() State
-	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator)
-	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet)
-	TransitionToPreprepared(preprepare *istanbul.Preprepare)
-	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator)
-	TransitionToCommited()
+	// mutation functions
+	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error
+	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error
+	TransitionToPreprepared(preprepare *istanbul.Preprepare) error
+	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error
+	TransitionToCommited() error
 	TransitionToPrepared(quorumSize int) error
+	AddCommit(msg *istanbul.Message) error
+	AddPrepare(msg *istanbul.Message) error
+	AddParentCommit(msg *istanbul.Message) error
+	SetPendingRequest(pendingRequest *istanbul.Request) error
+
+	// view functions
+	DesiredRound() *big.Int
+	State() State
 	GetPrepareOrCommitSize() int
 	GetValidatorByAddress(address common.Address) istanbul.Validator
 	ValidatorSet() istanbul.ValidatorSet
@@ -72,14 +185,9 @@ type RoundState interface {
 	Preprepare() *istanbul.Preprepare
 	Proposal() istanbul.Proposal
 	Round() *big.Int
-	DesiredRound() *big.Int
-	AddCommit(msg *istanbul.Message) error
-	AddPrepare(msg *istanbul.Message) error
-	AddParentCommit(msg *istanbul.Message) error
 	Commits() MessageSet
 	Prepares() MessageSet
 	ParentCommits() MessageSet
-	SetPendingRequest(pendingRequest *istanbul.Request)
 	PendingRequest() *istanbul.Request
 	Sequence() *big.Int
 	View() *istanbul.View
@@ -234,14 +342,15 @@ func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.V
 	s.preprepare = nil
 }
 
-func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) {
+func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.changeRound(nextRound, validatorSet, nextProposer)
+	return nil
 }
 
-func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) {
+func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -253,30 +362,34 @@ func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet ista
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
 	s.pendingRequest = nil
 	s.parentCommits = parentCommits
+	return nil
 }
 
-func (s *roundStateImpl) TransitionToCommited() {
+func (s *roundStateImpl) TransitionToCommited() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.state = StateCommitted
+	return nil
 }
 
-func (s *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepare) {
+func (s *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.preprepare = preprepare
 	s.state = StatePreprepared
+	return nil
 }
 
-func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) {
+func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.desiredRound = new(big.Int).Set(r)
 	s.proposer = nextProposer
 	s.state = StateWaitingForNewRound
+	return nil
 }
 
 // TransitionToPrepared will create a PreparedCertificate and change state to Prepared
@@ -339,11 +452,12 @@ func (s *roundStateImpl) DesiredRound() *big.Int {
 	return s.desiredRound
 }
 
-func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) {
+func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.pendingRequest = pendingRequest
+	return nil
 }
 
 func (s *roundStateImpl) PendingRequest() *istanbul.Request {
@@ -365,28 +479,42 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	return s.preparedCertificate
 }
 
+type roundStateRLP struct {
+	State               State
+	Round               *big.Int
+	DesiredRound        *big.Int
+	Sequence            *big.Int
+	Preprepare          *istanbul.Preprepare
+	Prepares            MessageSet
+	Commits             MessageSet
+	Proposer            istanbul.Validator
+	ValidatorSet        istanbul.ValidatorSet
+	ParentCommits       MessageSet
+	PendingRequest      *istanbul.Request
+	PreparedCertificate istanbul.PreparedCertificate
+}
+
 // The DecodeRLP method should read one value from the given
 // Stream. It is not forbidden to read less or more, but it might
 // be confusing.
 func (s *roundStateImpl) DecodeRLP(stream *rlp.Stream) error {
-	var ss struct {
-		Round          *big.Int
-		Sequence       *big.Int
-		Preprepare     *istanbul.Preprepare
-		Prepares       MessageSet
-		Commits        MessageSet
-		pendingRequest *istanbul.Request
-	}
-
+	var ss roundStateRLP
 	if err := stream.Decode(&ss); err != nil {
 		return err
 	}
+
+	s.state = ss.State
 	s.round = ss.Round
+	s.desiredRound = ss.DesiredRound
 	s.sequence = ss.Sequence
 	s.preprepare = ss.Preprepare
 	s.prepares = ss.Prepares
 	s.commits = ss.Commits
-	s.pendingRequest = ss.pendingRequest
+	s.proposer = ss.Proposer
+	s.validatorSet = ss.ValidatorSet
+	s.parentCommits = ss.ParentCommits
+	s.pendingRequest = ss.PendingRequest
+	s.preparedCertificate = ss.PreparedCertificate
 	s.mu = new(sync.RWMutex)
 
 	return nil
@@ -404,12 +532,223 @@ func (s *roundStateImpl) EncodeRLP(w io.Writer) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return rlp.Encode(w, []interface{}{
-		s.round,
-		s.sequence,
-		s.preprepare,
-		s.prepares,
-		s.commits,
-		s.pendingRequest,
-	})
+	entry := roundStateRLP{
+		State:               s.state,
+		Round:               s.round,
+		DesiredRound:        s.desiredRound,
+		Sequence:            s.sequence,
+		Preprepare:          s.preprepare,
+		Prepares:            s.prepares,
+		Commits:             s.commits,
+		Proposer:            s.proposer,
+		ValidatorSet:        s.validatorSet,
+		ParentCommits:       s.parentCommits,
+		PendingRequest:      s.pendingRequest,
+		PreparedCertificate: s.preparedCertificate,
+	}
+	return rlp.Encode(w, entry)
+}
+
+type roundStatePersistence struct {
+	delegate RoundState
+	db       *leveldb.DB //the actual DB
+}
+
+// mutation functions
+func (rsp *roundStatePersistence) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
+	err := rsp.delegate.StartNewRound(nextRound, validatorSet, nextProposer)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
+	err := rsp.delegate.StartNewSequence(view, validatorSet, nextProposer, parentCommits)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
+	err := rsp.delegate.TransitionToPreprepared(preprepare)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
+	err := rsp.delegate.TransitionToWaitingForNewRound(r, nextProposer)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) TransitionToCommited() error {
+	err := rsp.delegate.TransitionToCommited()
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) TransitionToPrepared(quorumSize int) error {
+	err := rsp.delegate.TransitionToPrepared(quorumSize)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) AddCommit(msg *istanbul.Message) error {
+	err := rsp.delegate.AddCommit(msg)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) AddPrepare(msg *istanbul.Message) error {
+	err := rsp.delegate.AddPrepare(msg)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) AddParentCommit(msg *istanbul.Message) error {
+	err := rsp.delegate.AddParentCommit(msg)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+func (rsp *roundStatePersistence) SetPendingRequest(pendingRequest *istanbul.Request) error {
+	err := rsp.delegate.SetPendingRequest(pendingRequest)
+	if err != nil {
+		return err
+	}
+
+	return rsp.storeRoundState()
+}
+
+// DesiredRound implements RoundState.DesiredRound
+func (rsp *roundStatePersistence) DesiredRound() *big.Int { return rsp.delegate.DesiredRound() }
+
+// State implements RoundState.State
+func (rsp *roundStatePersistence) State() State { return rsp.delegate.State() }
+
+// Proposer implements RoundState.Proposer
+func (rsp *roundStatePersistence) Proposer() istanbul.Validator { return rsp.delegate.Proposer() }
+
+// Subject implements RoundState.Subject
+func (rsp *roundStatePersistence) Subject() *istanbul.Subject { return rsp.delegate.Subject() }
+
+// Proposal implements RoundState.Proposal
+func (rsp *roundStatePersistence) Proposal() istanbul.Proposal { return rsp.delegate.Proposal() }
+
+// Round implements RoundState.Round
+func (rsp *roundStatePersistence) Round() *big.Int { return rsp.delegate.Round() }
+
+// Commits implements RoundState.Commits
+func (rsp *roundStatePersistence) Commits() MessageSet { return rsp.delegate.Commits() }
+
+// Prepares implements RoundState.Prepares
+func (rsp *roundStatePersistence) Prepares() MessageSet { return rsp.delegate.Prepares() }
+
+// ParentCommits implements RoundState.ParentCommits
+func (rsp *roundStatePersistence) ParentCommits() MessageSet { return rsp.delegate.ParentCommits() }
+
+// Sequence implements RoundState.Sequence
+func (rsp *roundStatePersistence) Sequence() *big.Int { return rsp.delegate.Sequence() }
+
+// View implements RoundState.View
+func (rsp *roundStatePersistence) View() *istanbul.View { return rsp.delegate.View() }
+
+// GetPrepareOrCommitSize implements RoundState.GetPrepareOrCommitSize
+func (rsp *roundStatePersistence) GetPrepareOrCommitSize() int {
+	return rsp.delegate.GetPrepareOrCommitSize()
+}
+
+// GetValidatorByAddress implements RoundState.GetValidatorByAddress
+func (rsp *roundStatePersistence) GetValidatorByAddress(address common.Address) istanbul.Validator {
+	return rsp.delegate.GetValidatorByAddress(address)
+}
+
+// ValidatorSet implements RoundState.ValidatorSet
+func (rsp *roundStatePersistence) ValidatorSet() istanbul.ValidatorSet {
+	return rsp.delegate.ValidatorSet()
+}
+
+// IsProposer implements RoundState.IsProposer
+func (rsp *roundStatePersistence) IsProposer(address common.Address) bool {
+	return rsp.delegate.IsProposer(address)
+}
+
+// Preprepare implements RoundState.Preprepare
+func (rsp *roundStatePersistence) Preprepare() *istanbul.Preprepare {
+	return rsp.delegate.Preprepare()
+}
+
+// PendingRequest implements RoundState.PendingRequest
+func (rsp *roundStatePersistence) PendingRequest() *istanbul.Request {
+	return rsp.delegate.PendingRequest()
+}
+
+// PreparedCertificate implements RoundState.PreparedCertificate
+func (rsp *roundStatePersistence) PreparedCertificate() istanbul.PreparedCertificate {
+	return rsp.delegate.PreparedCertificate()
+}
+
+func (rsp *roundStatePersistence) storeRoundState() error {
+	viewKey, err := rlp.EncodeToBytes(rsp.delegate.View())
+	if err != nil {
+		return err
+	}
+
+	entryBytes, err := rlp.EncodeToBytes(rsp)
+	if err != nil {
+		return err
+	}
+
+	batch := new(leveldb.Batch)
+	batch.Put([]byte(lastViewKey), viewKey)
+	batch.Put(viewKey, entryBytes)
+
+	return rsp.db.Write(batch, nil)
+}
+
+func getLastStoredView(db *leveldb.DB) (*istanbul.View, error) {
+	rawEntry, err := db.Get([]byte(lastViewKey), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var entry istanbul.View
+	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+func getStoredRoundState(db *leveldb.DB, view *istanbul.View) (RoundState, error) {
+	viewKey, err := rlp.EncodeToBytes(view)
+	if err != nil {
+		return nil, err
+	}
+
+	rawEntry, err := db.Get(viewKey, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var entry roundStateImpl
+	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
+		return nil, err
+	}
+	return &entry, nil
 }

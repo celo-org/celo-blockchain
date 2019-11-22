@@ -1202,6 +1202,7 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
+	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
