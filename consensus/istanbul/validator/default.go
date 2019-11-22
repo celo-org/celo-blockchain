@@ -86,8 +86,7 @@ func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
 		return err
 	}
 
-	var validators []istanbul.Validator
-	validators = make([]istanbul.Validator, len(v.Validators), len(v.Validators))
+	var validators []istanbul.Validator = make([]istanbul.Validator, len(v.Validators))
 	for i := range v.Validators {
 		validators[i] = v.Validators[i]
 	}

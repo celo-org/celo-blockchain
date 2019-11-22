@@ -26,6 +26,15 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+type Uptime struct {
+	ScoreTally      uint64
+	LastSignedBlock uint64
+}
+
+func (u *Uptime) String() string {
+	return fmt.Sprintf("Uptime { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
+}
+
 // Proposal supports retrieving height and serialized block to be used during Istanbul consensus.
 type Proposal interface {
 	// Number retrieves the sequence number of this proposal.

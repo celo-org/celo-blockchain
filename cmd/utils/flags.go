@@ -203,6 +203,11 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
+	GatewayFeeFlag = BigFlag{
+		Name:  "gatewayfee",
+		Usage: "Minimum value of gateway fee to serve a light client transaction",
+		Value: eth.DefaultConfig.GatewayFee,
+	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
@@ -660,6 +665,11 @@ var (
 		Name:  "istanbul.proposerpolicy",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
+	}
+	IstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
+		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 
 	// Proxy node settings
@@ -1198,6 +1208,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
+		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}
@@ -1415,6 +1428,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
+	}
+	if ctx.GlobalIsSet(GatewayFeeFlag.Name) {
+		cfg.GatewayFee = GlobalBig(ctx, GatewayFeeFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.

@@ -239,8 +239,8 @@ func TestValidatorRLPEncoding(t *testing.T) {
 func TestValidatorSetRLPEncoding(t *testing.T) {
 
 	valSet := NewSet([]istanbul.ValidatorData{
-		istanbul.ValidatorData{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
-		istanbul.ValidatorData{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
+		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
 	})
 
 	rawVal, err := rlp.EncodeToBytes(valSet)
