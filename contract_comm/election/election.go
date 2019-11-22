@@ -181,7 +181,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			}
 		}
 
-		sort.Slice(voteTotals, func(j, k int) bool {
+		sort.SliceStable(voteTotals, func(j, k int) bool {
 			return voteTotals[j].Value.Cmp(voteTotals[k].Value) < 0
 		})
 
