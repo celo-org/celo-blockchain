@@ -163,11 +163,11 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if len(valSet.List()) != 2 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 2")
 	}
-	valSet.RemoveValidators(big.NewInt(2))                                    // remove second validator
+	valSet.RemoveValidators(big.NewInt(2))                              // remove second validator
 	if len(valSet.List()) != 1 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 1")
 	}
-	valSet.RemoveValidators(big.NewInt(1))                                    // remove third validator
+	valSet.RemoveValidators(big.NewInt(1))                              // remove third validator
 	if len(valSet.List()) != 0 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 0")
 	}

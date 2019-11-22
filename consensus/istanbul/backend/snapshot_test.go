@@ -19,9 +19,9 @@ package backend
 import (
 	"bytes"
 	"crypto/ecdsa"
-  "sort"
 	"math/big"
 	"reflect"
+	"sort"
 	"testing"
 
 	bls "github.com/celo-org/bls-zexe/go"
@@ -403,8 +403,8 @@ func TestValSetChange(t *testing.T) {
 			continue
 		}
 
-    sort.Sort(istanbul.ValidatorsDataByAddress(result))
-    sort.Sort(istanbul.ValidatorsDataByAddress(validators))
+		sort.Sort(istanbul.ValidatorsDataByAddress(result))
+		sort.Sort(istanbul.ValidatorsDataByAddress(validators))
 		for j := 0; j < len(result); j++ {
 			if !bytes.Equal(result[j].Address[:], validators[j].Address[:]) {
 				t.Errorf("test %d, validator %d: validator mismatch: have %x, want %x", i, j, result[j], validators[j])

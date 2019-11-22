@@ -17,9 +17,9 @@
 package istanbul
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
-  "bytes"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -84,11 +84,13 @@ func GetAddressesFromValidatorList(validators []Validator) []common.Address {
 type Validators []Validator
 
 type ValidatorsDataByAddress []ValidatorData
-func (a ValidatorsDataByAddress) Len() int           { return len(a) }
-func (a ValidatorsDataByAddress) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func (a ValidatorsDataByAddress) Len() int      { return len(a) }
+func (a ValidatorsDataByAddress) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a ValidatorsDataByAddress) Less(i, j int) bool {
-  return bytes.Compare(a[i].Address[:], a[j].Address[:]) < 0
+	return bytes.Compare(a[i].Address[:], a[j].Address[:]) < 0
 }
+
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
