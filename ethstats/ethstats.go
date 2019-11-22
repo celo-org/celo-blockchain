@@ -232,8 +232,8 @@ func (s *Service) loop() {
 		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
-		signCh = make(chan *StatsPayload, istDelegateSignChanSize)
-		sendCh = make(chan *StatsPayload, istDelegateSignChanSize)
+		signCh = make(chan *StatsPayload, 1)
+		sendCh = make(chan *StatsPayload, 1)
 	)
 	go func() {
 		var lastTx mclock.AbsTime
@@ -333,9 +333,6 @@ func (s *Service) loop() {
 				case head := <-headCh:
 					if err = s.reportBlock(conn, head); err != nil {
 						log.Warn("Block stats report failed", "err", err)
-					}
-					if err = s.reportPending(conn); err != nil {
-						log.Warn("Post-block transaction stats report failed", "err", err)
 					}
 				case <-txCh:
 					if err = s.reportPending(conn); err != nil {
