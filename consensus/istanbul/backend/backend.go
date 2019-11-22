@@ -222,7 +222,7 @@ func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.Va
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	validatorSet := sb.getValidators(blockNumber.Uint64(), headerHash)
-	return validatorSet.FilteredList()
+	return validatorSet.List()
 }
 
 // This function will return the peers with the addresses in the "destAddresses" parameter.

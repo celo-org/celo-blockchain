@@ -327,7 +327,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
 	publicKeys := [][]byte{}
-	for i := 0; i < validators.PaddedSize(); i++ {
+	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
 			publicKeys = append(publicKeys, pubKey)

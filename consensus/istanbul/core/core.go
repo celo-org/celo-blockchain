@@ -141,7 +141,7 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 
 	// Broadcast payload
-	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.FilteredList()), payload); err != nil {
+	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}
