@@ -258,9 +258,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	logger = logger.New("msgAddress", msg.Address, "msg_round", announceData.View.Round, "msg_seq", announceData.View.Sequence)
 
-	if view, err := sb.valEnodeTable.GetViewFromAddress(msg.Address); err == nil && announceData.View.Cmp(view) <= 0 {
-		logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
-		return errOldAnnounceMessage
+	if sb.coreStarted {
+		view, err := sb.valEnodeTable.GetViewFromAddress(msg.Address)
+		if err == nil && announceData.View.Cmp(view) <= 0 {
+			logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
+			return errOldAnnounceMessage
+		}
 	}
 
 	// If the message is not within the registered validator set, then ignore it
