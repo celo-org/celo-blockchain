@@ -783,18 +783,18 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'addSentry',
-			call: 'istanbul_addSentry',
+			name: 'addProxy',
+			call: 'istanbul_addProxy',
 			params: 2
 		}),
 		new web3._extend.Method({
-			name: 'removeSentry',
-			call: 'istanbul_removeSentry',
+			name: 'removeProxy',
+			call: 'istanbul_removeProxy',
 			params: 1
 		}),
 		new web3._extend.Property({
-			name: 'sentryInfo',
-			getter: 'istanbul_sentryInfo'
+			name: 'proxyInfo',
+			getter: 'istanbul_proxyInfo'
 		}),		
 	],
 	properties:
