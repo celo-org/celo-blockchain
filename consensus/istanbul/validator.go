@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
 
@@ -82,6 +83,14 @@ func GetAddressesFromValidatorList(validators []Validator) []common.Address {
 
 type Validators []Validator
 
+type ValidatorsDataByAddress []ValidatorData
+
+func (a ValidatorsDataByAddress) Len() int      { return len(a) }
+func (a ValidatorsDataByAddress) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ValidatorsDataByAddress) Less(i, j int) bool {
+	return bytes.Compare(a[i].Address[:], a[j].Address[:]) < 0
+}
+
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
@@ -97,7 +106,6 @@ type ValidatorSet interface {
 	SetRandomness(seed common.Hash)
 
 	// Return the validator size
-	PaddedSize() int
 	Size() int
 	// Get the maximum number of faulty nodes
 	F() int
@@ -106,10 +114,8 @@ type ValidatorSet interface {
 
 	// Return the validator array
 	List() []Validator
-	// Return the validator array without holes
-	FilteredList() []Validator
-	// Return the validator index in the filtered list
-	GetFilteredIndex(addr common.Address) int
+	// Return the validator index
+	GetIndex(addr common.Address) int
 	// Get validator by index
 	GetByIndex(i uint64) Validator
 	// Get validator by given address

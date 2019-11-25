@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"reflect"
+	"sort"
 	"testing"
 
 	bls "github.com/celo-org/bls-zexe/go"
@@ -187,7 +188,7 @@ func TestValSetChange(t *testing.T) {
 			epoch:       1,
 			validators:  []string{"A", "B"},
 			valsetdiffs: []testerValSetDiff{{proposer: "B", addedValidators: []string{}, removedValidators: []string{"A", "B"}}},
-			results:     []string{"", ""},
+			results:     []string{},
 			err:         nil,
 		}, {
 			// Three validator, add two validators and remove two validators
@@ -210,7 +211,7 @@ func TestValSetChange(t *testing.T) {
 			validators: []string{"A", "B", "C"},
 			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
 				{proposer: "E", addedValidators: []string{"F"}, removedValidators: []string{"A", "D"}}},
-			results: []string{"F", "", "E"},
+			results: []string{"F", "E"},
 			err:     nil,
 		}, {
 			// Three validator, add two validators and remove two validators.  Second header will add 1 validators and remove 2 validators.  The first header will
@@ -219,7 +220,7 @@ func TestValSetChange(t *testing.T) {
 			validators: []string{"A", "B", "C"},
 			valsetdiffs: []testerValSetDiff{{proposer: "A", addedValidators: []string{"D", "E"}, removedValidators: []string{"B", "C"}},
 				{proposer: "A", addedValidators: []string{"F"}, removedValidators: []string{"A", "B"}}},
-			results: []string{"F", "", "C"},
+			results: []string{"F", "C"},
 			err:     nil,
 		},
 	}
@@ -402,6 +403,8 @@ func TestValSetChange(t *testing.T) {
 			continue
 		}
 
+		sort.Sort(istanbul.ValidatorsDataByAddress(result))
+		sort.Sort(istanbul.ValidatorsDataByAddress(validators))
 		for j := 0; j < len(result); j++ {
 			if !bytes.Equal(result[j].Address[:], validators[j].Address[:]) {
 				t.Errorf("test %d, validator %d: validator mismatch: have %x, want %x", i, j, result[j], validators[j])
