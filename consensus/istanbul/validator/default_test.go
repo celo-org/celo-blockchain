@@ -159,18 +159,16 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if !valSet.RemoveValidators(big.NewInt(1)) { // remove first falidator
 		t.Error("the validator should be removed")
 	}
-	if valSet.RemoveValidators(big.NewInt(1)) {
-		t.Error("the non-existing validator should not be removed")
-	}
-	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 2 { // validators set should have the same padded size but reduced size
+
+	if len(valSet.List()) != 2 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 2")
 	}
-	valSet.RemoveValidators(big.NewInt(2))                                                          // remove second validator
-	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 1 { // validators set should have the same padded size but reduced size
+	valSet.RemoveValidators(big.NewInt(2))                              // remove second validator
+	if len(valSet.List()) != 1 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 1")
 	}
-	valSet.RemoveValidators(big.NewInt(4))                                                          // remove third validator
-	if len(valSet.List()) != 3 || len(valSet.List()) != valSet.PaddedSize() || valSet.Size() != 0 { // validators set should have the same padded size but reduced size
+	valSet.RemoveValidators(big.NewInt(1))                              // remove third validator
+	if len(valSet.List()) != 0 || len(valSet.List()) != valSet.Size() { // validators set should have the same size
 		t.Error("the size of validator set should be 0")
 	}
 }

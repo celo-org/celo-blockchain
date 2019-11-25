@@ -250,11 +250,11 @@ func accountProofOfPossession(ctx *cli.Context) error {
 
 	for _, addr := range ctx.Args() {
 		account, _ := unlockAccount(ctx, ks, addr, 0, nil)
-		pop, err := ks.GenerateProofOfPossession(account)
+		key, pop, err := ks.GenerateProofOfPossession(account)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Account {%x}: %s\n", account.Address, hex.EncodeToString(pop))
+		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
 	}
 
 	return nil

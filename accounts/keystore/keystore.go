@@ -353,51 +353,47 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return nil, nil, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer privateKey.Destroy()
 
 	signature, err := privateKey.SignPoP(a.Address.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	publicKey, err := privateKey.ToPublic()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer publicKey.Destroy()
 	publicKeyBytes, err := publicKey.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	popBytes := []byte{}
-	popBytes = append(popBytes, publicKeyBytes...)
-	popBytes = append(popBytes, signatureBytes...)
-
-	return popBytes, nil
+	return publicKeyBytes, signatureBytes, nil
 }
 
 // Retrieve the ECDSA public key for a given account.
