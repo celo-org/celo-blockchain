@@ -117,13 +117,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
-	vph := &validatorPeerHandler{sb: backend}
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
-	if err != nil {
-		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
-	}
-	backend.valEnodeTable = table
-
 	return backend
 }
 
@@ -241,7 +234,7 @@ func (sb *Backend) Address() common.Address {
 // Close the backend
 func (sb *Backend) Close() error {
 	sb.delegateSignScope.Close()
-	return sb.valEnodeTable.Close()
+	return nil
 }
 
 // Validators implements istanbul.Backend.Validators

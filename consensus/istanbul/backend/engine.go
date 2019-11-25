@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -624,6 +625,14 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 		return istanbul.ErrStartedEngine
 	}
 
+	vph := &validatorPeerHandler{sb: sb}
+	table, err := enodes.OpenValidatorEnodeDB(sb.config.ValidatorEnodeDBPath, vph)
+	if err != nil {
+		sb.logger.Error("Can't open ValidatorEnodeDB", "err", err, "dbpath", sb.config.ValidatorEnodeDBPath)
+		return err
+	}
+	sb.valEnodeTable = table
+
 	// clear previous data
 	sb.proposedBlockHash = common.Hash{}
 	if sb.commitCh != nil {
@@ -676,6 +685,12 @@ func (sb *Backend) Stop() error {
 
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
+
+	err := sb.valEnodeTable.Close()
+	if err != nil {
+		return err
+	}
+	sb.valEnodeTable = nil
 
 	if sb.config.Proxied {
 		sb.valEnodesShareQuit <- struct{}{}
