@@ -42,7 +42,7 @@ func TestCheckMessage(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
-		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4)),
 	}
 
 	// invalid view format
@@ -313,7 +313,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4)),
 	}
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
@@ -426,7 +426,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4)),
 	}
 	c.current.(*roundStateImpl).state = State(msg.Code)
 	c.subscribeEvents()

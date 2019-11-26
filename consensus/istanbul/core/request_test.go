@@ -34,7 +34,7 @@ func TestCheckRequestMsg(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4)),
 	}
 
 	// invalid request
@@ -88,7 +88,7 @@ func TestStoreRequestMsg(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, newTestValidatorSet(4)),
 		pendingRequests:   prque.New(nil),
 		pendingRequestsMu: new(sync.Mutex),
 	}
