@@ -58,7 +58,7 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prop
 type RoundState interface {
 	State() State
 	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator)
-	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet)
+	StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet)
 	TransitionToPreprepared(preprepare *istanbul.Preprepare)
 	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator)
 	TransitionToCommited()
@@ -241,15 +241,15 @@ func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul
 	s.changeRound(nextRound, validatorSet, nextProposer)
 }
 
-func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) {
+func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.validatorSet = validatorSet
 
-	s.changeRound(view.Round, validatorSet, nextProposer)
+	s.changeRound(big.NewInt(0), validatorSet, nextProposer)
 
-	s.sequence = view.Sequence
+	s.sequence = nextSequence
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
 	s.pendingRequest = nil
 	s.parentCommits = parentCommits

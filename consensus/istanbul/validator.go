@@ -85,7 +85,8 @@ type Validators []Validator
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
-	// Sets the randomness for use in the proposer policy
+	// Sets the randomness for use in the proposer policy.
+	// This is injected into the ValidatorSet when we call `getOrderedValidators`
 	SetRandomness(seed common.Hash)
 	// Sets the randomness for use in the proposer policy
 	GetRandomness() common.Hash

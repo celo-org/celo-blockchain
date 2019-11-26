@@ -400,6 +400,11 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 	} else {
 		// sequence change
 
+		// TODO remove this when we refactor startNewRound()
+		if view.Round.Cmp(common.Big0) != 0 {
+			c.logger.Crit("BUG: DevError: trying to start a new sequence with round != 0", "wanted_round", view.Round)
+		}
+
 		var newParentCommits MessageSet
 		lastSubject, err := c.backend.LastSubject()
 		if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
@@ -412,7 +417,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 			headBlock := c.backend.GetCurrentHeadBlock()
 			newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 		}
-		c.current.StartNewSequence(view, validatorSet, nextProposer, newParentCommits)
+		c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 	}
 }
 

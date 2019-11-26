@@ -47,7 +47,9 @@ func (val *defaultValidator) String() string {
 type defaultSet struct {
 	validators  istanbul.Validators
 	validatorMu sync.RWMutex
-	randomness  common.Hash
+	// This is set when we call `getOrderedValidators`
+	// TODO Rename to `EpochState` that has validators & randomness
+	randomness common.Hash
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
