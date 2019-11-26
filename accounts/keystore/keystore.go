@@ -353,7 +353,7 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, []byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -374,7 +374,7 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, []byt
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignPoP(a.Address.Bytes())
+	signature, err := privateKey.SignPoP(address.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}
