@@ -1,2 +1,2 @@
 stty cols 150
-geth
+geth "$@"
