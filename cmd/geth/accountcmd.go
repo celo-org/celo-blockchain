@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -242,20 +243,20 @@ func accountList(ctx *cli.Context) error {
 }
 
 func accountProofOfPossession(ctx *cli.Context) error {
-	if len(ctx.Args()) == 0 {
-		utils.Fatalf("No accounts specified to update")
+	if len(ctx.Args()) != 2 {
+		utils.Fatalf("Please specify the address from which to generate the BLS key, and the address to sign as proof-of-possession.")
 	}
 	stack, _ := makeConfigNode(ctx)
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	for _, addr := range ctx.Args() {
-		account, _ := unlockAccount(ctx, ks, addr, 0, nil)
-		key, pop, err := ks.GenerateProofOfPossession(account)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+	blsAddr := ctx.Args()[0]
+	popAddr := common.HexToAddress(ctx.Args()[1])
+	account, _ := unlockAccount(ctx, ks, blsAddr, 0, nil)
+	key, pop, err := ks.GenerateProofOfPossession(account, popAddr)
+	if err != nil {
+		return err
 	}
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
 
 	return nil
 }

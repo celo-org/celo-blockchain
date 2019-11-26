@@ -374,7 +374,7 @@ func (c *core) updateRoundState(view *istanbul.View, validatorSet istanbul.Valid
 			c.current = newRoundState(view, validatorSet, nil, c.current.PendingRequest(), c.current.PreparedCertificate(), c.current.ParentCommits())
 		} else {
 			lastSubject, err := c.backend.LastSubject()
-			if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+			if err == nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
 				// When changing sequences, if our current Commit messages match the latest block in the chain
 				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
 				// in the next round.
