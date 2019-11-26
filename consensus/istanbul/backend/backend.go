@@ -700,7 +700,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 		return
 	}
 
-	sb.valEnodeTable.RefreshValPeers(valset, sb.Address())
+	sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
