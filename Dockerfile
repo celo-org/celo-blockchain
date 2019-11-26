@@ -38,5 +38,4 @@ COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 ADD scripts/run_geth_in_docker.sh /
 
 EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["sh"]
-CMD ["/run_geth_in_docker.sh"]
+ENTRYPOINT ["sh", "/run_geth_in_docker.sh"]
