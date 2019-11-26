@@ -60,7 +60,6 @@ var (
 const (
 	bodyCacheLimit      = 256
 	blockCacheLimit     = 256
-	uptimeCacheLimit    = 16
 	receiptsCacheLimit  = 32
 	maxFutureBlocks     = 256
 	maxTimeFutureBlocks = 30
@@ -115,9 +114,10 @@ type BlockChain struct {
 	chainmu sync.RWMutex // blockchain insertion lock
 	procmu  sync.RWMutex // block processor lock
 
-	checkpoint       int          // checkpoint counts towards the new checkpoint
-	currentBlock     atomic.Value // Current head of the block chain
-	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
+	checkpoint         int          // checkpoint counts towards the new checkpoint
+	currentBlock       atomic.Value // Current head of the block chain
+	currentFastBlock   atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
+	lastMonitoredBlock uint64       // Latest block for which we calculated the uptime for (only usable with Istanbul)
 
 	stateCache    state.Database // State database to reuse between imports (contains state cache)
 	bodyCache     *lru.Cache     // Cache for the most recent block bodies
@@ -125,7 +125,6 @@ type BlockChain struct {
 	receiptsCache *lru.Cache     // Cache for the most recent receipts per block
 	blockCache    *lru.Cache     // Cache for the most recent entire blocks
 	futureBlocks  *lru.Cache     // future blocks are blocks added for later processing
-	uptimeCache   *lru.Cache     // Cache for the most recent uptimes
 
 	quit    chan struct{} // blockchain quit channel
 	running int32         // running must be called atomically
@@ -157,7 +156,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	receiptsCache, _ := lru.New(receiptsCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
-	uptimeCache, _ := lru.New(uptimeCacheLimit)
 	futureBlocks, _ := lru.New(maxFutureBlocks)
 	badBlocks, _ := lru.New(badBlockLimit)
 
@@ -173,7 +171,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		bodyRLPCache:   bodyRLPCache,
 		receiptsCache:  receiptsCache,
 		blockCache:     blockCache,
-		uptimeCache:    uptimeCache,
 		futureBlocks:   futureBlocks,
 		engine:         engine,
 		vmConfig:       vmConfig,
@@ -1020,9 +1017,14 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 	// We are going to update the uptime tally.
 	if bc.engine.Protocol().Name == "istanbul" {
+		// We only update the uptime for blocks which are greater than the last block we saw.
+		// This ensures that we do not count the same block twice for any reason.
+		latestMonitoredBlock := bc.lastMonitoredBlock
+		// Update the last block we have monitored for the Tally
+		bc.lastMonitoredBlock = block.NumberU64()
 		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
 		// We can ignore updating the tally for that block.
-		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
+		if latestMonitoredBlock < block.NumberU64() && !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
 			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
 
 			// Get the uptime scores
