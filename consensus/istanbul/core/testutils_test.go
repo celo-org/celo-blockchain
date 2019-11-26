@@ -21,13 +21,7 @@ import (
 )
 
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	current := newRoundState(
-		view,
-		validatorSet,
-		nil,
-		istanbul.PreparedCertificate{},
-		newMessageSet(validatorSet),
-	)
+	current := newRoundState(view, validatorSet)
 	current.(*roundStateImpl).preprepare = newTestPreprepare(view)
 	return current
 }

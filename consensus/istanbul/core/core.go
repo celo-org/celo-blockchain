@@ -376,26 +376,28 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 
 func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
-	if c.current != nil {
-		if roundChange {
-			c.current = newRoundState(view, validatorSet, c.current.PendingRequest(), c.current.PreparedCertificate(), c.current.ParentCommits())
-		} else {
-			lastSubject, err := c.backend.LastSubject()
-			if err == nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
-				// When changing sequences, if our current Commit messages match the latest block in the chain
-				// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
-				// in the next round.
-				c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), c.current.Commits())
-			} else {
-				headBlock := c.backend.GetCurrentHeadBlock()
-				// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
-				c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(c.backend.ParentBlockValidators(headBlock)))
-			}
-		}
-	} else {
+	if c.current == nil {
 		// When the current round is nil, we must start with the current validator set in the parent commits
 		// either `validatorSet` or `backend.Validators(lastProposal)` works here
-		c.current = newRoundState(view, validatorSet, nil, istanbul.EmptyPreparedCertificate(), newMessageSet(validatorSet))
+		c.current = newRoundState(view, validatorSet)
+	} else if roundChange {
+		c.current.StartNewRound(view.Round, validatorSet)
+	} else {
+		// sequence change
+
+		var newParentCommits MessageSet
+		lastSubject, err := c.backend.LastSubject()
+		if err == nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+			// When changing sequences, if our current Commit messages match the latest block in the chain
+			// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
+			// in the next round.
+			newParentCommits = c.current.Commits()
+		} else {
+			// Otherwise, we will initialize an empty ParentCommits field with the validator set of the last proposal.
+			headBlock := c.backend.GetCurrentHeadBlock()
+			newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
+		}
+		c.current.StartNewSequence(view, validatorSet, newParentCommits)
 	}
 }
 

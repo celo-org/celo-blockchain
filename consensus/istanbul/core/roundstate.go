@@ -31,8 +31,7 @@ var (
 	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 )
 
-// newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet) RoundState {
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
 	return &roundStateImpl{
 		state:        StateAcceptRequest,
 		round:        view.Round,
@@ -45,9 +44,9 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, pend
 		commits:    newMessageSet(validatorSet),
 
 		// data saves across rounds, same sequence
-		parentCommits:       parentCommits,
-		pendingRequest:      pendingRequest,
-		preparedCertificate: preparedCertificate,
+		parentCommits:       newMessageSet(validatorSet),
+		pendingRequest:      nil,
+		preparedCertificate: istanbul.EmptyPreparedCertificate(),
 
 		mu: new(sync.RWMutex),
 	}
@@ -55,6 +54,8 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, pend
 
 type RoundState interface {
 	State() State
+	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet)
+	StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, parentCommits MessageSet)
 	TransitionToPreprepared(preprepare *istanbul.Preprepare)
 	TransitionToWaitingForNewRound(r *big.Int)
 	TransitionToCommited()
@@ -80,13 +81,17 @@ type RoundState interface {
 
 // RoundState stores the consensus state
 type roundStateImpl struct {
-	state               State
-	round               *big.Int
-	desiredRound        *big.Int
-	sequence            *big.Int
-	preprepare          *istanbul.Preprepare
-	prepares            MessageSet
-	commits             MessageSet
+	state        State
+	round        *big.Int
+	desiredRound *big.Int
+	sequence     *big.Int
+
+	// data for current round
+	preprepare *istanbul.Preprepare
+	prepares   MessageSet
+	commits    MessageSet
+
+	// data saves across rounds, same sequence
 	parentCommits       MessageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
@@ -175,6 +180,37 @@ func (s *roundStateImpl) Round() *big.Int {
 	defer s.mu.RUnlock()
 
 	return s.round
+}
+
+func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet) {
+	s.state = StateAcceptRequest
+	s.round = nextRound
+	s.desiredRound = nextRound
+
+	s.prepares = newMessageSet(validatorSet)
+	s.commits = newMessageSet(validatorSet)
+
+	// ??
+	s.preprepare = nil
+}
+
+func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.changeRound(nextRound, validatorSet)
+}
+
+func (s *roundStateImpl) StartNewSequence(view *istanbul.View, validatorSet istanbul.ValidatorSet, parentCommits MessageSet) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.changeRound(view.Round, validatorSet)
+
+	s.sequence = view.Sequence
+	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
+	s.pendingRequest = nil
+	s.parentCommits = parentCommits
 }
 
 func (s *roundStateImpl) TransitionToCommited() {
