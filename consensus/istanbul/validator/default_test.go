@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var (
@@ -58,7 +58,7 @@ func testNewValidatorSet(t *testing.T) {
 	}
 
 	// Create ValidatorSet
-	valSet := NewSet(ExtractValidators(b), istanbul.RoundRobin)
+	valSet := NewSet(ExtractValidators(b))
 	if valSet == nil {
 		t.Errorf("the validator byte array cannot be parsed")
 		t.FailNow()
@@ -74,7 +74,7 @@ func testNormalValSet(t *testing.T) {
 	val2 := New(addr2, []byte{})
 
 	validators, _ := istanbul.CombineIstanbulExtraToValidatorData([]common.Address{addr1, addr2}, [][]byte{{}, {}})
-	valSet := newDefaultSet(validators, istanbul.RoundRobin)
+	valSet := newDefaultSet(validators)
 	if valSet == nil {
 		t.Errorf("the format of validator set is invalid")
 		t.FailNow()
@@ -104,14 +104,14 @@ func testNormalValSet(t *testing.T) {
 }
 
 func testEmptyValSet(t *testing.T) {
-	valSet := NewSet(ExtractValidators([]byte{}), istanbul.RoundRobin)
+	valSet := NewSet(ExtractValidators([]byte{}))
 	if valSet == nil {
 		t.Errorf("validator set should not be nil")
 	}
 }
 
 func testAddAndRemoveValidator(t *testing.T) {
-	valSet := NewSet(ExtractValidators([]byte{}), istanbul.RoundRobin)
+	valSet := NewSet(ExtractValidators([]byte{}))
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
@@ -205,7 +205,7 @@ func testQuorumSizes(t *testing.T) {
 
 	for _, testCase := range testCases {
 		vals, _ := generateValidators(testCase.validatorSetSize)
-		valSet := newDefaultSet(vals, istanbul.RoundRobin)
+		valSet := newDefaultSet(vals)
 
 		if valSet.MinQuorumSize() != testCase.expectedMinQuorumSize {
 			t.Errorf("error mismatch quorum size for valset of size %d: have %d, want %d", valSet.Size(), valSet.MinQuorumSize(), testCase.expectedMinQuorumSize)

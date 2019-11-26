@@ -140,13 +140,13 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
+
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 
 					if i == 0 {
@@ -174,13 +174,12 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
@@ -209,13 +208,12 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
@@ -235,12 +233,11 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
@@ -249,7 +246,7 @@ func TestHandlePrepare(t *testing.T) {
 								Round:    big.NewInt(2),
 								Sequence: big.NewInt(3),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -264,12 +261,11 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
@@ -278,7 +274,7 @@ func TestHandlePrepare(t *testing.T) {
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(0),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -293,12 +289,11 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
@@ -306,7 +301,7 @@ func TestHandlePrepare(t *testing.T) {
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(1)},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -324,10 +319,9 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						expectedSubject.View,
-						c.valSet,
+						backend.peers,
 					)
 
 					if i == 0 {
@@ -350,7 +344,7 @@ OUTER:
 		r0 := v0.engine.(*core)
 
 		for i, v := range test.system.backends {
-			validator := r0.valSet.GetByIndex(uint64(i))
+			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
 			m, _ := Encode(v.engine.(*core).current.Subject())
 			if err := r0.handlePrepare(&istanbul.Message{
 				Code:    istanbul.MsgPrepare,
@@ -370,15 +364,15 @@ OUTER:
 			if r0.current.State() != StatePreprepared {
 				t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePreprepared)
 			}
-			if r0.current.Prepares().Size() >= r0.valSet.MinQuorumSize() {
-				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
+			if r0.current.Prepares().Size() >= r0.current.ValidatorSet().MinQuorumSize() {
+				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.current.ValidatorSet().MinQuorumSize()+1)
 			}
 
 			continue
 		}
 
 		// core should have MinQuorumSize PREPARE messages
-		if r0.current.Prepares().Size() < r0.valSet.MinQuorumSize() {
+		if r0.current.Prepares().Size() < r0.current.ValidatorSet().MinQuorumSize() {
 			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares().Size())
 		}
 
@@ -420,7 +414,7 @@ func TestVerifyPrepare(t *testing.T) {
 			peer.Address(),
 			blsPublicKey,
 		},
-	}, istanbul.RoundRobin)
+	})
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 

@@ -17,10 +17,8 @@
 package validator
 
 import (
-	"fmt"
 	"math"
 	"math/big"
-	"reflect"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -47,39 +45,20 @@ func (val *defaultValidator) String() string {
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
-	validators istanbul.Validators
-	policy     istanbul.ProposerPolicy
-
-	proposer    istanbul.Validator
+	validators  istanbul.Validators
 	validatorMu sync.RWMutex
-	selector    istanbul.ProposerSelector
-	randomness  common.Hash
+	// This is set when we call `getOrderedValidators`
+	// TODO Rename to `EpochState` that has validators & randomness
+	randomness common.Hash
 }
 
-func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.ProposerPolicy) *defaultSet {
+func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	valSet := &defaultSet{}
 
-	valSet.policy = policy
 	// init validators
 	valSet.validators = make([]istanbul.Validator, len(validators))
 	for i, validator := range validators {
 		valSet.validators[i] = New(validator.Address, validator.BLSPublicKey)
-	}
-	// init proposer
-	if valSet.Size() > 0 {
-		valSet.proposer = valSet.GetByIndex(0)
-	}
-
-	switch policy {
-	case istanbul.Sticky:
-		valSet.selector = StickyProposer
-	case istanbul.RoundRobin:
-		valSet.selector = RoundRobinProposer
-	case istanbul.ShuffledRoundRobin:
-		valSet.selector = ShuffledRoundRobinProposer
-	default:
-		// Programming error.
-		panic(fmt.Sprintf("unknown proposer selection policy: %v", policy))
 	}
 
 	return valSet
@@ -132,21 +111,6 @@ func (valSet *defaultSet) GetIndex(addr common.Address) int {
 		}
 	}
 	return -1
-}
-
-func (valSet *defaultSet) GetProposer() istanbul.Validator {
-	return valSet.proposer
-}
-
-func (valSet *defaultSet) IsProposer(address common.Address) bool {
-	_, val := valSet.GetByAddress(address)
-	return reflect.DeepEqual(valSet.GetProposer(), val)
-}
-
-func (valSet *defaultSet) CalcProposer(lastProposer common.Address, round uint64) {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-	valSet.proposer = valSet.selector(valSet, lastProposer, round, valSet.randomness)
 }
 
 func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) bool {
@@ -215,9 +179,9 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 		})
 	}
 
-	valSetCopy := NewSet(validators, valSet.policy)
-	valSetCopy.SetRandomness(valSet.randomness)
-	return valSetCopy
+	newValSet := NewSet(validators)
+	newValSet.SetRandomness(valSet.GetRandomness())
+	return newValSet
 }
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
@@ -226,6 +190,5 @@ func (valSet *defaultSet) MinQuorumSize() int {
 	return int(math.Ceil(float64(2*valSet.Size()) / 3))
 }
 
-func (valSet *defaultSet) Policy() istanbul.ProposerPolicy { return valSet.policy }
-
 func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
+func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }

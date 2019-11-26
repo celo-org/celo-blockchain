@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -39,8 +40,9 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		handlerWg:          new(sync.WaitGroup),
 		logger:             log.New("address", backend.Address()),
+		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
 		backlogs:           make(map[istanbul.Validator]*prque.Prque),
 		backlogsMu:         new(sync.Mutex),
@@ -58,9 +60,10 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 // ----------------------------------------------------------------------------
 
 type core struct {
-	config  *istanbul.Config
-	address common.Address
-	logger  log.Logger
+	config         *istanbul.Config
+	address        common.Address
+	logger         log.Logger
+	selectProposer istanbul.ProposerSelector
 
 	backend               istanbul.Backend
 	events                *event.TypeMuxSubscription
@@ -68,7 +71,6 @@ type core struct {
 	timeoutSub            *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
-	valSet     istanbul.ValidatorSet
 	validateFn func([]byte, []byte) (common.Address, error)
 
 	backlogs   map[istanbul.Validator]*prque.Prque
@@ -140,7 +142,8 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 
 	// Broadcast payload
-	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
+	validators := istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List())
+	if err := c.backend.BroadcastConsensusMsg(validators, payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
 	}
@@ -240,7 +243,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 // Generates the next preprepare request and associated round change certificate
 func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
-	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.valSet.MinQuorumSize())
+	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.current.ValidatorSet().MinQuorumSize())
 	if err != nil {
 		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
 	}
@@ -273,6 +276,7 @@ func (c *core) startNewRound(round *big.Int) {
 	roundChange := false
 	// Try to get last proposal
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+
 	if c.current == nil {
 		logger.Trace("Start the initial round")
 	} else if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
@@ -304,6 +308,12 @@ func (c *core) startNewRound(round *big.Int) {
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var request *istanbul.Request
+
+	var valSet istanbul.ValidatorSet
+	if c.current != nil {
+		valSet = c.current.ValidatorSet()
+	}
+
 	if roundChange {
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
@@ -324,16 +334,20 @@ func (c *core) startNewRound(round *big.Int) {
 			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
-		c.valSet = c.backend.Validators(headBlock)
-		c.roundChangeSet = newRoundChangeSet(c.valSet)
+		valSet = c.backend.Validators(headBlock)
+		c.roundChangeSet = newRoundChangeSet(valSet)
 	}
 
-	// Update logger
-	logger = logger.New("old_proposer", c.valSet.GetProposer())
+	if c.current != nil {
+		// Update logger
+		logger = logger.New("old_proposer", c.current.Proposer())
+	}
+
 	// Calculate new proposer
-	c.valSet.CalcProposer(headAuthor, newView.Round.Uint64())
-	// New snapshot for new round
-	c.resetRoundState(newView, c.valSet, roundChange)
+	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
+	c.resetRoundState(newView, valSet, nextProposer, roundChange)
+
+	// Process backlog
 	c.processPendingRequests()
 	c.processBacklog()
 
@@ -342,7 +356,7 @@ func (c *core) startNewRound(round *big.Int) {
 	}
 	c.newRoundChangeTimer()
 
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.valSet.GetProposer(), "valSet", c.valSet.List(), "size", c.valSet.Size(), "isProposer", c.isProposer())
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 }
 
 // All actions that occur when transitioning to waiting for round change state.
@@ -360,11 +374,12 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
 	}
-	// Perform all of the updates
-	c.current.TransitionToWaitingForNewRound(r)
 
+	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
-	c.valSet.CalcProposer(headAuthor, r.Uint64())
+	nextProposer := c.selectProposer(c.current.ValidatorSet(), headAuthor, r.Uint64())
+	c.current.TransitionToWaitingForNewRound(r, nextProposer)
+
 	c.newRoundChangeTimerForView(desiredView)
 
 	// Process Backlog Messages
@@ -374,16 +389,21 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 	c.sendRoundChange(r)
 }
 
-func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, roundChange bool) {
+func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) {
 	// TODO(Joshua): Include desired round here.
 	if c.current == nil {
 		// When the current round is nil, we must start with the current validator set in the parent commits
 		// either `validatorSet` or `backend.Validators(lastProposal)` works here
-		c.current = newRoundState(view, validatorSet)
+		c.current = newRoundState(view, validatorSet, nextProposer)
 	} else if roundChange {
-		c.current.StartNewRound(view.Round, validatorSet)
+		c.current.StartNewRound(view.Round, validatorSet, nextProposer)
 	} else {
 		// sequence change
+
+		// TODO remove this when we refactor startNewRound()
+		if view.Round.Cmp(common.Big0) != 0 {
+			c.logger.Crit("BUG: DevError: trying to start a new sequence with round != 0", "wanted_round", view.Round)
+		}
 
 		var newParentCommits MessageSet
 		lastSubject, err := c.backend.LastSubject()
@@ -397,15 +417,15 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 			headBlock := c.backend.GetCurrentHeadBlock()
 			newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 		}
-		c.current.StartNewSequence(view, validatorSet, newParentCommits)
+		c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 	}
 }
 
 func (c *core) isProposer() bool {
-	if c.valSet == nil {
+	if c.current == nil {
 		return false
 	}
-	return c.valSet.IsProposer(c.address)
+	return c.current.IsProposer(c.address)
 }
 
 func (c *core) stopFuturePreprepareTimer() {
@@ -444,7 +464,7 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return istanbul.CheckValidatorSignature(c.valSet, data, sig)
+	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
 }
 
 // PrepareCommittedSeal returns a committed seal for the given hash and round number.
