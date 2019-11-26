@@ -30,11 +30,12 @@ import (
 )
 
 func TestCheckRequestMsg(t *testing.T) {
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4)),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 
 	// invalid request
@@ -82,13 +83,14 @@ func TestStoreRequestMsg(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		logger:  log.New("backend", "test", "id", 0),
 		backend: backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4)),
+		}, valSet, valSet.GetByIndex(0)),
 		pendingRequests:   prque.New(nil),
 		pendingRequestsMu: new(sync.Mutex),
 	}

@@ -49,7 +49,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i != 0 {
 						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
@@ -70,7 +69,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i != 0 {
 						c.current.(*roundStateImpl).state = StateAcceptRequest
 					}
@@ -94,7 +92,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i != 0 {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
@@ -116,7 +113,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i != 0 {
 						c.current.(*roundStateImpl).state = StatePreprepared
 						c.current.(*roundStateImpl).sequence = big.NewInt(10)
@@ -139,7 +135,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).state = StatePreprepared
 					c.current.(*roundStateImpl).sequence = big.NewInt(10)
 					c.current.(*roundStateImpl).round = big.NewInt(10)
@@ -161,7 +156,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).state = StatePreprepared
 					c.current.(*roundStateImpl).round = big.NewInt(1)
 				}
@@ -181,7 +175,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).state = StatePreprepared
 					c.current.(*roundStateImpl).round = big.NewInt(1)
 				}
@@ -204,7 +197,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).state = StatePreprepared
 					c.current.(*roundStateImpl).round = big.NewInt(1)
 					c.current.TransitionToPreprepared(&istanbul.Preprepare{
@@ -240,7 +232,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).state = StatePreprepared
 					c.current.(*roundStateImpl).round = big.NewInt(1)
 					c.current.TransitionToPreprepared(&istanbul.Preprepare{
@@ -271,7 +262,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).round = big.NewInt(int64(N))
 					if i != 0 {
 						c.current.(*roundStateImpl).state = StateAcceptRequest
@@ -296,7 +286,6 @@ func TestHandlePreprepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current.(*roundStateImpl).round = big.NewInt(int64(N))
 					if i != 0 {
 						c.current.(*roundStateImpl).state = StateAcceptRequest
@@ -404,7 +393,7 @@ OUTER:
 			}
 
 			if expectedCode == istanbul.MsgCommit {
-				_, srcValidator := c.valSet.GetByAddress(v.address)
+				srcValidator := c.current.GetValidatorByAddress(v.address)
 
 				if err := c.verifyCommittedSeal(committedSubject, srcValidator); err != nil {
 					t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, committedSubject.CommittedSeal)
