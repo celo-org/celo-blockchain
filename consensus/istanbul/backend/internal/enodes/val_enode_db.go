@@ -266,6 +266,9 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 
 // Upsert will update or insert a validator enode entry; given that the existing entry
 // is older (determined by view parameter) that the new one
+// TODO - In addition to modifying the val_enode_db, this function also will disconnect
+//        and/or connect the corresponding validator connenctions.  The validator connections
+//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
 func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressEntry) error {
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
@@ -304,9 +307,9 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 			peersToRemove = append(peersToRemove, currentEntry.Node)
 		} else if isNew {
 			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-			peersToAdd[remoteAddress] = addressEntry.Node
 		}
 		batch.Put(addressKey(remoteAddress), rawEntry)
+		peersToAdd[remoteAddress] = addressEntry.Node
 
 		vet.logger.Trace("Going to upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", addressEntry.Node.String())
 	}
