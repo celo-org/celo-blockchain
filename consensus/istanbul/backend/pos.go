@@ -92,15 +92,15 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	bc := sb.chain.(*core.BlockChain)
 	db := bc.GetDatabase()
 	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
-	if uptimes == nil {
+	if len(uptimes.Entries) == 0 {
 		logger.Error("no accumulated uptimes found, will not update validator scores")
 		return errors.New("no accumulated uptimes found, will not update validator scores")
 	}
 
 	for i, val := range valSet {
-		scoreTally := uptimes[i].ScoreTally
+		scoreTally := uptimes.Entries[i].ScoreTally
 		logger = logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes[i].ScoreTally)), params.Fixidity1)
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes.Entries[i].ScoreTally)), params.Fixidity1)
 		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
 
 		if scoreTally > denominator {

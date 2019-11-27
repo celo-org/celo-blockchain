@@ -255,22 +255,22 @@ func ReadTd(db DatabaseReader, hash common.Hash, number uint64) *big.Int {
 }
 
 // ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
-func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) []istanbul.Uptime {
+func ReadAccumulatedEpochUptime(db DatabaseReader, epoch uint64) *istanbul.Uptime {
 	data, _ := db.Get(uptimeKey(epoch))
 	if len(data) == 0 {
 		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
 		return nil
 	}
-	uptime := new([]istanbul.Uptime)
+	uptime := new(istanbul.Uptime)
 	if err := rlp.Decode(bytes.NewReader(data), uptime); err != nil {
 		log.Error("Invalid uptime RLP", "err", err)
 		return nil
 	}
-	return *uptime
+	return uptime
 }
 
 // WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
-func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime []istanbul.Uptime) {
+func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime *istanbul.Uptime) {
 	data, err := rlp.EncodeToBytes(uptime)
 	if err != nil {
 		log.Crit("Failed to RLP encode updated uptime", "err", err)
@@ -282,7 +282,6 @@ func WriteAccumulatedEpochUptime(db DatabaseWriter, epoch uint64, uptime []istan
 
 // DeleteAccumulatedEpochUptime removes all accumulated uptime data for that epoch
 func DeleteAccumulatedEpochUptime(db DatabaseDeleter, epoch uint64) {
-	log.Debug("uptime-trace: DeleteAccumulatedEpochUptime", "epoch", epoch)
 	if err := db.Delete(uptimeKey(epoch)); err != nil {
 		log.Crit("Failed to delete stored uptime of validators", "err", err)
 	}
