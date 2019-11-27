@@ -23,6 +23,7 @@ import (
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -138,14 +139,24 @@ func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, ex
 	return w.keystore.SignMessageBLS(account, msg, extraData)
 }
 
-func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account) ([]byte, []byte, error) {
+func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, error) {
+	// Make sure the requested account is contained within
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the keystore to sign
+	return w.keystore.GenerateProofOfPossession(account, address)
+}
+
+func (w *keystoreWallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
 		return nil, nil, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
-	return w.keystore.GenerateProofOfPossession(account)
+	return w.keystore.GenerateProofOfPossessionBLS(account, address)
 }
 
 // SignTx implements accounts.Wallet, attempting to sign the given transaction

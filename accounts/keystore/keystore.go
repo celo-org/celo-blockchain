@@ -353,7 +353,15 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, []byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, error) {
+	hash := crypto.Keccak256(address.Bytes())
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
+	hash = crypto.Keccak256([]byte(msg))
+
+	return ks.SignHash(a, hash)
+}
+
+func (ks *KeyStore) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -374,7 +382,7 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, []byt
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignPoP(a.Address.Bytes())
+	signature, err := privateKey.SignPoP(address.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -603,19 +611,6 @@ func (ks *KeyStore) importKey(key *Key, passphrase string) (accounts.Account, er
 	ks.cache.add(a)
 	ks.refreshWallets()
 	return a, nil
-}
-
-func (ks *KeyStore) SetNodeKey(a accounts.Account, passphrase string, nodekeyPath string) error {
-	a, key, err := ks.getDecryptedKey(a, passphrase)
-
-	if err != nil {
-		fmt.Println(fmt.Sprintf("Failed to decyrpt node key: %v", err))
-	}
-
-	if err := crypto.SaveECDSA(nodekeyPath, key.PrivateKey); err != nil {
-		fmt.Println(fmt.Sprintf("Failed to persist node key: %v", err))
-	}
-	return nil
 }
 
 // Update changes the passphrase of an existing account.

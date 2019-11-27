@@ -195,18 +195,22 @@ func TestUptimeStorage(t *testing.T) {
 		t.Fatalf("Non existent uptime returned: %v", entry)
 	}
 	// Write and verify the uptime in the database
-	uptime := make([]istanbul.Uptime, 3)
-	uptime[0] = istanbul.Uptime{
+	uptimeEntries := make([]istanbul.UptimeEntry, 3)
+	uptimeEntries[0] = istanbul.UptimeEntry{
 		ScoreTally:      0,
 		LastSignedBlock: 1,
 	}
-	uptime[1] = istanbul.Uptime{
+	uptimeEntries[1] = istanbul.UptimeEntry{
 		ScoreTally:      2,
 		LastSignedBlock: 2,
 	}
-	uptime[2] = istanbul.Uptime{
+	uptimeEntries[2] = istanbul.UptimeEntry{
 		ScoreTally:      8,
 		LastSignedBlock: 8,
+	}
+	uptime := &istanbul.Uptime{
+		Entries:     uptimeEntries,
+		LatestBlock: 5,
 	}
 	WriteAccumulatedEpochUptime(db, epoch, uptime)
 	if entry := ReadAccumulatedEpochUptime(db, epoch); entry == nil {
