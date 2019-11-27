@@ -24,13 +24,18 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"gopkg.in/urfave/cli.v1"
+	cli "gopkg.in/urfave/cli.v1"
 )
 
 var (
+	blsFlag = cli.BoolFlag{
+		Name:  "bls",
+		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
+	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
@@ -103,14 +108,16 @@ Make sure you backup your keys regularly.`,
 Print a short summary of all accounts`,
 			},
 			{
-				Name:   "proof-of-possession",
-				Usage:  "Generate a proof-of-possession for the given account",
-				Action: utils.MigrateFlags(accountProofOfPossession),
+				Name:      "proof-of-possession",
+				Usage:     "Generate a proof-of-possession for the given account",
+				Action:    utils.MigrateFlags(accountProofOfPossession),
+				ArgsUsage: "<address> <address>",
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
+					blsFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -171,28 +178,6 @@ changing your password is only possible interactively.
 `,
 			},
 			{
-				Name:   "set-node-key",
-				Usage:  "Sets the nodekey used for Istanbul consensus",
-				Action: utils.MigrateFlags(setNodeKey),
-				Flags: []cli.Flag{
-					utils.DataDirFlag,
-					utils.KeyStoreDirFlag,
-					utils.PasswordFileFlag,
-					utils.LightKDFFlag,
-				},
-				ArgsUsage: "<address>",
-				Description: `
-    geth account set-node-key <address>
-
-Sets the nodekey with the given address. This is necessary to allow other validators to know that our node is a validator as well.
-
-For non-interactive use the passphrase can be specified with the --password flag:
-
-    geth account set-node-key [options] <address>
-
-`,
-			},
-			{
 				Name:   "import",
 				Usage:  "Import a private key into a new account",
 				Action: utils.MigrateFlags(accountImport),
@@ -242,19 +227,28 @@ func accountList(ctx *cli.Context) error {
 }
 
 func accountProofOfPossession(ctx *cli.Context) error {
-	if len(ctx.Args()) == 0 {
-		utils.Fatalf("No accounts specified to update")
+	if len(ctx.Args()) != 2 {
+		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
 	}
+
 	stack, _ := makeConfigNode(ctx)
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	for _, addr := range ctx.Args() {
-		account, _ := unlockAccount(ctx, ks, addr, 0, nil)
-		key, pop, err := ks.GenerateProofOfPossession(account)
+	signer := common.HexToAddress(ctx.Args()[0])
+	message := common.HexToAddress(ctx.Args()[1])
+	account, _ := unlockAccount(ctx, ks, signer.String(), 0, nil)
+	if ctx.IsSet(blsFlag.Name) {
+		key, pop, err := ks.GenerateProofOfPossessionBLS(account, message)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+	} else {
+		pop, err := ks.GenerateProofOfPossession(account, message)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Account {%x}:\n  Signature: %s\n", account.Address, hex.EncodeToString(pop))
 	}
 
 	return nil
@@ -387,31 +381,6 @@ func accountUpdate(ctx *cli.Context) error {
 		if err := ks.Update(account, oldPassword, newPassword); err != nil {
 			utils.Fatalf("Could not update the account: %v", err)
 		}
-	}
-	return nil
-}
-
-func setNodeKey(ctx *cli.Context) error {
-	if len(ctx.Args()) == 0 {
-		utils.Fatalf("No accounts specified to set the nodekey for")
-	}
-
-	stack, config := makeConfigNode(ctx)
-	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-
-	for _, addr := range ctx.Args() {
-		account, oldPassword := unlockAccount(ctx, ks, addr, 0, nil)
-		if (account == accounts.Account{}) {
-			utils.Fatalf("Could not unlock account")
-			continue
-		}
-
-		if err := ks.SetNodeKey(account, oldPassword, config.Node.ResolvePath("nodekey")); err != nil {
-			utils.Fatalf("Could not setNodeKey for the account: %v", err)
-		}
-
-		log.Info("Set nodekey", "address", account.Address)
-
 	}
 	return nil
 }
