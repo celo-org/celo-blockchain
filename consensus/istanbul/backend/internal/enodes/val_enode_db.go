@@ -304,9 +304,9 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 			peersToRemove = append(peersToRemove, currentEntry.Node)
 		} else if isNew {
 			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-			peersToAdd[remoteAddress] = addressEntry.Node
 		}
 		batch.Put(addressKey(remoteAddress), rawEntry)
+		peersToAdd[remoteAddress] = addressEntry.Node
 
 		vet.logger.Trace("Going to upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", addressEntry.Node.String())
 	}
