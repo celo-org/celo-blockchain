@@ -250,7 +250,7 @@ func accountList(ctx *cli.Context) error {
 
 func accountProofOfPossession(ctx *cli.Context) error {
 	if len(ctx.Args()) != 2 {
-		utils.Fatalf("Please specify the address to proove possession of and the address to sign as proof-of-possession.")
+		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
 	}
 
 	stack, _ := makeConfigNode(ctx)
