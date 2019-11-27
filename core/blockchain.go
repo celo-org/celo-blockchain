@@ -978,8 +978,6 @@ func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, 
 		uptime.Entries = make([]istanbul.UptimeEntry, validatorsSizeUpperBound)
 	}
 
-	uptime.LatestBlock = blockNumber
-
 	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
 	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
 
