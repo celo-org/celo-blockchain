@@ -114,10 +114,9 @@ type BlockChain struct {
 	chainmu sync.RWMutex // blockchain insertion lock
 	procmu  sync.RWMutex // block processor lock
 
-	checkpoint         int          // checkpoint counts towards the new checkpoint
-	currentBlock       atomic.Value // Current head of the block chain
-	currentFastBlock   atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
-	lastMonitoredBlock uint64       // Latest block for which we calculated the uptime for (only usable with Istanbul)
+	checkpoint       int          // checkpoint counts towards the new checkpoint
+	currentBlock     atomic.Value // Current head of the block chain
+	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
 	stateCache    state.Database // State database to reuse between imports (contains state cache)
 	bodyCache     *lru.Cache     // Cache for the most recent block bodies
@@ -968,14 +967,18 @@ func popcount(x uint64) int {
 	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
 }
 
-func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) []istanbul.Uptime {
-	var validatorsSizeUpperBound uint64
-	if len(uptime) == 0 {
+// updateUptime receives the currently accumulated uptime for all validators in an epoch and proceeds to update it
+// based on which validators signed on the provided block by inspecting the block's parent bitmap
+func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *istanbul.Uptime {
+	if uptime == nil {
+		uptime = new(istanbul.Uptime)
 		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
 		// We multiply by 2 just to be extra cautious of off-by-one errors.
-		validatorsSizeUpperBound = uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
-		uptime = make([]istanbul.Uptime, validatorsSizeUpperBound)
+		validatorsSizeUpperBound := uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
+		uptime.Entries = make([]istanbul.UptimeEntry, validatorsSizeUpperBound)
 	}
+
+	uptime.LatestBlock = blockNumber
 
 	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
 	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
@@ -984,22 +987,23 @@ func updateUptime(uptime []istanbul.Uptime, blockNumber uint64, bitmap *big.Int,
 	signedBlockWindowLastBlockNum := blockNumber - 1
 	signedBlockWindowFirstBlockNum := signedBlockWindowLastBlockNum - (window - 1)
 
-	for i := 0; i < len(uptime); i++ {
+	uptime.LatestBlock = blockNumber
+	for i := 0; i < len(uptime.Entries); i++ {
 		if bitmap.Bit(i) == 1 {
 			// update their latest signed block
-			uptime[i].LastSignedBlock = blockNumber - 1
+			uptime.Entries[i].LastSignedBlock = blockNumber - 1
 		}
 
-		// If we are within the validator uptime tally window, then update the validator's score if its last signed block is within
-		// the lookback window
+		// If we are within the validator uptime tally window, then update the validator's score
+		// if its last signed block is within the lookback window
 		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
-			lastSignedBlock := uptime[i].LastSignedBlock
+			lastSignedBlock := uptime.Entries[i].LastSignedBlock
 
 			// Note that the second condition in the if condition is not necessary.  But it does
 			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
 			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
 			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
-				uptime[i].ScoreTally++
+				uptime.Entries[i].ScoreTally++
 			}
 		}
 	}
@@ -1017,18 +1021,10 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 	// We are going to update the uptime tally.
 	if bc.engine.Protocol().Name == "istanbul" {
-		// We only update the uptime for blocks which are greater than the last block we saw.
-		// This ensures that we do not count the same block twice for any reason.
-		latestMonitoredBlock := bc.lastMonitoredBlock
-		// Update the last block we have monitored for the Tally
-		bc.lastMonitoredBlock = block.NumberU64()
 		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
 		// We can ignore updating the tally for that block.
-		if latestMonitoredBlock < block.NumberU64() && !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
+		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
 			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
-
-			// Get the uptime scores
-			uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epochNum)
 
 			// Get the bitmap from the previous block
 			extra, err := types.ExtractIstanbulExtra(block.Header())
@@ -1038,11 +1034,20 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 			}
 			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
 
-			// Update the uptime scores
-			uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
+			// Get the uptime scores
+			uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epochNum)
 
-			// Write the new uptime scores
-			rawdb.WriteAccumulatedEpochUptime(bc.db, epochNum, uptime)
+			// We only update the uptime for blocks which are greater than the last block we saw.
+			// This ensures that we do not count the same block twice for any reason.
+			if uptime == nil || uptime.LatestBlock < block.NumberU64() {
+				// Update the uptime scores
+				uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
+
+				// Write the new uptime scores
+				rawdb.WriteAccumulatedEpochUptime(bc.db, epochNum, uptime)
+			} else {
+				log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", block.NumberU64())
+			}
 		}
 	}
 
@@ -1224,7 +1229,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
 func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []interface{}, []*types.Log, error) {
-	// If the chain is terminating, don't even bother starting u
+	// If the chain is terminating, don't even bother starting up
 	if atomic.LoadInt32(&bc.procInterrupt) == 1 {
 		return 0, nil, nil, nil
 	}
