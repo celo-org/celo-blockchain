@@ -240,7 +240,10 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		genesis.Config.FullHeaderChainAvailable = false
 	}
 	// force enable Istanbul engine
-	genesis.Config.Istanbul = &params.IstanbulConfig{}
+	genesis.Config.Istanbul = &params.IstanbulConfig{
+		Epoch:          10,
+		LookbackWindow: 2,
+	}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = defaultDifficulty
 	genesis.Nonce = emptyNonce.Uint64()

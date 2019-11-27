@@ -68,19 +68,6 @@ func (valSet *defaultSet) Size() int {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 
-	size := 0
-	for i := range valSet.validators {
-		if (valSet.validators[i].Address() != common.Address{}) {
-			size++
-		}
-	}
-	return size
-}
-
-func (valSet *defaultSet) PaddedSize() int {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-
 	return len(valSet.validators)
 }
 
@@ -90,24 +77,10 @@ func (valSet *defaultSet) List() []istanbul.Validator {
 	return valSet.validators
 }
 
-func (valSet *defaultSet) FilteredList() []istanbul.Validator {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-
-	filteredList := []istanbul.Validator{}
-	for i := 0; i < valSet.PaddedSize(); i++ {
-		currentValidator := valSet.GetByIndex(uint64(i))
-		if (currentValidator.Address() != common.Address{}) {
-			filteredList = append(filteredList, currentValidator)
-		}
-	}
-	return filteredList
-}
-
 func (valSet *defaultSet) GetByIndex(i uint64) istanbul.Validator {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	if i < uint64(valSet.PaddedSize()) {
+	if i < uint64(valSet.Size()) {
 		return valSet.validators[i]
 	}
 	return nil
@@ -131,8 +104,8 @@ func (valSet *defaultSet) ContainsByAddress(addr common.Address) bool {
 	return false
 }
 
-func (valSet *defaultSet) GetFilteredIndex(addr common.Address) int {
-	for i, val := range valSet.FilteredList() {
+func (valSet *defaultSet) GetIndex(addr common.Address) int {
+	for i, val := range valSet.List() {
 		if addr == val.Address() {
 			return i
 		}
@@ -161,39 +134,37 @@ func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) boo
 		}
 	}
 
-	currentValidatorIndex := 0
-	for i, v := range valSet.validators {
-		if currentValidatorIndex == len(newValidators) {
-			break
-		}
-		if (v.Address() == common.Address{}) {
-			valSet.validators[i] = New(newValidators[currentValidatorIndex].Address(), newValidators[currentValidatorIndex].BLSPublicKey())
-			currentValidatorIndex++
-		}
-	}
-	if currentValidatorIndex < len(newValidators) {
-		valSet.validators = append(valSet.validators, newValidators[currentValidatorIndex:]...)
-	}
+	valSet.validators = append(valSet.validators, newValidators...)
+
 	return true
 }
 
 func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
-	if removedValidators.BitLen() == 0 || (removedValidators.BitLen() > len(valSet.validators)) {
+	if removedValidators.BitLen() == 0 {
 		return true
+	}
+
+	if removedValidators.BitLen() > len(valSet.validators) {
+		return false
 	}
 
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
-	hadRemoval := false
+	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
+	// new memory will be allocated
+	tempList := valSet.validators[:0]
+	defer func() {
+		valSet.validators = tempList
+	}()
+
 	for i, v := range valSet.validators {
-		if removedValidators.Bit(i) == 1 && (v.Address() != common.Address{}) {
-			hadRemoval = true
-			valSet.validators[i] = New(common.Address{}, nil)
+		if removedValidators.Bit(i) == 0 {
+			tempList = append(tempList, v)
 		}
 	}
 
-	return hadRemoval
+	return true
 }
 
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {

@@ -26,7 +26,7 @@ import (
 )
 
 func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64 {
-	if idx := valSet.GetFilteredIndex(proposer); idx >= 0 {
+	if idx := valSet.GetIndex(proposer); idx >= 0 {
 		return uint64(idx)
 	}
 	return 0
@@ -58,7 +58,7 @@ func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Ad
 	if proposer != (common.Address{}) {
 		idx += uint64(reverse[proposerIndex(valSet, proposer)]) + 1
 	}
-	return valSet.FilteredList()[shuffle[idx%uint64(valSet.Size())]]
+	return valSet.List()[shuffle[idx%uint64(valSet.Size())]]
 }
 
 // RoundRobinProposer selects the next proposer with a round robin strategy according to storage order.
@@ -70,7 +70,7 @@ func RoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, r
 	if proposer != (common.Address{}) {
 		idx += proposerIndex(valSet, proposer) + 1
 	}
-	return valSet.FilteredList()[idx%uint64(valSet.Size())]
+	return valSet.List()[idx%uint64(valSet.Size())]
 }
 
 // StickyProposer selects the next proposer with a sticky strategy, advancing on round change.
@@ -82,7 +82,7 @@ func StickyProposer(valSet istanbul.ValidatorSet, proposer common.Address, round
 	if proposer != (common.Address{}) {
 		idx += proposerIndex(valSet, proposer)
 	}
-	return valSet.FilteredList()[idx%uint64(valSet.Size())]
+	return valSet.List()[idx%uint64(valSet.Size())]
 }
 
 // GetProposerSelector returns the ProposerSelector for the given Policy

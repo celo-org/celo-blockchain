@@ -34,6 +34,7 @@ type Config struct {
 	BlockPeriod          uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy       ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	LookbackWindow       uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
 	ValidatorEnodeDBPath string         `toml:",omitempty"` // The location for the validator enodes DB
 
 	// Proxy Configs
@@ -51,6 +52,7 @@ var DefaultConfig = &Config{
 	BlockPeriod:          1,
 	ProposerPolicy:       ShuffledRoundRobin,
 	Epoch:                30000,
+	LookbackWindow:       12,
 	ValidatorEnodeDBPath: "validatorenodes",
 	Proxy:                false,
 	Proxied:              false,

@@ -17,10 +17,10 @@
 package backend
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -78,11 +79,37 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
-	for _, val := range valSet {
-		// TODO: Use actual uptime metric.
-		// 1.0 in fixidity
-		uptime := math.BigPow(10, 24)
-		sb.logger.Info("Updating validator score for address", "address", val.Address(), "uptime", uptime.String())
+	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
+	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	sb.logger.Trace("Updating validator scores")
+
+	// The denominator is the (last block - first block + 1) of the val score tally window
+	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
+
+	// get all the uptimes for this epoch
+	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
+	// but I believe it's a different database handle
+	bc := sb.chain.(*core.BlockChain)
+	db := bc.GetDatabase()
+	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
+	if len(uptimes.Entries) == 0 {
+		logger.Error("no accumulated uptimes found, will not update validator scores")
+		return errors.New("no accumulated uptimes found, will not update validator scores")
+	}
+
+	for i, val := range valSet {
+		scoreTally := uptimes.Entries[i].ScoreTally
+		logger = logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes.Entries[i].ScoreTally)), params.Fixidity1)
+		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
+
+		if scoreTally > denominator {
+			logger.Error("ScoreTally exceeds max possible")
+			// 1.0 in fixidity
+			uptime = params.Fixidity1
+		}
+
+		logger.Trace("Updating validator score", "uptime", uptime)
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err != nil {
 			return err
@@ -120,20 +147,16 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		totalEpochRewards.Add(totalEpochRewards, infrastructureEpochReward)
 	}
 
-	groupElectedValidator := make(map[common.Address]bool)
+	var groups []common.Address
 	for _, val := range valSet {
 		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
 		if err != nil {
 			return totalEpochRewards, err
 		} else {
-			groupElectedValidator[group] = true
+			groups = append(groups, group)
 		}
 	}
 
-	groups := make([]common.Address, 0, len(groupElectedValidator))
-	for group := range groupElectedValidator {
-		groups = append(groups, group)
-	}
 	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards)
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {

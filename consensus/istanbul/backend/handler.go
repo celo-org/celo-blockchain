@@ -24,15 +24,18 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// If you want to add a code, you need to increment the Lengths Array size!
 const (
 	istanbulConsensusMsg      = 0x11
 	istanbulAnnounceMsg       = 0x12
 	istanbulValEnodesShareMsg = 0x13
 	istanbulFwdMsg            = 0x14
+	istanbulDelegateSign      = 0x15
 )
 
 var (
@@ -45,13 +48,13 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{21},
+		Lengths:  []uint64{22},
 		Primary:  true,
 	}
 }
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg)
+	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) || (msg.Code == istanbulDelegateSign)
 }
 
 // HandleMsg implements consensus.Handler.HandleMsg
@@ -70,6 +73,15 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		if err := msg.Decode(&data); err != nil {
 			sb.logger.Error("Failed to decode message payload", "msg", msg)
 			return true, errDecodeFailed
+		}
+
+		if msg.Code == istanbulDelegateSign {
+			if sb.shouldHandleDelegateSign() {
+				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				return true, nil
+			}
+
+			return true, errors.New("No proxy or proxied validator found")
 		}
 
 		hash := istanbul.RLPHash(data)
@@ -164,6 +176,15 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Forwarding a consensus message")
 	go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
 	return nil
+}
+
+func (sb *Backend) shouldHandleDelegateSign() bool {
+	return sb.IsProxy() || sb.IsProxiedValidator()
+}
+
+// SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
+func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
+	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 
 // SetBroadcaster implements consensus.Handler.SetBroadcaster

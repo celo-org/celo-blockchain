@@ -142,7 +142,7 @@ func (c *core) broadcast(msg *istanbul.Message) {
 	}
 
 	// Broadcast payload
-	validators := istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().FilteredList())
+	validators := istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List())
 	if err := c.backend.BroadcastConsensusMsg(validators, payload); err != nil {
 		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
 		return
@@ -407,7 +407,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 
 		var newParentCommits MessageSet
 		lastSubject, err := c.backend.LastSubject()
-		if err != nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
+		if err == nil && c.current.Proposal() != nil && c.current.Proposal().Hash() == lastSubject.Digest && c.current.Round().Cmp(lastSubject.View.Round) == 0 {
 			// When changing sequences, if our current Commit messages match the latest block in the chain
 			// (i.e. they're for the same block hash and round), we use this sequence's commits as the ParentCommits field
 			// in the next round.

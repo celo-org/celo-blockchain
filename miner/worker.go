@@ -320,7 +320,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return currency.Cmp(tx1.GasPrice(), tx1.GasCurrency(), tx2.GasPrice(), tx2.GasCurrency())
+	return currency.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -792,11 +792,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		if tx == nil {
 			break
 		}
-		// Check for valid gas currency and that the tx exceeds the gasPriceMinimum
+		// Check for valid fee currency and that the tx exceeds the gasPriceMinimum
 		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
 		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
 		// nonce that is non sequential to the last mined txn for the account.
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.GasCurrency(), w.current.header, w.current.state)
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.FeeCurrency(), w.current.header, w.current.state)
 		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 			break
@@ -1063,15 +1063,15 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 	s := w.current.state.Copy()
 
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		if err := istanbul.UpdateValSetDiff(w.chain, w.current.header, s); err != nil {
+		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), s); err != nil {
 			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
-
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
 
 	if len(s.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)

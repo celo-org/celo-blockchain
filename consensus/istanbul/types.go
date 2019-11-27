@@ -26,6 +26,25 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+// UptimeEntry contains the uptime score of a validator during an epoch as well as the
+// last block they signed on
+type UptimeEntry struct {
+	ScoreTally      uint64
+	LastSignedBlock uint64
+}
+
+func (u *UptimeEntry) String() string {
+	return fmt.Sprintf("UptimeEntry { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
+}
+
+// Uptime contains the latest block for which uptime metrics were accounted for. It also contains
+// an array of Entries where the `i`th entry represents the uptime statistics of the `i`th validator
+// in the validator set for that epoch
+type Uptime struct {
+	LatestBlock uint64
+	Entries     []UptimeEntry
+}
+
 // Proposal supports retrieving height and serialized block to be used during Istanbul consensus.
 type Proposal interface {
 	// Number retrieves the sequence number of this proposal.

@@ -327,7 +327,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
 	publicKeys := [][]byte{}
-	for i := 0; i < validators.PaddedSize(); i++ {
+	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
 			publicKeys = append(publicKeys, pubKey)
@@ -464,6 +464,11 @@ func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
+// Returns the size of the lookback window for calculating uptime (in blocks)
+func (sb *Backend) LookbackWindow() uint64 {
+	return sb.config.LookbackWindow
+}
+
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
 // and assembles the final block.
 //
@@ -484,6 +489,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
+	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochPaymentsAndRewards(header, state)
