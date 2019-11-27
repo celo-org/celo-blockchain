@@ -28,10 +28,14 @@ import (
 	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"gopkg.in/urfave/cli.v1"
+	cli "gopkg.in/urfave/cli.v1"
 )
 
 var (
+	blsFlag = cli.BoolFlag{
+		Name:  "bls",
+		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
+	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
@@ -104,14 +108,16 @@ Make sure you backup your keys regularly.`,
 Print a short summary of all accounts`,
 			},
 			{
-				Name:   "proof-of-possession",
-				Usage:  "Generate a proof-of-possession for the given account",
-				Action: utils.MigrateFlags(accountProofOfPossession),
+				Name:      "proof-of-possession",
+				Usage:     "Generate a proof-of-possession for the given account",
+				Action:    utils.MigrateFlags(accountProofOfPossession),
+				ArgsUsage: "<address> <address>",
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
+					blsFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -244,19 +250,28 @@ func accountList(ctx *cli.Context) error {
 
 func accountProofOfPossession(ctx *cli.Context) error {
 	if len(ctx.Args()) != 2 {
-		utils.Fatalf("Please specify the address from which to generate the BLS key, and the address to sign as proof-of-possession.")
+		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
 	}
+
 	stack, _ := makeConfigNode(ctx)
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	blsAddr := ctx.Args()[0]
-	popAddr := common.HexToAddress(ctx.Args()[1])
-	account, _ := unlockAccount(ctx, ks, blsAddr, 0, nil)
-	key, pop, err := ks.GenerateProofOfPossession(account, popAddr)
-	if err != nil {
-		return err
+	signer := common.HexToAddress(ctx.Args()[0])
+	message := common.HexToAddress(ctx.Args()[1])
+	account, _ := unlockAccount(ctx, ks, signer.String(), 0, nil)
+	if ctx.IsSet(blsFlag.Name) {
+		key, pop, err := ks.GenerateProofOfPossessionBLS(account, message)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+	} else {
+		pop, err := ks.GenerateProofOfPossession(account, message)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Account {%x}:\n  Signature: %s\n", account.Address, hex.EncodeToString(pop))
 	}
-	fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
 
 	return nil
 }

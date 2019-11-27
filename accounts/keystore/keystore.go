@@ -353,7 +353,15 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, error) {
+	hash := crypto.Keccak256(address.Bytes())
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
+	hash = crypto.Keccak256([]byte(msg))
+
+	return ks.SignHash(a, hash)
+}
+
+func (ks *KeyStore) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
