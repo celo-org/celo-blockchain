@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +33,11 @@ func (c *core) ParentCommits() MessageSet {
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
+
+	if c.current != nil {
+		return fmt.Errorf("BUG? Attempting to Start() core with existing c.current")
+	}
+
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 	valSet := c.backend.Validators(headBlock)
 
@@ -65,6 +71,11 @@ func (c *core) Stop() error {
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
+
+	if err := c.current.Close(); err != nil {
+		return err
+	}
+	c.current = nil
 	return nil
 }
 
@@ -101,7 +112,6 @@ func (c *core) unsubscribeEvents() {
 func (c *core) handleEvents() {
 	// Clear state
 	defer func() {
-		c.current = nil
 		c.handlerWg.Done()
 	}()
 

@@ -641,6 +641,7 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
+	sb.logger.Info("Starting istanbul.Engine")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
@@ -669,6 +670,7 @@ func (sb *Backend) Stop() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
+	sb.logger.Info("Stopping istanbul.Engine")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}

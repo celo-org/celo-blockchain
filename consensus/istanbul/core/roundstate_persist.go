@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
@@ -38,16 +39,20 @@ const (
 )
 
 func newRoundStateWithPersistence(sequence *big.Int, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator, path string) (RoundState, error) {
-	// create DB
+	logger := log.New("func", "newRoundStateWithPersistence")
+
 	var db *leveldb.DB
 	var err error
 	if path == "" {
+		logger.Info("Open roundstate db", "path", "inmemory")
 		db, err = newMemoryDB()
 	} else {
+		logger.Info("Open roundstate db", "path", path)
 		db, err = newPersistentDB(path)
 	}
 
 	if err != nil {
+		logger.Error("Failed to open roundstate db", "err", err)
 		return nil, err
 	}
 
@@ -59,19 +64,27 @@ func newRoundStateWithPersistence(sequence *big.Int, validatorSet istanbul.Valid
 	lastStoredView, err := getLastStoredView(db)
 
 	if err != nil && err != leveldb.ErrNotFound {
+		logger.Error("Failed to fetch lastStoredView", "err", err)
 		db.Close()
 		return nil, err
 	}
 
 	if err == leveldb.ErrNotFound || lastStoredView.Cmp(view) < 0 {
+		if err == leveldb.ErrNotFound {
+			logger.Info("Creating new RoundState", "reason", "No storedView found")
+		} else {
+			logger.Info("Creating new RoundState", "reason", "old view", "stored_view", lastStoredView, "requested_view", view)
+		}
 		return &roundStatePersistence{
 			db:       db,
 			delegate: newRoundState(view, validatorSet, proposer),
 		}, nil
 	}
 
+	logger.Info("Retrieving stored RoundState", "stored_view", lastStoredView, "requested_view", view)
 	lastStoredRoundState, err := getStoredRoundState(db, lastStoredView)
 	if err != nil {
+		logger.Error("Failed to fetch lastStoredRoundState", "err", err)
 		db.Close()
 		return nil, err
 	}
@@ -132,6 +145,10 @@ func newPersistentDB(path string) (*leveldb.DB, error) {
 type roundStatePersistence struct {
 	delegate RoundState
 	db       *leveldb.DB //the actual DB
+}
+
+func (rsp *roundStatePersistence) Close() error {
+	return rsp.db.Close()
 }
 
 // mutation functions

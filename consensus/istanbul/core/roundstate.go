@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -34,29 +35,6 @@ var (
 	// errFailedCreatePreparedCertificate is returned when there aren't enough PREPARE messages to create a PREPARED certificate.
 	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 )
-
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator) RoundState {
-	return &roundStateImpl{
-		state:        StateAcceptRequest,
-		round:        view.Round,
-		desiredRound: view.Round,
-		sequence:     view.Sequence,
-
-		// data for current round
-		// preprepare: nil,
-		prepares: newMessageSet(validatorSet),
-		commits:  newMessageSet(validatorSet),
-		proposer: proposer,
-
-		// data saves across rounds, same sequence
-		validatorSet:        validatorSet,
-		parentCommits:       newMessageSet(validatorSet),
-		pendingRequest:      nil,
-		preparedCertificate: istanbul.EmptyPreparedCertificate(),
-
-		mu: new(sync.RWMutex),
-	}
-}
 
 type RoundState interface {
 	// mutation functions
@@ -90,6 +68,9 @@ type RoundState interface {
 	Sequence() *big.Int
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
+
+	// Close performs any necessary action before erasing RoundState
+	Close() error
 }
 
 // RoundState stores the consensus state
@@ -111,18 +92,37 @@ type roundStateImpl struct {
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
-	mu *sync.RWMutex
+	mu     *sync.RWMutex
+	logger log.Logger
 }
 
-func (s *roundStateImpl) Commits() MessageSet {
-	return s.commits
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator) RoundState {
+	return &roundStateImpl{
+		state:        StateAcceptRequest,
+		round:        view.Round,
+		desiredRound: view.Round,
+		sequence:     view.Sequence,
+
+		// data for current round
+		// preprepare: nil,
+		prepares: newMessageSet(validatorSet),
+		commits:  newMessageSet(validatorSet),
+		proposer: proposer,
+
+		// data saves across rounds, same sequence
+		validatorSet:        validatorSet,
+		parentCommits:       newMessageSet(validatorSet),
+		pendingRequest:      nil,
+		preparedCertificate: istanbul.EmptyPreparedCertificate(),
+
+		mu:     new(sync.RWMutex),
+		logger: log.New(),
+	}
 }
-func (s *roundStateImpl) Prepares() MessageSet {
-	return s.prepares
-}
-func (s *roundStateImpl) ParentCommits() MessageSet {
-	return s.parentCommits
-}
+
+func (s *roundStateImpl) Commits() MessageSet       { return s.commits }
+func (s *roundStateImpl) Prepares() MessageSet      { return s.prepares }
+func (s *roundStateImpl) ParentCommits() MessageSet { return s.parentCommits }
 
 func (s *roundStateImpl) State() State {
 	s.mu.RLock()
@@ -243,14 +243,16 @@ func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.V
 func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
+	logger := s.newLogger()
 	s.changeRound(nextRound, validatorSet, nextProposer)
+	logger.Debug("Starting new round", "next_round", nextRound, "next_proposer", nextProposer.Address().Hex())
 	return nil
 }
 
 func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	logger := s.newLogger()
 
 	s.validatorSet = validatorSet
 
@@ -260,6 +262,8 @@ func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet is
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
 	s.pendingRequest = nil
 	s.parentCommits = parentCommits
+
+	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
 	return nil
 }
 
@@ -375,6 +379,15 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.preparedCertificate
+}
+
+func (s *roundStateImpl) Close() error {
+	return nil
+}
+
+func (s *roundStateImpl) newLogger(ctx ...interface{}) log.Logger {
+	logger := s.logger.New(ctx...)
+	return logger.New("cur_seq", s.sequence, "cur_round", s.round, "state", s.state)
 }
 
 type roundStateRLP struct {
