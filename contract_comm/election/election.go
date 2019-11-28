@@ -135,7 +135,7 @@ func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.Stat
 	var values []*big.Int
 	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	voteTotals := make([]voteTotal, len(groups))
