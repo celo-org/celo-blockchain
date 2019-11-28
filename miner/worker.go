@@ -447,6 +447,10 @@ func (w *worker) mainLoop() {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
+				// Wait a minimal amount of time so that the FinalizeCommittedEvent gets picked up by
+				// the engine and a new sequence gets started, so that we get the correct
+				// `ParentCommits` in `backend.Prepare`
+				time.Sleep(100 * time.Millisecond)
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
