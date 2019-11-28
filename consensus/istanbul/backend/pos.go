@@ -45,7 +45,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
-	log.Info("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
+	log.Debug("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
 
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
@@ -121,7 +121,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxPayment *big.Int) (*big.Int, error) {
 	totalEpochPayments := big.NewInt(0)
 	for _, val := range valSet {
-		sb.logger.Info("Distributing epoch payment for address", "address", val.Address())
+		sb.logger.Debug("Distributing epoch payment for address", "address", val.Address())
 		epochPayment, err := validators.DistributeEpochPayment(header, state, val.Address(), maxPayment)
 		if err != nil {
 			return totalEpochPayments, nil
