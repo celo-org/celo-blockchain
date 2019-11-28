@@ -148,16 +148,23 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	}
 
 	var groups []common.Address
+	groupElectedValidator := make(map[common.Address]bool)
 	for _, val := range valSet {
 		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
 		if err != nil {
 			return totalEpochRewards, err
-		} else {
-			groups = append(groups, group)
 		}
+		if _, ok := groupElectedValidator[group]; !ok {
+			groups = append(groups, group)
+			sb.logger.Debug("Group elected validator", "group", group.String())
+		}
+		groupElectedValidator[group] = true
 	}
 
 	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards)
+	if err != nil {
+		return totalEpochRewards, err
+	}
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err
