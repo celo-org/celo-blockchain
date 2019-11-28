@@ -51,7 +51,7 @@ func (self *testTxRelay) Discard(hashes []common.Hash) {
 	self.discard <- len(hashes)
 }
 
-func (self *testTxRelay) HasPeerWithEtherbase(common.Address) error {
+func (self *testTxRelay) HasPeerWithEtherbase(*common.Address) error {
 	return nil
 }
 
