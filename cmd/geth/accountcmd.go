@@ -240,7 +240,9 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	var key []byte
 	var pop []byte
 	var err error
+	keyType := "ECDSA"
 	if ctx.IsSet(blsFlag.Name) {
+		keyType = "BLS"
 		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
 	} else {
 		key, pop, err = ks.GenerateProofOfPossession(account, message)
@@ -248,7 +250,8 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, keyType, hex.EncodeToString(pop), hex.EncodeToString(key))
 
 	return nil
 }
