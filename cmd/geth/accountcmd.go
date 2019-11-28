@@ -237,19 +237,21 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	signer := common.HexToAddress(ctx.Args()[0])
 	message := common.HexToAddress(ctx.Args()[1])
 	account, _ := unlockAccount(ctx, ks, signer.String(), 0, nil)
+	var key []byte
+	var pop []byte
+	var err error
+	keyType := "ECDSA"
 	if ctx.IsSet(blsFlag.Name) {
-		key, pop, err := ks.GenerateProofOfPossessionBLS(account, message)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+		keyType = "BLS"
+		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
 	} else {
-		pop, err := ks.GenerateProofOfPossession(account, message)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Account {%x}:\n  Signature: %s\n", account.Address, hex.EncodeToString(pop))
+		key, pop, err = ks.GenerateProofOfPossession(account, message)
 	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, keyType, hex.EncodeToString(pop), hex.EncodeToString(key))
 
 	return nil
 }

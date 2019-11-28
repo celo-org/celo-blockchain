@@ -353,12 +353,22 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
+	publicKey, err := ks.GetPublicKey(a)
+	if err != nil {
+		return nil, nil, err
+	}
+	publicKeyBytes := crypto.FromECDSAPub(publicKey)
+
 	hash := crypto.Keccak256(address.Bytes())
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
 	hash = crypto.Keccak256([]byte(msg))
 
-	return ks.SignHash(a, hash)
+	signature, err := ks.SignHash(a, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return publicKeyBytes, signature, nil
 }
 
 func (ks *KeyStore) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
