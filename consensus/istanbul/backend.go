@@ -85,9 +85,6 @@ type Backend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal Proposal) ValidatorSet
 
-	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
-	RefreshValPeers(valset ValidatorSet)
-
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
 }

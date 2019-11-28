@@ -681,21 +681,6 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 	}
 }
 
-// RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
-// peers that are not part of the valset.
-// It will also disconnect all validator connections if this node is not a validator.
-// Note that adding and removing validators are idempotent operations.  If the validator
-// being added or removed is already added or removed, then a no-op will be done.
-func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
-	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
-
-	if sb.broadcaster == nil {
-		return
-	}
-
-	sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
-}
-
 func (sb *Backend) ValidatorAddress() common.Address {
 	var localAddress common.Address
 	if sb.config.Proxy {

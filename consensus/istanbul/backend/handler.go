@@ -209,33 +209,43 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// This function is called by all nodes.
+// NewChainHead is called by all nodes.
 // At the end of each epoch, this function will
 //    1)  Output if it is or isn't an elected validator if it has mining turned on.
 //    2)  Refresh the validator connections if it's a proxy or non proxied validator
 func (sb *Backend) NewChainHead(newBlock *types.Block) {
-	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
+	blockNumber := newBlock.Number().Uint64()
+
+	if istanbul.IsLastBlockOfEpoch(blockNumber, sb.config.Epoch) {
 		sb.coreMu.RLock()
 		defer sb.coreMu.RUnlock()
 
-		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+		valset := sb.getValidators(blockNumber, newBlock.Hash())
 
-		// Output whether this validator was or wasn't elected for the
-		// new epoch's validator set
 		if sb.coreStarted {
-			if _, val := valset.GetByAddress(sb.ValidatorAddress()); val != nil {
+			// Output whether this validator was or wasn't elected for the
+			// new epoch's validator set
+			if valset.ContainsByAddress(sb.ValidatorAddress()) {
 				sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
 			} else {
 				sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
 			}
 
 			sb.newEpochCh <- struct{}{}
+
+			if sb.broadcaster != nil {
+				// If this is a proxy or a non proxied validator and a
+				// new epoch just started, then refresh the validator enode table
+				sb.logger.Trace("At end of epoch and going to refresh validator peers", "block_number", blockNumber, "valset length", valset.Size())
+				// RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
+				// peers that are not part of the valset.
+				// It will also disconnect all validator connections if this node is not a validator.
+				// Note that adding and removing validators are idempotent operations.  If the validator
+				// being added or removed is already added or removed, then a no-op will be done.
+				sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
+			}
 		}
 
-		// If this is a proxy or a non proxied validator and a
-		// new epoch just started, then refresh the validator enode table
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new block number", newBlock.Number().Uint64())
-		sb.RefreshValPeers(valset)
 	}
 }
 

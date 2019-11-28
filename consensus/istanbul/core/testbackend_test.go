@@ -282,8 +282,6 @@ func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
 
-func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
-
 // ==============================================
 //
 // define the struct that need to be provided for integration tests.
