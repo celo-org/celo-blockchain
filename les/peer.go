@@ -607,17 +607,20 @@ func (ps *peerSet) randomPeerEtherbase() common.Address {
 	return r
 }
 
-func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error) {
+func (ps *peerSet) getPeerWithEtherbase(etherbase *common.Address) (*peer, error) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
+	if etherbase == nil {
+		etherbase = new(common.Address)
+	}
 	var pid string
 	for id, petherbase := range ps.etherbases {
-		if etherbase == petherbase {
+		if *etherbase == petherbase {
 			pid = id
 		}
 	}
 	if pid == "" {
-		log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", etherbase)
+		log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", *etherbase)
 		return nil, errNoPeerWithEtherbaseFound
 	}
 	peer := ps.peers[pid]
