@@ -113,12 +113,20 @@ func TestCheckMessage(t *testing.T) {
 		Sequence: big.NewInt(3),
 		Round:    big.NewInt(0),
 	}
+	vTooFuture := &istanbul.View{
+		Sequence: big.NewInt(2 + acceptMaxFutureSequence.Int64() + 1),
+		Round:    big.NewInt(0),
+	}
 	for i := 0; i < len(testStates); i++ {
 		c.current.(*roundStateImpl).state = testStates[i]
 		for j := 0; j < len(testCode); j++ {
 			err := c.checkMessage(testCode[j], v)
 			if err != errFutureMessage {
 				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
+			}
+			err = c.checkMessage(testCode[j], vTooFuture)
+			if err != errTooFarInTheFutureMessage {
+				t.Errorf("error mismatch: have %v, want %v", err, errTooFarInTheFutureMessage)
 			}
 		}
 	}
@@ -219,50 +227,71 @@ func TestCheckMessage(t *testing.T) {
 func TestStoreBacklog(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     testLogger,
-		backlogs:   make(map[istanbul.Validator]*prque.Prque),
-		backlogsMu: new(sync.Mutex),
+		logger:            testLogger,
+		backlogBySeq:      make(map[uint64]*prque.Prque),
+		backlogCountByVal: make(map[common.Address]int),
+		backlogsMu:        new(sync.Mutex),
 	}
-	v := &istanbul.View{
+
+	v10 := &istanbul.View{
 		Round:    big.NewInt(10),
 		Sequence: big.NewInt(10),
 	}
-	p := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
-	// push preprepare msg
+
+	v11 := &istanbul.View{
+		Round:    big.NewInt(12),
+		Sequence: big.NewInt(11),
+	}
+	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
+	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), []byte{})
+
+	// push messages
 	preprepare := &istanbul.Preprepare{
-		View:     v,
-		Proposal: makeBlock(1),
-	}
-	prepreparePayload, _ := Encode(preprepare)
-	m := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     prepreparePayload,
-		Address: p.Address(),
-	}
-	c.storeBacklog(m, p)
-	msg := c.backlogs[p].PopItem()
-	if !reflect.DeepEqual(msg, m) {
-		t.Errorf("message mismatch: have %v, want %v", msg, m)
+		View:     v10,
+		Proposal: makeBlock(10),
 	}
 
-	// push prepare msg
+	prepreparePayload, _ := Encode(preprepare)
+	mPreprepare := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Msg:     prepreparePayload,
+		Address: p1.Address(),
+	}
+	c.storeBacklog(mPreprepare)
+	msg := c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+	if !reflect.DeepEqual(msg, mPreprepare) {
+		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare)
+	}
+
 	subject := &istanbul.Subject{
-		View:   v,
+		View:   v10,
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 	subjectPayload, _ := Encode(subject)
-
-	m = &istanbul.Message{
+	mPrepare := &istanbul.Message{
 		Code:    istanbul.MsgPrepare,
 		Msg:     subjectPayload,
-		Address: p.Address(),
-	}
-	c.storeBacklog(m, p)
-	msg = c.backlogs[p].PopItem()
-	if !reflect.DeepEqual(msg, m) {
-		t.Errorf("message mismatch: have %v, want %v", msg, m)
+		Address: p1.Address(),
 	}
 
+	preprepare2 := &istanbul.Preprepare{
+		View:     v11,
+		Proposal: makeBlock(11),
+	}
+	preprepare2Payload, _ := Encode(preprepare2)
+	mPreprepare2 := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Msg:     preprepare2Payload,
+		Address: p2.Address(),
+	}
+
+	c.storeBacklog(mPreprepare)
+	c.storeBacklog(mPrepare)
+	c.storeBacklog(mPreprepare2)
+
+	if c.backlogCountByVal[p1.Address()] != 3 {
+		t.Errorf("backlogCountByVal mismatch: have %v, want 3", c.backlogCountByVal[p1.Address()])
+	}
 	// push commit msg
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
@@ -271,47 +300,52 @@ func TestStoreBacklog(t *testing.T) {
 
 	committedSubjectPayload, _ := Encode(committedSubject)
 
-	m = &istanbul.Message{
+	mCommit := &istanbul.Message{
 		Code:    istanbul.MsgCommit,
 		Msg:     committedSubjectPayload,
-		Address: p.Address(),
+		Address: p1.Address(),
 	}
-	c.storeBacklog(m, p)
-	msg = c.backlogs[p].PopItem()
-	if !reflect.DeepEqual(msg, m) {
-		t.Errorf("message mismatch: have %v, want %v", msg, m)
+	c.storeBacklog(mCommit)
+	if c.backlogCountByVal[p2.Address()] != 1 {
+		t.Errorf("backlogCountByVal mismatch: have %v, want 1", c.backlogCountByVal[p2.Address()])
+	}
+	if c.backlogTotal != 5 {
+		t.Errorf("backlogTotal mismatch: have %v, want 5", c.backlogTotal)
 	}
 
-	// push roundChange msg
-	rc := &istanbul.RoundChange{
-		View:                v,
-		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+	// Should get back v10 preprepare then commit
+	msg = c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+	if !reflect.DeepEqual(msg, mPreprepare) {
+		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
 	}
-	rcPayload, _ := Encode(rc)
+	msg = c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+	if !reflect.DeepEqual(msg, mCommit) {
+		t.Errorf("message mismatch: have %v, want %v", msg, mCommit)
 
-	m = &istanbul.Message{
-		Code:    istanbul.MsgRoundChange,
-		Msg:     rcPayload,
-		Address: p.Address(),
 	}
-	c.storeBacklog(m, p)
-	msg = c.backlogs[p].PopItem()
-	if !reflect.DeepEqual(msg, m) {
-		t.Errorf("message mismatch: have %v, want %v", msg, m)
+	msg = c.backlogBySeq[v11.Sequence.Uint64()].PopItem()
+	if !reflect.DeepEqual(msg, mPreprepare2) {
+		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
 	}
+
+	c.backlogTotal = 0
+	delete(c.backlogCountByVal, p1.Address())
+	delete(c.backlogCountByVal, p2.Address())
 }
 
 func TestProcessFutureBacklog(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
-	testLogger.SetHandler(elog.StdoutHandler)
+
 	valSet := newTestValidatorSet(4)
+	testLogger.SetHandler(elog.StdoutHandler)
 	c := &core{
-		logger:     testLogger,
-		backlogs:   make(map[istanbul.Validator]*prque.Prque),
-		backlogsMu: new(sync.Mutex),
-		backend:    backend,
+		logger:            testLogger,
+		backlogBySeq:      make(map[uint64]*prque.Prque),
+		backlogCountByVal: make(map[common.Address]int),
+		backlogsMu:        new(sync.Mutex),
+		backend:           backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
@@ -320,12 +354,11 @@ func TestProcessFutureBacklog(t *testing.T) {
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
 
+	// push a future msg
 	v := &istanbul.View{
 		Round:    big.NewInt(10),
 		Sequence: big.NewInt(10),
 	}
-	p := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
-	// push a future msg
 	committedSubject := &istanbul.CommittedSubject{
 		Subject: &istanbul.Subject{
 			View:   v,
@@ -335,12 +368,42 @@ func TestProcessFutureBacklog(t *testing.T) {
 	}
 
 	committedSubjectPayload, _ := Encode(committedSubject)
-	m := &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  committedSubjectPayload,
+	// push a future msg
+	mFuture := &istanbul.Message{
+		Code:    istanbul.MsgCommit,
+		Msg:     committedSubjectPayload,
+		Address: valSet.GetByIndex(0).Address(),
 	}
-	c.storeBacklog(m, p)
+	c.storeBacklog(mFuture)
+
+	// push a message from the past and check we expire it
+	v0 := &istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(0),
+	}
+	subject0 := &istanbul.Subject{
+		View:   v0,
+		Digest: common.BytesToHash([]byte("1234567890")),
+	}
+	subjectPayload0, _ := Encode(subject0)
+	mPast := &istanbul.Message{
+		Code:    istanbul.MsgRoundChange,
+		Msg:     subjectPayload0,
+		Address: valSet.GetByIndex(1).Address(),
+	}
+	c.storeBacklog(mPast)
+
+	backlogSeqs := c.getSortedBacklogSeqs()
+	if len(backlogSeqs) != 1 || backlogSeqs[0] != v.Sequence.Uint64() {
+		t.Errorf("getSortedBacklogSeqs mismatch: have %v", backlogSeqs)
+	}
+
 	c.processBacklog()
+
+	// Check message from future remains, past expired
+	if c.backlogTotal != 1 || c.backlogCountByVal[valSet.GetByIndex(1).Address()] > 0 {
+		t.Errorf("backlog mismatch: %v", c.backlogCountByVal)
+	}
 
 	const timeoutDura = 2 * time.Second
 	timeout := time.NewTimer(timeoutDura)
@@ -422,10 +485,11 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 	testLogger.SetHandler(elog.StdoutHandler)
 	valSet := newTestValidatorSet(4)
 	c := &core{
-		logger:     testLogger,
-		backlogs:   make(map[istanbul.Validator]*prque.Prque),
-		backlogsMu: new(sync.Mutex),
-		backend:    backend,
+		logger:            testLogger,
+		backlogBySeq:      make(map[uint64]*prque.Prque),
+		backlogCountByVal: make(map[common.Address]int),
+		backlogsMu:        new(sync.Mutex),
+		backend:           backend,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
@@ -435,7 +499,8 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()
 
-	c.storeBacklog(msg, vset.GetByIndex(0))
+	msg.Address = vset.GetByIndex(0).Address()
+	c.storeBacklog(msg)
 	c.processBacklog()
 
 	const timeoutDura = 2 * time.Second
