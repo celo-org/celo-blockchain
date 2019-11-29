@@ -17,10 +17,14 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/common/prque"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
 	"sort"
+	"sync"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -43,143 +47,160 @@ var (
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the message view is larger than current view
 // return errOldMessage if the message view is smaller than current view
-func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
-	if view == nil || view.Sequence == nil || view.Round == nil {
+func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
+	if msgView == nil || msgView.Sequence == nil || msgView.Round == nil {
 		return errInvalidMessage
 	}
 
-	// Never accept messages too far into the future
-	if view.Sequence.Cmp(new(big.Int).Add(c.CurrentView().Sequence, acceptMaxFutureSequence)) > 0 {
-		return errTooFarInTheFutureMessage
-	}
+	if msgView.Cmp(c.current.View()) < 0 {
+		return errOldMessage
+	} else if msgView.Sequence.Cmp(c.current.Sequence()) > 0 {
+		// sequence is bigger, definitely future message
+		return errFutureMessage
+	} else {
+		// same sequence && msgRound >= currentRound
 
-	// Round change messages should be in the same sequence but be >= the desired round
-	if msgCode == istanbul.MsgRoundChange {
-		if view.Sequence.Cmp(c.current.Sequence()) > 0 {
-			return errFutureMessage
-		} else if view.Round.Cmp(c.current.DesiredRound()) < 0 {
-			return errOldMessage
+		// Accept all RoundChange (also future rounds)
+		// but check again desired round
+		if msgCode == istanbul.MsgRoundChange {
+			if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
+				return errOldMessage
+			}
+			return nil
 		}
+
+		// TODO we should check directly against the desired round
+		// there's no sense in accepting (or storing) messages on the range [currentRound, desiredRound]
+
+		if msgView.Round.Cmp(c.current.View().Round) > 0 || c.current.State() == StateWaitingForNewRound {
+			return errFutureMessage
+		}
+
+		// StateAcceptRequest only accepts istanbul.MsgPreprepare
+		// other messages are future messages
+		if c.current.State() == StateAcceptRequest && msgCode != istanbul.MsgPreprepare {
+			return errFutureMessage
+		}
+
+		// For states(StatePreprepared, StatePrepared, StateCommitted),
+		// can accept all message types if processing with same view
 		return nil
 	}
-
-	if view.Cmp(c.current.View()) > 0 {
-		return errFutureMessage
-	}
-
-	// Discard messages from previous views, unless they are commits from the previous sequence,
-	// with the same round as what we wound up finalizing, as we would be able to include those
-	// to create the ParentAggregatedSeal for our next proposal.
-	if view.Cmp(c.current.View()) < 0 {
-		if msgCode == istanbul.MsgCommit {
-
-			lastSubject, err := c.backend.LastSubject()
-			if err != nil {
-				return err
-			}
-			if view.Cmp(lastSubject.View) == 0 {
-				return nil
-			}
-		}
-		return errOldMessage
-	}
-
-	// Round change messages are already let through.
-	if c.current.State() == StateWaitingForNewRound {
-		return errFutureMessage
-	}
-
-	// StateAcceptRequest only accepts istanbul.MsgPreprepare
-	// other messages are future messages
-	if c.current.State() == StateAcceptRequest && msgCode > istanbul.MsgPreprepare {
-		return errFutureMessage
-	}
-
-	// For states(StatePreprepared, StatePrepared, StateCommitted),
-	// can accept all message types if processing with same view
-	return nil
 }
 
-func (c *core) storeBacklog(msg *istanbul.Message) {
-	logger := c.newLogger("func", "storeBacklog", "from", msg.Address)
+// MsgBacklog represent a backlog of future messages
+// It works by:
+//     - allowing storing messages with "store()"
+//     - call eventListener when a backlog message becomes "present"
+//     - updates its notion of time/state with updateState()
+type MsgBacklog interface {
+	// store atttemps to store the message in the backlog
+	// it might not do so, if the message is too far in the future
+	store(msg *istanbul.Message)
 
-	if msg.Address == c.address {
-		logger.Warn("Backlog from self")
+	// updateState updates the notion of time/state of the backlog,
+	// as a side effect it will call the eventListener for all backlog
+	// messages that belong to the current "state"
+	updateState(view *istanbul.View, state State)
+}
+
+type msgBacklogImpl struct {
+	backlogBySeq  map[uint64]*prque.Prque
+	msgCountBySrc map[common.Address]int
+	msgCount      int
+
+	currentView  *istanbul.View
+	currentState State
+
+	backlogsMu   *sync.Mutex
+	msgProcessor func(*istanbul.Message)
+	checkMessage func(msgCode uint64, msgView *istanbul.View) error
+	logger       log.Logger
+}
+
+func newMsgBacklog(msgProcessor func(*istanbul.Message), checkMessage func(msgCode uint64, msgView *istanbul.View) error) MsgBacklog {
+	initialView := &istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+
+	return &msgBacklogImpl{
+		backlogBySeq:  make(map[uint64]*prque.Prque),
+		msgCountBySrc: make(map[common.Address]int),
+		msgCount:      0,
+
+		currentView:  initialView,
+		currentState: StateAcceptRequest,
+
+		msgProcessor: msgProcessor,
+		checkMessage: checkMessage,
+		backlogsMu:   new(sync.Mutex),
+		logger:       log.New("type", "MsgBacklog"),
+	}
+}
+
+func (c *msgBacklogImpl) store(msg *istanbul.Message) {
+	logger := c.logger.New("func", "store", "from", msg.Address)
+
+	view, err := extractMessageView(msg)
+
+	if err != nil {
 		return
 	}
-
-	var v *istanbul.View
-	switch msg.Code {
-	case istanbul.MsgPreprepare:
-		var p *istanbul.Preprepare
-		err := msg.Decode(&p)
-		if err != nil {
-			return
-		}
-		v = p.View
-	case istanbul.MsgPrepare:
-		var p *istanbul.Subject
-		err := msg.Decode(&p)
-		if err != nil {
-			return
-		}
-		v = p.View
-	case istanbul.MsgCommit:
-		var cs *istanbul.CommittedSubject
-		err := msg.Decode(&cs)
-		if err != nil {
-			return
-		}
-		v = cs.Subject.View
-	case istanbul.MsgRoundChange:
-		var p *istanbul.RoundChange
-		err := msg.Decode(&p)
-		if err != nil {
-			return
-		}
-		v = p.View
-	}
-
-	logger.Trace("Store future message", "msg", msg)
 
 	c.backlogsMu.Lock()
 	defer c.backlogsMu.Unlock()
 
-	// Check and inc per-validator future message limit
-	if c.backlogCountByVal[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
-		logger.Trace("Dropping: backlog exceeds per-src cap", "msg.address", msg.Address)
+	// Never accept messages too far into the future
+	if view.Sequence.Cmp(new(big.Int).Add(c.currentView.Sequence, acceptMaxFutureSequence)) > 0 {
+		logger.Info("Dropping message", "reason", "too far in the future", "msg", msg)
 		return
 	}
-	c.backlogCountByVal[msg.Address]++
-	c.backlogTotal++
 
-	// Add message to per-seq list
-	backlogForSeq := c.backlogBySeq[v.Sequence.Uint64()]
-	if backlogForSeq == nil {
-		backlogForSeq = prque.New(nil)
-		c.backlogBySeq[v.Sequence.Uint64()] = backlogForSeq
+	// Check and inc per-validator future message limit
+	if c.msgCountBySrc[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
+		logger.Info("Dropping message", "reason", "exceeds per-address cap")
+		return
 	}
 
-	backlogForSeq.Push(msg, toPriority(msg.Code, v))
+	logger.Trace("Store future message", "msg", msg)
+	c.msgCountBySrc[msg.Address]++
+	c.msgCount++
 
+	// Add message to per-seq list
+	backlogForSeq := c.backlogBySeq[view.Sequence.Uint64()]
+	if backlogForSeq == nil {
+		backlogForSeq = prque.New(nil)
+		c.backlogBySeq[view.Sequence.Uint64()] = backlogForSeq
+	}
+
+	backlogForSeq.Push(msg, toPriority(msg.Code, view))
+
+	// After insert, remove messages if we have more than "acceptMaxFutureMessages"
+	c.removeMessagesOverflow()
+}
+
+// removeMessagesOverflow will remove messages if necessary to maintain the number of messages <= acceptMaxFutureMessages
+// For that, it will remove messages that further on the future
+func (c *msgBacklogImpl) removeMessagesOverflow() {
 	// Keep backlog below total max size by pruning future-most sequence first
 	// (we always leave one sequence's entire messages and rely on per-validator limits)
-	if c.backlogTotal > acceptMaxFutureMessages {
+	if c.msgCount > acceptMaxFutureMessages {
 		backlogSeqs := c.getSortedBacklogSeqs()
 		for i := len(backlogSeqs) - 1; i > 0; i-- {
 			seq := backlogSeqs[i]
-			if seq <= c.CurrentView().Sequence.Uint64() ||
-				c.backlogTotal < (acceptMaxFutureMessages-acceptMaxFutureMessagesPruneBatch) {
+			if seq <= c.currentView.Sequence.Uint64() ||
+				c.msgCount < (acceptMaxFutureMessages-acceptMaxFutureMessagesPruneBatch) {
 				break
 			}
-			c.drainBacklogForSeq(seq, nil)
+			c.clearBacklogForSeq(seq)
 		}
 	}
 }
 
 // Return slice of sequences present in backlog sorted in ascending order
 // Call with backlogsMu held.
-func (c *core) getSortedBacklogSeqs() []uint64 {
+func (c *msgBacklogImpl) getSortedBacklogSeqs() []uint64 {
 	backlogSeqs := make([]uint64, len(c.backlogBySeq))
 	i := 0
 	for k := range c.backlogBySeq {
@@ -192,9 +213,16 @@ func (c *core) getSortedBacklogSeqs() []uint64 {
 	return backlogSeqs
 }
 
-// Drain a backlog for a given sequence, passing each to optional callback.
-// Call with backlogsMu held.
-func (c *core) drainBacklogForSeq(seq uint64, cb func(*istanbul.Message)) {
+// clearBacklogForSeq will remove all entries in the backlog
+// for the given seq
+func (c *msgBacklogImpl) clearBacklogForSeq(seq uint64) {
+	c.processBacklogForSeq(seq, func(_ *istanbul.Message) bool { return true })
+}
+
+// processBacklogForSeq will call process() with each entry of the backlog
+// for the given seq, until process return "false".
+// The entry on which process() returned false will remain in the backlog
+func (c *msgBacklogImpl) processBacklogForSeq(seq uint64, process func(*istanbul.Message) bool) {
 	backlogForSeq := c.backlogBySeq[seq]
 	if backlogForSeq == nil {
 		return
@@ -202,82 +230,72 @@ func (c *core) drainBacklogForSeq(seq uint64, cb func(*istanbul.Message)) {
 
 	backlogSize := backlogForSeq.Size()
 	for i := 0; i < backlogSize; i++ {
-		m := backlogForSeq.PopItem()
+		m, priority := backlogForSeq.Pop()
 		msg := m.(*istanbul.Message)
-		if cb != nil {
-			cb(msg)
+
+		shouldStop := process(msg)
+
+		if shouldStop {
+			backlogForSeq.Push(m, priority)
+			break
 		}
-		c.backlogCountByVal[msg.Address]--
-		if c.backlogCountByVal[msg.Address] == 0 {
-			delete(c.backlogCountByVal, msg.Address)
+
+		c.msgCountBySrc[msg.Address]--
+		if c.msgCountBySrc[msg.Address] == 0 {
+			delete(c.msgCountBySrc, msg.Address)
 		}
-		c.backlogTotal--
+		c.msgCount--
 	}
+
 	if backlogForSeq.Size() == 0 {
 		delete(c.backlogBySeq, seq)
 	}
 }
 
-func (c *core) processBacklog() {
-
+func (c *msgBacklogImpl) updateState(view *istanbul.View, state State) {
 	c.backlogsMu.Lock()
 	defer c.backlogsMu.Unlock()
 
+	c.currentState = state
+	c.currentView = view
+
+	c.processBacklog()
+}
+
+func (c *msgBacklogImpl) processBacklog() {
 	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.newLogger("func", "processBacklog", "for_seq", seq)
+		logger := c.logger.New("func", "processBacklog", "current_view", c.currentView, "current_state", c.currentState.String(), "for_seq", seq)
 
-		if seq < c.CurrentView().Sequence.Uint64() {
+		if seq < c.currentView.Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
-			c.drainBacklogForSeq(seq, nil)
-		} else if seq == c.CurrentView().Sequence.Uint64() {
+			c.clearBacklogForSeq(seq)
+		} else if seq == c.currentView.Sequence.Uint64() {
 			// Current sequence. Process all in order.
-			c.drainBacklogForSeq(seq, func(msg *istanbul.Message) {
-				var view *istanbul.View
-				switch msg.Code {
-				case istanbul.MsgPreprepare:
-					var m *istanbul.Preprepare
-					err := msg.Decode(&m)
-					if err == nil {
-						view = m.View
-					}
-				case istanbul.MsgPrepare:
-					var sub *istanbul.Subject
-					err := msg.Decode(&sub)
-					if err == nil {
-						view = sub.View
-					}
-				case istanbul.MsgCommit:
-					var cs *istanbul.CommittedSubject
-					err := msg.Decode(&cs)
-					if err == nil {
-						view = cs.Subject.View
-					}
-				case istanbul.MsgRoundChange:
-					var rc *istanbul.RoundChange
-					err := msg.Decode(&rc)
-					if err == nil {
-						view = rc.View
-					}
-				}
+			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
+				view, err := extractMessageView(msg)
+
+				// TODO check the error, not the view
 				if view == nil {
 					logger.Error("Nil view", "msg", msg)
 					// continue
-					return
+					return false
 				}
-				err := c.checkMessage(msg.Code, view)
+
+				err = c.checkMessage(msg.Code, view)
+
+				if err == errFutureMessage {
+					logger.Warn("Future message in backlog for seq, pushing back to the backlog", "msg", msg)
+					return true
+				}
+
 				if err == nil {
 					logger.Trace("Post backlog event", "msg", msg)
-
-					go c.sendEvent(backlogEvent{
-						msg: msg,
-					})
-				} else if err == errFutureMessage {
-					logger.Warn("Future message in backlog for seq, pushing back to the backlog", "msg", msg)
-					c.storeBacklog(msg)
+					go c.msgProcessor(msg)
 				} else {
 					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
 				}
+				return false
 			})
 		}
 	}
@@ -291,4 +309,39 @@ func toPriority(msgCode uint64, view *istanbul.View) int64 {
 	// 10 * Round limits the range possible message codes to [0, 9]
 	// FIXME: Check for integer overflow
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
+}
+
+func extractMessageView(msg *istanbul.Message) (*istanbul.View, error) {
+	var v *istanbul.View
+	switch msg.Code {
+	case istanbul.MsgPreprepare:
+		var p *istanbul.Preprepare
+		err := msg.Decode(&p)
+		if err != nil {
+			return nil, err
+		}
+		v = p.View
+	case istanbul.MsgPrepare:
+		var p *istanbul.Subject
+		err := msg.Decode(&p)
+		if err != nil {
+			return nil, err
+		}
+		v = p.View
+	case istanbul.MsgCommit:
+		var cs *istanbul.CommittedSubject
+		err := msg.Decode(&cs)
+		if err != nil {
+			return nil, err
+		}
+		v = cs.Subject.View
+	case istanbul.MsgRoundChange:
+		var p *istanbul.RoundChange
+		err := msg.Decode(&p)
+		if err != nil {
+			return nil, err
+		}
+		v = p.View
+	}
+	return v, nil
 }

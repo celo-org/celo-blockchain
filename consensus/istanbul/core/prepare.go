@@ -169,7 +169,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 
 		// Process Backlog Messages
-		c.processBacklog()
+		c.backlog.updateState(c.current.View(), c.current.State())
 
 		c.sendCommit()
 

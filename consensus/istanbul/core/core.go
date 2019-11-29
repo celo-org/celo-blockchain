@@ -45,9 +45,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
-		backlogBySeq:       make(map[uint64]*prque.Prque),
-		backlogCountByVal:  make(map[common.Address]int),
-		backlogsMu:         new(sync.Mutex),
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
@@ -55,6 +52,13 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 	}
+	msgBacklog := newMsgBacklog(
+		func(msg *istanbul.Message) {
+			c.sendEvent(backlogEvent{
+				msg: msg,
+			})
+		}, c.checkMessage)
+	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
 	return c
 }
@@ -75,10 +79,7 @@ type core struct {
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
-	backlogBySeq      map[uint64]*prque.Prque
-	backlogCountByVal map[common.Address]int
-	backlogTotal      int
-	backlogsMu        *sync.Mutex
+	backlog MsgBacklog
 
 	current   RoundState
 	handlerWg *sync.WaitGroup
@@ -160,7 +161,7 @@ func (c *core) commit() error {
 	}
 
 	// Process Backlog Messages
-	c.processBacklog()
+	c.backlog.updateState(c.current.View(), c.current.State())
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
@@ -350,7 +351,7 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Process backlog
 	c.processPendingRequests()
-	c.processBacklog()
+	c.backlog.updateState(c.current.View(), c.current.State())
 
 	if roundChange && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
@@ -388,7 +389,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	c.newRoundChangeTimerForView(desiredView)
 
 	// Process Backlog Messages
-	c.processBacklog()
+	c.backlog.updateState(c.current.View(), c.current.State())
 
 	// Send round change
 	c.sendRoundChange(r)

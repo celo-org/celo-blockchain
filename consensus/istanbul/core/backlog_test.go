@@ -17,14 +17,13 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/event"
@@ -46,101 +45,160 @@ func TestCheckMessage(t *testing.T) {
 		}, valSet, valSet.GetByIndex(0)),
 	}
 
-	// invalid view format
-	err := c.checkMessage(istanbul.MsgPreprepare, nil)
-	if err != errInvalidMessage {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
-	}
+	t.Run("invalid view format", func(t *testing.T) {
+		err := c.checkMessage(istanbul.MsgPreprepare, nil)
+		if err != errInvalidMessage {
+			t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
+		}
+	})
 
 	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
-	testCode := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
+	testCodes := []uint64{istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange}
 
 	// accept Commits from sequence, round matching LastSubject
-	v := &istanbul.View{
-		Sequence: big.NewInt(0),
-		// set smaller round so that the roundchange case gets hit
-		Round: big.NewInt(1),
-	}
-	for i := 0; i < len(testStates); i++ {
-		c.current.(*roundStateImpl).state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == istanbul.MsgCommit {
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want %v", err, nil)
+	t.Run("Rejects all other older rounds", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(1),
+		}
+		for _, testState := range testStates {
+			for _, testCode := range testCodes {
+				c.current.(*roundStateImpl).state = testState
+				err := c.checkMessage(testCode, v)
+
+				if err != errOldMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
 				}
-			} else {
+
+			}
+		}
+	})
+
+	t.Run("Rejects all other older sequences", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(0),
+			Round:    big.NewInt(0),
+		}
+		for _, testState := range testStates {
+			for _, testCode := range testCodes {
+				c.current.(*roundStateImpl).state = testState
+				err := c.checkMessage(testCode, v)
 				if err != errOldMessage {
 					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
 				}
 			}
 		}
-	}
+	})
 
-	// rejects Commits from sequence matching LastSubject, round not matching
-	v = &istanbul.View{
-		Sequence: big.NewInt(0),
-		// set smaller round so that we don't accept
-		Round: big.NewInt(0),
-	}
-	for i := 0; i < len(testStates); i++ {
-		c.current.(*roundStateImpl).state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+	t.Run("Future sequence", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(3),
+			Round:    big.NewInt(0),
+		}
+		for _, testState := range testStates {
+			for _, testCode := range testCodes {
+				c.current.(*roundStateImpl).state = testState
+				err := c.checkMessage(testCode, v)
+				if err != errFutureMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
+				}
 			}
 		}
-	}
+	})
 
-	// rejects all other older sequences
-	v = &istanbul.View{
-		Sequence: big.NewInt(0),
-		Round:    big.NewInt(0),
-	}
-	for i := 0; i < len(testStates); i++ {
-		c.current.(*roundStateImpl).state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if err != errOldMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
+	t.Run("future round", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(3),
+		}
+		for _, testState := range testStates {
+			for _, testCode := range testCodes {
+				c.current.(*roundStateImpl).state = testState
+				err := c.checkMessage(testCode, v)
+				if testCode == istanbul.MsgRoundChange {
+					if err != nil {
+						t.Errorf("error mismatch: have %v, want nil", err)
+					}
+				} else if err != errFutureMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
+				}
 			}
 		}
-	}
+	})
 
-	// future sequence
-	v = &istanbul.View{
-		Sequence: big.NewInt(3),
-		Round:    big.NewInt(0),
-	}
-	vTooFuture := &istanbul.View{
-		Sequence: big.NewInt(2 + acceptMaxFutureSequence.Int64() + 1),
-		Round:    big.NewInt(0),
-	}
-	for i := 0; i < len(testStates); i++ {
-		c.current.(*roundStateImpl).state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if err != errFutureMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
-			}
-			err = c.checkMessage(testCode[j], vTooFuture)
-			if err != errTooFarInTheFutureMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errTooFarInTheFutureMessage)
+	t.Run("current view, state = StateAcceptRequest", func(t *testing.T) {
+		v := c.current.View()
+		c.current.(*roundStateImpl).state = StateAcceptRequest
+
+		for _, testCode := range testCodes {
+			err := c.checkMessage(testCode, v)
+			if testCode == istanbul.MsgRoundChange {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+				}
+			} else if testCode == istanbul.MsgPreprepare {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+				}
+			} else {
+				if err != errFutureMessage {
+					t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
+				}
 			}
 		}
-	}
+	})
 
-	// future round
-	v = &istanbul.View{
-		Sequence: big.NewInt(2),
-		Round:    big.NewInt(3),
-	}
-	for i := 0; i < len(testStates); i++ {
-		c.current.(*roundStateImpl).state = testStates[i]
-		for j := 0; j < len(testCode); j++ {
-			err := c.checkMessage(testCode[j], v)
-			if testCode[j] == istanbul.MsgRoundChange {
+	t.Run("current view, state = StatePreprepared", func(t *testing.T) {
+		v := c.current.View()
+		c.current.(*roundStateImpl).state = StatePreprepared
+		for _, testCode := range testCodes {
+			err := c.checkMessage(testCode, v)
+			if testCode == istanbul.MsgRoundChange {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+				}
+			} else if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+		}
+	})
+
+	t.Run("current view, state = StatePrepared", func(t *testing.T) {
+		v := c.current.View()
+		c.current.(*roundStateImpl).state = StatePrepared
+		for _, testCode := range testCodes {
+			err := c.checkMessage(testCode, v)
+			if testCode == istanbul.MsgRoundChange {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+				}
+			} else if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+		}
+	})
+
+	t.Run("current view, state = StateCommited", func(t *testing.T) {
+		v := c.current.View()
+		c.current.(*roundStateImpl).state = StateCommitted
+		for _, testCode := range testCodes {
+			err := c.checkMessage(testCode, v)
+			if testCode == istanbul.MsgRoundChange {
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+				}
+			} else if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+		}
+	})
+
+	t.Run("current view, state = StateWaitingForNewRound", func(t *testing.T) {
+		v := c.current.View()
+		c.current.(*roundStateImpl).state = StateWaitingForNewRound
+		for _, testCode := range testCodes {
+			err := c.checkMessage(testCode, v)
+			if testCode == istanbul.MsgRoundChange {
 				if err != nil {
 					t.Errorf("error mismatch: have %v, want nil", err)
 				}
@@ -148,90 +206,16 @@ func TestCheckMessage(t *testing.T) {
 				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
 			}
 		}
-	}
-
-	v = c.current.View()
-	// current view, state = StateAcceptRequest
-	c.current.(*roundStateImpl).state = StateAcceptRequest
-	for i := 0; i < len(testCode); i++ {
-		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == istanbul.MsgRoundChange {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else if testCode[i] == istanbul.MsgPreprepare {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else {
-			if err != errFutureMessage {
-				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
-			}
-		}
-	}
-
-	// current view, state = StatePreprepared
-	c.current.(*roundStateImpl).state = StatePreprepared
-	for i := 0; i < len(testCode); i++ {
-		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == istanbul.MsgRoundChange {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}
-
-	// current view, state = StatePrepared
-	c.current.(*roundStateImpl).state = StatePrepared
-	for i := 0; i < len(testCode); i++ {
-		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == istanbul.MsgRoundChange {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}
-
-	// current view, state = StateCommitted
-	c.current.(*roundStateImpl).state = StateCommitted
-	for i := 0; i < len(testCode); i++ {
-		err = c.checkMessage(testCode[i], v)
-		if testCode[i] == istanbul.MsgRoundChange {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}
-
-	// current view, state = StateWaitingForNewRound
-	c.current.(*roundStateImpl).state = StateWaitingForNewRound
-	for i := 0; i < len(testCode); i++ {
-		err := c.checkMessage(testCode[i], v)
-		if testCode[i] == istanbul.MsgRoundChange {
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-		} else if err != errFutureMessage {
-			t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
-		}
-	}
+	})
 
 }
 
 func TestStoreBacklog(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
-	c := &core{
-		logger:            testLogger,
-		backlogBySeq:      make(map[uint64]*prque.Prque),
-		backlogCountByVal: make(map[common.Address]int),
-		backlogsMu:        new(sync.Mutex),
-	}
+	backlog := newMsgBacklog(
+		func(msg *istanbul.Message) {},
+		func(msgCode uint64, msgView *istanbul.View) error { return nil },
+	).(*msgBacklogImpl)
 
 	v10 := &istanbul.View{
 		Round:    big.NewInt(10),
@@ -257,8 +241,10 @@ func TestStoreBacklog(t *testing.T) {
 		Msg:     prepreparePayload,
 		Address: p1.Address(),
 	}
-	c.storeBacklog(mPreprepare)
-	msg := c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+
+	backlog.store(mPreprepare)
+
+	msg := backlog.backlogBySeq[v10.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mPreprepare) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare)
 	}
@@ -285,12 +271,12 @@ func TestStoreBacklog(t *testing.T) {
 		Address: p2.Address(),
 	}
 
-	c.storeBacklog(mPreprepare)
-	c.storeBacklog(mPrepare)
-	c.storeBacklog(mPreprepare2)
+	backlog.store(mPreprepare)
+	backlog.store(mPrepare)
+	backlog.store(mPreprepare2)
 
-	if c.backlogCountByVal[p1.Address()] != 3 {
-		t.Errorf("backlogCountByVal mismatch: have %v, want 3", c.backlogCountByVal[p1.Address()])
+	if backlog.msgCountBySrc[p1.Address()] != 3 {
+		t.Errorf("msgCountBySrc mismatch: have %v, want 3", backlog.msgCountBySrc[p1.Address()])
 	}
 	// push commit msg
 	committedSubject := &istanbul.CommittedSubject{
@@ -305,54 +291,42 @@ func TestStoreBacklog(t *testing.T) {
 		Msg:     committedSubjectPayload,
 		Address: p1.Address(),
 	}
-	c.storeBacklog(mCommit)
-	if c.backlogCountByVal[p2.Address()] != 1 {
-		t.Errorf("backlogCountByVal mismatch: have %v, want 1", c.backlogCountByVal[p2.Address()])
+
+	backlog.store(mCommit)
+	if backlog.msgCountBySrc[p2.Address()] != 1 {
+		t.Errorf("msgCountBySrc mismatch: have %v, want 1", backlog.msgCountBySrc[p2.Address()])
 	}
-	if c.backlogTotal != 5 {
-		t.Errorf("backlogTotal mismatch: have %v, want 5", c.backlogTotal)
+	if backlog.msgCount != 5 {
+		t.Errorf("msgCount mismatch: have %v, want 5", backlog.msgCount)
 	}
 
 	// Should get back v10 preprepare then commit
-	msg = c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+	msg = backlog.backlogBySeq[v10.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mPreprepare) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
 	}
-	msg = c.backlogBySeq[v10.Sequence.Uint64()].PopItem()
+	msg = backlog.backlogBySeq[v10.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mCommit) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mCommit)
 
 	}
-	msg = c.backlogBySeq[v11.Sequence.Uint64()].PopItem()
+	msg = backlog.backlogBySeq[v11.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mPreprepare2) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
 	}
 
-	c.backlogTotal = 0
-	delete(c.backlogCountByVal, p1.Address())
-	delete(c.backlogCountByVal, p2.Address())
+	backlog.msgCount = 0
+	delete(backlog.msgCountBySrc, p1.Address())
+	delete(backlog.msgCountBySrc, p2.Address())
 }
 
 func TestProcessFutureBacklog(t *testing.T) {
-	backend := &testSystemBackend{
-		events: new(event.TypeMux),
-	}
-
-	valSet := newTestValidatorSet(4)
 	testLogger.SetHandler(elog.StdoutHandler)
-	c := &core{
-		logger:            testLogger,
-		backlogBySeq:      make(map[uint64]*prque.Prque),
-		backlogCountByVal: make(map[common.Address]int),
-		backlogsMu:        new(sync.Mutex),
-		backend:           backend,
-		current: newRoundState(&istanbul.View{
-			Sequence: big.NewInt(1),
-			Round:    big.NewInt(0),
-		}, valSet, valSet.GetByIndex(0)),
-	}
-	c.subscribeEvents()
-	defer c.unsubscribeEvents()
+
+	backlog := newMsgBacklog(
+		func(msg *istanbul.Message) {},
+		func(msgCode uint64, msgView *istanbul.View) error { return nil },
+	).(*msgBacklogImpl)
 
 	// push a future msg
 	v := &istanbul.View{
@@ -369,12 +343,13 @@ func TestProcessFutureBacklog(t *testing.T) {
 
 	committedSubjectPayload, _ := Encode(committedSubject)
 	// push a future msg
+	valSet := newTestValidatorSet(4)
 	mFuture := &istanbul.Message{
 		Code:    istanbul.MsgCommit,
 		Msg:     committedSubjectPayload,
 		Address: valSet.GetByIndex(0).Address(),
 	}
-	c.storeBacklog(mFuture)
+	backlog.store(mFuture)
 
 	// push a message from the past and check we expire it
 	v0 := &istanbul.View{
@@ -391,30 +366,21 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Msg:     subjectPayload0,
 		Address: valSet.GetByIndex(1).Address(),
 	}
-	c.storeBacklog(mPast)
+	backlog.store(mPast)
 
-	backlogSeqs := c.getSortedBacklogSeqs()
+	backlogSeqs := backlog.getSortedBacklogSeqs()
 	if len(backlogSeqs) != 1 || backlogSeqs[0] != v.Sequence.Uint64() {
 		t.Errorf("getSortedBacklogSeqs mismatch: have %v", backlogSeqs)
 	}
 
-	c.processBacklog()
+	backlog.updateState(&istanbul.View{
+		Sequence: big.NewInt(1),
+		Round:    big.NewInt(0),
+	}, StateAcceptRequest)
 
 	// Check message from future remains, past expired
-	if c.backlogTotal != 1 || c.backlogCountByVal[valSet.GetByIndex(1).Address()] > 0 {
-		t.Errorf("backlog mismatch: %v", c.backlogCountByVal)
-	}
-
-	const timeoutDura = 2 * time.Second
-	timeout := time.NewTimer(timeoutDura)
-	select {
-	case e, ok := <-c.events.Chan():
-		if !ok {
-			return
-		}
-		t.Errorf("unexpected events comes: %v", e)
-	case <-timeout.C:
-		// success
+	if backlog.msgCount != 1 || backlog.msgCountBySrc[valSet.GetByIndex(1).Address()] > 0 {
+		t.Errorf("backlog mismatch: %v", backlog.msgCountBySrc)
 	}
 }
 
@@ -472,50 +438,47 @@ func TestProcessBacklog(t *testing.T) {
 		},
 	}
 	for i := 0; i < len(msgs); i++ {
-		testProcessBacklog(t, msgs[i])
+		t.Run(fmt.Sprintf("Msg with code %d", msgs[i].Code), func(t *testing.T) {
+			testProcessBacklog(t, msgs[i])
+		})
 	}
 }
 
 func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
-	vset := newTestValidatorSet(1)
-	backend := &testSystemBackend{
-		events: new(event.TypeMux),
-		peers:  vset,
-	}
+
 	testLogger.SetHandler(elog.StdoutHandler)
-	valSet := newTestValidatorSet(4)
-	c := &core{
-		logger:            testLogger,
-		backlogBySeq:      make(map[uint64]*prque.Prque),
-		backlogCountByVal: make(map[common.Address]int),
-		backlogsMu:        new(sync.Mutex),
-		backend:           backend,
-		current: newRoundState(&istanbul.View{
-			Sequence: big.NewInt(1),
-			Round:    big.NewInt(0),
-		}, valSet, valSet.GetByIndex(0)),
+
+	processedMsgs := make(chan uint64, 100)
+	registerCall := func(msg *istanbul.Message) {
+		processedMsgs <- msg.Code
+		// we expect only one msg
+		close(processedMsgs)
 	}
-	c.current.(*roundStateImpl).state = State(msg.Code)
-	c.subscribeEvents()
-	defer c.unsubscribeEvents()
 
-	msg.Address = vset.GetByIndex(0).Address()
-	c.storeBacklog(msg)
-	c.processBacklog()
+	backlog := newMsgBacklog(
+		registerCall,
+		func(msgCode uint64, msgView *istanbul.View) error { return nil },
+	).(*msgBacklogImpl)
 
-	const timeoutDura = 2 * time.Second
-	timeout := time.NewTimer(timeoutDura)
+	v := &istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+
+	msg.Address = common.Address{50}
+	backlog.store(msg)
+
+	backlog.updateState(v, State(msg.Code))
+
+	timeout := time.NewTimer(1 * time.Second)
+
 	select {
-	case ev := <-c.events.Chan():
-		e, ok := ev.Data.(backlogEvent)
-		if !ok {
-			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
+	case got := <-processedMsgs:
+		if got != msg.Code {
+			t.Errorf("Expected different msg: have: %v, want: %v", got, msg.Code)
 		}
-		if e.msg.Code != msg.Code {
-			t.Errorf("message code mismatch: have %v, want %v", e.msg.Code, msg.Code)
-		}
-		// success
 	case <-timeout.C:
-		t.Error("unexpected timeout occurs")
+		t.Errorf("No Message was processed")
 	}
+
 }

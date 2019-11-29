@@ -45,7 +45,7 @@ func (c *core) Start() error {
 
 	// Process backlog
 	c.processPendingRequests()
-	c.processBacklog()
+	c.backlog.updateState(c.current.View(), c.current.State())
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -192,11 +192,11 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
 		if err == errFutureMessage {
-			c.storeBacklog(msg)
-		} else if err == errTooFarInTheFutureMessage {
-			logger.Info("Dropping message too far in the future", "msg", msg)
+			// Store in backlog (if it's not from self)
+			if msg.Address != c.address {
+				c.backlog.store(msg)
+			}
 		}
-
 		return err
 	}
 

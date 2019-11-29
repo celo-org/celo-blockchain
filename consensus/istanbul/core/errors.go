@@ -28,9 +28,6 @@ var (
 	// errFutureMessage is returned when current view is earlier than the
 	// view of the received message.
 	errFutureMessage = errors.New("future message")
-	// errTooFarInTheFutureMessage is returned when current view is earlier than the
-	// view of the received message.
-	errTooFarInTheFutureMessage = errors.New("message too far in the future")
 	// errOldMessage is returned when the received message's view is earlier
 	// than current view.
 	errOldMessage = errors.New("old message")
