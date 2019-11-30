@@ -205,7 +205,7 @@ func (sb *Backend) sendIstAnnounce() error {
 func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
 	validatorsSet := make(map[common.Address]bool)
 
-	registeredValidators, err := validators.RetrieveRegisteredValidators(nil, nil)
+	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(nil, nil)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
