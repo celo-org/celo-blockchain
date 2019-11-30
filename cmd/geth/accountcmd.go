@@ -251,7 +251,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, keyType, hex.EncodeToString(pop), hex.EncodeToString(key))
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
 
 	return nil
 }

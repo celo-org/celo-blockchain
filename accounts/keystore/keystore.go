@@ -36,11 +36,13 @@ import (
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -361,8 +363,10 @@ func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common
 	publicKeyBytes := crypto.FromECDSAPub(publicKey)
 
 	hash := crypto.Keccak256(address.Bytes())
+	log.Info("msg", "msg", hexutil.Encode(hash))
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
 	hash = crypto.Keccak256([]byte(msg))
+	log.Info("hash", "hash", hexutil.Encode(hash))
 
 	signature, err := ks.SignHash(a, hash)
 	if err != nil {
