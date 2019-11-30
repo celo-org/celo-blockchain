@@ -182,8 +182,9 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			}
 		}
 
+		// Sorting in descending order is necessary to match the order on-chain.
 		sort.SliceStable(voteTotals, func(j, k int) bool {
-			return voteTotals[j].Value.Cmp(voteTotals[k].Value) < 0
+			return voteTotals[j].Value.Cmp(voteTotals[k].Value) > 0
 		})
 
 		lesser := common.ZeroAddress
@@ -191,10 +192,10 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 		for j, voteTotal := range voteTotals {
 			if voteTotal.Group == group {
 				if j > 0 {
-					lesser = voteTotals[j-1].Group
+					greater = voteTotals[j-1].Group
 				}
 				if j+1 < len(voteTotals) {
-					greater = voteTotals[j+1].Group
+					lesser = voteTotals[j+1].Group
 				}
 				break
 			}
