@@ -189,13 +189,13 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 
 		lesser := common.ZeroAddress
 		greater := common.ZeroAddress
-		for i, voteTotal := range voteTotals {
+		for j, voteTotal := range voteTotals {
 			if voteTotal.Group == group {
-				if i > 0 {
-					greater = voteTotals[i-1].Group
+				if j > 0 {
+					greater = voteTotals[j-1].Group
 				}
-				if i+1 < len(voteTotals) {
-					lesser = voteTotals[i+1].Group
+				if j+1 < len(voteTotals) {
+					lesser = voteTotals[j+1].Group
 				}
 				break
 			}
