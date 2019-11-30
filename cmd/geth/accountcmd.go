@@ -236,7 +236,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 
 	signer := common.HexToAddress(ctx.Args()[0])
 	message := common.HexToAddress(ctx.Args()[1])
-	account, _ := unlockAccount(ctx, ks, signer.String(), 0, nil)
+	account, _ := unlockAccount(ctx, ks, signer.String(), 0, utils.MakePasswordList(ctx))
 	var key []byte
 	var pop []byte
 	var err error
@@ -251,7 +251,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, keyType, hex.EncodeToString(pop), hex.EncodeToString(key))
+	fmt.Printf("Account {%x}:\n  Signature Type: %s\n  Signature: %s\n Public Key: %s\n", account.Address, keyType, hex.EncodeToString(pop), hex.EncodeToString(key))
 
 	return nil
 }
