@@ -205,7 +205,7 @@ func (sb *Backend) sendIstAnnounce() error {
 func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
 	validatorsSet := make(map[common.Address]bool)
 
-	registeredValidators, err := validators.RetrieveRegisteredValidators(nil, nil)
+	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(nil, nil)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -270,7 +270,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
+		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
