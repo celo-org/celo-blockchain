@@ -569,7 +569,8 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 // server. Use the individual methods for reporting subscribed events.
 func (s *Service) report(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	if err := s.reportLatency(conn, sendCh); err != nil {
-		return err
+		log.Warn("Latency failed to report", "err", err)
+		return nil
 	}
 	if err := s.reportBlock(conn, nil); err != nil {
 		return err
@@ -841,6 +842,7 @@ type validatorInfo struct {
 	BLSPublicKey   []byte         `json:"blsPublicKey"`
 	EcdsaPublicKey []byte         `json:"ecdsaPublicKey"`
 	Affiliation    common.Address `json:"affiliation"`
+	Signer         common.Address `json:"signer"`
 }
 
 func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) validatorSet {
@@ -868,6 +870,7 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 			BLSPublicKey:   valData.BlsPublicKey,
 			EcdsaPublicKey: valData.EcdsaPublicKey,
 			Affiliation:    valData.Affiliation,
+			Signer:         valData.Signer,
 		})
 	}
 

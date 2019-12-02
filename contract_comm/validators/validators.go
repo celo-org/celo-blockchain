@@ -104,6 +104,10 @@ const validatorsABIString string = `[
         {
           "name": "score",
           "type": "uint256"
+        },
+        {
+          "name": "signer",
+          "type": "address"
         }
       ],
       "payable": false,
@@ -177,6 +181,7 @@ type ValidatorContractData struct {
 	BlsPublicKey   []byte
 	Affiliation    common.Address
 	Score          *big.Int
+	Signer         common.Address
 }
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
