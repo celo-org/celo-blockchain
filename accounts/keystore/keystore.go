@@ -36,11 +36,13 @@ import (
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -353,12 +355,24 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
+	publicKey, err := ks.GetPublicKey(a)
+	if err != nil {
+		return nil, nil, err
+	}
+	publicKeyBytes := crypto.FromECDSAPub(publicKey)
+
 	hash := crypto.Keccak256(address.Bytes())
+	log.Info("msg", "msg", hexutil.Encode(hash))
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
 	hash = crypto.Keccak256([]byte(msg))
+	log.Info("hash", "hash", hexutil.Encode(hash))
 
-	return ks.SignHash(a, hash)
+	signature, err := ks.SignHash(a, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return publicKeyBytes, signature, nil
 }
 
 func (ks *KeyStore) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
@@ -611,19 +625,6 @@ func (ks *KeyStore) importKey(key *Key, passphrase string) (accounts.Account, er
 	ks.cache.add(a)
 	ks.refreshWallets()
 	return a, nil
-}
-
-func (ks *KeyStore) SetNodeKey(a accounts.Account, passphrase string, nodekeyPath string) error {
-	a, key, err := ks.getDecryptedKey(a, passphrase)
-
-	if err != nil {
-		fmt.Println(fmt.Sprintf("Failed to decyrpt node key: %v", err))
-	}
-
-	if err := crypto.SaveECDSA(nodekeyPath, key.PrivateKey); err != nil {
-		fmt.Println(fmt.Sprintf("Failed to persist node key: %v", err))
-	}
-	return nil
 }
 
 // Update changes the passphrase of an existing account.

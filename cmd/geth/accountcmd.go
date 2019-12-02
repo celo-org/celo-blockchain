@@ -178,28 +178,6 @@ changing your password is only possible interactively.
 `,
 			},
 			{
-				Name:   "set-node-key",
-				Usage:  "Sets the nodekey used for Istanbul consensus",
-				Action: utils.MigrateFlags(setNodeKey),
-				Flags: []cli.Flag{
-					utils.DataDirFlag,
-					utils.KeyStoreDirFlag,
-					utils.PasswordFileFlag,
-					utils.LightKDFFlag,
-				},
-				ArgsUsage: "<address>",
-				Description: `
-    geth account set-node-key <address>
-
-Sets the nodekey with the given address. This is necessary to allow other validators to know that our node is a validator as well.
-
-For non-interactive use the passphrase can be specified with the --password flag:
-
-    geth account set-node-key [options] <address>
-
-`,
-			},
-			{
 				Name:   "import",
 				Usage:  "Import a private key into a new account",
 				Action: utils.MigrateFlags(accountImport),
@@ -259,19 +237,21 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	signer := common.HexToAddress(ctx.Args()[0])
 	message := common.HexToAddress(ctx.Args()[1])
 	account, _ := unlockAccount(ctx, ks, signer.String(), 0, nil)
+	var key []byte
+	var pop []byte
+	var err error
+	keyType := "ECDSA"
 	if ctx.IsSet(blsFlag.Name) {
-		key, pop, err := ks.GenerateProofOfPossessionBLS(account, message)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Account {%x}:\n  Signature: %s\n  Public Key: %s\n", account.Address, hex.EncodeToString(pop), hex.EncodeToString(key))
+		keyType = "BLS"
+		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
 	} else {
-		pop, err := ks.GenerateProofOfPossession(account, message)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Account {%x}:\n  Signature: %s\n", account.Address, hex.EncodeToString(pop))
+		key, pop, err = ks.GenerateProofOfPossession(account, message)
 	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
 
 	return nil
 }
@@ -403,31 +383,6 @@ func accountUpdate(ctx *cli.Context) error {
 		if err := ks.Update(account, oldPassword, newPassword); err != nil {
 			utils.Fatalf("Could not update the account: %v", err)
 		}
-	}
-	return nil
-}
-
-func setNodeKey(ctx *cli.Context) error {
-	if len(ctx.Args()) == 0 {
-		utils.Fatalf("No accounts specified to set the nodekey for")
-	}
-
-	stack, config := makeConfigNode(ctx)
-	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-
-	for _, addr := range ctx.Args() {
-		account, oldPassword := unlockAccount(ctx, ks, addr, 0, nil)
-		if (account == accounts.Account{}) {
-			utils.Fatalf("Could not unlock account")
-			continue
-		}
-
-		if err := ks.SetNodeKey(account, oldPassword, config.Node.ResolvePath("nodekey")); err != nil {
-			utils.Fatalf("Could not setNodeKey for the account: %v", err)
-		}
-
-		log.Info("Set nodekey", "address", account.Address)
-
 	}
 	return nil
 }

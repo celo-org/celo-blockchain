@@ -37,6 +37,7 @@ ARG COMMIT_SHA
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 RUN echo $COMMIT_SHA > /version.txt
+ADD scripts/run_geth_in_docker.sh /
 
 EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["geth"]
+ENTRYPOINT ["sh", "/run_geth_in_docker.sh"]

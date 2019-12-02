@@ -87,7 +87,7 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
-	HasPeerWithEtherbase(etherbase common.Address) error
+	HasPeerWithEtherbase(etherbase *common.Address) error
 }
 
 // NewTxPool creates a new light transaction pool
@@ -392,12 +392,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should have a peer that will accept and broadcast our transaction
-	if tx.GatewayFeeRecipient() == nil {
-		err = pool.relay.HasPeerWithEtherbase(common.Address{})
-	} else {
-		err = pool.relay.HasPeerWithEtherbase(*tx.GatewayFeeRecipient())
-	}
-	if err != nil {
+	if err := pool.relay.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
 		return err
 	}
 
