@@ -69,9 +69,9 @@ const (
 	// delegateSendTimeout waits for the proxy to sign a message
 	delegateSendTimeout = 5
 	// statusUpdateInterval is the frequency of sending full node reports
-	statusUpdateInterval = 15
+	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
-	valSetInterval = 10
+	valSetInterval = 11
 
 	actionBlock    = "block"
 	actionHello    = "hello"
@@ -96,14 +96,14 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend *istanbulBackend.Backend // Istanbul consensus backend
-
-	node string // Name of the node to display on the monitoring page
-	host string // Remote address of the monitoring service
+	server    *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth       *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les       *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine    consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend   *istanbulBackend.Backend // Istanbul consensus backend
+	etherBase common.Address
+	node      string // Name of the node to display on the monitoring page
+	host      string // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -119,16 +119,14 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	}
 	// Assemble and return the stats service
 	var (
-		engine consensus.Engine
-		id     string
+		engine    consensus.Engine
+		etherBase common.Address
+		id        string
 	)
 	id = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
-		etherBase, err := ethServ.Etherbase()
-		if err == nil {
-			id = strings.ToLower(etherBase.String())
-		}
+		etherBase, _ = ethServ.Etherbase()
 	} else {
 		engine = lesServ.Engine()
 	}
@@ -136,14 +134,15 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	backend := engine.(*istanbulBackend.Backend)
 
 	return &Service{
-		eth:     ethServ,
-		les:     lesServ,
-		engine:  engine,
-		backend: backend,
-		node:    id,
-		host:    parts[2],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
+		eth:       ethServ,
+		les:       lesServ,
+		engine:    engine,
+		backend:   backend,
+		etherBase: etherBase,
+		node:      id,
+		host:      parts[2],
+		pongCh:    make(chan struct{}),
+		histCh:    make(chan []uint64, 1),
 	}, nil
 }
 
@@ -838,7 +837,6 @@ type validatorSet struct {
 
 type validatorInfo struct {
 	Address        common.Address `json:"address"`
-	Name           string         `json:"name"`
 	Score          string         `json:"score"`
 	BLSPublicKey   []byte         `json:"blsPublicKey"`
 	EcdsaPublicKey []byte         `json:"ecdsaPublicKey"`
@@ -847,26 +845,26 @@ type validatorInfo struct {
 
 func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) validatorSet {
 	var (
+		err            error
 		valSet         validatorSet
 		valsRegistered []validatorInfo
 		valsElected    []common.Address
 	)
 
 	// Add set of registered validators
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(s.eth.BlockChain().CurrentHeader(), state)
 	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
-
 	for _, address := range valsRegisteredMap {
 		var valData validators.ValidatorContractData
-		valData, _ = validators.GetValidator(
-			s.eth.BlockChain().CurrentHeader(),
-			state,
-			address)
+		valData, err = validators.GetValidator(s.eth.BlockChain().CurrentHeader(), state, address)
+
+		if err != nil {
+			log.Warn("Validator data not found", "address", address.Hex(), "err", err)
+		}
 
 		valsRegistered = append(valsRegistered, validatorInfo{
 			Address:        address,
 			Score:          fmt.Sprintf("%d", valData.Score),
-			Name:           address.String(),
 			BLSPublicKey:   valData.BlsPublicKey,
 			EcdsaPublicKey: valData.EcdsaPublicKey,
 			Affiliation:    valData.Affiliation,
