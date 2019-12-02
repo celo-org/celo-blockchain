@@ -274,11 +274,12 @@ func (c *msgBacklogImpl) processBacklog() {
 			// Current sequence. Process all in order.
 			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
 				view, err := extractMessageView(msg)
-
-				// TODO check the error, not the view
+				if err != nil {
+					logger.Error("Error decoding msg", "msg", msg, "err", err)
+					return false
+				}
 				if view == nil {
 					logger.Error("Nil view", "msg", msg)
-					// continue
 					return false
 				}
 
