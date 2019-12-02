@@ -270,7 +270,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "validators", regAndActiveVals, "err", err)
+		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 
