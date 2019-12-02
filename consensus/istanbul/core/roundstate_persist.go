@@ -302,22 +302,21 @@ func (rsp *roundStatePersistence) PreparedCertificate() istanbul.PreparedCertifi
 }
 
 func (rsp *roundStatePersistence) storeRoundState() error {
-	return nil
-	// viewKey, err := rlp.EncodeToBytes(rsp.delegate.View())
-	// if err != nil {
-	// 	return err
-	// }
+	viewKey, err := rlp.EncodeToBytes(rsp.delegate.View())
+	if err != nil {
+		return err
+	}
 
-	// entryBytes, err := rlp.EncodeToBytes(rsp)
-	// if err != nil {
-	// 	return err
-	// }
+	entryBytes, err := rlp.EncodeToBytes(rsp)
+	if err != nil {
+		return err
+	}
 
-	// batch := new(leveldb.Batch)
-	// batch.Put([]byte(lastViewKey), viewKey)
-	// batch.Put(viewKey, entryBytes)
+	batch := new(leveldb.Batch)
+	batch.Put([]byte(lastViewKey), viewKey)
+	batch.Put(viewKey, entryBytes)
 
-	// return rsp.db.Write(batch, nil)
+	return rsp.db.Write(batch, nil)
 }
 
 func getLastStoredView(db *leveldb.DB) (*istanbul.View, error) {
