@@ -45,7 +45,7 @@ func (c *core) Start() error {
 
 	// Process backlog
 	c.processPendingRequests()
-	c.processBacklog()
+	c.backlog.updateState(c.current.View(), c.current.State())
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -126,9 +126,12 @@ func (c *core) handleEvents() {
 					c.logger.Debug("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
-				// No need to check signature for internal messages
-				if err := c.handleCheckedMsg(ev.msg, ev.src); err != nil {
-					c.logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
+				if payload, err := ev.msg.Payload(); err != nil {
+					c.logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
+				} else {
+					if err := c.handleMsg(payload); err != nil {
+						c.logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
+					}
 				}
 			}
 		case event, ok := <-c.timeoutSub.Chan():
@@ -186,9 +189,11 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
 		if err == errFutureMessage {
-			c.storeBacklog(msg, src)
+			// Store in backlog (if it's not from self)
+			if msg.Address != c.address {
+				c.backlog.store(msg)
+			}
 		}
-
 		return err
 	}
 

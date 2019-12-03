@@ -81,18 +81,24 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		return errFailedDecodeCommit
 	}
 
-	if err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View); err != nil {
+	err = c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
+
+	if err == errOldMessage {
+		// Discard messages from previous views, unless they are commits from the previous sequence,
+		// with the same round as what we wound up finalizing, as we would be able to include those
+		// to create the ParentAggregatedSeal for our next proposal.
+		lastSubject, err := c.backend.LastSubject()
+		if err != nil {
+			return err
+		} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
+			return errOldMessage
+		}
+		return c.handleCheckedCommitForPreviousSequence(msg, commit)
+	} else if err != nil {
 		return err
 	}
 
-	// Valid commit messages may be for the current, or previous sequence. We compare against our
-	// current view to find out which.
-
-	if commit.Subject.View.Cmp(c.current.View()) == 0 {
-		return c.handleCheckedCommitForCurrentSequence(msg, commit)
-	} else {
-		return c.handleCheckedCommitForPreviousSequence(msg, commit)
-	}
+	return c.handleCheckedCommitForCurrentSequence(msg, commit)
 }
 
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
@@ -167,7 +173,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 			return err
 		}
 		// Process Backlog Messages
-		c.processBacklog()
+		c.backlog.updateState(c.current.View(), c.current.State())
 
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.sendCommit()
