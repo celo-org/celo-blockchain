@@ -135,11 +135,13 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
 		c.consensusTimestamp = time.Now()
 
-		c.current.TransitionToPreprepared(preprepare)
+		err := c.current.TransitionToPreprepared(preprepare)
+		if err != nil {
+			return err
+		}
 
 		// Process Backlog Messages
 		c.processBacklog()
-
 		c.sendPrepare()
 	}
 
