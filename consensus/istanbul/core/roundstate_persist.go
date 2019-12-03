@@ -38,8 +38,10 @@ const (
 	lastViewKey  = "lastView" // Last View that we know of
 )
 
-func newRoundStateWithPersistence(sequence *big.Int, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator, path string) (RoundState, error) {
-	logger := log.New("func", "newRoundStateWithPersistence")
+// createOrRestoreRoundState will obtain the last saved RoundState and use it if it's newer than the given Sequence,
+// if not it will create a new one with the information given.
+func createOrRestoreRoundState(sequence *big.Int, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator, path string) (RoundState, error) {
+	logger := log.New("func", "createOrRestoreRoundState")
 
 	var db *leveldb.DB
 	var err error
@@ -184,8 +186,8 @@ func (rsp *roundStatePersistence) TransitionToWaitingForNewRound(r *big.Int, nex
 
 	return rsp.storeRoundState()
 }
-func (rsp *roundStatePersistence) TransitionToCommited() error {
-	err := rsp.delegate.TransitionToCommited()
+func (rsp *roundStatePersistence) TransitionToCommitted() error {
+	err := rsp.delegate.TransitionToCommitted()
 	if err != nil {
 		return err
 	}
@@ -301,7 +303,12 @@ func (rsp *roundStatePersistence) PreparedCertificate() istanbul.PreparedCertifi
 	return rsp.delegate.PreparedCertificate()
 }
 
+// storeRoundState will store the currentRoundState in a Map<view, roundState> schema.
 func (rsp *roundStatePersistence) storeRoundState() error {
+	// We store the roundState for each view; since we'll need this
+	// information to allow the node to have evidence to show that
+	// a validator did a "valid" double signing
+
 	viewKey, err := rlp.EncodeToBytes(rsp.delegate.View())
 	if err != nil {
 		return err

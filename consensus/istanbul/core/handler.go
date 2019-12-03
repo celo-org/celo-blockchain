@@ -17,7 +17,6 @@
 package core
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,21 +33,13 @@ func (c *core) ParentCommits() MessageSet {
 // Start implements core.Engine.Start
 func (c *core) Start() error {
 
-	if c.current != nil {
-		return fmt.Errorf("BUG? Attempting to Start() core with existing c.current")
-	}
-
-	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
-	valSet := c.backend.Validators(headBlock)
-
-	nextBlock := new(big.Int).Add(headBlock.Number(), common.Big1)
-	nextProposer := c.selectProposer(valSet, headAuthor, 0)
-	roundState, err := newRoundStateWithPersistence(nextBlock, valSet, nextProposer, c.config.RoundStateDBPath)
+	roundState, err := c.createRoundState()
 	if err != nil {
 		return err
 	}
+
 	c.current = roundState
-	c.roundChangeSet = newRoundChangeSet(valSet)
+	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
 	c.newRoundChangeTimer()
 

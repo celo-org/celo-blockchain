@@ -42,7 +42,7 @@ type RoundState interface {
 	StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error
 	TransitionToPreprepared(preprepare *istanbul.Preprepare) error
 	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error
-	TransitionToCommited() error
+	TransitionToCommitted() error
 	TransitionToPrepared(quorumSize int) error
 	AddCommit(msg *istanbul.Message) error
 	AddPrepare(msg *istanbul.Message) error
@@ -267,7 +267,7 @@ func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet is
 	return nil
 }
 
-func (s *roundStateImpl) TransitionToCommited() error {
+func (s *roundStateImpl) TransitionToCommitted() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

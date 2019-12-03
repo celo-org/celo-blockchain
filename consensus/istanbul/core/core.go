@@ -18,6 +18,7 @@ package core
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -150,7 +151,7 @@ func (c *core) broadcast(msg *istanbul.Message) {
 }
 
 func (c *core) commit() error {
-	err := c.current.TransitionToCommited()
+	err := c.current.TransitionToCommitted()
 	if err != nil {
 		return err
 	}
@@ -391,6 +392,25 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	return nil
 }
 
+func (c *core) createRoundState() (RoundState, error) {
+	if c.current != nil {
+		return nil, fmt.Errorf("BUG? Attempting to Start() core with existing c.current")
+	}
+
+	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+	valSet := c.backend.Validators(headBlock)
+
+	nextBlock := new(big.Int).Add(headBlock.Number(), common.Big1)
+	nextProposer := c.selectProposer(valSet, headAuthor, 0)
+	roundState, err := createOrRestoreRoundState(nextBlock, valSet, nextProposer, c.config.RoundStateDBPath)
+	if err != nil {
+		return nil, err
+	}
+	return roundState, nil
+}
+
+// resetRoundState will modify the RoundState to either start a new round or a new sequence
+// based on the `roundChange` flag given
 func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) error {
 	// TODO(Joshua): Include desired round here.
 	if roundChange {
