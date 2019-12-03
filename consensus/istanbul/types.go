@@ -67,6 +67,25 @@ type Request struct {
 	Proposal Proposal
 }
 
+// EncodeRLP serializes b into the Ethereum RLP format.
+func (b *Request) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{b.Proposal})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (b *Request) DecodeRLP(s *rlp.Stream) error {
+	var request struct {
+		Proposal *types.Block
+	}
+
+	if err := s.Decode(&request); err != nil {
+		return err
+	}
+
+	b.Proposal = request.Proposal
+	return nil
+}
+
 // View includes a round number and a sequence number.
 // Sequence is the block number we'd like to commit.
 // Each round has a number and is composed by 3 steps: preprepare, prepare and commit.

@@ -32,8 +32,20 @@ func (c *core) ParentCommits() MessageSet {
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
-	// Start a new round from last sequence + 1
-	c.startNewRound(common.Big0)
+
+	roundState, err := c.createRoundState()
+	if err != nil {
+		return err
+	}
+
+	c.current = roundState
+	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
+
+	c.newRoundChangeTimer()
+
+	// Process backlog
+	c.processPendingRequests()
+	c.processBacklog()
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -50,6 +62,11 @@ func (c *core) Stop() error {
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
+
+	if err := c.current.Close(); err != nil {
+		return err
+	}
+	c.current = nil
 	return nil
 }
 
@@ -86,7 +103,6 @@ func (c *core) unsubscribeEvents() {
 func (c *core) handleEvents() {
 	// Clear state
 	defer func() {
-		c.current = nil
 		c.handlerWg.Done()
 	}()
 
@@ -124,7 +140,9 @@ func (c *core) handleEvents() {
 			}
 			switch ev := event.Data.(type) {
 			case timeoutEvent:
-				c.handleTimeoutMsg(ev.view)
+				if err := c.handleTimeoutMsg(ev.view); err != nil {
+					c.logger.Error("Error on handleTimeoutMsg", "err", err)
+				}
 			}
 		case event, ok := <-c.finalCommittedSub.Chan():
 			if !ok {
@@ -132,7 +150,9 @@ func (c *core) handleEvents() {
 			}
 			switch event.Data.(type) {
 			case istanbul.FinalCommittedEvent:
-				c.handleFinalCommitted()
+				if err := c.handleFinalCommitted(); err != nil {
+					c.logger.Error("Error on handleFinalCommit", "err", err)
+				}
 			}
 		}
 	}
@@ -191,10 +211,10 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
+func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) error {
 	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
 	logger.Trace("Timed out, trying to wait for next round")
 
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
-	c.waitForDesiredRound(nextRound)
+	return c.waitForDesiredRound(nextRound)
 }

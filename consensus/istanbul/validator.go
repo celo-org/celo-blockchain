@@ -67,6 +67,10 @@ type Validator interface {
 
 	// String representation of Validator
 	String() string
+
+	// Serialize returns binary reprenstation of the Validator
+	// can be use used to instantiate a validator with DeserializeValidator()
+	Serialize() ([]byte, error)
 }
 
 func GetAddressesFromValidatorList(validators []Validator) []common.Address {
@@ -124,6 +128,10 @@ type ValidatorSet interface {
 	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
+
+	// Serialize returns binary reprentation of the ValidatorSet
+	// can be use used to instantiate a validator with DeserializeValidatorSet()
+	Serialize() ([]byte, error)
 }
 
 // ----------------------------------------------------------------------------

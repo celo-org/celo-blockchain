@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 func New(addr common.Address, blsPublicKey []byte) istanbul.Validator {
@@ -29,8 +30,28 @@ func New(addr common.Address, blsPublicKey []byte) istanbul.Validator {
 	}
 }
 
+func DeserializeValidator(binaryData []byte) (istanbul.Validator, error) {
+	var value defaultValidator
+
+	err := rlp.DecodeBytes(binaryData, &value)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
 func NewSet(validators []istanbul.ValidatorData) istanbul.ValidatorSet {
 	return newDefaultSet(validators)
+}
+
+func DeserializeValidatorSet(binaryData []byte) (istanbul.ValidatorSet, error) {
+	var value defaultSet
+
+	err := rlp.DecodeBytes(binaryData, &value)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func ExtractValidators(extraData []byte) []istanbul.ValidatorData {
