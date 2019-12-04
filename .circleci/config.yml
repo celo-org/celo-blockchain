@@ -45,6 +45,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Test secret
+          command: |
+            echo "my secret: ${TEST_SECRET}"
+      - run:
           name: Setup Rust language
           command: |
             set -euo pipefail
