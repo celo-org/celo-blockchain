@@ -51,7 +51,9 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
 	if len(valSet) == 0 {
-		sb.logger.Error("Unable to fetch validator set to update scores and distribute payments and rewards")
+		err := errors.New("Unable to fetch validator set to update scores and distribute payments and rewards")
+		sb.logger.Error(err.Error())
+		return err
 	}
 
 	err = sb.updateValidatorScores(header, state, valSet)
@@ -86,12 +88,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
 
-	// get all the uptimes for this epoch
-	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
-	// but I believe it's a different database handle
-	bc := sb.chain.(*core.BlockChain)
-	db := bc.GetDatabase()
-	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
+	uptimes := rawdb.ReadAccumulatedEpochUptime(sb.db, epoch)
 	if len(uptimes.Entries) == 0 {
 		logger.Error("no accumulated uptimes found, will not update validator scores")
 		return errors.New("no accumulated uptimes found, will not update validator scores")
