@@ -77,7 +77,10 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	preferredDigest := common.Hash{}
 	seen := make(map[common.Address]bool)
 	decodedMessages := make([]istanbul.RoundChange, len(roundChangeCertificate.RoundChangeMessages))
-	for i, message := range roundChangeCertificate.RoundChangeMessages {
+	for i := range roundChangeCertificate.RoundChangeMessages {
+		// use a different variable each time since we'll store a pointer to the variable
+		message := roundChangeCertificate.RoundChangeMessages[i]
+
 		// Verify message signed by a validator
 		data, err := message.PayloadNoSig()
 		if err != nil {
