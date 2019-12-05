@@ -35,7 +35,7 @@ func (c *core) sendNextRoundChange() {
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
+	logger := c.newLogger("func", "sendRoundChange", "target round", round)
 
 	cv := c.current.View()
 	if cv.Round.Cmp(round) >= 0 {
@@ -69,7 +69,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.newLogger("func", "handleRoundChangeCertificate")
 
-	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < c.valSet.MinQuorumSize() {
+	if len(roundChangeCertificate.RoundChangeMessages) > c.current.ValidatorSet().Size() || len(roundChangeCertificate.RoundChangeMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 
@@ -77,7 +77,10 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	preferredDigest := common.Hash{}
 	seen := make(map[common.Address]bool)
 	decodedMessages := make([]istanbul.RoundChange, len(roundChangeCertificate.RoundChangeMessages))
-	for i, message := range roundChangeCertificate.RoundChangeMessages {
+	for i := range roundChangeCertificate.RoundChangeMessages {
+		// use a different variable each time since we'll store a pointer to the variable
+		message := roundChangeCertificate.RoundChangeMessages[i]
+
 		// Verify message signed by a validator
 		data, err := message.PayloadNoSig()
 		if err != nil {
@@ -146,13 +149,12 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 	// May have already moved to this round based on quorum round change messages.
 	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
-	c.startNewRound(proposal.View.Round)
 
-	return nil
+	return c.startNewRound(proposal.View.Round)
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
+	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
@@ -188,15 +190,15 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	// Skip to the highest round we know F+1 (one honest validator) is at, but
 	// don't start a round until we have a quorum who want to start a given round.
-	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
-	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
+	ffRound := c.roundChangeSet.MaxRound(c.current.ValidatorSet().F() + 1)
+	quorumRound := c.roundChangeSet.MaxOnOneRound(c.current.ValidatorSet().MinQuorumSize())
 
 	logger.Trace("Got round change message", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Trace("Got quorum round change messages, starting new round.")
-		c.startNewRound(quorumRound)
+		return c.startNewRound(quorumRound)
 	} else if ffRound != nil {
 		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForDesiredRound(ffRound)

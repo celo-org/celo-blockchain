@@ -225,7 +225,7 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 			blsPublicKey,
 		}
 	}
-	vset := validator.NewSet(validators, istanbul.RoundRobin)
+	vset := validator.NewSet(validators)
 	return vset, keys
 }
 

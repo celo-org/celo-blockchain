@@ -427,7 +427,7 @@ func TestSaveAndLoad(t *testing.T) {
 				common.BytesToAddress([]byte("1234567895")),
 				nil,
 			},
-		}, istanbul.RoundRobin),
+		}),
 	}
 	db := ethdb.NewMemDatabase()
 	err := snap.store(db)

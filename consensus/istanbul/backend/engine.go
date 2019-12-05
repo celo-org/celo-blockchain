@@ -641,6 +641,7 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
+	sb.logger.Info("Starting istanbul.Engine")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
@@ -669,6 +670,7 @@ func (sb *Backend) Stop() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
+	sb.logger.Info("Stopping istanbul.Engine")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
@@ -780,7 +782,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			log.Error("Cannot construct validators data from istanbul extra")
 			return nil, errInvalidValidatorSetDiff
 		}
-		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(validators, sb.config.ProposerPolicy))
+		snap = newSnapshot(sb.config.Epoch, 0, genesis.Hash(), validator.NewSet(validators))
 
 		if err := snap.store(sb.db); err != nil {
 			log.Error("Unable to store snapshot", "err", err)

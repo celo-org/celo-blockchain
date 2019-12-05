@@ -243,6 +243,10 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
+	config := istanbul.DefaultConfig
+	config.RoundStateDBPath = ""
+	config.ValidatorEnodeDBPath = ""
+
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})

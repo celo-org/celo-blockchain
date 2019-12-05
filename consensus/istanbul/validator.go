@@ -67,6 +67,10 @@ type Validator interface {
 
 	// String representation of Validator
 	String() string
+
+	// Serialize returns binary reprenstation of the Validator
+	// can be use used to instantiate a validator with DeserializeValidator()
+	Serialize() ([]byte, error)
 }
 
 func GetAddressesFromValidatorList(validators []Validator) []common.Address {
@@ -94,16 +98,11 @@ func (a ValidatorsDataByAddress) Less(i, j int) bool {
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
-	// Calculate the proposer
-	CalcProposer(lastProposer common.Address, round uint64)
-	// Get current proposer
-	GetProposer() Validator
-	// Check whether the validator with given address is the current proposer
-	IsProposer(address common.Address) bool
-	// Policy by which this selector chooses proposers
-	Policy() ProposerPolicy
-	// Sets the randomness for use in the proposer policy
+	// Sets the randomness for use in the proposer policy.
+	// This is injected into the ValidatorSet when we call `getOrderedValidators`
 	SetRandomness(seed common.Hash)
+	// Sets the randomness for use in the proposer policy
+	GetRandomness() common.Hash
 
 	// Return the validator size
 	Size() int
@@ -129,9 +128,13 @@ type ValidatorSet interface {
 	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
+
+	// Serialize returns binary reprentation of the ValidatorSet
+	// can be use used to instantiate a validator with DeserializeValidatorSet()
+	Serialize() ([]byte, error)
 }
 
 // ----------------------------------------------------------------------------
 
-// Returns the block proposer for a round given the last proposer, round number, and randomness.
-type ProposerSelector func(ValidatorSet, common.Address, uint64, common.Hash) Validator
+// ProposerSelector returns the block proposer for a round given the last proposer, round number, and randomness.
+type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.Address, currentRound uint64) Validator
