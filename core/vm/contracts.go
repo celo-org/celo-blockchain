@@ -447,7 +447,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if len(input) < 96 {
+	if len(input) != 96 {
 		return nil, gas, ErrInputLength
 	}
 
@@ -493,7 +493,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
 	// 6 args x 32 bytes each = 192 bytes total input length
-	if len(input) < 192 {
+	if len(input) != 192 {
 		return nil, gas, ErrInputLength
 	}
 
@@ -609,7 +609,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 
 	// input is comprised of a single argument:
 	//   index: 32 byte integer representing the index of the validator to get
-	if len(input) < 32 {
+	if len(input) != 32 {
 		return nil, gas, ErrInputLength
 	}
 
