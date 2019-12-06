@@ -350,38 +350,11 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, rawdb.NewMemoryDatabase())
+	cfg := *istanbul.DefaultConfig
+	cfg.ValidatorEnodeDBPath = ""
+	engine := istanbulBackend.New(&cfg, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
-}
-
-func TestPendingStateAndBlockIstanbul(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, getAuthorizedIstanbulEngine())
-}
-
-func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	defer engine.Close()
-
-	w, b := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
-	defer w.close()
-
-	// Ensure snapshot has been updated.
-	time.Sleep(100 * time.Millisecond)
-	block, state := w.pending()
-	if block.NumberU64() != 1 {
-		t.Errorf("block number mismatch: have %d, want %d", block.NumberU64(), 1)
-	}
-	if balance := state.GetBalance(testUserAddress); balance.Cmp(big.NewInt(1000)) != 0 {
-		t.Errorf("account balance mismatch: have %d, want %d", balance, 1000)
-	}
-	b.txPool.AddLocals(newTxs)
-
-	// Ensure the new tx events has been processed
-	time.Sleep(100 * time.Millisecond)
-	block, state = w.pending()
-	if balance := state.GetBalance(testUserAddress); balance.Cmp(big.NewInt(2000)) != 0 {
-		t.Errorf("account balance mismatch: have %d, want %d", balance, 2000)
-	}
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
@@ -555,13 +528,6 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	}
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
-	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
 	}
 
 	w.start()

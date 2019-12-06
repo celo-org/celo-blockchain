@@ -25,11 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/metrics"
 )
 
 func init() {
 	rand.Seed(time.Now().Unix())
+	max, _ := fdlimit.Maximum()
+	fdlimit.Raise(uint64(max))
 }
 
 // Gets a chunk of data, filled with 'b'
@@ -103,7 +106,10 @@ func TestFreezerBasicsClosing(t *testing.T) {
 	for x := 0; x < 255; x++ {
 		data := getChunk(15, x)
 		f.Append(uint64(x), data)
-		f.Close()
+		err = f.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 		f, err = newCustomTable(os.TempDir(), fname, rm, wm, sg, 50, true)
 		if err != nil {
 			t.Fatal(err)
@@ -120,7 +126,10 @@ func TestFreezerBasicsClosing(t *testing.T) {
 		if !bytes.Equal(got, exp) {
 			t.Fatalf("test %d, got \n%x != \n%x", y, got, exp)
 		}
-		f.Close()
+		err = f.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 		f, err = newCustomTable(os.TempDir(), fname, rm, wm, sg, 50, true)
 		if err != nil {
 			t.Fatal(err)
