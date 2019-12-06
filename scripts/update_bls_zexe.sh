@@ -1,4 +1,6 @@
-BRANCH=$1 || master
+#!/bin/bash -e
+
+BRANCH=${1:-master}
 SCRIPTS_DIR=`dirname $0`
 cd $SCRIPTS_DIR/..
 rm -r ./crypto/bls/bls-zexe
