@@ -17,16 +17,79 @@
 package core
 
 import (
+	"math/big"
+	"reflect"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
+func newView(seq, round int64) *istanbul.View {
+	return &istanbul.View{Round: big.NewInt(seq), Sequence: big.NewInt(round)}
+}
+
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	return newRoundState(
-		view,
-		validatorSet,
-		newTestPreprepare(view),
-		nil,
-		istanbul.PreparedCertificate{},
-		newMessageSet(validatorSet),
-	)
+	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0))
+	current.(*roundStateImpl).preprepare = newTestPreprepare(view)
+	return current
+}
+
+func checkError(t *testing.T, err error) {
+	if err != nil {
+		t.Errorf("Error %v", err)
+	}
+}
+func finishOnError(t *testing.T, err error) {
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
+}
+
+func assertEqualView(t *testing.T, have, want *istanbul.View) {
+	if !reflect.DeepEqual(have, want) {
+		t.Errorf("View are not equal: have %v, want: %v", have, want)
+	}
+}
+func assertEqualRoundState(t *testing.T, have, want RoundState) {
+	testEqual := func(name string, have, want interface{}) {
+		if !reflect.DeepEqual(have, want) {
+			t.Errorf("RoundState.%s mismatch: have %v, want %v", name, have, want)
+		}
+	}
+
+	testEqual("State", have.State(), want.State())
+	testEqual("Round", have.Round(), want.Round())
+	testEqual("DesiredRound", have.DesiredRound(), want.DesiredRound())
+	testEqual("Sequence", have.Sequence(), want.Sequence())
+	testEqual("ValidatorSet", have.ValidatorSet(), want.ValidatorSet())
+	testEqual("Proposer", have.Proposer(), want.Proposer())
+	testEqual("ParentCommits", have.ParentCommits(), want.ParentCommits())
+	testEqual("Commits", have.Commits(), want.Commits())
+	testEqual("Prepares", have.Prepares(), want.Prepares())
+
+	if have.PendingRequest() == nil || want.PendingRequest() == nil {
+		testEqual("PendingRequest", have.PendingRequest(), want.PendingRequest())
+	} else {
+		haveBlock := have.PendingRequest().Proposal
+		wantBlock := want.PendingRequest().Proposal
+		testEqual("PendingRequest.Proposal.Hash", haveBlock.Hash(), wantBlock.Hash())
+	}
+
+	if have.Preprepare() == nil || want.Preprepare() == nil {
+		testEqual("Preprepare", have.Preprepare(), want.Preprepare())
+	} else {
+		testEqual("Preprepare.Proposal.Hash", have.Preprepare().Proposal.Hash(), want.Preprepare().Proposal.Hash())
+		testEqual("Preprepare.View", have.Preprepare().View, want.Preprepare().View)
+		testEqual("Preprepare.RoundChangeCertificate.IsEmpty", have.Preprepare().RoundChangeCertificate.IsEmpty(), want.Preprepare().RoundChangeCertificate.IsEmpty())
+
+		if !have.Preprepare().RoundChangeCertificate.IsEmpty() && !want.Preprepare().RoundChangeCertificate.IsEmpty() {
+			testEqual("Preprepare.RoundChangeCertificate.RoundChangeMessages", have.Preprepare().RoundChangeCertificate.RoundChangeMessages, want.Preprepare().RoundChangeCertificate.RoundChangeMessages)
+		}
+
+	}
+
+	havePPBlock := have.PreparedCertificate().Proposal
+	wantPPBlock := want.PreparedCertificate().Proposal
+	testEqual("PreparedCertificate().Proposal.Hash", havePPBlock.Hash(), wantPPBlock.Hash())
+	testEqual("PreparedCertificate().PrepareOrCommitMessages", have.PreparedCertificate().PrepareOrCommitMessages, want.PreparedCertificate().PrepareOrCommitMessages)
 }

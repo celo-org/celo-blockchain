@@ -86,13 +86,14 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
-			valSet := c.backend.ParentBlockValidators(preprepare.Proposal).Copy()
-			previousProposer := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
-			valSet.CalcProposer(previousProposer, preprepare.View.Round.Uint64())
+			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+
 			// Broadcast COMMIT if it is an existing block
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
-			if valSet.IsProposer(msg.Address) && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
 				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
 				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil
@@ -104,7 +105,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// Check if the message comes from current proposer
-	if !c.valSet.IsProposer(msg.Address) {
+	if !c.current.IsProposer(msg.Address) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
 	}
@@ -130,17 +131,19 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	if c.state == StateAcceptRequest {
+	if c.current.State() == StateAcceptRequest {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
-		c.acceptPreprepare(preprepare)
-		c.setState(StatePreprepared)
+		c.consensusTimestamp = time.Now()
+
+		err := c.current.TransitionToPreprepared(preprepare)
+		if err != nil {
+			return err
+		}
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
 	}
 
 	return nil
-}
-
-func (c *core) acceptPreprepare(preprepare *istanbul.Preprepare) {
-	c.consensusTimestamp = time.Now()
-	c.current.SetPreprepare(preprepare)
 }

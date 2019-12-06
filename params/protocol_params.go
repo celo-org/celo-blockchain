@@ -147,7 +147,7 @@ func makeRegistryId(contractName string) [32]byte {
 const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
 	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
-	IntrinsicGasForAlternativeFeeCurrency uint64 = 166000
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 50000
 
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000

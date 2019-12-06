@@ -18,11 +18,15 @@ package core
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Construct a new message set to accumulate messages for given sequence/view number.
@@ -32,6 +36,16 @@ func newMessageSet(valSet istanbul.ValidatorSet) MessageSet {
 		messages:   make(map[common.Address]*istanbul.Message),
 		valSet:     valSet,
 	}
+}
+
+func deserializeMessageSet(binaryData []byte) (MessageSet, error) {
+	var ms messageSetImpl
+
+	err := rlp.DecodeBytes(binaryData, &ms)
+	if err != nil {
+		return nil, err
+	}
+	return &ms, nil
 }
 
 // ----------------------------------------------------------------------------
@@ -44,6 +58,7 @@ type MessageSet interface {
 	Values() (result []*istanbul.Message)
 	Size() int
 	Get(addr common.Address) *istanbul.Message
+	Serialize() ([]byte, error)
 }
 
 type messageSetImpl struct {
@@ -114,4 +129,64 @@ func (ms *messageSetImpl) String() string {
 		addresses = append(addresses, v.Address.String())
 	}
 	return fmt.Sprintf("[<%v> %v]", len(ms.messages), strings.Join(addresses, ", "))
+}
+
+func (s *messageSetImpl) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes(s)
+}
+
+// EncodeRLP impl
+func (s *messageSetImpl) EncodeRLP(w io.Writer) error {
+	serializedValSet, err := s.valSet.Serialize()
+	if err != nil {
+		return err
+	}
+
+	messageKeys := make([]common.Address, len(s.messages))
+	messageValues := make([]*istanbul.Message, len(s.messages))
+
+	i := 0
+	for k, v := range s.messages {
+		messageKeys[i] = k
+		messageValues[i] = v
+		i++
+	}
+
+	return rlp.Encode(w, []interface{}{
+		serializedValSet,
+		messageKeys,
+		messageValues,
+	})
+}
+
+// DecodeRLP Impl
+func (s *messageSetImpl) DecodeRLP(stream *rlp.Stream) error {
+	var data struct {
+		SerializedValSet []byte
+		MessageKeys      []common.Address
+		MessageValues    []*istanbul.Message
+	}
+
+	err := stream.Decode(&data)
+	if err != nil {
+		return err
+	}
+
+	valSet, err := validator.DeserializeValidatorSet(data.SerializedValSet)
+	if err != nil {
+		return err
+	}
+
+	messages := make(map[common.Address]*istanbul.Message)
+	for i, addr := range data.MessageKeys {
+		messages[addr] = data.MessageValues[i]
+	}
+
+	*s = messageSetImpl{
+		valSet:     valSet,
+		messages:   messages,
+		messagesMu: new(sync.Mutex),
+	}
+
+	return nil
 }

@@ -18,6 +18,7 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -247,15 +248,16 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		Msg:  payload,
 	}
 
-	// We swap in the provided proposal so that the message is finalized for the provided proposal
-	// and not for the current preprepare.
-	cachePreprepare := self.engine.(*core).current.Preprepare()
-	self.engine.(*core).current.(*roundStateImpl).preprepare = &istanbul.Preprepare{
-		View:     &view,
-		Proposal: proposal,
-	}
+	// // We swap in the provided proposal so that the message is finalized for the provided proposal
+	// // and not for the current preprepare.
+	// cachePreprepare := self.engine.(*core).current.Preprepare()
+	// fmt.Println("5")
+	// self.engine.(*core).current.TransitionToPreprepared(&istanbul.Preprepare{
+	// 	View:     &view,
+	// 	Proposal: proposal,
+	// })
 	message, err := self.finalizeAndReturnMessage(msg)
-	self.engine.(*core).current.(*roundStateImpl).preprepare = cachePreprepare
+	// self.engine.(*core).current.TransitionToPreprepared(cachePreprepare)
 	return message, err
 }
 
@@ -331,39 +333,28 @@ func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte, []*ecdsa.Pri
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	validators, _, _ := generateValidators(n)
-	return validator.NewSet(validators, istanbul.RoundRobin)
-}
-
-func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) RoundState {
-		return newRoundState(&istanbul.View{
-			Round:    big.NewInt(0),
-			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil)
-	})
+	return validator.NewSet(validators)
 }
 
 // FIXME: int64 is needed for N and F
-func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) RoundState) *testSystem {
+func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
-	config := istanbul.DefaultConfig
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
 
 	for i := uint64(0); i < n; i++ {
-		vset := validator.NewSet(validators, istanbul.RoundRobin)
+		vset := validator.NewSet(validators)
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, config).(*core)
-		core.state = StateAcceptRequest
-		core.current = getRoundState(vset)
-		core.roundChangeSet = newRoundChangeSet(vset)
-		core.valSet = vset
+		core := New(backend, &config).(*core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 
@@ -395,7 +386,11 @@ func (t *testSystem) listen() {
 func (t *testSystem) Run(core bool) func() {
 	for _, b := range t.backends {
 		if core {
-			b.engine.Start() // start Istanbul core
+			err := b.engine.Start() // start Istanbul core
+			if err != nil {
+				fmt.Printf("Error Starting istanbul engine: %s", err)
+				panic("Error Starting istanbul engine")
+			}
 		}
 	}
 
@@ -409,7 +404,11 @@ func (t *testSystem) stop(core bool) {
 
 	for _, b := range t.backends {
 		if core {
-			b.engine.Stop()
+			err := b.engine.Stop()
+			if err != nil {
+				fmt.Printf("Error Stopping istanbul engine: %s", err)
+				panic("Error Stopping istanbul engine")
+			}
 		}
 	}
 }
