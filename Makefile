@@ -131,7 +131,7 @@ lint: ## Run linters.
 	build/env.sh go run build/ci.go lint
 
 clean-geth:
-	./build/clean_go_build_cache.sh
+	go clean -cache
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 clean-bls-zexe:

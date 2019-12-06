@@ -239,5 +239,3 @@ func (hn *hashOrNumber) DecodeRLP(s *rlp.Stream) error {
 type CodeData []struct {
 	Value []byte
 }
-
-type proofsData [][]rlp.RawValue

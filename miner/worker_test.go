@@ -17,8 +17,10 @@
 package miner
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -219,7 +221,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -255,6 +257,7 @@ func testGenerateBlockAndImport(t *testing.T, isClique bool) {
 	chain, _ := core.NewBlockChain(db2, nil, b.chain.Config(), engine, vm.Config{}, nil)
 	defer chain.Stop()
 
+	loopErr := make(chan error)
 	newBlock := make(chan struct{})
 	listenNewBlock := func() {
 		sub := w.mux.Subscribe(core.NewMinedBlockEvent{})
@@ -264,55 +267,31 @@ func testGenerateBlockAndImport(t *testing.T, isClique bool) {
 			block := item.Data.(core.NewMinedBlockEvent).Block
 			_, err := chain.InsertChain([]*types.Block{block})
 			if err != nil {
-				t.Fatalf("Failed to insert new mined block:%d, error:%v", block.NumberU64(), err)
+				loopErr <- fmt.Errorf("failed to insert new mined block:%d, error:%v", block.NumberU64(), err)
 			}
 			newBlock <- struct{}{}
 		}
 	}
-
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-	w.start() // Start mining!
-
-	// Ignore first 2 commits caused by start operation
-	ignored := make(chan struct{}, 2)
-	w.skipSealHook = func(task *task) bool {
-		ignored <- struct{}{}
-		return true
-	}
-	for i := 0; i < 2; i++ {
-		<-ignored
-	}
-
-	go listenNewBlock()
-
 	// Ignore empty commit here for less noise
 	w.skipSealHook = func(task *task) bool {
 		return len(task.receipts) == 0
 	}
+	w.start() // Start mining!
+	go listenNewBlock()
+
 	for i := 0; i < 5; i++ {
 		b.txPool.AddLocal(b.newRandomTx(true))
 		b.txPool.AddLocal(b.newRandomTx(false))
 		b.PostChainEvents([]interface{}{core.ChainSideEvent{Block: b.newRandomUncle()}})
 		b.PostChainEvents([]interface{}{core.ChainSideEvent{Block: b.newRandomUncle()}})
 		select {
+		case e := <-loopErr:
+			t.Fatal(e)
 		case <-newBlock:
 		case <-time.NewTimer(3 * time.Second).C: // Worker needs 1s to include new changes.
 			t.Fatalf("timeout")
 		}
 	}
-}
-
-func TestPendingStateAndBlockEthash(t *testing.T) {
-	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker())
-}
-func TestPendingStateAndBlockClique(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 func getAuthorizedIstanbulEngine() consensus.Istanbul {
@@ -432,29 +411,26 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	defer w.close()
 
 	var (
-		taskCh    = make(chan struct{}, 2)
 		taskIndex int
+		taskCh    = make(chan struct{}, 2)
 	)
-
 	checkEqual := func(t *testing.T, task *task, index int) {
+		// The first empty work without any txs included
 		receiptLen, balance := 0, big.NewInt(0)
 
-		if !expectEmptyBlock && len(task.block.Body().Transactions) == 0 {
-			t.Errorf("Should have not received an empty block")
-		}
-
-		if !expectEmptyBlock || (index == 1 && shouldAddPendingTxs) {
+		// if !expectEmptyBlock || (index == 1 && shouldAddPendingTxs) {
+		if index == 1 {
+			// The second full work with 1 tx included
 			receiptLen, balance = 1, big.NewInt(1000)
 		}
 
 		if len(task.receipts) != receiptLen {
-			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
+			t.Fatalf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
 		}
 		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
+			t.Fatalf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
 		}
 	}
-
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 1 {
 			checkEqual(t, task, taskIndex)
@@ -462,18 +438,13 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 			taskCh <- struct{}{}
 		}
 	}
+	w.skipSealHook = func(task *task) bool { return true }
 	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
+		// Aarch64 unit tests are running in a VM on travis, they must
+		// be given more time to execute.
+		time.Sleep(time.Second)
 	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-
-	w.start()
+	w.start() // Start mining!
 	expectedTasksLen := 1
 	if shouldAddPendingTxs && expectEmptyBlock {
 		expectedTasksLen = 2
@@ -481,7 +452,7 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	for i := 0; i < expectedTasksLen; i += 1 {
 		select {
 		case <-taskCh:
-		case <-time.NewTimer(2 * time.Second).C:
+		case <-time.NewTimer(3 * time.Second).C:
 			t.Error("new task timeout")
 		}
 	}
@@ -505,6 +476,9 @@ func TestStreamUncleBlock(t *testing.T) {
 	taskIndex := 0
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 2 {
+			// The first task is an empty task, the second
+			// one has 1 pending tx, the third one has 1 tx
+			// and 1 uncle.
 			if taskIndex == 2 {
 				have := task.block.Header().UncleHash
 				want := types.CalcUncleHash([]*types.Header{b.uncleBlock.Header()})
@@ -522,17 +496,8 @@ func TestStreamUncleBlock(t *testing.T) {
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
 	}
-
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 2 {
-			break
-		}
-	}
 	w.start()
 
-	// Ignore the first two works
 	for i := 0; i < 2; i += 1 {
 		select {
 		case <-taskCh:
@@ -540,8 +505,8 @@ func TestStreamUncleBlock(t *testing.T) {
 			t.Error("new task timeout")
 		}
 	}
-	b.PostChainEvents([]interface{}{core.ChainSideEvent{Block: b.uncleBlock}})
 
+	b.PostChainEvents([]interface{}{core.ChainSideEvent{Block: b.uncleBlock}})
 	select {
 	case <-taskCh:
 	case <-time.NewTimer(time.Second).C:
@@ -628,6 +593,8 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	taskIndex := 0
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 1 {
+			// The first task is an empty task, the second
+			// one has 1 pending tx, the third one has 2 txs
 			if taskIndex == 2 {
 				receiptLen, balance := 2, big.NewInt(2000)
 				if len(task.receipts) != receiptLen {
@@ -646,13 +613,6 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	}
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
-	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
 	}
 
 	w.start()
@@ -698,11 +658,11 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 		progress = make(chan struct{}, 10)
 		result   = make([]float64, 0, 10)
 		index    = 0
-		start    = false
+		start    uint32
 	)
 	w.resubmitHook = func(minInterval time.Duration, recommitInterval time.Duration) {
 		// Short circuit if interval checking hasn't started.
-		if !start {
+		if atomic.LoadUint32(&start) == 0 {
 			return
 		}
 		var wantMinInterval, wantRecommitInterval time.Duration
@@ -734,19 +694,11 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 		index += 1
 		progress <- struct{}{}
 	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-
 	w.start()
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second) // Ensure two tasks have been summitted due to start opt
+	atomic.StoreUint32(&start, 1)
 
-	start = true
 	w.setRecommitInterval(3 * time.Second)
 	select {
 	case <-progress:

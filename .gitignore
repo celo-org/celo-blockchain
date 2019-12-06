@@ -26,7 +26,8 @@ target
 
 # used by the Makefile
 /build/_workspace/
-/build/bin/*
+/build/cache/
+/build/bin/
 !/build/bin/geth.aar
 /geth*.zip
 ndk_bundle

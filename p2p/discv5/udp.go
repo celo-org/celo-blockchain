@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -40,15 +39,12 @@ var celoClientSalt = []byte{0x63, 0x65, 0x6C, 0x6F}
 var (
 	errPacketTooSmall = errors.New("too small")
 	errBadPrefix      = errors.New("bad prefix")
-	errTimeout        = errors.New("RPC timeout")
 )
 
 // Timeouts
 const (
 	respTimeout = 500 * time.Millisecond
 	expiration  = 20 * time.Second
-
-	driftThreshold = 10 * time.Second // Allowed clock drift before warning user
 )
 
 // RPC request structures
@@ -189,10 +185,6 @@ func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	return rpcEndpoint{IP: ip, UDP: uint16(addr.Port), TCP: tcpPort}
 }
 
-func (e1 rpcEndpoint) equal(e2 rpcEndpoint) bool {
-	return e1.UDP == e2.UDP && e1.TCP == e2.TCP && e1.IP.Equal(e2.IP)
-}
-
 func nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 	if err := netutil.CheckRelayIP(sender.IP, rn.IP); err != nil {
 		return nil, err
@@ -227,7 +219,6 @@ type udp struct {
 	conn        conn
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
-	nat         nat.Interface
 	net         *Network
 }
 
@@ -274,13 +265,6 @@ func (t *udp) sendPing(remote *Node, toaddr *net.UDPAddr, topics []Topic) (hash 
 		Topics:     topics,
 	})
 	return hash
-}
-
-func (t *udp) sendFindnode(remote *Node, target NodeID) {
-	t.sendPacket(remote.ID, remote.addr(), byte(findnodePacket), findnode{
-		Target:     target,
-		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
 }
 
 func (t *udp) sendNeighbours(remote *Node, results []*Node) {
