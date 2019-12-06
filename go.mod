@@ -65,3 +65,5 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+replace github.com/celo-org/bls-zexe/go => ./crypto/bls/bls-zexe/go
