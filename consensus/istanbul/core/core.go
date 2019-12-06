@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
@@ -435,8 +434,8 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 		// timeout for first round takes into account expected block period
 		timeout += time.Duration(c.config.BlockPeriod) * time.Second
 	} else {
-		// timeout for subsequent rounds adds an exponential backup, capped at 2**5 = 32s
-		timeout += time.Duration(math.Pow(2, math.Min(float64(round), 5.))) * time.Second
+		// timeout for subsequent rounds adds an exponential backup.
+		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
