@@ -182,9 +182,9 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	err := c.checkMessage(istanbul.MsgRoundChange, rc.View)
 
 	// If the RC message is for the current sequence but a prior round, help the sender fast forward
-	// by sending back to it (not broadcasting) a round change message for our current/desired TODO round.
+	// by sending back to it (not broadcasting) a round change message for our desired round.
 	if err == errOldMessage && rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
-		logger.Trace("Sending round change for current round to node in previous round", "msg_round", rc.View.Round)
+		logger.Trace("Sending round change for des1ired round to node with a previous desired round", "msg_round", rc.View.Round)
 		c.sendRoundChangeAgain(msg.Address)
 		return nil
 	} else if err != nil {
