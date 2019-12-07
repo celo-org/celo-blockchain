@@ -27,26 +27,42 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-// sendNextRoundChange sends the ROUND CHANGE message with current round + 1
-func (c *core) sendNextRoundChange() {
-	cv := c.current.View()
-	c.sendRoundChange(new(big.Int).Add(cv.Round, common.Big1))
-}
-
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
 
-	cv := c.current.View()
-	if cv.Round.Cmp(round) >= 0 {
-		logger.Error("Cannot send out the round change")
+	if c.current.View().Round.Cmp(round) >= 0 {
+		logger.Warn("Cannot send out the round change")
 		return
 	}
 
+	msg, err := c.buildRoundChangeMsg(round)
+	if err != nil {
+		logger.Error("Could not build round change message", "err", msg)
+		return
+	}
+
+	c.broadcast(msg)
+}
+
+// sendRoundChange sends a ROUND CHANGE message for the current round back to a single address
+func (c *core) sendRoundChangeAgain(addr common.Address) {
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "desired_round", c.current.DesiredRound(), "func", "sendRoundChangeAgain", "dest_addr", addr)
+
+	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
+	if err != nil {
+		logger.Error("Could not build round change message", "err", err)
+		return
+	}
+
+	c.unicast(msg, addr)
+}
+
+// buildRoundChangeMsg creates a round change msg for the given round
+func (c *core) buildRoundChangeMsg(round *big.Int) (*istanbul.Message, error) {
 	nextView := &istanbul.View{
-		// The round number we'd like to transfer to.
 		Round:    new(big.Int).Set(round),
-		Sequence: new(big.Int).Set(cv.Sequence),
+		Sequence: new(big.Int).Set(c.current.View().Sequence),
 	}
 
 	rc := &istanbul.RoundChange{
@@ -56,14 +72,13 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 	payload, err := Encode(rc)
 	if err != nil {
-		logger.Error("Failed to encode ROUND CHANGE", "rc", rc, "err", err)
-		return
+		return nil, err
 	}
-	logger.Trace("Sending round change message", "rcs", c.roundChangeSet)
-	c.broadcast(&istanbul.Message{
+
+	return &istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
-	})
+	}, nil
 }
 
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
@@ -106,7 +121,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		var roundChange *istanbul.RoundChange
 		if err := message.Decode(&roundChange); err != nil {
-			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
+			logger.Warn("Failed to decode ROUND CHANGE in certificate", "err", err)
 			return err
 		}
 
@@ -157,12 +172,20 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
 	if err := msg.Decode(&rc); err != nil {
-		logger.Error("Failed to decode ROUND CHANGE", "err", err)
+		logger.Info("Failed to decode ROUND CHANGE", "err", err)
 		return errInvalidMessage
 	}
 
 	// Must be same sequence and future round.
-	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
+	err := c.checkMessage(istanbul.MsgRoundChange, rc.View)
+
+	// If the RC message is for the current sequence but a prior round, help the sender fast forward
+	// by sending back to it (not broadcasting) a round change message for our current/desired TODO round.
+	if err == errOldMessage && rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
+		logger.Trace("Sending round change for current round to node in previous round", "msg_round", rc.View.Round)
+		c.sendRoundChangeAgain(msg.Address)
+		return nil
+	} else if err != nil {
 		logger.Info("Check round change message failed", "err", err)
 		return err
 	}
