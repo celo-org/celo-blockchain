@@ -347,8 +347,22 @@ func (rcs *roundChangeSet) String() string {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
-	for r, rms := range rcs.msgsForRound {
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	modeRound := uint64(0)
+	modeRoundSize := 0
+	msgsForRoundStr := make([]string, 0, len(sortedRounds))
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		if rms.Size() > modeRoundSize {
+			modeRound = r
+			modeRoundSize = rms.Size()
+		}
 		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
 	}
 
@@ -357,8 +371,10 @@ func (rcs *roundChangeSet) String() string {
 		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
 	}
 
-	return fmt.Sprintf("RCS len=%v  By round: {<%v> %v}  By val: {<%v> %v}",
+	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v By round: {<%v> %v}  By val: {<%v> %v}",
 		len(rcs.latestRoundForVal),
+		modeRound,
+		modeRoundSize,
 		len(rcs.msgsForRound),
 		strings.Join(msgsForRoundStr, ", "),
 		len(rcs.latestRoundForVal),
