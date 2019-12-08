@@ -96,17 +96,19 @@ type core struct {
 
 // Appends the current view and state to the given context.
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
-	var seq, round *big.Int
+	var seq, round, desired *big.Int
 	state := c.state
 	if c.current != nil {
 		seq = c.current.Sequence()
 		round = c.current.Round()
+		desired = c.current.DesiredRound()
 	} else {
 		seq = common.Big0
 		round = big.NewInt(-1)
+		desired = big.NewInt(-1)
 	}
-	tmp := c.logger.New(ctx...)
-	return tmp.New("cur_seq", seq, "cur_round", round, "state", state, "address", c.address)
+	logger := c.logger.New(ctx...)
+	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
 }
 
 func (c *core) SetAddress(address common.Address) {

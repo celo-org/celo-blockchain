@@ -67,7 +67,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 }
 
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
-	logger := c.newLogger("func", "handleRoundChangeCertificate")
+	logger := c.newLogger("func", "handleRoundChangeCertificate", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
 
 	if len(roundChangeCertificate.RoundChangeMessages) > c.valSet.Size() || len(roundChangeCertificate.RoundChangeMessages) < c.valSet.MinQuorumSize() {
 		return errInvalidRoundChangeCertificateNumMsgs
@@ -109,13 +109,16 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
 			return err
 		}
+		msg_logger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
 
 		// Verify ROUND CHANGE message is for a proper view
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
+			msg_logger.Error("Round change in certificate for wrong view", "err", err)
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
 		if roundChange.HasPreparedCertificate() {
+			msg_logger.Trace("Round change message has prepared certificate")
 			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
 				return err
 			}
@@ -126,9 +129,11 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			// blocks that were not committed.
 			// Also reject round change messages where the prepared view is greater than the round change view.
 			preparedView := roundChange.PreparedCertificate.View()
+			msg_logger = msg_logger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
 			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
 				return errInvalidRoundChangeViewMismatch
 			} else if preparedView.Round.Cmp(maxRound) > 0 {
+				msg_logger.Trace("Prepared certificate is latest in round change certificate")
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}
@@ -160,10 +165,11 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Error("Failed to decode ROUND CHANGE", "err", err)
 		return errInvalidMessage
 	}
+	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
 
 	// Must be same sequence and future round.
 	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
-		logger.Info("Check round change message failed", "err", err)
+		logger.Debug("Check round change message failed", "err", err)
 		return err
 	}
 
@@ -191,7 +197,8 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	ffRound := c.roundChangeSet.MaxRound(c.valSet.F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.valSet.MinQuorumSize())
 
-	logger.Trace("Got round change message", "msg_round", roundView.Round, "rcs", c.roundChangeSet.String(), "ffRound", ffRound, "quorumRound", quorumRound)
+	logger = logger.New("ffRound", ffRound, "quorumRound", quorumRound)
+	logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {

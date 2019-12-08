@@ -99,17 +99,17 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 
 	for i, val := range valSet {
 		scoreTally := uptimes.Entries[i].ScoreTally
-		logger = logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
+		val_logger := logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
 		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes.Entries[i].ScoreTally)), params.Fixidity1)
 		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
 
 		if scoreTally > denominator {
-			logger.Error("ScoreTally exceeds max possible")
+			val_logger.Error("ScoreTally exceeds max possible")
 			// 1.0 in fixidity
 			uptime = params.Fixidity1
 		}
 
-		logger.Trace("Updating validator score", "uptime", uptime)
+		val_logger.Trace("Updating validator score", "uptime", uptime)
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
 		if err != nil {
 			return err
