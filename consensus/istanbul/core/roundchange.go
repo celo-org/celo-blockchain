@@ -363,7 +363,7 @@ func (rcs *roundChangeSet) String() string {
 			modeRound = r
 			modeRoundSize = rms.Size()
 		}
-		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
+		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("\n%v: %v", r, rms.String()))
 	}
 
 	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
@@ -371,14 +371,12 @@ func (rcs *roundChangeSet) String() string {
 		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
 	}
 
-	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v By round: {<%v> %v}  By val: {<%v> %v}",
+	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v By round: {<%v> %v}",
 		len(rcs.latestRoundForVal),
 		modeRound,
 		modeRoundSize,
 		len(rcs.msgsForRound),
-		strings.Join(msgsForRoundStr, ", "),
-		len(rcs.latestRoundForVal),
-		strings.Join(latestRoundForValStr, ", "))
+		strings.Join(msgsForRoundStr, ", "))
 }
 
 // Gets a round change certificate for a specific round.
