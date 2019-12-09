@@ -32,7 +32,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 	logger := c.newLogger("func", "sendRoundChange", "target_round", round)
 
 	if c.current.View().Round.Cmp(round) >= 0 {
-		logger.Warn("Cannot send out the round change")
+		logger.Warn("Cannot send round change for previous round")
 		return
 	}
 
@@ -184,7 +184,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// If the RC message is for the current sequence but a prior round, help the sender fast forward
 	// by sending back to it (not broadcasting) a round change message for our desired round.
 	if err == errOldMessage && rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
-		logger.Trace("Sending round change for des1ired round to node with a previous desired round", "msg_round", rc.View.Round)
+		logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", rc.View.Round)
 		c.sendRoundChangeAgain(msg.Address)
 		return nil
 	} else if err != nil {
