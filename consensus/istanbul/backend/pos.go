@@ -75,6 +75,16 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	}
 	totalEpochPaymentsConvertedToGold, err := currency.Convert(totalEpochPayments, stableTokenAddress, nil)
 
+	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
+	if err != nil {
+		return err
+	}
+	if reserveAddress != nil {
+		state.AddBalance(*reserveAddress, totalEpochPaymentsConvertedToGold)
+	} else {
+		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
+	}
+
 	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
 }
 
@@ -172,6 +182,8 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if lockedGoldAddress != nil {
 		state.AddBalance(*lockedGoldAddress, electionRewards)
 		totalEpochRewards.Add(totalEpochRewards, electionRewards)
+	} else {
+		return totalEpochRewards, errors.New("Unable to fetch locked gold address for epoch rewards distribution")
 	}
 	return totalEpochRewards, err
 }
