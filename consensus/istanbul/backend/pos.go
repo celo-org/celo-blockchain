@@ -89,7 +89,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
 
-	var uptimes []*big.Int
+	uptimes := make([]*big.Int, 0, len(valSet))
 	for i, entry := range rawdb.ReadAccumulatedEpochUptime(sb.db, epoch).Entries {
 		if i >= len(valSet) {
 			break
