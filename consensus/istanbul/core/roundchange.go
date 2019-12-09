@@ -29,7 +29,7 @@ import (
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendRoundChange", "target round", round)
+	logger := c.newLogger("func", "sendRoundChange", "target round", round)
 
 	if c.current.View().Round.Cmp(round) >= 0 {
 		logger.Warn("Cannot send out the round change")
@@ -47,7 +47,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 // sendRoundChange sends a ROUND CHANGE message for the current round back to a single address
 func (c *core) sendRoundChangeAgain(addr common.Address) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "desired_round", c.current.DesiredRound(), "func", "sendRoundChangeAgain", "dest_addr", addr)
+	logger := c.newLogger("func", "sendRoundChangeAgain", "dest_addr", addr)
 
 	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
 	if err != nil {
@@ -175,7 +175,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "from", msg.Address, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
+	logger := c.newLogger("from", msg.Address, "func", "handleRoundChange", "tag", "handleMsg")
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
