@@ -196,7 +196,7 @@ func (sb *Backend) IsProxy() bool {
 }
 
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.proxyNode != nil
+	return sb.proxyNode != nil && sb.proxyNode.peer != nil
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
