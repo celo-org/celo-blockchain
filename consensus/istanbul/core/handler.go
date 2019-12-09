@@ -93,6 +93,7 @@ func (c *core) handleEvents() {
 	c.handlerWg.Add(1)
 
 	for {
+		logger := c.newLogger("func", "handleEvents")
 		select {
 		case event, ok := <-c.events.Chan():
 			if !ok {
@@ -110,12 +111,12 @@ func (c *core) handleEvents() {
 				}
 			case istanbul.MessageEvent:
 				if err := c.handleMsg(ev.Payload); err != nil {
-					c.logger.Debug("Error in handling istanbul message", "err", err)
+					logger.Debug("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				// No need to check signature for internal messages
 				if err := c.handleCheckedMsg(ev.msg, ev.src); err != nil {
-					c.logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
+					logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
 				}
 			}
 		case event, ok := <-c.timeoutSub.Chan():
@@ -149,7 +150,7 @@ func (c *core) handleMsg(payload []byte) error {
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
-		logger.Error("Failed to decode message from payload", "err", err)
+		logger.Debug("Failed to decode message from payload", "err", err)
 		return err
 	}
 
@@ -193,7 +194,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) {
 	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
-	logger.Trace("Timed out, trying to wait for next round")
+	logger.Debug("Timed out, trying to wait for next round")
 
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
 	c.waitForDesiredRound(nextRound)
