@@ -434,8 +434,8 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 		// timeout for first round takes into account expected block period
 		timeout += time.Duration(c.config.BlockPeriod) * time.Second
 	} else {
-		// timeout for subsequent rounds adds an exponential backup.
-		timeout += time.Duration(math.Pow(1.05, float64(round))) * time.Second
+		// timeout for subsequent rounds adds an exponential backoff, capped at 2**5 = 32s
+		timeout += time.Duration(math.Pow(2, math.Min(float64(round), 5.))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
