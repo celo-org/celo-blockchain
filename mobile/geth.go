@@ -193,6 +193,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		// Use an in memory DB for validatorEnode table
 		ethConf.Istanbul.ValidatorEnodeDBPath = ""
+		// Use an in memory DB for roundState table
 		ethConf.Istanbul.RoundStateDBPath = ""
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 			return les.New(ctx, &ethConf)
