@@ -104,10 +104,10 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 		if i >= len(valSet) {
 			break
 		}
-		logger = logger.New("scoreTally", entry.ScoreTally, "denominator", denominator, "index", i, "address", valSet[i].Address())
+    val_logger := logger.New("scoreTally", entry.ScoreTally, "denominator", denominator, "index", i, "address", valSet[i].Address())
 
 		if entry.ScoreTally > denominator {
-			logger.Error("ScoreTally exceeds max possible")
+			val_logger.Error("ScoreTally exceeds max possible")
 			uptimes = append(uptimes, params.Fixidity1)
 			continue
 		}
@@ -123,7 +123,8 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	}
 
 	for i, val := range valSet {
-		logger.Trace("Updating validator score", "uptime", uptimes[i])
+    val_logger := logger.New("uptime", uptimes[i], "address", val.Address())
+		val_logger.Trace("Updating validator score", "uptime", uptimes[i])
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptimes[i])
 		if err != nil {
 			return nil, err
