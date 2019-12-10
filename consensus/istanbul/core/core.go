@@ -28,13 +28,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/syndtr/goleveldb/leveldb"
-
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // New creates an Istanbul consensus core
@@ -147,8 +146,18 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
+// Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.newLogger("func", "broadcast")
+	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List()))
+}
+
+// Send message to a specific address
+func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
+	c.sendMsgTo(msg, []common.Address{addr})
+}
+
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+	logger := c.newLogger("func", "sendMsgTo")
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
@@ -156,10 +165,9 @@ func (c *core) broadcast(msg *istanbul.Message) {
 		return
 	}
 
-	// Broadcast payload
-	validators := istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List())
-	if err := c.backend.BroadcastConsensusMsg(validators, payload); err != nil {
-		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
+	// Send payload to the specified addresses
+	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+		logger.Error("Failed to send message", "msg", msg, "err", err)
 		return
 	}
 }
@@ -177,11 +185,11 @@ func (c *core) commit() error {
 	if proposal != nil {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
-			c.sendNextRoundChange()
+			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
 			return nil
 		}
 		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
-			c.sendNextRoundChange()
+			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
 			return nil
 		}
 	}
@@ -382,7 +390,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 		return nil
 	}
 
-	logger.Debug("Waiting for desired round")
+	logger.Debug("Round Change: Waiting for desired round")
 	desiredView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
@@ -509,8 +517,8 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 		// timeout for first round takes into account expected block period
 		timeout += time.Duration(c.config.BlockPeriod) * time.Second
 	} else {
-		// timeout for subsequent rounds adds an exponential backup, capped at 2**5 = 32s
-		timeout += time.Duration(math.Pow(2, math.Min(float64(round), 5.))) * time.Second
+		// timeout for subsequent rounds adds an exponential backoff.
+		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
