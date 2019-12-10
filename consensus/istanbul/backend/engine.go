@@ -612,6 +612,14 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {
 	sb.chain = chain
 	sb.currentBlock = currentBlock
+
+	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
+	// for non proxied validators
+	if sb.config.Proxy {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
+	}
 }
 
 // Start implements consensus.Istanbul.Start
