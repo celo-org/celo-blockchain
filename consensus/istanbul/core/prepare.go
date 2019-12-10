@@ -40,7 +40,7 @@ func (c *core) sendPrepare() {
 }
 
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
-	logger := c.newLogger("func", "verifyPreparedCertificate")
+	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
@@ -107,6 +107,9 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 
+		msg_logger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
+		msg_logger.Trace("Decoded message in prepared certificate", "code", message.Code)
+
 		// Verify message for the proper sequence.
 		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
 			return errInvalidPreparedCertificateMsgView
@@ -130,13 +133,13 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
-	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
 	if err != nil {
 		return errFailedDecodePrepare
 	}
+	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
 
 	if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
 		return err
@@ -148,7 +151,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 	// Add the PREPARE message to current round state
 	if err := c.current.AddPrepare(msg); err != nil {
-		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
+		logger.Error("Failed to add PREPARE message to round state", "err", err)
 		return err
 	}
 
@@ -180,7 +183,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
 func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
-	logger := c.newLogger("func", "verifyPrepare")
+	logger := c.newLogger("func", "verifyPrepare", "prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
