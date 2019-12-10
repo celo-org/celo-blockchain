@@ -190,6 +190,14 @@ func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent
 // SetBroadcaster implements consensus.Handler.SetBroadcaster
 func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	sb.broadcaster = broadcaster
+
+	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
+	// for non proxied validators
+	if sb.config.Proxy {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
+	}
 }
 
 // SetP2PServer implements consensus.Handler.SetP2PServer
