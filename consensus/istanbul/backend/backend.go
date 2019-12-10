@@ -99,6 +99,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	if err != nil {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
+	if config.LookbackWindow >= config.Epoch-1 {
+		logger.Crit("Istanbul lookback window must be less than epoch - 1")
+	}
 	backend := &Backend{
 		config:               config,
 		istanbulEventMux:     new(event.TypeMux),
