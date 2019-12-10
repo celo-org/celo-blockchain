@@ -124,7 +124,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 
 	for i, val := range valSet {
     val_logger := logger.New("uptime", uptimes[i], "address", val.Address())
-		val_logger.Trace("Updating validator score", "uptime", uptimes[i])
+		val_logger.Trace("Updating validator score")
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptimes[i])
 		if err != nil {
 			return nil, err
