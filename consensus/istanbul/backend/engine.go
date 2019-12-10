@@ -658,6 +658,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 		}
 
 		go sb.sendValEnodesShareMsgs()
+	} else {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
 	}
 
 	return nil

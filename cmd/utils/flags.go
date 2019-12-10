@@ -1271,6 +1271,9 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
 		} else {
 			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
+			if len(proxyEnodeURLPair) != 2 {
+				Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairFlag.Name)
+			}
 
 			var err error
 			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
