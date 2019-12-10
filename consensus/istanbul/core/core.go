@@ -132,7 +132,17 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
+// Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
+	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.valSet.List()))
+}
+
+// Send message to a specific address
+func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
+	c.sendMsgTo(msg, []common.Address{addr})
+}
+
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	payload, err := c.finalizeMessage(msg)
@@ -141,9 +151,9 @@ func (c *core) broadcast(msg *istanbul.Message) {
 		return
 	}
 
-	// Broadcast payload
-	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
-		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
+	// Send payload to the specified addresses
+	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+		logger.Error("Failed to send message", "msg", msg, "err", err)
 		return
 	}
 }
@@ -155,11 +165,11 @@ func (c *core) commit() {
 	if proposal != nil {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
-			c.sendNextRoundChange()
+			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
 			return
 		}
 		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
-			c.sendNextRoundChange()
+			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
 			return
 		}
 	}
@@ -352,7 +362,7 @@ func (c *core) waitForDesiredRound(r *big.Int) {
 		return
 	}
 
-	logger.Debug("Waiting for desired round")
+	logger.Debug("Round Change: Waiting for desired round")
 	desiredView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(r),
