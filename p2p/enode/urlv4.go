@@ -185,6 +185,20 @@ func (n *Node) v4URL() string {
 	return u.String()
 }
 
+var (
+	block24bit = net.IPNet{net.IPv4(10, 0, 0, 0), net.IPv4Mask(255, 0, 0, 0)}
+	block20bit = net.IPNet{net.IPv4(172, 16, 0, 0), net.IPv4Mask(255, 240, 0, 0)}
+	block16bit = net.IPNet{net.IPv4(192, 168, 0, 0), net.IPv4Mask(255, 255, 0, 0)}
+)
+
+// Returns true if the ip is a loopback or private ip, not generally accessible from the internet.
+func (n *Node) IsPrivateIP() bool {
+	return (!n.IP().IsGlobalUnicast() ||
+		block24bit.Contains(n.IP()) ||
+		block20bit.Contains(n.IP()) ||
+		block16bit.Contains(n.IP()))
+}
+
 // PubkeyToIDV4 derives the v4 node address from the given public key.
 func PubkeyToIDV4(key *ecdsa.PublicKey) ID {
 	e := make([]byte, 64)
