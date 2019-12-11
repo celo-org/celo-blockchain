@@ -260,9 +260,11 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
-	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil && announceData.Timestamp < currentEntryTimestamp {
-		logger.Trace("Received an old announce message", "currentEntryTimestamp", currentEntryTimestamp)
-		return errOldAnnounceMessage
+	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil {
+		if announceData.Timestamp < currentEntryTimestamp {
+			logger.Trace("Received an old announce message", "currentEntryTimestamp", currentEntryTimestamp)
+			return errOldAnnounceMessage
+		}
 	} else if err != leveldb.ErrNotFound {
 		logger.Warn("Error when retrieving timestamp for entry in the ValEnodeTable", "err", err)
 	}
