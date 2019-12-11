@@ -386,7 +386,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 
 	// Don't wait for an older round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
-		logger.Debug("New desired round not greater than current desired round")
+		logger.Trace("New desired round not greater than current desired round")
 		return nil
 	}
 

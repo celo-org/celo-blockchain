@@ -71,7 +71,11 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
-			sb.logger.Error("Failed to decode message payload", "msg", msg)
+			if err = errUnauthorized {
+				sb.logger.Debug("Failed to decode message payload", "err", err)
+			} else {
+				sb.logger.Error("Failed to decode message payload", "err", err)
+			}
 			return true, errDecodeFailed
 		}
 
