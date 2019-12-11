@@ -25,6 +25,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
@@ -259,8 +261,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
 	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil && announceData.Timestamp < currentEntryTimestamp {
-		logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageTimestamp", announceData.Timestamp, "currentEntryTimestamp", currentEntryTimestamp)
+		logger.Trace("Received an old announce message", "currentEntryTimestamp", currentEntryTimestamp)
 		return errOldAnnounceMessage
+	} else if err != leveldb.ErrNotFound {
+		logger.Warn("Error when retrieving timestamp for entry in the ValEnodeTable", "err", err)
 	}
 
 	// If the message is not within the registered validator set, then ignore it

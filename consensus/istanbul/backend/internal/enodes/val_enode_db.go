@@ -181,7 +181,9 @@ func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
 	case nil:
 		// Version present, flush if different
 		if !bytes.Equal(blob, currentVer) {
-			logger.Info("Val Enode DB version has changed.  Creating a new leveldb.", "old version", blob, "new version", currentVer)
+			oldVersion, _ := binary.Varint(blob)
+			newVersion, _ := binary.Varint(currentVer)
+			logger.Info("Val Enode DB version has changed.  Creating a new leveldb.", "old version", oldVersion, "new version", newVersion)
 			db.Close()
 			if err = os.RemoveAll(path); err != nil {
 				return nil, err
