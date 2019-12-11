@@ -78,37 +78,21 @@ func nodeIDKey(nodeID enode.ID) []byte {
 type AddressEntry struct {
 	Node      *enode.Node
 	Timestamp int64
-	View      *istanbul.View
 }
 
 func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{EnodeURL: %v, Timestamp %v, View: %v}", ve.Node.String(), ve.Timestamp, ve.View)
-}
-
-// Cmp compares v and other and returns:
-//   -1 if ve <  other
-//    0 if ve == other
-//   +1 if ve >  other
-func (ve *AddressEntry) Cmp(other *AddressEntry) int {
-	if (ve.Timestamp < other.Timestamp) {
-		return -1
-	}
-	if (ve.Timestamp > other.Timestamp) {
-		return 1
-	}
-	return ve.View.Cmp(other.View)
+	return fmt.Sprintf("{EnodeURL: %v, Timestamp %v}", ve.Node.String(), ve.Timestamp)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
-	EnodeURL string
+	EnodeURL  string
 	Timestamp int64
-	View     *istanbul.View
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ve *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Timestamp, ve.View})
+	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -123,7 +107,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	*ve = AddressEntry{Node: node, Timestamp: entry.Timestamp, View: entry.View}
+	*ve = AddressEntry{Node: node, Timestamp: entry.Timestamp}
 	return nil
 }
 
@@ -245,15 +229,15 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 	return entry.Node, nil
 }
 
-// GetViewFromAddress will return the view for an address if it's known
-func (vet *ValidatorEnodeDB) GetViewFromAddress(address common.Address) (*istanbul.View, error) {
+// GetTimestampFromAddress will return the timestamp for an address if it's known
+func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (int64, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return entry.View, nil
+	return entry.Timestamp, nil
 }
 
 // GetAddressFromNodeID will return the address for an nodeID if it's known
@@ -288,7 +272,7 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 }
 
 // Upsert will update or insert a validator enode entry; given that the existing entry
-// is older (determined by view parameter) that the new one
+// is older (determined by timestamp parameter) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
@@ -316,8 +300,8 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if !isNew && (addressEntry.Cmp(currentEntry) <= 0) {
-			vet.logger.Trace("Ignoring the entry because its view is older than what is stored in the val enode db",
+		if !isNew && addressEntry.Timestamp < currentEntry.Timestamp {
+			vet.logger.Trace("Ignoring the entry because its timestamp is older than what is stored in the val enode db",
 				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
 			continue
 		}

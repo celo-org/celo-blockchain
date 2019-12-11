@@ -52,11 +52,10 @@ type announceData struct {
 	AnnounceRecords []*announceRecord
 	EnodeURLHash    common.Hash
 	Timestamp       int64
-	View            *istanbul.View
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{View: %v, EnodeURLHash: %v, AnnounceRecords: %v, Timestamp: %v}", ad.View, ad.EnodeURLHash.Hex(), ad.AnnounceRecords, ad.Timestamp)
+	return fmt.Sprintf("{EnodeURLHash: %v, AnnounceRecords: %v, Timestamp: %v}", ad.EnodeURLHash.Hex(), ad.AnnounceRecords, ad.Timestamp)
 }
 
 // ==============================================
@@ -84,7 +83,7 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
 func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp, ad.View})
+	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
@@ -92,13 +91,13 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
 		EnodeURLHash    common.Hash
-		View            *istanbul.View
+		Timestamp       int64
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp, ad.View = msg.AnnounceRecords, msg.EnodeURLHash, ad.Timestamp, msg.View
+	ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp = msg.AnnounceRecords, msg.EnodeURLHash, msg.Timestamp
 	return nil
 }
 
@@ -137,7 +136,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	} else {
 		enodeUrl = sb.p2pserver.Self().String()
 	}
-	view := sb.core.CurrentView()
 
 	// If the message is not within the registered validator set, then ignore it
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
@@ -151,13 +149,10 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
 	}
 
-	currentTime := time.Now()
-
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		Timestamp:       currentTime.Unix(),
-		View:            view,
+		Timestamp:       time.Now().Unix(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -260,11 +255,10 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 		return err
 	}
 
-	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp, "msg_round", announceData.View.Round, "msg_seq", announceData.View.Sequence)
+	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
-	// TODO need to change this
-	if view, err := sb.valEnodeTable.GetViewFromAddress(msg.Address); err == nil && announceData.View.Cmp(view) <= 0 {
-		logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageView", announceData.View, "currentEntryView", view)
+	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil && announceData.Timestamp < currentEntryTimestamp {
+		logger.Trace("Received an old announce message", "senderAddr", msg.Address, "messageTimestamp", announceData.Timestamp, "currentEntryTimestamp", currentEntryTimestamp)
 		return errOldAnnounceMessage
 	}
 
@@ -304,7 +298,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 	// Save in the valEnodeTable if mining
 	if sb.coreStarted && node != nil {
-		if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Timestamp: announceData.Timestamp, View: announceData.View}}); err != nil {
+		if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Timestamp: announceData.Timestamp}}); err != nil {
 			logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
 			return err
 		}
@@ -320,7 +314,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 }
 
 func (sb *Backend) regossipIstAnnounce(msg *istanbul.Message, payload []byte, announceData announceData, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
-	logger := sb.logger.New("func", "regossipIstAnnounce", "msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp, "msg_round", announceData.View.Round, "msg_seq", announceData.View.Sequence)
+	logger := sb.logger.New("func", "regossipIstAnnounce", "msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 	// If we gossiped this address/enodeURL within the last 60 seconds and the enodeURLHash and destAddressHash didn't change, then don't regossip
 
 	// Generate the destAddresses hash
