@@ -37,7 +37,7 @@ import (
 type sharedValidatorEnode struct {
 	Address   common.Address
 	EnodeURL  string
-	Timestamp int64
+	Timestamp uint
 }
 
 type valEnodesShareData struct {

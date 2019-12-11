@@ -51,7 +51,7 @@ func (ar *announceRecord) String() string {
 type announceData struct {
 	AnnounceRecords []*announceRecord
 	EnodeURLHash    common.Hash
-	Timestamp       int64
+	Timestamp       uint
 }
 
 func (ad *announceData) String() string {
@@ -91,7 +91,7 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
 		EnodeURLHash    common.Hash
-		Timestamp       int64
+		Timestamp       uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
@@ -152,7 +152,8 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		Timestamp:       time.Now().Unix(),
+		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+		Timestamp: uint(time.Now().Unix()),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)

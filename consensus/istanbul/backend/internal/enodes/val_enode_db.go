@@ -77,7 +77,7 @@ func nodeIDKey(nodeID enode.ID) []byte {
 // AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
 	Node      *enode.Node
-	Timestamp int64
+	Timestamp uint
 }
 
 func (ve *AddressEntry) String() string {
@@ -87,7 +87,7 @@ func (ve *AddressEntry) String() string {
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
 	EnodeURL  string
-	Timestamp int64
+	Timestamp uint
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
@@ -227,7 +227,7 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 }
 
 // GetTimestampFromAddress will return the timestamp for an address if it's known
-func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (int64, error) {
+func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (uint, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
