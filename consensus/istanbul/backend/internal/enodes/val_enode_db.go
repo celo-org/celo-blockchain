@@ -48,7 +48,7 @@ const (
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 1
+	dbVersion = 2
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -74,25 +74,25 @@ func nodeIDKey(nodeID enode.ID) []byte {
 	return append([]byte(dbNodeIDPrefix), nodeID.Bytes()...)
 }
 
-// Entries for the valEnodeTable
+// AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
-	Node *enode.Node
-	View *istanbul.View
+	Node      *enode.Node
+	Timestamp uint
 }
 
 func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.Node.String(), ve.View)
+	return fmt.Sprintf("{enodeURL: %v, timestamp: %v}", ve.Node.String(), ve.Timestamp)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
-	EnodeURL string
-	View     *istanbul.View
+	EnodeURL  string
+	Timestamp uint
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ve *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.View})
+	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -107,7 +107,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	*ve = AddressEntry{Node: node, View: entry.View}
+	*ve = AddressEntry{Node: node, Timestamp: entry.Timestamp}
 	return nil
 }
 
@@ -125,10 +125,13 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	var db *leveldb.DB
 	var err error
+
+	logger := log.New()
+
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(path)
+		db, err = newPersistentDB(path, logger)
 	}
 
 	if err != nil {
@@ -137,7 +140,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	return &ValidatorEnodeDB{
 		db:      db,
 		handler: handler,
-		logger:  log.New(),
+		logger:  logger,
 	}, nil
 }
 
@@ -152,7 +155,7 @@ func newMemoryDB() (*leveldb.DB, error) {
 
 // newPersistentNodeDB creates/opens a leveldb backed persistent node database,
 // also flushing its contents in case of a version mismatch.
-func newPersistentDB(path string) (*leveldb.DB, error) {
+func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
 	opts := &opt.Options{OpenFilesCacheCapacity: 5}
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
@@ -178,11 +181,14 @@ func newPersistentDB(path string) (*leveldb.DB, error) {
 	case nil:
 		// Version present, flush if different
 		if !bytes.Equal(blob, currentVer) {
+			oldVersion, _ := binary.Varint(blob)
+			newVersion, _ := binary.Varint(currentVer)
+			logger.Info("Val Enode DB version has changed.  Creating a new leveldb.", "old version", oldVersion, "new version", newVersion)
 			db.Close()
 			if err = os.RemoveAll(path); err != nil {
 				return nil, err
 			}
-			return newPersistentDB(path)
+			return newPersistentDB(path, logger)
 		}
 	}
 	return db, nil
@@ -222,15 +228,15 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 	return entry.Node, nil
 }
 
-// GetViewFromAddress will return the view for an address if it's known
-func (vet *ValidatorEnodeDB) GetViewFromAddress(address common.Address) (*istanbul.View, error) {
+// GetTimestampFromAddress will return the timestamp for an address if it's known
+func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (uint, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return entry.View, nil
+	return entry.Timestamp, nil
 }
 
 // GetAddressFromNodeID will return the address for an nodeID if it's known
@@ -265,7 +271,7 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 }
 
 // Upsert will update or insert a validator enode entry; given that the existing entry
-// is older (determined by view parameter) that the new one
+// is older (determined by timestamp parameter) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
@@ -293,9 +299,9 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if !isNew && addressEntry.View.Cmp(currentEntry.View) <= 0 {
-			vet.logger.Trace("Ignoring the entry because it's view is older than what is stored in the val enode db",
-				"entryAddress", remoteAddress, "entryEnodeURL", addressEntry.Node.String(), "addressView", addressEntry.View)
+		if !isNew && addressEntry.Timestamp < currentEntry.Timestamp {
+			vet.logger.Trace("Ignoring the entry because its timestamp is older than what is stored in the val enode db",
+				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
 			continue
 		}
 

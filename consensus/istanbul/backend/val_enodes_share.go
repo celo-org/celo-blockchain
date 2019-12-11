@@ -35,9 +35,9 @@ import (
 // define the validator enode share message
 
 type sharedValidatorEnode struct {
-	Address  common.Address
-	EnodeURL string
-	View     *istanbul.View
+	Address   common.Address
+	EnodeURL  string
+	Timestamp uint
 }
 
 type valEnodesShareData struct {
@@ -45,7 +45,7 @@ type valEnodesShareData struct {
 }
 
 func (sve *sharedValidatorEnode) String() string {
-	return fmt.Sprintf("{Address: %s, EnodeURL: %v, View: %v}", sve.Address.Hex(), sve.EnodeURL, sve.View)
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Timestamp: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Timestamp)
 }
 
 func (sd *valEnodesShareData) String() string {
@@ -111,9 +111,9 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
 		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
-			Address:  address,
-			EnodeURL: vetEntry.Node.String(),
-			View:     vetEntry.View,
+			Address:   address,
+			EnodeURL:  vetEntry.Node.String(),
+			Timestamp: vetEntry.Timestamp,
 		})
 	}
 
@@ -201,7 +201,7 @@ func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
 			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, View: sharedValidatorEnode.View}
+			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Timestamp: sharedValidatorEnode.Timestamp}
 		}
 	}
 
