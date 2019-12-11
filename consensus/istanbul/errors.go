@@ -21,7 +21,7 @@ import "errors"
 var (
 	// ErrUnauthorizedAddress is returned when given address cannot be found in
 	// current validator set.
-	ErrUnauthorizedAddress = errors.New("unauthorized address")
+	ErrUnauthorizedAddress = errors.New("not an elected validator")
 	// ErrInvalidSigner is returned if a message's signature does not correspond to the address in msg.Address
 	ErrInvalidSigner = errors.New("signed by incorrect validator")
 	// ErrStoppedEngine is returned if the engine is stopped

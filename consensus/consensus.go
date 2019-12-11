@@ -151,6 +151,9 @@ type Handler interface {
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
 	UnregisterPeer(peer Peer, fromProxiedNode bool)
+
+	// ConnectToVals
+	ConnectToVals()
 }
 
 // PoW is a consensus engine based on proof-of-work.

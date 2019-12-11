@@ -196,7 +196,7 @@ func (sb *Backend) IsProxy() bool {
 }
 
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.proxyNode != nil
+	return sb.proxyNode != nil && sb.proxyNode.peer != nil
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -711,4 +711,14 @@ func (sb *Backend) ValidatorAddress() common.Address {
 		localAddress = sb.Address()
 	}
 	return localAddress
+}
+
+func (sb *Backend) ConnectToVals() {
+	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
+	// for non proxied validators
+	if sb.config.Proxy {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
+	}
 }
