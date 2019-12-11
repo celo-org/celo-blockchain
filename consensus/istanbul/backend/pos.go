@@ -18,6 +18,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -51,10 +52,12 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
 	if len(valSet) == 0 {
-		sb.logger.Error("Unable to fetch validator set to update scores and distribute payments and rewards")
+		err := errors.New("Unable to fetch validator set to update scores and distribute payments and rewards")
+		sb.logger.Error(err.Error())
+		return err
 	}
 
-	err = sb.updateValidatorScores(header, state, valSet)
+	uptimes, err := sb.updateValidatorScores(header, state, valSet)
 	if err != nil {
 		return err
 	}
@@ -64,7 +67,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 		return err
 	}
 
-	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet, totalVoterRewards)
+	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet, totalVoterRewards, uptimes)
 	if err != nil {
 		return err
 	}
@@ -88,7 +91,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
 }
 
-func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) error {
+func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
 	sb.logger.Trace("Updating validator scores")
@@ -96,36 +99,38 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
 
-	// get all the uptimes for this epoch
-	// note(@gakonst): `db` _might_ be possible to be replaced with `sb.db`,
-	// but I believe it's a different database handle
-	bc := sb.chain.(*core.BlockChain)
-	db := bc.GetDatabase()
-	uptimes := rawdb.ReadAccumulatedEpochUptime(db, epoch)
-	if len(uptimes.Entries) == 0 {
-		logger.Error("no accumulated uptimes found, will not update validator scores")
-		return errors.New("no accumulated uptimes found, will not update validator scores")
+	uptimes := make([]*big.Int, 0, len(valSet))
+	for i, entry := range rawdb.ReadAccumulatedEpochUptime(sb.db, epoch).Entries {
+		if i >= len(valSet) {
+			break
+		}
+		val_logger := logger.New("scoreTally", entry.ScoreTally, "denominator", denominator, "index", i, "address", valSet[i].Address())
+
+		if entry.ScoreTally > denominator {
+			val_logger.Error("ScoreTally exceeds max possible")
+			uptimes = append(uptimes, params.Fixidity1)
+			continue
+		}
+
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(entry.ScoreTally)), params.Fixidity1)
+		uptimes = append(uptimes, big.NewInt(0).Div(numerator, big.NewInt(int64(denominator))))
+	}
+
+	if len(uptimes) < len(valSet) {
+		err := fmt.Errorf("%d accumulated uptimes found, cannot update validator scores", len(uptimes))
+		logger.Error(err.Error())
+		return nil, err
 	}
 
 	for i, val := range valSet {
-		scoreTally := uptimes.Entries[i].ScoreTally
-		val_logger := logger.New("scoreTally", scoreTally, "denominator", denominator, "index", i, "address", val.Address())
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(uptimes.Entries[i].ScoreTally)), params.Fixidity1)
-		uptime := big.NewInt(0).Div(numerator, big.NewInt(int64(denominator)))
-
-		if scoreTally > denominator {
-			val_logger.Error("ScoreTally exceeds max possible")
-			// 1.0 in fixidity
-			uptime = params.Fixidity1
-		}
-
-		val_logger.Trace("Updating validator score", "uptime", uptime)
-		err := validators.UpdateValidatorScore(header, state, val.Address(), uptime)
+		val_logger := logger.New("uptime", uptimes[i], "address", val.Address())
+		val_logger.Trace("Updating validator score")
+		err := validators.UpdateValidatorScore(header, state, val.Address(), uptimes[i])
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return uptimes, nil
 }
 
 func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxPayment *big.Int) (*big.Int, error) {
@@ -141,7 +146,7 @@ func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.St
 	return totalEpochPayments, nil
 }
 
-func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int) (*big.Int, error) {
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
 	totalEpochRewards := big.NewInt(0)
 
 	// Fixed epoch reward to the infrastructure fund.
@@ -157,9 +162,11 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		totalEpochRewards.Add(totalEpochRewards, infrastructureEpochReward)
 	}
 
+	// Select groups that elected at least one validator aggregate their uptimes.
 	var groups []common.Address
+	groupUptimes := make(map[common.Address][]*big.Int)
 	groupElectedValidator := make(map[common.Address]bool)
-	for _, val := range valSet {
+	for i, val := range valSet {
 		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
 		if err != nil {
 			return totalEpochRewards, err
@@ -169,9 +176,10 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 			sb.logger.Debug("Group elected validator", "group", group.String())
 		}
 		groupElectedValidator[group] = true
+		groupUptimes[group] = append(groupUptimes[group], uptimes[i])
 	}
 
-	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards)
+	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards, groupUptimes)
 	if err != nil {
 		return totalEpochRewards, err
 	}

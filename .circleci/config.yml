@@ -12,7 +12,7 @@ end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node10-gcloud
   environment:
-    CELO_MONOREPO_BRANCH_TO_TEST: master
+    CELO_MONOREPO_BRANCH_TO_TEST: victor/voter-rewards
 
 jobs:
   unit-tests:
