@@ -48,7 +48,7 @@ const (
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 1
+	dbVersion = 2
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -74,25 +74,41 @@ func nodeIDKey(nodeID enode.ID) []byte {
 	return append([]byte(dbNodeIDPrefix), nodeID.Bytes()...)
 }
 
-// Entries for the valEnodeTable
+// AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
-	Node *enode.Node
-	View *istanbul.View
+	Node      *enode.Node
+	Timestamp int64
+	View      *istanbul.View
 }
 
 func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{enodeURL: %v, view: %v}", ve.Node.String(), ve.View)
+	return fmt.Sprintf("{EnodeURL: %v, Timestamp %v, View: %v}", ve.Node.String(), ve.Timestamp, ve.View)
+}
+
+// Cmp compares v and other and returns:
+//   -1 if ve <  other
+//    0 if ve == other
+//   +1 if ve >  other
+func (ve *AddressEntry) Cmp(other *AddressEntry) int {
+	if (ve.Timestamp < other.Timestamp) {
+		return -1
+	}
+	if (ve.Timestamp > other.Timestamp) {
+		return 1
+	}
+	return ve.View.Cmp(other.View)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
 	EnodeURL string
+	Timestamp int64
 	View     *istanbul.View
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ve *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.View})
+	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Timestamp, ve.View})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -107,7 +123,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	*ve = AddressEntry{Node: node, View: entry.View}
+	*ve = AddressEntry{Node: node, Timestamp: entry.Timestamp, View: entry.View}
 	return nil
 }
 
@@ -211,6 +227,13 @@ func (vet *ValidatorEnodeDB) String() string {
 	return b.String()
 }
 
+// GetAddressEntry will return the address entry with a read lock
+func (vet *ValidatorEnodeDB) GetAddressEntry(address common.Address) (*AddressEntry, error) {
+	vet.lock.RLock()
+	defer vet.lock.RUnlock()
+	return vet.getAddressEntry(address)
+}
+
 // GetEnodeURLFromAddress will return the enodeURL for an address if it's known
 func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
 	vet.lock.RLock()
@@ -293,9 +316,9 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if !isNew && addressEntry.View.Cmp(currentEntry.View) <= 0 {
-			vet.logger.Trace("Ignoring the entry because it's view is older than what is stored in the val enode db",
-				"entryAddress", remoteAddress, "entryEnodeURL", addressEntry.Node.String(), "addressView", addressEntry.View)
+		if !isNew && (addressEntry.Cmp(currentEntry) <= 0) {
+			vet.logger.Trace("Ignoring the entry because its view is older than what is stored in the val enode db",
+				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
 			continue
 		}
 
