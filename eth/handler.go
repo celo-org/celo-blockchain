@@ -245,6 +245,11 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
+
+	// Reconnect all the peer connections from the on-disk val enode table
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.ConnectToVals()
+	}
 }
 
 func (pm *ProtocolManager) Stop() {

@@ -445,7 +445,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 	if err := websocket.JSON.Receive(conn, &ack); err != nil {
-		return err
+		return errors.New("unauthorized, try registering your validator to get whitelisted")
 	}
 	emit, ok := ack["emit"]
 	if !ok {
