@@ -125,10 +125,13 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	var db *leveldb.DB
 	var err error
+
+	logger := log.New()
+
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(path)
+		db, err = newPersistentDB(path, logger)
 	}
 
 	if err != nil {
@@ -137,7 +140,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	return &ValidatorEnodeDB{
 		db:      db,
 		handler: handler,
-		logger:  log.New(),
+		logger:  logger,
 	}, nil
 }
 
@@ -152,7 +155,7 @@ func newMemoryDB() (*leveldb.DB, error) {
 
 // newPersistentNodeDB creates/opens a leveldb backed persistent node database,
 // also flushing its contents in case of a version mismatch.
-func newPersistentDB(path string) (*leveldb.DB, error) {
+func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
 	opts := &opt.Options{OpenFilesCacheCapacity: 5}
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
@@ -178,11 +181,12 @@ func newPersistentDB(path string) (*leveldb.DB, error) {
 	case nil:
 		// Version present, flush if different
 		if !bytes.Equal(blob, currentVer) {
+			logger.Info("Val Enode DB version has changed.  Creating a new leveldb.", "old version", blob, "new version", currentVer)
 			db.Close()
 			if err = os.RemoveAll(path); err != nil {
 				return nil, err
 			}
-			return newPersistentDB(path)
+			return newPersistentDB(path, logger)
 		}
 	}
 	return db, nil
