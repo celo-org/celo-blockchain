@@ -1283,6 +1283,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
 				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
 			}
+
+			// Check that external IP is not a private IP address.
+			if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+				Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
+			}
 		}
 
 		if !ctx.GlobalBool(NoDiscoverFlag.Name) {
