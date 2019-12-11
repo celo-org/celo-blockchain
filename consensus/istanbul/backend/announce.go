@@ -55,7 +55,7 @@ type announceData struct {
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{EnodeURLHash: %v, AnnounceRecords: %v, Timestamp: %v}", ad.EnodeURLHash.Hex(), ad.AnnounceRecords, ad.Timestamp)
+	return fmt.Sprintf("{Timestamp: %v, EnodeURLHash: %v, AnnounceRecords: %v}", ad.Timestamp, ad.EnodeURLHash.Hex(), ad.AnnounceRecords)
 }
 
 // ==============================================

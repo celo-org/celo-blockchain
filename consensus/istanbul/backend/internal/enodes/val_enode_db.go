@@ -211,13 +211,6 @@ func (vet *ValidatorEnodeDB) String() string {
 	return b.String()
 }
 
-// GetAddressEntry will return the address entry with a read lock
-func (vet *ValidatorEnodeDB) GetAddressEntry(address common.Address) (*AddressEntry, error) {
-	vet.lock.RLock()
-	defer vet.lock.RUnlock()
-	return vet.getAddressEntry(address)
-}
-
 // GetEnodeURLFromAddress will return the enodeURL for an address if it's known
 func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
 	vet.lock.RLock()
