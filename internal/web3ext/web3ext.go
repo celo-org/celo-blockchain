@@ -792,6 +792,11 @@ web3._extend({
 			call: 'istanbul_removeProxy',
 			params: 1
 		}),
+		new web3._extend.Method({
+			name: 'getValEnodeTableInfo',
+			call: 'istanbul_getValEnodeTable',
+			params: 0
+		}),		
 		new web3._extend.Property({
 			name: 'proxyInfo',
 			getter: 'istanbul_proxyInfo'

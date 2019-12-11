@@ -436,3 +436,22 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 	}
 	return iter.Error()
 }
+
+type ValEnodeEntryInfo struct {
+	Enode     string `json:"enode"`
+	Timestamp uint   `json:"timestamp"`
+}
+
+func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
+	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
+
+	valEnodeTable, err := vet.GetAllValEnodes()
+	if err == nil {
+		for address, valEnodeEntry := range valEnodeTable {
+			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{Enode: valEnodeEntry.Node.String(),
+				Timestamp: valEnodeEntry.Timestamp}
+		}
+	}
+
+	return valEnodeTableInfo, err
+}
