@@ -81,7 +81,7 @@ type AddressEntry struct {
 }
 
 func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{EnodeURL: %v, Timestamp %v}", ve.Node.String(), ve.Timestamp)
+	return fmt.Sprintf("{enodeURL: %v, timestamp: %v}", ve.Node.String(), ve.Timestamp)
 }
 
 // Implement RLP Encode/Decode interface
