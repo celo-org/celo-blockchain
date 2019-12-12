@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 	mrand "math/rand"
 	"sort"
 	"time"
@@ -53,7 +54,7 @@ func (ar *announceRecord) String() string {
 type announceData struct {
 	AnnounceRecords []*announceRecord
 	EnodeURLHash    common.Hash
-	Timestamp       uint
+	Timestamp       *big.Int
 }
 
 func (ad *announceData) String() string {
@@ -93,7 +94,7 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
 		EnodeURLHash    common.Hash
-		Timestamp       uint
+		Timestamp       *big.Int
 	}
 
 	if err := s.Decode(&msg); err != nil {
@@ -154,8 +155,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Timestamp: uint(time.Now().Unix()),
+		Timestamp:       big.NewInt(time.Now().Unix()),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -261,7 +261,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
 	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil {
-		if announceData.Timestamp < currentEntryTimestamp {
+		if announceData.Timestamp.Cmp(currentEntryTimestamp) < 0 {
 			logger.Trace("Received an old announce message", "currentEntryTimestamp", currentEntryTimestamp)
 			return errOldAnnounceMessage
 		}

@@ -118,7 +118,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.core = istanbulCore.New(backend, backend.config)
 
 	vph := &validatorPeerHandler{sb: backend}
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	// Don't set the val enode table entry ctime and mtimes if this node is a proxy.  Use those field's values from
+	// the shared val enode table from the proxied validator.
+	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph, !backend.IsProxy())
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
