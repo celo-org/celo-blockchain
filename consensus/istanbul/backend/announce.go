@@ -38,6 +38,10 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+const (
+	timestampDiffThreshold = 20 * time.Second
+)
+
 // ===============================================================
 //
 // define the istanbul announce data and announce record structure
@@ -259,6 +263,13 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
+
+	// Check to see if the msg's timestamp is within 20 seconds of this computer's timestamp (This is the same clock threshold check that the p2p layer uses)
+	now := time.Now()
+	if int64(announceData.Timestamp.Uint64()) < now.Add(-timestampDiffThreshold).Unix() || int64(announceData.Timestamp.Uint64()) > now.Add(timestampDiffThreshold).Unix() {
+		logger.Warn("Ignoring announce messages since it's timestamp diff is over the threshold", "now", now, "announce timestamp", announceData.Timestamp.Uint64())
+		return errTSDiffOverThresholdAnnounceMessage
+	}
 
 	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil {
 		if announceData.Timestamp.Cmp(currentEntryTimestamp) < 0 {
