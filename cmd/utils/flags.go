@@ -698,7 +698,7 @@ var (
 	}
 	ProxyOverrideAnnounceIPCheckFlag = cli.BoolFlag{
 		Name:  "proxy.override-announced-ip-check",
-		Usage: "Specifies whether to override the internal IP check for the announced IP address",
+		Usage: "Specifies whether to override the internal IP check for the announced IP address.  WARNING: This option should only be used for testing.",
 	}
 )
 
