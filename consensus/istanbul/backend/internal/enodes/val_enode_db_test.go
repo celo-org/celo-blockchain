@@ -26,7 +26,7 @@ func (ml *mockListener) ReplaceValidatorPeers(nodeNodes []*enode.Node)          
 func (ml *mockListener) ClearValidatorPeers()                                      {}
 
 func TestSimpleCase(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("", &mockListener{}, false)
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
@@ -56,7 +56,7 @@ func TestSimpleCase(t *testing.T) {
 }
 
 func TestDeleteEntry(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("", &mockListener{}, false)
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
@@ -84,7 +84,7 @@ func TestDeleteEntry(t *testing.T) {
 }
 
 func TestPruneEntries(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("", &mockListener{}, false)
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
@@ -134,7 +134,7 @@ func TestRLPEntries(t *testing.T) {
 }
 
 func TestTableToString(t *testing.T) {
-	vet, err := OpenValidatorEnodeDB("", &mockListener{}, false)
+	vet, err := OpenValidatorEnodeDB("", &mockListener{})
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
