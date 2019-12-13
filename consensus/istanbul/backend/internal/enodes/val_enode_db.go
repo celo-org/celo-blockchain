@@ -293,6 +293,12 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 			return err
 		}
 
+		// new entry
+		rawEntry, err := rlp.EncodeToBytes(addressEntry)
+		if err != nil {
+			return err
+		}
+
 		// If it's an old message, ignore it
 		if !isNew && addressEntry.Timestamp.Cmp(currentEntry.Timestamp) < 0 {
 			vet.logger.Trace("Ignoring the entry because its timestamp is older than what is stored in the val enode db",
@@ -309,12 +315,6 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		} else if isNew {
 			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
 		}
-
-		rawEntry, err := rlp.EncodeToBytes(addressEntry)
-		if err != nil {
-			return err
-		}
-
 		batch.Put(addressKey(remoteAddress), rawEntry)
 		peersToAdd[remoteAddress] = addressEntry.Node
 
