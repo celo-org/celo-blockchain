@@ -69,6 +69,10 @@ Please make sure your contributions adhere to our coding guidelines:
  * Commit messages should be prefixed with the package(s) they modify.
    * E.g. "eth, rpc: make trace configs optional"
 
+### Submitting an issue
+
+If this is a bug, you can run `geth bug` to
+
 ### CI Testing and automerge
 
 We run a circle CI test suite on each PR. The following tests are required to
