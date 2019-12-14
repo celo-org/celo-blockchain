@@ -71,7 +71,8 @@ Please make sure your contributions adhere to our coding guidelines:
 
 ### Submitting an issue
 
-If this is a bug, you can run `geth bug` to
+If you come across a bug, you can run `geth bug` to open a GitHub issue draft
+with pre-filled system information.
 
 ### CI Testing and automerge
 
