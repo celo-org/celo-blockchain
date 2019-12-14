@@ -14,6 +14,6 @@ How can we reproduce this?
 
 Are there any logs?
 
-#### System information
+### System information
 
 Run `geth version`
