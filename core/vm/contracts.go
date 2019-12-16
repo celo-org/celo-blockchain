@@ -58,6 +58,7 @@ var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrec
 var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
 var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
 var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
+var getVerifiedSealBitmapAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 8)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -78,6 +79,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	getValidatorAddress:      &getValidator{},
 	numberValidatorsAddress:  &numberValidators{},
 	epochSizeAddress:         &epochSize{},
+	getVerifiedSealBitmapAddress:    &getVerifiedSealBitmap{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
