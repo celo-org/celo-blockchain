@@ -228,7 +228,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		// new epoch's validator set
 		if sb.coreStarted {
 			_, val := valset.GetByAddress(sb.ValidatorAddress())
-			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil))
+			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
 
 			sb.newEpochCh <- struct{}{}
 		}
