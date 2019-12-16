@@ -669,3 +669,26 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 
 	return epochSizeBytes, gas, nil
 }
+
+type getVerifiedSealBitmap struct {}
+
+func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
+     return params.GetVerifiedSealBitmap
+}
+
+func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+        gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+
+	// input is comprised of 1 argument:
+	//   header:  rlp encoded block header32 bytes representing the address of the sender
+	bitmap, err := evm.Context.Engine.GetVerifiedSealBitmapFromRLPHeader(input)
+
+	if err != nil {
+	   return nil, gas, err
+	}
+
+	return bitmap.Bytes(), gas, nil
+}

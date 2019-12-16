@@ -378,7 +378,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	// use the same difficulty for all blocks
+		// use the same difficulty for all blocks
 	header.Difficulty = defaultDifficulty
 
 	// set header's timestamp
@@ -843,6 +843,39 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap.Hash = hash
 
 	return returnSnap, nil
+}
+
+func (sb *Backend) GetVerifiedSealBitmapFromRLPHeader(headerRLP byte[]) (*big.Int, error) {
+     var header types.Header
+
+     if err := rlp.DecodeBytes(headerRLP, &header); err != nil {
+     	return nil, err
+     }
+
+     // Return nil if this is the genesis block, since there is no signers for the block
+     if header.Number.Uint64() == 0 {
+     	return nil, err
+     }
+
+     // Check to see if this header's parent hash is in the blockchain
+     if sb.chain.GetHeaderByHash(header.ParentHash) == nil {
+     	return nil, errUnknownBlock
+     }
+
+     extra, err := types.ExtractIstanbulExtra(header)
+     if err != nil {
+		return nil, err
+     }     
+
+     // Check the signatures on the current header
+     valset := sb.getValidators(number-1, header.ParentHash)
+     err = sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
+     if err != nil {
+	return nil, err
+     }
+
+     return extra.AggregatedSeal.Bitmap, nil
+
 }
 
 // FIXME: Need to update this for Istanbul
