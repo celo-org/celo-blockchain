@@ -83,7 +83,7 @@ func (c *core) processPendingRequests() {
 		m, prio := c.pendingRequests.Pop()
 		r, ok := m.(*istanbul.Request)
 		if !ok {
-			c.logger.Warn("Malformed request, skip", "msg", m)
+			c.logger.Warn("Malformed request, skip", "m", m)
 			continue
 		}
 

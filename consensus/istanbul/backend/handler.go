@@ -62,7 +62,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	sb.logger.Trace("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
+	sb.logger.Trace("HandleMsg called", "address", addr, "m", msg, "peer.Node()", peer.Node())
 
 	if sb.isIstanbulMsg(msg) {
 		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {

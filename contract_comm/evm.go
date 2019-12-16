@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -219,20 +220,20 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
-			log.Debug("Contract not yet registered", "function", funcName, "registryId", registryId)
+			log.Debug("Contract not yet registered", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
 			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", registryId)
+			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
 			return 0, err
 		} else {
-			log.Error("Error in getting registered address", "function", funcName, "registryId", registryId, "err", err)
+			log.Error("Error in getting registered address", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 			return 0, err
 		}
 	}
 
 	gasLeft, err := makeCallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
 	if err != nil {
-		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", registryId, "err", err)
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 	}
 	return gasLeft, err
 }

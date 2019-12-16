@@ -161,13 +161,13 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
-		logger.Error("Failed to finalize message", "msg", msg, "err", err)
+		logger.Error("Failed to finalize message", "m", msg, "err", err)
 		return
 	}
 
 	// Send payload to the specified addresses
 	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
-		logger.Error("Failed to send message", "msg", msg, "err", err)
+		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
 	}
 }

@@ -122,7 +122,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 
 	// Add the ParentCommit to current round state
 	if err := c.current.AddParentCommit(msg); err != nil {
-		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
+		logger.Error("Failed to record parent seal", "m", msg, "err", err)
 		return err
 	}
 	return nil
@@ -146,7 +146,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 	// Add the COMMIT message to current round state
 	if err := c.current.AddCommit(msg); err != nil {
-		logger.Error("Failed to record commit message", "msg", msg, "err", err)
+		logger.Error("Failed to record commit message", "m", msg, "err", err)
 		return err
 	}
 	numberOfCommits := c.current.Commits().Size()

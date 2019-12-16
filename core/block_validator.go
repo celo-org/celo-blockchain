@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -116,7 +115,7 @@ func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
 		return limit
 	}
 
-	log.Warn("Cannot read block gas limit", "err", err)
+	// Already logged a warning in GetBlockGasLimit, just return.
 
 	return params.DefaultGasLimit
 }

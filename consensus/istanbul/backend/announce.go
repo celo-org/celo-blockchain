@@ -254,7 +254,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	var announceData announceData
 	err = rlp.DecodeBytes(msg.Msg, &announceData)
 	if err != nil {
-		logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
@@ -276,7 +276,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
+		logger.Debug("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 

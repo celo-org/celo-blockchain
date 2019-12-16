@@ -177,7 +177,7 @@ func (c *core) handleMsg(payload []byte) error {
 	// Only accept message if the address is valid
 	_, src := c.current.ValidatorSet().GetByAddress(msg.Address)
 	if src == nil {
-		logger.Error("Invalid address in message", "msg", msg)
+		logger.Error("Invalid address in message", "m", msg)
 		return istanbul.ErrUnauthorizedAddress
 	}
 
@@ -208,7 +208,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	case istanbul.MsgRoundChange:
 		return catchFutureMessages(c.handleRoundChange(msg))
 	default:
-		logger.Error("Invalid message", "msg", msg)
+		logger.Error("Invalid message", "m", msg)
 	}
 
 	return errInvalidMessage

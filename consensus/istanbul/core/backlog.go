@@ -153,17 +153,17 @@ func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 
 	// Never accept messages too far into the future
 	if view.Sequence.Cmp(new(big.Int).Add(c.currentView.Sequence, acceptMaxFutureSequence)) > 0 {
-		logger.Info("Dropping message", "reason", "too far in the future", "msg", msg)
+		logger.Debug("Dropping message", "reason", "too far in the future", "m", msg)
 		return
 	}
 
 	// Check and inc per-validator future message limit
 	if c.msgCountBySrc[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
-		logger.Info("Dropping message", "reason", "exceeds per-address cap")
+		logger.Debug("Dropping message", "reason", "exceeds per-address cap")
 		return
 	}
 
-	logger.Trace("Store future message", "msg", msg)
+	logger.Trace("Store future message", "m", msg)
 	c.msgCountBySrc[msg.Address]++
 	c.msgCount++
 
@@ -275,26 +275,26 @@ func (c *msgBacklogImpl) processBacklog() {
 			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
 				view, err := extractMessageView(msg)
 				if err != nil {
-					logger.Error("Error decoding msg", "msg", msg, "err", err)
+					logger.Warn("Error decoding msg", "m", msg, "err", err)
 					return false
 				}
 				if view == nil {
-					logger.Error("Nil view", "msg", msg)
+					logger.Warn("Nil view", "m", msg)
 					return false
 				}
 
 				err = c.checkMessage(msg.Code, view)
 
 				if err == errFutureMessage {
-					logger.Warn("Future message in backlog for seq, pushing back to the backlog", "msg", msg)
+					logger.Debug("Future message in backlog for seq, pushing back to the backlog", "m", msg)
 					return true
 				}
 
 				if err == nil {
-					logger.Trace("Post backlog event", "msg", msg)
+					logger.Trace("Post backlog event", "m", msg)
 					go c.msgProcessor(msg)
 				} else {
-					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
+					logger.Trace("Skip the backlog event", "m", msg, "err", err)
 				}
 				return false
 			})

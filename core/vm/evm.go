@@ -574,7 +574,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 			// `ErrEmptyOutput` is expected when when syncing & importing blocks
 			// before a contract has been deployed
 			if err == abipkg.ErrEmptyOutput {
-				log.Debug("Error in unpacking EVM call return bytes", "err", err)
+				log.Trace("Error in unpacking EVM call return bytes", "err", err)
 			} else {
 				log.Error("Error in unpacking EVM call return bytes", "err", err)
 			}
