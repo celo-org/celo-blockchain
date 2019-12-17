@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -26,11 +27,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -58,6 +61,8 @@ var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrec
 var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
 var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
 var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
+var blockNumberFromHeaderAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 8)))
+var hashHeaderAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 9)))
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -72,12 +77,14 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:          &transfer{},
-	fractionMulExpAddress:    &fractionMulExp{},
-	proofOfPossessionAddress: &proofOfPossession{},
-	getValidatorAddress:      &getValidator{},
-	numberValidatorsAddress:  &numberValidators{},
-	epochSizeAddress:         &epochSize{},
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -668,4 +675,51 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
+}
+
+type blockNumberFromHeader struct{}
+
+func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
+	return params.GetBlockNumberFromHeaderGas
+}
+
+func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.Decode(bytes.NewReader(input), &header)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	blockNumber := header.Number.Bytes()
+	blockNumberBytes := common.LeftPadBytes(blockNumber[:], 32)
+
+	return blockNumberBytes, gas, nil
+}
+
+type hashHeader struct{}
+
+func (c *hashHeader) RequiredGas(input []byte) uint64 {
+	return params.HashHeaderGas
+}
+
+func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil || len(input) != 0 {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.Decode(bytes.NewReader(input), &header)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	hashBytes := header.Hash().Bytes()
+
+	return hashBytes, gas, nil
 }
