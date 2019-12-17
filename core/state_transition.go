@@ -408,13 +408,13 @@ func (st *StateTransition) distributeTxFees() error {
 		return err
 	}
 
-	// Send the base of the transaction fee to the infrastructure fund.
+	// Send the base of the transaction fee to the community fund.
 	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
 	if err != nil {
 		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 			return err
 		}
-		log.Trace("Cannot credit gas fee to infrastructure fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		refund.Add(refund, baseTxFee)
 	} else {
 		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
