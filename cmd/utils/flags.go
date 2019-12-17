@@ -696,9 +696,9 @@ var (
 		Name:  "proxy.proxyenodeurlpair",
 		Usage: "proxy enode URL pair separated by a semicolon.  The format should be \"<internal facing enode URL>;<external facing enode URL>\"",
 	}
-	ProxyOverrideAnnounceIPCheckFlag = cli.BoolFlag{
-		Name:  "proxy.override-announced-ip-check",
-		Usage: "Specifies whether to override the internal IP check for the announced IP address.  WARNING: This option should only be used for testing.",
+	ProxyAllowExternalPrivateIPFlag = cli.BoolFlag{
+		Name:  "proxy.allow-external-private-ip",
+		Usage: "Specifies whether to allow a private IP within the external enode URL.  WARNING: This option should only be used for testing.",
 	}
 )
 
@@ -1289,7 +1289,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			}
 
 			// Check that external IP is not a private IP address.
-			if !ctx.GlobalIsSet(ProxyOverrideAnnounceIPCheckFlag.Name) && ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+			if !ctx.GlobalIsSet(ProxyAllowExternalPrivateIPFlag.Name) && ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
 				Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
 			}
 		}

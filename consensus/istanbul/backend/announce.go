@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	mrand "math/rand"
 	"sort"
@@ -39,7 +40,8 @@ import (
 )
 
 const (
-	timestampDiffThreshold = 20 * time.Second
+	timestampDiffThreshold = 1 * time.Minute
+	announcePeriod         = 1 * time.Minute
 )
 
 // ===============================================================
@@ -114,7 +116,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(announcePeriod)
 
 	for {
 		select {
@@ -264,10 +266,12 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
-	// Check to see if the msg's timestamp is within 20 seconds of this computer's timestamp (This is the same clock threshold check that the p2p layer uses)
+	// Check to see if the msg's timestamp is within 1 minute of this computer's timestamp
 	now := time.Now()
-	if int64(announceData.Timestamp.Uint64()) < now.Add(-timestampDiffThreshold).Unix() || int64(announceData.Timestamp.Uint64()) > now.Add(timestampDiffThreshold).Unix() {
-		logger.Warn("Ignoring announce messages since it's timestamp diff is over the threshold", "now", now, "announce timestamp", announceData.Timestamp.Uint64())
+	nowUnix := now.Unix()
+	tsDiff := math.Abs(float64(nowUnix - int64(announceData.Timestamp.Uint64())))
+	if tsDiff > timestampDiffThreshold.Seconds() {
+		logger.Info("Ignoring announce messages since its timestamp diff is over the threshold", "now", nowUnix, "announce timestamp", announceData.Timestamp.Uint64(), "timestamp diff", tsDiff)
 		return errTSDiffOverThresholdAnnounceMessage
 	}
 
