@@ -127,17 +127,18 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			logger.Warn("Failed to decode ROUND CHANGE in certificate", "err", err)
 			return err
 		}
-		msg_logger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
+		msgLogger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
 
 		// Verify ROUND CHANGE message is for a proper view
 		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
-			msg_logger.Error("Round change in certificate for wrong view", "err", err)
+			msgLogger.Error("Round change in certificate for wrong view", "err", err)
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
 		if roundChange.HasPreparedCertificate() {
-			msg_logger.Trace("Round change message has prepared certificate")
-			if err := c.verifyPreparedCertificate(roundChange.PreparedCertificate); err != nil {
+			msgLogger.Trace("Round change message has prepared certificate")
+			preparedView, err := c.verifyPreparedCertificate(roundChange.PreparedCertificate)
+			if err != nil {
 				return err
 			}
 			// We must use the proposal in the prepared certificate with the highest round number. (See OSDI 99, Section 4.4)
@@ -146,12 +147,11 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
 			// blocks that were not committed.
 			// Also reject round change messages where the prepared view is greater than the round change view.
-			preparedView := roundChange.PreparedCertificate.View()
-			msg_logger = msg_logger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
+			msgLogger = msgLogger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
 			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
 				return errInvalidRoundChangeViewMismatch
 			} else if preparedView.Round.Cmp(maxRound) > 0 {
-				msg_logger.Trace("Prepared certificate is latest in round change certificate")
+				msgLogger.Trace("Prepared certificate is latest in round change certificate")
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}
@@ -200,11 +200,10 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	// Verify the PREPARED certificate if present.
 	if rc.HasPreparedCertificate() {
-		if err := c.verifyPreparedCertificate(rc.PreparedCertificate); err != nil {
+		preparedView, err := c.verifyPreparedCertificate(rc.PreparedCertificate)
+		if err != nil {
 			return err
-		}
-		preparedCertView := rc.PreparedCertificate.View()
-		if preparedCertView == nil || preparedCertView.Round.Cmp(rc.View.Round) > 0 {
+		} else if preparedView == nil || preparedView.Round.Cmp(rc.View.Round) > 0 {
 			return errInvalidRoundChangeViewMismatch
 		}
 	}

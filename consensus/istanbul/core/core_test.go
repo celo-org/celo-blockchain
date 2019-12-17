@@ -60,6 +60,7 @@ func newTestProposal() istanbul.Proposal {
 }
 
 func TestNewRequest(t *testing.T) {
+
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	N := uint64(4)

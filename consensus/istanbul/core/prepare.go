@@ -39,16 +39,17 @@ func (c *core) sendPrepare() {
 	})
 }
 
-func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+// Verify a prepared certificate and return the view that all of its messages pertain to.
+func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
-		return errInvalidPreparedCertificateProposal
+		return nil, errInvalidPreparedCertificateProposal
 	}
 
 	if len(preparedCertificate.PrepareOrCommitMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
-		return errInvalidPreparedCertificateNumMsgs
+		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
 	seen := make(map[common.Address]bool)
@@ -57,28 +58,28 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Verify message signed by a validator
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if signer != message.Address {
-			return errInvalidPreparedCertificateMsgSignature
+			return nil, errInvalidPreparedCertificateMsgSignature
 		}
 
 		// Check for duplicate messages
 		if seen[signer] {
-			return errInvalidPreparedCertificateDuplicate
+			return nil, errInvalidPreparedCertificateDuplicate
 		}
 		seen[signer] = true
 
 		// Check that the message is a PREPARE or COMMIT message
 		if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
-			return errInvalidPreparedCertificateMsgCode
+			return nil, errInvalidPreparedCertificateMsgCode
 		}
 
 		var subject *istanbul.Subject
@@ -88,7 +89,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			err := message.Decode(&committedSubject)
 			if err != nil {
 				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
-				return err
+				return nil, err
 			}
 
 			// Verify the committedSeal
@@ -96,28 +97,28 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			err = c.verifyCommittedSeal(committedSubject, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
-				return err
+				return nil, err
 			}
 
 			subject = committedSubject.Subject
 		} else {
 			if err := message.Decode(&subject); err != nil {
 				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-				return err
+				return nil, err
 			}
 		}
 
-		msg_logger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
-		msg_logger.Trace("Decoded message in prepared certificate", "code", message.Code)
+		msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
+		msgLogger.Trace("Decoded message in prepared certificate", "code", message.Code)
 
 		// Verify message for the proper sequence.
 		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
-			return errInvalidPreparedCertificateMsgView
+			return nil, errInvalidPreparedCertificateMsgView
 		}
 
 		// Verify message for the proper proposal.
 		if subject.Digest != preparedCertificate.Proposal.Hash() {
-			return errInvalidPreparedCertificateDigestMismatch
+			return nil, errInvalidPreparedCertificateDigestMismatch
 		}
 
 		// Verify that the view is the same for all of the messages
@@ -125,11 +126,11 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			view = subject.View
 		} else {
 			if view.Cmp(subject.View) != 0 {
-				return errInvalidPreparedCertificateInconsistentViews
+				return nil, errInvalidPreparedCertificateInconsistentViews
 			}
 		}
 	}
-	return nil
+	return view, nil
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {

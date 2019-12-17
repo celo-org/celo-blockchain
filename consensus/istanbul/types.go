@@ -117,6 +117,9 @@ func (v *View) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (v *View) String() string {
+	if v.Round == nil || v.Sequence == nil {
+		return "Invalid"
+	}
 	return fmt.Sprintf("{Round: %d, Sequence: %d}", v.Round.Uint64(), v.Sequence.Uint64())
 }
 
@@ -216,19 +219,6 @@ func EmptyPreparedCertificate() PreparedCertificate {
 
 func (b *PreparedCertificate) IsEmpty() bool {
 	return len(b.PrepareOrCommitMessages) == 0
-}
-
-func (b *PreparedCertificate) View() *View {
-	if b.IsEmpty() {
-		return nil
-	}
-	msg := b.PrepareOrCommitMessages[0]
-	var s *Subject
-	err := msg.Decode(&s)
-	if err != nil {
-		return nil
-	}
-	return s.View
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.

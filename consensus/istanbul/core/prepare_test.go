@@ -43,14 +43,16 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name        string
-		certificate istanbul.PreparedCertificate
-		expectedErr error
+		name         string
+		certificate  istanbul.PreparedCertificate
+		expectedErr  error
+		expectedView *istanbul.View
 	}{
 		{
 			"Valid PREPARED certificate",
 			sys.getPreparedCertificate(t, []istanbul.View{view}, proposal),
 			nil,
+			&view,
 		},
 		{
 			"Invalid PREPARED certificate, duplicate message",
@@ -60,6 +62,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDuplicate,
+			nil,
 		},
 		{
 			"Invalid PREPARED certificate, future message",
@@ -72,6 +75,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateMsgView,
+			nil,
 		},
 		{
 			"Invalid PREPARED certificate, includes preprepare message",
@@ -82,6 +86,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateMsgCode,
+			nil,
 		},
 		{
 			"Invalid PREPARED certificate, hash mismatch",
@@ -92,6 +97,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateDigestMismatch,
+			nil,
 		},
 		{
 			"Invalid PREPARED certificate, view inconsistencies",
@@ -103,20 +109,25 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 				return preparedCertificate
 			}(),
 			errInvalidPreparedCertificateInconsistentViews,
+			nil,
 		},
 		{
 			"Empty certificate",
 			istanbul.EmptyPreparedCertificate(),
 			errInvalidPreparedCertificateNumMsgs,
+			nil,
 		},
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			for _, backend := range sys.backends {
 				c := backend.engine.(*core)
-				err := c.verifyPreparedCertificate(test.certificate)
+				view, err := c.verifyPreparedCertificate(test.certificate)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+				}
+				if err == nil && view.Cmp(test.expectedView) != 0 {
+					t.Errorf("error mismatch: have %v, want %v", view, test.expectedView)
 				}
 			}
 		})
@@ -415,6 +426,7 @@ func TestHandlePrepare(t *testing.T) {
 
 // round is not checked for now
 func TestVerifyPrepare(t *testing.T) {
+
 	// for log purpose
 	privateKey, _ := crypto.GenerateKey()
 	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
