@@ -157,6 +157,11 @@ func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 		return
 	}
 
+	if view.Round.Cmp(maxViewForPriorityQueue) >= 0 {
+		logger.Debug("Dropping message", "reason", "round exceeds PQ bounds check", "m", msg)
+		return
+	}
+
 	// Check and inc per-validator future message limit
 	if c.msgCountBySrc[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
 		logger.Debug("Dropping message", "reason", "exceeds per-address cap")
@@ -302,13 +307,18 @@ func (c *msgBacklogImpl) processBacklog() {
 	}
 }
 
+// A safe maximum for round that prevents overflow
+var (
+	maxViewForPriorityQueue = big.NewInt(1 << (63 - 5))
+)
+
 func toPriority(msgCode uint64, view *istanbul.View) int64 {
 	if msgCode == istanbul.MsgRoundChange {
 		// msgRoundChange comes first
 		return 0
 	}
 	// 10 * Round limits the range possible message codes to [0, 9]
-	// FIXME: Check for integer overflow
+	// Caller must check for integer overflow.
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }
 
