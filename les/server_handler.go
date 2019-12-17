@@ -20,6 +20,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,7 +54,7 @@ const (
 	MaxHelperTrieProofsFetch = 64  // Amount of helper tries to be fetched per retrieval request
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
-	MaxGetEtherbase          = 1
+	MaxEtherbase             = 1
 )
 
 var (
@@ -72,11 +74,15 @@ type serverHandler struct {
 	wg      sync.WaitGroup // WaitGroup used to track all background routines of handler.
 	synced  func() bool    // Callback function used to determine whether local node is synced.
 
+	// CELO Specific
+	etherbase  common.Address
+	gatewayFee *big.Int
+
 	// Testing fields
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
@@ -84,6 +90,8 @@ func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb et
 		txpool:     txpool,
 		closeCh:    make(chan struct{}),
 		synced:     synced,
+		etherbase:  etherbase,
+		gatewayFee: gatewayFee,
 	}
 	return handler
 }
@@ -761,6 +769,13 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					hash := tx.Hash()
 					stats[i] = h.txStatus(hash)
 					if stats[i].Status == core.TxStatusUnknown {
+						// Only include tx that have a validat gateway fee recipient & fee
+						if err := h.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
+							fmt.Printf("Will respond with %s\n", err.Error())
+							stats[i].Error = err.Error()
+							continue
+						}
+
 						addFn := h.txpool.AddRemotes
 						// Add txs synchronously for testing purpose
 						if h.addTxsSync {
@@ -774,6 +789,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					}
 				}
 				reply := p.ReplyTxStatus(req.ReqID, stats)
+				fmt.Printf("Sending Response! %v %d %v\n", req.ReqID, uint64(reqCnt), reply)
 				sendResponse(req.ReqID, uint64(reqCnt), reply, task.done())
 				if metrics.EnabledExpensive {
 					miscOutTxsPacketsMeter.Mark(1)
@@ -815,6 +831,35 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 				if metrics.EnabledExpensive {
 					miscOutTxStatusPacketsMeter.Mark(1)
 					miscOutTxStatusTrafficMeter.Mark(int64(reply.size()))
+				}
+			}()
+		}
+
+	case GetEtherbaseMsg:
+		// Celo: Handle Etherbase Request
+		p.Log().Trace("Received etherbase request")
+		if metrics.EnabledExpensive {
+			miscInEtherbasePacketsMeter.Mark(1)
+			miscInEtherbaseTrafficMeter.Mark(int64(msg.Size))
+			defer func(start time.Time) { miscServingTimeEtherbaseTimer.UpdateSince(start) }(time.Now())
+		}
+
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		if accept(req.ReqID, 1, MaxEtherbase) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				reply := p.SendEtherbaseRLP(req.ReqID, h.etherbase)
+				sendResponse(req.ReqID, 1, reply, task.done())
+				if metrics.EnabledExpensive {
+					miscOutEtherbasePacketsMeter.Mark(1)
+					miscOutEtherbaseTrafficMeter.Mark(int64(reply.size()))
 				}
 			}()
 		}
@@ -948,4 +993,28 @@ func (h *serverHandler) broadcastHeaders() {
 			return
 		}
 	}
+}
+
+func (h *serverHandler) verifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
+
+	// If this node does not specify an etherbase, accept any GatewayFeeRecipient.
+	if h.etherbase == common.ZeroAddress {
+		return nil
+	}
+
+	// Otherwise, reject transactions that don't pay gas fees to this node.
+	if gatewayFeeRecipient == nil {
+		return fmt.Errorf("gateway fee recipient must be %s, got <nil>", h.etherbase.String())
+	}
+	if *gatewayFeeRecipient != h.etherbase {
+		return fmt.Errorf("gateway fee recipient must be %s, got %s", h.etherbase.String(), (*gatewayFeeRecipient).String())
+	}
+
+	// Check that the value of the supplied gateway fee is at least the minimum.
+	if h.gatewayFee != nil && h.gatewayFee.Cmp(common.Big0) > 0 {
+		if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
+			return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
+		}
+	}
+	return nil
 }

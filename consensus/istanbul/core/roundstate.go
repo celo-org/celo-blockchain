@@ -17,11 +17,16 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -31,66 +36,105 @@ var (
 	errFailedCreatePreparedCertificate = errors.New("failed to create PREPARED certficate")
 )
 
-// newRoundState creates a new roundState instance with the given view and validatorSet
-func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, preprepare *istanbul.Preprepare, pendingRequest *istanbul.Request, preparedCertificate istanbul.PreparedCertificate, parentCommits MessageSet) RoundState {
-	return &roundStateImpl{
-		round:               view.Round,
-		desiredRound:        view.Round,
-		sequence:            view.Sequence,
-		preprepare:          preprepare,
-		prepares:            newMessageSet(validatorSet),
-		commits:             newMessageSet(validatorSet),
-		parentCommits:       parentCommits,
-		mu:                  new(sync.RWMutex),
-		pendingRequest:      pendingRequest,
-		preparedCertificate: preparedCertificate,
-	}
-}
-
 type RoundState interface {
+	// mutation functions
+	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error
+	StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error
+	TransitionToPreprepared(preprepare *istanbul.Preprepare) error
+	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error
+	TransitionToCommitted() error
+	TransitionToPrepared(quorumSize int) error
+	AddCommit(msg *istanbul.Message) error
+	AddPrepare(msg *istanbul.Message) error
+	AddParentCommit(msg *istanbul.Message) error
+	SetPendingRequest(pendingRequest *istanbul.Request) error
+
+	// view functions
+	DesiredRound() *big.Int
+	State() State
 	GetPrepareOrCommitSize() int
+	GetValidatorByAddress(address common.Address) istanbul.Validator
+	ValidatorSet() istanbul.ValidatorSet
+	Proposer() istanbul.Validator
+	IsProposer(address common.Address) bool
 	Subject() *istanbul.Subject
 	Preprepare() *istanbul.Preprepare
-	SetPreprepare(preprepare *istanbul.Preprepare)
 	Proposal() istanbul.Proposal
-	SetRound(r *big.Int)
 	Round() *big.Int
-	SetDesiredRound(r *big.Int)
-	DesiredRound() *big.Int
-	SetSequence(seq *big.Int)
 	Commits() MessageSet
 	Prepares() MessageSet
 	ParentCommits() MessageSet
-	SetPendingRequest(pendingRequest *istanbul.Request)
 	PendingRequest() *istanbul.Request
 	Sequence() *big.Int
-	CreateAndSetPreparedCertificate(quorumSize int) error
+	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 }
 
 // RoundState stores the consensus state
 type roundStateImpl struct {
-	round               *big.Int
-	desiredRound        *big.Int
-	sequence            *big.Int
-	preprepare          *istanbul.Preprepare
-	prepares            MessageSet
-	commits             MessageSet
+	state        State
+	round        *big.Int
+	desiredRound *big.Int
+	sequence     *big.Int
+
+	// data for current round
+	preprepare *istanbul.Preprepare
+	prepares   MessageSet
+	commits    MessageSet
+	proposer   istanbul.Validator
+
+	// data saves across rounds, same sequence
+	validatorSet        istanbul.ValidatorSet
 	parentCommits       MessageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
-	mu *sync.RWMutex
+	mu     *sync.RWMutex
+	logger log.Logger
 }
 
-func (s *roundStateImpl) Commits() MessageSet {
-	return s.commits
+func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator) RoundState {
+	return &roundStateImpl{
+		state:        StateAcceptRequest,
+		round:        view.Round,
+		desiredRound: view.Round,
+		sequence:     view.Sequence,
+
+		// data for current round
+		// preprepare: nil,
+		prepares: newMessageSet(validatorSet),
+		commits:  newMessageSet(validatorSet),
+		proposer: proposer,
+
+		// data saves across rounds, same sequence
+		validatorSet:        validatorSet,
+		parentCommits:       newMessageSet(validatorSet),
+		pendingRequest:      nil,
+		preparedCertificate: istanbul.EmptyPreparedCertificate(),
+
+		mu:     new(sync.RWMutex),
+		logger: log.New(),
+	}
 }
-func (s *roundStateImpl) Prepares() MessageSet {
-	return s.prepares
+
+func (s *roundStateImpl) Commits() MessageSet       { return s.commits }
+func (s *roundStateImpl) Prepares() MessageSet      { return s.prepares }
+func (s *roundStateImpl) ParentCommits() MessageSet { return s.parentCommits }
+
+func (s *roundStateImpl) State() State {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state
 }
-func (s *roundStateImpl) ParentCommits() MessageSet {
-	return s.parentCommits
+
+func (s *roundStateImpl) View() *istanbul.View {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return &istanbul.View{
+		Sequence: new(big.Int).Set(s.sequence),
+		Round:    new(big.Int).Set(s.round),
+	}
 }
 
 func (s *roundStateImpl) GetPrepareOrCommitSize() int {
@@ -125,17 +169,40 @@ func (s *roundStateImpl) Subject() *istanbul.Subject {
 	}
 }
 
+func (s *roundStateImpl) IsProposer(address common.Address) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.proposer.Address() == address
+}
+
+func (s *roundStateImpl) Proposer() istanbul.Validator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.proposer
+}
+
+func (s *roundStateImpl) ValidatorSet() istanbul.ValidatorSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.validatorSet
+}
+
+func (s *roundStateImpl) GetValidatorByAddress(address common.Address) istanbul.Validator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	_, validator := s.validatorSet.GetByAddress(address)
+	return validator
+}
+
 func (s *roundStateImpl) Preprepare() *istanbul.Preprepare {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return s.preprepare
-}
-func (s *roundStateImpl) SetPreprepare(preprepare *istanbul.Preprepare) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.preprepare = preprepare
 }
 
 func (s *roundStateImpl) Proposal() istanbul.Proposal {
@@ -149,13 +216,6 @@ func (s *roundStateImpl) Proposal() istanbul.Proposal {
 	return nil
 }
 
-func (s *roundStateImpl) SetRound(r *big.Int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.round = new(big.Int).Set(r)
-}
-
 func (s *roundStateImpl) Round() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -163,48 +223,76 @@ func (s *roundStateImpl) Round() *big.Int {
 	return s.round
 }
 
-func (s *roundStateImpl) SetDesiredRound(r *big.Int) {
+func (s *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) {
+	s.state = StateAcceptRequest
+	s.round = nextRound
+	s.desiredRound = nextRound
+
+	// TODO MC use old valset
+	s.prepares = newMessageSet(validatorSet)
+	s.commits = newMessageSet(validatorSet)
+	s.proposer = nextProposer
+
+	// ??
+	s.preprepare = nil
+}
+
+func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	logger := s.newLogger()
+	s.changeRound(nextRound, validatorSet, nextProposer)
+	logger.Debug("Starting new round", "next_round", nextRound, "next_proposer", nextProposer.Address().Hex())
+	return nil
+}
+
+func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	logger := s.newLogger()
+
+	s.validatorSet = validatorSet
+
+	s.changeRound(big.NewInt(0), validatorSet, nextProposer)
+
+	s.sequence = nextSequence
+	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
+	s.pendingRequest = nil
+	s.parentCommits = parentCommits
+
+	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
+	return nil
+}
+
+func (s *roundStateImpl) TransitionToCommitted() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.state = StateCommitted
+	return nil
+}
+
+func (s *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.preprepare = preprepare
+	s.state = StatePreprepared
+	return nil
+}
+
+func (s *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.desiredRound = new(big.Int).Set(r)
+	s.proposer = nextProposer
+	s.state = StateWaitingForNewRound
+	return nil
 }
 
-func (s *roundStateImpl) DesiredRound() *big.Int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.desiredRound
-}
-
-func (s *roundStateImpl) SetSequence(seq *big.Int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.sequence = seq
-}
-
-func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.pendingRequest = pendingRequest
-}
-
-func (s *roundStateImpl) PendingRequest() *istanbul.Request {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.pendingRequest
-}
-
-func (s *roundStateImpl) Sequence() *big.Int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.sequence
-}
-
-func (s *roundStateImpl) CreateAndSetPreparedCertificate(quorumSize int) error {
+// TransitionToPrepared will create a PreparedCertificate and change state to Prepared
+func (s *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -233,7 +321,55 @@ func (s *roundStateImpl) CreateAndSetPreparedCertificate(quorumSize int) error {
 		Proposal:                s.preprepare.Proposal,
 		PrepareOrCommitMessages: messages,
 	}
+
+	s.state = StatePrepared
 	return nil
+}
+
+func (s *roundStateImpl) AddCommit(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.commits.Add(msg)
+}
+
+func (s *roundStateImpl) AddPrepare(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.prepares.Add(msg)
+}
+
+func (s *roundStateImpl) AddParentCommit(msg *istanbul.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.parentCommits.Add(msg)
+}
+
+func (s *roundStateImpl) DesiredRound() *big.Int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.desiredRound
+}
+
+func (s *roundStateImpl) SetPendingRequest(pendingRequest *istanbul.Request) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pendingRequest = pendingRequest
+	return nil
+}
+
+func (s *roundStateImpl) PendingRequest() *istanbul.Request {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pendingRequest
+}
+
+func (s *roundStateImpl) Sequence() *big.Int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.sequence
 }
 
 func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
@@ -242,31 +378,26 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	return s.preparedCertificate
 }
 
-// The DecodeRLP method should read one value from the given
-// Stream. It is not forbidden to read less or more, but it might
-// be confusing.
-func (s *roundStateImpl) DecodeRLP(stream *rlp.Stream) error {
-	var ss struct {
-		Round          *big.Int
-		Sequence       *big.Int
-		Preprepare     *istanbul.Preprepare
-		Prepares       MessageSet
-		Commits        MessageSet
-		pendingRequest *istanbul.Request
-	}
+func (s *roundStateImpl) newLogger(ctx ...interface{}) log.Logger {
+	logger := s.logger.New(ctx...)
+	return logger.New("cur_seq", s.sequence, "cur_round", s.round, "state", s.state)
+}
 
-	if err := stream.Decode(&ss); err != nil {
-		return err
-	}
-	s.round = ss.Round
-	s.sequence = ss.Sequence
-	s.preprepare = ss.Preprepare
-	s.prepares = ss.Prepares
-	s.commits = ss.Commits
-	s.pendingRequest = ss.pendingRequest
-	s.mu = new(sync.RWMutex)
+type roundStateRLP struct {
+	State               State
+	Round               *big.Int
+	DesiredRound        *big.Int
+	Sequence            *big.Int
+	PreparedCertificate *istanbul.PreparedCertificate
 
-	return nil
+	// custom serialized fields
+	SerializedValSet         []byte
+	SerializedProposer       []byte
+	SerializedParentCommits  []byte
+	SerializedPrepares       []byte
+	SerializedCommits        []byte
+	SerializedPreprepare     []byte
+	SerializedPendingRequest []byte
 }
 
 // EncodeRLP should write the RLP encoding of its receiver to w.
@@ -281,12 +412,124 @@ func (s *roundStateImpl) EncodeRLP(w io.Writer) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return rlp.Encode(w, []interface{}{
-		s.round,
-		s.sequence,
-		s.preprepare,
-		s.prepares,
-		s.commits,
-		s.pendingRequest,
-	})
+	serializedValSet, err := s.validatorSet.Serialize()
+	if err != nil {
+		return err
+	}
+	serializedProposer, err := s.proposer.Serialize()
+	if err != nil {
+		return err
+	}
+
+	serializedParentCommits, err := s.parentCommits.Serialize()
+	if err != nil {
+		return err
+	}
+	serializedPrepares, err := s.prepares.Serialize()
+	if err != nil {
+		return err
+	}
+	serializedCommits, err := s.commits.Serialize()
+	if err != nil {
+		return err
+	}
+
+	// handle nullable field. Serialized them to rlp.EmptyList or the rlp version of them
+	var serializedPendingRequest []byte
+	if s.pendingRequest == nil {
+		serializedPendingRequest = rlp.EmptyList
+	} else {
+		serializedPendingRequest, err = rlp.EncodeToBytes(s.pendingRequest)
+		if err != nil {
+			return err
+		}
+	}
+
+	var serializedPreprepare []byte
+	if s.preprepare == nil {
+		serializedPreprepare = rlp.EmptyList
+	} else {
+		serializedPreprepare, err = rlp.EncodeToBytes(s.preprepare)
+		if err != nil {
+			return err
+		}
+	}
+
+	entry := roundStateRLP{
+		State:               s.state,
+		Round:               s.round,
+		DesiredRound:        s.desiredRound,
+		Sequence:            s.sequence,
+		PreparedCertificate: &s.preparedCertificate,
+
+		SerializedValSet:         serializedValSet,
+		SerializedProposer:       serializedProposer,
+		SerializedParentCommits:  serializedParentCommits,
+		SerializedPrepares:       serializedPrepares,
+		SerializedCommits:        serializedCommits,
+		SerializedPendingRequest: serializedPendingRequest,
+		SerializedPreprepare:     serializedPreprepare,
+	}
+	return rlp.Encode(w, entry)
+}
+
+// The DecodeRLP method should read one value from the given
+// Stream. It is not forbidden to read less or more, but it might
+// be confusing.
+func (s *roundStateImpl) DecodeRLP(stream *rlp.Stream) error {
+	var data roundStateRLP
+	err := stream.Decode(&data)
+	if err != nil {
+		return err
+	}
+
+	s.logger = log.New()
+	s.mu = new(sync.RWMutex)
+	s.state = data.State
+	s.round = data.Round
+	s.desiredRound = data.DesiredRound
+	s.sequence = data.Sequence
+	s.preparedCertificate = *data.PreparedCertificate
+
+	s.prepares, err = deserializeMessageSet(data.SerializedPrepares)
+	if err != nil {
+		return err
+	}
+	s.parentCommits, err = deserializeMessageSet(data.SerializedParentCommits)
+	if err != nil {
+		return err
+	}
+	s.commits, err = deserializeMessageSet(data.SerializedCommits)
+	if err != nil {
+		return err
+	}
+	s.validatorSet, err = validator.DeserializeValidatorSet(data.SerializedValSet)
+	if err != nil {
+		return err
+	}
+	s.proposer, err = validator.DeserializeValidator(data.SerializedProposer)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(data.SerializedPendingRequest, rlp.EmptyList) {
+		var value istanbul.Request
+		err := rlp.DecodeBytes(data.SerializedPendingRequest, &value)
+		if err != nil {
+			return err
+		}
+		s.pendingRequest = &value
+
+	}
+
+	if !bytes.Equal(data.SerializedPreprepare, rlp.EmptyList) {
+		var value istanbul.Preprepare
+		err := rlp.DecodeBytes(data.SerializedPreprepare, &value)
+		if err != nil {
+			return err
+		}
+		s.preprepare = &value
+	}
+
+	return nil
 }

@@ -180,7 +180,7 @@ func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
-	expected := engine.GetProposer(1)
+	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()
 	if actual != expected {
 		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
@@ -225,7 +225,7 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 			blsPublicKey,
 		}
 	}
-	vset := validator.NewSet(validators, istanbul.RoundRobin)
+	vset := validator.NewSet(validators)
 	return vset, keys
 }
 

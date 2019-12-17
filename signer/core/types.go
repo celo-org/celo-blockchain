@@ -67,14 +67,15 @@ func (v *ValidationMessages) getWarnings() error {
 
 // SendTxArgs represents the arguments to submit a transaction
 type SendTxArgs struct {
-	From            common.MixedcaseAddress  `json:"from"`
-	To              *common.MixedcaseAddress `json:"to"`
-	Gas             hexutil.Uint64           `json:"gas"`
-	GasPrice        hexutil.Big              `json:"gasPrice"`
-	GasCurrency     *common.MixedcaseAddress `json:"gasCurrency"`
-	GasFeeRecipient *common.MixedcaseAddress `json:"gasFeeRecipient"`
-	Value           hexutil.Big              `json:"value"`
-	Nonce           hexutil.Uint64           `json:"nonce"`
+	From                common.MixedcaseAddress  `json:"from"`
+	To                  *common.MixedcaseAddress `json:"to"`
+	Gas                 hexutil.Uint64           `json:"gas"`
+	GasPrice            hexutil.Big              `json:"gasPrice"`
+	FeeCurrency         *common.MixedcaseAddress `json:"feeCurrency"`
+	GatewayFeeRecipient *common.MixedcaseAddress `json:"gatewayFeeRecipient"`
+	GatewayFee          hexutil.Big              `json:"gatewayFee"`
+	Value               hexutil.Big              `json:"value"`
+	Nonce               hexutil.Uint64           `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	Data  *hexutil.Bytes `json:"data"`
 	Input *hexutil.Bytes `json:"input,omitempty"`
@@ -95,18 +96,18 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 	} else if args.Input != nil {
 		input = *args.Input
 	}
-	var gasCurrency *common.Address = nil
-	if args.GasCurrency != nil {
-		tmp := args.GasCurrency.Address()
-		gasCurrency = &tmp
+	var feeCurrency *common.Address = nil
+	if args.FeeCurrency != nil {
+		tmp := args.FeeCurrency.Address()
+		feeCurrency = &tmp
 	}
-	var gasFeeRecipient *common.Address = nil
-	if args.GasFeeRecipient != nil {
-		tmp := args.GasFeeRecipient.Address()
-		gasFeeRecipient = &tmp
+	var gatewayFeeRecipient *common.Address = nil
+	if args.GatewayFeeRecipient != nil {
+		tmp := args.GatewayFeeRecipient.Address()
+		gatewayFeeRecipient = &tmp
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, gasFeeRecipient, input)
+		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), feeCurrency, gatewayFeeRecipient, (*big.Int)(&args.GatewayFee), input)
 	}
-	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), gasCurrency, gasFeeRecipient, input)
+	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), feeCurrency, gatewayFeeRecipient, (*big.Int)(&args.GatewayFee), input)
 }

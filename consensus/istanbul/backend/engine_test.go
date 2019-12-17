@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
@@ -50,6 +51,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
+	config.RoundStateDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
@@ -119,6 +121,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b.SetChain(blockchain, blockchain.CurrentBlock)
+	b.SetBroadcaster(&consensustest.MockBroadcaster{})
+	b.SetP2PServer(&consensustest.MockP2PServer{})
 
 	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
@@ -138,7 +142,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	if snap == nil {
 		panic("failed to get snapshot")
 	}
-	proposerAddr := snap.ValSet.GetProposer().Address()
+	proposerAddr := b.AuthorForBlock(snap.Number)
+	// proposerAddr := snap.ValSet.GetProposer().Address()
 
 	// find proposer key
 	for _, key := range nodeKeys {
@@ -198,7 +203,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
-			b.SetBroadcaster(&MockBroadcaster{privateKey: key})
 			break
 		}
 	}
@@ -237,7 +241,10 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		genesis.Config.FullHeaderChainAvailable = false
 	}
 	// force enable Istanbul engine
-	genesis.Config.Istanbul = &params.IstanbulConfig{}
+	genesis.Config.Istanbul = &params.IstanbulConfig{
+		Epoch:          10,
+		LookbackWindow: 2,
+	}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = defaultDifficulty
 	genesis.Nonce = emptyNonce.Uint64()

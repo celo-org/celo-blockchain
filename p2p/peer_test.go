@@ -54,7 +54,7 @@ func testPeer(protos []Protocol) (func(), *conn, *Peer, <-chan error) {
 		c2.caps = append(c2.caps, p.cap())
 	}
 
-	peer := newPeer(log.Root(), c1, protos)
+	peer := newPeer(log.Root(), c1, protos, nil, nil, nil)
 	errc := make(chan error, 1)
 	go func() {
 		_, err := peer.run()

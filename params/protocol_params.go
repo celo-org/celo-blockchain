@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -157,7 +158,7 @@ var (
 	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 	ElectionRegistryId             = makeRegistryId("Election")
 	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
-	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
+	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
@@ -174,6 +175,9 @@ var (
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
 	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
+
+	// Scale factor for the solidity fixidity library
+	Fixidity1 = math.BigPow(10, 24)
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -186,7 +190,8 @@ func makeRegistryId(contractName string) [32]byte {
 
 const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
-	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
+	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 50000
 
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000

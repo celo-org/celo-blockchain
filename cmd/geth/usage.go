@@ -194,7 +194,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NodeKeyFileFlag,
 			utils.NodeKeyHexFlag,
 			utils.PingIPFromPacketFlag,
-			utils.UseInMemoryDiscoverTable,
+			utils.UseInMemoryDiscoverTableFlag,
 		},
 	},
 	{
@@ -235,6 +235,25 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: whisperFlags,
 	},
 	{
+		Name: "ISTANBUL",
+		Flags: []cli.Flag{
+			utils.IstanbulRequestTimeoutFlag,
+			utils.IstanbulBlockPeriodFlag,
+			utils.IstanbulProposerPolicyFlag,
+			utils.IstanbulLookbackWindowFlag,
+		},
+	},
+	{
+		Name: "PROXY",
+		Flags: []cli.Flag{
+			utils.ProxyFlag,
+			utils.ProxyInternalFacingEndpointFlag,
+			utils.ProxiedValidatorAddressFlag,
+			utils.ProxiedFlag,
+			utils.ProxyEnodeURLPairFlag,
+		},
+	},
+	{
 		Name: "DEPRECATED",
 		Flags: []cli.Flag{
 			utils.LightLegacyServFlag,
@@ -249,14 +268,6 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.VersionCheckFlag,
-		},
-	},
-	{
-		Name: "ISTANBUL",
-		Flags: []cli.Flag{
-			utils.IstanbulRequestTimeoutFlag,
-			utils.IstanbulBlockPeriodFlag,
-			utils.IstanbulProposerPolicyFlag,
 		},
 	},
 }

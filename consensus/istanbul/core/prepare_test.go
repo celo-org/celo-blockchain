@@ -38,17 +38,22 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	}
 	proposal := makeBlock(0)
 
+	for _, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+	}
+
 	testCases := []struct {
+		name        string
 		certificate istanbul.PreparedCertificate
 		expectedErr error
 	}{
 		{
-			// Valid PREPARED certificate
+			"Valid PREPARED certificate",
 			sys.getPreparedCertificate(t, []istanbul.View{view}, proposal),
 			nil,
 		},
 		{
-			// Invalid PREPARED certificate, duplicate message
+			"Invalid PREPARED certificate, duplicate message",
 			func() istanbul.PreparedCertificate {
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
@@ -57,7 +62,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			errInvalidPreparedCertificateDuplicate,
 		},
 		{
-			// Invalid PREPARED certificate, future message
+			"Invalid PREPARED certificate, future message",
 			func() istanbul.PreparedCertificate {
 				futureView := istanbul.View{
 					Round:    big.NewInt(0),
@@ -69,7 +74,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			errInvalidPreparedCertificateMsgView,
 		},
 		{
-			// Invalid PREPARED certificate, includes preprepare message
+			"Invalid PREPARED certificate, includes preprepare message",
 			func() istanbul.PreparedCertificate {
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
@@ -79,7 +84,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			errInvalidPreparedCertificateMsgCode,
 		},
 		{
-			// Invalid PREPARED certificate, hash mismatch
+			"Invalid PREPARED certificate, hash mismatch",
 			func() istanbul.PreparedCertificate {
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
@@ -89,7 +94,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			errInvalidPreparedCertificateDigestMismatch,
 		},
 		{
-			// Invalid PREPARED certificate, view inconsistencies
+			"Invalid PREPARED certificate, view inconsistencies",
 			func() istanbul.PreparedCertificate {
 				var view2 istanbul.View
 				view2.Sequence = big.NewInt(view.Sequence.Int64())
@@ -100,19 +105,21 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			errInvalidPreparedCertificateInconsistentViews,
 		},
 		{
-			// Empty certificate
+			"Empty certificate",
 			istanbul.EmptyPreparedCertificate(),
 			errInvalidPreparedCertificateNumMsgs,
 		},
 	}
 	for _, test := range testCases {
-		for _, backend := range sys.backends {
-			c := backend.engine.(*core)
-			err := c.verifyPreparedCertificate(test.certificate)
-			if err != test.expectedErr {
-				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+		t.Run(test.name, func(t *testing.T) {
+			for _, backend := range sys.backends {
+				c := backend.engine.(*core)
+				err := c.verifyPreparedCertificate(test.certificate)
+				if err != test.expectedErr {
+					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+				}
 			}
-		}
+		})
 	}
 }
 
@@ -130,28 +137,29 @@ func TestHandlePrepare(t *testing.T) {
 	}
 
 	testCases := []struct {
+		name        string
 		system      *testSystem
 		expectedErr error
 	}{
 		{
-			// normal case
+			"normal case",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
+
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -159,7 +167,7 @@ func TestHandlePrepare(t *testing.T) {
 			nil,
 		},
 		{
-			// normal case with prepared certificate
+			"normal case with prepared certificate",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
@@ -174,19 +182,18 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -194,7 +201,7 @@ func TestHandlePrepare(t *testing.T) {
 			nil,
 		},
 		{
-			// Inconsistent subject due to prepared certificate
+			"Inconsistent subject due to prepared certificate",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 				preparedCert := sys.getPreparedCertificate(
@@ -209,19 +216,18 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
-						c.valSet,
+						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -229,27 +235,26 @@ func TestHandlePrepare(t *testing.T) {
 			errInconsistentSubject,
 		},
 		{
-			// future message
+			"future message",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
 								Round:    big.NewInt(2),
 								Sequence: big.NewInt(3),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -258,27 +263,26 @@ func TestHandlePrepare(t *testing.T) {
 			errFutureMessage,
 		},
 		{
-			// subject not match
+			"subject not match",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(0),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -287,26 +291,25 @@ func TestHandlePrepare(t *testing.T) {
 			errOldMessage,
 		},
 		{
-			// subject not match
+			"subject not match",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(1)},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -315,7 +318,7 @@ func TestHandlePrepare(t *testing.T) {
 			errInconsistentSubject,
 		},
 		{
-			// less than 2F+1
+			"less than 2F+1",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
 
@@ -324,15 +327,14 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						expectedSubject.View,
-						c.valSet,
+						backend.peers,
 					)
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -342,69 +344,72 @@ func TestHandlePrepare(t *testing.T) {
 		// TODO: double send message
 	}
 
-OUTER:
 	for _, test := range testCases {
-		test.system.Run(false)
+		t.Run(test.name, func(t *testing.T) {
 
-		v0 := test.system.backends[0]
-		r0 := v0.engine.(*core)
+			test.system.Run(false)
 
-		for i, v := range test.system.backends {
-			validator := r0.valSet.GetByIndex(uint64(i))
-			m, _ := Encode(v.engine.(*core).current.Subject())
-			if err := r0.handlePrepare(&istanbul.Message{
-				Code:    istanbul.MsgPrepare,
-				Msg:     m,
-				Address: validator.Address(),
-			}); err != nil {
-				if err != test.expectedErr {
-					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+			v0 := test.system.backends[0]
+			r0 := v0.engine.(*core)
+
+			for i, v := range test.system.backends {
+				validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
+				m, _ := Encode(v.engine.(*core).current.Subject())
+				err := r0.handlePrepare(&istanbul.Message{
+					Code:    istanbul.MsgPrepare,
+					Msg:     m,
+					Address: validator.Address(),
+				})
+				if err != nil {
+					if err != test.expectedErr {
+						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+					}
+					return
 				}
-				continue OUTER
-			}
-		}
-
-		// prepared is normal case
-		if r0.state != StatePrepared {
-			// There are not enough PREPARE messages in core
-			if r0.state != StatePreprepared {
-				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePreprepared)
-			}
-			if r0.current.Prepares().Size() >= r0.valSet.MinQuorumSize() {
-				t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.valSet.MinQuorumSize()+1)
 			}
 
-			continue
-		}
+			// prepared is normal case
+			if r0.current.State() != StatePrepared {
+				// There are not enough PREPARE messages in core
+				if r0.current.State() != StatePreprepared {
+					t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePreprepared)
+				}
+				if r0.current.Prepares().Size() >= r0.current.ValidatorSet().MinQuorumSize() {
+					t.Errorf("the size of PREPARE messages should be less than %v", 2*r0.current.ValidatorSet().MinQuorumSize()+1)
+				}
 
-		// core should have MinQuorumSize PREPARE messages
-		if r0.current.Prepares().Size() < r0.valSet.MinQuorumSize() {
-			t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares().Size())
-		}
+				return
+			}
 
-		// a message will be delivered to backend if 2F+1
-		if int64(len(v0.sentMsgs)) != 1 {
-			t.Errorf("the Send() should be called once: times %v", len(test.system.backends[0].sentMsgs))
-		}
+			// core should have MinQuorumSize PREPARE messages
+			if r0.current.Prepares().Size() < r0.current.ValidatorSet().MinQuorumSize() {
+				t.Errorf("the size of PREPARE messages should be greater than or equal to MinQuorumSize: size %v", r0.current.Prepares().Size())
+			}
 
-		// verify COMMIT messages
-		decodedMsg := new(istanbul.Message)
-		err := decodedMsg.FromPayload(v0.sentMsgs[0], nil)
-		if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
+			// a message will be delivered to backend if 2F+1
+			if int64(len(v0.sentMsgs)) != 1 {
+				t.Errorf("the Send() should be called once: times %v", len(test.system.backends[0].sentMsgs))
+			}
 
-		if decodedMsg.Code != istanbul.MsgCommit {
-			t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
-		}
-		var m *istanbul.Subject
-		err = decodedMsg.Decode(&m)
-		if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-		if !reflect.DeepEqual(m, expectedSubject) {
-			t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
-		}
+			// verify COMMIT messages
+			decodedMsg := new(istanbul.Message)
+			err := decodedMsg.FromPayload(v0.sentMsgs[0], nil)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+
+			if decodedMsg.Code != istanbul.MsgCommit {
+				t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
+			}
+			var m *istanbul.CommittedSubject
+			err = decodedMsg.Decode(&m)
+			if err != nil {
+				t.Errorf("error mismatch: have %v, want nil", err)
+			}
+			if !reflect.DeepEqual(m.Subject, expectedSubject) {
+				t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
+			}
+		})
 	}
 }
 
@@ -420,7 +425,7 @@ func TestVerifyPrepare(t *testing.T) {
 			peer.Address(),
 			blsPublicKey,
 		},
-	}, istanbul.RoundRobin)
+	})
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 

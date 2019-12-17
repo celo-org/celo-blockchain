@@ -62,7 +62,7 @@ func TestWaitDeployed(t *testing.T) {
 		defer backend.Close()
 
 		// Create the transaction.
-		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, big.NewInt(1), nil, nil, common.FromHex(test.code))
+		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, big.NewInt(1), nil, nil, nil, common.FromHex(test.code))
 		tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 
 		// Wait for it to get mined in the background.

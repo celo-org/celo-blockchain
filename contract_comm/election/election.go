@@ -135,7 +135,7 @@ func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.Stat
 	var values []*big.Int
 	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
 	if err != nil {
-		log.Error("Error calling getTotalVotesForEligibleValidatorGroups", "err", err)
+		return nil, err
 	}
 
 	voteTotals := make([]voteTotal, len(groups))
@@ -170,6 +170,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			return totalRewards, err
 		}
 		rewards[i] = reward
+		log.Debug("Reward for group voters", "reward", reward, "group", group.String())
 	}
 
 	for i, group := range groups {
@@ -181,19 +182,20 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 			}
 		}
 
-		sort.Slice(voteTotals, func(j, k int) bool {
-			return voteTotals[j].Value.Cmp(voteTotals[k].Value) < 0
+		// Sorting in descending order is necessary to match the order on-chain.
+		sort.SliceStable(voteTotals, func(j, k int) bool {
+			return voteTotals[j].Value.Cmp(voteTotals[k].Value) > 0
 		})
 
 		lesser := common.ZeroAddress
 		greater := common.ZeroAddress
-		for i, voteTotal := range voteTotals {
+		for j, voteTotal := range voteTotals {
 			if voteTotal.Group == group {
-				if i > 0 {
-					lesser = voteTotals[i-1].Group
+				if j > 0 {
+					greater = voteTotals[j-1].Group
 				}
-				if i+1 < len(voteTotals) {
-					greater = voteTotals[i+1].Group
+				if j+1 < len(voteTotals) {
+					lesser = voteTotals[j+1].Group
 				}
 				break
 			}

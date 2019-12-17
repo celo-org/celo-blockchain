@@ -31,8 +31,10 @@ type Engine interface {
 	ParentCommits() MessageSet
 }
 
+// State represents the IBFT state
 type State uint64
 
+// Different IBFT Core States
 const (
 	StateAcceptRequest State = iota
 	StatePreprepared

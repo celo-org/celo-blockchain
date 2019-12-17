@@ -1,8 +1,14 @@
 # Build a docker image for users to run full nodes/validators
-# Takes a build arg called celo_env to pre-download genesis block and static nodes
-# docker build . -f Dockerfile.celo-node --build-arg celo_env=alfajoresstaging -t us.gcr.io/celo-testnet/celo-node:alfajoresstaging
-# docker push us.gcr.io/celo-testnet/celo-node:alfajoresstaging
-FROM us.gcr.io/celo-testnet/geth:9575a01c12438e1adc6bb610c891cb5066aaa7aa
+# * celo_env arg is used to pre-download genesis block and static nodes
+# * geth_label arg is used specify which geth image to build from
+#
+# CELO_NETWORK=baklavastaging
+# docker build . -f Dockerfile.celo-node --build-arg celo_env=$CELO_NETWORK --build-arg geth_label=$(git rev-parse HEAD) -t us.gcr.io/celo-testnet/celo-node:$CELO_NETWORK
+# docker push us.gcr.io/celo-testnet/celo-node:$CELO_NETWORK
+
+ARG geth_label
+
+FROM us.gcr.io/celo-testnet/geth:${geth_label}
 
 ARG celo_env
 

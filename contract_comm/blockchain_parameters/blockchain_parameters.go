@@ -69,7 +69,7 @@ const (
 	  {
 		"constant": true,
 		"inputs": [],
-		"name": "intrinsicGasForAlternativeGasCurrency",
+		"name": "intrinsicGasForAlternativeFeeCurrency",
 		"outputs": [
 		  {
 			"name": "",
@@ -133,8 +133,8 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 	return gas.Uint64()
 }
 
-func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.IntrinsicGasForAlternativeGasCurrency, "intrinsicGasForAlternativeGasCurrency")
+func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.IntrinsicGasForAlternativeFeeCurrency, "intrinsicGasForAlternativeFeeCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {

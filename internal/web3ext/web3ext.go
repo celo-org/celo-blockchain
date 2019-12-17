@@ -831,15 +831,19 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'propose',
-			call: 'istanbul_propose',
+			name: 'addProxy',
+			call: 'istanbul_addProxy',
 			params: 2
 		}),
 		new web3._extend.Method({
-			name: 'discard',
-			call: 'istanbul_discard',
+			name: 'removeProxy',
+			call: 'istanbul_removeProxy',
 			params: 1
-		})
+		}),
+		new web3._extend.Property({
+			name: 'proxyInfo',
+			getter: 'istanbul_proxyInfo'
+		}),		
 	],
 	properties:
 	[

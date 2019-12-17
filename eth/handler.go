@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,7 +81,6 @@ type ProtocolManager struct {
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
 	peers      *peerSet
-	valPeers   map[string]bool
 
 	eventMux      *event.TypeMux
 	txsCh         chan core.NewTxsEvent
@@ -103,12 +101,15 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	server *p2p.Server
+	server      *p2p.Server
+	proxyServer *p2p.Server
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
-func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database, cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server) (*ProtocolManager, error) {
+func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
+	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
+	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -117,7 +118,6 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		txpool:      txpool,
 		blockchain:  blockchain,
 		peers:       newPeerSet(),
-		valPeers:    make(map[string]bool),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
@@ -125,10 +125,12 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		quitSync:    make(chan struct{}),
 		engine:      engine,
 		server:      server,
+		proxyServer: proxyServer,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
 		handler.SetBroadcaster(manager)
+		handler.SetP2PServer(server)
 	}
 	if mode == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the fast
@@ -248,14 +250,16 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	log.Debug("Removing Ethereum peer", "peer", id)
 
-	// Unregister the peer from the downloader and Ethereum peer set
+	// Unregister the peer from the downloader, consensus engine, and Ethereum peer set
 	if err := pm.downloader.UnregisterPeer(id); err != nil {
 		log.Error("Peer removal from downloader failed", "peed", id, "err", err)
+	}
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.UnregisterPeer(peer, peer.Peer.Server == pm.proxyServer)
 	}
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "peer", id, "err", err)
 	}
-	delete(pm.valPeers, id)
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
@@ -297,9 +301,6 @@ func (pm *ProtocolManager) Stop() {
 	// sessions which are already established but not added to pm.peers yet
 	// will exit when they try to register.
 	pm.peers.Close()
-	for id := range pm.valPeers {
-		delete(pm.valPeers, id)
-	}
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
@@ -314,10 +315,8 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	isValPeer := p.Validator()
-
-	// Ignore maxPeers if this is a trusted peer or a validator peer
-	if pm.peers.Len() >= (pm.maxPeers-len(pm.valPeers)) && !(p.Peer.Info().Network.Trusted || isValPeer) {
+	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -342,15 +341,18 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
-	if isValPeer {
-		pm.valPeers[p.id] = true
-	}
 	defer pm.removePeer(p.id)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
 	}
+
+	// Register the peer with the consensus engine.
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.RegisterPeer(p, p.Peer.Server == pm.proxyServer)
+	}
+
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
 	pm.syncTransactions(p)
@@ -410,7 +412,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 		addr := crypto.PubkeyToAddress(*pubKey)
-		handled, err := handler.HandleMsg(addr, msg)
+		handled, err := handler.HandleMsg(addr, msg, p)
 		if handled {
 			return err
 		}
@@ -892,48 +894,15 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 	}
 }
 
-func (pm *ProtocolManager) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
-	m := make(map[common.Address]consensus.Peer)
+func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
+	m := make(map[enode.ID]consensus.Peer)
 	for _, p := range pm.peers.Peers() {
-		pubKey := p.Node().Pubkey()
-		addr := crypto.PubkeyToAddress(*pubKey)
-		if targets[addr] || (targets == nil) {
-			m[addr] = p
+		id := p.Node().ID()
+		if targets[id] || (targets == nil) {
+			if purpose == p2p.AnyPurpose || p.Peer.StaticNodePurposes.IsSet(purpose) || p.Peer.TrustedNodePurposes.IsSet(purpose) {
+				m[id] = p
+			}
 		}
 	}
 	return m
-}
-
-func (pm *ProtocolManager) AddValidatorPeer(enodeURL string) error {
-	node, err := enode.ParseV4(enodeURL)
-	if err != nil {
-		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
-		return err
-	}
-
-	pm.server.AddValidatorPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) RemoveValidatorPeer(enodeURL string) error {
-	node, err := enode.ParseV4(enodeURL)
-	if err != nil {
-		log.Error("Invalid Enode", "enodeURL", enodeURL, "err", err)
-		return err
-	}
-
-	pm.server.RemoveValidatorPeer(node)
-	return nil
-}
-
-func (pm *ProtocolManager) GetValidatorPeers() []string {
-	return pm.server.ValPeers()
-}
-
-func (pm *ProtocolManager) GetLocalNode() *enode.Node {
-	return pm.server.Self()
-}
-
-func (pm *ProtocolManager) GetNodeKey() *ecdsa.PrivateKey {
-	return pm.server.PrivateKey
 }

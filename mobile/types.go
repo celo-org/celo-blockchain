@@ -200,17 +200,17 @@ type Transaction struct {
 // NewContractCreation creates a new transaction for deploying a new contract with
 // the given properties.
 func NewContractCreation(nonce int64, amount *BigInt, gasLimit int64, gasPrice *BigInt, data []byte) *Transaction {
-	return &Transaction{types.NewContractCreation(uint64(nonce), amount.bigint, uint64(gasLimit), gasPrice.bigint, nil, nil, common.CopyBytes(data))}
+	return &Transaction{types.NewContractCreation(uint64(nonce), amount.bigint, uint64(gasLimit), gasPrice.bigint, nil, nil, nil, common.CopyBytes(data))}
 }
 
 // NewTransaction creates a new transaction with the given properties.
-func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, gasCurrency, gasFeeRecipient *Address, data []byte) *Transaction {
-	convertedGasCurrency := common.BytesToAddress(gasCurrency.GetBytes())
-	convertedGasFeeRecipient := common.BytesToAddress(gasFeeRecipient.GetBytes())
+func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, feeCurrency, gatewayFeeRecipient *Address, gatewayFee *BigInt, data []byte) *Transaction {
+	convertedFeeCurrency := common.BytesToAddress(feeCurrency.GetBytes())
+	convertedGatewayFeeRecipient := common.BytesToAddress(gatewayFeeRecipient.GetBytes())
 	if to == nil {
-		return &Transaction{types.NewContractCreation(uint64(nonce), amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedGasCurrency, &convertedGasFeeRecipient, common.CopyBytes(data))}
+		return &Transaction{types.NewContractCreation(uint64(nonce), amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedFeeCurrency, &convertedGatewayFeeRecipient, gatewayFee.bigint, common.CopyBytes(data))}
 	}
-	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedGasCurrency, &convertedGasFeeRecipient, common.CopyBytes(data))}
+	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, &convertedFeeCurrency, &convertedGatewayFeeRecipient, gatewayFee.bigint, common.CopyBytes(data))}
 }
 
 // NewTransactionFromRLP parses a transaction from an RLP data dump.

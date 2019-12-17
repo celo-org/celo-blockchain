@@ -38,6 +38,7 @@ type ServiceContext struct {
 	EventMux       *event.TypeMux           // Event multiplexer used for decoupled notifications
 	AccountManager *accounts.Manager        // Account manager created by the node.
 	Server         *p2p.Server              // The p2p server that is running all the services
+	ProxyServer    *p2p.Server              // The p2p server only for proxied communication
 }
 
 // OpenDatabase opens an existing database with the given name (or creates one

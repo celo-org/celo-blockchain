@@ -22,6 +22,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -381,6 +382,39 @@ func ReadTd(db ethdb.Reader, hash common.Hash, number uint64) *big.Int {
 		return nil
 	}
 	return td
+}
+
+// ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
+func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *istanbul.Uptime {
+	data, _ := db.Get(uptimeKey(epoch))
+	if len(data) == 0 {
+		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
+		return nil
+	}
+	uptime := new(istanbul.Uptime)
+	if err := rlp.Decode(bytes.NewReader(data), uptime); err != nil {
+		log.Error("Invalid uptime RLP", "err", err)
+		return nil
+	}
+	return uptime
+}
+
+// WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
+func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *istanbul.Uptime) {
+	data, err := rlp.EncodeToBytes(uptime)
+	if err != nil {
+		log.Crit("Failed to RLP encode updated uptime", "err", err)
+	}
+	if err := db.Put(uptimeKey(epoch), data); err != nil {
+		log.Crit("Failed to store updated uptime", "err", err)
+	}
+}
+
+// DeleteAccumulatedEpochUptime removes all accumulated uptime data for that epoch
+func DeleteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64) {
+	if err := db.Delete(uptimeKey(epoch)); err != nil {
+		log.Crit("Failed to delete stored uptime of validators", "err", err)
+	}
 }
 
 // WriteTd stores the total difficulty of a block into the database.

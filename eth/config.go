@@ -44,10 +44,10 @@ var DefaultConfig = Config{
 		DatasetsOnDisk: 2,
 	},
 	NetworkId:          1,
-	LightPeers:         100,
+	LightPeers:         99,
 	LightServ:          50,
 	UltraLightFraction: 75,
-	DatabaseCache:      512,
+	DatabaseCache:      768,
 	TrieCleanCache:     256,
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
@@ -57,6 +57,8 @@ var DefaultConfig = Config{
 		GasPrice: big.NewInt(1),
 		Recommit: 3 * time.Second,
 	},
+	GatewayFee: big.NewInt(10000),
+
 	TxPool: core.DefaultTxPoolConfig,
 
 	Istanbul: *istanbul.DefaultConfig,
@@ -105,8 +107,9 @@ type Config struct {
 	LightIngress int `toml:",omitempty"` // Incoming bandwidth limit for light servers
 	LightEgress  int `toml:",omitempty"` // Outgoing bandwidth limit for light servers
 	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
-
-	// The GasFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	// Minimum gateway fee value to serve a transaction from a light client
+	GatewayFee *big.Int `toml:",omitempty"`
+	// Etherbase is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`

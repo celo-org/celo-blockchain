@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
 
@@ -66,28 +67,44 @@ type Validator interface {
 
 	// String representation of Validator
 	String() string
+
+	// Serialize returns binary reprenstation of the Validator
+	// can be use used to instantiate a validator with DeserializeValidator()
+	Serialize() ([]byte, error)
+}
+
+func GetAddressesFromValidatorList(validators []Validator) []common.Address {
+	returnList := make([]common.Address, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.Address()
+	}
+
+	return returnList
 }
 
 // ----------------------------------------------------------------------------
 
 type Validators []Validator
 
+type ValidatorsDataByAddress []ValidatorData
+
+func (a ValidatorsDataByAddress) Len() int      { return len(a) }
+func (a ValidatorsDataByAddress) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ValidatorsDataByAddress) Less(i, j int) bool {
+	return bytes.Compare(a[i].Address[:], a[j].Address[:]) < 0
+}
+
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
-	// Calculate the proposer
-	CalcProposer(lastProposer common.Address, round uint64)
-	// Get current proposer
-	GetProposer() Validator
-	// Check whether the validator with given address is the current proposer
-	IsProposer(address common.Address) bool
-	// Policy by which this selector chooses proposers
-	Policy() ProposerPolicy
-	// Sets the randomness for use in the proposer policy
+	// Sets the randomness for use in the proposer policy.
+	// This is injected into the ValidatorSet when we call `getOrderedValidators`
 	SetRandomness(seed common.Hash)
+	// Sets the randomness for use in the proposer policy
+	GetRandomness() common.Hash
 
 	// Return the validator size
-	PaddedSize() int
 	Size() int
 	// Get the maximum number of faulty nodes
 	F() int
@@ -96,10 +113,8 @@ type ValidatorSet interface {
 
 	// Return the validator array
 	List() []Validator
-	// Return the validator array without holes
-	FilteredList() []Validator
-	// Return the validator index in the filtered list
-	GetFilteredIndex(addr common.Address) int
+	// Return the validator index
+	GetIndex(addr common.Address) int
 	// Get validator by index
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
@@ -113,9 +128,13 @@ type ValidatorSet interface {
 	RemoveValidators(removedValidators *big.Int) bool
 	// Copy validator set
 	Copy() ValidatorSet
+
+	// Serialize returns binary reprentation of the ValidatorSet
+	// can be use used to instantiate a validator with DeserializeValidatorSet()
+	Serialize() ([]byte, error)
 }
 
 // ----------------------------------------------------------------------------
 
-// Returns the block proposer for a round given the last proposer, round number, and randomness.
-type ProposerSelector func(ValidatorSet, common.Address, uint64, common.Hash) Validator
+// ProposerSelector returns the block proposer for a round given the last proposer, round number, and randomness.
+type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.Address, currentRound uint64) Validator

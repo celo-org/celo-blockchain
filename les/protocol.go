@@ -93,7 +93,7 @@ var requests = map[uint64]requestInfo{
 	GetHelperTrieProofsMsg: {"GetHelperTrieProofs", MaxHelperTrieProofsFetch},
 	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
 	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
-	GetEtherbaseMsg:        {"GetEtherbase", MaxGetEtherbase},
+	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
 }
 
 type errCode int

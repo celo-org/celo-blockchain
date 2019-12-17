@@ -61,9 +61,17 @@ const (
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
+	// istDelegateSignChanSize is the size of the channel listening to DelegateSignEvent
+	istDelegateSignChanSize = 5
 
+	// connectionTimeout waits for the websocket connection to be established
+	connectionTimeout = 10
+	// delegateSendTimeout waits for the proxy to sign a message
+	delegateSendTimeout = 5
+	// statusUpdateInterval is the frequency of sending full node reports
+	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
-	valSetInterval = 10
+	valSetInterval = 11
 
 	actionBlock    = "block"
 	actionHello    = "hello"
@@ -88,14 +96,14 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend *istanbulBackend.Backend // Istanbul consensus backend
-
-	node string // Name of the node to display on the monitoring page
-	host string // Remote address of the monitoring service
+	server    *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth       *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les       *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine    consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend   *istanbulBackend.Backend // Istanbul consensus backend
+	etherBase common.Address
+	node      string // Name of the node to display on the monitoring page
+	host      string // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -111,28 +119,30 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	}
 	// Assemble and return the stats service
 	var (
-		engine consensus.Engine
-		id     string
+		engine    consensus.Engine
+		etherBase common.Address
+		id        string
 	)
 	id = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
-		etherBase, err := ethServ.Etherbase()
-		if err == nil {
-			id = strings.ToLower(etherBase.String())
-		}
+		etherBase, _ = ethServ.Etherbase()
 	} else {
 		engine = lesServ.Engine()
 	}
+
+	backend := engine.(*istanbulBackend.Backend)
+
 	return &Service{
-		eth:     ethServ,
-		les:     lesServ,
-		engine:  engine,
-		backend: engine.(*istanbulBackend.Backend),
-		node:    id,
-		host:    parts[2],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
+		eth:       ethServ,
+		les:       lesServ,
+		engine:    engine,
+		backend:   backend,
+		etherBase: etherBase,
+		node:      id,
+		host:      parts[2],
+		pongCh:    make(chan struct{}),
+		histCh:    make(chan []uint64, 1),
 	}, nil
 }
 
@@ -159,6 +169,11 @@ func (s *Service) Stop() error {
 	return nil
 }
 
+type StatsPayload struct {
+	Action string      `json:"action"`
+	Stats  interface{} `json:"stats"`
+}
+
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
 func (s *Service) loop() {
@@ -181,11 +196,17 @@ func (s *Service) loop() {
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
 
+	istDelegateSignCh := make(chan istanbul.MessageEvent, istDelegateSignChanSize)
+	istDelegateSignSub := s.backend.SubscribeNewDelegateSignEvent(istDelegateSignCh)
+	defer istDelegateSignSub.Unsubscribe()
+
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
 		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
+		signCh = make(chan *StatsPayload, 1)
+		sendCh = make(chan *StatsPayload, 1)
 	)
 	go func() {
 		var lastTx mclock.AbsTime
@@ -211,93 +232,227 @@ func (s *Service) loop() {
 				case txCh <- struct{}{}:
 				default:
 				}
-
 			// node stopped
 			case <-txSub.Err():
 				break HandleLoop
 			case <-headSub.Err():
 				break HandleLoop
+			case delegateSignMsg := <-istDelegateSignCh:
+				var statsPayload StatsPayload
+				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
+				if err != nil {
+					break HandleLoop
+				}
+				var channel chan *StatsPayload
+				if s.backend.IsProxy() {
+					// proxy should send to websocket
+					channel = sendCh
+				} else if s.backend.IsProxiedValidator() {
+					// proxied validator should sign
+					channel = signCh
+				}
+				channel <- &statsPayload
 			}
 		}
 		close(quitCh)
 	}()
+
 	// Loop reporting until termination
 	for {
-		// Resolve the URL, defaulting to TLS, but falling back to none too
-		path := fmt.Sprintf("%s/api", s.host)
-		urls := []string{path}
-
-		// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-		if !strings.Contains(path, "://") {
-			urls = []string{"wss://" + path, "ws://" + path}
-		}
-		// Establish a websocket connection to the server on any supported URL
-		var (
-			conn *websocket.Conn
-			err  error
-		)
-		dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-		header := make(http.Header)
-		header.Set("origin", "http://localhost")
-		for _, url := range urls {
-			conn, _, err = dialer.Dial(url, header)
-			if err == nil {
-				break
+		if s.backend.IsProxiedValidator() {
+			messageToSign := <-signCh
+			if err := s.handleDelegateSign(messageToSign); err != nil {
+				log.Warn("Delegate sign failed", "err", err)
 			}
-		}
-		if err != nil {
-			log.Warn("Stats server unreachable", "err", err)
-			time.Sleep(10 * time.Second)
-			continue
-		}
-		// Authenticate the client with the server
-		if err = s.login(conn); err != nil {
-			log.Warn("Stats login failed", "err", err)
-			conn.Close()
-			time.Sleep(10 * time.Second)
-			continue
-		}
-		go s.readLoop(conn)
+		} else {
+			// Resolve the URL, defaulting to TLS, but falling back to none too
+			path := fmt.Sprintf("%s/api", s.host)
+			urls := []string{path}
 
-		// Send the initial stats so our node looks decent from the get go
-		if err = s.report(conn); err != nil {
-			log.Warn("Initial stats report failed", "err", err)
-			conn.Close()
-			continue
-		}
-		// Keep sending status updates until the connection breaks
-		fullReport := time.NewTicker(15 * time.Second)
+			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+			if !strings.Contains(path, "://") {
+				urls = []string{"wss://" + path, "ws://" + path}
+			}
+			// Establish a websocket connection to the server on any supported URL
+			var (
+				conn *websocket.Conn
+				err  error
+			)
+			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+			header := make(http.Header)
+			header.Set("origin", "http://localhost")
+			for _, url := range urls {
+				conn, _, err = dialer.Dial(url, header)
+				if err == nil {
+					break
+				}
+			}
 
-		for err == nil {
-			select {
-			case <-quitCh:
+			if err != nil {
+				log.Warn("Stats server unreachable", "err", err)
+				time.Sleep(connectionTimeout * time.Second)
+				continue
+			}
+			// Authenticate the client with the server
+			if err = s.login(conn, sendCh); err != nil {
+				log.Warn("Stats login failed", "err", err)
 				conn.Close()
-				return
+				time.Sleep(connectionTimeout * time.Second)
+				continue
+			}
+			go s.readLoop(conn)
 
-			case <-fullReport.C:
-				if err = s.report(conn); err != nil {
-					log.Warn("Full stats report failed", "err", err)
-				}
-			case list := <-s.histCh:
-				if err = s.reportHistory(conn, list); err != nil {
-					log.Warn("Requested history report failed", "err", err)
-				}
-			case head := <-headCh:
-				if err = s.reportBlock(conn, head); err != nil {
-					log.Warn("Block stats report failed", "err", err)
-				}
-				if err = s.reportPending(conn); err != nil {
-					log.Warn("Post-block transaction stats report failed", "err", err)
-				}
-			case <-txCh:
-				if err = s.reportPending(conn); err != nil {
-					log.Warn("Transaction stats report failed", "err", err)
+			// Send the initial stats so our node looks decent from the get go
+			if err = s.report(conn, sendCh); err != nil {
+				log.Warn("Initial stats report failed", "err", err)
+				conn.Close()
+				continue
+			}
+			// Keep sending status updates until the connection breaks
+			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+
+			for err == nil {
+				select {
+				case <-quitCh:
+					conn.Close()
+					return
+
+				case <-fullReport.C:
+					if err = s.report(conn, sendCh); err != nil {
+						log.Warn("Full stats report failed", "err", err)
+					}
+				case list := <-s.histCh:
+					if err = s.reportHistory(conn, list); err != nil {
+						log.Warn("Requested history report failed", "err", err)
+					}
+				case head := <-headCh:
+					if err = s.reportBlock(conn, head); err != nil {
+						log.Warn("Block stats report failed", "err", err)
+					}
+				case <-txCh:
+					if err = s.reportPending(conn); err != nil {
+						log.Warn("Transaction stats report failed", "err", err)
+					}
+				case signedMessage := <-sendCh:
+					if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+						log.Warn("Delegate send failed", "err", err)
+					}
 				}
 			}
+			// Make sure the connection is closed
+			conn.Close()
 		}
-		// Make sure the connection is closed
-		conn.Close()
 	}
+}
+
+// login tries to authorize the client at the remote server.
+func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
+	// Construct and send the login authentication
+	infos := s.server.NodeInfo()
+
+	var (
+		etherBase common.Address
+		network   string
+		protocol  string
+		err       error
+	)
+	p := s.engine.Protocol()
+	if info := infos.Protocols[p.Name]; info != nil {
+		ethInfo, ok := info.(*eth.NodeInfo)
+		if !ok {
+			return errors.New("Could not resolve NodeInfo")
+		}
+		network = fmt.Sprintf("%d", ethInfo.Network)
+		protocol = fmt.Sprintf("%s/%d", p.Name, p.Versions[0])
+	} else {
+		lesProtocol, ok := infos.Protocols["les"]
+		if !ok {
+			return errors.New("No less protocol found")
+		}
+		lesInfo, ok := lesProtocol.(*les.NodeInfo)
+		if !ok {
+			return errors.New("Could not resolve NodeInfo")
+		}
+		network = fmt.Sprintf("%d", lesInfo.Network)
+		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
+	}
+	if s.eth != nil {
+		etherBase, err = s.eth.Etherbase()
+		if err != nil {
+			return err
+		}
+	}
+	auth := &authMsg{
+		ID:      s.node,
+		Address: etherBase,
+		Info: nodeInfo{
+			Name:     s.node,
+			Node:     infos.Name,
+			Port:     infos.Ports.Listener,
+			Network:  network,
+			Protocol: protocol,
+			API:      "No",
+			Os:       runtime.GOOS,
+			OsVer:    runtime.GOARCH,
+			Client:   "0.1.1",
+			History:  true,
+		},
+	}
+	if err := s.sendStats(conn, actionHello, auth); err != nil {
+		return err
+	}
+
+	// Proxy needs a delegate send here to get ACK
+	if s.backend.IsProxy() {
+		select {
+		case signedMessage := <-sendCh:
+			err := s.handleDelegateSend(conn, signedMessage)
+			if err != nil {
+				return err
+			}
+		case <-time.After(delegateSendTimeout * time.Second):
+			// Login timeout, abort
+			return errors.New("login timed out")
+		}
+	}
+
+	// Retrieve the remote ack or connection termination
+	var ack map[string][]string
+	if err := conn.ReadJSON(&ack); err != nil {
+		return err
+	}
+	emit, ok := ack["emit"]
+	if !ok {
+		return errors.New("emit not in ack")
+	}
+	if len(emit) != 1 || emit[0] != "ready" {
+		return errors.New("unauthorized")
+	}
+	return nil
+}
+
+func (s *Service) handleDelegateSign(messageToSign *StatsPayload) error {
+	signedStats, err := s.signStats(messageToSign.Stats)
+	if err != nil {
+		return err
+	}
+
+	signedMessage := &StatsPayload{
+		Action: messageToSign.Action,
+		Stats:  signedStats,
+	}
+	msg, err := json.Marshal(signedMessage)
+	if err != nil {
+		return err
+	}
+	return s.backend.SendDelegateSignMsgToProxy(msg)
+}
+
+func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsPayload) error {
+	report := map[string][]interface{}{
+		"emit": {signedMessage.Action, signedMessage.Stats},
+	}
+	return conn.WriteJSON(report)
 }
 
 // readLoop loops as long as the connection is alive and retrieves data packets
@@ -405,60 +560,13 @@ type authMsg struct {
 	Info    nodeInfo       `json:"info"`
 }
 
-// login tries to authorize the client at the remote server.
-func (s *Service) login(conn *websocket.Conn) error {
-	// Construct and send the login authentication
-	infos := s.server.NodeInfo()
-
-	var (
-		etherBase common.Address
-		network   string
-		protocol  string
-	)
-	p := s.engine.Protocol()
-	if info := infos.Protocols[p.Name]; info != nil {
-		network = fmt.Sprintf("%d", info.(*eth.NodeInfo).Network)
-		protocol = fmt.Sprintf("%s/%d", p.Name, p.Versions[0])
-	} else {
-		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
-		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
-	}
-	if s.eth != nil {
-		etherBase, _ = s.eth.Etherbase()
-	}
-	auth := &authMsg{
-		ID:      s.node,
-		Address: etherBase,
-		Info: nodeInfo{
-			Name:     s.node,
-			Node:     infos.Name,
-			Port:     infos.Ports.Listener,
-			Network:  network,
-			Protocol: protocol,
-			API:      "No",
-			Os:       runtime.GOOS,
-			OsVer:    runtime.GOARCH,
-			Client:   "0.1.1",
-			History:  true,
-		},
-	}
-	if err := s.sendStats(conn, actionHello, auth); err != nil {
-		return err
-	}
-	// Retrieve the remote ack or connection termination
-	var ack map[string][]string
-	if err := conn.ReadJSON(&ack); err != nil || len(ack["emit"]) != 1 || ack["emit"][0] != "ready" {
-		return errors.New("unauthorized")
-	}
-	return nil
-}
-
 // report collects all possible data to report and send it to the stats server.
 // This should only be used on reconnects or rarely to avoid overloading the
 // server. Use the individual methods for reporting subscribed events.
-func (s *Service) report(conn *websocket.Conn) error {
-	if err := s.reportLatency(conn); err != nil {
-		return err
+func (s *Service) report(conn *websocket.Conn, sendCh chan *StatsPayload) error {
+	if err := s.reportLatency(conn, sendCh); err != nil {
+		log.Warn("Latency failed to report", "err", err)
+		return nil
 	}
 	if err := s.reportBlock(conn, nil); err != nil {
 		return err
@@ -474,7 +582,7 @@ func (s *Service) report(conn *websocket.Conn) error {
 
 // reportLatency sends a ping request to the server, measures the RTT time and
 // finally sends a latency update.
-func (s *Service) reportLatency(conn *websocket.Conn) error {
+func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Send the current time to the ethstats server
 	start := time.Now()
 
@@ -484,6 +592,14 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	}
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
 		return err
+	}
+	// Proxy needs a delegate send here to get ACK
+	if s.backend.IsProxy() {
+		signedMessage := <-sendCh
+		err := s.handleDelegateSend(conn, signedMessage)
+		if err != nil {
+			return err
+		}
 	}
 	// Wait for the pong request to arrive back
 	select {
@@ -534,31 +650,40 @@ type txStats struct {
 // empty arrays instead of returning null for them.
 type uncleStats []*types.Header
 
-func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
-
-	msg, _ := json.Marshal(stats)
+func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
+	msg, err := json.Marshal(stats)
+	if err != nil {
+		return nil, err
+	}
 	msgHash := crypto.Keccak256Hash(msg)
 
 	etherBase, errEtherbase := s.eth.Etherbase()
 	if errEtherbase != nil {
-		return errEtherbase
+		return nil, errEtherbase
 	}
 
 	account := accounts.Account{Address: etherBase}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
-		return errWallet
+		return nil, errWallet
 	}
 
 	pubkey, errPubkey := wallet.GetPublicKey(account)
 	if errPubkey != nil {
-		return errPubkey
+		return nil, errPubkey
 	}
 	pubkeyBytes := crypto.FromECDSAPub(pubkey)
 
 	signature, errSign := wallet.SignData(account, accounts.MimetypeTypedData, msgHash.Bytes())
 	if errSign != nil {
-		return errSign
+		return nil, errSign
+	}
+
+	proof := map[string]interface{}{
+		"signature": hexutil.Encode(signature),
+		"address":   etherBase,
+		"publicKey": hexutil.Encode(pubkeyBytes),
+		"msgHash":   msgHash.Hex(),
 	}
 
 	/* Server-side verification in go: */
@@ -583,16 +708,31 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 	//				&& address == addressHasher.digest('hex').substr(24)
 	//				&& msgHash == msgHasher.digest('hex')
 
-	proof := map[string]interface{}{
-		"signature": hexutil.Encode(signature),
-		"address":   etherBase,
-		"publicKey": hexutil.Encode(pubkeyBytes),
-		"msgHash":   msgHash.Hex(),
-	}
-
 	signedStats := map[string]interface{}{
 		"stats": stats,
 		"proof": proof,
+	}
+
+	return signedStats, nil
+}
+
+func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface{}) error {
+	if s.backend.IsProxy() {
+		statsWithAction := map[string]interface{}{
+			"stats":  stats,
+			"action": action,
+		}
+		msg, err := json.Marshal(statsWithAction)
+		if err != nil {
+			return err
+		}
+		go s.backend.SendDelegateSignMsgToProxiedValidator(msg)
+		return nil
+	}
+
+	signedStats, err := s.signStats(stats)
+	if err != nil {
+		return err
 	}
 
 	report := map[string][]interface{}{
@@ -692,38 +832,39 @@ type validatorSet struct {
 
 type validatorInfo struct {
 	Address        common.Address `json:"address"`
-	Name           string         `json:"name"`
 	Score          string         `json:"score"`
 	BLSPublicKey   []byte         `json:"blsPublicKey"`
 	EcdsaPublicKey []byte         `json:"ecdsaPublicKey"`
 	Affiliation    common.Address `json:"affiliation"`
+	Signer         common.Address `json:"signer"`
 }
 
 func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) validatorSet {
 	var (
+		err            error
 		valSet         validatorSet
 		valsRegistered []validatorInfo
 		valsElected    []common.Address
 	)
 
 	// Add set of registered validators
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(nil, nil)
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(s.eth.BlockChain().CurrentHeader(), state)
 	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
-
 	for _, address := range valsRegisteredMap {
 		var valData validators.ValidatorContractData
-		valData, _ = validators.GetValidator(
-			s.eth.BlockChain().CurrentHeader(),
-			state,
-			address)
+		valData, err = validators.GetValidator(s.eth.BlockChain().CurrentHeader(), state, address)
+
+		if err != nil {
+			log.Warn("Validator data not found", "address", address.Hex(), "err", err)
+		}
 
 		valsRegistered = append(valsRegistered, validatorInfo{
 			Address:        address,
 			Score:          fmt.Sprintf("%d", valData.Score),
-			Name:           address.String(),
 			BLSPublicKey:   valData.BlsPublicKey,
 			EcdsaPublicKey: valData.EcdsaPublicKey,
 			Affiliation:    valData.Affiliation,
+			Signer:         valData.Signer,
 		})
 	}
 

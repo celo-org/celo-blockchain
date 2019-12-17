@@ -25,11 +25,11 @@ import (
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPreprepare")
+	logger := c.newLogger("func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		curView := c.currentView()
+		curView := c.current.View()
 		preprepare, err := Encode(&istanbul.Preprepare{
 			View:                   curView,
 			Proposal:               request.Proposal,
@@ -44,13 +44,13 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		}
-		logger.Trace("Sending pre-prepare", "msg", msg)
+		logger.Debug("Sending pre-prepare", "msg", msg)
 		c.broadcast(msg)
 	}
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare", "tag", "handleMsg")
+	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
 	logger.Trace("Got pre-prepare message", "msg", msg)
 
 	// Decode PRE-PREPARE
@@ -86,13 +86,14 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
-			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
-			previousProposer := c.backend.GetProposer(preprepare.Proposal.Number().Uint64() - 1)
-			valSet.CalcProposer(previousProposer, preprepare.View.Round.Uint64())
+			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+
 			// Broadcast COMMIT if it is an existing block
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
-			if valSet.IsProposer(msg.Address) && c.backend.HasProposal(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
 				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
 				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil
@@ -104,9 +105,15 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// Check if the message comes from current proposer
-	if !c.valSet.IsProposer(msg.Address) {
+	if !c.current.IsProposer(msg.Address) {
 		logger.Warn("Ignore preprepare messages from non-proposer")
 		return errNotFromProposer
+	}
+
+	// Verify that the proposal is for the sequence number of the view we verified.
+	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence)
+		return errInvalidProposal
 	}
 
 	// Verify the proposal we received
@@ -124,17 +131,19 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	if c.state == StateAcceptRequest {
+	if c.current.State() == StateAcceptRequest {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
-		c.acceptPreprepare(preprepare)
-		c.setState(StatePreprepared)
+		c.consensusTimestamp = time.Now()
+
+		err := c.current.TransitionToPreprepared(preprepare)
+		if err != nil {
+			return err
+		}
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
 	}
 
 	return nil
-}
-
-func (c *core) acceptPreprepare(preprepare *istanbul.Preprepare) {
-	c.consensusTimestamp = time.Now()
-	c.current.SetPreprepare(preprepare)
 }

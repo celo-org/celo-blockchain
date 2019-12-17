@@ -224,10 +224,12 @@ func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, num
 	signer := MakeSigner(config, new(big.Int).SetUint64(number))
 
 	logIndex := uint(0)
-	if len(txs) != len(r) {
+	// The receipts may include an additional "block finalization" receipt (only IBFT)
+	if !(len(txs) == len(r) || len(txs)+1 == len(r)) {
 		return errors.New("transaction and receipt count mismatch")
 	}
-	for i := 0; i < len(r); i++ {
+
+	for i := 0; i < len(txs); i++ {
 		// The transaction hash can be retrieved from the transaction itself
 		r[i].TxHash = txs[i].Hash()
 
@@ -258,5 +260,19 @@ func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, num
 			logIndex++
 		}
 	}
+
+	// Handle block finalization receipt (only IBFT)
+	if len(txs)+1 == len(r) {
+		j := len(txs)
+		for k := 0; k < len(r[j].Logs); k++ {
+			r[j].Logs[k].BlockNumber = number
+			r[j].Logs[k].BlockHash = hash
+			r[j].Logs[k].TxHash = hash
+			r[j].Logs[k].TxIndex = uint(j)
+			r[j].Logs[k].Index = logIndex
+			logIndex++
+		}
+	}
+
 	return nil
 }

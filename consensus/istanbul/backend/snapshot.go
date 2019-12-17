@@ -153,7 +153,7 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 }
 
 func (s *Snapshot) validators() []istanbul.ValidatorData {
-	validators := make([]istanbul.ValidatorData, 0, s.ValSet.PaddedSize())
+	validators := make([]istanbul.ValidatorData, 0, s.ValSet.Size())
 	for _, validator := range s.ValSet.List() {
 		validators = append(validators, istanbul.ValidatorData{
 			validator.Address(),
@@ -170,7 +170,6 @@ type snapshotJSON struct {
 
 	// for validator set
 	Validators []istanbul.ValidatorData `json:"validators"`
-	Policy     istanbul.ProposerPolicy  `json:"policy"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
@@ -180,11 +179,10 @@ func (s *Snapshot) toJSONStruct() *snapshotJSON {
 		Number:     s.Number,
 		Hash:       s.Hash,
 		Validators: validators,
-		Policy:     s.ValSet.Policy(),
 	}
 }
 
-// Unmarshal from a json byte array
+// UnmarshalJSON from a json byte array
 func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	var j snapshotJSON
 	if err := json.Unmarshal(b, &j); err != nil {
@@ -194,11 +192,11 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.ValSet = validator.NewSet(j.Validators, j.Policy)
+	s.ValSet = validator.NewSet(j.Validators)
 	return nil
 }
 
-// Marshal to a json byte array
+// MarshalJSON to a json byte array
 func (s *Snapshot) MarshalJSON() ([]byte, error) {
 	j := s.toJSONStruct()
 	return json.Marshal(j)

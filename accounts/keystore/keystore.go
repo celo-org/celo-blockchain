@@ -36,11 +36,13 @@ import (
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -355,51 +357,67 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	return signatureBytes, nil
 }
 
-func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account) ([]byte, error) {
+func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
+	publicKey, err := ks.GetPublicKey(a)
+	if err != nil {
+		return nil, nil, err
+	}
+	publicKeyBytes := crypto.FromECDSAPub(publicKey)
+
+	hash := crypto.Keccak256(address.Bytes())
+	log.Info("msg", "msg", hexutil.Encode(hash))
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
+	hash = crypto.Keccak256([]byte(msg))
+	log.Info("hash", "hash", hexutil.Encode(hash))
+
+	signature, err := ks.SignHash(a, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return publicKeyBytes, signature, nil
+}
+
+func (ks *KeyStore) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return nil, nil, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignPoP(a.Address.Bytes())
+	signature, err := privateKey.SignPoP(address.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	publicKey, err := privateKey.ToPublic()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer publicKey.Destroy()
 	publicKeyBytes, err := publicKey.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	popBytes := []byte{}
-	popBytes = append(popBytes, publicKeyBytes...)
-	popBytes = append(popBytes, signatureBytes...)
-
-	return popBytes, nil
+	return publicKeyBytes, signatureBytes, nil
 }
 
 // Retrieve the ECDSA public key for a given account.
@@ -609,19 +627,6 @@ func (ks *KeyStore) importKey(key *Key, passphrase string) (accounts.Account, er
 	ks.cache.add(a)
 	ks.refreshWallets()
 	return a, nil
-}
-
-func (ks *KeyStore) SetNodeKey(a accounts.Account, passphrase string, nodekeyPath string) error {
-	a, key, err := ks.getDecryptedKey(a, passphrase)
-
-	if err != nil {
-		fmt.Println(fmt.Sprintf("Failed to decyrpt node key: %v", err))
-	}
-
-	if err := crypto.SaveECDSA(nodekeyPath, key.PrivateKey); err != nil {
-		fmt.Println(fmt.Sprintf("Failed to persist node key: %v", err))
-	}
-	return nil
 }
 
 // Update changes the passphrase of an existing account.

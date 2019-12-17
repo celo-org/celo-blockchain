@@ -54,7 +54,7 @@ func (api *PrivateAdminAPI) AddPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.AddPeer(node)
+	server.AddPeer(node, p2p.ExplicitStaticPurpose)
 	return true, nil
 }
 
@@ -70,7 +70,7 @@ func (api *PrivateAdminAPI) RemovePeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.RemovePeer(node)
+	server.RemovePeer(node, p2p.ExplicitStaticPurpose)
 	return true, nil
 }
 
@@ -85,7 +85,7 @@ func (api *PrivateAdminAPI) AddTrustedPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.AddTrustedPeer(node)
+	server.AddTrustedPeer(node, p2p.ExplicitTrustedPurpose)
 	return true, nil
 }
 
@@ -101,7 +101,7 @@ func (api *PrivateAdminAPI) RemoveTrustedPeer(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	server.RemoveTrustedPeer(node)
+	server.RemoveTrustedPeer(node, p2p.ExplicitTrustedPurpose)
 	return true, nil
 }
 

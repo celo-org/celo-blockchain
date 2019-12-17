@@ -505,8 +505,8 @@ func (pool *serverPool) loadNodes() {
 func (pool *serverPool) connectToTrustedNodes() {
 	//connect to trusted nodes
 	for _, node := range pool.trustedNodes {
-		pool.server.AddTrustedPeer(node)
-		pool.server.AddPeer(node)
+		pool.server.AddTrustedPeer(node, p2p.ExplicitStaticPurpose)
+		pool.server.AddPeer(node, p2p.ExplicitStaticPurpose)
 		log.Debug("Added trusted node", "id", node.ID().String())
 	}
 }
@@ -627,7 +627,7 @@ func (pool *serverPool) dial(entry *poolEntry, knownSelected bool) {
 	log.Debug("Dialing new peer", "lesaddr", entry.node.ID().String()+"@"+addr.strKey(), "set", len(entry.addr), "known", knownSelected)
 	entry.dialed = addr
 	go func() {
-		pool.server.AddPeer(entry.node)
+		pool.server.AddPeer(entry.node, p2p.ExplicitStaticPurpose)
 		select {
 		case <-pool.closeCh:
 		case <-time.After(dialTimeout):

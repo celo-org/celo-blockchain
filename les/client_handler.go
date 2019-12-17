@@ -17,6 +17,7 @@
 package les
 
 import (
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -66,6 +67,7 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 		height = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 	}
 	handler.fetcher = newLightFetcher(handler)
+	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
 	return handler
@@ -133,6 +135,27 @@ func (h *clientHandler) handle(p *peer) error {
 	if p.poolEntry != nil {
 		h.backend.serverPool.registered(p.poolEntry)
 	}
+
+	// Loop until we receive a RequestEtherbase response or timeout.
+	go func() {
+		maxRequests := 10
+		for requests := 1; requests <= maxRequests; requests++ {
+			p.Log().Trace("Requesting etherbase from new peer")
+			reqID := genReqID()
+			cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
+			err := p.RequestEtherbase(reqID, cost)
+
+			if err != nil {
+				p.Log().Warn("Unable to request etherbase from peer", "err", err)
+			}
+
+			time.Sleep(time.Duration(math.Pow(2, float64(requests))/2) * time.Second)
+			if p.HasEtherbase() {
+				return
+			}
+		}
+	}()
+
 	// Spawn a main loop to handle all incoming messages.
 	for {
 		if err := h.handleMsg(p); err != nil {
@@ -310,6 +333,19 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ResumeFreeze(bv)
 		p.freezeServer(false)
 		p.Log().Debug("Service resumed")
+	case EtherbaseMsg:
+		p.Log().Trace("Received etherbase response")
+		// TODO(asa): do we need to do anything with flow control here?
+		var resp struct {
+			ReqID, BV uint64
+			Etherbase common.Address
+		}
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
+		p.SetEtherbase(resp.Etherbase)
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

@@ -615,8 +615,12 @@ func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *Wallet) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *Wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
+	return nil, nil, accounts.ErrNotSupported
+}
+
+func (w *Wallet) GenerateProofOfPossessionBLS(a accounts.Account, address common.Address) ([]byte, []byte, error) {
+	return nil, nil, accounts.ErrNotSupported
 }
 
 func (w *Wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error) {

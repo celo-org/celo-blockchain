@@ -91,8 +91,9 @@ type peer struct {
 
 	id string
 
-	headInfo *announceData
-	lock     sync.RWMutex
+	headInfo  *announceData
+	etherbase *common.Address
+	lock      sync.RWMutex
 
 	sendQueue *execQueue
 
@@ -273,6 +274,22 @@ func (p *peer) Td() *big.Int {
 	defer p.lock.RUnlock()
 
 	return new(big.Int).Set(p.headInfo.Td)
+}
+
+func (p *peer) Etherbase() *common.Address {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return p.etherbase
+}
+
+func (p *peer) HasEtherbase() bool {
+	return p.Etherbase() != nil
+}
+
+func (p *peer) SetEtherbase(etherbase common.Address) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.etherbase = &etherbase
 }
 
 // waitBefore implements distPeer interface
@@ -788,7 +805,6 @@ type peerSetNotify interface {
 // the Light Ethereum sub-protocol.
 type peerSet struct {
 	peers      map[string]*peer
-	etherbases map[string]common.Address
 	lock       sync.RWMutex
 	notifyList []peerSetNotify
 	closed     bool
@@ -797,8 +813,7 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers:      make(map[string]*peer),
-		etherbases: make(map[string]common.Address),
+		peers: make(map[string]*peer),
 	}
 }
 
@@ -842,49 +857,43 @@ func (ps *peerSet) Register(p *peer) error {
 	return nil
 }
 
-func (ps *peerSet) setEtherbase(p *peer, etherbase common.Address) {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-	ps.etherbases[p.id] = etherbase
-}
-
-func (ps *peerSet) isEtherbaseSet(p *peer) bool {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-	if _, ok := ps.etherbases[p.id]; ok {
-		return true
-	}
-	return false
-}
-
 func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	r := common.Address{}
 	// Rely on golang's random map iteration order.
-	for _, etherbase := range ps.etherbases {
-		r = etherbase
-		break
+	for _, p := range ps.peers {
+		if p.HasEtherbase() {
+			r = *p.Etherbase()
+			break
+		}
 	}
 	return r
 }
 
-func (ps *peerSet) getPeerWithEtherbase(etherbase common.Address) (*peer, error) {
+func (ps *peerSet) getPeerWithEtherbase(etherbase *common.Address) (*peer, error) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-	var pid string
-	for id, petherbase := range ps.etherbases {
-		if etherbase == petherbase {
-			pid = id
+
+	if etherbase == nil {
+		// if no etherbase defined, return a random peer
+		for _, peer := range ps.peers {
+			if peer.HasEtherbase() {
+				return peer, nil
+			}
+		}
+	} else {
+		// find peer with given etherbase
+		for _, peer := range ps.peers {
+			if *etherbase == *peer.Etherbase() {
+				return peer, nil
+			}
 		}
 	}
-	if pid == "" {
-		log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", etherbase)
-		return nil, errNoPeerWithEtherbaseFound
-	}
-	peer := ps.peers[pid]
-	return peer, nil
+
+	log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", *etherbase)
+	return nil, errNoPeerWithEtherbaseFound
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
@@ -896,7 +905,6 @@ func (ps *peerSet) Unregister(id string) error {
 		return errNotRegistered
 	} else {
 		delete(ps.peers, id)
-		delete(ps.etherbases, id)
 		peers := make([]peerSetNotify, len(ps.notifyList))
 		copy(peers, ps.notifyList)
 		ps.lock.Unlock()

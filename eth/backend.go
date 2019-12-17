@@ -89,10 +89,11 @@ type Ethereum struct {
 
 	APIBackend *EthAPIBackend
 
-	miner     *miner.Miner
-	gasPrice  *big.Int
-	etherbase common.Address
-	blsbase   common.Address
+	miner      *miner.Miner
+	gasPrice   *big.Int
+	gatewayFee *big.Int
+	etherbase  common.Address
+	blsbase    common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
@@ -133,6 +134,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	log.Info("Allocated trie memory caches", "clean", common.StorageSize(config.TrieCleanCache)*1024*1024, "dirty", common.StorageSize(config.TrieDirtyCache)*1024*1024)
 
+	if config.GatewayFee == nil || config.GatewayFee.Cmp(common.Big0) <= 0 {
+		log.Warn("Sanitizing invalid gateway fee", "provided", config.GatewayFee, "updated", DefaultConfig.GatewayFee)
+		config.GatewayFee = new(big.Int).Set(DefaultConfig.GatewayFee)
+	}
 	// Assemble the Ethereum object
 	chainDb, err := ctx.OpenDatabaseWithFreezer("chaindata", config.DatabaseCache, config.DatabaseHandles, config.DatabaseFreezer, "eth/db/chaindata/")
 	if err != nil {
@@ -155,6 +160,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		networkID:      config.NetworkId,
 		gasPrice:       config.Miner.GasPrice,
 		etherbase:      config.Miner.Etherbase,
+		gatewayFee:     config.GatewayFee,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, fullHeaderChainAvailable),
@@ -217,13 +223,29 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
-	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, ctx.Server); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, ctx.Server, ctx.ProxyServer); err != nil {
 		return nil, err
 	}
 
 	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+
+		chainHeadCh := make(chan core.ChainHeadEvent)
+		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
+
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					istanbul.NewChainHead(chainHeadEvent.Block)
+				case <-chainHeadSub.Err():
+					return
+				}
+			}
+		}()
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, &chainDb)
@@ -263,6 +285,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		log.Debug("Setting up Istanbul consensus engine")
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
+		}
+		if chainConfig.Istanbul.LookbackWindow != 0 {
+			if chainConfig.Istanbul.LookbackWindow >= chainConfig.Istanbul.Epoch-1 {
+				panic("istanbul.lookbackwindow must be less than istanbul.epoch-1")
+			}
+			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		return istanbulBackend.New(&config.Istanbul, db)
@@ -542,20 +570,21 @@ func (s *Ethereum) StopMining() {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
-func (s *Ethereum) Config() *Config                    { return s.config }
-func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
-func (s *Ethereum) IsListening() bool                  { return true } // Always listening
-func (s *Ethereum) EthVersion() int                    { return int(ProtocolVersions[0]) }
-func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
-func (s *Ethereum) GasFeeRecipient() common.Address    { return s.config.Etherbase }
-func (s *Ethereum) Synced() bool                       { return atomic.LoadUint32(&s.protocolManager.acceptTxs) == 1 }
-func (s *Ethereum) ArchiveMode() bool                  { return s.config.NoPruning }
+func (s *Ethereum) AccountManager() *accounts.Manager   { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain        { return s.blockchain }
+func (s *Ethereum) Config() *Config                     { return s.config }
+func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
+func (s *Ethereum) IsListening() bool                   { return true } // Always listening
+func (s *Ethereum) EthVersion() int                     { return int(ProtocolVersions[0]) }
+func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
+func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
+func (s *Ethereum) GatewayFee() *big.Int                { return common.Big0 }
+func (s *Ethereum) Synced() bool                        { return atomic.LoadUint32(&s.protocolManager.acceptTxs) == 1 }
+func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPruning }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
