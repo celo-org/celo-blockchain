@@ -598,30 +598,42 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
-// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
+// Return the validators that are required to sign the given, possibly unsealed, block number. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
+// WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
+// if the engine is aware of a chain with higher total difficulty.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	// input is comprised of a single argument:
+	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
-	if len(input) < 32 {
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 64 {
 		return nil, gas, ErrInputLength
 	}
 
-	index := (&big.Int{}).SetBytes(input[0:32])
+	indexUint256 := (&big.Int{}).SetBytes(input[0:32])
+	if !indexUint256.IsUint64() {
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	index := indexUint256.Uint64()
 
-	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+	blockNumber := (&big.Int{}).SetBytes(input[32:64])
+	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
 
-	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+
+	if index >= uint64(len(validators)) {
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
 
-	validatorAddress := validators[index.Uint64()].Address()
+	validatorAddress := validators[index].Address()
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
@@ -636,17 +648,30 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 // Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
+// WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
+// if the engine is aware of a chain with higher total difficulty.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	if len(input) != 0 {
+	// input is comprised of a single argument:
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 32 {
 		return nil, gas, ErrInputLength
 	}
 
-	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+	blockNumber := (&big.Int{}).SetBytes(input[0:32])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Genesis validator set is empty. Return 0.
+		return make([]byte, 32), gas, nil
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)

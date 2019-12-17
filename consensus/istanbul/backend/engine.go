@@ -693,16 +693,15 @@ func (sb *Backend) Stop() error {
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
 // this method should be called with number set to 5.
 //
-// hash - The requested snapshot's block's hash
+// hash - The requested snapshot's block's hash. Only used for snapshot cache storage.
 // number - The requested snapshot's block number
 // parents - (Optional argument) An array of headers from directly previous blocks.
 func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk
 	var (
-		headers   []*types.Header
-		header    *types.Header
-		snap      *Snapshot
-		blockHash common.Hash
+		headers []*types.Header
+		header  *types.Header
+		snap    *Snapshot
 	)
 
 	numberIter := number
@@ -726,6 +725,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			break
 		}
 
+		var blockHash common.Hash
 		if numberIter == number {
 			blockHash = hash
 		} else {

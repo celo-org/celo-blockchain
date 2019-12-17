@@ -27,6 +27,7 @@ var (
 	ErrInsufficientBalance      = errors.New("insufficient balance for transfer")
 	ErrContractAddressCollision = errors.New("contract address collision")
 	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
-	ErrValidatorsOutOfBounds    = errors.New("getValidators out of bounds")
+	ErrValidatorsOutOfBounds    = errors.New("validator index out of bounds")
+	ErrBlockNumberOutOfBounds   = errors.New("block number out of bounds")
 	ErrInputLength              = errors.New("invalid input length")
 )
