@@ -857,6 +857,12 @@ func (sb *Backend) GetVerifiedSealBitmapFromRLPHeader(headerRLP byte[]) (*big.In
      	return nil, err
      }
 
+     // Make sure that the block is within the last 5 epochs
+     numBlocksFromHead := sb.currentBlock().Number().Uint64() - header.Number.Uint64()
+     if numBlocksFromHead >= 5 * sb.config.Epoch || numBlocksFromHead < 0 {
+     	return nil, Error("TODO:  NEED TO CREATE ERROR VAR")
+     }
+
      // Check to see if this header's parent hash is in the blockchain
      if sb.chain.GetHeaderByHash(header.ParentHash) == nil {
      	return nil, errUnknownBlock
