@@ -447,10 +447,6 @@ func (w *worker) mainLoop() {
 		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
-				// Wait a minimal amount of time so that the FinalizeCommittedEvent gets picked up by
-				// the engine and a new sequence gets started, so that we get the correct
-				// `ParentCommits` in `backend.Prepare`
-				time.Sleep(100 * time.Millisecond)
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
@@ -915,6 +911,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		header.Coinbase = w.coinbase
 	}
+	log.Info("Calling engine.Prepare()")
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return

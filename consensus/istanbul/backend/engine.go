@@ -366,7 +366,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	logger := sb.logger.New("func", "Backend.Prepare()")
+	sb.logger.Info("Entered Backend.Prepare()")
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
@@ -394,40 +394,64 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
+	sb.logger.Info("Done sleeping")
 
+	logger := sb.logger.New("func", "Backend.Prepare()", "number", number)
 	// modify the block header to include all the ParentCommits
 	// only do this for blocks which start with block 1 as a parent
 	if number > 1 {
-		// copy over the seals we have saved the previous block
+
+		// In some cases, "Prepare" may be called before sb.core has moved to the next sequence,
+		// preventing signature aggregation.
+		// This typically happens in round > 0, since round 0 typically hits the "time.Sleep()"
+		// above.
+		// When this happens, loop until sb.core moves to the next sequence, with a limit of 500ms.
+		for stay, timeout := true, time.After(500*time.Millisecond); stay; {
+			select {
+			case <-timeout:
+				log.Warn("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
+				stay = false
+			default:
+				stay = sb.core.Sequence().Cmp(header.Number) < 0
+				if !stay {
+					logger.Debug("Current sequence matches header", "cur_seq", sb.core.Sequence())
+				}
+			}
+		}
 		parentExtra, err := types.ExtractIstanbulExtra(parent)
 		if err != nil {
 			return err
 		}
 		parentAggregatedSeal := parentExtra.AggregatedSeal
 
-		additionalParentSeals := sb.core.ParentCommits()
-		if additionalParentSeals != nil && additionalParentSeals.Size() != 0 {
-			logger.Trace("Combining additional seals with the parent aggregated seal", "additionalSeals", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
-			// if we had any seals gossiped to us, proceed to add them to the
-			// already aggregated signature
-			if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals); err != nil {
-				logger.Error("Failed to create union of parent aggregated seal", "err", err)
-			} else {
-				// need to pass the previous block from the parent to get the parent's validators
-				// (otherwise we'd be getting the validators for the current block)
-				parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
-				// only update to use the union if we indeed provided a valid aggregate signature for this block
-				if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
-					logger.Error("Failed to combine additional seals with parent aggregated seal.", "err", err)
+		logger.Debug("Got ParentAggregatedSeal", "parentAggregatedSeal", parentAggregatedSeal.String())
+		if sb.core.Sequence().Cmp(header.Number) == 0 {
+			parentCommits := sb.core.ParentCommits()
+			logger = logger.New("cur_seq", sb.core.Sequence())
+			if parentCommits != nil && parentCommits.Size() != 0 {
+				logger = logger.New("numParentCommits", parentCommits.Size())
+				logger.Debug("Found commit messages from previous sequence to combine with ParentAggregatedSeal")
+				// if we had any seals gossiped to us, proceed to add them to the
+				// already aggregated signature
+				if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, parentCommits); err != nil {
+					logger.Error("Failed to combine commit messages with ParentAggregatedSeal", "err", err)
 				} else {
-					parentAggregatedSeal = unionAggregatedSeal
-					logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+					// need to pass the previous block from the parent to get the parent's validators
+					// (otherwise we'd be getting the validators for the current block)
+					parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
+					// only update to use the union if we indeed provided a valid aggregate signature for this block
+					if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+						logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
+					} else {
+						parentAggregatedSeal = unionAggregatedSeal
+						logger.Debug("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
+					}
 				}
+			} else {
+				logger.Trace("No additional seals to combine with ParentAggregatedSeal")
 			}
-		} else {
-			sb.logger.Trace("No additional seals to combine with parent aggregated seal")
+			return writeAggregatedSeal(header, parentAggregatedSeal, true)
 		}
-		return writeAggregatedSeal(header, parentAggregatedSeal, true)
 	}
 
 	return nil

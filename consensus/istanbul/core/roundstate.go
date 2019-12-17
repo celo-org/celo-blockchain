@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/log"
@@ -247,6 +248,7 @@ func (s *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbul
 }
 
 func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
+	time.Sleep(time.Second)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	logger := s.newLogger()
