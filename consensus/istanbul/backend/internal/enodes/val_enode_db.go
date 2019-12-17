@@ -49,7 +49,7 @@ const (
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 2
+	dbVersion = 3
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
