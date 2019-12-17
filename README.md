@@ -72,7 +72,8 @@ Please make sure your contributions adhere to our coding guidelines:
 ### Submitting an issue
 
 If you come across a bug, you can run `geth bug` to open a GitHub issue draft
-with pre-filled system information.
+with pre-filled system information. If you are using a Docker image, you can run
+this command using `docker run -it <image> bug`.
 
 ### CI Testing and automerge
 
