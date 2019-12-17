@@ -28,7 +28,7 @@ import (
 func init() {
 	handler := debug.CreateStreamHandler("term", "split")
 	// Initialize the logger
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, handler))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, handler))
 
 	// Initialize the goroutine count
 	runtime.GOMAXPROCS(runtime.NumCPU())

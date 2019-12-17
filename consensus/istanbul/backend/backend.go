@@ -588,8 +588,10 @@ func (sb *Backend) AuthorForBlock(number uint64) common.Address {
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
+	log.Trace("Validator set", "set", snap.ValSet.List())
 	if err != nil {
 		sb.logger.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
+		log.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}
 	return snap.ValSet

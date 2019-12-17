@@ -695,6 +695,8 @@ func (sb *Backend) Stop() error {
 // number - The requested snapshot's block number
 // parents - (Optional argument) An array of headers from directly previous blocks.
 func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+	log.Trace("Called snapshot", "chain", chain, "number", number, "hash", hash, "parents", parents)
+
 	// Search for a snapshot in memory or on disk
 	var (
 		headers   []*types.Header
@@ -711,6 +713,8 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		numberIter = istanbul.GetEpochLastBlockNumber(epochNum-1, sb.config.Epoch)
 	}
 
+	log.Trace("Reached A")
+
 	// At this point, numberIter will always be the last block number of an epoch.  Namely, it will be
 	// block numbers where the header contains the validator set diff.
 	// Note that block 0 (the genesis block) is one of those headers.  It contains the initial set of validators in the
@@ -724,34 +728,45 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			break
 		}
 
+		log.Trace("Reached B")
+
 		if numberIter == number {
 			blockHash = hash
+			log.Trace("Reached C")
 		} else {
+			log.Trace("Reached D")
 			header = chain.GetHeaderByNumber(numberIter)
 			if header == nil {
 				log.Trace("Unable to find header in chain", "number", number)
 			} else {
 				blockHash = chain.GetHeaderByNumber(numberIter).Hash()
 			}
+			log.Trace("Reached E")
 		}
 
 		if (blockHash != common.Hash{}) {
+			log.Trace("Reached F")
 			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
 				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
 				snap = s
 				break
 			}
 		}
+		log.Trace("Reached G")
 
 		if numberIter == 0 {
 			break
 		}
+
+		log.Trace("Reached H")
 
 		// Panic if numberIter underflows (becomes greater than number).
 		if numberIter > number {
 			panic(fmt.Sprintf("There is a bug in the code.  NumberIter underflowed, and should of stopped at 0.  NumberIter: %v, number: %v", numberIter, number))
 		}
 	}
+
+	log.Trace("Reached I")
 
 	// If snapshot is still nil, then create a snapshot from genesis block
 	if snap == nil {
@@ -835,6 +850,8 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 	returnSnap.Number = number
 	returnSnap.Hash = hash
+
+	log.Trace("Validator set is ", "set", returnSnap.toJSONStruct())
 
 	return returnSnap, nil
 }
