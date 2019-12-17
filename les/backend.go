@@ -173,7 +173,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.ApiBackend = &LesApiBackend{leth}
 
 	leth.chainreader = &LightChainReader{
-		config: leth.chainConfig,
+		config:     leth.chainConfig,
+		blockchain: leth.blockchain,
 	}
 
 	// If the engine is istanbul, then inject the blockchain

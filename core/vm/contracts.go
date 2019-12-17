@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -622,6 +622,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	}
 
 	validatorAddress := validators[index.Uint64()].Address()
+	log.Info("Return value of getValidator", "index", index, "address", validatorAddress.String())
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
@@ -649,6 +650,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
+	log.Info("Return value of numberValidators", "number", len(validators))
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
 	return numberValidatorsBytes, gas, nil
 }

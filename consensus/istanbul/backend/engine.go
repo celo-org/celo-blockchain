@@ -723,10 +723,10 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Retrieve the most recent cached or on disk snapshot.
 	for ; ; numberIter = numberIter - sb.config.Epoch {
 		// If an in-memory snapshot was found, use that
-		if s, ok := sb.recentSnapshots.Get(numberIter); ok {
-			snap = s.(*Snapshot)
-			break
-		}
+		// if s, ok := sb.recentSnapshots.Get(numberIter); ok {
+		// 	snap = s.(*Snapshot)
+		// 	break
+		// }
 
 		log.Trace("Reached B")
 
@@ -851,7 +851,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap.Number = number
 	returnSnap.Hash = hash
 
-	log.Trace("Validator set is ", "set", returnSnap.toJSONStruct())
+	log.Trace("Validator set is ", "set", returnSnap.validators())
 
 	return returnSnap, nil
 }
