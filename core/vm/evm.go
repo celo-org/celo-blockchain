@@ -48,6 +48,9 @@ type (
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
+	// GetParentSealBitmapFunc returns the parent aggregated seal from the
+	// nth block header in the chain.
+	GetParentSealBitmapFunc func(uint64) *big.Int
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -87,6 +90,8 @@ type Context struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
+	// GetParentSeal returns the hash corresponding to n
+	GetParentSealBitmap GetParentSealBitmapFunc
 
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN

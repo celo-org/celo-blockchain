@@ -689,8 +689,49 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
-	epochSize := big.NewInt(0).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSize := new(big.Int).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
+}
+
+type getParentSealBitmap struct{}
+
+func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
+	return params.GetParentSealBitmapGas
+}
+
+// Return the signer bitmap from the parent seal of a past block in the chain.
+// Requested parent seal must have occured within 4 epochs of the current block number.
+func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of a single argument:
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 32 {
+		return nil, gas, ErrInputLength
+	}
+
+	blockNumber := (&big.Int{}).SetBytes(input[0:32])
+
+	// Ensure the request is for information from a previously sealed block.
+	if blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Ensure the request is for a sufficiently recent block to limit state expansion.
+	historyLimit := new(big.Int).SetUint64(evm.Context.Engine.EpochSize() * 4)
+	if blockNumber.Cmp(new(big.Int).Sub(evm.Context.BlockNumber, historyLimit)) <= 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	bitmap := evm.Context.GetParentSealBitmap(blockNumber.Uint64())
+	if bitmap == nil {
+		return make([]byte, 32), gas, nil
+	}
+
+	return common.LeftPadBytes(bitmap.Bytes()[:], 32), gas, nil
 }

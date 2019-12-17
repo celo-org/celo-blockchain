@@ -65,17 +65,18 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	}
 
 	return vm.Context{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		Origin:      msg.From(),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).Set(header.Time),
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		GasLimit:    header.GasLimit,
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
-		Engine:      engine,
+		CanTransfer:         CanTransfer,
+		Transfer:            Transfer,
+		GetHash:             GetHashFn(header, chain),
+		GetParentSealBitmap: GetParentSealBitmapFn(header, chain),
+		Origin:              msg.From(),
+		Coinbase:            beneficiary,
+		BlockNumber:         new(big.Int).Set(header.Number),
+		Time:                new(big.Int).Set(header.Time),
+		Difficulty:          new(big.Int).Set(header.Difficulty),
+		GasLimit:            header.GasLimit,
+		GasPrice:            new(big.Int).Set(msg.GasPrice()),
+		Engine:              engine,
 	}
 }
 
@@ -102,6 +103,43 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 			}
 		}
 		return common.Hash{}
+	}
+}
+
+// GetParentSealFn returns a GetParentSeal function that returns the aggregated parent seal at the given block number.
+// Note: Unless previously cached, retreives every block between the reference block and n.
+func GetParentSealBitmapFn(ref *types.Header, chain ChainContext) func(n uint64) *big.Int {
+	var cache map[uint64]*big.Int
+
+	return func(n uint64) *big.Int {
+		// If the block is the unsealed reference block of later, return nil.
+		if n >= ref.Number.Uint64() {
+			return nil
+		}
+
+		// If there's no hash cache yet, make one
+		if cache == nil {
+			cache = make(map[uint64]*big.Int)
+		} else {
+			// Try to fulfill the request from the cache
+			if bitmap, ok := cache[n]; ok {
+				return bitmap
+			}
+		}
+
+		// Not cached, iterate the blocks and cache the hashes (not limited here)
+		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
+			var bitmap *big.Int
+			istanbulExtra, err := types.ExtractIstanbulExtra(header)
+			if err == nil {
+				bitmap = istanbulExtra.AggregatedSeal.Bitmap
+				cache[header.Number.Uint64()] = bitmap
+			}
+			if n == header.Number.Uint64() {
+				return bitmap
+			}
+		}
+		return nil
 	}
 }
 

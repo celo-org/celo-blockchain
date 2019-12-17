@@ -95,9 +95,10 @@ const (
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas uint64 = 50000 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas      uint64 = 5000  // Cost of reading a validator's address.
-	GetEpochSizeGas      uint64 = 1000  // Cost of querying the number of blocks in an epoch.
+	ProofOfPossessionGas   uint64 = 50000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas        uint64 = 5000  // Cost of reading a validator's address.
+	GetEpochSizeGas        uint64 = 1000  // Cost of querying the number of blocks in an epoch.
+	GetParentSealBitmapGas uint64 = 5000  // Cost of reading the parent seal bitmap from the chain.
 )
 
 var (
