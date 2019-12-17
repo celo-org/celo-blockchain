@@ -685,7 +685,7 @@ func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
 
 func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil || len(input) != 0 {
+	if err != nil {
 		return nil, gas, err
 	}
 
@@ -709,7 +709,7 @@ func (c *hashHeader) RequiredGas(input []byte) uint64 {
 
 func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil || len(input) != 0 {
+	if err != nil {
 		return nil, gas, err
 	}
 
