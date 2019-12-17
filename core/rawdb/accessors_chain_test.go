@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
@@ -192,7 +191,7 @@ func TestPartialBlockStorage(t *testing.T) {
 
 // Tests uptime accumulator storage and retrieval operations.
 func TestUptimeStorage(t *testing.T) {
-	db := rawdb.NewMemoryDatabase()
+	db := NewMemoryDatabase()
 	epoch := uint64(0)
 
 	// Create a test uptime to move around the database and make sure it's really new

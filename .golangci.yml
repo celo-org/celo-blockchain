@@ -21,7 +21,6 @@ linters:
     - unconvert
     # - unused
     - varcheck
-    - deadline
 
 linters-settings:
   gofmt:

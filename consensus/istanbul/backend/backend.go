@@ -515,8 +515,8 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 		for _, val := range parentValidators.List() {
 			oldValSet = append(oldValSet, istanbul.ValidatorData{
-				val.Address(),
-				val.BLSPublicKey(),
+				Address:      val.Address(),
+				BLSPublicKey: val.BLSPublicKey(),
 			})
 		}
 
