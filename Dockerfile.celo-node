@@ -19,3 +19,5 @@ RUN mkdir /celo
 RUN curl https://www.googleapis.com/storage/v1/b/genesis_blocks/o/${celo_env}?alt=media > /celo/genesis.json
 
 RUN curl https://www.googleapis.com/storage/v1/b/static_nodes/o/${celo_env}?alt=media > /celo/static-nodes.json
+
+RUN curl https://www.googleapis.com/storage/v1/b/env_bootnodes/o/${celo_env}?alt=media > /celo/bootnodes
