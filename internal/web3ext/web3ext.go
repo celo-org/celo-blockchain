@@ -793,6 +793,10 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Property({
+			name: 'valEnodeTableInfo',
+			getter: 'istanbul_getValEnodeTable',
+		}),		
+		new web3._extend.Property({
 			name: 'proxyInfo',
 			getter: 'istanbul_proxyInfo'
 		}),		

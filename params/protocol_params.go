@@ -162,7 +162,7 @@ const (
 	MaxGasForGetAddressFor                         uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
-	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
+	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
 	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
 	MaxGasForGetRegisteredValidators               uint64 = 1000000

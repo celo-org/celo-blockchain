@@ -27,26 +27,42 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-// sendNextRoundChange sends the ROUND CHANGE message with current round + 1
-func (c *core) sendNextRoundChange() {
-	cv := c.current.View()
-	c.sendRoundChange(new(big.Int).Add(cv.Round, common.Big1))
-}
-
 // sendRoundChange sends the ROUND CHANGE message with the given round
 func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.newLogger("func", "sendRoundChange", "target round", round)
+	logger := c.newLogger("func", "sendRoundChange", "target_round", round)
 
-	cv := c.current.View()
-	if cv.Round.Cmp(round) >= 0 {
-		logger.Error("Cannot send out the round change")
+	if c.current.View().Round.Cmp(round) >= 0 {
+		logger.Warn("Cannot send round change for previous round")
 		return
 	}
 
+	msg, err := c.buildRoundChangeMsg(round)
+	if err != nil {
+		logger.Error("Could not build round change message", "err", msg)
+		return
+	}
+
+	c.broadcast(msg)
+}
+
+// sendRoundChange sends a ROUND CHANGE message for the current round back to a single address
+func (c *core) sendRoundChangeAgain(addr common.Address) {
+	logger := c.newLogger("func", "sendRoundChange", "desired_round", c.current.DesiredRound(), "to", addr)
+
+	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
+	if err != nil {
+		logger.Error("Could not build round change message", "err", err)
+		return
+	}
+
+	c.unicast(msg, addr)
+}
+
+// buildRoundChangeMsg creates a round change msg for the given round
+func (c *core) buildRoundChangeMsg(round *big.Int) (*istanbul.Message, error) {
 	nextView := &istanbul.View{
-		// The round number we'd like to transfer to.
 		Round:    new(big.Int).Set(round),
-		Sequence: new(big.Int).Set(cv.Sequence),
+		Sequence: new(big.Int).Set(c.current.View().Sequence),
 	}
 
 	rc := &istanbul.RoundChange{
@@ -56,14 +72,13 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 	payload, err := Encode(rc)
 	if err != nil {
-		logger.Error("Failed to encode ROUND CHANGE", "rc", rc, "err", err)
-		return
+		return nil, err
 	}
-	logger.Trace("Sending round change message", "rcs", c.roundChangeSet)
-	c.broadcast(&istanbul.Message{
+
+	return &istanbul.Message{
 		Code: istanbul.MsgRoundChange,
 		Msg:  payload,
-	})
+	}, nil
 }
 
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
@@ -109,7 +124,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		var roundChange *istanbul.RoundChange
 		if err := message.Decode(&roundChange); err != nil {
-			logger.Error("Failed to decode ROUND CHANGE in certificate", "err", err)
+			logger.Warn("Failed to decode ROUND CHANGE in certificate", "err", err)
 			return err
 		}
 		msg_logger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
@@ -164,13 +179,21 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
 	if err := msg.Decode(&rc); err != nil {
-		logger.Error("Failed to decode ROUND CHANGE", "err", err)
+		logger.Info("Failed to decode ROUND CHANGE", "err", err)
 		return errInvalidMessage
 	}
 	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
 
 	// Must be same sequence and future round.
-	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
+	err := c.checkMessage(istanbul.MsgRoundChange, rc.View)
+
+	// If the RC message is for the current sequence but a prior round, help the sender fast forward
+	// by sending back to it (not broadcasting) a round change message for our desired round.
+	if err == errOldMessage && rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
+		logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", rc.View.Round)
+		c.sendRoundChangeAgain(msg.Address)
+		return nil
+	} else if err != nil {
 		logger.Debug("Check round change message failed", "err", err)
 		return err
 	}
@@ -203,10 +226,10 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
-		logger.Trace("Got quorum round change messages, starting new round.")
+		logger.Debug("Got quorum round change messages, starting new round.")
 		return c.startNewRound(quorumRound)
 	} else if ffRound != nil {
-		logger.Trace("Got f+1 round change messages, sending own round change message and waiting for next round.")
+		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForDesiredRound(ffRound)
 	}
 
@@ -329,8 +352,22 @@ func (rcs *roundChangeSet) String() string {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	msgsForRoundStr := make([]string, 0, len(rcs.msgsForRound))
-	for r, rms := range rcs.msgsForRound {
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	modeRound := uint64(0)
+	modeRoundSize := 0
+	msgsForRoundStr := make([]string, 0, len(sortedRounds))
+	for _, r := range sortedRounds {
+		rms := rcs.msgsForRound[r]
+		if rms.Size() > modeRoundSize {
+			modeRound = r
+			modeRoundSize = rms.Size()
+		}
 		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
 	}
 
@@ -339,12 +376,12 @@ func (rcs *roundChangeSet) String() string {
 		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
 	}
 
-	return fmt.Sprintf("RCS len=%v  By round: {<%v> %v}  By val: {<%v> %v}",
+	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=<%v> %v",
 		len(rcs.latestRoundForVal),
+		modeRound,
+		modeRoundSize,
 		len(rcs.msgsForRound),
-		strings.Join(msgsForRoundStr, ", "),
-		len(rcs.latestRoundForVal),
-		strings.Join(latestRoundForValStr, ", "))
+		strings.Join(msgsForRoundStr, ", "))
 }
 
 // Gets a round change certificate for a specific round.

@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -126,6 +127,11 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 	}
 	api.istanbul.removeProxy(node)
 	return true, nil
+}
+
+// Retrieve the Validator Enode Table
+func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
+	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
 }
 
 // TODO(kevjue) - implement this
