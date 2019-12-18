@@ -19,8 +19,12 @@ package core
 import (
 	"bytes"
 	"encoding/binary"
+	"math/big"
 	"os"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/task"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -28,26 +32,62 @@ import (
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (
-	dbVersion    = 1
+	dbVersion    = 2
 	dbVersionKey = "version"  // Version of the database to flush if changes
 	lastViewKey  = "lastView" // Last View that we know of
+	rsKey        = "rs"       // Database Key Pefix for RoundState
 )
 
 type RoundStateDB interface {
 	GetLastView() (*istanbul.View, error)
+	// GetOldestValidView returns the oldest valid view that can be stored on the db
+	// it might or might not be present on the db
+	GetOldestValidView() (*istanbul.View, error)
 	GetRoundStateFor(view *istanbul.View) (RoundState, error)
 	UpdateLastRoundState(rs RoundState) error
 	Close() error
 }
 
-type roundStateDBImpl struct {
-	db *leveldb.DB
+// RoundStateDBOptions are the options for a RoundStateDB instance
+type RoundStateDBOptions struct {
+	withGarbageCollector   bool
+	garbageCollectorPeriod time.Duration
+	sequencesToSave        uint64
 }
 
-func newRoundStateDB(path string) (RoundStateDB, error) {
+type roundStateDBImpl struct {
+	db                   *leveldb.DB
+	stopGarbageCollector task.StopFn
+	opts                 RoundStateDBOptions
+	logger               log.Logger
+}
+
+var defaultRoundStateDBOptions = RoundStateDBOptions{
+	withGarbageCollector:   true,
+	sequencesToSave:        100,
+	garbageCollectorPeriod: 2 * time.Minute,
+}
+
+func coerceOptions(opts *RoundStateDBOptions) RoundStateDBOptions {
+	if opts == nil {
+		return defaultRoundStateDBOptions
+	}
+
+	options := *opts
+	if options.sequencesToSave == 0 {
+		options.sequencesToSave = defaultRoundStateDBOptions.sequencesToSave
+	}
+	if options.withGarbageCollector && options.garbageCollectorPeriod == 0 {
+		options.garbageCollectorPeriod = defaultRoundStateDBOptions.garbageCollectorPeriod
+	}
+	return options
+}
+
+func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, error) {
 	logger := log.New("func", "newRoundStateDB")
 
 	var db *leveldb.DB
@@ -65,9 +105,17 @@ func newRoundStateDB(path string) (RoundStateDB, error) {
 		return nil, err
 	}
 
-	return &roundStateDBImpl{
-		db: db,
-	}, nil
+	rsdb := &roundStateDBImpl{
+		db:     db,
+		opts:   coerceOptions(opts),
+		logger: log.New("roundStateDB"),
+	}
+
+	if rsdb.opts.withGarbageCollector {
+		rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, rsdb.opts.garbageCollectorPeriod)
+	}
+
+	return rsdb, nil
 }
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.
@@ -123,10 +171,7 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	// information to allow the node to have evidence to show that
 	// a validator did a "valid" double signing
 
-	viewKey, err := rlp.EncodeToBytes(rs.View())
-	if err != nil {
-		return err
-	}
+	viewKey := view2Key(rs.View())
 
 	entryBytes, err := rlp.EncodeToBytes(rs)
 	if err != nil {
@@ -146,19 +191,28 @@ func (rsdb *roundStateDBImpl) GetLastView() (*istanbul.View, error) {
 		return nil, err
 	}
 
-	var entry istanbul.View
-	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
+	return key2View(rawEntry), nil
+}
+
+func (rsdb *roundStateDBImpl) GetOldestValidView() (*istanbul.View, error) {
+	lastView, err := rsdb.GetLastView()
+	// If nothing stored all views are valid
+	if err == leveldb.ErrNotFound {
+		return &istanbul.View{Sequence: common.Big0, Round: common.Big0}, nil
+	} else if err != nil {
 		return nil, err
 	}
-	return &entry, nil
+
+	oldestValidSequence := new(big.Int).Sub(lastView.Sequence, new(big.Int).SetUint64(rsdb.opts.sequencesToSave))
+	if oldestValidSequence.Cmp(common.Big0) < 0 {
+		oldestValidSequence = common.Big0
+	}
+
+	return &istanbul.View{Sequence: oldestValidSequence, Round: common.Big0}, nil
 }
 
 func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View) (RoundState, error) {
-	viewKey, err := rlp.EncodeToBytes(view)
-	if err != nil {
-		return nil, err
-	}
-
+	viewKey := view2Key(view)
 	rawEntry, err := rsdb.db.Get(viewKey, nil)
 	if err != nil {
 		return nil, err
@@ -172,5 +226,70 @@ func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View) (RoundState,
 }
 
 func (rsdb *roundStateDBImpl) Close() error {
+	if rsdb.opts.withGarbageCollector {
+		rsdb.stopGarbageCollector()
+	}
 	return rsdb.db.Close()
+}
+
+func (rsdb *roundStateDBImpl) garbageCollectEntries() {
+	logger := rsdb.logger.New("func", "StartGarbageCollector")
+
+	oldestValidView, err := rsdb.GetOldestValidView()
+	if err != nil {
+		logger.Error("Aborting RoundStateDB GarbageCollect: Failed to fetch oldestValidView", "err", err)
+		return
+	}
+
+	logger.Debug("Prunning entries from old views", "oldestValidView", oldestValidView)
+	count, err := rsdb.deleteEntriesOlderThan(oldestValidView)
+	if err != nil {
+		logger.Error("Aborting RoundStateDB GarbageCollect: Failed to remove entries", "entries_removed", count, "err", err)
+		return
+	}
+
+	logger.Info("Finished RoundStateDB GarbageCollect", "removed_entries", count)
+}
+
+func (rsdb *roundStateDBImpl) deleteEntriesOlderThan(lastView *istanbul.View) (int, error) {
+	fromViewKey := view2Key(&istanbul.View{Sequence: common.Big0, Round: common.Big0})
+	toViewKey := view2Key(lastView)
+
+	iter := rsdb.db.NewIterator(&util.Range{Start: fromViewKey, Limit: toViewKey}, nil)
+	defer iter.Release()
+
+	counter := 0
+	for iter.Next() {
+		rawKey := iter.Key()
+		err := rsdb.db.Delete(rawKey, nil)
+		if err != nil {
+			return counter, err
+		}
+		counter++
+	}
+	return counter, nil
+}
+
+// view2Key will encode a view in binary format
+// so that the binary format maintains the sort order for the view
+func view2Key(view *istanbul.View) []byte {
+	prefix := []byte(rsKey)
+	buff := make([]byte, len(prefix)+16)
+
+	copy(buff, prefix)
+	// TODO (mcortesi) Support Seq/Round bigger than 64bits
+	binary.BigEndian.PutUint64(buff[len(prefix):], view.Sequence.Uint64())
+	binary.BigEndian.PutUint64(buff[len(prefix)+8:], view.Round.Uint64())
+
+	return buff
+}
+
+func key2View(key []byte) *istanbul.View {
+	prefixLen := len([]byte(rsKey))
+	seq := binary.BigEndian.Uint64(key[prefixLen : prefixLen+8])
+	round := binary.BigEndian.Uint64(key[prefixLen+8:])
+	return &istanbul.View{
+		Sequence: new(big.Int).SetUint64(seq),
+		Round:    new(big.Int).SetUint64(round),
+	}
 }

@@ -1,6 +1,9 @@
 package core
 
 import (
+	"bytes"
+	"encoding/hex"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -8,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 )
 
-func TestRoundStateDB(t *testing.T) {
+func TestRSDBRoundStateDB(t *testing.T) {
 	dummyRoundState := func() RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
 			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
@@ -18,7 +21,7 @@ func TestRoundStateDB(t *testing.T) {
 	}
 
 	t.Run("Should save view & roundState", func(t *testing.T) {
-		rsdb, _ := newRoundStateDB("")
+		rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{withGarbageCollector: false})
 		rs := dummyRoundState()
 		err := rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
@@ -33,7 +36,7 @@ func TestRoundStateDB(t *testing.T) {
 	})
 
 	t.Run("Should save view from last saved roundState", func(t *testing.T) {
-		rsdb, _ := newRoundStateDB("")
+		rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{withGarbageCollector: false})
 		rs := dummyRoundState()
 		err := rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
@@ -46,4 +49,115 @@ func TestRoundStateDB(t *testing.T) {
 		assertEqualView(t, view, rs.View())
 	})
 
+}
+
+func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
+	createRoundState := func(view *istanbul.View) RoundState {
+		valSet := validator.NewSet([]istanbul.ValidatorData{
+			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
+			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+		})
+		return newRoundState(view, valSet, valSet.GetByIndex(0))
+	}
+
+	rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{withGarbageCollector: false})
+	for seq := uint64(1); seq <= 10; seq++ {
+		for r := uint64(0); r < 10; r++ {
+			rs := createRoundState(newView(seq, r))
+			err := rsdb.UpdateLastRoundState(rs)
+			finishOnError(t, err)
+		}
+	}
+
+	// Will delete all entries from seq 1
+	count, err := rsdb.(*roundStateDBImpl).deleteEntriesOlderThan(newView(2, 0))
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
+	if count != 10 {
+		t.Fatalf("Expected 10 deleted entries but got %d", count)
+	}
+
+	// Will delete all entries from seq 2,3 and seq 4 until round 5
+	count, err = rsdb.(*roundStateDBImpl).deleteEntriesOlderThan(newView(4, 5))
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
+	if count != 25 {
+		t.Fatalf("Expected 10 deleted entries but got %d", count)
+	}
+
+}
+
+func TestRSDBKeyEncodingOrder(t *testing.T) {
+	iterations := 1000
+
+	t.Run("ViewKey Enconding should decode the same view", func(t *testing.T) {
+		for i := 0; i < iterations; i++ {
+			view := newView(rand.Uint64(), rand.Uint64())
+			key := view2Key(view)
+			parsedView := key2View(key)
+			if view.Cmp(parsedView) != 0 {
+				t.Errorf("parsedView != view: %v != %v", parsedView, view)
+			}
+		}
+	})
+
+	t.Run("ViewKey Enconding should maintain sort order", func(t *testing.T) {
+		for i := 0; i < iterations; i++ {
+			viewA := newView(rand.Uint64(), rand.Uint64())
+			keyA := view2Key(viewA)
+
+			viewB := newView(rand.Uint64(), rand.Uint64())
+			keyB := view2Key(viewB)
+
+			if viewA.Cmp(viewB) != bytes.Compare(keyA, keyB) {
+				t.Errorf("view order != key order (viewA: %v, viewB: %v, keyA:%v, keyB:%v )",
+					viewA,
+					viewB,
+					hex.EncodeToString(keyA),
+					hex.EncodeToString(keyB),
+				)
+
+			}
+		}
+	})
+}
+
+func TestRSDBGetOldestValidView(t *testing.T) {
+	valSet := validator.NewSet([]istanbul.ValidatorData{
+		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
+		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+	})
+	sequencesToSave := uint64(100)
+	runTestCase := func(name string, viewToStore, expectedView *istanbul.View) {
+		t.Run(name, func(t *testing.T) {
+			rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{
+				withGarbageCollector: false,
+				sequencesToSave:      sequencesToSave,
+			})
+
+			if viewToStore != nil {
+				t.Logf("Saving RoundState")
+				err := rsdb.UpdateLastRoundState(newRoundState(viewToStore, valSet, valSet.GetByIndex(0)))
+				if err != nil {
+					t.Fatalf("UpdateLastRoundState error: %v", err)
+				}
+			}
+
+			view, err := rsdb.GetOldestValidView()
+			if err != nil {
+				t.Fatalf("GetOldestValidView error: %v", err)
+			}
+			if view.Cmp(expectedView) != 0 {
+				t.Errorf("Expected %v, got %v", expectedView, view)
+			}
+		})
+	}
+
+	runTestCase("When Nothing Stored", nil, newView(0, 0))
+	runTestCase("When StoredSequence < sequencesToSave", newView(sequencesToSave-1, 90), newView(0, 0))
+	runTestCase("When StoredSequence == sequencesToSave", newView(sequencesToSave, 90), newView(0, 0))
+	runTestCase("When StoredSequence > sequencesToSave", newView(sequencesToSave+1, 90), newView(1, 0))
+	runTestCase("When StoredSequence >> sequencesToSave", newView(sequencesToSave+1000, 90), newView(1000, 0))
 }
