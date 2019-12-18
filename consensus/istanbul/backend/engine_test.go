@@ -482,17 +482,41 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	block := makeBlock(chain, engine, genesis)
-	// change block content
+
+	// change header content and expect to invalidate signature
 	header := block.Header()
 	header.Number = big.NewInt(4)
-	block1 := block.WithSeal(header)
-	err = engine.VerifySeal(chain, block1.Header())
-	if err != errUnauthorized {
-		t.Errorf("error mismatch: have %v, want %v", err, errUnauthorized)
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidSignature {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
 	}
 
-	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil, nil, nil)
+	// delete istanbul extra data and expect invalid extra data format
+	header = block.Header()
+	header.Extra = nil
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidExtraDataFormat {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
+	}
+
+	// modify seal bitmap and expect to fail the quorum check
+	header = block.Header()
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		t.Fatalf("failed to extract istanbul data: %v", err)
+	}
+	extra.AggregatedSeal.Bitmap = big.NewInt(0)
+	encoded, err := rlp.EncodeToBytes(extra)
+	if err != nil {
+		t.Fatalf("failed to encode istanbul data: %v", err)
+	}
+	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
+	err = engine.VerifySeal(chain, header)
+	if err != errInsufficientSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
+	}
+
+	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
