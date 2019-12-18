@@ -84,7 +84,7 @@ func (self *lesTxRelay) send(txs types.Transactions) {
 
 	for _, tx := range txs {
 		hash := tx.Hash()
-		ltr, ok := self.txSent[hash]
+		_, ok := self.txSent[hash]
 		if !ok {
 			p, err := self.ps.getPeerWithEtherbase(tx.GatewayFeeRecipient())
 			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
@@ -95,7 +95,7 @@ func (self *lesTxRelay) send(txs types.Transactions) {
 				continue
 			}
 			sendTo[p] = append(sendTo[p], tx)
-			ltr = &ltrInfo{
+			ltr := &ltrInfo{
 				tx:     tx,
 				sentTo: make(map[*peer]struct{}),
 			}

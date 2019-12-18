@@ -170,6 +170,11 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 	randomness := crypto.Keccak256Hash(append(seed, header.ParentHash.Bytes()...))
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment, header, state)
+	if err != nil {
+		log.Error("Failed to call computeCommitment()", "err", err)
+		return common.Hash{}, err
+	}
+
 	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
 		log.Error("Failed to save last block parentHash to the database", "err", err)

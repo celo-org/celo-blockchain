@@ -265,9 +265,7 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	for k, rms := range rcs.msgsForRound {
 		if rms.Size() == 0 || k < round.Uint64() {
 			for _, msg := range rms.Values() {
-				if _, ok := rcs.latestRoundForVal[msg.Address]; ok {
-					delete(rcs.latestRoundForVal, msg.Address)
-				}
+				delete(rcs.latestRoundForVal, msg.Address) // no need to check if msg.Address is present
 			}
 			delete(rcs.msgsForRound, k)
 		}

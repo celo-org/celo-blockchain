@@ -73,7 +73,11 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
+
 	totalEpochPaymentsConvertedToGold, err := currency.Convert(totalEpochPayments, stableTokenAddress, nil)
+	if err != nil {
+		return err
+	}
 
 	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
 }
