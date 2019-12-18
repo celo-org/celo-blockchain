@@ -422,7 +422,8 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		}
 		parentAggregatedSeal := parentExtra.AggregatedSeal
 
-		logger.Trace("Got ParentAggregatedSeal", "parentAggregatedSeal", parentAggregatedSeal.String())
+		logger = logger.New("parentAggregatedSeal", parentAggregatedSeal.String())
+		logger.Trace("Got ParentAggregatedSeal")
 		if sb.core.Sequence().Cmp(header.Number) == 0 {
 			parentCommits := sb.core.ParentCommits()
 			logger = logger.New("cur_seq", sb.core.Sequence())
@@ -442,11 +443,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 						logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
 					} else {
 						parentAggregatedSeal = unionAggregatedSeal
-						logger.Trace("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
+						logger.Debug("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
 					}
 				}
 			} else {
-				logger.Trace("No additional seals to combine with ParentAggregatedSeal")
+				logger.Debug("No additional seals to combine with ParentAggregatedSeal")
 			}
 			return writeAggregatedSeal(header, parentAggregatedSeal, true)
 		}
