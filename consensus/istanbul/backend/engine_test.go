@@ -228,8 +228,8 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(nodeKeys[i])
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		validators[i] = istanbul.ValidatorData{
-			addr,
-			blsPublicKey,
+			Address:      addr,
+			BLSPublicKey: blsPublicKey,
 		}
 
 	}
@@ -261,7 +261,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 		GasLimit:   core.CalcGasLimit(parent, nil),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
-		Time:       parent.Time() + uint64(config.BlockPeriod),
+		Time:       parent.Time() + config.BlockPeriod,
 		Difficulty: defaultDifficulty,
 	}
 	return header
@@ -447,7 +447,7 @@ func TestVerifyHeader(t *testing.T) {
 	// invalid timestamp
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = chain.Genesis().Time() + uint64(engine.config.BlockPeriod-1)
+	header.Time = chain.Genesis().Time() + engine.config.BlockPeriod - 1
 	err = engine.VerifyHeader(chain, header, false)
 	if err != errInvalidTimestamp {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidTimestamp)
@@ -574,7 +574,7 @@ OUT2:
 	}
 	// error header cases
 	headers[2].Number = big.NewInt(100)
-	abort, results = engine.VerifyHeaders(chain, headers, nil)
+	_, results = engine.VerifyHeaders(chain, headers, nil)
 	timeout = time.NewTimer(timeoutDura)
 	index = 0
 	errors := 0
@@ -626,22 +626,22 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 func TestPrepareExtra(t *testing.T) {
 	oldValidators := make([]istanbul.ValidatorData, 2)
 	oldValidators[0] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-		make([]byte, blscrypto.PUBLICKEYBYTES),
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
+		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 	oldValidators[1] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
-		make([]byte, blscrypto.PUBLICKEYBYTES),
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 
 	newValidators := make([]istanbul.ValidatorData, 2)
 	newValidators[0] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-		make([]byte, blscrypto.PUBLICKEYBYTES),
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
+		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 	newValidators[1] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
-		make([]byte, blscrypto.PUBLICKEYBYTES),
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
 	}
 
 	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
@@ -653,6 +653,9 @@ func TestPrepareExtra(t *testing.T) {
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 		EpochData:                 []byte{},
 	})
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 	h := &types.Header{
 		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
@@ -698,11 +701,14 @@ func TestWriteSeal(t *testing.T) {
 		AddedValidatorsPublicKeys: [][]byte{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
 		Seal:                      []byte{},
-		AggregatedSeal:            types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
 		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 
 	expectedSeal := hexutil.MustDecode("0x29fe2612266a3965321c23a2e0382cd819e992f293d9a0032439728e41201d2c387cc9de5914a734873d79addb76c59ce73c1085a98b968384811b4ad050dddc56")
 	if len(expectedSeal) != types.IstanbulExtraSeal {
@@ -755,6 +761,9 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 
 	aggregatedSeal := types.IstanbulAggregatedSeal{
 		Round:     big.NewInt(2),

@@ -156,8 +156,8 @@ func (s *Snapshot) validators() []istanbul.ValidatorData {
 	validators := make([]istanbul.ValidatorData, 0, s.ValSet.Size())
 	for _, validator := range s.ValSet.List() {
 		validators = append(validators, istanbul.ValidatorData{
-			validator.Address(),
-			validator.BLSPublicKey(),
+			Address:      validator.Address(),
+			BLSPublicKey: validator.BLSPublicKey(),
 		})
 	}
 	return validators

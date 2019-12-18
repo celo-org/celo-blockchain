@@ -63,7 +63,7 @@ func (ap *testerAccountPool) sign(header *types.Header, validator string) {
 		ap.accounts[validator], _ = crypto.GenerateKey()
 	}
 	// Sign the header and embed the signature in extra data
-	hashData := crypto.Keccak256([]byte(sigHash(header).Bytes()))
+	hashData := crypto.Keccak256(sigHash(header).Bytes())
 	sig, _ := crypto.Sign(hashData, ap.accounts[validator])
 
 	writeSeal(header, sig)
@@ -79,15 +79,6 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	}
 	// Resolve and return the Ethereum address
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
-}
-
-func indexOf(element string, data []string) int {
-	for k, v := range data {
-		if element == v {
-			return k
-		}
-	}
-	return -1 //not found.
 }
 
 func convertValNamesToRemovedValidators(accounts *testerAccountPool, oldVals []istanbul.ValidatorData, valNames []string) *big.Int {
@@ -118,8 +109,8 @@ func convertValNamesToValidatorsData(accounts *testerAccountPool, valNames []str
 
 	for i, valName := range valNames {
 		returnArray[i] = istanbul.ValidatorData{
-			accounts.address(valName),
-			nil,
+			Address:      accounts.address(valName),
+			BLSPublicKey: nil,
 		}
 	}
 
@@ -232,8 +223,8 @@ func TestValSetChange(t *testing.T) {
 		validators := make([]istanbul.ValidatorData, len(tt.validators))
 		for j, validator := range tt.validators {
 			validators[j] = istanbul.ValidatorData{
-				accounts.address(validator),
-				nil,
+				Address:      accounts.address(validator),
+				BLSPublicKey: nil,
 			}
 		}
 
@@ -334,7 +325,7 @@ func TestValSetChange(t *testing.T) {
 		for j, valsetdiff := range tt.valsetdiffs {
 			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
-				Time:       uint64(j) * uint64(config.BlockPeriod),
+				Time:       uint64(j) * config.BlockPeriod,
 				Difficulty: defaultDifficulty,
 				MixDigest:  types.IstanbulDigest,
 			}
@@ -393,8 +384,8 @@ func TestValSetChange(t *testing.T) {
 		validators = make([]istanbul.ValidatorData, len(tt.results))
 		for j, validator := range tt.results {
 			validators[j] = istanbul.ValidatorData{
-				accounts.address(validator),
-				nil,
+				Address:      accounts.address(validator),
+				BLSPublicKey: nil,
 			}
 		}
 		result := snap.validators()
@@ -420,12 +411,12 @@ func TestSaveAndLoad(t *testing.T) {
 		Hash:   common.HexToHash("1234567890"),
 		ValSet: validator.NewSet([]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte("1234567894")),
-				nil,
+				Address:      common.BytesToAddress([]byte("1234567894")),
+				BLSPublicKey: nil,
 			},
 			{
-				common.BytesToAddress([]byte("1234567895")),
-				nil,
+				Address:      common.BytesToAddress([]byte("1234567895")),
+				BLSPublicKey: nil,
 			},
 		}),
 	}

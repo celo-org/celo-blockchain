@@ -200,40 +200,6 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 	}
 }
 
-// verifyFetchingEvent verifies that one single event arrive on a fetching channel.
-func verifyFetchingEvent(t *testing.T, fetching chan []common.Hash, arrive bool) {
-	if arrive {
-		select {
-		case <-fetching:
-		case <-time.After(time.Second):
-			t.Fatalf("fetching timeout")
-		}
-	} else {
-		select {
-		case <-fetching:
-			t.Fatalf("fetching invoked")
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-}
-
-// verifyCompletingEvent verifies that one single event arrive on an completing channel.
-func verifyCompletingEvent(t *testing.T, completing chan []common.Hash, arrive bool) {
-	if arrive {
-		select {
-		case <-completing:
-		case <-time.After(time.Second):
-			t.Fatalf("completing timeout")
-		}
-	} else {
-		select {
-		case <-completing:
-			t.Fatalf("completing invoked")
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-}
-
 // verifyImportEvent verifies that one single event arrive on an import channel.
 func verifyImportEvent(t *testing.T, imported chan *types.Block, arrive bool) {
 	if arrive {

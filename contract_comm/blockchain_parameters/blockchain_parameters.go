@@ -109,7 +109,7 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 	if err != nil {
 		return nil, err
 	}
-	return &params.VersionInfo{version[0].Uint64(), version[1].Uint64(), version[2].Uint64()}, nil
+	return &params.VersionInfo{Major: version[0].Uint64(), Minor: version[1].Uint64(), Patch: version[2].Uint64()}, nil
 }
 
 func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {

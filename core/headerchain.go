@@ -137,13 +137,13 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, err error) {
 	// Cache some values to prevent constant recalculation
 	var (
-		hash   = header.Hash()
-		number = header.Number.Uint64()
+		hash    = header.Hash()
+		number  = header.Number.Uint64()
+		localTd *big.Int
 	)
 	// Calculate the total difficulty of the header.
 	// ptd seems to be abbreviation of "parent total difficulty".
 	ptd := hc.GetTd(header.ParentHash, number-1)
-	localTd := new(big.Int)
 	externTd := new(big.Int)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {

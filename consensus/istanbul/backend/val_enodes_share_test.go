@@ -29,6 +29,9 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	msg.Sign(b.Sign)
 	payload, err := msg.Payload()
+	if err != nil {
+		t.Errorf("error %v", err)
+	}
 
 	b.Authorize(getAddress(), signerFn, signerBLSHashFn, signerBLSMessageFn)
 
@@ -67,6 +70,9 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	newMsg.Sign(b.Sign)
 	newPayload, err := newMsg.Payload()
+	if err != nil {
+		t.Errorf("error %v", err)
+	}
 
 	// Delete the entry in the valEnodeTable so that we can check if it's been
 	// created after handling

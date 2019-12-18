@@ -431,7 +431,6 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	var nodelist []string
 	if err := common.LoadJSON(path, &nodelist); err != nil {
 		panic(fmt.Sprintf("Can't load node list file: %v", err))
-		return nil
 	}
 	// Interpret the list as a discovery node array
 	var nodes []*enode.Node

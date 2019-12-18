@@ -140,7 +140,7 @@ func main() {
 	if *runv4 {
 		if *runv5 {
 			unhandled = make(chan discover.ReadPacket, 100)
-			sconn = &p2p.SharedUDPConn{conn, unhandled}
+			sconn = &p2p.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}
 		}
 		db, _ := enode.OpenDB("")
 		ln := enode.NewLocalNode(db, nodeKey, *networkId)

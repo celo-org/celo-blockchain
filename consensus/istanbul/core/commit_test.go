@@ -279,8 +279,8 @@ func TestVerifyCommit(t *testing.T) {
 	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
 	valSet := validator.NewSet([]istanbul.ValidatorData{
 		{
-			peer.Address(),
-			blsPublicKey,
+			Address:      peer.Address(),
+			BLSPublicKey: blsPublicKey,
 		},
 	})
 	// }, istanbul.RoundRobin)

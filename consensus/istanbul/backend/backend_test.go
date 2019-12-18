@@ -74,7 +74,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 
 	// 1. Positive test: sign with validator's key should succeed
 	data := []byte("dummy data")
-	hashData := crypto.Keccak256([]byte(data))
+	hashData := crypto.Keccak256(data)
 	for i, k := range keys {
 		// Sign
 		sig, err := crypto.Sign(hashData, k)
@@ -206,11 +206,6 @@ func generatePrivateKey() (*ecdsa.PrivateKey, error) {
 	return crypto.HexToECDSA(key)
 }
 
-func generateInvalidPrivateKey() (*ecdsa.PrivateKey, error) {
-	key := "1049c0e0b99eeea3465a1e83a52900dc27c652f39abb3aed3b868dee68ff1d2c"
-	return crypto.HexToECDSA(key)
-}
-
 func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 	// generate validators
 	keys := make(Keys, n)
@@ -221,8 +216,8 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		keys[i] = privateKey
 		validators[i] = istanbul.ValidatorData{
-			crypto.PubkeyToAddress(privateKey.PublicKey),
-			blsPublicKey,
+			Address:      crypto.PubkeyToAddress(privateKey.PublicKey),
+			BLSPublicKey: blsPublicKey,
 		}
 	}
 	vset := validator.NewSet(validators)
@@ -306,9 +301,4 @@ func newBackend() (b *Backend) {
 	key, _ := generatePrivateKey()
 	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn, signerBLSHashFn, signerBLSMessageFn)
 	return
-}
-
-func signerFnInvalid(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
-	key, _ := generateInvalidPrivateKey()
-	return crypto.Sign(data, key)
 }

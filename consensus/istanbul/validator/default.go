@@ -237,8 +237,8 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	validators := make([]istanbul.ValidatorData, 0, len(valSet.validators))
 	for _, v := range valSet.validators {
 		validators = append(validators, istanbul.ValidatorData{
-			v.Address(),
-			v.BLSPublicKey(),
+			Address:      v.Address(),
+			BLSPublicKey: v.BLSPublicKey(),
 		})
 	}
 
