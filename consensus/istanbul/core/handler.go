@@ -45,7 +45,7 @@ func (c *core) Start() error {
 
 	// Process backlog
 	c.processPendingRequests()
-	c.backlog.updateState(c.current.View(), c.current.State())
+	c.backlog.updateState(c.CurrentView(), c.current.State())
 
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
@@ -216,8 +216,13 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) error {
 	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
-	logger.Debug("Timed out, trying to wait for next round")
 
+	if c.CurrentView().Cmp(timeoutView) != 0 {
+		logger.Trace("Timed out but now on a different view")
+		return nil
+	}
+
+	logger.Debug("Timed out, trying to wait for next round")
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)
 }

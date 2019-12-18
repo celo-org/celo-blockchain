@@ -535,7 +535,7 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{view})
+		c.sendEvent(timeoutEvent{&istanbul.View{Sequence: view.Sequence, Round: view.Round}})
 	})
 }
 
