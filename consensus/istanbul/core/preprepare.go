@@ -60,6 +60,18 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errFailedDecodePreprepare
 	}
 
+	// Check if the message comes from current proposer
+	if !c.current.IsProposer(msg.Address) {
+		logger.Warn("Ignore preprepare messages from non-proposer")
+		return errNotFromProposer
+	}
+
+	// Verify that the proposal is for the sequence number of the view we verified.
+	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence)
+		return errInvalidProposal
+	}
+
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
 		if !preprepare.HasRoundChangeCertificate() {
@@ -102,18 +114,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
 		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
 		return err
-	}
-
-	// Check if the message comes from current proposer
-	if !c.current.IsProposer(msg.Address) {
-		logger.Warn("Ignore preprepare messages from non-proposer")
-		return errNotFromProposer
-	}
-
-	// Verify that the proposal is for the sequence number of the view we verified.
-	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
-		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence)
-		return errInvalidProposal
 	}
 
 	// Verify the proposal we received

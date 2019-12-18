@@ -297,7 +297,7 @@ func TestHandleRoundChange(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sys := NewTestSystemWithBackend(N, F)
 
-			sys.Run(false)
+			closer := sys.Run(false)
 			for _, v := range sys.backends {
 				v.engine.(*core).Start()
 			}
@@ -338,6 +338,8 @@ func TestHandleRoundChange(t *testing.T) {
 				}
 				return
 			}
+
+			closer()
 		})
 	}
 }

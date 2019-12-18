@@ -204,6 +204,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(1)
+					getRoundState(c).sequence = big.NewInt(2)
 					c.current.TransitionToPreprepared(&istanbul.Preprepare{
 						View: &istanbul.View{
 							Round:    big.NewInt(1),
@@ -314,8 +315,9 @@ func TestHandlePreprepare(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 
+			t.Log("Running", "test", test.name)
 			sys := test.system()
-			sys.Run(false)
+			closer := sys.Run(false)
 
 			v0 := sys.backends[0]
 			r0 := v0.engine.(*core)
@@ -409,6 +411,8 @@ func TestHandlePreprepare(t *testing.T) {
 					}
 				}
 			}
+
+			closer()
 		})
 	}
 }
