@@ -690,7 +690,7 @@ func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EV
 	}
 
 	var header types.Header
-	err = rlp.Decode(bytes.NewReader(input), &header)
+	err = rlp.DecodeBytes(input, &header)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -714,7 +714,7 @@ func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint
 	}
 
 	var header types.Header
-	err = rlp.Decode(bytes.NewReader(input), &header)
+	err = rlp.DecodeBytes(input, &header)
 	if err != nil {
 		return nil, gas, err
 	}
