@@ -85,15 +85,14 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:          &transfer{},
-	fractionMulExpAddress:    &fractionMulExp{},
-	proofOfPossessionAddress: &proofOfPossession{},
-	getValidatorAddress:      &getValidator{},
-	numberValidatorsAddress:  &numberValidators{},
-	epochSizeAddress:         &epochSize{},
-	// DO NOT MERGE: Merge after these precompiles are added.
-	blockNumberFromHeaderAddress: nil,
-	hashHeaderAddress:            nil,
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 }
@@ -707,6 +706,53 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
+}
+
+type blockNumberFromHeader struct{}
+
+func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
+	return params.GetBlockNumberFromHeaderGas
+}
+
+func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.DecodeBytes(input, &header)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	blockNumber := header.Number.Bytes()
+	blockNumberBytes := common.LeftPadBytes(blockNumber[:], 32)
+
+	return blockNumberBytes, gas, nil
+}
+
+type hashHeader struct{}
+
+func (c *hashHeader) RequiredGas(input []byte) uint64 {
+	return params.HashHeaderGas
+}
+
+func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.DecodeBytes(input, &header)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	hashBytes := header.Hash().Bytes()
+
+	return hashBytes, gas, nil
 }
 
 type getParentSealBitmap struct{}
