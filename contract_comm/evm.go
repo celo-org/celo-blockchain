@@ -41,12 +41,12 @@ var (
 // TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
 
 // ChainContext supports retrieving chain data and consensus parameters
-// from the blockchain to be used during transaction processing.
+// from the block chain to be used during transaction processing.
 type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
-	// GetHeader returns the current header.
+	// GetHeader returns the hash corresponding to the given hash and number.
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetVMConfig returns the node's vm configuration
@@ -70,24 +70,30 @@ func NewEVMContext(msg types.Message, header *types.Header, chain ChainContext, 
 		beneficiary = *author
 	}
 
+	var engine consensus.Engine
+	if chain != nil {
+		engine = chain.Engine()
+	}
+
 	return vm.Context{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		Origin:      msg.From(),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).Set(header.Time),
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		GasLimit:    header.GasLimit,
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
-		Header:      header,
-		Engine:      chain.Engine(),
+		CanTransfer:         CanTransfer,
+		Transfer:            Transfer,
+		GetHash:             GetHashFn(header, chain),
+		GetParentSealBitmap: GetParentSealBitmapFn(header, chain),
+		VerifySeal:          VerifySealFn(header, chain),
+		Origin:              msg.From(),
+		Coinbase:            beneficiary,
+		BlockNumber:         new(big.Int).Set(header.Number),
+		Time:                new(big.Int).Set(header.Time),
+		Difficulty:          new(big.Int).Set(header.Difficulty),
+		GasLimit:            header.GasLimit,
+		GasPrice:            new(big.Int).Set(msg.GasPrice()),
+		Engine:              engine,
 	}
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
-func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash {
+func GetHashFn(ref *types.Header, chain ChainContext) func(uint64) common.Hash {
 	var cache map[uint64]common.Hash
 
 	return func(n uint64) common.Hash {
@@ -112,7 +118,7 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	}
 }
 
-// CanTransfer checks whether there are enough funds in the address's account to make a transfer.
+// CanTransfer checks whether there are enough funds in the address' account to make a transfer.
 // This does not take the necessary gas into account to make the transfer valid.
 func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
@@ -122,6 +128,64 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
+}
+
+// GetParentSealFn returns a GetParentSeal function that returns the aggregated parent seal at the given block number.
+// Note: Unless previously cached, retrieves every block between the reference block and n.
+func GetParentSealBitmapFn(ref *types.Header, chain ChainContext) func(uint64) *big.Int {
+	var cache map[uint64]*big.Int
+
+	return func(n uint64) *big.Int {
+		// If the block is the unsealed reference block or later, return nil.
+		if n >= ref.Number.Uint64() {
+			return nil
+		}
+
+		// If there's no cache yet, make one
+		if cache == nil {
+			cache = make(map[uint64]*big.Int)
+		} else {
+			// Try to fulfill the request from the cache
+			if bitmap, ok := cache[n]; ok {
+				return bitmap
+			}
+		}
+
+		// Not cached, iterate the blocks and cache the hashes (not limited here)
+		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
+			var bitmap *big.Int
+			istanbulExtra, err := types.ExtractIstanbulExtra(header)
+			if err == nil {
+				bitmap = istanbulExtra.AggregatedSeal.Bitmap
+				cache[header.Number.Uint64()] = bitmap
+			}
+			if n == header.Number.Uint64() {
+				return bitmap
+			}
+		}
+		return nil
+	}
+}
+
+// VerifySealFn returns a function which returns true when the given header has a verifiable seal.
+func VerifySealFn(ref *types.Header, chain ChainContext) func(*types.Header) bool {
+	return func(header *types.Header) bool {
+		// If the block is later than the unsealed reference block, return false.
+		if header.Number.Cmp(ref.Number) > 0 {
+			return false
+		}
+
+		// FIXME: Implementation currently relies on the Istanbul engine's internal view of the
+		// chain, so return false if this is not an Istanbul chain. As a consequence of this the
+		// seal is always verified against the canonical chain, which makes behavior undefined if
+		// this function is evaluated on a chain which does not have the highest total difficulty.
+		if chain.Config().Istanbul == nil {
+			return false
+		}
+
+		// Submit the header to the engine's seal verification function.
+		return chain.Engine().VerifySeal(nil, header) == nil
+	}
 }
 
 // An EVM handler to make calls to smart contracts from within geth

@@ -35,7 +35,7 @@ type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
-	// GetHeader returns the hash corresponding to their hash.
+	// GetHeader returns the hash corresponding to the given hash and number.
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetVMConfig returns the node's vm configuration
@@ -108,7 +108,7 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(uint64) common.Hash {
 }
 
 // CanTransfer checks whether there are enough funds in the address' account to make a transfer.
-// This does not take the necessary gas in to account to make the transfer valid.
+// This does not take the necessary gas into account to make the transfer valid.
 func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
 }
