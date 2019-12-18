@@ -412,7 +412,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			default:
 				stay = sb.core.Sequence().Cmp(header.Number) < 0
 				if !stay {
-					logger.Debug("Current sequence matches header", "cur_seq", sb.core.Sequence())
+					logger.Trace("Current sequence matches header", "cur_seq", sb.core.Sequence())
 				}
 			}
 		}
@@ -422,13 +422,13 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		}
 		parentAggregatedSeal := parentExtra.AggregatedSeal
 
-		logger.Debug("Got ParentAggregatedSeal", "parentAggregatedSeal", parentAggregatedSeal.String())
+		logger.Trace("Got ParentAggregatedSeal", "parentAggregatedSeal", parentAggregatedSeal.String())
 		if sb.core.Sequence().Cmp(header.Number) == 0 {
 			parentCommits := sb.core.ParentCommits()
 			logger = logger.New("cur_seq", sb.core.Sequence())
 			if parentCommits != nil && parentCommits.Size() != 0 {
 				logger = logger.New("numParentCommits", parentCommits.Size())
-				logger.Debug("Found commit messages from previous sequence to combine with ParentAggregatedSeal")
+				logger.Trace("Found commit messages from previous sequence to combine with ParentAggregatedSeal")
 				// if we had any seals gossiped to us, proceed to add them to the
 				// already aggregated signature
 				if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, parentCommits); err != nil {
@@ -442,7 +442,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 						logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
 					} else {
 						parentAggregatedSeal = unionAggregatedSeal
-						logger.Debug("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
+						logger.Trace("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
 					}
 				}
 			} else {
