@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
