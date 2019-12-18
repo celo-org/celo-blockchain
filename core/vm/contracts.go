@@ -60,13 +60,14 @@ func celoPrecompileAddress(index byte) common.Address {
 var (
 	CeloPrecompiledContractsAddressOffset = byte(0xff)
 
-	transferAddress          = celoPrecompileAddress(2)
-	fractionMulExpAddress    = celoPrecompileAddress(3)
-	proofOfPossessionAddress = celoPrecompileAddress(4)
-	getValidatorAddress      = celoPrecompileAddress(5)
-	numberValidatorsAddress  = celoPrecompileAddress(6)
-	epochSizeAddress         = celoPrecompileAddress(7)
-	// DO NOT MERGE: Add in precompiles from https://github.com/celo-org/celo-blockchain/pull/767
+	transferAddress              = celoPrecompileAddress(2)
+	fractionMulExpAddress        = celoPrecompileAddress(3)
+	proofOfPossessionAddress     = celoPrecompileAddress(4)
+	getValidatorAddress          = celoPrecompileAddress(5)
+	numberValidatorsAddress      = celoPrecompileAddress(6)
+	epochSizeAddress             = celoPrecompileAddress(7)
+	blockNumberFromHeaderAddress = celoPrecompileAddress(8)
+	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
 )
@@ -84,12 +85,15 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
-	fractionMulExpAddress:        &fractionMulExp{},
-	proofOfPossessionAddress:     &proofOfPossession{},
-	getValidatorAddress:          &getValidator{},
-	numberValidatorsAddress:      &numberValidators{},
-	epochSizeAddress:             &epochSize{},
+	transferAddress:          &transfer{},
+	fractionMulExpAddress:    &fractionMulExp{},
+	proofOfPossessionAddress: &proofOfPossession{},
+	getValidatorAddress:      &getValidator{},
+	numberValidatorsAddress:  &numberValidators{},
+	epochSizeAddress:         &epochSize{},
+	// DO NOT MERGE: Merge after these precompiles are added.
+	blockNumberFromHeaderAddress: nil,
+	hashHeaderAddress:            nil,
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 }
@@ -630,9 +634,9 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 		return nil, gas, ErrInputLength
 	}
 
-	index := (&big.Int{}).SetBytes(input[0:32])
+	index := new(big.Int).SetBytes(input[0:32])
 
-	blockNumber := (&big.Int{}).SetBytes(input[32:64])
+	blockNumber := new(big.Int).SetBytes(input[32:64])
 	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
@@ -673,7 +677,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 		return nil, gas, ErrInputLength
 	}
 
-	blockNumber := (&big.Int{}).SetBytes(input[0:32])
+	blockNumber := new(big.Int).SetBytes(input[0:32])
 	if blockNumber.Cmp(common.Big0) == 0 {
 		// Genesis validator set is empty. Return 0.
 		return make([]byte, 32), gas, nil
@@ -726,7 +730,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 		return nil, gas, ErrInputLength
 	}
 
-	blockNumber := (&big.Int{}).SetBytes(input[0:32])
+	blockNumber := new(big.Int).SetBytes(input[0:32])
 
 	// Ensure the request is for information from a previously sealed block.
 	if blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {

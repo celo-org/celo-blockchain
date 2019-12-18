@@ -360,7 +360,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	}
 
 	// Acquire the validator set whose signatures will be verified.
-	// Note: Based on the current implemenation of validator set construction, only validator sets
+	// FIXME: Based on the current implemenation of validator set construction, only validator sets
 	// from the canonical chain will be used. This means that if the provided header is a valid
 	// member of a non-canonical chain, seal verification will only succeed if the validator set
 	// happens to be the same as the canonical chain at the same block number (as would be the case
