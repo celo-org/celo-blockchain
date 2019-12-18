@@ -53,7 +53,7 @@ var (
 	// address.
 	errInvalidSignature = errors.New("invalid signature")
 	// errInsufficientSeals is returned when there is not enough signatures to
-	// pass the 2F+1 quorum check.
+	// pass the quorum check.
 	errInsufficientSeals = errors.New("not enough seals to reach quorum")
 	// errUnknownBlock is returned when the list of validators or header is requested for a block
 	// that is not part of the local blockchain.
@@ -111,8 +111,7 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules of a
-// given engine. Verifying the seal may be done optionally here, or explicitly
-// via the VerifySeal method.
+// given engine. Verifies the seal regardless of given "seal" argument.
 func (sb *Backend) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	return sb.verifyHeader(chain, header, nil)
 }
@@ -350,17 +349,24 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 // VerifySeal checks whether the crypto seal on a header is valid according to
 // the consensus rules of the given engine.
 func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
-	// get parent header and ensure the signer is in parent's validator set
-	number := header.Number.Uint64()
-	if number == 0 {
+	// Ensure the block number is greater than zero, but less or equal to than max uint64.
+	if header.Number.Cmp(common.Big0) <= 0 || !header.Number.IsUint64() {
 		return errUnknownBlock
 	}
 
-	// ensure that the difficulty equals to defaultDifficulty
-	if header.Difficulty.Cmp(defaultDifficulty) != 0 {
-		return errInvalidDifficulty
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return errInvalidExtraDataFormat
 	}
-	return sb.verifySigner(chain, header, nil)
+
+	// Acquire the validator set whose signatures will be verified.
+	// Note: Based on the current implemenation of validator set construction, only validator sets
+	// from the canonical chain will be used. This means that if the provided header is a valid
+	// member of a non-canonical chain, seal verification will only succeed if the validator set
+	// happens to be the same as the canonical chain at the same block number (as would be the case
+	// for a fork from the canonical chain which does not cross an epoch boundary)
+	valSet := sb.getValidators(header.Number.Uint64()-1, common.Hash{})
+	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
 // Prepare initializes the consensus fields of a block header according to the

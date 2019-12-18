@@ -30,4 +30,5 @@ var (
 	ErrValidatorsOutOfBounds    = errors.New("validator index out of bounds")
 	ErrBlockNumberOutOfBounds   = errors.New("block number out of bounds")
 	ErrInputLength              = errors.New("invalid input length")
+	ErrInputValidation          = errors.New("unable to validate input")
 )

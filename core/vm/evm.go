@@ -51,6 +51,9 @@ type (
 	// GetParentSealBitmapFunc returns the parent aggregated seal from the
 	// nth block header in the chain.
 	GetParentSealBitmapFunc func(uint64) *big.Int
+	// VerifySealFunc returns true if the given header contains a valid seal
+	// according to the engine's consensus rules.
+	VerifySealFunc func(*types.Header) bool
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -90,8 +93,10 @@ type Context struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
-	// GetParentSeal returns the hash corresponding to n
+	// GetParentSealBitmap returns the parent seal bitmap corresponding to n
 	GetParentSealBitmap GetParentSealBitmapFunc
+	// VerifySeal verifies or returns an error for the given header
+	VerifySeal VerifySealFunc
 
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN

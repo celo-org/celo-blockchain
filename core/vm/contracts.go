@@ -26,11 +26,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -51,13 +53,23 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var CeloPrecompiledContractsAddressOffset = byte(0xff)
-var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
-var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
-var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
-var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
-var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
-var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
+func celoPrecompileAddress(index byte) common.Address {
+	return common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - index)))
+}
+
+var (
+	CeloPrecompiledContractsAddressOffset = byte(0xff)
+
+	transferAddress          = celoPrecompileAddress(2)
+	fractionMulExpAddress    = celoPrecompileAddress(3)
+	proofOfPossessionAddress = celoPrecompileAddress(4)
+	getValidatorAddress      = celoPrecompileAddress(5)
+	numberValidatorsAddress  = celoPrecompileAddress(6)
+	epochSizeAddress         = celoPrecompileAddress(7)
+	// DO NOT MERGE: Add in precompiles from https://github.com/celo-org/celo-blockchain/pull/767
+	getParentSealBitmapAddress   = celoPrecompileAddress(10)
+	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+)
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -72,12 +84,14 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:          &transfer{},
-	fractionMulExpAddress:    &fractionMulExp{},
-	proofOfPossessionAddress: &proofOfPossession{},
-	getValidatorAddress:      &getValidator{},
-	numberValidatorsAddress:  &numberValidators{},
-	epochSizeAddress:         &epochSize{},
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	getParentSealBitmapAddress:   &getParentSealBitmap{},
+	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -616,11 +630,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 		return nil, gas, ErrInputLength
 	}
 
-	indexUint256 := (&big.Int{}).SetBytes(input[0:32])
-	if !indexUint256.IsUint64() {
-		return nil, gas, ErrValidatorsOutOfBounds
-	}
-	index := indexUint256.Uint64()
+	index := (&big.Int{}).SetBytes(input[0:32])
 
 	blockNumber := (&big.Int{}).SetBytes(input[32:64])
 	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
@@ -629,11 +639,12 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 
 	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
-	if index >= uint64(len(validators)) {
+	// Ensure index, which is guaranteed to be non-negative, is valid.
+	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
 
-	validatorAddress := validators[index].Address()
+	validatorAddress := validators[index.Uint64()].Address()
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
@@ -702,7 +713,7 @@ func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
 }
 
 // Return the signer bitmap from the parent seal of a past block in the chain.
-// Requested parent seal must have occured within 4 epochs of the current block number.
+// Requested parent seal must have occurred within 4 epochs of the current block number.
 func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
@@ -734,4 +745,41 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	}
 
 	return common.LeftPadBytes(bitmap.Bytes()[:], 32), gas, nil
+}
+
+// getVerifiedSealBitmap is a precompile to verify the seal on a given header and extract its bitmap.
+type getVerifiedSealBitmap struct{}
+
+func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
+	return params.GetVerifiedSealBitmapGas
+}
+
+func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of a single argument:
+	//   header:  rlp encoded block header
+	if len(input) == 0 {
+		return nil, gas, ErrInputLength
+	}
+
+	// Decode and verify the seal against the engine rules.
+	header := new(types.Header)
+	if err := rlp.DecodeBytes(input, header); err != nil {
+		return nil, gas, err
+	}
+	if !evm.Context.VerifySeal(header) {
+		return nil, gas, ErrInputValidation
+	}
+
+	// Extract the verified seal from the header.
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
 }
