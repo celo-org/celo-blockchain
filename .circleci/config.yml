@@ -2,7 +2,7 @@ version: 2
 
 geth-defaults: &geth-defaults
   docker:
-    - image: circleci/golang:1.12
+    - image: circleci/golang:1.13
 
 rust-defaults: &rust-defaults
   docker:
@@ -12,7 +12,7 @@ end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node10-gcloud
   environment:
-    CELO_MONOREPO_BRANCH_TO_TEST: master
+    CELO_MONOREPO_BRANCH_TO_TEST: mc/geth1.9
 
 jobs:
   unit-tests:
