@@ -366,7 +366,6 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	sb.logger.Info("Entered Backend.Prepare()")
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
@@ -394,7 +393,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
-	sb.logger.Info("Done sleeping")
 
 	logger := sb.logger.New("func", "Backend.Prepare()", "number", number)
 	// modify the block header to include all the ParentCommits
