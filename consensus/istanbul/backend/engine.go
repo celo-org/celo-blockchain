@@ -365,7 +365,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	// member of a non-canonical chain, seal verification will only succeed if the validator set
 	// happens to be the same as the canonical chain at the same block number (as would be the case
 	// for a fork from the canonical chain which does not cross an epoch boundary)
-	valSet := sb.getValidators(header.Number.Uint64()-1, common.Hash{})
+	valSet := sb.getValidators(header.Number.Uint64()-1, header.ParentHash)
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
@@ -736,7 +736,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		var blockHash common.Hash
-		if numberIter == number {
+		if numberIter == number && hash != (common.Hash{}) {
 			blockHash = hash
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)
@@ -846,7 +846,9 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap := snap.copy()
 
 	returnSnap.Number = number
-	returnSnap.Hash = hash
+	if hash != (common.Hash{}) {
+		returnSnap.Hash = hash
+	}
 
 	return returnSnap, nil
 }

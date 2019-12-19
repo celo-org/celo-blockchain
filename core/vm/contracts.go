@@ -635,7 +635,11 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	index := new(big.Int).SetBytes(input[0:32])
 
 	blockNumber := new(big.Int).SetBytes(input[32:64])
-	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Validator set for the genesis block is empty, so any index is out of bounds.
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
 
@@ -778,6 +782,9 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	blockNumber := new(big.Int).SetBytes(input[0:32])
 
 	// Ensure the request is for information from a previously sealed block.
+	if blockNumber.Cmp(common.Big0) == 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
 	if blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}

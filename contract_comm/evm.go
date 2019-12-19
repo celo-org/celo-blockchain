@@ -41,12 +41,12 @@ var (
 // TODO(kevjue) - Figure out a way to not have duplicated code between this file and core/evm.go
 
 // ChainContext supports retrieving chain data and consensus parameters
-// from the block chain to be used during transaction processing.
+// from the blockchain to be used during transaction processing.
 type ChainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
-	// GetHeader returns the hash corresponding to the given hash and number.
+	// GetHeader returns the header corresponding to the given hash and number.
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetVMConfig returns the node's vm configuration
@@ -70,11 +70,6 @@ func NewEVMContext(msg types.Message, header *types.Header, chain ChainContext, 
 		beneficiary = *author
 	}
 
-	var engine consensus.Engine
-	if chain != nil {
-		engine = chain.Engine()
-	}
-
 	return vm.Context{
 		CanTransfer:         CanTransfer,
 		Transfer:            Transfer,
@@ -88,7 +83,7 @@ func NewEVMContext(msg types.Message, header *types.Header, chain ChainContext, 
 		Difficulty:          new(big.Int).Set(header.Difficulty),
 		GasLimit:            header.GasLimit,
 		GasPrice:            new(big.Int).Set(msg.GasPrice()),
-		Engine:              engine,
+		Engine:              chain.Engine(),
 	}
 }
 
