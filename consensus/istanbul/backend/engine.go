@@ -404,15 +404,17 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		// This typically happens in round > 0, since round 0 typically hits the "time.Sleep()"
 		// above.
 		// When this happens, loop until sb.core moves to the next sequence, with a limit of 500ms.
+		var seq *big.Int
 		for stay, timeout := true, time.After(500*time.Millisecond); stay; {
 			select {
 			case <-timeout:
 				log.Warn("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
 				stay = false
 			default:
-				stay = sb.core.Sequence().Cmp(header.Number) < 0
+				seq = sb.core.Sequence()
+				stay = seq == nil || seq.Cmp(header.Number) < 0
 				if !stay {
-					logger.Trace("Current sequence matches header", "cur_seq", sb.core.Sequence())
+					logger.Trace("Current sequence matches header", "cur_seq", seq)
 				}
 			}
 		}
@@ -421,10 +423,9 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 			return err
 		}
 		parentAggregatedSeal := parentExtra.AggregatedSeal
-
 		logger = logger.New("parentAggregatedSeal", parentAggregatedSeal.String())
 		logger.Trace("Got ParentAggregatedSeal")
-		if sb.core.Sequence().Cmp(header.Number) == 0 {
+		if seq != nil && seq.Cmp(header.Number) == 0 {
 			parentCommits := sb.core.ParentCommits()
 			logger = logger.New("cur_seq", sb.core.Sequence())
 			if parentCommits != nil && parentCommits.Size() != 0 {
