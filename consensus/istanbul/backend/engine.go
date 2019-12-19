@@ -404,20 +404,26 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		// This typically happens in round > 0, since round 0 typically hits the "time.Sleep()"
 		// above.
 		// When this happens, loop until sb.core moves to the next sequence, with a limit of 500ms.
-		var seq *big.Int
-		for stay, timeout := true, time.After(500*time.Millisecond); stay; {
-			select {
-			case <-timeout:
-				log.Warn("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
-				stay = false
-			default:
-				seq = sb.core.Sequence()
-				stay = seq == nil || seq.Cmp(header.Number) < 0
-				if !stay {
-					logger.Trace("Current sequence matches header", "cur_seq", seq)
+		waitForSequenceChange := func() *big.Int {
+			timeout := time.After(500 * time.Millisecond)
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					seq := sb.core.Sequence()
+					if seq != nil && seq.Cmp(header.Number) == 0 {
+						logger.Trace("Current sequence matches header", "cur_seq", seq)
+						return seq
+					}
+				case <-timeout:
+					log.Warn("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
+					return nil
 				}
 			}
 		}
+		seq := waitForSequenceChange()
+
 		parentExtra, err := types.ExtractIstanbulExtra(parent)
 		if err != nil {
 			return err
