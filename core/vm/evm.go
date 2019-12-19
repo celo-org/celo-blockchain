@@ -48,9 +48,8 @@ type (
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
-	// GetParentSealBitmapFunc returns the parent aggregated seal from the
-	// nth block header in the chain.
-	GetParentSealBitmapFunc func(uint64) *big.Int
+	// GetHeaderByNumber returns the header of the nth block in the chain.
+	GetHeaderByNumberFunc func(uint64) *types.Header
 	// VerifySealFunc returns true if the given header contains a valid seal
 	// according to the engine's consensus rules.
 	VerifySealFunc func(*types.Header) bool
@@ -94,7 +93,7 @@ type Context struct {
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
 	// GetParentSealBitmap returns the parent seal bitmap corresponding to n
-	GetParentSealBitmap GetParentSealBitmapFunc
+	GetHeaderByNumber GetHeaderByNumberFunc
 	// VerifySeal verifies or returns an error for the given header
 	VerifySeal VerifySealFunc
 

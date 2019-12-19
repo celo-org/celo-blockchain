@@ -57,6 +57,12 @@ type ChainContext interface {
 	// GetHeader returns the hash corresponding to the given hash and number.
 	GetHeader(common.Hash, uint64) *types.Header
 
+	// GetHeaderByNumber returns the hash corresponding number.
+	// FIXME: Use of this function, as implemented, in the EVM context produces undefined behavior
+	// in the pressence of forks. A new method needs to be created to retrieve a header by number
+	// in the correct fork.
+	GetHeaderByNumber(uint64) *types.Header
+
 	// GetVMConfig returns the node's vm configuration
 	GetVMConfig() *Config
 
@@ -84,19 +90,19 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	}
 
 	return Context{
-		CanTransfer:         CanTransfer,
-		Transfer:            Transfer,
-		GetHash:             GetHashFn(header, chain),
-		GetParentSealBitmap: GetParentSealBitmapFn(header, chain),
-		VerifySeal:          VerifySealFn(header, chain),
-		Origin:              msg.From(),
-		Coinbase:            beneficiary,
-		BlockNumber:         new(big.Int).Set(header.Number),
-		Time:                new(big.Int).Set(header.Time),
-		Difficulty:          new(big.Int).Set(header.Difficulty),
-		GasLimit:            header.GasLimit,
-		GasPrice:            new(big.Int).Set(msg.GasPrice()),
-		Engine:              engine,
+		CanTransfer:       CanTransfer,
+		Transfer:          Transfer,
+		GetHash:           GetHashFn(header, chain),
+		GetHeaderByNumber: chain.GetHeaderByNumber,
+		VerifySeal:        VerifySealFn(header, chain),
+		Origin:            msg.From(),
+		Coinbase:          beneficiary,
+		BlockNumber:       new(big.Int).Set(header.Number),
+		Time:              new(big.Int).Set(header.Time),
+		Difficulty:        new(big.Int).Set(header.Difficulty),
+		GasLimit:          header.GasLimit,
+		GasPrice:          new(big.Int).Set(msg.GasPrice()),
+		Engine:            engine,
 	}
 }
 
@@ -136,43 +142,6 @@ func CanTransfer(db StateDB, addr common.Address, amount *big.Int) bool {
 func Transfer(db StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
-}
-
-// GetParentSealFn returns a GetParentSeal function that returns the aggregated parent seal at the given block number.
-// Note: Unless previously cached, retrieves every block between the reference block and n.
-func GetParentSealBitmapFn(ref *types.Header, chain ChainContext) func(uint64) *big.Int {
-	var cache map[uint64]*big.Int
-
-	return func(n uint64) *big.Int {
-		// If the block is the unsealed reference block or later, return nil.
-		if n >= ref.Number.Uint64() {
-			return nil
-		}
-
-		// If there's no cache yet, make one
-		if cache == nil {
-			cache = make(map[uint64]*big.Int)
-		} else {
-			// Try to fulfill the request from the cache
-			if bitmap, ok := cache[n]; ok {
-				return bitmap
-			}
-		}
-
-		// Not cached, iterate the blocks and cache the hashes (not limited here)
-		for header := chain.GetHeader(ref.ParentHash, ref.Number.Uint64()-1); header != nil; header = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1) {
-			var bitmap *big.Int
-			istanbulExtra, err := types.ExtractIstanbulExtra(header)
-			if err == nil {
-				bitmap = istanbulExtra.AggregatedSeal.Bitmap
-				cache[header.Number.Uint64()] = bitmap
-			}
-			if n == header.Number.Uint64() {
-				return bitmap
-			}
-		}
-		return nil
-	}
 }
 
 // VerifySealFn returns a function which returns true when the given header has a verifiable seal.

@@ -729,7 +729,7 @@ func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EV
 	var header types.Header
 	err = rlp.DecodeBytes(input, &header)
 	if err != nil {
-		return nil, gas, err
+		return nil, gas, ErrInputDecode
 	}
 
 	blockNumber := header.Number.Bytes()
@@ -753,7 +753,7 @@ func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint
 	var header types.Header
 	err = rlp.DecodeBytes(input, &header)
 	if err != nil {
-		return nil, gas, err
+		return nil, gas, ErrInputDecode
 	}
 
 	hashBytes := header.Hash().Bytes()
@@ -797,12 +797,19 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
 
-	bitmap := evm.Context.GetParentSealBitmap(blockNumber.Uint64())
-	if bitmap == nil {
-		return make([]byte, 32), gas, nil
+	header := evm.Context.GetHeaderByNumber(blockNumber.Uint64())
+	if header == nil {
+		// Under sane circumstances, this error should never be reached.
+		return nil, gas, ErrUnexpected
 	}
 
-	return common.LeftPadBytes(bitmap.Bytes()[:], 32), gas, nil
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		// Header is from a non-Istanbul engine.
+		return nil, gas, ErrEngineIncompatible
+	}
+
+	return common.LeftPadBytes(extra.ParentAggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
 }
 
 // getVerifiedSealBitmap is a precompile to verify the seal on a given header and extract its bitmap.
@@ -827,7 +834,7 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	// Decode and verify the seal against the engine rules.
 	header := new(types.Header)
 	if err := rlp.DecodeBytes(input, header); err != nil {
-		return nil, gas, err
+		return nil, gas, ErrInputDecode
 	}
 	if !evm.Context.VerifySeal(header) {
 		return nil, gas, ErrInputValidation
@@ -836,7 +843,8 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	// Extract the verified seal from the header.
 	extra, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
-		return nil, gas, err
+		// Seal verified by a non-Istanbul engine. Return an error.
+		return nil, gas, ErrEngineIncompatible
 	}
 
 	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
