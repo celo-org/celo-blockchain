@@ -100,7 +100,7 @@ const (
 	GetEpochSizeGas             uint64 = 1000  // Cost of querying the number of blocks in an epoch.
 	GetBlockNumberFromHeaderGas uint64 = 10000 // Cost of decoding a block header.
 	HashHeaderGas               uint64 = 20000 // Cost of hashing a block header.
-	GetParentSealBitmapGas      uint64 = 5000  // Cost of reading the parent seal bitmap from the chain.
+	GetParentSealBitmapGas      uint64 = 6000  // Cost of reading the parent seal bitmap from the chain.
 	GetVerifiedSealBitmapGas    uint64 = 55000 // Cost of verifying the seal on a given RLP encoded header.
 )
 
