@@ -796,7 +796,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 
 	header := evm.Context.GetHeaderByNumber(blockNumber.Uint64())
 	if header == nil {
-		log.Error("Unexpected failure to retreive block in getParentSealBitmap precompile", "blockNumber", blockNumber)
+		log.Error("Unexpected failure to retrieve block in getParentSealBitmap precompile", "blockNumber", blockNumber)
 		return nil, gas, ErrUnexpected
 	}
 
