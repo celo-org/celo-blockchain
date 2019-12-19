@@ -42,6 +42,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
+	communityReward := big.NewInt(params.Ether)
 	validatorEpochPayment, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochPaymentAndRewards(header, state)
 	if err != nil {
 		return err
@@ -67,6 +68,11 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 		return err
 	}
 
+	totalCommunityRewards, err := sb.distributeCommunityRewards(header, state, communityReward)
+	if err != nil {
+		return err
+	}
+
 	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet, totalVoterRewards, uptimes)
 	if err != nil {
 		return err
@@ -88,7 +94,9 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
 	}
 
-	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
+	mintedGold := big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold)
+	mintedGold.Add(mintedGold, totalCommunityRewards)
+	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
@@ -146,21 +154,25 @@ func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.St
 	return totalEpochPayments, nil
 }
 
-func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
+func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state.StateDB, totalCommunityReward *big.Int) (*big.Int, error) {
 	totalEpochRewards := big.NewInt(0)
-
-	// Fixed epoch reward to the community fund.
-	// TODO(asa): This should be a fraction of the overall reward to stakers.
-	communityEpochReward := big.NewInt(params.Ether)
+	// Fixed epoch reward to the infrastructure fund.
+	// TODO(joshua): The community reward needs to be split among different recipients
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err
 	}
 
 	if governanceAddress != nil {
-		state.AddBalance(*governanceAddress, communityEpochReward)
-		totalEpochRewards.Add(totalEpochRewards, communityEpochReward)
+		state.AddBalance(*governanceAddress, totalCommunityReward)
+		totalEpochRewards.Add(totalEpochRewards, totalCommunityReward)
 	}
+
+	return totalEpochRewards, err
+}
+
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
+	totalEpochRewards := big.NewInt(0)
 
 	// Select groups that elected at least one validator aggregate their uptimes.
 	var groups []common.Address
