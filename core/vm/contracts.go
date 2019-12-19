@@ -827,21 +827,18 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 
 	// input is comprised of a single argument:
 	//   header:  rlp encoded block header
-	if len(input) == 0 {
-		return nil, gas, ErrInputLength
-	}
-
-	// Decode and verify the seal against the engine rules.
-	header := new(types.Header)
-	if err := rlp.DecodeBytes(input, header); err != nil {
+	var header types.Header
+	if err := rlp.DecodeBytes(input, &header); err != nil {
 		return nil, gas, ErrInputDecode
 	}
-	if !evm.Context.VerifySeal(header) {
-		return nil, gas, ErrInputValidation
+
+	// Verify the seal against the engine rules.
+	if !evm.Context.VerifySeal(&header) {
+		return nil, gas, ErrInputVerification
 	}
 
 	// Extract the verified seal from the header.
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := types.ExtractIstanbulExtra(&header)
 	if err != nil {
 		// Seal verified by a non-Istanbul engine. Return an error.
 		return nil, gas, ErrEngineIncompatible

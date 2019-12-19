@@ -31,7 +31,7 @@ var (
 	ErrBlockNumberOutOfBounds   = errors.New("block number out of bounds")
 	ErrInputLength              = errors.New("invalid input length")
 	ErrInputDecode              = errors.New("unable to decode input")
-	ErrInputValidation          = errors.New("unable to validate input")
+	ErrInputVerification        = errors.New("unable to verify header")
 	ErrEngineIncompatible       = errors.New("blockchain engine incompatible with request")
 	ErrUnexpected               = errors.New("unexpected execution error")
 )
