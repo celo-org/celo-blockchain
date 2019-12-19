@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package vm
 
 import (
 	"math/big"
@@ -23,11 +23,30 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// NOTE: Any changes made to this file should be duplicated to contract_comm/evm.go!
+// Message represents a message sent to a contract.
+type Message interface {
+	From() common.Address
+	//FromFrontier() (common.Address, error)
+	To() *common.Address
+
+	GasPrice() *big.Int
+	Gas() uint64
+
+	// FeeCurrency specifies the currency for gas and gateway fees.
+	// nil correspond to Celo Gold (native currency).
+	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
+	FeeCurrency() *common.Address
+	GatewayFeeRecipient() *common.Address
+	GatewayFee() *big.Int
+	Value() *big.Int
+
+	Nonce() uint64
+	CheckNonce() bool
+	Data() []byte
+}
 
 // ChainContext supports retrieving chain data and consensus parameters
 // from the blockchain to be used during transaction processing.
@@ -39,7 +58,7 @@ type ChainContext interface {
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetVMConfig returns the node's vm configuration
-	GetVMConfig() *vm.Config
+	GetVMConfig() *Config
 
 	CurrentHeader() *types.Header
 
@@ -50,7 +69,7 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
 	if author == nil {
@@ -64,7 +83,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		engine = chain.Engine()
 	}
 
-	return vm.Context{
+	return Context{
 		CanTransfer:         CanTransfer,
 		Transfer:            Transfer,
 		GetHash:             GetHashFn(header, chain),
@@ -109,12 +128,12 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(uint64) common.Hash {
 
 // CanTransfer checks whether there are enough funds in the address' account to make a transfer.
 // This does not take the necessary gas into account to make the transfer valid.
-func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
+func CanTransfer(db StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
 }
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
+func Transfer(db StateDB, sender, recipient common.Address, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 }

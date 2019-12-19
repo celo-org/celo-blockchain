@@ -59,7 +59,7 @@ The state transitioning model does all the necessary work to work out a valid ne
 */
 type StateTransition struct {
 	gp              *GasPool
-	msg             Message
+	msg             vm.Message
 	gas             uint64
 	gasPrice        *big.Int
 	initialGas      uint64
@@ -68,28 +68,6 @@ type StateTransition struct {
 	state           vm.StateDB
 	evm             *vm.EVM
 	gasPriceMinimum *big.Int
-}
-
-// Message represents a message sent to a contract.
-type Message interface {
-	From() common.Address
-	//FromFrontier() (common.Address, error)
-	To() *common.Address
-
-	GasPrice() *big.Int
-	Gas() uint64
-
-	// FeeCurrency specifies the currency for gas and gateway fees.
-	// nil correspond to Celo Gold (native currency).
-	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
-	FeeCurrency() *common.Address
-	GatewayFeeRecipient() *common.Address
-	GatewayFee() *big.Int
-	Value() *big.Int
-
-	Nonce() uint64
-	CheckNonce() bool
-	Data() []byte
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
@@ -143,7 +121,7 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool, header *types.H
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransition {
 	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), evm.GetHeader(), evm.GetStateDB())
 
 	return &StateTransition{
@@ -165,7 +143,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
+func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
