@@ -846,9 +846,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	returnSnap := snap.copy()
 
 	returnSnap.Number = number
-	if hash != (common.Hash{}) {
-		returnSnap.Hash = hash
-	}
+	returnSnap.Hash = hash
 
 	return returnSnap, nil
 }

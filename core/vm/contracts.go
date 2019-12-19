@@ -784,10 +784,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	blockNumber := new(big.Int).SetBytes(input[0:32])
 
 	// Ensure the request is for information from a previously sealed block.
-	if blockNumber.Cmp(common.Big0) == 0 {
-		return nil, gas, ErrBlockNumberOutOfBounds
-	}
-	if blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {
+	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
 
@@ -799,13 +796,13 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 
 	header := evm.Context.GetHeaderByNumber(blockNumber.Uint64())
 	if header == nil {
-		// Under sane circumstances, this error should never be reached.
+		log.Error("Unexpected failure to retreive block in getParentSealBitmap precompile", "blockNumber", blockNumber)
 		return nil, gas, ErrUnexpected
 	}
 
 	extra, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
-		// Header is from a non-Istanbul engine.
+		log.Error("Header without Istanbul extra data encountered in getParentSealBitmap precompile", "blockNumber", blockNumber, "err", err)
 		return nil, gas, ErrEngineIncompatible
 	}
 
@@ -840,6 +837,7 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	// Extract the verified seal from the header.
 	extra, err := types.ExtractIstanbulExtra(&header)
 	if err != nil {
+		log.Error("Header without Istanbul extra data encountered in getVerifiedSealBitmap precompile", "extraData", header.Extra, "err", err)
 		// Seal verified by a non-Istanbul engine. Return an error.
 		return nil, gas, ErrEngineIncompatible
 	}
