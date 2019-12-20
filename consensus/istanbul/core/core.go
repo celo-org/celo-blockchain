@@ -38,7 +38,7 @@ import (
 
 // New creates an Istanbul consensus core
 func New(backend istanbul.Backend, config *istanbul.Config) Engine {
-	rsdb, err := newRoundStateDB(config.RoundStateDBPath)
+	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
