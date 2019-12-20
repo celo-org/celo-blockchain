@@ -23,7 +23,6 @@ func RunTaskRepeateadly(task func(), period time.Duration) StopFn {
 	}()
 
 	return func() {
-		// stop <- struct{}{}
-		close(stop)
+		stop <- struct{}{}
 	}
 }
