@@ -24,8 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func newView(seq, round int64) *istanbul.View {
-	return &istanbul.View{Round: big.NewInt(seq), Sequence: big.NewInt(round)}
+func newView(seq, round uint64) *istanbul.View {
+	return &istanbul.View{Round: new(big.Int).SetUint64(round), Sequence: new(big.Int).SetUint64(seq)}
 }
 
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
