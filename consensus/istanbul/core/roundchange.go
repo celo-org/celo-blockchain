@@ -126,12 +126,16 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		if err := message.Decode(&roundChange); err != nil {
 			logger.Warn("Failed to decode ROUND CHANGE in certificate", "err", err)
 			return err
+		} else if roundChange.View == nil || roundChange.View.Sequence == nil || roundChange.View.Round == nil {
+			return errInvalidRoundChangeCertificateMsgView
 		}
+
 		msgLogger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
 
-		// Verify ROUND CHANGE message is for a proper view
-		if roundChange.View.Cmp(proposal.View) != 0 || roundChange.View.Round.Cmp(c.current.DesiredRound()) < 0 {
-			msgLogger.Error("Round change in certificate for wrong view", "err", err)
+		// Verify ROUND CHANGE message is for the same sequence AND a equal or subsequent round as the proposal.
+		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
+		if roundChange.View.Sequence.Cmp(proposal.View.Sequence) != 0 || roundChange.View.Round.Cmp(proposal.View.Round) < 0 {
+			msgLogger.Error("Round change in certificate for an earlier view", "roundChange.View", "err", err)
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
@@ -375,7 +379,7 @@ func (rcs *roundChangeSet) String() string {
 		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
 	}
 
-	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=<%v> %v",
+	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=%v %v",
 		len(rcs.latestRoundForVal),
 		modeRound,
 		modeRoundSize,
@@ -383,21 +387,34 @@ func (rcs *roundChangeSet) String() string {
 		strings.Join(msgsForRoundStr, ", "))
 }
 
-// Gets a round change certificate for a specific round.
-func (rcs *roundChangeSet) getCertificate(r *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
+// Gets a round change certificate for a specific round. Includes all messages of that round or later.
+// If the total is less than quorumSize, returns an empty cert and errFailedCreateRoundChangeCertificate.
+func (rcs *roundChangeSet) getCertificate(minRound *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
 
-	round := r.Uint64()
-	if rcs.msgsForRound[round] != nil && rcs.msgsForRound[round].Size() >= quorumSize {
-		messages := make([]istanbul.Message, rcs.msgsForRound[round].Size())
-		for i, message := range rcs.msgsForRound[round].Values() {
-			messages[i] = *message
+	// Sort rounds descending
+	var sortedRounds []uint64
+	for r := range rcs.msgsForRound {
+		sortedRounds = append(sortedRounds, r)
+	}
+	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
+
+	var messages []istanbul.Message
+	for _, r := range sortedRounds {
+		if r < minRound.Uint64() {
+			break
 		}
+		for _, message := range rcs.msgsForRound[r].Values() {
+			messages = append(messages, *message)
+		}
+	}
+
+	if len(messages) >= quorumSize {
 		return istanbul.RoundChangeCertificate{
 			RoundChangeMessages: messages,
 		}, nil
-	} else {
-		return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 	}
+
+	return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 }

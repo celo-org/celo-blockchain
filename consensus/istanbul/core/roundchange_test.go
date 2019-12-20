@@ -117,7 +117,7 @@ func TestRoundChangeSet(t *testing.T) {
 		for i, v := range vset.List() {
 			view := &istanbul.View{
 				Sequence: big.NewInt(1),
-				Round:    big.NewInt(int64(i * j)),
+				Round:    big.NewInt(int64((i + 1) * j)),
 			}
 			r := &istanbul.Subject{
 				View:   view,
@@ -137,21 +137,40 @@ func TestRoundChangeSet(t *testing.T) {
 	}
 
 	for i, v := range vset.List() {
-		lookingForValAtRound := uint64(roundMultiplier * i)
+		lookingForValAtRound := uint64(roundMultiplier * (i + 1))
 		if rc.msgsForRound[lookingForValAtRound].Size() != 1 {
 			t.Errorf("Round change messages at unexpected rounds: %v", rc.msgsForRound)
 		}
 		if rc.latestRoundForVal[v.Address()] != lookingForValAtRound {
 			t.Errorf("Round change messages at unexpected rounds: for %v want %v have %v",
-				i, rc.latestRoundForVal[v.Address()], lookingForValAtRound)
+				i+1, rc.latestRoundForVal[v.Address()], lookingForValAtRound)
 		}
 	}
 
-	for threshold := 1; threshold < vset.Size(); threshold++ {
+	for threshold := 1; threshold <= vset.Size(); threshold++ {
 		r := rc.MaxRound(threshold).Uint64()
-		expectedR := uint64((vset.Size() - threshold) * roundMultiplier)
+		expectedR := uint64((vset.Size() - threshold + 1) * roundMultiplier)
 		if r != expectedR {
 			t.Errorf("MaxRound: %v want %v have %v", rc.String(), expectedR, r)
+		}
+	}
+
+	// Test getCertificate
+	for r := 1; r < vset.Size(); r += roundMultiplier {
+		expectedMsgsAtRound := vset.Size() - r + 1
+		for quorum := 0; quorum < 10; quorum++ {
+			cert, err := rc.getCertificate(big.NewInt(int64(r)), quorum)
+			if quorum > expectedMsgsAtRound {
+				// Expecting fewer than quorum.
+				if err != errFailedCreateRoundChangeCertificate || len(cert.RoundChangeMessages) != 0 {
+					t.Errorf("problem in getCertificate r=%v q=1 want 0 have %v err=%v -- %v -- %v", r, len(cert.RoundChangeMessages), err, cert, rc)
+				}
+			} else {
+				// Number we are expecting no more than quorum. Expecting a cert with RC messages.
+				if err != nil || len(cert.RoundChangeMessages) != expectedMsgsAtRound {
+					t.Errorf("problem in getCertificate r=%v q=1 want %v have %v -- %v -- %v", r, expectedMsgsAtRound, len(cert.RoundChangeMessages), cert, rc)
+				}
+			}
 		}
 	}
 }
