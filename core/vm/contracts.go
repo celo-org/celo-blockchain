@@ -784,7 +784,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	blockNumber := new(big.Int).SetBytes(input[0:32])
 
 	// Ensure the request is for information from a previously sealed block.
-	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) >= 0 {
+	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
 

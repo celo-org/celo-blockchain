@@ -607,15 +607,15 @@ var getParentSealBitmapTests = []precompiledTest{
 		name:     "correct_last_block_in_history_limit",
 	},
 	{
-		input:         "0000000000000000000000000000000000000000000000000000000000002710",
+		input:         "0000000000000000000000000000000000000000000000000000000000002711",
 		expected:      "block number out of bounds",
-		name:          "invalid_chain_head",
+		name:          "invalid_chain_head_child",
 		errorExpected: true,
 	},
 	{
-		input:    "000000000000000000000000000000000000000000000000000000000000270f",
-		expected: "0000000000000000000000000000000000000000000000000000000000004692",
-		name:     "correct_chain_head_parent",
+		input:    "0000000000000000000000000000000000000000000000000000000000002710",
+		expected: "0000000000000000000000000000000000000000000000000000000000007ff0",
+		name:     "correct_chain_head",
 	},
 }
 
