@@ -233,7 +233,7 @@ func (rsdb *roundStateDBImpl) Close() error {
 }
 
 func (rsdb *roundStateDBImpl) garbageCollectEntries() {
-	logger := rsdb.logger.New("func", "StartGarbageCollector")
+	logger := rsdb.logger.New("func", "garbageCollectEntries")
 
 	oldestValidView, err := rsdb.GetOldestValidView()
 	if err != nil {
@@ -241,14 +241,14 @@ func (rsdb *roundStateDBImpl) garbageCollectEntries() {
 		return
 	}
 
-	logger.Debug("Prunning entries from old views", "oldestValidView", oldestValidView)
+	logger.Debug("Pruning entries from old views", "oldestValidView", oldestValidView)
 	count, err := rsdb.deleteEntriesOlderThan(oldestValidView)
 	if err != nil {
 		logger.Error("Aborting RoundStateDB GarbageCollect: Failed to remove entries", "entries_removed", count, "err", err)
 		return
 	}
 
-	logger.Info("Finished RoundStateDB GarbageCollect", "removed_entries", count)
+	logger.Debug("Finished RoundStateDB GarbageCollect", "removed_entries", count)
 }
 
 func (rsdb *roundStateDBImpl) deleteEntriesOlderThan(lastView *istanbul.View) (int, error) {
@@ -273,6 +273,12 @@ func (rsdb *roundStateDBImpl) deleteEntriesOlderThan(lastView *istanbul.View) (i
 // view2Key will encode a view in binary format
 // so that the binary format maintains the sort order for the view
 func view2Key(view *istanbul.View) []byte {
+	// leveldb sorts entries by key
+	// keys are sorted with their binary representation, so we need a binary representation
+	// that mantains the key order
+	// The key format is [ prefix . BigEndian(Sequence) . BigEndian(Round)]
+	// We use BigEndian so to maintain order in binary format
+	// And we want to sort by (seq, round); since seq had higher precedence than round
 	prefix := []byte(rsKey)
 	buff := make([]byte, len(prefix)+16)
 

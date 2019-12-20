@@ -5,7 +5,7 @@ import "time"
 type StopFn func()
 
 func RunTaskRepeateadly(task func(), period time.Duration) StopFn {
-	// Setup the ticket and the channel to signal
+	// Setup the ticker and the channel to signal
 	// the ending of the interval
 	ticker := time.NewTicker(period)
 	stop := make(chan struct{})
@@ -23,6 +23,7 @@ func RunTaskRepeateadly(task func(), period time.Duration) StopFn {
 	}()
 
 	return func() {
+		// stop <- struct{}{}
 		close(stop)
 	}
 }

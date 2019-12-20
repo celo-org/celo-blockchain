@@ -15,6 +15,6 @@ func TestRunTaskRepeateadly(t *testing.T) {
 	time.Sleep(25 * time.Millisecond)
 
 	if counter != 3 {
-		t.Errorf("Expect taskt to run 3 times but got %d", counter)
+		t.Errorf("Expect task to run 3 times but got %d", counter)
 	}
 }
