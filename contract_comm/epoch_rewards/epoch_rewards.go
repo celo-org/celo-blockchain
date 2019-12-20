@@ -66,14 +66,16 @@ func UpdateTargetVotingYield(header *types.Header, state vm.StateDB) error {
 	return err
 }
 
-// Returns the per validator epoch reward, the total voter reward, and (in the future) the total community reward
+// Returns the per validator epoch reward, the total voter reward, and the total community reward
 // for the epoch.
-func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, error) {
+func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, *big.Int, error) {
 	var validatorEpochReward *big.Int
 	var totalVoterRewards *big.Int
+	// TODO(joshua): return total community reward from the epoch rewards smart contract
+	totalCommunityReward := big.NewInt(params.Ether)
 	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochPaymentAndRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return validatorEpochReward, totalVoterRewards, nil
+	return validatorEpochReward, totalVoterRewards, totalCommunityReward, nil
 }

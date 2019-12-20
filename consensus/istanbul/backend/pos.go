@@ -42,9 +42,8 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if err != nil {
 		return err
 	}
-	// TODO(joshua): community reward should be from calculate target rewards
-	communityReward := big.NewInt(params.Ether)
-	validatorReward, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
+	// TODO(joshua): fix CalculateTargetEpochRewards to properly calc communityRewards
+	validatorReward, totalVoterRewards, communityReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
 	}
@@ -68,7 +67,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if err != nil {
 		return err
 	}
-
+	// TODO(joshua): properly distribute community rewards here
 	totalCommunityRewards, err := sb.distributeCommunityRewards(header, state, communityReward)
 	if err != nil {
 		return err
