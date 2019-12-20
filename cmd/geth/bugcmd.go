@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -40,7 +41,7 @@ var bugCommand = cli.Command{
 	Category:  "MISCELLANEOUS COMMANDS",
 }
 
-const issueURL = "https://github.com/ethereum/go-ethereum/issues/new"
+const issueURL = "https://github.com/celo-org/celo-blockchain/issues/new"
 
 // reportBug reports a bug by opening a new URL to the go-ethereum GH issue
 // tracker and setting default values as the issue body.
@@ -48,19 +49,31 @@ func reportBug(ctx *cli.Context) error {
 	// execute template and write contents to buff
 	var buff bytes.Buffer
 
-	fmt.Fprintln(&buff, "#### System information")
-	fmt.Fprintln(&buff)
-	fmt.Fprintln(&buff, "Version:", params.VersionWithMeta)
-	fmt.Fprintln(&buff, "Go Version:", runtime.Version())
-	fmt.Fprintln(&buff, "OS:", runtime.GOOS)
-	printOSDetails(&buff)
 	fmt.Fprintln(&buff, header)
+	printSystemInformation(&buff)
 
 	// open a new GH issue
 	if !browser.Open(issueURL + "?body=" + url.QueryEscape(buff.String())) {
 		fmt.Printf("Please file a new issue at %s using this template:\n\n%s", issueURL, buff.String())
 	}
 	return nil
+}
+
+func printSystemInformation(w io.Writer) {
+	if gitCommit != "" {
+		fmt.Fprintln(w, "Git Commit:", gitCommit)
+	}
+	fmt.Fprintln(w, "Geth Version:", params.VersionWithMeta)
+	fmt.Fprintln(w)
+	// TODO(trevor): uncomment this and set to future mainnet network id
+	// fmt.Println("Network Id:", eth.DefaultConfig.NetworkId)
+	fmt.Fprintln(w, "Go Version:", runtime.Version())
+	fmt.Fprintf(w, "GOPATH=%s\n", os.Getenv("GOPATH"))
+	fmt.Fprintf(w, "GOROOT=%s\n", runtime.GOROOT())
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Architecture:", runtime.GOARCH)
+	fmt.Fprintln(w, "Operating System:", runtime.GOOS)
+	printOSDetails(w)
 }
 
 // copied from the Go source. Copyright 2017 The Go Authors
@@ -99,14 +112,22 @@ func printCmdOut(w io.Writer, prefix, path string, args ...string) {
 }
 
 const header = `
-#### Expected behaviour
+### Expected Behavior
 
+Please describe the behavior you are expecting
 
-#### Actual behaviour
+### Current Behavior
 
+What is the current behavior?
 
-#### Steps to reproduce the behaviour
+### Steps to Reproduce Behavior
 
+How can we reproduce this?
 
-#### Backtrace
+### Logs
+
+Are there any logs?
+
+### System Information
+
 `
