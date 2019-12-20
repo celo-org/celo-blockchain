@@ -417,7 +417,8 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 						return seq
 					}
 				case <-timeout:
-					log.Warn("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
+					// TODO(asa): Why is this logged by full nodes?
+					log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
 					return nil
 				}
 			}
