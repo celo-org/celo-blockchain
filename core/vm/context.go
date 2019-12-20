@@ -85,15 +85,17 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	}
 
 	var engine consensus.Engine
+	var getHeaderByNumberFn func(uint64) *types.Header
 	if chain != nil {
 		engine = chain.Engine()
+		getHeaderByNumberFn = chain.GetHeaderByNumber
 	}
 
 	return Context{
 		CanTransfer:       CanTransfer,
 		Transfer:          Transfer,
 		GetHash:           GetHashFn(header, chain),
-		GetHeaderByNumber: chain.GetHeaderByNumber,
+		GetHeaderByNumber: getHeaderByNumberFn,
 		VerifySeal:        VerifySealFn(header, chain),
 		Origin:            msg.From(),
 		Coinbase:          beneficiary,
