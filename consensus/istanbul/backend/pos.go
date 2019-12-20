@@ -44,7 +44,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	}
 	// TODO(joshua): community reward should be from calculate target rewards
 	communityReward := big.NewInt(params.Ether)
-	validatorReward, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochPaymentAndRewards(header, state)
+	validatorReward, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (sb *Backend) distributeValidatorRewards(header *types.Header, state *state
 	totalValidatorRewards := big.NewInt(0)
 	for _, val := range valSet {
 		sb.logger.Debug("Distributing epoch reward for validator", "address", val.Address())
-		validatorReward, err := validators.DistributeEpochPayment(header, state, val.Address(), maxReward)
+		validatorReward, err := validators.DistributeEpochReward(header, state, val.Address(), maxReward)
 		if err != nil {
 			return totalValidatorRewards, nil
 		}
