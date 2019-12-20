@@ -1,12 +1,10 @@
 package backend
 
 import (
-	"math/big"
 	"net"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -56,11 +54,8 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	// Test that a validator enode share message will result in the enode
 	// being inserted into the valEnodeTable
 	b.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{testAddress: {
-		Node: testNode,
-		View: &istanbul.View{
-			Round:    big.NewInt(0),
-			Sequence: big.NewInt(0),
-		},
+		Node:      testNode,
+		Timestamp: 0,
 	}})
 	senderAddress = b.Address()
 	newMsg, err := b.generateValEnodesShareMsg()

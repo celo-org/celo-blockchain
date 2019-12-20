@@ -59,7 +59,7 @@ var (
 	// that is not part of the local blockchain.
 	errUnknownBlock = errors.New("unknown block")
 	// errUnauthorized is returned if a header is signed by a non authorized entity.
-	errUnauthorized = errors.New("unauthorized")
+	errUnauthorized = errors.New("not an elected validator")
 	// errInvalidDifficulty is returned if the difficulty of a block is not 1
 	errInvalidDifficulty = errors.New("invalid difficulty")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
@@ -672,6 +672,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 		}
 
 		go sb.sendValEnodesShareMsgs()
+	} else {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
 	}
 
 	return nil

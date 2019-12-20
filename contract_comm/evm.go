@@ -197,7 +197,7 @@ func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, 
 		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
 	}
 	if err != nil {
-		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress)
+		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args)
 		return gasLeft, err
 	}
 

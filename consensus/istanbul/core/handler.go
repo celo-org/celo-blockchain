@@ -107,6 +107,7 @@ func (c *core) handleEvents() {
 	c.handlerWg.Add(1)
 
 	for {
+		logger := c.newLogger("func", "handleEvents")
 		select {
 		case event, ok := <-c.events.Chan():
 			if !ok {
@@ -124,14 +125,14 @@ func (c *core) handleEvents() {
 				}
 			case istanbul.MessageEvent:
 				if err := c.handleMsg(ev.Payload); err != nil {
-					c.logger.Debug("Error in handling istanbul message", "err", err)
+					logger.Debug("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				if payload, err := ev.msg.Payload(); err != nil {
-					c.logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
+					logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
 				} else {
 					if err := c.handleMsg(payload); err != nil {
-						c.logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
+						logger.Debug("Error in handling istanbul message that was sent from a backlog event", "err", err)
 					}
 				}
 			}
@@ -142,7 +143,7 @@ func (c *core) handleEvents() {
 			switch ev := event.Data.(type) {
 			case timeoutEvent:
 				if err := c.handleTimeoutMsg(ev.view); err != nil {
-					c.logger.Error("Error on handleTimeoutMsg", "err", err)
+					logger.Error("Error on handleTimeoutMsg", "err", err)
 				}
 			}
 		case event, ok := <-c.finalCommittedSub.Chan():
@@ -152,7 +153,7 @@ func (c *core) handleEvents() {
 			switch event.Data.(type) {
 			case istanbul.FinalCommittedEvent:
 				if err := c.handleFinalCommitted(); err != nil {
-					c.logger.Error("Error on handleFinalCommit", "err", err)
+					logger.Error("Error on handleFinalCommit", "err", err)
 				}
 			}
 		}
@@ -171,7 +172,7 @@ func (c *core) handleMsg(payload []byte) error {
 	msg := new(istanbul.Message)
 	logger.Debug("Receiving: ", "payload", hexutil.Encode(payload))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
-		logger.Error("Failed to decode message from payload", "err", err)
+		logger.Debug("Failed to decode message from payload", "err", err)
 		return err
 	}
 
@@ -217,7 +218,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) error {
 	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
-	logger.Trace("Timed out, trying to wait for next round")
+	logger.Debug("Timed out, trying to wait for next round")
 
 	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)

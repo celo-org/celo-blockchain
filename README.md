@@ -76,6 +76,12 @@ Please make sure your contributions adhere to our coding guidelines:
  * Commit messages should be prefixed with the package(s) they modify.
    * E.g. "eth, rpc: make trace configs optional"
 
+### Submitting an issue
+
+If you come across a bug, you can run `geth bug` to open a GitHub issue draft
+with pre-filled system information. If you are using a Docker image, you can run
+this command using `docker run -it <image> bug`.
+
 ### CI Testing and automerge
 
 We run a circle CI test suite on each PR. The following tests are required to
