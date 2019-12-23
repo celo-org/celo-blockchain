@@ -46,7 +46,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		logger:             log.New("address", backend.Address()),
+		logger:             log.New(),
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
@@ -537,4 +537,18 @@ func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	buf.Write(round.Bytes())
 	buf.Write([]byte{byte(istanbul.MsgCommit)})
 	return buf.Bytes()
+}
+
+func (c *core) ParentCommits() MessageSet {
+	if c.current == nil {
+		return nil
+	}
+	return c.current.ParentCommits()
+}
+
+func (c *core) Sequence() *big.Int {
+	if c.current == nil {
+		return nil
+	}
+	return c.current.Sequence()
 }
