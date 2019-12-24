@@ -139,9 +139,15 @@ var (
 		utils.IstanbulRequestTimeoutFlag,
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
+		utils.IstanbulLookbackWindowFlag,
 		utils.PingIPFromPacketFlag,
-		utils.UseInMemoryDiscoverTable,
+		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,
+		utils.ProxyFlag,
+		utils.ProxyInternalFacingEndpointFlag,
+		utils.ProxiedValidatorAddressFlag,
+		utils.ProxiedFlag,
+		utils.ProxyEnodeURLPairFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -337,12 +343,20 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			}
 		}
 	}()
+
+	// Miners and proxies only makes sense if a full node is running
+	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
+			utils.Fatalf("Miners and Proxies must be run as a full node")
+		}
+	}
+
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		// Mining only makes sense if a full Ethereum node is running
-		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
-			utils.Fatalf("Light clients do not support mining")
+		if ctx.GlobalBool(utils.ProxyFlag.Name) {
+			utils.Fatalf("Proxies can't mine")
 		}
+
 		var ethereum *eth.Ethereum
 		if err := stack.Service(&ethereum); err != nil {
 			utils.Fatalf("Ethereum service not running: %v", err)

@@ -17,10 +17,15 @@
 package backend
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -91,3 +96,50 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	validatorsAddresses, _ := istanbul.SeparateValidatorDataIntoIstanbulExtra(validators)
 	return validatorsAddresses, nil
 }
+
+// AddProxy peers with a remote node that acts as a proxy, even if slots are full
+func (api *API) AddProxy(url, externalUrl string) (bool, error) {
+	if !api.istanbul.config.Proxied {
+		api.istanbul.logger.Error("Add proxy node failed: this node is not configured to be proxied")
+		return false, errors.New("Can't add proxy for node that is not configured to be proxied")
+	}
+
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+
+	externalNode, err := enode.ParseV4(externalUrl)
+	if err != nil {
+		return false, fmt.Errorf("invalid external enode: %v", err)
+	}
+
+	err = api.istanbul.addProxy(node, externalNode)
+	return true, err
+}
+
+// RemoveProxy removes a node from acting as a proxy
+func (api *API) RemoveProxy(url string) (bool, error) {
+	// Try to remove the url as a proxy and return
+	node, err := enode.ParseV4(url)
+	if err != nil {
+		return false, fmt.Errorf("invalid enode: %v", err)
+	}
+	api.istanbul.removeProxy(node)
+	return true, nil
+}
+
+// Retrieve the Validator Enode Table
+func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
+	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
+}
+
+// TODO(kevjue) - implement this
+// ProxyInfo retrieves all the information we know about each individual proxy node
+/* func (api *PublicAdminAPI) ProxyInfo() ([]*p2p.PeerInfo, error) {
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.ProxyInfo(), nil
+} */

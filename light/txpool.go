@@ -18,17 +18,17 @@ package light
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -44,6 +44,8 @@ const (
 // txPermanent is the number of mined blocks after a mined transaction is
 // considered permanent and no rollback is expected
 var txPermanent = uint64(500)
+
+var errGatewayFeeTooLow = errors.New("gateway fee too low to broadcast to peers")
 
 // TxPool implements the transaction pool for light clients, which keeps track
 // of the status of locally created transactions, detecting if they are included
@@ -85,7 +87,7 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
-	HasPeerWithEtherbase(etherbase common.Address) error
+	HasPeerWithEtherbase(etherbase *common.Address) error
 }
 
 // NewTxPool creates a new light transaction pool
@@ -341,7 +343,7 @@ func (pool *TxPool) Stats() (pending int) {
 	return
 }
 
-// validateTx checks whether a transaction is valid according to the consensus rules.
+// validateTx checks whether a transaction is valid according to the consensus rules and will be broadcast.
 func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error {
 	// Validate sender
 	var (
@@ -375,35 +377,13 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-
-	if tx.GasCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("Insufficient funds",
-			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
-			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-			"value", tx.Value(), "gas currency", tx.GasCurrency())
-		return core.ErrInsufficientFunds
-	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
-
-		if err != nil {
-			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
-			return err
-		}
-
-		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
-			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
-			return core.ErrInsufficientFunds
-		}
-
-		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
-			return core.ErrInsufficientFunds
-		}
+	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState)
+	if err != nil {
+		return err
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, header, currentState, tx.GasCurrency())
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, header, currentState, tx.FeeCurrency())
 	if err != nil {
 		return err
 	}
@@ -412,13 +392,14 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should have a peer that will accept and broadcast our transaction
-	if tx.GasFeeRecipient() == nil {
-		err = pool.relay.HasPeerWithEtherbase(common.Address{})
-	} else {
-		err = pool.relay.HasPeerWithEtherbase(*tx.GasFeeRecipient())
-	}
-	if err != nil {
+	if err := pool.relay.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
 		return err
+	}
+
+	// TODO(nategraf): Support fetching the gateway fee from our peers.
+	// For now we assume our peer is using the default.
+	if tx.GatewayFeeRecipient() != nil && tx.GatewayFee().Cmp(eth.DefaultConfig.GatewayFee) < 0 {
+		return errGatewayFeeTooLow
 	}
 
 	return currentState.Error()

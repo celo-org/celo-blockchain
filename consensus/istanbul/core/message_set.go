@@ -18,43 +18,68 @@ package core
 
 import (
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"io"
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Construct a new message set to accumulate messages for given sequence/view number.
-func newMessageSet(valSet istanbul.ValidatorSet) *messageSet {
-	return &messageSet{
+func newMessageSet(valSet istanbul.ValidatorSet) MessageSet {
+	return &messageSetImpl{
 		messagesMu: new(sync.Mutex),
 		messages:   make(map[common.Address]*istanbul.Message),
 		valSet:     valSet,
 	}
 }
 
+func deserializeMessageSet(binaryData []byte) (MessageSet, error) {
+	var ms messageSetImpl
+
+	err := rlp.DecodeBytes(binaryData, &ms)
+	if err != nil {
+		return nil, err
+	}
+	return &ms, nil
+}
+
 // ----------------------------------------------------------------------------
 
-type messageSet struct {
+type MessageSet interface {
+	fmt.Stringer
+	Add(msg *istanbul.Message) error
+	GetAddressIndex(addr common.Address) (uint64, error)
+	Remove(address common.Address)
+	Values() (result []*istanbul.Message)
+	Size() int
+	Get(addr common.Address) *istanbul.Message
+	Serialize() ([]byte, error)
+}
+
+type messageSetImpl struct {
 	valSet     istanbul.ValidatorSet
 	messagesMu *sync.Mutex
 	messages   map[common.Address]*istanbul.Message
 }
 
-func (ms *messageSet) Add(msg *istanbul.Message) error {
+func (ms *messageSetImpl) Add(msg *istanbul.Message) error {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
-	if err := ms.verify(msg); err != nil {
-		return err
+	if !ms.valSet.ContainsByAddress(msg.Address) {
+		return istanbul.ErrUnauthorizedAddress
 	}
+	ms.messages[msg.Address] = msg
 
-	return ms.addVerifiedMessage(msg)
+	return nil
 }
 
-func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
+func (ms *messageSetImpl) GetAddressIndex(addr common.Address) (uint64, error) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -66,30 +91,14 @@ func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
 	return uint64(i), nil
 }
 
-func (ms *messageSet) GetAddressPublicKey(addr common.Address) (blscrypto.SerializedPublicKey, error) {
-	ms.messagesMu.Lock()
-	defer ms.messagesMu.Unlock()
-
-	_, v := ms.valSet.GetByAddress(addr)
-	if v == nil {
-		return blscrypto.SerializedPublicKey{}, istanbul.ErrUnauthorizedAddress
-	}
-
-	return v.BLSPublicKey(), nil
-}
-
-func (ms *messageSet) ValSetSize() uint64 {
-	return uint64(ms.valSet.Size())
-}
-
-func (ms *messageSet) Remove(address common.Address) {
+func (ms *messageSetImpl) Remove(address common.Address) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
 	delete(ms.messages, address)
 }
 
-func (ms *messageSet) Values() (result []*istanbul.Message) {
+func (ms *messageSetImpl) Values() (result []*istanbul.Message) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
@@ -100,34 +109,19 @@ func (ms *messageSet) Values() (result []*istanbul.Message) {
 	return result
 }
 
-func (ms *messageSet) Size() int {
+func (ms *messageSetImpl) Size() int {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	return len(ms.messages)
 }
 
-func (ms *messageSet) Get(addr common.Address) *istanbul.Message {
+func (ms *messageSetImpl) Get(addr common.Address) *istanbul.Message {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	return ms.messages[addr]
 }
 
-// ----------------------------------------------------------------------------
-
-func (ms *messageSet) verify(msg *istanbul.Message) error {
-	// verify if the message comes from one of the validators
-	if _, v := ms.valSet.GetByAddress(msg.Address); v == nil {
-		return istanbul.ErrUnauthorizedAddress
-	}
-	return nil
-}
-
-func (ms *messageSet) addVerifiedMessage(msg *istanbul.Message) error {
-	ms.messages[msg.Address] = msg
-	return nil
-}
-
-func (ms *messageSet) String() string {
+func (ms *messageSetImpl) String() string {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	addresses := make([]string, 0, len(ms.messages))
@@ -135,4 +129,64 @@ func (ms *messageSet) String() string {
 		addresses = append(addresses, v.Address.String())
 	}
 	return fmt.Sprintf("[<%v> %v]", len(ms.messages), strings.Join(addresses, ", "))
+}
+
+func (s *messageSetImpl) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes(s)
+}
+
+// EncodeRLP impl
+func (s *messageSetImpl) EncodeRLP(w io.Writer) error {
+	serializedValSet, err := s.valSet.Serialize()
+	if err != nil {
+		return err
+	}
+
+	messageKeys := make([]common.Address, len(s.messages))
+	messageValues := make([]*istanbul.Message, len(s.messages))
+
+	i := 0
+	for k, v := range s.messages {
+		messageKeys[i] = k
+		messageValues[i] = v
+		i++
+	}
+
+	return rlp.Encode(w, []interface{}{
+		serializedValSet,
+		messageKeys,
+		messageValues,
+	})
+}
+
+// DecodeRLP Impl
+func (s *messageSetImpl) DecodeRLP(stream *rlp.Stream) error {
+	var data struct {
+		SerializedValSet []byte
+		MessageKeys      []common.Address
+		MessageValues    []*istanbul.Message
+	}
+
+	err := stream.Decode(&data)
+	if err != nil {
+		return err
+	}
+
+	valSet, err := validator.DeserializeValidatorSet(data.SerializedValSet)
+	if err != nil {
+		return err
+	}
+
+	messages := make(map[common.Address]*istanbul.Message)
+	for i, addr := range data.MessageKeys {
+		messages[addr] = data.MessageValues[i]
+	}
+
+	*s = messageSetImpl{
+		valSet:     valSet,
+		messages:   messages,
+		messagesMu: new(sync.Mutex),
+	}
+
+	return nil
 }

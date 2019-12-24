@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
+	"math/big"
 )
 
 type Engine interface {
@@ -28,11 +29,14 @@ type Engine interface {
 	CurrentView() *istanbul.View
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
-	ParentCommits() *messageSet
+	ParentCommits() MessageSet
+	Sequence() *big.Int
 }
 
+// State represents the IBFT state
 type State uint64
 
+// Different IBFT Core States
 const (
 	StateAcceptRequest State = iota
 	StatePreprepared

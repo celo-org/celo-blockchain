@@ -116,7 +116,7 @@ type callTracerTest struct {
 
 func TestPrestateTracerCreate2(t *testing.T) {
 	unsigned_tx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"),
-		new(big.Int), 5000000, big.NewInt(1), nil, nil, []byte{})
+		new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
 
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	if err != nil {
@@ -138,8 +138,8 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	*/
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
+		CanTransfer: vm.CanTransfer,
+		Transfer:    vm.Transfer,
 		Origin:      origin,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
@@ -229,7 +229,7 @@ func TestCallTracer(t *testing.T) {
 
 			context := vm.Context{
 				CanTransfer: core.CanTransfer,
-				Transfer:    core.Transfer,
+				Transfer:    vm.Transfer,
 				Origin:      origin,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),

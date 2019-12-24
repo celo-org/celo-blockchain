@@ -17,12 +17,114 @@
 package vm
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
 )
+
+// mockEngine provides functions used by precompiles for testing.
+type mockEngine struct {
+	consensus.Engine
+}
+
+var magicTestNonce = types.BlockNonce{0x00, 0x00, 0x00, 0x00, 0xde, 0xad, 0xbe, 0xef}
+
+func (e mockEngine) VerifySeal(_ consensus.ChainReader, header *types.Header) error {
+	if header.Nonce == magicTestNonce {
+		return nil
+	}
+	return errors.New("missing magic nonce")
+}
+
+func (e mockEngine) EpochSize() uint64 {
+	return 100
+}
+
+func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Validator {
+	preimage := append([]byte("fakevalidators"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	hash := sha3.Sum256(preimage)
+	var validators []istanbul.Validator
+	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
+		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), nil))
+	}
+	return validators
+}
+
+// mockChainContext provides functions used by precompiles for testing.
+type mockChainContext struct {
+	ChainContext
+}
+
+func makeTestSeal(number *big.Int) types.IstanbulAggregatedSeal {
+	preimage := append([]byte("fakeseal"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	hash := sha3.Sum256(preimage)
+	return types.IstanbulAggregatedSeal{Bitmap: new(big.Int).SetBytes(hash[:2])}
+}
+
+func makeTestHeaderHash(number *big.Int) common.Hash {
+	preimage := append([]byte("fakeheader"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	return common.Hash(sha3.Sum256(preimage))
+}
+
+func makeTestHeaderExtra(number *big.Int) *types.IstanbulExtra {
+	return &types.IstanbulExtra{
+		AggregatedSeal:       makeTestSeal(number),
+		ParentAggregatedSeal: makeTestSeal(new(big.Int).Sub(number, common.Big1)),
+	}
+}
+
+func makeTestHeader(number *big.Int) *types.Header {
+	extra, err := rlp.EncodeToBytes(makeTestHeaderExtra(number))
+	if err != nil {
+		panic(err)
+	}
+	return &types.Header{
+		ParentHash: makeTestHeaderHash(new(big.Int).Sub(number, common.Big1)),
+		Number:     number,
+		GasLimit:   params.DefaultGasLimit,
+		GasUsed:    params.DefaultGasLimit / 2,
+		Extra:      append(make([]byte, types.IstanbulExtraVanity), extra...),
+		Time:       new(big.Int).Mul(number, big.NewInt(5)),
+		Difficulty: common.Big1,
+	}
+}
+
+func (c mockChainContext) GetHeader(_ common.Hash, number uint64) *types.Header {
+	return makeTestHeader(new(big.Int).SetUint64(number))
+}
+
+func (c mockChainContext) GetHeaderByNumber(number uint64) *types.Header {
+	return makeTestHeader(new(big.Int).SetUint64(number))
+}
+
+func (c mockChainContext) Config() *params.ChainConfig {
+	return &params.ChainConfig{Istanbul: &params.IstanbulConfig{}}
+}
+
+func (c mockChainContext) Engine() consensus.Engine {
+	return mockEngine{}
+}
+
+// Create a global mock EVM for use in the following tests.
+var mockEVM = &EVM{
+	Context: NewEVMContext(
+		types.NewMessage(common.HexToAddress("a11ce"), nil, 0, common.Big0, 0, common.Big1, nil, nil, common.Big0, nil, false),
+		makeTestHeader(big.NewInt(10000)),
+		mockChainContext{},
+		&common.Address{},
+	),
+}
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
@@ -365,13 +467,206 @@ var proofOfPossessionTests = []precompiledTest{
 	},
 }
 
+var hashHeaderTests = []precompiledTest{
+	{
+		input:         "",
+		expected:      "unable to decode input",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "f901f9a07285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347948888f1f195afa192cfee860698584c030f4c9db1a0ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217a0d35d334d87c0cc0a202e3756bf81fae08b1575f286c7ee7a3f8df4f0f3afc55da056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008302000001832fefd8825208845c47775c80a0000000000000000000000000000000000000000000000000000000000000000088000000000000000",
+		expected:      "unable to decode input",
+		name:          "input_invalid_removed_byte",
+		errorExpected: true,
+	},
+	{
+		input:    "f901f9a07285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347948888f1f195afa192cfee860698584c030f4c9db1a0ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217a0d35d334d87c0cc0a202e3756bf81fae08b1575f286c7ee7a3f8df4f0f3afc55da056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008302000001832fefd8825208845c47775c80a00000000000000000000000000000000000000000000000000000000000000000880000000000000000",
+		expected: "f5a450266c77dce47f7698959d8e7019db860ee19a5322b16a853fdf23607100",
+		name:     "correct_hash",
+	},
+}
+
+var blockNumberFromHeaderTests = []precompiledTest{
+	{
+		input:         "",
+		expected:      "unable to decode input",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "f901f9a07285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347948888f1f195afa192cfee860698584c030f4c9db1a0ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217a0d35d334d87c0cc0a202e3756bf81fae08b1575f286c7ee7a3f8df4f0f3afc55da056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008302000001832fefd8825208845c47775c80a0000000000000000000000000000000000000000000000000000000000000000088000000000000000",
+		expected:      "unable to decode input",
+		name:          "input_invalid_removed_byte",
+		errorExpected: true,
+	},
+	{
+		input:    "f901f9a07285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347948888f1f195afa192cfee860698584c030f4c9db1a0ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217a0d35d334d87c0cc0a202e3756bf81fae08b1575f286c7ee7a3f8df4f0f3afc55da056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008302000001832fefd8825208845c47775c80a00000000000000000000000000000000000000000000000000000000000000000880000000000000000",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		name:     "correct_number",
+	},
+}
+
+var getValidatorTests = []precompiledTest{
+	// Input is { validator index | block number }. Output is validator address.
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		expected:      "validator index out of bounds",
+		name:          "invalid_genesis_block",
+		errorExpected: true,
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "000000000000000000000000fa55ba38ef5f98473db2771dd03c17c02bbe0fdc",
+		name:     "correct_block_0xff_index_0x0",
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "00000000000000000000000068e2962e75d952ffabb71170783df3c2c85f7939",
+		name:     "correct_block_0xff_index_0xa",
+	},
+	{
+		input:         "000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000ff",
+		expected:      "validator index out of bounds",
+		name:          "invalid_index_out_of_bounds",
+		errorExpected: true,
+	},
+	{
+		input:    "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		expected: "00000000000000000000000024e11f684408ce3e35772daa281facf81d8be157",
+		name:     "correct_chain_head",
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002711",
+		expected:      "block number out of bounds",
+		name:          "invalid_future_block",
+		errorExpected: true,
+	},
+}
+
+var numberValidatorsTests = []precompiledTest{
+	// Input is block number. Output is validator set size.
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000000000",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+		name:     "correct_genesis_block",
+	},
+	{
+		input:    "00000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "0000000000000000000000000000000000000000000000000000000000000010",
+		name:     "correct_block_0xff",
+	},
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000002710",
+		expected: "0000000000000000000000000000000000000000000000000000000000000010",
+		name:     "correct_chain_head",
+	},
+	{
+		input:         "0000000000000000000000000000000000000000000000000000000000002711",
+		expected:      "block number out of bounds",
+		name:          "invalid_future_block",
+		errorExpected: true,
+	},
+}
+
+var getParentSealBitmapTests = []precompiledTest{
+	// Input is block number. Output is bitmap.
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "0000000000000000000000000000000000000000000000000000000000000000",
+		expected:      "block number out of bounds",
+		name:          "invalid_genesis_block",
+		errorExpected: true,
+	},
+	{
+		input:         "0000000000000000000000000000000000000000000000000000000000002580",
+		expected:      "block number out of bounds",
+		name:          "invalid_outside_history_limit",
+		errorExpected: true,
+	},
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000002581",
+		expected: "000000000000000000000000000000000000000000000000000000000000645c",
+		name:     "correct_last_block_in_history_limit",
+	},
+	{
+		input:         "0000000000000000000000000000000000000000000000000000000000002711",
+		expected:      "block number out of bounds",
+		name:          "invalid_chain_head_child",
+		errorExpected: true,
+	},
+	{
+		input:    "0000000000000000000000000000000000000000000000000000000000002710",
+		expected: "0000000000000000000000000000000000000000000000000000000000007ff0",
+		name:     "correct_chain_head",
+	},
+}
+
+var getVerifiedSealBitmapTests = []precompiledTest{
+	// Input is a block header. Output is bitmap.
+	{
+		input:         "",
+		expected:      "unable to decode input",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input: func() string {
+			encoded, _ := rlp.EncodeToBytes(makeTestHeader(common.Big1))
+			return hexutil.Encode(encoded)[2:]
+		}(),
+		expected:      "unable to verify header",
+		name:          "unverified_block_header",
+		errorExpected: true,
+	},
+	{
+		input: func() string {
+			header := makeTestHeader(common.Big1)
+			header.Nonce = magicTestNonce
+			encoded, _ := rlp.EncodeToBytes(header)
+			return hexutil.Encode(encoded)[2:]
+		}(),
+		expected: "0000000000000000000000000000000000000000000000000000000000007b1d",
+		name:     "correct_verified_header",
+	},
+	{
+		input: func() string {
+			header := makeTestHeader(common.Big1)
+			header.Nonce = magicTestNonce
+			header.Extra = nil
+			encoded, _ := rlp.EncodeToBytes(header)
+			return hexutil.Encode(encoded)[2:]
+		}(),
+		expected:      "blockchain engine incompatible with request",
+		name:          "input_incompatible_engine",
+		errorExpected: true,
+	},
+}
+
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	p := PrecompiledContractsByzantium[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.name, contract.Gas), func(t *testing.T) {
-		res, err := RunPrecompiledContract(p, in, contract, nil)
+		res, err := RunPrecompiledContract(p, in, contract, mockEVM)
 		if test.errorExpected {
 			if err == nil {
 				t.Errorf("Expected error: %v, but no error occurred", test.expected)
@@ -409,7 +704,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		for i := 0; i < bench.N; i++ {
 			contract.Gas = reqGas
 			copy(data, in)
-			res, err = RunPrecompiledContract(p, data, contract, nil)
+			res, err = RunPrecompiledContract(p, data, contract, mockEVM)
 		}
 		bench.StopTimer()
 		//Check if it is correct
@@ -533,5 +828,47 @@ func TestPrecompiledFractionMulExp(t *testing.T) {
 func TestPrecompiledProofOfPossession(t *testing.T) {
 	for _, test := range proofOfPossessionTests {
 		testPrecompiled("fb", test, t)
+	}
+}
+
+// Tests sample inputs for getValidator
+func TestGetValidator(t *testing.T) {
+	for _, test := range getValidatorTests {
+		testPrecompiled("fa", test, t)
+	}
+}
+
+// Tests sample inputs for numberValidators
+func TestNumberValidators(t *testing.T) {
+	for _, test := range numberValidatorsTests {
+		testPrecompiled("f9", test, t)
+	}
+}
+
+// Tests sample inputs for getBlockNumberFromHeader
+func TestGetBlockNumberFromHeader(t *testing.T) {
+	for _, test := range blockNumberFromHeaderTests {
+		testPrecompiled("f7", test, t)
+	}
+}
+
+// Tests sample inputs for hashHeader
+func TestPrecompiledHashHeader(t *testing.T) {
+	for _, test := range hashHeaderTests {
+		testPrecompiled("f6", test, t)
+	}
+}
+
+// Tests sample inputs for getParentSealBitmapTests
+func TestGetParentSealBitmap(t *testing.T) {
+	for _, test := range getParentSealBitmapTests {
+		testPrecompiled("f5", test, t)
+	}
+}
+
+// Tests sample inputs for getParentSealBitmapTests
+func TestGetVerifiedSealBitmap(t *testing.T) {
+	for _, test := range getVerifiedSealBitmapTests {
+		testPrecompiled("f4", test, t)
 	}
 }

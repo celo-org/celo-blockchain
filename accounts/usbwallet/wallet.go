@@ -518,8 +518,12 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *wallet) GenerateProofOfPossession(account accounts.Account) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
+	return nil, nil, accounts.ErrNotSupported
+}
+
+func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
+	return nil, nil, accounts.ErrNotSupported
 }
 
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger

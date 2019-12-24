@@ -22,27 +22,25 @@ import (
 )
 
 func (c *core) handleRequest(request *istanbul.Request) error {
-	logger := c.logger.New("state", c.state, "func", "handleRequest")
-	if c.current != nil {
-		logger = logger.New("cur_seq", c.current.Sequence(), "cur_round", c.current.Round())
-	} else {
-		logger = logger.New("cur_seq", 0, "cur_round", -1)
-	}
+	logger := c.newLogger("func", "handleRequest")
 
-	if err := c.checkRequestMsg(request); err != nil {
-		if err == errInvalidMessage {
-			logger.Warn("invalid request")
-			return err
-		}
+	err := c.checkRequestMsg(request)
+	if err == errInvalidMessage {
+		logger.Warn("invalid request")
+		return err
+	} else if err != nil {
 		logger.Warn("unexpected request", "err", err, "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 		return err
 	}
 
 	logger.Trace("handleRequest", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
-	c.current.pendingRequest = request
+	if err = c.current.SetPendingRequest(request); err != nil {
+		return err
+	}
+
 	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
-	if c.state == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
+	if c.current.State() == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
 		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
 	}
 	return nil
@@ -57,7 +55,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 		return errInvalidMessage
 	}
 
-	if c := c.current.sequence.Cmp(request.Proposal.Number()); c > 0 {
+	if c := c.current.Sequence().Cmp(request.Proposal.Number()); c > 0 {
 		return errOldMessage
 	} else if c < 0 {
 		return errFutureMessage
@@ -67,7 +65,7 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 }
 
 func (c *core) storeRequestMsg(request *istanbul.Request) {
-	logger := c.logger.New("state", c.state, "cur_seq", c.current.Sequence(), "cur_round", c.current.Round(), "func", "storeRequestMsg")
+	logger := c.newLogger("func", "storeRequestMsg")
 
 	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
@@ -88,21 +86,22 @@ func (c *core) processPendingRequests() {
 			c.logger.Warn("Malformed request, skip", "msg", m)
 			continue
 		}
+
 		// Push back if it's a future message
 		err := c.checkRequestMsg(r)
-		if err != nil {
-			if err == errFutureMessage {
-				c.logger.Trace("Stop processing request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
-				c.pendingRequests.Push(m, prio)
-				break
-			}
-			c.logger.Trace("Skip the pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash(), "err", err)
-			continue
-		}
-		c.logger.Trace("Post pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
+		if err == nil {
+			c.logger.Trace("Post pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
 
-		go c.sendEvent(istanbul.RequestEvent{
-			Proposal: r.Proposal,
-		})
+			go c.sendEvent(istanbul.RequestEvent{
+				Proposal: r.Proposal,
+			})
+		} else if err == errFutureMessage {
+			c.logger.Trace("Stop processing request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash())
+			c.pendingRequests.Push(m, prio)
+			break
+		} else if err != nil {
+			c.logger.Trace("Skip the pending request", "number", r.Proposal.Number(), "hash", r.Proposal.Hash(), "err", err)
+		}
+
 	}
 }

@@ -26,11 +26,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -51,13 +53,24 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{4}): &dataCopy{},
 }
 
-var CeloPrecompiledContractsAddressOffset = byte(0xff)
-var transferAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 2)))
-var fractionMulExpAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 3)))
-var proofOfPossessionAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 4)))
-var getValidatorAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 5)))
-var numberValidatorsAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 6)))
-var epochSizeAddress = common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - 7)))
+func celoPrecompileAddress(index byte) common.Address {
+	return common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - index)))
+}
+
+var (
+	CeloPrecompiledContractsAddressOffset = byte(0xff)
+
+	transferAddress              = celoPrecompileAddress(2)
+	fractionMulExpAddress        = celoPrecompileAddress(3)
+	proofOfPossessionAddress     = celoPrecompileAddress(4)
+	getValidatorAddress          = celoPrecompileAddress(5)
+	numberValidatorsAddress      = celoPrecompileAddress(6)
+	epochSizeAddress             = celoPrecompileAddress(7)
+	blockNumberFromHeaderAddress = celoPrecompileAddress(8)
+	hashHeaderAddress            = celoPrecompileAddress(9)
+	getParentSealBitmapAddress   = celoPrecompileAddress(10)
+	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+)
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
@@ -72,12 +85,16 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
 
 	// Celo Precompiled Contracts
-	transferAddress:          &transfer{},
-	fractionMulExpAddress:    &fractionMulExp{},
-	proofOfPossessionAddress: &proofOfPossession{},
-	getValidatorAddress:      &getValidator{},
-	numberValidatorsAddress:  &numberValidators{},
-	epochSizeAddress:         &epochSize{},
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
+	getParentSealBitmapAddress:   &getParentSealBitmap{},
+	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -437,7 +454,6 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
-
 	if err != nil {
 		return nil, gas, err
 	}
@@ -599,25 +615,39 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorGas
 }
 
-// Return the validators that are required to sign this current, possibly unsealed, block. If this block is
+// Return the validators that are required to sign the given, possibly unsealed, block number. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
+// WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
+// if the engine is aware of a chain with higher total difficulty.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	// input is comprised of a single argument:
+	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
-	if len(input) < 32 {
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 64 {
 		return nil, gas, ErrInputLength
 	}
 
-	index := (&big.Int{}).SetBytes(input[0:32])
+	index := new(big.Int).SetBytes(input[0:32])
 
-	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+	blockNumber := new(big.Int).SetBytes(input[32:64])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Validator set for the genesis block is empty, so any index is out of bounds.
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
 
+	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+
+	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
@@ -637,17 +667,31 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 // Return the number of validators that are required to sign this current, possibly unsealed, block. If this block is
 // the last in an epoch, note that that may mean one or more of those validators may no longer be elected
 // for subsequent blocks.
+// WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
+// if the engine is aware of a chain with higher total difficulty.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
 
-	if len(input) != 0 {
+	// input is comprised of a single argument:
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 32 {
 		return nil, gas, ErrInputLength
 	}
 
-	validators := evm.Context.Engine.GetValidators(big.NewInt(evm.Context.BlockNumber.Int64()-1), evm.Context.GetHash(evm.Context.BlockNumber.Uint64()-1))
+	blockNumber := new(big.Int).SetBytes(input[0:32])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Genesis validator set is empty. Return 0.
+		return make([]byte, 32), gas, nil
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
@@ -665,8 +709,139 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
-	epochSize := big.NewInt(0).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSize := new(big.Int).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
+}
+
+type blockNumberFromHeader struct{}
+
+func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
+	return params.GetBlockNumberFromHeaderGas
+}
+
+func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.DecodeBytes(input, &header)
+	if err != nil {
+		return nil, gas, ErrInputDecode
+	}
+
+	blockNumber := header.Number.Bytes()
+	blockNumberBytes := common.LeftPadBytes(blockNumber[:], 32)
+
+	return blockNumberBytes, gas, nil
+}
+
+type hashHeader struct{}
+
+func (c *hashHeader) RequiredGas(input []byte) uint64 {
+	return params.HashHeaderGas
+}
+
+func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	var header types.Header
+	err = rlp.DecodeBytes(input, &header)
+	if err != nil {
+		return nil, gas, ErrInputDecode
+	}
+
+	hashBytes := header.Hash().Bytes()
+
+	return hashBytes, gas, nil
+}
+
+type getParentSealBitmap struct{}
+
+func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
+	return params.GetParentSealBitmapGas
+}
+
+// Return the signer bitmap from the parent seal of a past block in the chain.
+// Requested parent seal must have occurred within 4 epochs of the current block number.
+func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of a single argument:
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 32 {
+		return nil, gas, ErrInputLength
+	}
+
+	blockNumber := new(big.Int).SetBytes(input[0:32])
+
+	// Ensure the request is for information from a previously sealed block.
+	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Ensure the request is for a sufficiently recent block to limit state expansion.
+	historyLimit := new(big.Int).SetUint64(evm.Context.Engine.EpochSize() * 4)
+	if blockNumber.Cmp(new(big.Int).Sub(evm.Context.BlockNumber, historyLimit)) <= 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	header := evm.Context.GetHeaderByNumber(blockNumber.Uint64())
+	if header == nil {
+		log.Error("Unexpected failure to retrieve block in getParentSealBitmap precompile", "blockNumber", blockNumber)
+		return nil, gas, ErrUnexpected
+	}
+
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		log.Error("Header without Istanbul extra data encountered in getParentSealBitmap precompile", "blockNumber", blockNumber, "err", err)
+		return nil, gas, ErrEngineIncompatible
+	}
+
+	return common.LeftPadBytes(extra.ParentAggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
+}
+
+// getVerifiedSealBitmap is a precompile to verify the seal on a given header and extract its bitmap.
+type getVerifiedSealBitmap struct{}
+
+func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
+	return params.GetVerifiedSealBitmapGas
+}
+
+func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of a single argument:
+	//   header:  rlp encoded block header
+	var header types.Header
+	if err := rlp.DecodeBytes(input, &header); err != nil {
+		return nil, gas, ErrInputDecode
+	}
+
+	// Verify the seal against the engine rules.
+	if !evm.Context.VerifySeal(&header) {
+		return nil, gas, ErrInputVerification
+	}
+
+	// Extract the verified seal from the header.
+	extra, err := types.ExtractIstanbulExtra(&header)
+	if err != nil {
+		log.Error("Header without Istanbul extra data encountered in getVerifiedSealBitmap precompile", "extraData", header.Extra, "err", err)
+		// Seal verified by a non-Istanbul engine. Return an error.
+		return nil, gas, ErrEngineIncompatible
+	}
+
+	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
 }

@@ -18,17 +18,24 @@ package backend
 
 import (
 	"errors"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulMsg         = 0x11
-	istanbulAnnounceMsg = 0x12
+	istanbulConsensusMsg      = 0x11
+	istanbulAnnounceMsg       = 0x12
+	istanbulValEnodesShareMsg = 0x13
+	istanbulFwdMsg            = 0x14
+	istanbulDelegateSign      = 0x15
 )
 
 var (
@@ -41,24 +48,44 @@ func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
 		Versions: []uint{64},
-		Lengths:  []uint64{19},
+		Lengths:  []uint64{22},
 		Primary:  true,
 	}
 }
 
+func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
+	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) || (msg.Code == istanbulDelegateSign)
+}
+
 // HandleMsg implements consensus.Handler.HandleMsg
-func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
+func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if (msg.Code == istanbulMsg) || (msg.Code == istanbulAnnounceMsg) {
-		if !sb.coreStarted && (msg.Code == istanbulMsg) {
+	sb.logger.Trace("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
+
+	if sb.isIstanbulMsg(msg) {
+		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
+			if err == errUnauthorized {
+				sb.logger.Debug("Failed to decode message payload", "err", err)
+			} else {
+				sb.logger.Error("Failed to decode message payload", "err", err)
+			}
 			return true, errDecodeFailed
+		}
+
+		if msg.Code == istanbulDelegateSign {
+			if sb.shouldHandleDelegateSign() {
+				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				return true, nil
+			}
+
+			return true, errors.New("No proxy or proxied validator found")
 		}
 
 		hash := istanbul.RLPHash(data)
@@ -80,12 +107,16 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 		}
 		sb.knownMessages.Add(hash, true)
 
-		if msg.Code == istanbulMsg {
-			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-				Payload: data,
-			})
+		if msg.Code == istanbulConsensusMsg {
+			err := sb.handleConsensusMsg(peer, data)
+			return true, err
+		} else if msg.Code == istanbulFwdMsg {
+			err := sb.handleFwdMsg(peer, data)
+			return true, err
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
+		} else if msg.Code == istanbulValEnodesShareMsg {
+			go sb.handleValEnodesShareMsg(data)
 		}
 
 		return true, nil
@@ -93,36 +124,143 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	return false, nil
 }
 
+// Handle an incoming consensus msg
+func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error {
+	if sb.config.Proxy {
+		// Verify that this message is not from the proxied peer
+		if reflect.DeepEqual(peer, sb.proxiedPeer) {
+			sb.logger.Warn("Got a consensus message from the proxied validator.  Ignoring it")
+			return nil
+		}
+
+		// Need to forward the message to the proxied validator
+		sb.logger.Trace("Forwarding consensus message to proxied validator")
+		if sb.proxiedPeer != nil {
+			go sb.proxiedPeer.Send(istanbulConsensusMsg, payload)
+		}
+	} else { // The case when this node is a validator
+		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+			Payload: payload,
+		})
+	}
+
+	return nil
+}
+
+// Handle an incoming forward msg
+func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
+	// Ignore the message if this node it not a proxy
+	if !sb.config.Proxy {
+		sb.logger.Warn("Got a forward consensus message and this node is not a proxy.  Ignoring it")
+		return nil
+	}
+
+	// Verify that it's coming from the proxied peer
+	if !reflect.DeepEqual(peer, sb.proxiedPeer) {
+		sb.logger.Warn("Got a forward consensus message from a non proxied valiator.  Ignoring it")
+		return nil
+	}
+
+	istMsg := new(istanbul.Message)
+
+	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
+	// the wrapped message is already signed by the proxied validator.
+	if err := istMsg.FromPayload(payload, nil); err != nil {
+		sb.logger.Error("Failed to decode message from payload", "err", err)
+		return err
+	}
+
+	var fwdMsg *istanbul.ForwardMessage
+	err := istMsg.Decode(&fwdMsg)
+	if err != nil {
+		sb.logger.Error("Failed to decode a ForwardMessage", "err", err)
+		return err
+	}
+
+	sb.logger.Debug("Forwarding a consensus message")
+	go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
+	return nil
+}
+
+func (sb *Backend) shouldHandleDelegateSign() bool {
+	return sb.IsProxy() || sb.IsProxiedValidator()
+}
+
+// SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
+func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
+	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
+}
+
 // SetBroadcaster implements consensus.Handler.SetBroadcaster
 func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	sb.broadcaster = broadcaster
 }
 
-func (sb *Backend) NewChainHead() error {
+// SetP2PServer implements consensus.Handler.SetP2PServer
+func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
+	sb.p2pserver = p2pserver
+}
+
+// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
+func (sb *Backend) NewWork() error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
 
-	// If the last block of the epoch has just been added to the blockchain, then
-	// establish 'validator' type connections to all validators in the upcoming epoch
-	// and disconnect from the ones that are no longer in the val set.
-	currentBlock := sb.currentBlock()
-	if istanbul.IsLastBlockOfEpoch(currentBlock.Number().Uint64(), sb.config.Epoch) {
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "current block number", currentBlock.Number().Uint64())
-		valset := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
-		if _, val := valset.GetByAddress(sb.Address()); val == nil {
-			sb.logger.Info("Validators Election Results: Node OUT ValidatorSet")
-		} else {
-			sb.logger.Info("Validators Election Results: Node IN ValidatorSet")
-		}
-		// Establish connections to new peers and tear down connections to old ones.
-		go sb.RefreshValPeers(valset)
-
-		sb.newEpochCh <- struct{}{}
-	}
-
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
+}
+
+// This function is called by all nodes.
+// At the end of each epoch, this function will
+//    1)  Output if it is or isn't an elected validator if it has mining turned on.
+//    2)  Refresh the validator connections if it's a proxy or non proxied validator
+func (sb *Backend) NewChainHead(newBlock *types.Block) {
+	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
+		sb.coreMu.RLock()
+		defer sb.coreMu.RUnlock()
+
+		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+
+		// Output whether this validator was or wasn't elected for the
+		// new epoch's validator set
+		if sb.coreStarted {
+			_, val := valset.GetByAddress(sb.ValidatorAddress())
+			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil))
+
+			sb.newEpochCh <- struct{}{}
+		}
+
+		// If this is a proxy or a non proxied validator and a
+		// new epoch just started, then refresh the validator enode table
+		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new block number", newBlock.Number().Uint64())
+		sb.RefreshValPeers(valset)
+	}
+}
+
+func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
+	// TODO - For added security, we may want the node keys of the proxied validators to be
+	//        registered with the proxy, and verify that all newly connected proxied peer has
+	//        the correct node key
+	if sb.config.Proxy && isProxiedPeer {
+		sb.proxiedPeer = peer
+	} else if sb.config.Proxied {
+		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
+			sb.proxyNode.peer = peer
+		} else {
+			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
+		}
+	}
+}
+
+func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
+	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
+		sb.proxiedPeer = nil
+	} else if sb.config.Proxied {
+		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
+			sb.proxyNode.peer = nil
+		}
+	}
 }

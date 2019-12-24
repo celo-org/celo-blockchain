@@ -18,23 +18,22 @@ package miner
 
 import (
 	"math/big"
-	"math/rand"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -78,9 +77,9 @@ func init() {
 		ProposerPolicy: 0,
 	}
 
-	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	newTxs = append(newTxs, tx2)
 }
 
@@ -244,9 +243,13 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return signatureBytes, nil
 	}
 
-	istanbulDataDirName := string(rand.Int())
-	dataDir := filepath.Join("/tmp", istanbulDataDirName)
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase(), dataDir)
+	config := istanbul.DefaultConfig
+	config.RoundStateDBPath = ""
+	config.ValidatorEnodeDBPath = ""
+
+	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
+	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

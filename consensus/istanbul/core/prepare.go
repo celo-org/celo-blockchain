@@ -24,7 +24,7 @@ import (
 )
 
 func (c *core) sendPrepare() {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPrepare")
+	logger := c.newLogger("func", "sendPrepare")
 
 	sub := c.current.Subject()
 	encodedSubject, err := Encode(sub)
@@ -32,7 +32,7 @@ func (c *core) sendPrepare() {
 		logger.Error("Failed to encode", "subject", sub)
 		return
 	}
-	logger.Trace("Sending prepare")
+	logger.Debug("Sending prepare")
 	c.broadcast(&istanbul.Message{
 		Code: istanbul.MsgPrepare,
 		Msg:  encodedSubject,
@@ -40,14 +40,14 @@ func (c *core) sendPrepare() {
 }
 
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPreparedCertificate")
+	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
 	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
 		return errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareOrCommitMessages) > c.valSet.Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.valSet.MinQuorumSize() {
+	if len(preparedCertificate.PrepareOrCommitMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return errInvalidPreparedCertificateNumMsgs
 	}
 
@@ -82,13 +82,36 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		var subject *istanbul.Subject
-		if err := message.Decode(&subject); err != nil {
-			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-			return err
+
+		if message.Code == istanbul.MsgCommit {
+			var committedSubject *istanbul.CommittedSubject
+			err := message.Decode(&committedSubject)
+			if err != nil {
+				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
+				return err
+			}
+
+			// Verify the committedSeal
+			src := c.current.GetValidatorByAddress(signer)
+			err = c.verifyCommittedSeal(committedSubject, src)
+			if err != nil {
+				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return err
+			}
+
+			subject = committedSubject.Subject
+		} else {
+			if err := message.Decode(&subject); err != nil {
+				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+				return err
+			}
 		}
 
+		msg_logger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
+		msg_logger.Trace("Decoded message in prepared certificate", "code", message.Code)
+
 		// Verify message for the proper sequence.
-		if subject.View.Sequence.Cmp(c.currentView().Sequence) != 0 {
+		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
 			return errInvalidPreparedCertificateMsgView
 		}
 
@@ -105,28 +128,18 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 				return errInvalidPreparedCertificateInconsistentViews
 			}
 		}
-
-		// If COMMIT message, verify valid committed seal.
-		if message.Code == istanbul.MsgCommit {
-			_, src := c.valSet.GetByAddress(signer)
-			err := c.verifyCommittedSeal(subject, message.CommittedSeal, src)
-			if err != nil {
-				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
-				return err
-			}
-		}
 	}
 	return nil
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
 	if err != nil {
 		return errFailedDecodePrepare
 	}
+	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
 
 	if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
 		return err
@@ -136,22 +149,33 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	c.acceptPrepare(msg)
+	// Add the PREPARE message to current round state
+	if err := c.current.AddPrepare(msg); err != nil {
+		logger.Error("Failed to add PREPARE message to round state", "err", err)
+		return err
+	}
+
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
-	minQuorumSize := c.valSet.MinQuorumSize()
+	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if (preparesAndCommits >= minQuorumSize) && c.state.Cmp(StatePrepared) < 0 {
-		if err := c.current.CreateAndSetPreparedCertificate(minQuorumSize); err != nil {
+	if (preparesAndCommits >= minQuorumSize) && c.current.State().Cmp(StatePrepared) < 0 {
+
+		err := c.current.TransitionToPrepared(minQuorumSize)
+		if err != nil {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.setState(StatePrepared)
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
+
 		c.sendCommit()
+
 	}
 
 	return nil
@@ -159,24 +183,12 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
 func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "verifyPrepare")
+	logger := c.newLogger("func", "verifyPrepare", "prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
 
 	sub := c.current.Subject()
 	if !reflect.DeepEqual(prepare, sub) {
 		logger.Warn("Inconsistent subjects between PREPARE and proposal", "expected", sub, "got", prepare)
 		return errInconsistentSubject
-	}
-
-	return nil
-}
-
-func (c *core) acceptPrepare(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "acceptPrepare")
-
-	// Add the PREPARE message to current round state
-	if err := c.current.Prepares.Add(msg); err != nil {
-		logger.Error("Failed to add PREPARE message to round state", "msg", msg, "err", err)
-		return err
 	}
 
 	return nil

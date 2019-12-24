@@ -63,7 +63,7 @@ var (
 
 	// ErrInsufficientFunds is returned if the total cost of executing a transaction
 	// is higher than the balance of the user's account.
-	ErrInsufficientFunds = errors.New("insufficient funds for gas * price + value")
+	ErrInsufficientFunds = errors.New("insufficient funds for gas * price + value + gatewayFee")
 
 	// ErrIntrinsicGas is returned if the transaction is specified to use less gas
 	// than required to start the invocation.
@@ -82,8 +82,8 @@ var (
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
 
-	// ErrNonWhitelistedGasCurrency is returned if the txn gas currency is not white listed
-	ErrNonWhitelistedGasCurrency = errors.New("non-whitelisted gas currency")
+	// ErrNonWhitelistedFeeCurrency is returned if the txn fee currency is not white listed
+	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency")
 )
 
 var (
@@ -243,7 +243,7 @@ type TxPool struct {
 	queue   map[common.Address]*txList   // Queued but non-processable transactions
 	beats   map[common.Address]time.Time // Last heartbeat from each known account
 	all     *txLookup                    // All transactions to allow lookups
-	priced  *txPricedList                // All transactions sorted by price.  One heap per gas currency.
+	priced  *txPricedList                // All transactions sorted by price.  One heap per fee currency.
 
 	wg sync.WaitGroup // for shutdown sync
 
@@ -625,42 +625,26 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	if tx.GasCurrency() != nil && // Non native gas in the tx
-		!currency.IsWhitelisted(*tx.GasCurrency(), nil, nil) { // The tx currency is not white listed
-		return ErrNonWhitelistedGasCurrency
+	// Ensure the fee currency is native or whitelisted.
+	if tx.FeeCurrency() != nil && !currency.IsWhitelisted(*tx.FeeCurrency(), nil, nil) {
+		return ErrNonWhitelistedFeeCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.GasCurrency()) > 0 {
+	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	if tx.GasCurrency() == nil && pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String(), "from", from.Hex(), "txn cost", tx.Cost().String())
-		return ErrInsufficientFunds
-	} else if tx.GasCurrency() != nil {
-		gasCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.GasCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
-
-		if err != nil {
-			log.Debug("validateTx error in getting gas currency balance", "gasCurrency", tx.GasCurrency(), "error", err)
-			return err
-		}
-
-		if gasCurrencyBalance.Cmp(new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))) < 0 {
-			log.Debug("validateTx insufficient gas currency", "gasCurrency", tx.GasCurrency(), "gasCurrencyBalance", gasCurrencyBalance)
-			return ErrInsufficientFunds
-		}
-
-		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", pool.currentState.GetBalance(from).String())
-			return ErrInsufficientFunds
-		}
+	// Transactor should have enough funds to cover the costs
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState)
+	if err != nil {
+		return err
 	}
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, pool.chain.CurrentBlock().Header(), pool.currentState, tx.GasCurrency())
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead, pool.chain.CurrentBlock().Header(), pool.currentState, tx.FeeCurrency())
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -670,7 +654,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrIntrinsicGas
 	}
 
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.GasCurrency(), nil, nil)
+	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
 	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
 		log.Debug("unable to fetch gas price minimum", "err", err)
 		return err
@@ -1213,6 +1197,36 @@ func (pool *TxPool) demoteUnexecutables() {
 	}
 }
 
+// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
+	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+		log.Debug("Insufficient funds",
+			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
+		return ErrInsufficientFunds
+	} else if tx.FeeCurrency() != nil {
+		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+
+		if err != nil {
+			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
+			return err
+		}
+
+		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
+		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
+			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+			return ErrInsufficientFunds
+		}
+
+		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
+			return ErrInsufficientFunds
+		}
+	}
+	return nil
+}
+
 // addressByHeartbeat is an account address tagged with its last activity timestamp.
 type addressByHeartbeat struct {
 	address   common.Address
@@ -1333,10 +1347,10 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if tx.GasCurrency() == nil {
+	if tx.FeeCurrency() == nil {
 		t.nilCurrencyTxCurrCount++
 	} else {
-		t.nonNilCurrencyTxCurrCount[*tx.GasCurrency()]++
+		t.nonNilCurrencyTxCurrCount[*tx.FeeCurrency()]++
 	}
 	t.all[tx.Hash()] = tx
 }
@@ -1346,10 +1360,10 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if t.all[hash].GasCurrency() == nil {
+	if t.all[hash].FeeCurrency() == nil {
 		t.nilCurrencyTxCurrCount--
 	} else {
-		t.nonNilCurrencyTxCurrCount[*t.all[hash].GasCurrency()]--
+		t.nonNilCurrencyTxCurrCount[*t.all[hash].FeeCurrency()]--
 	}
 
 	delete(t.all, hash)

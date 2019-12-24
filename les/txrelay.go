@@ -64,7 +64,7 @@ func (self *LesTxRelay) unregisterPeer(p *peer) {
 	self.peerList = self.ps.AllPeers()
 }
 
-func (self *LesTxRelay) HasPeerWithEtherbase(etherbase common.Address) error {
+func (self *LesTxRelay) HasPeerWithEtherbase(etherbase *common.Address) error {
 	_, err := self.ps.getPeerWithEtherbase(etherbase)
 	return err
 }
@@ -78,12 +78,12 @@ func (self *LesTxRelay) send(txs types.Transactions) {
 		hash := tx.Hash()
 		ltr, ok := self.txSent[hash]
 		if !ok {
-			p, err := self.ps.getPeerWithEtherbase(*tx.GasFeeRecipient())
+			p, err := self.ps.getPeerWithEtherbase(tx.GatewayFeeRecipient())
 			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
 			// We rely on transactions to be rejected in light/txpool validateTx to prevent transactions
-			// with GasFeeRecipient != one of our peers from making it to the relayer.
+			// with GatewayFeeRecipient != one of our peers from making it to the relayer.
 			if err != nil {
-				log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gasFeeRecipient", tx.GasFeeRecipient())
+				log.Error("Unable to find peer with matching etherbase", "err", err, "tx.hash", tx.Hash(), "tx.gatewayFeeRecipient", tx.GatewayFeeRecipient())
 				continue
 			}
 			sendTo[p] = append(sendTo[p], tx)

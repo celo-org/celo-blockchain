@@ -16,6 +16,10 @@ RUSTUP_exists := $(shell command -v rustup 2> /dev/null)
 CARGO_LIPO_exists := $(shell command -v cargo-lipo 2> /dev/null)
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
+ifdef CARGO_exists
+.PHONY: vendor/github.com/celo-org/bls-zexe/bls/target/release/libbls_zexe.a
+endif
+
 OS :=
 ifeq ("$(LSB_exists)","")
 	OS = darwin

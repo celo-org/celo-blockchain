@@ -84,7 +84,18 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts, block.Randomness(), block.EpochSnarkData())
+	statedb.Prepare(common.Hash{}, block.Hash(), len(block.Transactions()))
+
+	if len(statedb.GetLogs(common.Hash{})) > 0 {
+		receipt := types.NewReceipt(nil, false, 0)
+		receipt.Logs = statedb.GetLogs(common.Hash{})
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+		for i := range receipt.Logs {
+			receipt.Logs[i].TxIndex = uint(len(receipts))
+			receipt.Logs[i].TxHash = block.Hash()
+		}
+		receipts = append(receipts, receipt)
+	}
 
 	return receipts, allLogs, *usedGas, nil
 }
@@ -93,14 +104,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, header *types.Header, statedb *state.StateDB, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *common.Address, gp *GasPool, header *types.Header, statedb *state.StateDB, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, uint64, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := NewEVMContext(msg, header, bc, author)
+	context := vm.NewEVMContext(msg, header, bc, author)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)

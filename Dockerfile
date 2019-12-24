@@ -27,13 +27,17 @@ RUN apk add --no-cache make gcc musl-dev linux-headers
 ADD . /go-ethereum
 RUN mkdir -p /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
 COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_zexe.a /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
+COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_snark.a /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
 RUN cd /go-ethereum && make geth
 
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:latest
+ARG COMMIT_SHA
 
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
+RUN echo $COMMIT_SHA > /version.txt
+ADD scripts/run_geth_in_docker.sh /
 
 EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["geth"]
+ENTRYPOINT ["sh", "/run_geth_in_docker.sh"]

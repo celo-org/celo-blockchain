@@ -1,39 +1,80 @@
-// Copyright 2017 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package core
 
 import (
-	"sync"
+	"math/big"
+	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) *roundState {
-	return &roundState{
-		round:         view.Round,
-		sequence:      view.Sequence,
-		Preprepare:    newTestPreprepare(view),
-		Prepares:      newMessageSet(validatorSet),
-		ParentCommits: newMessageSet(validatorSet),
-		Commits:       newMessageSet(validatorSet),
-		mu:            new(sync.RWMutex),
-		hasBadProposal: func(hash common.Hash) bool {
-			return false
-		},
+func TestRoundStateRLPEncoding(t *testing.T) {
+	dummyRoundState := func() RoundState {
+		valSet := validator.NewSet([]istanbul.ValidatorData{
+			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
+			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+		})
+		view := &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(2)}
+		return newRoundState(view, valSet, valSet.GetByIndex(0))
 	}
+
+	t.Run("With nil fields", func(t *testing.T) {
+		rs := dummyRoundState()
+
+		rawVal, err := rlp.EncodeToBytes(rs)
+		if err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		var result *roundStateImpl
+		if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		assertEqualRoundState(t, rs, result)
+	})
+
+	t.Run("With a Pending Request", func(t *testing.T) {
+		rs := dummyRoundState()
+		rs.SetPendingRequest(&istanbul.Request{
+			Proposal: makeBlock(1),
+		})
+
+		rawVal, err := rlp.EncodeToBytes(rs)
+		if err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		var result *roundStateImpl
+		if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		assertEqualRoundState(t, rs, result)
+	})
+
+	t.Run("With a Preprepare", func(t *testing.T) {
+		rs := dummyRoundState()
+
+		rs.TransitionToPreprepared(&istanbul.Preprepare{
+			Proposal:               makeBlock(1),
+			View:                   rs.View(),
+			RoundChangeCertificate: istanbul.RoundChangeCertificate{},
+		})
+
+		rawVal, err := rlp.EncodeToBytes(rs)
+		if err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		var result *roundStateImpl
+		if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+			t.Errorf("Error %v", err)
+		}
+
+		assertEqualRoundState(t, rs, result)
+	})
+
 }
