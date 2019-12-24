@@ -19,6 +19,7 @@ package backend
 import (
 	"crypto/ecdsa"
 	"errors"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"sync"
 	"time"
@@ -428,7 +429,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
 		addedValidatorsAddresses := make([]common.Address, 0, len(addedValidators))
-		addedValidatorsPublicKeys := make([][]byte, 0, len(addedValidators))
+		addedValidatorsPublicKeys := make([]blscrypto.SerializedPublicKey, 0, len(addedValidators))
 		for _, val := range addedValidators {
 			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
 			addedValidatorsPublicKeys = append(addedValidatorsPublicKeys, val.BLSPublicKey)

@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"strings"
 	"sync"
 
@@ -65,13 +66,13 @@ func (ms *messageSet) GetAddressIndex(addr common.Address) (uint64, error) {
 	return uint64(i), nil
 }
 
-func (ms *messageSet) GetAddressPublicKey(addr common.Address) ([]byte, error) {
+func (ms *messageSet) GetAddressPublicKey(addr common.Address) (blscrypto.SerializedPublicKey, error) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
 	_, v := ms.valSet.GetByAddress(addr)
 	if v == nil {
-		return nil, istanbul.ErrUnauthorizedAddress
+		return blscrypto.SerializedPublicKey{}, istanbul.ErrUnauthorizedAddress
 	}
 
 	return v.BLSPublicKey(), nil

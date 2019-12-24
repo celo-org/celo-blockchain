@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
 
 	"github.com/celo-org/bls-zexe/go"
@@ -95,10 +94,10 @@ func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
-func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
-		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+		publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
 		if err != nil {
 			return err
 		}
@@ -146,8 +145,8 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	return asigBytes, nil
 }
 
-func VerifySignature(publicKey []byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
-	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+	publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
 	if err != nil {
 		return err
 	}
@@ -163,6 +162,6 @@ func VerifySignature(publicKey []byte, message []byte, extraData []byte, signatu
 	return err
 }
 
-func EncodeEpochSnarkData(newValSet []istanbul.ValidatorData, epochIndex uint64) ([]byte, error) {
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, epochIndex uint64) ([]byte, error) {
 	return nil, nil
 }

@@ -81,7 +81,7 @@ type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
 	AddedValidators []common.Address
 	// AddedValidatorsPublicKeys are the BLS public keys for the validators added in the block
-	AddedValidatorsPublicKeys [][]byte
+	AddedValidatorsPublicKeys []blscrypto.SerializedPublicKey
 	// RemovedValidators is a bitmap having an active bit for each removed validator in the block
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
@@ -108,7 +108,7 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 	var istanbulExtra struct {
 		AddedValidators           []common.Address
-		AddedValidatorsPublicKeys [][]byte
+		AddedValidatorsPublicKeys []blscrypto.SerializedPublicKey
 		RemovedValidators         *big.Int
 		Seal                      []byte
 		AggregatedSeal            IstanbulAggregatedSeal

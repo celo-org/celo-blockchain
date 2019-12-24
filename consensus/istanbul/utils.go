@@ -17,9 +17,9 @@
 package istanbul
 
 import (
-	"bytes"
 	"encoding/hex"
 	"errors"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -122,7 +122,7 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	var addedValidators []ValidatorData
 	for _, newVal := range newValSet {
 		index, ok := oldValSetIndices[newVal.Address]
-		if ok && bytes.Equal(oldValSet[index].BLSPublicKey, newVal.BLSPublicKey) {
+		if ok && oldValSet[index].BLSPublicKey == newVal.BLSPublicKey {
 			// We found a common validator.  Pop from the map
 			delete(valSetMap, newVal.Address)
 		} else {
@@ -157,13 +157,13 @@ func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) 
 	return true
 }
 
-func CompareValidatorPublicKeySlices(valSet1 [][]byte, valSet2 [][]byte) bool {
+func CompareValidatorPublicKeySlices(valSet1 []blscrypto.SerializedPublicKey, valSet2 []blscrypto.SerializedPublicKey) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
 	}
 
 	for i := 0; i < len(valSet1); i++ {
-		if !bytes.Equal(valSet1[i], valSet2[i]) {
+		if valSet1[i] != valSet2[i] {
 			return false
 		}
 	}
@@ -171,10 +171,10 @@ func CompareValidatorPublicKeySlices(valSet1 [][]byte, valSet2 [][]byte) bool {
 	return true
 }
 
-func ConvertPublicKeysToStringSlice(publicKeys [][]byte) []string {
+func ConvertPublicKeysToStringSlice(publicKeys []blscrypto.SerializedPublicKey) []string {
 	publicKeyStrs := []string{}
 	for i := 0; i < len(publicKeys); i++ {
-		publicKeyStrs = append(publicKeyStrs, hex.EncodeToString(publicKeys[i]))
+		publicKeyStrs = append(publicKeyStrs, hex.EncodeToString(publicKeys[i][:]))
 	}
 
 	return publicKeyStrs

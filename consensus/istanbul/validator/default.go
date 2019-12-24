@@ -18,6 +18,7 @@ package validator
 
 import (
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math"
 	"math/big"
 	"reflect"
@@ -29,14 +30,14 @@ import (
 
 type defaultValidator struct {
 	address      common.Address
-	blsPublicKey []byte
+	blsPublicKey blscrypto.SerializedPublicKey
 }
 
 func (val *defaultValidator) Address() common.Address {
 	return val.address
 }
 
-func (val *defaultValidator) BLSPublicKey() []byte {
+func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey {
 	return val.blsPublicKey
 }
 
@@ -225,7 +226,7 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 	for i, v := range valSet.validators {
 		if removedValidators.Bit(i) == 1 && (v.Address() != common.Address{}) {
 			hadRemoval = true
-			valSet.validators[i] = New(common.Address{}, nil)
+			valSet.validators[i] = New(common.Address{}, blscrypto.SerializedPublicKey{})
 		}
 	}
 
