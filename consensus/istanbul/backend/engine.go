@@ -487,10 +487,13 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			for _, v := range newValSet {
 				blsPubKeys = append(blsPubKeys, v.BLSPublicKey)
 			}
-			_, err = blscrypto.EncodeEpochSnarkData(blsPubKeys, header.Number.Uint64()/sb.config.Epoch)
+			dataHash, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, header.Number.Uint64()/sb.config.Epoch)
 			if err != nil {
 				return err
 			}
+
+			epochSnarkData.DataHash = dataHash
+			epochSnarkData.Signature = dataHash
 
 			// add validators in snapshot to extraData's validators section
 			return writeValidatorSetDiff(header, snap.validators(), newValSet)

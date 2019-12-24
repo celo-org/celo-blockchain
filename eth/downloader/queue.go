@@ -62,7 +62,7 @@ type fetchResult struct {
 	Transactions   types.Transactions
 	Receipts       types.Receipts
 	Randomness     *types.Randomness
-  EpochSnarkData *types.EpochSnarkData
+	EpochSnarkData *types.EpochSnarkData
 }
 
 // queue represents hashes that are either need fetching or are being fetched

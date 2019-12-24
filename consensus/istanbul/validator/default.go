@@ -17,8 +17,8 @@
 package validator
 
 import (
-	"io"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"io"
 	"math"
 	"math/big"
 	"sync"
@@ -47,7 +47,7 @@ func (val *defaultValidator) String() string {
 
 type defaultValidatorRLP struct {
 	Address      common.Address
-	BlsPublicKey []byte
+	BlsPublicKey blscrypto.SerializedPublicKey
 }
 
 func (val *defaultValidator) Serialize() ([]byte, error) {

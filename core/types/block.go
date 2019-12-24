@@ -28,8 +28,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -152,26 +152,29 @@ func (r *Randomness) EncodeRLP(w io.Writer) error {
 }
 
 type EpochSnarkData struct {
-	EpochDataHash blscrypto.SerializedSignature
+	DataHash  blscrypto.SerializedSignature
+	Signature blscrypto.SerializedSignature
 }
 
 func (r *EpochSnarkData) Size() common.StorageSize {
-	return common.StorageSize(blscrypto.SIGNATUREBYTES)
+	return common.StorageSize(2 * blscrypto.SIGNATUREBYTES)
 }
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 	var epochSnarkData struct {
-    EpochDataHash blscrypto.SerializedSignature
+		DataHash  blscrypto.SerializedSignature
+		Signature blscrypto.SerializedSignature
 	}
 	if err := s.Decode(&epochSnarkData); err != nil {
 		return err
 	}
-	r.EpochDataHash = epochSnarkData.EpochDataHash
+	r.DataHash = epochSnarkData.DataHash
+	r.Signature = epochSnarkData.Signature
 	return nil
 }
 
 func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{r.EpochDataHash})
+	return rlp.Encode(w, []interface{}{r.DataHash, r.Signature})
 }
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
@@ -180,7 +183,7 @@ type Body struct {
 	Transactions   []*Transaction
 	Uncles         []*Header
 	Randomness     *Randomness
-  EpochSnarkData *EpochSnarkData
+	EpochSnarkData *EpochSnarkData
 }
 
 // Block represents an entire block in the Ethereum blockchain.
@@ -189,7 +192,7 @@ type Block struct {
 	uncles         []*Header
 	transactions   Transactions
 	randomness     *Randomness
-  epochSnarkData *EpochSnarkData
+	epochSnarkData *EpochSnarkData
 
 	// caches
 	hash atomic.Value
@@ -224,7 +227,7 @@ type extblock struct {
 	Txs            []*Transaction
 	Uncles         []*Header
 	Randomness     *Randomness
-  EpochSnarkData *EpochSnarkData
+	EpochSnarkData *EpochSnarkData
 }
 
 // [deprecated by eth/63]
@@ -246,7 +249,7 @@ type storageblock struct {
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
 func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, randomness *Randomness, epochSnarkData *EpochSnarkData) *Block {
-  b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: epochSnarkData}
+	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: epochSnarkData}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -289,7 +292,7 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
-  return &Block{header: CopyHeader(header), randomness: &EmptyRandomness, epochSnarkData: &EmptyEpochSnarkData}
+	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness, epochSnarkData: &EmptyEpochSnarkData}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -331,7 +334,7 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 		Txs:            b.transactions,
 		Uncles:         b.uncles,
 		Randomness:     b.randomness,
-    EpochSnarkData: b.epochSnarkData,
+		EpochSnarkData: b.epochSnarkData,
 	})
 }
 
@@ -347,10 +350,10 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 
 // TODO: copies
 
-func (b *Block) Uncles() []*Header                  { return b.uncles }
-func (b *Block) Transactions() Transactions         { return b.transactions }
-func (b *Block) Randomness() *Randomness            { return b.randomness }
-func (b *Block) EpochSnarkData() *EpochSnarkData    { return b.epochSnarkData }
+func (b *Block) Uncles() []*Header               { return b.uncles }
+func (b *Block) Transactions() Transactions      { return b.transactions }
+func (b *Block) Randomness() *Randomness         { return b.randomness }
+func (b *Block) EpochSnarkData() *EpochSnarkData { return b.epochSnarkData }
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
@@ -418,7 +421,7 @@ func (b *Block) WithSeal(header *Header) *Block {
 		transactions:   b.transactions,
 		uncles:         b.uncles,
 		randomness:     b.randomness,
-    epochSnarkData: b.epochSnarkData,
+		epochSnarkData: b.epochSnarkData,
 	}
 }
 
@@ -429,7 +432,7 @@ func (b *Block) WithRandomness(randomness *Randomness) *Block {
 		transactions:   b.transactions,
 		uncles:         b.uncles,
 		randomness:     randomness,
-    epochSnarkData: b.epochSnarkData,
+		epochSnarkData: b.epochSnarkData,
 	}
 	return block
 }
@@ -441,7 +444,7 @@ func (b *Block) WithEpochSnarkData(epochSnarkData *EpochSnarkData) *Block {
 		transactions:   b.transactions,
 		uncles:         b.uncles,
 		randomness:     b.randomness,
-    epochSnarkData: epochSnarkData,
+		epochSnarkData: epochSnarkData,
 	}
 	return block
 }
@@ -453,7 +456,7 @@ func (b *Block) WithBody(transactions []*Transaction, uncles []*Header, randomne
 		transactions:   make([]*Transaction, len(transactions)),
 		uncles:         make([]*Header, len(uncles)),
 		randomness:     randomness,
-    epochSnarkData: epochSnarkData,
+		epochSnarkData: epochSnarkData,
 	}
 	copy(block.transactions, transactions)
 	for i := range uncles {

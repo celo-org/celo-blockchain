@@ -1018,9 +1018,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	//TODO(kobi): make it correct
+	/*
 	if w.isRunning() {
 		w.current.epochSnarkData = &types.EmptyEpochSnarkData
 	}
+	*/
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
@@ -1070,11 +1072,11 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	}
 	s := w.current.state.Copy()
 
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts, w.current.randomness, w.current.epochSnarkData)
 
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), s); err != nil {
+		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), w.current.epochSnarkData, s); err != nil {
 			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}

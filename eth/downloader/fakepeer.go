@@ -123,9 +123,9 @@ func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, r
 // corresponding to the specified block hashes.
 func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 	var (
-		txs        [][]*types.Transaction
-		uncles     [][]*types.Header
-		randomness []*types.Randomness
+		txs            [][]*types.Transaction
+		uncles         [][]*types.Header
+		randomness     []*types.Randomness
 		epochSnarkData []*types.EpochSnarkData
 	)
 	for _, hash := range hashes {

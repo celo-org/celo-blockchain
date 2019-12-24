@@ -585,7 +585,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
 			randomness[i] = body.Randomness
-      epochSnarkData[i] = body.EpochSnarkData
+			epochSnarkData[i] = body.EpochSnarkData
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
 		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0

@@ -162,6 +162,6 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 	return err
 }
 
-func EncodeEpochSnarkData(newValSet []SerializedPublicKey, epochIndex uint64) ([]byte, error) {
-	return nil, nil
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, epochIndex uint64) (SerializedSignature, error) {
+	return SerializedSignature{}, nil
 }

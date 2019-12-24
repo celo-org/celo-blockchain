@@ -91,12 +91,12 @@ type headerFilterTask struct {
 // bodyFilterTask represents a batch of block bodies (transactions and uncles)
 // needing fetcher filtering.
 type bodyFilterTask struct {
-	peer             string                 // The source peer of block bodies
-	transactions     [][]*types.Transaction // Collection of transactions per block bodies
-	uncles           [][]*types.Header      // Collection of uncles per block bodies
-	randomness       []*types.Randomness
-	epochSnarkData   []*types.EpochSnarkData
-	time             time.Time // Arrival time of the blocks' contents
+	peer           string                 // The source peer of block bodies
+	transactions   [][]*types.Transaction // Collection of transactions per block bodies
+	uncles         [][]*types.Header      // Collection of uncles per block bodies
+	randomness     []*types.Randomness
+	epochSnarkData []*types.EpochSnarkData
+	time           time.Time // Arrival time of the blocks' contents
 }
 
 // inject represents a schedules import operation.
@@ -263,7 +263,7 @@ func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction,
 	}
 	// Request the filtering of the body list
 	select {
-  case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
 	case <-f.quit:
 		return nil, nil, nil, nil
 	}

@@ -278,7 +278,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-            bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), EpochSnarkData: block.EpochSnarkData()})
+						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), EpochSnarkData: block.EpochSnarkData()})
 					}
 					break
 				}

@@ -207,7 +207,7 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
-  block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
+	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
 		Proposal:                block.WithSeal(emptyHeader),
@@ -368,7 +368,7 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
-  EpochSeal     []byte
+	EpochSeal []byte
 }
 
 // ==============================================
