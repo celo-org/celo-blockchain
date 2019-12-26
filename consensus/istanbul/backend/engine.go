@@ -487,17 +487,23 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 			for _, v := range newValSet {
 				blsPubKeys = append(blsPubKeys, v.BLSPublicKey)
 			}
-			dataHash, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, header.Number.Uint64()/sb.config.Epoch)
+			//TODO(kobi): make it correct
+			_, err = blscrypto.EncodeEpochSnarkData(blsPubKeys, header.Number.Uint64()/sb.config.Epoch)
 			if err != nil {
 				return err
 			}
 
+			/*
 			epochSnarkData.DataHash = dataHash
 			epochSnarkData.Signature = dataHash
+			*/
+			*epochSnarkData = types.EmptyEpochSnarkData
 
 			// add validators in snapshot to extraData's validators section
 			return writeValidatorSetDiff(header, snap.validators(), newValSet)
 		}
+	} else {
+		*epochSnarkData = types.EmptyEpochSnarkData
 	}
 	// If it's not the last block or we were unable to pull the new validator set, then the validator set diff should be empty
 	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})

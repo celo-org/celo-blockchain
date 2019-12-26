@@ -1018,11 +1018,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	//TODO(kobi): make it correct
-	/*
-	if w.isRunning() {
+	//if w.isRunning() {
 		w.current.epochSnarkData = &types.EmptyEpochSnarkData
-	}
-	*/
+	//}
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()

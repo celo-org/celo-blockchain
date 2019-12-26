@@ -63,13 +63,11 @@
 			"revisionTime": "2017-11-28T15:02:46Z"
 		},
 		{
-			"checksumSHA1": "ISd7sYtFMk9rcwzdFnfg+y/aC00=",
+			"checksumSHA1": "/4VZBWei5cWw/2vPo+4cXMli/Dw=",
 			"path": "github.com/celo-org/bls-zexe",
-			"revision": "dce37ffc96110963e8a543b46aec4bd42fa4a427",
-			"revisionTime": "2019-11-19T05:29:55Z",
-			"tree": true,
-			"version": "kobigurk/switch_groups",
-			"versionExact": "kobigurk/switch_groups"
+			"revision": "1a1f3560f71ffd1b2199991d1e8d64bfa60ce583",
+			"revisionTime": "2019-12-06T13:25:59Z",
+			"tree": true
 		},
 		{
 			"path": "github.com/celo/bls-zexe",

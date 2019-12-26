@@ -157,7 +157,7 @@ type EpochSnarkData struct {
 }
 
 func (r *EpochSnarkData) Size() common.StorageSize {
-	return common.StorageSize(2 * blscrypto.SIGNATUREBYTES)
+	return common.StorageSize(2*blscrypto.SIGNATUREBYTES)
 }
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
@@ -168,8 +168,7 @@ func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&epochSnarkData); err != nil {
 		return err
 	}
-	r.DataHash = epochSnarkData.DataHash
-	r.Signature = epochSnarkData.Signature
+	r.DataHash, r.Signature = epochSnarkData.DataHash, epochSnarkData.Signature
 	return nil
 }
 
