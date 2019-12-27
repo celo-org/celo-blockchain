@@ -280,7 +280,7 @@ func (ethash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent *
 	// Verify that the gas limit remains within allowed bounds
 	diff := int64(parent.GasLimit) - int64(header.GasLimit)
 	if diff < 0 {
-		diff *= -1
+		diff *= -1 //nolint:ineffassign
 	}
 
 	// Verify that the block number is parent's +1

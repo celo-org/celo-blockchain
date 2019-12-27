@@ -823,7 +823,8 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
+		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
+		gasPrice, _ = b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
 	}
 
 	value := new(big.Int)

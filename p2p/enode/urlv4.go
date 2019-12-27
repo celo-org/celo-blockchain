@@ -195,9 +195,9 @@ func (n *Node) URLv4() string {
 }
 
 var (
-	block24bit = net.IPNet{net.IPv4(10, 0, 0, 0), net.IPv4Mask(255, 0, 0, 0)}
-	block20bit = net.IPNet{net.IPv4(172, 16, 0, 0), net.IPv4Mask(255, 240, 0, 0)}
-	block16bit = net.IPNet{net.IPv4(192, 168, 0, 0), net.IPv4Mask(255, 255, 0, 0)}
+	block24bit = net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(255, 0, 0, 0)}
+	block20bit = net.IPNet{IP: net.IPv4(172, 16, 0, 0), Mask: net.IPv4Mask(255, 240, 0, 0)}
+	block16bit = net.IPNet{IP: net.IPv4(192, 168, 0, 0), Mask: net.IPv4Mask(255, 255, 0, 0)}
 )
 
 // Returns true if the ip is a loopback or private ip, not generally accessible from the internet.
