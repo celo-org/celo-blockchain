@@ -53,7 +53,7 @@ var (
 	// address.
 	errInvalidSignature = errors.New("invalid signature")
 	// errInsufficientSeals is returned when there is not enough signatures to
-	// pass the 2F+1 quorum check.
+	// pass the quorum check.
 	errInsufficientSeals = errors.New("not enough seals to reach quorum")
 	// errUnknownBlock is returned when the list of validators or header is requested for a block
 	// that is not part of the local blockchain.
@@ -111,8 +111,7 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules of a
-// given engine. Verifying the seal may be done optionally here, or explicitly
-// via the VerifySeal method.
+// given engine. Verifies the seal regardless of given "seal" argument.
 func (sb *Backend) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	return sb.verifyHeader(chain, header, nil)
 }
@@ -350,23 +349,29 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 // VerifySeal checks whether the crypto seal on a header is valid according to
 // the consensus rules of the given engine.
 func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
-	// get parent header and ensure the signer is in parent's validator set
-	number := header.Number.Uint64()
-	if number == 0 {
+	// Ensure the block number is greater than zero, but less or equal to than max uint64.
+	if header.Number.Cmp(common.Big0) <= 0 || !header.Number.IsUint64() {
 		return errUnknownBlock
 	}
 
-	// ensure that the difficulty equals to defaultDifficulty
-	if header.Difficulty.Cmp(defaultDifficulty) != 0 {
-		return errInvalidDifficulty
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		return errInvalidExtraDataFormat
 	}
-	return sb.verifySigner(chain, header, nil)
+
+	// Acquire the validator set whose signatures will be verified.
+	// FIXME: Based on the current implemenation of validator set construction, only validator sets
+	// from the canonical chain will be used. This means that if the provided header is a valid
+	// member of a non-canonical chain, seal verification will only succeed if the validator set
+	// happens to be the same as the canonical chain at the same block number (as would be the case
+	// for a fork from the canonical chain which does not cross an epoch boundary)
+	valSet := sb.getValidators(header.Number.Uint64()-1, header.ParentHash)
+	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	logger := sb.logger.New("func", "Backend.Prepare()")
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
@@ -396,39 +401,71 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
 
+	logger := sb.logger.New("func", "Backend.Prepare()", "number", number)
 	// modify the block header to include all the ParentCommits
 	// only do this for blocks which start with block 1 as a parent
 	if number > 1 {
-		// copy over the seals we have saved the previous block
+
+		// In some cases, "Prepare" may be called before sb.core has moved to the next sequence,
+		// preventing signature aggregation.
+		// This typically happens in round > 0, since round 0 typically hits the "time.Sleep()"
+		// above.
+		// When this happens, loop until sb.core moves to the next sequence, with a limit of 500ms.
+		waitForSequenceChange := func() *big.Int {
+			timeout := time.After(500 * time.Millisecond)
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					seq := sb.core.Sequence()
+					if seq != nil && seq.Cmp(header.Number) == 0 {
+						logger.Trace("Current sequence matches header", "cur_seq", seq)
+						return seq
+					}
+				case <-timeout:
+					// TODO(asa): Why is this logged by full nodes?
+					log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", sb.core.Sequence())
+					return nil
+				}
+			}
+		}
+		seq := waitForSequenceChange()
+
 		parentExtra, err := types.ExtractIstanbulExtra(parent)
 		if err != nil {
 			return err
 		}
 		parentAggregatedSeal := parentExtra.AggregatedSeal
-
-		additionalParentSeals := sb.core.ParentCommits()
-		if additionalParentSeals != nil && additionalParentSeals.Size() != 0 {
-			logger.Trace("Combining additional seals with the parent aggregated seal", "additionalSeals", additionalParentSeals.String(), "num", number, "parentAggregatedSeal", parentAggregatedSeal.String())
-			// if we had any seals gossiped to us, proceed to add them to the
-			// already aggregated signature
-			if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, additionalParentSeals); err != nil {
-				logger.Error("Failed to create union of parent aggregated seal", "err", err)
-			} else {
-				// need to pass the previous block from the parent to get the parent's validators
-				// (otherwise we'd be getting the validators for the current block)
-				parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
-				// only update to use the union if we indeed provided a valid aggregate signature for this block
-				if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
-					logger.Error("Failed to combine additional seals with parent aggregated seal.", "err", err)
+		logger = logger.New("parentAggregatedSeal", parentAggregatedSeal.String())
+		logger.Trace("Got ParentAggregatedSeal")
+		if seq != nil && seq.Cmp(header.Number) == 0 {
+			parentCommits := sb.core.ParentCommits()
+			logger = logger.New("cur_seq", sb.core.Sequence())
+			if parentCommits != nil && parentCommits.Size() != 0 {
+				logger = logger.New("numParentCommits", parentCommits.Size())
+				logger.Trace("Found commit messages from previous sequence to combine with ParentAggregatedSeal")
+				// if we had any seals gossiped to us, proceed to add them to the
+				// already aggregated signature
+				if unionAggregatedSeal, err := istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, parentCommits); err != nil {
+					logger.Error("Failed to combine commit messages with ParentAggregatedSeal", "err", err)
 				} else {
-					parentAggregatedSeal = unionAggregatedSeal
-					logger.Debug("Succeeded in combining additional seals with parent aggregated seal", "combinedAggregatedSeal", parentAggregatedSeal.String())
+					// need to pass the previous block from the parent to get the parent's validators
+					// (otherwise we'd be getting the validators for the current block)
+					parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
+					// only update to use the union if we indeed provided a valid aggregate signature for this block
+					if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+						logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
+					} else {
+						parentAggregatedSeal = unionAggregatedSeal
+						logger.Debug("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", parentAggregatedSeal.String())
+					}
 				}
+			} else {
+				logger.Debug("No additional seals to combine with ParentAggregatedSeal")
 			}
-		} else {
-			sb.logger.Trace("No additional seals to combine with parent aggregated seal")
+			return writeAggregatedSeal(header, parentAggregatedSeal, true)
 		}
-		return writeAggregatedSeal(header, parentAggregatedSeal, true)
 	}
 
 	return nil
@@ -711,16 +748,15 @@ func (sb *Backend) Stop() error {
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
 // this method should be called with number set to 5.
 //
-// hash - The requested snapshot's block's hash
+// hash - The requested snapshot's block's hash. Only used for snapshot cache storage.
 // number - The requested snapshot's block number
 // parents - (Optional argument) An array of headers from directly previous blocks.
 func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk
 	var (
-		headers   []*types.Header
-		header    *types.Header
-		snap      *Snapshot
-		blockHash common.Hash
+		headers []*types.Header
+		header  *types.Header
+		snap    *Snapshot
 	)
 
 	numberIter := number
@@ -744,7 +780,8 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			break
 		}
 
-		if numberIter == number {
+		var blockHash common.Hash
+		if numberIter == number && hash != (common.Hash{}) {
 			blockHash = hash
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)

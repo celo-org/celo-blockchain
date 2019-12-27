@@ -56,6 +56,7 @@ var parseNodeTests = []struct {
 			n, _ := New(ValidSchemes, &r)
 			return n
 		}(),
+		wantPrivate: true,
 	},
 	// Invalid Records
 	{
