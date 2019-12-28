@@ -60,16 +60,24 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errFailedDecodePreprepare
 	}
 
-	// Check if the message comes from current proposer
-	if !c.current.IsProposer(msg.Address) {
-		logger.Warn("Ignore preprepare messages from non-proposer")
-		return errNotFromProposer
-	}
+	// TODO(tim) Fix and Move checkMessage check up to here
 
 	// Verify that the proposal is for the sequence number of the view we verified.
 	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
-		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence)
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence, "view_round", preprepare.View.Round)
 		return errInvalidProposal
+	}
+
+	// Check proposer is valid for the message's view (this may be a subsequent round)
+	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
+	if headBlock == nil {
+		logger.Error("Could not determine head proposer")
+		return errNotFromProposer
+	}
+	proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+	if proposerForMsgRound.Address() != msg.Address {
+		logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
+		return errNotFromProposer
 	}
 
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
@@ -106,8 +114,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
 			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
-				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
+				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
+				// TODO(tim) c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
 				return nil
 			}
 		}

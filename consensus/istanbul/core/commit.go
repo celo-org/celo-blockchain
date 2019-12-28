@@ -19,7 +19,6 @@ package core
 import (
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -28,14 +27,6 @@ func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
-	c.broadcastCommit(sub)
-}
-
-func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
-	sub := &istanbul.Subject{
-		View:   view,
-		Digest: digest,
-	}
 	c.broadcastCommit(sub)
 }
 

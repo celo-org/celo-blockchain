@@ -191,21 +191,21 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 		{
 			"Valid round change certificate without PREPARED certificate",
 			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				return sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+				return sys.getRoundChangeCertificate(t, []istanbul.View{view}, istanbul.EmptyPreparedCertificate())
 			},
 			nil,
 		},
 		{
 			"Valid round change certificate with PREPARED certificate",
 			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				return sys.getRoundChangeCertificate(t, view, sys.getPreparedCertificate(t, []istanbul.View{view}, makeBlock(0)))
+				return sys.getRoundChangeCertificate(t, []istanbul.View{view}, sys.getPreparedCertificate(t, []istanbul.View{view}, makeBlock(0)))
 			},
 			nil,
 		},
 		{
 			"Invalid round change certificate, duplicate message",
 			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, view, istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{view}, istanbul.EmptyPreparedCertificate())
 				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
 				return roundChangeCertificate
 			},

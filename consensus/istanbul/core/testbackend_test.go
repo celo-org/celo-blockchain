@@ -160,7 +160,6 @@ func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
 		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal
 	}
-	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0)
 }
 
@@ -170,7 +169,6 @@ func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal
 		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal, common.Address{}
 	}
-	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
 }
 
@@ -459,13 +457,13 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
 			break
 		}
-		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
+		msg, err := backend.getRoundChangeMessage(views[i%len(views)], preparedCertificate)
 		if err != nil {
 			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
 		}

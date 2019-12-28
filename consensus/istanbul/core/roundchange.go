@@ -132,7 +132,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 		msgLogger := logger.New("msg_round", roundChange.View.Round, "msg_seq", roundChange.View.Sequence)
 
-		// Verify ROUND CHANGE message is for the same sequence AND a equal or subsequent round as the proposal.
+		// Verify ROUND CHANGE message is for the same sequence AND an equal or subsequent round as the proposal.
 		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
 		if roundChange.View.Sequence.Cmp(proposal.View.Sequence) != 0 || roundChange.View.Round.Cmp(proposal.View.Round) < 0 {
 			msgLogger.Error("Round change in certificate for an earlier view", "roundChange.View", "err", err)
