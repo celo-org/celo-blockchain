@@ -149,17 +149,17 @@ func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.St
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
 	totalEpochRewards := big.NewInt(0)
 
-	// Fixed epoch reward to the infrastructure fund.
+	// Fixed epoch reward to the community fund.
 	// TODO(asa): This should be a fraction of the overall reward to stakers.
-	infrastructureEpochReward := big.NewInt(params.Ether)
+	communityEpochReward := big.NewInt(params.Ether)
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err
 	}
 
 	if governanceAddress != nil {
-		state.AddBalance(*governanceAddress, infrastructureEpochReward)
-		totalEpochRewards.Add(totalEpochRewards, infrastructureEpochReward)
+		state.AddBalance(*governanceAddress, communityEpochReward)
+		totalEpochRewards.Add(totalEpochRewards, communityEpochReward)
 	}
 
 	// Select groups that elected at least one validator aggregate their uptimes.
