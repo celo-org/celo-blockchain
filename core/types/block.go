@@ -245,8 +245,8 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, randomness *Randomness, epochSnarkData *EpochSnarkData) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: epochSnarkData}
+func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt, randomness *Randomness) *Block {
+	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: &EmptyEpochSnarkData}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -276,10 +276,6 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 
 	if randomness == nil {
 		b.randomness = &EmptyRandomness
-	}
-
-	if epochSnarkData == nil {
-		b.epochSnarkData = &EmptyEpochSnarkData
 	}
 
 	return b

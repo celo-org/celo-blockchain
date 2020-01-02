@@ -170,7 +170,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{})
+					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulAggregatedEpochSeal{})
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
@@ -213,9 +213,11 @@ OUTER:
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
+			signaturesBytesFixed := blscrypto.SerializedSignature{}
+			copy(signaturesBytesFixed[:], signatureBytes)
 			committedSubject := &istanbul.CommittedSubject{
 				Subject:       v.engine.(*core).current.Subject(),
-				CommittedSeal: signatureBytes,
+				CommittedSeal: signaturesBytesFixed,
 			}
 			m, _ := Encode(committedSubject)
 			if err := r0.handleCommit(&istanbul.Message{

@@ -85,7 +85,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	statedb.Prepare(common.Hash{}, block.Hash(), len(block.Transactions()))
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts, block.Randomness(), block.EpochSnarkData())
+	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts, block.Randomness())
 
 	if len(statedb.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)

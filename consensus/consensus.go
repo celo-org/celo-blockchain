@@ -87,7 +87,7 @@ type Engine interface {
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
 	Finalize(chain ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-		uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness, epochSnarkData *types.EpochSnarkData) (*types.Block, error)
+		uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error)
 
 	// Seal generates a new sealing request for the given input block and pushes
 	// the result into the given channel.
@@ -181,7 +181,7 @@ type Istanbul interface {
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
 	// The changes are executed inline.
-	UpdateValSetDiff(chain ChainReader, header *types.Header, epochSnarkData *types.EpochSnarkData, state *state.StateDB) error
+	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
 
 	// This is only implemented for Istanbul.
 	// It will check to see if the header is from the last block of an epoch

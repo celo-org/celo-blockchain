@@ -136,7 +136,7 @@ type Backend struct {
 
 	address          common.Address           // Ethereum address of the signing key
 	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.SignerFn        // Signer function to authorize hashes using BLS with
+	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.MessageSignerFn // Signer function to authorize messages using BLS with
 	signFnMu         sync.RWMutex             // Protects the signer fields
 
@@ -223,7 +223,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -380,6 +380,9 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	}
 	// update block's header
 	block = block.WithSeal(h)
+	block = block.WithEpochSnarkData(&types.EpochSnarkData{
+		Signature: aggregatedEpochSeal.Signature,
+	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
@@ -550,18 +553,18 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 
-func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
+func (sb *Backend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
 	if sb.signHashBLSFn == nil {
-		return nil, errInvalidSigningFn
+		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
 }
 
-func (sb *Backend) SignEpochSnarkData(data []byte) ([]byte, error) {
+func (sb *Backend) SignEpochSnarkData(data []byte) (blscrypto.SerializedSignature, error) {
 	if sb.signMessageBLSFn == nil {
-		return nil, errInvalidSigningFn
+		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()

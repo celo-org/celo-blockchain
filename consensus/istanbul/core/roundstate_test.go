@@ -1,6 +1,7 @@
 package core
 
 import (
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"testing"
 
@@ -11,10 +12,12 @@ import (
 )
 
 func TestRoundStateRLPEncoding(t *testing.T) {
+	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
+	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	dummyRoundState := func() RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
-			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
-			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
+			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
 		})
 		view := &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(2)}
 		return newRoundState(view, valSet, valSet.GetByIndex(0))

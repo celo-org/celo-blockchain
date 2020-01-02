@@ -205,9 +205,9 @@ func (c *core) commit() error {
 // signature and bitmap
 func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
-	committedSeals := make([][]byte, seals.Size())
+	committedSeals := make([]blscrypto.SerializedSignature, seals.Size())
 	for i, v := range seals.Values() {
-		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
+		committedSeals[i] = blscrypto.SerializedSignature{}
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
@@ -233,9 +233,9 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 // GetAggregatedEpochSeal aggregates all the given seals for a the SNARK-friendly epoch encoding
 // to a bls aggregated signature and bitmap
 func GetAggregatedEpochSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedEpochSeal, error) {
-	epochSeals := make([][]byte, seals.Size())
+	epochSeals := make([]blscrypto.SerializedSignature, seals.Size())
 	for i, v := range seals.Values() {
-		epochSeals[i] = make([]byte, blscrypto.SIGNATUREBYTES)
+		epochSeals[i] = blscrypto.SerializedSignature{}
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
@@ -261,7 +261,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
-	committedSeals := [][]byte{}
+	committedSeals := []blscrypto.SerializedSignature{}
 	committedSeals = append(committedSeals, aggregatedSignature.Signature)
 	for _, v := range seals.Values() {
 		valIndex, err := seals.GetAddressIndex(v.Address)

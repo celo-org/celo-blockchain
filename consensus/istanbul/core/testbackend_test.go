@@ -59,13 +59,14 @@ type testSystemBackend struct {
 type testCommittedMsgs struct {
 	commitProposal istanbul.Proposal
 	aggregatedSeal types.IstanbulAggregatedSeal
+	aggregatedEpochSeal types.IstanbulAggregatedEpochSeal
 }
 
 // ==============================================
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.MessageSignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.BLSSignerFn, _ istanbul.MessageSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -104,7 +105,7 @@ func (self *testSystemBackend) Gossip(validators []common.Address, message []byt
 	return nil
 }
 
-func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
@@ -112,14 +113,32 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-	return signatureBytes, nil
+	signatureBytesFixed := blscrypto.SerializedSignature{}
+	copy(signatureBytesFixed[:], signatureBytes)
+
+	return signatureBytesFixed, nil
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
+func (self *testSystemBackend) SignEpochSnarkData(data []byte) (blscrypto.SerializedSignature, error) {
+	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
+	defer privateKey.Destroy()
+
+	signature, _ := privateKey.SignMessage(data, []byte{}, true)
+	defer signature.Destroy()
+	signatureBytes, _ := signature.Serialize()
+
+	signatureBytesFixed := blscrypto.SerializedSignature{}
+	copy(signatureBytesFixed[:], signatureBytes)
+
+	return signatureBytesFixed, nil
+}
+
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal: proposal,
 		aggregatedSeal: aggregatedSeal,
+		aggregatedEpochSeal: aggregatedEpochSeal,
 	})
 
 	// fake new head events

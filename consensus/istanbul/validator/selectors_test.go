@@ -18,6 +18,7 @@ package validator
 
 import (
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"reflect"
 	"testing"
 
@@ -39,10 +40,10 @@ func TestStickyProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -96,10 +97,10 @@ func TestRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -153,10 +154,10 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}

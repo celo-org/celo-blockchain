@@ -18,6 +18,7 @@ package istanbul
 
 import (
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"io"
 	"math/big"
 
@@ -310,8 +311,8 @@ func (b *Subject) String() string {
 
 type CommittedSubject struct {
 	Subject       *Subject
-	CommittedSeal []byte
-	EpochSeal     []byte
+	CommittedSeal blscrypto.SerializedSignature
+	EpochSeal     blscrypto.SerializedSignature
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
@@ -323,7 +324,7 @@ func (cs *CommittedSubject) EncodeRLP(w io.Writer) error {
 func (cs *CommittedSubject) DecodeRLP(s *rlp.Stream) error {
 	var committedSubject struct {
 		Subject       *Subject
-		CommittedSeal []byte
+		CommittedSeal blscrypto.SerializedSignature
 	}
 
 	if err := s.Decode(&committedSubject); err != nil {

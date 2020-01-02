@@ -19,6 +19,7 @@ package accounts
 
 import (
 	"crypto/ecdsa"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 
 	ethereum "github.com/ethereum/go-ethereum"
@@ -103,8 +104,8 @@ type Wallet interface {
 	// the needed details via SignHashWithPassphrase, or by other means (e.g. unlock
 	// the account in a keystore).
 	SignHash(account Account, hash []byte) ([]byte, error)
-	SignHashBLS(account Account, hash []byte) ([]byte, error)
-	SignMessageBLS(account Account, msg []byte, extraData []byte) ([]byte, error)
+	SignHashBLS(account Account, hash []byte) (blscrypto.SerializedSignature, error)
+	SignMessageBLS(account Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error)
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)
 	GetPublicKey(account Account) (*ecdsa.PublicKey, error)

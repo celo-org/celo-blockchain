@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"reflect"
 	"testing"
@@ -226,8 +227,8 @@ func TestStoreBacklog(t *testing.T) {
 		Round:    big.NewInt(12),
 		Sequence: big.NewInt(11),
 	}
-	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
-	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), []byte{})
+	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
+	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), blscrypto.SerializedPublicKey{})
 
 	// push messages
 	preprepare := &istanbul.Preprepare{
@@ -278,10 +279,13 @@ func TestStoreBacklog(t *testing.T) {
 	if backlog.msgCountBySrc[p1.Address()] != 3 {
 		t.Errorf("msgCountBySrc mismatch: have %v, want 3", backlog.msgCountBySrc[p1.Address()])
 	}
+	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F} // celo in hex!
+	sig := blscrypto.SerializedSignature{}
+	copy(sig[:], invalidSig)
 	// push commit msg
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}, // celo in hex!
+		CommittedSeal: sig,
 	}
 
 	committedSubjectPayload, _ := Encode(committedSubject)
@@ -333,12 +337,16 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Round:    big.NewInt(10),
 		Sequence: big.NewInt(10),
 	}
+
+	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F}
+	sig := blscrypto.SerializedSignature{}
+	copy(sig[:], invalidSig)
 	committedSubject := &istanbul.CommittedSubject{
 		Subject: &istanbul.Subject{
 			View:   v,
 			Digest: common.BytesToHash([]byte("1234567890")),
 		},
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
+		CommittedSeal: sig,
 	}
 
 	committedSubjectPayload, _ := Encode(committedSubject)
@@ -401,9 +409,12 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
+	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F}
+	sig := blscrypto.SerializedSignature{}
+	copy(sig[:], invalidSig)
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
+		CommittedSeal: sig,
 	}
 	committedSubjectPayload, _ := Encode(committedSubject)
 

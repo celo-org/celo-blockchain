@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"io"
 	"math/big"
 	"sync"
@@ -510,12 +511,12 @@ func (w *wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {

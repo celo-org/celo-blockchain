@@ -471,7 +471,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
-func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, epochSnarkData *types.EpochSnarkData, state *state.StateDB) error {
+func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
@@ -511,7 +511,7 @@ func (sb *Backend) LookbackWindow() uint64 {
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness, epochSnarkData *types.EpochSnarkData) (*types.Block, error) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
@@ -546,7 +546,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, randomness, epochSnarkData), nil
+	return types.NewBlock(header, txs, nil, receipts, randomness), nil
 }
 
 // Seal generates a new block for the given input block with the local miner's

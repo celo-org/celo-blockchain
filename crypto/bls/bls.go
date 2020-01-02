@@ -73,28 +73,31 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	return nil, errors.New("couldn't derive a BLS key from an ECDSA key")
 }
 
-func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
+func PrivateToPublic(privateKeyBytes []byte) (SerializedPublicKey, error) {
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 	defer privateKey.Destroy()
 
 	publicKey, err := privateKey.ToPublic()
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 	defer publicKey.Destroy()
 
 	pubKeyBytes, err := publicKey.Serialize()
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 
-	return pubKeyBytes, nil
+	pubKeyBytesFixed := SerializedPublicKey{}
+	copy(pubKeyBytesFixed[:], pubKeyBytes)
+
+	return pubKeyBytesFixed, nil
 }
 
-func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature SerializedSignature, shouldUseCompositeHasher bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
 		publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
@@ -110,7 +113,7 @@ func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte,
 	}
 	defer apk.Destroy()
 
-	signatureObj, err := bls.DeserializeSignature(signature)
+	signatureObj, err := bls.DeserializeSignature(signature[:])
 	if err != nil {
 		return err
 	}
@@ -120,12 +123,12 @@ func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte,
 	return err
 }
 
-func AggregateSignatures(signatures [][]byte) ([]byte, error) {
+func AggregateSignatures(signatures []SerializedSignature) (SerializedSignature, error) {
 	signatureObjs := []*bls.Signature{}
 	for _, signature := range signatures {
-		signatureObj, err := bls.DeserializeSignature(signature)
+		signatureObj, err := bls.DeserializeSignature(signature[:])
 		if err != nil {
-			return nil, err
+			return SerializedSignature{}, err
 		}
 		defer signatureObj.Destroy()
 		signatureObjs = append(signatureObjs, signatureObj)
@@ -133,26 +136,28 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 
 	asig, err := bls.AggregateSignatures(signatureObjs)
 	if err != nil {
-		return nil, err
+		return SerializedSignature{}, err
 	}
 	defer asig.Destroy()
 
 	asigBytes, err := asig.Serialize()
 	if err != nil {
-		return nil, err
+		return SerializedSignature{}, err
 	}
 
-	return asigBytes, nil
+	asigBytesFixed := SerializedSignature{}
+	copy(asigBytesFixed[:], asigBytes)
+	return asigBytesFixed, nil
 }
 
-func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature SerializedSignature, shouldUseCompositeHasher bool) error {
 	publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
 	if err != nil {
 		return err
 	}
 	defer publicKeyObj.Destroy()
 
-	signatureObj, err := bls.DeserializeSignature(signature)
+	signatureObj, err := bls.DeserializeSignature(signature[:])
 	if err != nil {
 		return err
 	}
