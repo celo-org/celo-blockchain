@@ -400,7 +400,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
 	time.Sleep(delay)
 
-	return nil
+	return sb.addParentSeal(chain, header)
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
@@ -446,13 +446,8 @@ func (sb *Backend) LookbackWindow() uint64 {
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
-	err := sb.addParentSeal(chain, header)
-	if err != nil {
-		return nil, err
-	}
-
 	snapshot := state.Snapshot()
-	err = sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
+	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}

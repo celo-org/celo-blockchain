@@ -535,10 +535,6 @@ func TestVerifySeal(t *testing.T) {
 }
 
 func TestVerifyHeaders(t *testing.T) {
-	// TODO redo test.
-	// Skipping tests since they intend to create many blocks without adding them to a chain, which is invalid
-	// since we generate a block we need the parent block to be present in the chain (required for PArentCommit Seal gen)
-	t.Skip()
 	chain, engine := newBlockChain(1, true)
 	genesis := chain.Genesis()
 
