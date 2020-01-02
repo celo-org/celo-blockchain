@@ -162,6 +162,22 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 	return err
 }
 
-func EncodeEpochSnarkData(newValSet []SerializedPublicKey, epochIndex uint64) (SerializedSignature, error) {
-	return SerializedSignature{}, nil
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSignersPlusOne uint32, epochIndex uint16) ([]byte, error) {
+	pubKeys := []*bls.PublicKey{}
+	for _, pubKey := range newValSet {
+		publicKeyObj, err := bls.DeserializePublicKey(pubKey[:])
+		if err != nil {
+			return nil,err
+		}
+		defer publicKeyObj.Destroy()
+
+		pubKeys = append(pubKeys, publicKeyObj)
+	}
+	apk, err := bls.AggregatePublicKeys(pubKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer apk.Destroy()
+
+	return bls.EncodeEpochToBytes(epochIndex, maximumNonSignersPlusOne, apk, pubKeys)
 }

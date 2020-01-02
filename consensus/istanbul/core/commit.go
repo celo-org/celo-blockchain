@@ -48,13 +48,22 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochSeal(sub *istanbul.Subject) ([]byte, error) {
-	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBlockHeader(seal)
-	if err != nil {
-		return nil, err
+func (c *core) generateEpochSeal() ([]byte, error) {
+	currentBlockNumber := c.current.Proposal().Number().Uint64()
+	if istanbul.IsLastBlockOfEpoch(currentBlockNumber, c.config.Epoch) {
+		valSet := c.current.ValidatorSet()
+		blsPubKeys := []blscrypto.SerializedPublicKey{}
+		for _, v := range valSet.List() {
+			blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
+		}
+		epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F() + 1), uint16(currentBlockNumber/c.config.Epoch))
+		if err != nil {
+			return nil, err
+		}
+		return c.backend.SignEpochSnarkData(epochData[:])
 	}
-	return committedSeal, nil
+
+	return []byte{}, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -66,9 +75,12 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
+	epochSeal, err := c.generateEpochSeal()
+
 	committedSub := &istanbul.CommittedSubject{
 		Subject:       sub,
 		CommittedSeal: committedSeal,
+		EpochSeal: epochSeal,
 	}
 	encodedCommittedSubject, err := Encode(committedSub)
 	if err != nil {

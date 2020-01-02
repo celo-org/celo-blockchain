@@ -363,7 +363,7 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -557,6 +557,17 @@ func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
+}
+
+func (sb *Backend) SignEpochSnarkData(data []byte) ([]byte, error) {
+	if sb.signMessageBLSFn == nil {
+		return nil, errInvalidSigningFn
+	}
+	sb.signFnMu.RLock()
+	defer sb.signFnMu.RUnlock()
+	// Currently, ExtraData is unused. In the future, it could include data that could be used to introduce
+	// "firmware-level" protection
+	return sb.signMessageBLSFn(accounts.Account{Address: sb.address}, data, []byte{})
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

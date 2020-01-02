@@ -50,6 +50,11 @@ type IstanbulAggregatedSeal struct {
 	Round *big.Int
 }
 
+type IstanbulAggregatedEpochSeal struct {
+	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	Signature []byte
+}
+
 // EncodeRLP serializes ist into the Ethereum RLP format.
 func (ist *IstanbulAggregatedSeal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{

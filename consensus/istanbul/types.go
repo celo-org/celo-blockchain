@@ -311,6 +311,7 @@ func (b *Subject) String() string {
 type CommittedSubject struct {
 	Subject       *Subject
 	CommittedSeal []byte
+	EpochSeal     []byte
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
@@ -368,7 +369,7 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
-	EpochSeal []byte
+	EpochSeal []byte		 // Signature on the SNARK-friendly encoding of the epoch data
 }
 
 // ==============================================

@@ -53,7 +53,7 @@ type Backend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error
+	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -62,6 +62,7 @@ type Backend interface {
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
 	SignBlockHeader([]byte) ([]byte, error)
+	SignEpochSnarkData([]byte) ([]byte, error)
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator
