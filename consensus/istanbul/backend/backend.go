@@ -136,7 +136,7 @@ type Backend struct {
 
 	address          common.Address           // Ethereum address of the signing key
 	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
+	signHashBLSFn    istanbul.BLSSignerFn     // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.MessageSignerFn // Signer function to authorize messages using BLS with
 	signFnMu         sync.RWMutex             // Protects the signer fields
 

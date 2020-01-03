@@ -159,7 +159,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulAggregatedEpochSeal{Signature:test.expectedEpochSeal}); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulAggregatedEpochSeal{Signature: test.expectedEpochSeal}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

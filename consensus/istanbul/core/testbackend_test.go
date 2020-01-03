@@ -57,8 +57,8 @@ type testSystemBackend struct {
 }
 
 type testCommittedMsgs struct {
-	commitProposal istanbul.Proposal
-	aggregatedSeal types.IstanbulAggregatedSeal
+	commitProposal      istanbul.Proposal
+	aggregatedSeal      types.IstanbulAggregatedSeal
 	aggregatedEpochSeal types.IstanbulAggregatedEpochSeal
 }
 
@@ -136,8 +136,8 @@ func (self *testSystemBackend) SignEpochSnarkData(data []byte) (blscrypto.Serial
 func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
-		commitProposal: proposal,
-		aggregatedSeal: aggregatedSeal,
+		commitProposal:      proposal,
+		aggregatedSeal:      aggregatedSeal,
 		aggregatedEpochSeal: aggregatedEpochSeal,
 	})
 

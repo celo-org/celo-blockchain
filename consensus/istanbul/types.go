@@ -370,7 +370,7 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
-	EpochSeal []byte		 // Signature on the SNARK-friendly encoding of the epoch data
+	EpochSeal []byte         // Signature on the SNARK-friendly encoding of the epoch data
 }
 
 // ==============================================

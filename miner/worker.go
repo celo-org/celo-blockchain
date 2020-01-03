@@ -97,10 +97,10 @@ type environment struct {
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	header         *types.Header
-	txs            []*types.Transaction
-	receipts       []*types.Receipt
-	randomness     *types.Randomness // The types.Randomness of the last block by mined by this worker.
+	header     *types.Header
+	txs        []*types.Transaction
+	receipts   []*types.Receipt
+	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
 }
 
 // task contains all information for consensus engine sealing and result submitting.

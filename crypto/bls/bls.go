@@ -170,7 +170,7 @@ func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSignersPlus
 	for _, pubKey := range newValSet {
 		publicKeyObj, err := bls.DeserializePublicKey(pubKey[:])
 		if err != nil {
-			return nil,err
+			return nil, err
 		}
 		defer publicKeyObj.Destroy()
 

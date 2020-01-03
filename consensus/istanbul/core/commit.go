@@ -60,7 +60,7 @@ func (c *core) generateEpochSeal() ([]byte, error) {
 		for _, v := range valSet.List() {
 			blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 		}
-		epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F() + 1), uint16(currentBlockNumber/c.config.Epoch))
+		epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(currentBlockNumber/c.config.Epoch))
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +92,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	committedSub := &istanbul.CommittedSubject{
 		Subject:       sub,
 		CommittedSeal: committedSeal,
-		EpochSeal: epochSeal,
+		EpochSeal:     epochSeal,
 	}
 	encodedCommittedSubject, err := Encode(committedSub)
 	if err != nil {
