@@ -391,7 +391,7 @@ func TestHandlePreprepare(t *testing.T) {
 					t.Errorf("view mismatch: have %v, want %v", c.current.Subject().View, curView)
 				}
 
-				if test.existingBlock && len(v.sentMsgs)>0 {
+				if test.existingBlock && len(v.sentMsgs) > 0 {
 					t.Errorf("expecting to ignore commits for old messages %v", v.sentMsgs)
 				} else {
 					continue
