@@ -88,15 +88,14 @@ func coerceOptions(opts *RoundStateDBOptions) RoundStateDBOptions {
 }
 
 func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, error) {
-	logger := log.New("func", "newRoundStateDB")
+	logger := log.New("func", "newRoundStateDB", "path", path)
 
+	logger.Info("Open roundstate db")
 	var db *leveldb.DB
 	var err error
 	if path == "" {
-		logger.Info("Open roundstate db", "path", "inmemory")
 		db, err = newMemoryDB()
 	} else {
-		logger.Info("Open roundstate db", "path", path)
 		db, err = newPersistentDB(path)
 	}
 
@@ -108,7 +107,7 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 	rsdb := &roundStateDBImpl{
 		db:     db,
 		opts:   coerceOptions(opts),
-		logger: log.New("roundStateDB"),
+		logger: logger,
 	}
 
 	if rsdb.opts.withGarbageCollector {

@@ -424,9 +424,9 @@ var noGossip = map[int]bool{
 // more detail here: https://arxiv.org/pdf/1901.07160.pdf
 // To test this, a block is proposed, for which 2F + 1 PREPARE messages are sent to F nodes.
 // In the original implementation, these F nodes would lock onto that block, and eventually everyone would
-// round change. If the next proposer was byzantine, they could send a PRE-PREPARED with a different block,
+// round change. If the next proposer was byzantine, they could send a PREPREPARE with a different block,
 // get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
-// In the new implementation, the PRE-PREPARE will include a ROUND CHANGE certificate,
+// In the new implementation, the PREPREPARE will include a ROUND CHANGE certificate,
 // and all nodes will accept the newly proposed block.
 func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)

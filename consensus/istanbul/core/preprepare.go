@@ -44,16 +44,16 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		}
-		logger.Debug("Sending pre-prepare", "m", msg)
+		logger.Debug("Sending preprepare", "m", msg)
 		c.broadcast(msg)
 	}
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
-	logger.Trace("Got pre-prepare message", "m", msg)
+	logger.Trace("Got preprepare message", "m", msg)
 
-	// Decode PRE-PREPARE
+	// Decode PREPREPARE
 	var preprepare *istanbul.Preprepare
 	err := msg.Decode(&preprepare)
 	if err != nil {
@@ -101,7 +101,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errInvalidProposal
 	}
 
-	// Ensure we have the same view with the PRE-PREPARE message
+	// Ensure we have the same view with the PREPREPARE message
 	// If it is old message, see if we need to broadcast COMMIT
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
@@ -120,7 +120,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			}
 		}
 		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
-		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
+		logger.Trace("Check preprepare failed", "cur_round", c.current.Round(), "err", err)
 		return err
 	}
 
