@@ -31,7 +31,7 @@ func TestSimpleCase(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Node: nodeA, Timestamp: 1}
+	addressEntry := &AddressEntry{Node: nodeA, Timestamp: common.Big1}
 
 	err = vet.Upsert(map[common.Address]*AddressEntry{addressA: addressEntry})
 	if err != nil {
@@ -61,7 +61,7 @@ func TestDeleteEntry(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Node: nodeA, Timestamp: 2}
+	addressEntry := &AddressEntry{Node: nodeA, Timestamp: common.Big2}
 
 	err = vet.Upsert(map[common.Address]*AddressEntry{addressA: addressEntry})
 	if err != nil {
@@ -91,8 +91,8 @@ func TestPruneEntries(t *testing.T) {
 
 	batch := make(map[common.Address]*AddressEntry)
 
-	batch[addressA] = &AddressEntry{Node: nodeA, Timestamp: 2}
-	batch[addressB] = &AddressEntry{Node: nodeB, Timestamp: 2}
+	batch[addressA] = &AddressEntry{Node: nodeA, Timestamp: common.Big2}
+	batch[addressB] = &AddressEntry{Node: nodeB, Timestamp: common.Big2}
 
 	vet.Upsert(batch)
 
@@ -113,7 +113,7 @@ func TestPruneEntries(t *testing.T) {
 }
 
 func TestRLPEntries(t *testing.T) {
-	original := AddressEntry{Node: nodeA, Timestamp: 1}
+	original := AddressEntry{Node: nodeA, Timestamp: common.Big1}
 
 	rawEntry, err := rlp.EncodeToBytes(&original)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestRLPEntries(t *testing.T) {
 	if result.Node.String() != original.Node.String() {
 		t.Errorf("node doesn't match: got: %s expected: %s", result.Node.String(), original.Node.String())
 	}
-	if result.Timestamp != original.Timestamp {
+	if result.Timestamp.Cmp(original.Timestamp) != 0 {
 		t.Errorf("timestamp doesn't match: got: %v expected: %v", result.Timestamp, original.Timestamp)
 	}
 }
@@ -141,8 +141,8 @@ func TestTableToString(t *testing.T) {
 
 	batch := make(map[common.Address]*AddressEntry)
 
-	batch[addressA] = &AddressEntry{Node: nodeA, Timestamp: 2}
-	batch[addressB] = &AddressEntry{Node: nodeB, Timestamp: 2}
+	batch[addressA] = &AddressEntry{Node: nodeA, Timestamp: common.Big2}
+	batch[addressB] = &AddressEntry{Node: nodeB, Timestamp: common.Big2}
 
 	vet.Upsert(batch)
 

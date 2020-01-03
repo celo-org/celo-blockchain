@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -37,7 +38,7 @@ import (
 type sharedValidatorEnode struct {
 	Address   common.Address
 	EnodeURL  string
-	Timestamp uint
+	Timestamp *big.Int
 }
 
 type valEnodesShareData struct {
