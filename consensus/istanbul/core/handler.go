@@ -207,15 +207,15 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg(timeoutView *istanbul.View) error {
-	logger := c.newLogger("func", "handleTimeoutMsg", "round", timeoutView.Round)
+func (c *core) handleTimeoutMsg(desiredView *istanbul.View) error {
+	logger := c.newLogger("func", "handleTimeoutMsg", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
 
-	if c.CurrentView().Cmp(timeoutView) != 0 {
+	if c.current.Sequence().Cmp(desiredView.Sequence) != 0 || c.current.DesiredRound().Cmp(desiredView.Round) != 0 {
 		logger.Trace("Timed out but now on a different view")
 		return nil
 	}
 
 	logger.Debug("Timed out, trying to wait for next round")
-	nextRound := new(big.Int).Add(timeoutView.Round, common.Big1)
+	nextRound := new(big.Int).Add(desiredView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)
 }
