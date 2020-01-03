@@ -21,8 +21,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
-	"math/big"
 	mrand "math/rand"
 	"sort"
 	"time"
@@ -37,11 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-)
-
-const (
-	timestampDiffThreshold = 1 * time.Minute
-	announcePeriod         = 1 * time.Minute
 )
 
 // ===============================================================
@@ -60,7 +53,7 @@ func (ar *announceRecord) String() string {
 type announceData struct {
 	AnnounceRecords []*announceRecord
 	EnodeURLHash    common.Hash
-	Timestamp       *big.Int
+	Timestamp       uint
 }
 
 func (ad *announceData) String() string {
@@ -100,7 +93,7 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
 		EnodeURLHash    common.Hash
-		Timestamp       *big.Int
+		Timestamp       uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
@@ -116,7 +109,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(announcePeriod)
+	ticker := time.NewTicker(time.Minute)
 
 	for {
 		select {
@@ -161,7 +154,8 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		Timestamp:       big.NewInt(time.Now().Unix()),
+		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+		Timestamp: uint(time.Now().Unix()),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -266,17 +260,8 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 
 	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announceData.Timestamp)
 
-	// Check to see if the msg's timestamp is within 1 minute of this computer's timestamp
-	now := time.Now()
-	nowUnix := now.Unix()
-	tsDiff := math.Abs(float64(nowUnix - int64(announceData.Timestamp.Uint64())))
-	if tsDiff > timestampDiffThreshold.Seconds() {
-		logger.Info("Ignoring announce messages since its timestamp diff is over the threshold", "now", nowUnix, "announce timestamp", announceData.Timestamp.Uint64(), "timestamp diff", tsDiff)
-		return errTSDiffOverThresholdAnnounceMessage
-	}
-
 	if currentEntryTimestamp, err := sb.valEnodeTable.GetTimestampFromAddress(msg.Address); err == nil {
-		if announceData.Timestamp.Cmp(currentEntryTimestamp) < 0 {
+		if announceData.Timestamp < currentEntryTimestamp {
 			logger.Trace("Received an old announce message", "currentEntryTimestamp", currentEntryTimestamp)
 			return errOldAnnounceMessage
 		}

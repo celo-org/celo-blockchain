@@ -52,7 +52,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	// being inserted into the valEnodeTable
 	b.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{testAddress: {
 		Node:      testNode,
-		Timestamp: common.Big0,
+		Timestamp: 0,
 	}})
 	senderAddress = b.Address()
 	newMsg, err := b.generateValEnodesShareMsg()
