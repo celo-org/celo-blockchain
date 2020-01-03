@@ -67,6 +67,9 @@ var (
 	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
 	// than a previous received message
 	errOldAnnounceMessage = errors.New("old announce message")
+
+	// errTSDiffOverThresholdAnnounceMessage is returned when the received announce message's timestamp diff is over threshold
+	errTSDiffOverThresholdAnnounceMessage = errors.New("timestamp diff over threshold announce message")
 )
 
 // Entries for the recent announce messages

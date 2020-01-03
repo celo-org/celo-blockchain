@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"strings"
 	"sync"
@@ -48,7 +49,7 @@ const (
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 2
+	dbVersion = 3
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -77,7 +78,7 @@ func nodeIDKey(nodeID enode.ID) []byte {
 // AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
 	Node      *enode.Node
-	Timestamp uint
+	Timestamp *big.Int
 }
 
 func (ve *AddressEntry) String() string {
@@ -87,7 +88,7 @@ func (ve *AddressEntry) String() string {
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
 	EnodeURL  string
-	Timestamp uint
+	Timestamp *big.Int
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
@@ -229,12 +230,12 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 }
 
 // GetTimestampFromAddress will return the timestamp for an address if it's known
-func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (uint, error) {
+func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (*big.Int, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
-		return 0, err
+		return common.Big0, err
 	}
 	return entry.Timestamp, nil
 }
@@ -299,7 +300,7 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if !isNew && addressEntry.Timestamp < currentEntry.Timestamp {
+		if !isNew && addressEntry.Timestamp.Cmp(currentEntry.Timestamp) < 0 {
 			vet.logger.Trace("Ignoring the entry because its timestamp is older than what is stored in the val enode db",
 				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
 			continue
