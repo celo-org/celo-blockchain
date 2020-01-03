@@ -121,15 +121,15 @@ func TestCommit(t *testing.T) {
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr       error
-		expectedSignature blscrypto.SerializedSignature
-		expectedEpochSeal blscrypto.SerializedSignature
+		expectedSignature []byte
+		expectedEpochSeal []byte
 		expectedBlock     func() *types.Block
 	}{
 		{
 			// normal case
 			nil,
-			blscrypto.SerializedSignature{},
-			blscrypto.SerializedSignature{},
+			make([]byte, types.IstanbulExtraBlsSignature),
+			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -140,8 +140,8 @@ func TestCommit(t *testing.T) {
 		{
 			// invalid signature
 			errInvalidAggregatedSeal,
-			blscrypto.SerializedSignature{},
-			blscrypto.SerializedSignature{},
+			[]byte{},
+			[]byte{},
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())

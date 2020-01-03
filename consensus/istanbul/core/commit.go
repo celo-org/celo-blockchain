@@ -39,24 +39,19 @@ func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
+func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBlockHeader(seal)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
-	return committedSeal, nil
+	return committedSeal[:], nil
 }
 
-func (c *core) generateEpochSeal() (blscrypto.SerializedSignature, error) {
-	if c.current == nil {
-		return blscrypto.SerializedSignature{}, nil
-	}
+func (c *core) generateEpochSeal() ([]byte, error) {
+	// TODO(kobi): is this the correct handling?
 	if c.current.Proposal() == nil {
-		return blscrypto.SerializedSignature{}, nil
-	}
-	if c.current.Proposal().Header() == nil {
-		return blscrypto.SerializedSignature{}, nil
+		return []byte{}, nil
 	}
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
 	if istanbul.IsLastBlockOfEpoch(currentBlockNumber, c.config.Epoch) {
@@ -67,12 +62,16 @@ func (c *core) generateEpochSeal() (blscrypto.SerializedSignature, error) {
 		}
 		epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F() + 1), uint16(currentBlockNumber/c.config.Epoch))
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
-		return c.backend.SignEpochSnarkData(epochData[:])
+		sig, err := c.backend.SignEpochSnarkData(epochData[:])
+		if err != nil {
+			return nil, err
+		}
+		return sig[:], nil
 	}
 
-	return blscrypto.SerializedSignature{}, nil
+	return nil, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {

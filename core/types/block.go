@@ -152,7 +152,7 @@ func (r *Randomness) EncodeRLP(w io.Writer) error {
 }
 
 type EpochSnarkData struct {
-	Signature blscrypto.SerializedSignature
+	Signature []byte
 }
 
 func (r *EpochSnarkData) Size() common.StorageSize {
@@ -161,7 +161,7 @@ func (r *EpochSnarkData) Size() common.StorageSize {
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 	var epochSnarkData struct {
-		Signature blscrypto.SerializedSignature
+		Signature []byte
 	}
 	if err := s.Decode(&epochSnarkData); err != nil {
 		return err

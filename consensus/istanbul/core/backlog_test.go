@@ -279,13 +279,10 @@ func TestStoreBacklog(t *testing.T) {
 	if backlog.msgCountBySrc[p1.Address()] != 3 {
 		t.Errorf("msgCountBySrc mismatch: have %v, want 3", backlog.msgCountBySrc[p1.Address()])
 	}
-	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F} // celo in hex!
-	sig := blscrypto.SerializedSignature{}
-	copy(sig[:], invalidSig)
 	// push commit msg
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: sig,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}, // celo in hex!
 	}
 
 	committedSubjectPayload, _ := Encode(committedSubject)
@@ -338,15 +335,12 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Sequence: big.NewInt(10),
 	}
 
-	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F}
-	sig := blscrypto.SerializedSignature{}
-	copy(sig[:], invalidSig)
 	committedSubject := &istanbul.CommittedSubject{
 		Subject: &istanbul.Subject{
 			View:   v,
 			Digest: common.BytesToHash([]byte("1234567890")),
 		},
-		CommittedSeal: sig,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
 	}
 
 	committedSubjectPayload, _ := Encode(committedSubject)
@@ -409,12 +403,9 @@ func TestProcessBacklog(t *testing.T) {
 	}
 	subjectPayload, _ := Encode(subject)
 
-	invalidSig := []byte{0x63, 0x65, 0x6C, 0x6F}
-	sig := blscrypto.SerializedSignature{}
-	copy(sig[:], invalidSig)
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: sig,
+		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
 	}
 	committedSubjectPayload, _ := Encode(committedSubject)
 

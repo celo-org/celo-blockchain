@@ -205,16 +205,16 @@ func (c *core) commit() error {
 // signature and bitmap
 func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
 	bitmap := big.NewInt(0)
-	committedSeals := make([]blscrypto.SerializedSignature, seals.Size())
+	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
-		committedSeals[i] = blscrypto.SerializedSignature{}
+		committedSeals[i] = make([]byte, blscrypto.SIGNATUREBYTES)
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
 		if err != nil {
 			return types.IstanbulAggregatedSeal{}, err
 		}
-		copy(committedSeals[i][:], commit.CommittedSeal[:])
+		copy(committedSeals[i], commit.CommittedSeal[:])
 
 		j, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
@@ -233,16 +233,16 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 // GetAggregatedEpochSeal aggregates all the given seals for a the SNARK-friendly epoch encoding
 // to a bls aggregated signature and bitmap
 func GetAggregatedEpochSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedEpochSeal, error) {
-	epochSeals := make([]blscrypto.SerializedSignature, seals.Size())
+	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
-		epochSeals[i] = blscrypto.SerializedSignature{}
+		epochSeals[i] = make([]byte, blscrypto.SIGNATUREBYTES)
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
 		if err != nil {
 			return types.IstanbulAggregatedEpochSeal{}, err
 		}
-		copy(epochSeals[i][:], commit.EpochSeal[:])
+		copy(epochSeals[i], commit.EpochSeal[:])
 	}
 
 	asig, err := blscrypto.AggregateSignatures(epochSeals)
@@ -261,7 +261,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := aggregatedSignature.Bitmap
-	committedSeals := []blscrypto.SerializedSignature{}
+	committedSeals := [][]byte{}
 	committedSeals = append(committedSeals, aggregatedSignature.Signature)
 	for _, v := range seals.Values() {
 		valIndex, err := seals.GetAddressIndex(v.Address)

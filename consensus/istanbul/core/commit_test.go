@@ -213,11 +213,9 @@ OUTER:
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
-			signaturesBytesFixed := blscrypto.SerializedSignature{}
-			copy(signaturesBytesFixed[:], signatureBytes)
 			committedSubject := &istanbul.CommittedSubject{
 				Subject:       v.engine.(*core).current.Subject(),
-				CommittedSeal: signaturesBytesFixed,
+				CommittedSeal: signatureBytes,
 			}
 			m, _ := Encode(committedSubject)
 			if err := r0.handleCommit(&istanbul.Message{

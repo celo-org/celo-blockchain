@@ -445,7 +445,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
-	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
+	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
 			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock

@@ -18,7 +18,6 @@ package istanbul
 
 import (
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"io"
 	"math/big"
 
@@ -311,26 +310,27 @@ func (b *Subject) String() string {
 
 type CommittedSubject struct {
 	Subject       *Subject
-	CommittedSeal blscrypto.SerializedSignature
-	EpochSeal     blscrypto.SerializedSignature
+	CommittedSeal []byte
+	EpochSeal     []byte
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (cs *CommittedSubject) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{cs.Subject, cs.CommittedSeal})
+	return rlp.Encode(w, []interface{}{cs.Subject, cs.CommittedSeal, cs.EpochSeal})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (cs *CommittedSubject) DecodeRLP(s *rlp.Stream) error {
 	var committedSubject struct {
 		Subject       *Subject
-		CommittedSeal blscrypto.SerializedSignature
+		CommittedSeal []byte
+		EpochSeal     []byte
 	}
 
 	if err := s.Decode(&committedSubject); err != nil {
 		return err
 	}
-	cs.Subject, cs.CommittedSeal = committedSubject.Subject, committedSubject.CommittedSeal
+	cs.Subject, cs.CommittedSeal, cs.EpochSeal = committedSubject.Subject, committedSubject.CommittedSeal, committedSubject.EpochSeal
 	return nil
 }
 

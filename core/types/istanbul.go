@@ -45,14 +45,14 @@ type IstanbulAggregatedSeal struct {
 	// Bitmap is a bitmap having an active bit for each validator that signed this block
 	Bitmap *big.Int
 	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
-	Signature blscrypto.SerializedSignature
+	Signature []byte
 	// Round is the round in which the signature was created.
 	Round *big.Int
 }
 
 type IstanbulAggregatedEpochSeal struct {
 	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
-	Signature blscrypto.SerializedSignature
+	Signature []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -68,7 +68,7 @@ func (ist *IstanbulAggregatedSeal) EncodeRLP(w io.Writer) error {
 func (ist *IstanbulAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
 	var istanbulAggregatedSeal struct {
 		Bitmap    *big.Int
-		Signature blscrypto.SerializedSignature
+		Signature []byte
 		Round     *big.Int
 	}
 	if err := s.Decode(&istanbulAggregatedSeal); err != nil {
