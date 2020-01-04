@@ -560,7 +560,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 	} else {
 		duration, err := c.backend.Verify(proposal)
 
-		// Don't persist verification status if it's a future block
+		// Don't cache the verification status if it's a future block
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
 		}
