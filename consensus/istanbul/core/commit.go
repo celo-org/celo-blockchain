@@ -125,7 +125,6 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
 		return err
 	}
-
 	return nil
 }
 
