@@ -79,7 +79,7 @@ func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) 
 func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error {
 	// TODO:  Need to change the roundChangeImpl struct to include the proposal verification status map in the rlp enoding
 	//        so that it can be persisted.
-	return rsp.SetProposalVerificationStatus(proposalHash, verificationStatus)
+	return rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
 
 // DesiredRound implements RoundState.DesiredRound
