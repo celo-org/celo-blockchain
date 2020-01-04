@@ -62,7 +62,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	sb.logger.Trace("HandleMsg called", "address", addr, "msg", msg, "peer.Node()", peer.Node())
+	sb.logger.Trace("HandleMsg called", "address", addr, "ethMsg", msg, "peer.Node()", peer.Node())
 
 	if sb.isIstanbulMsg(msg) {
 		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
@@ -228,7 +228,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		// new epoch's validator set
 		if sb.coreStarted {
 			_, val := valset.GetByAddress(sb.ValidatorAddress())
-			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil))
+			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
 
 			sb.newEpochCh <- struct{}{}
 		}

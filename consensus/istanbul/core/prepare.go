@@ -43,7 +43,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
-	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+	if _, err := c.verifyProposal(preparedCertificate.Proposal); err != nil {
 		return errInvalidPreparedCertificateProposal
 	}
 

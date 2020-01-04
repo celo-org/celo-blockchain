@@ -48,6 +48,7 @@ type RoundState interface {
 	AddPrepare(msg *istanbul.Message) error
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
+	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error
 
 	// view functions
 	DesiredRound() *big.Int
@@ -68,6 +69,7 @@ type RoundState interface {
 	Sequence() *big.Int
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
+	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool)
 }
 
 // RoundState stores the consensus state
@@ -88,6 +90,9 @@ type roundStateImpl struct {
 	parentCommits       MessageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
+
+	// Verification status for proposals seen in this round
+	proposalVerificationStatus map[common.Hash]error
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -111,6 +116,8 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prop
 		parentCommits:       newMessageSet(validatorSet),
 		pendingRequest:      nil,
 		preparedCertificate: istanbul.EmptyPreparedCertificate(),
+
+		proposalVerificationStatus: make(map[common.Hash]error),
 
 		mu:     new(sync.RWMutex),
 		logger: log.New(),
@@ -376,6 +383,22 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.preparedCertificate
+}
+
+func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.proposalVerificationStatus[proposalHash] = verificationStatus
+	return nil
+}
+
+func (s *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	verificationStatus, isChecked = s.proposalVerificationStatus[proposalHash]
+	return
 }
 
 func (s *roundStateImpl) newLogger(ctx ...interface{}) log.Logger {

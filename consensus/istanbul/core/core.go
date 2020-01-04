@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -551,4 +552,19 @@ func (c *core) Sequence() *big.Int {
 		return nil
 	}
 	return c.current.Sequence()
+}
+
+func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	if verificationStatus, isChecked := c.current.GetProposalVerificationStatus(proposal.Hash()); isChecked {
+		return 0, verificationStatus
+	} else {
+		duration, err := c.backend.Verify(proposal)
+
+		// Don't persist verification status if it's a future block
+		if err != consensus.ErrFutureBlock {
+			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+
+		return duration, err
+	}
 }
