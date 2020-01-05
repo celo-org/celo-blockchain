@@ -232,15 +232,22 @@ func GetValidator(header *types.Header, state vm.StateDB, validatorAddress commo
 func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses []common.Address) ([]istanbul.ValidatorData, error) {
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
-		var blsKey blscrypto.SerializedPublicKey
+		var blsKey []byte
 		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
 		if err != nil {
 			return nil, err
 		}
-		validatorData = append(validatorData, istanbul.ValidatorData{
+
+		if len(blsKey) != blscrypto.PUBLICKEYBYTES {
+			return nil, fmt.Errorf("length of bls public key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
+		}
+		blsKeyFixed := blscrypto.SerializedPublicKey{}
+		copy(blsKeyFixed[:], blsKey)
+		validator := istanbul.ValidatorData{
 			addr,
-			blsKey,
-		})
+			blsKeyFixed,
+		}
+		validatorData = append(validatorData, validator)
 	}
 	return validatorData, nil
 }
