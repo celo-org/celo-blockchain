@@ -270,7 +270,7 @@ func (c *msgBacklogImpl) updateState(view *istanbul.View, state State) {
 func (c *msgBacklogImpl) processBacklog() {
 	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.logger.New("func", "processBacklog", "current_view", c.currentView, "current_state", c.currentState.String(), "for_seq", seq)
+		logger := c.logger.New("func", "processBacklog", "for_seq", seq, "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
 
 		if seq < c.currentView.Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
@@ -291,7 +291,7 @@ func (c *msgBacklogImpl) processBacklog() {
 				err = c.checkMessage(msg.Code, view)
 
 				if err == errFutureMessage {
-					logger.Debug("Future message in backlog for seq, pushing back to the backlog", "m", msg)
+					logger.Debug("Future message in backlog for seq, pushing back to the backlog", "m", msg, "msg_view", view)
 					return true
 				}
 
