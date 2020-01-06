@@ -77,8 +77,7 @@ func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) 
 	return rsp.persistOnNoError(rsp.rs.SetPendingRequest(pendingRequest))
 }
 func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error {
-	// TODO:  Need to change the roundChangeImpl struct to include the proposal verification status map in the rlp enoding
-	//        so that it can be persisted.
+	// Don't persist on proposal verification status change, since it's just a cache
 	return rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
 

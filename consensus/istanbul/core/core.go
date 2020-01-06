@@ -555,10 +555,15 @@ func (c *core) Sequence() *big.Int {
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	logger := c.newLogger("func", "verifyProposal", "proposal", proposal)
 	if verificationStatus, isChecked := c.current.GetProposalVerificationStatus(proposal.Hash()); isChecked {
+		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
+		logger.Trace("verification status cache miss")
+
 		duration, err := c.backend.Verify(proposal)
+		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
 		if err != consensus.ErrFutureBlock {
