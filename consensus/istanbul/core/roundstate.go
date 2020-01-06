@@ -92,6 +92,9 @@ type roundStateImpl struct {
 	preparedCertificate istanbul.PreparedCertificate
 
 	// Verification status for proposals seen in this round
+	// Note that this field will not get RLP enoded and persisted, since it contains an error type,
+	// which doesn't have a native RLP encoding.  Also, this is a cache, so it's not necessary for it
+	// to be persisted.
 	proposalVerificationStatus map[common.Hash]error
 
 	mu     *sync.RWMutex
@@ -116,8 +119,6 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prop
 		parentCommits:       newMessageSet(validatorSet),
 		pendingRequest:      nil,
 		preparedCertificate: istanbul.EmptyPreparedCertificate(),
-
-		proposalVerificationStatus: make(map[common.Hash]error),
 
 		mu:     new(sync.RWMutex),
 		logger: log.New(),
@@ -266,6 +267,7 @@ func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet is
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
 	s.pendingRequest = nil
 	s.parentCommits = parentCommits
+	s.proposalVerificationStatus = nil
 
 	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
 	return nil
@@ -389,6 +391,10 @@ func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.proposalVerificationStatus == nil {
+		s.proposalVerificationStatus = make(map[common.Hash]error)
+	}
+
 	s.proposalVerificationStatus[proposalHash] = verificationStatus
 	return nil
 }
@@ -397,7 +403,12 @@ func (s *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	verificationStatus, isChecked = s.proposalVerificationStatus[proposalHash]
+	verificationStatus, isChecked = nil, false
+
+	if s.proposalVerificationStatus != nil {
+		verificationStatus, isChecked = s.proposalVerificationStatus[proposalHash]
+	}
+
 	return
 }
 
