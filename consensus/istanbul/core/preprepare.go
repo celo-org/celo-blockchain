@@ -114,8 +114,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
 			// 2. The given block must exist
 			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
-				// TODO(tim) c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
+				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block_hash", preprepare.Proposal.Hash())
 				return nil
 			}
 		}
