@@ -157,7 +157,7 @@ func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 		return
 	}
 
-	if view.Round.Cmp(maxViewForPriorityQueue) >= 0 {
+	if view.Round.Cmp(maxRoundForPriorityQueue) >= 0 {
 		logger.Debug("Dropping message", "reason", "round exceeds PQ bounds check", "m", msg)
 		return
 	}
@@ -268,9 +268,11 @@ func (c *msgBacklogImpl) updateState(view *istanbul.View, state State) {
 }
 
 func (c *msgBacklogImpl) processBacklog() {
-	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.logger.New("func", "processBacklog", "for_seq", seq, "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
+	logger := c.logger.New("func", "processBacklog", "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
+	processedMsgsConsidered, processedMsgsEnqueued, processedMsgsFuture := 0, 0, 0
+
+	for _, seq := range c.getSortedBacklogSeqs() {
 
 		if seq < c.currentView.Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
@@ -278,38 +280,49 @@ func (c *msgBacklogImpl) processBacklog() {
 		} else if seq == c.currentView.Sequence.Uint64() {
 			// Current sequence. Process all in order.
 			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
+				processedMsgsConsidered++
+
 				view, err := extractMessageView(msg)
+
 				if err != nil {
-					logger.Warn("Error decoding msg", "m", msg, "err", err)
+					logger.Warn("Error decoding msg", "err", err)
 					return false
 				}
 				if view == nil {
-					logger.Warn("Nil view", "m", msg)
+					logger.Warn("Nil view")
 					return false
 				}
+
+				logger := logger.New("m", msg, "msg_view", view)
 
 				err = c.checkMessage(msg.Code, view)
 
 				if err == errFutureMessage {
-					logger.Debug("Future message in backlog for seq, pushing back to the backlog", "m", msg, "msg_view", view)
+					logger.Debug("Future message in backlog for seq, pushing back to the backlog")
+					processedMsgsFuture++
 					return true
 				}
 
 				if err == nil {
-					logger.Trace("Post backlog event", "m", msg)
+					logger.Trace("Post backlog event")
+					processedMsgsEnqueued++
 					go c.msgProcessor(msg)
 				} else {
-					logger.Trace("Skip the backlog event", "m", msg, "err", err)
+					logger.Trace("Skip the backlog event", "err", err)
 				}
 				return false
 			})
 		}
 	}
+
+	if processedMsgsConsidered > 0 {
+		logger.Info("Processing istanbul backlog", "considered", processedMsgsConsidered, "future", processedMsgsFuture, "enqueued", processedMsgsEnqueued)
+	}
 }
 
 // A safe maximum for round that prevents overflow
 var (
-	maxViewForPriorityQueue = big.NewInt(1 << (63 - 5))
+	maxRoundForPriorityQueue = big.NewInt(1 << (63 - 5))
 )
 
 func toPriority(msgCode uint64, view *istanbul.View) int64 {

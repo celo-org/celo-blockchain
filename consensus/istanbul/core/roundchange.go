@@ -387,7 +387,7 @@ func (rcs *roundChangeSet) String() string {
 		strings.Join(msgsForRoundStr, ", "))
 }
 
-// Gets a round change certificate for a specific round. Includes all messages of that round or later.
+// Gets a round change certificate for a specific round. Includes quorumSize messages of that round or later.
 // If the total is less than quorumSize, returns an empty cert and errFailedCreateRoundChangeCertificate.
 func (rcs *roundChangeSet) getCertificate(minRound *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
 	rcs.mu.Lock()
@@ -407,14 +407,16 @@ func (rcs *roundChangeSet) getCertificate(minRound *big.Int, quorumSize int) (is
 		}
 		for _, message := range rcs.msgsForRound[r].Values() {
 			messages = append(messages, *message)
+
+			// Stop when we've added a quorum of the highest-round messages.
+			if len(messages) >= quorumSize {
+				return istanbul.RoundChangeCertificate{
+					RoundChangeMessages: messages,
+				}, nil
+			}
 		}
 	}
 
-	if len(messages) >= quorumSize {
-		return istanbul.RoundChangeCertificate{
-			RoundChangeMessages: messages,
-		}, nil
-	}
-
+	// Didn't find a quorum of messages. Return an empty certificate with error.
 	return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 }

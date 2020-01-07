@@ -280,7 +280,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	request := c.current.PendingRequest()
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
-	// All preprepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
 	maxRound := big.NewInt(-1)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		var roundChangeMsg *istanbul.RoundChange

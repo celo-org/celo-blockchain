@@ -158,17 +158,17 @@ func TestRoundChangeSet(t *testing.T) {
 	// Test getCertificate
 	for r := 1; r < vset.Size(); r += roundMultiplier {
 		expectedMsgsAtRound := vset.Size() - r + 1
-		for quorum := 0; quorum < 10; quorum++ {
+		for quorum := 1; quorum < 10; quorum++ {
 			cert, err := rc.getCertificate(big.NewInt(int64(r)), quorum)
-			if quorum > expectedMsgsAtRound {
+			if expectedMsgsAtRound < quorum {
 				// Expecting fewer than quorum.
 				if err != errFailedCreateRoundChangeCertificate || len(cert.RoundChangeMessages) != 0 {
-					t.Errorf("problem in getCertificate r=%v q=1 want 0 have %v err=%v -- %v -- %v", r, len(cert.RoundChangeMessages), err, cert, rc)
+					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want 0 have %v err=%v -- %v -- %v", r, quorum, expectedMsgsAtRound, len(cert.RoundChangeMessages), err, cert, rc)
 				}
 			} else {
-				// Number we are expecting no more than quorum. Expecting a cert with RC messages.
-				if err != nil || len(cert.RoundChangeMessages) != expectedMsgsAtRound {
-					t.Errorf("problem in getCertificate r=%v q=1 want %v have %v -- %v -- %v", r, expectedMsgsAtRound, len(cert.RoundChangeMessages), cert, rc)
+				// Number msgs available at this round is >= quorum. Expecting a cert with =quorum RC messages.
+				if err != nil || len(cert.RoundChangeMessages) != quorum {
+					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want %v have %v -- %v -- %v", r, quorum, quorum, expectedMsgsAtRound, len(cert.RoundChangeMessages), cert, rc)
 				}
 			}
 		}

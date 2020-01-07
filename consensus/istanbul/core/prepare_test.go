@@ -127,7 +127,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
 				if err == nil && view.Cmp(test.expectedView) != 0 {
-					t.Errorf("error mismatch: have %v, want %v", view, test.expectedView)
+					t.Errorf("view mismatch: have %v, want %v", view, test.expectedView)
 				}
 			}
 		})
