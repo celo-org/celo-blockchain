@@ -238,7 +238,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
-	newBitmap := aggregatedSignature.Bitmap
+	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
 	committedSeals := [][]byte{}
 	committedSeals = append(committedSeals, aggregatedSignature.Signature)
 	for _, v := range seals.Values() {
@@ -255,7 +255,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 		// if the bit was not set, this means we should add this signature to
 		// the batch
-		if aggregatedSignature.Bitmap.Bit(int(valIndex)) == 0 {
+		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
 			committedSeals = append(committedSeals, commit.CommittedSeal)
 		}
