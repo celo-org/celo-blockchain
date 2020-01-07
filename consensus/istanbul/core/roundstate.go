@@ -48,7 +48,7 @@ type RoundState interface {
 	AddPrepare(msg *istanbul.Message) error
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
-	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error
+	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -69,7 +69,7 @@ type RoundState interface {
 	Sequence() *big.Int
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
-	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool)
+	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
 }
 
 // RoundState stores the consensus state
@@ -91,7 +91,7 @@ type roundStateImpl struct {
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
-	// Verification status for proposals seen in this round
+	// Verification status for proposals seen in this view
 	// Note that this field will not get RLP enoded and persisted, since it contains an error type,
 	// which doesn't have a native RLP encoding.  Also, this is a cache, so it's not necessary for it
 	// to be persisted.
@@ -387,7 +387,7 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	return s.preparedCertificate
 }
 
-func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error {
+func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -396,17 +396,16 @@ func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash,
 	}
 
 	s.proposalVerificationStatus[proposalHash] = verificationStatus
-	return nil
 }
 
-func (s *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
+func (s *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	verificationStatus, isChecked = nil, false
+	verificationStatus, isCached = nil, false
 
 	if s.proposalVerificationStatus != nil {
-		verificationStatus, isChecked = s.proposalVerificationStatus[proposalHash]
+		verificationStatus, isCached = s.proposalVerificationStatus[proposalHash]
 	}
 
 	return

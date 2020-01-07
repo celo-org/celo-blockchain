@@ -76,9 +76,9 @@ func (rsp *rsSaveDecorator) AddParentCommit(msg *istanbul.Message) error {
 func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) error {
 	return rsp.persistOnNoError(rsp.rs.SetPendingRequest(pendingRequest))
 }
-func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) error {
+func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) {
 	// Don't persist on proposal verification status change, since it's just a cache
-	return rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
+	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
 
 // DesiredRound implements RoundState.DesiredRound

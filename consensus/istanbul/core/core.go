@@ -555,8 +555,8 @@ func (c *core) Sequence() *big.Int {
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
-	logger := c.newLogger("func", "verifyProposal", "proposal", proposal)
-	if verificationStatus, isChecked := c.current.GetProposalVerificationStatus(proposal.Hash()); isChecked {
+	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
+	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
 		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
