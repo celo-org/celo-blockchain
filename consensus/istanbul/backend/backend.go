@@ -249,7 +249,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
-// ParentBlockValidators implements istanbul.Backend.GetParentValidators
+// ParentBlockValidators implements istanbul.Backend.ParentBlockValidators
 func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
 }
