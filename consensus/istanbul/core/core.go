@@ -297,7 +297,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 			continue
 		}
 
-		preparedCertificateView, err := c.verifyPreparedCertificate(roundChangeMsg.PreparedCertificate)
+		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChangeMsg.PreparedCertificate)
 		if err != nil {
 			logger.Error("Unexpected: could not verify a previously received PreparedCertificate message", "src_m", message)
 			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err

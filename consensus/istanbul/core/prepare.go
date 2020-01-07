@@ -133,6 +133,36 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 	return view, nil
 }
 
+// Extract the view from a PreparedCertificate that has already been verified.
+func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
+	logger := c.newLogger("func", "getViewFromVerifiedPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
+
+	if len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
+		return nil, errInvalidPreparedCertificateNumMsgs
+	}
+
+	message := preparedCertificate.PrepareOrCommitMessages[0]
+
+	var subject *istanbul.Subject
+
+	if message.Code == istanbul.MsgCommit {
+		var committedSubject *istanbul.CommittedSubject
+		err := message.Decode(&committedSubject)
+		if err != nil {
+			logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
+			return nil, err
+		}
+		subject = committedSubject.Subject
+	} else {
+		if err := message.Decode(&subject); err != nil {
+			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
+			return nil, err
+		}
+	}
+
+	return subject.View, nil
+}
+
 func (c *core) handlePrepare(msg *istanbul.Message) error {
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
