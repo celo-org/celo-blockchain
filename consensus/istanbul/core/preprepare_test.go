@@ -315,7 +315,7 @@ func TestHandlePreprepare(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			sys := test.system()
-			sys.Run(false)
+			closer := sys.Run(false)
 
 			v0 := sys.backends[0]
 			r0 := v0.engine.(*core)
@@ -409,6 +409,8 @@ func TestHandlePreprepare(t *testing.T) {
 					}
 				}
 			}
+
+			closer()
 		})
 	}
 }
