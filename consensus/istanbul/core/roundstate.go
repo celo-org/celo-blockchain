@@ -48,6 +48,7 @@ type RoundState interface {
 	AddPrepare(msg *istanbul.Message) error
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
+	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -68,6 +69,7 @@ type RoundState interface {
 	Sequence() *big.Int
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
+	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
 }
 
 // RoundState stores the consensus state
@@ -88,6 +90,12 @@ type roundStateImpl struct {
 	parentCommits       MessageSet
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
+
+	// Verification status for proposals seen in this view
+	// Note that this field will not get RLP enoded and persisted, since it contains an error type,
+	// which doesn't have a native RLP encoding.  Also, this is a cache, so it's not necessary for it
+	// to be persisted.
+	proposalVerificationStatus map[common.Hash]error
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -259,6 +267,7 @@ func (s *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet is
 	s.preparedCertificate = istanbul.EmptyPreparedCertificate()
 	s.pendingRequest = nil
 	s.parentCommits = parentCommits
+	s.proposalVerificationStatus = nil
 
 	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
 	return nil
@@ -376,6 +385,30 @@ func (s *roundStateImpl) PreparedCertificate() istanbul.PreparedCertificate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.preparedCertificate
+}
+
+func (s *roundStateImpl) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.proposalVerificationStatus == nil {
+		s.proposalVerificationStatus = make(map[common.Hash]error)
+	}
+
+	s.proposalVerificationStatus[proposalHash] = verificationStatus
+}
+
+func (s *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	verificationStatus, isCached = nil, false
+
+	if s.proposalVerificationStatus != nil {
+		verificationStatus, isCached = s.proposalVerificationStatus[proposalHash]
+	}
+
+	return
 }
 
 func (s *roundStateImpl) newLogger(ctx ...interface{}) log.Logger {

@@ -122,7 +122,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	// Verify the proposal we received
-	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
+	if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
 		if err == consensus.ErrFutureBlock {

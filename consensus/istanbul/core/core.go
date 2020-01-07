@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -237,7 +238,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
-	newBitmap := aggregatedSignature.Bitmap
+	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
 	committedSeals := [][]byte{}
 	committedSeals = append(committedSeals, aggregatedSignature.Signature)
 	for _, v := range seals.Values() {
@@ -254,7 +255,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 		// if the bit was not set, this means we should add this signature to
 		// the batch
-		if aggregatedSignature.Bitmap.Bit(int(valIndex)) == 0 {
+		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
 			committedSeals = append(committedSeals, commit.CommittedSeal)
 		}
@@ -568,4 +569,24 @@ func (c *core) Sequence() *big.Int {
 		return nil
 	}
 	return c.current.Sequence()
+}
+
+func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
+	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
+		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
+		return 0, verificationStatus
+	} else {
+		logger.Trace("verification status cache miss")
+
+		duration, err := c.backend.Verify(proposal)
+		logger.Trace("proposal verify return values", "duration", duration, "err", err)
+
+		// Don't cache the verification status if it's a future block
+		if err != consensus.ErrFutureBlock {
+			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+
+		return duration, err
+	}
 }

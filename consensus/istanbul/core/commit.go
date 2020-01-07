@@ -142,7 +142,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	}
 	numberOfCommits := c.current.Commits().Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
-	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
+	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//

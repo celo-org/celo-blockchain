@@ -250,7 +250,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
-// ParentBlockValidators implements istanbul.Backend.GetParentValidators
+// ParentBlockValidators implements istanbul.Backend.ParentBlockValidators
 func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
 }
@@ -337,9 +337,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 	}
 
 	if len(peers) > 0 {
-		for addr, p := range peers {
+		for nodeID, p := range peers {
 			if !ignoreCache {
-				ms, ok := sb.recentMessages.Get(addr)
+				ms, ok := sb.recentMessages.Get(nodeID)
 				var m *lru.ARCCache
 				if ok {
 					m, _ = ms.(*lru.ARCCache)
@@ -352,9 +352,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 				}
 
 				m.Add(hash, true)
-				sb.recentMessages.Add(addr, m)
+				sb.recentMessages.Add(nodeID, m)
 			}
-			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "address", addr)
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "nodeID", nodeID)
 
 			go p.Send(ethMsgCode, payload)
 		}

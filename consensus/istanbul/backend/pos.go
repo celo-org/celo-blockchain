@@ -94,7 +94,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
-	sb.logger.Trace("Updating validator scores")
+	logger.Trace("Updating validator scores")
 
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1

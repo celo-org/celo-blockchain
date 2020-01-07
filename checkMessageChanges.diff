@@ -1,0 +1,301 @@
+diff --git a/consensus/istanbul/core/backlog.go b/consensus/istanbul/core/backlog.go
+index 22cf27d6d..91b1b7d87 100644
+--- a/consensus/istanbul/core/backlog.go
++++ b/consensus/istanbul/core/backlog.go
+@@ -52,40 +52,54 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
+ 		return errInvalidMessage
+ 	}
+
+-	if msgView.Cmp(c.current.View()) < 0 {
++	if msgView.Sequence.Cmp(c.current.Sequence()) < 0 {
++		// If the sequence is less than current: always old.
+ 		return errOldMessage
+ 	} else if msgView.Sequence.Cmp(c.current.Sequence()) > 0 {
+-		// sequence is bigger, definitely future message
++		// sequence is greater than current: always future message
+ 		return errFutureMessage
+-	} else {
+-		// same sequence && msgRound >= currentRound
+-
+-		// Accept all RoundChange (also future rounds)
+-		// but check again desired round
+-		if msgCode == istanbul.MsgRoundChange {
+-			if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
+-				return errOldMessage
+-			}
+-			return nil
+-		}
++	} else if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
++		// Sequence same. If the round is less than desiredRound, it is old.
++		return errOldMessage
++	}
+
+-		// TODO we should check directly against the desired round
+-		// there's no sense in accepting (or storing) messages on the range [currentRound, desiredRound]
++	// Sequence same. msgRound >= desiredRound.
++	if msgCode == istanbul.MsgRoundChange {
++		// Always accept all RoundChange messages for any round >= desiredRound in our current sequence.
++		return nil
++	}
+
+-		if msgView.Round.Cmp(c.current.View().Round) > 0 || c.current.State() == StateWaitingForNewRound {
+-			return errFutureMessage
++	if msgCode == istanbul.MsgPreprepare {
++		// Due to RoundChangeCertificates, we cannot reject Preprepare messages for future rounds here.
++		// If our actual round is in a state beyond AcceptRequest, the preprepare is old.
++		if msgView.Round.Cmp(c.current.View().Round) == 0 && c.current.State() != StateAcceptRequest {
++			return errOldMessage
+ 		}
++		return nil
++	}
+
+-		// StateAcceptRequest only accepts istanbul.MsgPreprepare
+-		// other messages are future messages
+-		if c.current.State() == StateAcceptRequest && msgCode != istanbul.MsgPreprepare {
+-			return errFutureMessage
+-		}
++	// Otherwise, PREPARE or COMMIT.
+
+-		// For states(StatePreprepared, StatePrepared, StateCommitted),
+-		// can accept all message types if processing with same view
+-		return nil
++	if msgView.Round.Cmp(c.current.View().Round) > 0 {
++		return errFutureMessage
++	}
++
++	// PREPARE or COMMIT are future in {StateAcceptRequest, StateWaitingForNewRound}.
++	if c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest {
++		return errFutureMessage
+ 	}
++
++	// COMMIT are future in StatePreprepared
++	if msgCode == istanbul.MsgCommit && c.current.State() == StatePreprepared {
++		return errFutureMessage
++	}
++
++	// PREPARE are old in StateCommitted
++	if msgCode == istanbul.MsgPrepare && c.current.State() == StateCommitted {
++		return errOldMessage
++	}
++
++	return nil
+ }
+
+ // MsgBacklog represent a backlog of future messages
+diff --git a/consensus/istanbul/core/backlog_test.go b/consensus/istanbul/core/backlog_test.go
+index eef90ed8b..dc5f526d0 100644
+--- a/consensus/istanbul/core/backlog_test.go
++++ b/consensus/istanbul/core/backlog_test.go
+@@ -67,7 +67,7 @@ func TestCheckMessage(t *testing.T) {
+ 				err := c.checkMessage(testCode, v)
+
+ 				if err != errOldMessage {
+-					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
++					t.Errorf("error mismatch: have %v, want %v testState=%v testCode=%v", err, errOldMessage, testState, testCode)
+ 				}
+
+ 			}
+@@ -84,7 +84,7 @@ func TestCheckMessage(t *testing.T) {
+ 				c.current.(*roundStateImpl).state = testState
+ 				err := c.checkMessage(testCode, v)
+ 				if err != errOldMessage {
+-					t.Errorf("error mismatch: have %v, want %v", err, errOldMessage)
++					t.Errorf("error mismatch: have %v, want %v testState=%v testCode=%v", err, errOldMessage, testState, testCode)
+ 				}
+ 			}
+ 		}
+@@ -100,7 +100,7 @@ func TestCheckMessage(t *testing.T) {
+ 				c.current.(*roundStateImpl).state = testState
+ 				err := c.checkMessage(testCode, v)
+ 				if err != errFutureMessage {
+-					t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
++					t.Errorf("error mismatch: have %v, want %v testState=%v testCode=%v", err, errFutureMessage, testState, testCode)
+ 				}
+ 			}
+ 		}
+@@ -115,12 +115,12 @@ func TestCheckMessage(t *testing.T) {
+ 			for _, testCode := range testCodes {
+ 				c.current.(*roundStateImpl).state = testState
+ 				err := c.checkMessage(testCode, v)
+-				if testCode == istanbul.MsgRoundChange {
++				if testCode == istanbul.MsgRoundChange || testCode == istanbul.MsgPreprepare {
+ 					if err != nil {
+-						t.Errorf("error mismatch: have %v, want nil", err)
++						t.Errorf("error mismatch: have %v, want nil  testState=%v testCode=%v", err, testState, testCode)
+ 					}
+ 				} else if err != errFutureMessage {
+-					t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
++					t.Errorf("error mismatch: have %v, want %v testState=%v testCode=%v", err, errFutureMessage, testState, testCode)
+ 				}
+ 			}
+ 		}
+@@ -155,10 +155,18 @@ func TestCheckMessage(t *testing.T) {
+ 			err := c.checkMessage(testCode, v)
+ 			if testCode == istanbul.MsgRoundChange {
+ 				if err != nil {
+-					t.Errorf("error mismatch: have %v, want nil", err)
++					t.Errorf("error mismatch: have %v, want nil, testCode=%v", err, testCode)
++				}
++			} else if testCode == istanbul.MsgPreprepare {
++				if err != errOldMessage {
++					t.Errorf("error mismatch: have %v, want %v, testCode=%v", err, errOldMessage, testCode)
++				}
++			} else if testCode == istanbul.MsgCommit {
++				if err != errFutureMessage {
++					t.Errorf("error mismatch: have %v, want %v, testCode=%v", err, errOldMessage, testCode)
+ 				}
+ 			} else if err != nil {
+-				t.Errorf("error mismatch: have %v, want nil", err)
++				t.Errorf("error mismatch: have %v, want nil, testCode=%v", err, testCode)
+ 			}
+ 		}
+ 	})
+@@ -170,25 +178,33 @@ func TestCheckMessage(t *testing.T) {
+ 			err := c.checkMessage(testCode, v)
+ 			if testCode == istanbul.MsgRoundChange {
+ 				if err != nil {
+-					t.Errorf("error mismatch: have %v, want nil", err)
++					t.Errorf("error mismatch: have %v, want nil, testCode=%v", err, testCode)
++				}
++			} else if testCode == istanbul.MsgPreprepare {
++				if err != errOldMessage {
++					t.Errorf("error mismatch: have %v, want %v, testCode=%v", err, errOldMessage, testCode)
+ 				}
+ 			} else if err != nil {
+-				t.Errorf("error mismatch: have %v, want nil", err)
++				t.Errorf("error mismatch: have %v, want nil testCode=%v", err, testCode)
+ 			}
+ 		}
+ 	})
+
+-	t.Run("current view, state = StateCommited", func(t *testing.T) {
++	t.Run("current view, state = StateCommitted", func(t *testing.T) {
+ 		v := c.current.View()
+ 		c.current.(*roundStateImpl).state = StateCommitted
+ 		for _, testCode := range testCodes {
+ 			err := c.checkMessage(testCode, v)
+ 			if testCode == istanbul.MsgRoundChange {
+ 				if err != nil {
+-					t.Errorf("error mismatch: have %v, want nil", err)
++					t.Errorf("error mismatch: have %v, want nil, testCode=%v", err, testCode)
++				}
++			} else if testCode == istanbul.MsgPreprepare || testCode == istanbul.MsgPrepare {
++				if err != errOldMessage {
++					t.Errorf("error mismatch: have %v, want %v, testCode=%v", err, errOldMessage, testCode)
+ 				}
+ 			} else if err != nil {
+-				t.Errorf("error mismatch: have %v, want nil", err)
++				t.Errorf("error mismatch: have %v, want nil testCode=%v", err, testCode)
+ 			}
+ 		}
+ 	})
+@@ -200,10 +216,14 @@ func TestCheckMessage(t *testing.T) {
+ 			err := c.checkMessage(testCode, v)
+ 			if testCode == istanbul.MsgRoundChange {
+ 				if err != nil {
+-					t.Errorf("error mismatch: have %v, want nil", err)
++					t.Errorf("error mismatch: have %v, want nil testCode=%v", err, testCode)
++				}
++			} else if testCode == istanbul.MsgPreprepare {
++				if err != errOldMessage {
++					t.Errorf("error mismatch: have %v, want %v, testCode=%v", err, errOldMessage, testCode)
+ 				}
+ 			} else if err != errFutureMessage {
+-				t.Errorf("error mismatch: have %v, want %v", err, errFutureMessage)
++				t.Errorf("error mismatch: have %v, want %v testCode=%v", err, errFutureMessage, testCode)
+ 			}
+ 		}
+ 	})
+diff --git a/consensus/istanbul/core/preprepare.go b/consensus/istanbul/core/preprepare.go
+index 566a19663..08095855b 100644
+--- a/consensus/istanbul/core/preprepare.go
++++ b/consensus/istanbul/core/preprepare.go
+@@ -60,10 +60,11 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
+ 		return errFailedDecodePreprepare
+ 	}
+
+-	// Check if the message comes from current proposer
+-	if !c.current.IsProposer(msg.Address) {
+-		logger.Warn("Ignore preprepare messages from non-proposer")
+-		return errNotFromProposer
++	// Check the message is for: the current sequence; and either: a round >= desiredRound,
++	// or the current round iff we are in StateAcceptRequest.
++	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
++		logger.Trace("Check pre-prepare failed", "err", err)
++		return err
+ 	}
+
+ 	// Verify that the proposal is for the sequence number of the view we verified.
+@@ -72,6 +73,18 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
+ 		return errInvalidProposal
+ 	}
+
++	// Check proposer is valid for the message's view (this may be a subsequent round)
++	_, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
++	if headProposer == common.ZeroAddress {
++		logger.Error("Could not determine head proposer")
++		return errNotFromProposer
++	}
++	proposerForThisRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
++	if proposerForThisRound != proposerForThisRound {
++		logger.Warn("Ignore preprepare message from non-proposer")
++		return errNotFromProposer
++	}
++
+ 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
+ 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
+ 		if !preprepare.HasRoundChangeCertificate() {
+@@ -93,30 +106,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
+ 		return errInvalidProposal
+ 	}
+
+-	// Ensure we have the same view with the PRE-PREPARE message
+-	// If it is old message, see if we need to broadcast COMMIT
+-	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
+-		if err == errOldMessage {
+-			// Get validator set for the given proposal
+-			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+-			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+-			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+-
+-			// Broadcast COMMIT if it is an existing block
+-			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
+-			// 2. The given block must exist
+-			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+-				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
+-				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
+-				return nil
+-			}
+-		}
+-		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
+-		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
+-		return err
+-	}
+-
+-	// Verify the proposal we received
++	// Verify the proposal we received.
+ 	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
+ 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
+ 		// if it's a future block, we will handle it again after the duration
+diff --git a/consensus/istanbul/core/types.go b/consensus/istanbul/core/types.go
+index 61ed63267..ddb366e61 100644
+--- a/consensus/istanbul/core/types.go
++++ b/consensus/istanbul/core/types.go
+@@ -45,7 +45,7 @@ const (
+
+ func (s State) String() string {
+ 	if s == StateAcceptRequest {
+-		return "Accept request"
++		return "AcceptRequest"
+ 	} else if s == StatePreprepared {
+ 		return "Preprepared"
+ 	} else if s == StatePrepared {
+@@ -53,7 +53,7 @@ func (s State) String() string {
+ 	} else if s == StateCommitted {
+ 		return "Committed"
+ 	} else if s == StateWaitingForNewRound {
+-		return "Waiting for new round"
++		return "WaitingForNewRound"
+ 	} else {
+ 		return "Unknown"
+ 	}

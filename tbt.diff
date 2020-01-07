@@ -1,0 +1,53 @@
+diff --git a/consensus/istanbul/core/testbackend_test.go b/consensus/istanbul/core/testbackend_test.go
+index 4fe5f6cd8..0ff898cb2 100644
+--- a/consensus/istanbul/core/testbackend_test.go
++++ b/consensus/istanbul/core/testbackend_test.go
+@@ -116,7 +116,7 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+ }
+ 
+ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
+-	testLogger.Info("commit message", "address", self.Address())
++	testLogger.Info("commit message", "address", self.Address(), "proposal", proposal, "coinbase", proposal.Header().Coinbase)
+ 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
+ 		commitProposal: proposal,
+ 		aggregatedSeal: aggregatedSeal,
+@@ -160,7 +160,6 @@ func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
+ 		testLogger.Info("have proposal for block", "num", l)
+ 		return self.committedMsgs[l-1].commitProposal
+ 	}
+-	testLogger.Info("do not have proposal for block", "num", 0)
+ 	return makeBlock(0)
+ }
+ 
+@@ -168,9 +167,9 @@ func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal
+ 	l := len(self.committedMsgs)
+ 	if l > 0 {
+ 		testLogger.Info("have proposal for block", "num", l)
+-		return self.committedMsgs[l-1].commitProposal, common.Address{}
++		proposer, _ := self.Author(self.committedMsgs[l-1].commitProposal.Header())
++		return self.committedMsgs[l-1].commitProposal, proposer
+ 	}
+-	testLogger.Info("do not have proposal for block", "num", 0)
+ 	return makeBlock(0), common.Address{}
+ }
+ 
+@@ -185,8 +184,18 @@ func (self *testSystemBackend) HasBlock(hash common.Hash, number *big.Int) bool
+ 	return number.Cmp(big.NewInt(5)) == 0
+ }
+ 
++func (self *testSystemBackend) Author(header *types.Header) (common.Address, error) {
++	return header.Coinbase, nil
++}
++
+ func (self *testSystemBackend) AuthorForBlock(number uint64) common.Address {
+-	return common.Address{}
++	if number==0 || number>uint64(len(self.committedMsgs)) {
++		return common.ZeroAddress
++	}
++	testLogger.Info("Author1", "num", number, "x", self.committedMsgs)
++	proposer, _ := self.Author(self.committedMsgs[number-1].commitProposal.Header())
++	testLogger.Info("Author", "num", number, "author", proposer)
++	return proposer
+ }
+ 
+ func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
