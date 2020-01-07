@@ -392,7 +392,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	if roundChange && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
-	c.newRoundChangeTimer()
+	c.resetRoundChangeTimer()
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
@@ -409,10 +409,6 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	}
 
 	logger.Debug("Round Change: Waiting for desired round")
-	desiredView := &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Set(r),
-	}
 
 	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
@@ -422,7 +418,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 		return err
 	}
 
-	c.newRoundChangeTimerForView(desiredView)
+	c.resetRoundChangeTimer()
 
 	// Process Backlog Messages
 	c.backlog.updateState(c.current.View(), c.current.State())
@@ -522,13 +518,11 @@ func (c *core) stopTimer() {
 	}
 }
 
-func (c *core) newRoundChangeTimer() {
-	c.newRoundChangeTimerForView(c.current.View())
-}
-
-func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
+// Stop any current round change timer and set a timer for the desired round.
+func (c *core) resetRoundChangeTimer() {
 	c.stopTimer()
 
+	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
 	round := view.Round.Uint64()
 	if round == 0 {
@@ -540,7 +534,7 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{&istanbul.View{Sequence: view.Sequence, Round: view.Round}})
+		c.sendEvent(timeoutEvent{view})
 	})
 }
 

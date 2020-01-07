@@ -34,7 +34,7 @@ func (c *core) Start() error {
 	c.current = roundState
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
-	c.newRoundChangeTimer()
+	c.resetRoundChangeTimer()
 
 	// Process backlog
 	c.processPendingRequests()
