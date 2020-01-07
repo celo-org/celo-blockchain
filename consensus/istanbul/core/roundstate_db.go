@@ -88,7 +88,7 @@ func coerceOptions(opts *RoundStateDBOptions) RoundStateDBOptions {
 }
 
 func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, error) {
-	logger := log.New("func", "newRoundStateDB", "path", path)
+	logger := log.New("func", "newRoundStateDB", "type", "roundStateDB", "rsdb_path", path)
 
 	logger.Info("Open roundstate db")
 	var db *leveldb.DB
@@ -169,11 +169,12 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	// We store the roundState for each view; since we'll need this
 	// information to allow the node to have evidence to show that
 	// a validator did a "valid" double signing
-
+	logger := rsdb.logger.New("func", "UpdateLastRoundState")
 	viewKey := view2Key(rs.View())
 
 	entryBytes, err := rlp.EncodeToBytes(rs)
 	if err != nil {
+		logger.Error("Failed to save roundState", "reason", "rlp encoding", "err", err)
 		return err
 	}
 
@@ -181,7 +182,12 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	batch.Put([]byte(lastViewKey), viewKey)
 	batch.Put(viewKey, entryBytes)
 
-	return rsdb.db.Write(batch, nil)
+	err = rsdb.db.Write(batch, nil)
+	if err != nil {
+		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
+	}
+
+	return err
 }
 
 func (rsdb *roundStateDBImpl) GetLastView() (*istanbul.View, error) {
