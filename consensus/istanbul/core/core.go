@@ -43,11 +43,22 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
+	istanbulLogger, err := istanbul.NewIstLogger(
+		func() *big.Int {
+			view, err := rsdb.GetLastView()
+			if err != nil {
+				log.Crit("Failed to fetch last view")
+			}
+			return view.Round
+		})
+	if err != nil {
+		log.Crit("Failed to instantiate Istanbul Logger", "err", err)
+	}
 
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		logger:             log.New(),
+		logger:             istanbulLogger,
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
@@ -127,7 +138,7 @@ func (c *core) newLogger(ctx ...interface{}) log.Logger {
 
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
-	c.logger = log.New("address", address)
+	c.logger = c.logger.New("address", address)
 }
 
 func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {

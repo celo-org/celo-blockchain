@@ -17,44 +17,29 @@
 package istanbul
 
 import (
-	"errors"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"math/big"
 )
 
-type Rounder interface {
-	Round() *big.Int
-}
-
 type istLogger struct {
-	logger     log.Logger
-	roundState Rounder
+	logger log.Logger
+	round  func() *big.Int
 }
 
-func NewIstLogger(ctx ...interface{}) (log.Logger, error) {
-	// The first parameter must have a RoundState interface
-	if len(ctx) == 0 {
-		return nil, errors.New("First parameter of istanbul.NewIstLogger must have RoundState interface")
-	}
-
-	roundState, ok := ctx[0].(Rounder)
-	if !ok {
-		return nil, errors.New("First parameter of istanbul.NewIstLogger must have RoundState interface")
-	}
-
-	return &istLogger{logger: log.New(ctx[1:]...), roundState: roundState}, nil
+// NewIstLogger creates an Istanbul Logger with custom logic for exposing logs
+func NewIstLogger(fn func() *big.Int, ctx ...interface{}) (log.Logger, error) {
+	return &istLogger{logger: log.New(ctx[1:]...), round: fn}, nil
 }
 
 func (l *istLogger) New(ctx ...interface{}) log.Logger {
 	childLogger := l.logger.New(ctx)
-	return &istLogger{logger: childLogger, roundState: l.roundState}
+	return &istLogger{logger: childLogger, round: l.round}
 }
 
 func (l *istLogger) Trace(msg string, ctx ...interface{}) {
 	// If the current round > 1, then upgrade this message to Info
-	if l.roundState.Round().Cmp(common.Big1) > 0 {
+	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
 		l.Trace(msg, ctx)
@@ -63,7 +48,7 @@ func (l *istLogger) Trace(msg string, ctx ...interface{}) {
 
 func (l *istLogger) Debug(msg string, ctx ...interface{}) {
 	// If the current round > 1, then upgrade this message to Info
-	if l.roundState.Round().Cmp(common.Big1) > 0 {
+	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
 		l.Debug(msg, ctx)
