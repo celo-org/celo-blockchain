@@ -94,7 +94,7 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
-	sb.logger.Trace("Updating validator scores")
+	logger.Trace("Updating validator scores")
 
 	// The denominator is the (last block - first block + 1) of the val score tally window
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
@@ -149,17 +149,17 @@ func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.St
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
 	totalEpochRewards := big.NewInt(0)
 
-	// Fixed epoch reward to the infrastructure fund.
+	// Fixed epoch reward to the community fund.
 	// TODO(asa): This should be a fraction of the overall reward to stakers.
-	infrastructureEpochReward := big.NewInt(params.Ether)
+	communityEpochReward := big.NewInt(params.Ether)
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
 		return totalEpochRewards, err
 	}
 
 	if governanceAddress != nil {
-		state.AddBalance(*governanceAddress, infrastructureEpochReward)
-		totalEpochRewards.Add(totalEpochRewards, infrastructureEpochReward)
+		state.AddBalance(*governanceAddress, communityEpochReward)
+		totalEpochRewards.Add(totalEpochRewards, communityEpochReward)
 	}
 
 	// Select groups that elected at least one validator aggregate their uptimes.

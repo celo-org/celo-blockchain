@@ -19,6 +19,7 @@ package backend
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"reflect"
 	"testing"
@@ -278,8 +279,14 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
-	state, _ := chain.StateAt(parent.Root())
-	block, _ := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	state, err := chain.StateAt(parent.Root())
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
+	block, err := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
 	return block
 }
 
@@ -347,10 +354,14 @@ func TestSealStopChannel(t *testing.T) {
 	}
 }
 
+// TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
+// different block hash, it will abort
 func TestSealCommittedOtherHash(t *testing.T) {
 	chain, engine := newBlockChain(4, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	otherBlock := makeBlockWithoutSeal(chain, engine, block)
+
+	// create a second block which will have a different hash
+	otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
 	eventLoop := func() {
 		ev := <-eventSub.Chan()
@@ -482,17 +493,41 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	block := makeBlock(chain, engine, genesis)
-	// change block content
+
+	// change header content and expect to invalidate signature
 	header := block.Header()
 	header.Number = big.NewInt(4)
-	block1 := block.WithSeal(header)
-	err = engine.VerifySeal(chain, block1.Header())
-	if err != errUnauthorized {
-		t.Errorf("error mismatch: have %v, want %v", err, errUnauthorized)
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidSignature {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
 	}
 
-	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil, nil, nil)
+	// delete istanbul extra data and expect invalid extra data format
+	header = block.Header()
+	header.Extra = nil
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidExtraDataFormat {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
+	}
+
+	// modify seal bitmap and expect to fail the quorum check
+	header = block.Header()
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		t.Fatalf("failed to extract istanbul data: %v", err)
+	}
+	extra.AggregatedSeal.Bitmap = big.NewInt(0)
+	encoded, err := rlp.EncodeToBytes(extra)
+	if err != nil {
+		t.Fatalf("failed to encode istanbul data: %v", err)
+	}
+	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
+	err = engine.VerifySeal(chain, header)
+	if err != errInsufficientSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
+	}
+
+	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -517,6 +552,7 @@ func TestVerifyHeaders(t *testing.T) {
 			b = makeBlockWithoutSeal(chain, engine, blocks[i-1])
 			b, _ = engine.updateBlock(blocks[i-1].Header(), b)
 		}
+
 		blocks = append(blocks, b)
 		headers = append(headers, blocks[i].Header())
 	}

@@ -133,7 +133,7 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config) (*state.StateD
 	if err != nil {
 		return nil, err
 	}
-	context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
+	context := vm.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
 	context.GetHash = vmTestBlockHash
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
@@ -197,7 +197,7 @@ func (t *StateTest) genesis(config *params.ChainConfig) *core.Genesis {
 	}
 }
 
-func (tx *stTransaction) toMessage(ps stPostState) (core.Message, error) {
+func (tx *stTransaction) toMessage(ps stPostState) (vm.Message, error) {
 	// Derive sender from private key if present.
 	var from common.Address
 	if len(tx.PrivateKey) > 0 {

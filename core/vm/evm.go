@@ -48,6 +48,11 @@ type (
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
+	// GetHeaderByNumber returns the header of the nth block in the chain.
+	GetHeaderByNumberFunc func(uint64) *types.Header
+	// VerifySealFunc returns true if the given header contains a valid seal
+	// according to the engine's consensus rules.
+	VerifySealFunc func(*types.Header) bool
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -87,6 +92,10 @@ type Context struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
+	// GetParentSealBitmap returns the parent seal bitmap corresponding to n
+	GetHeaderByNumber GetHeaderByNumberFunc
+	// VerifySeal verifies or returns an error for the given header
+	VerifySeal VerifySealFunc
 
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN
@@ -574,7 +583,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 			// `ErrEmptyOutput` is expected when when syncing & importing blocks
 			// before a contract has been deployed
 			if err == abipkg.ErrEmptyOutput {
-				log.Debug("Error in unpacking EVM call return bytes", "err", err)
+				log.Trace("Error in unpacking EVM call return bytes", "err", err)
 			} else {
 				log.Error("Error in unpacking EVM call return bytes", "err", err)
 			}
