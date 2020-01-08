@@ -186,10 +186,10 @@ func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSignersPlus
 }
 
 func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignature, error) {
-  if len(serializedSignature) != SIGNATUREBYTES {
-    return SerializedSignature{}, fmt.Errorf("wrong length for serialized signature: expected %d, got %d", SIGNATUREBYTES, len(serializedSignature))
-  }
+	if len(serializedSignature) != SIGNATUREBYTES {
+		return SerializedSignature{}, fmt.Errorf("wrong length for serialized signature: expected %d, got %d", SIGNATUREBYTES, len(serializedSignature))
+	}
 	signatureBytesFixed := SerializedSignature{}
 	copy(signatureBytesFixed[:], serializedSignature)
-  return signatureBytesFixed, nil
+	return signatureBytesFixed, nil
 }

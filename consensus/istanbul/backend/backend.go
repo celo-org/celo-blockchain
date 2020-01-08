@@ -570,9 +570,9 @@ func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSi
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	// Currently, ExtraData is unused. In the future, it could include data that could be used to introduce
-	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need, 
-  // such as the block number, which can be used by a hardware wallet to see that the block number
-  // is incrementing, without having to perform the two-level hashing, just one-level fast hashing.
+	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need,
+	// such as the block number, which can be used by a hardware wallet to see that the block number
+	// is incrementing, without having to perform the two-level hashing, just one-level fast hashing.
 	return sb.signMessageBLSFn(accounts.Account{Address: sb.address}, data, []byte{})
 }
 

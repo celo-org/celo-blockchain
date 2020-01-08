@@ -118,7 +118,7 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.Serialize
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
@@ -129,7 +129,7 @@ func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
@@ -267,7 +267,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-    CommittedSeal: committedSeal[:],
+		CommittedSeal: committedSeal[:],
 	}
 
 	payload, err := Encode(committedSubject)

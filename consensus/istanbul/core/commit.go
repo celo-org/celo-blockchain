@@ -42,22 +42,22 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 func (c *core) generateEpochSeal() (blscrypto.SerializedSignature, error) {
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
 	if !istanbul.IsLastBlockOfEpoch(currentBlockNumber, c.config.Epoch) {
-    return blscrypto.SerializedSignature{}, nil
-  }
-  valSet := c.current.ValidatorSet()
-  blsPubKeys := []blscrypto.SerializedPublicKey{}
-  for _, v := range valSet.List() {
-    blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
-  }
-  epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(currentBlockNumber/c.config.Epoch))
-  if err != nil {
-    return blscrypto.SerializedSignature{}, nil
-  }
-  sig, err := c.backend.SignBLSWithCompositeHash(epochData[:])
-  if err != nil {
-    return blscrypto.SerializedSignature{}, nil
-  }
-  return sig, nil
+		return blscrypto.SerializedSignature{}, nil
+	}
+	valSet := c.current.ValidatorSet()
+	blsPubKeys := []blscrypto.SerializedPublicKey{}
+	for _, v := range valSet.List() {
+		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
+	}
+	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(currentBlockNumber/c.config.Epoch))
+	if err != nil {
+		return blscrypto.SerializedSignature{}, nil
+	}
+	sig, err := c.backend.SignBLSWithCompositeHash(epochData[:])
+	if err != nil {
+		return blscrypto.SerializedSignature{}, nil
+	}
+	return sig, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -77,8 +77,8 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 
 	committedSub := &istanbul.CommittedSubject{
 		Subject:       sub,
-    CommittedSeal: committedSeal[:],
-    EpochSeal:     epochSeal[:],
+		CommittedSeal: committedSeal[:],
+		EpochSeal:     epochSeal[:],
 	}
 	encodedCommittedSubject, err := Encode(committedSub)
 	if err != nil {

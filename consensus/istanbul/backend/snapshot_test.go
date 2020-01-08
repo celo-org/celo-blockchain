@@ -294,7 +294,7 @@ func TestValSetChange(t *testing.T) {
 				return blscrypto.SerializedSignature{}, err
 			}
 
-      return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 		}
 
 		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -320,7 +320,7 @@ func TestValSetChange(t *testing.T) {
 				return blscrypto.SerializedSignature{}, err
 			}
 
-      return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 		}
 
 		engine.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)

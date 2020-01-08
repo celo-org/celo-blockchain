@@ -274,7 +274,7 @@ func signerBLSHashFn(_ accounts.Account, data []byte) (blscrypto.SerializedSigna
 		return blscrypto.SerializedSignature{}, err
 	}
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -300,7 +300,7 @@ func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blsc
 		return blscrypto.SerializedSignature{}, err
 	}
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func newBackend() (b *Backend) {

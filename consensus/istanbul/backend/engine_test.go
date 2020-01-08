@@ -82,7 +82,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-    return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -108,7 +108,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-    return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	b, _ := New(config, memDB).(*Backend)
@@ -175,7 +175,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 					return blscrypto.SerializedSignature{}, err
 				}
 
-        return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
 			signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -200,7 +200,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 					return blscrypto.SerializedSignature{}, err
 				}
 
-        return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
@@ -822,7 +822,7 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
 	}
 
-  // try to write an invalid length seal to the CommitedSeal or ParentCommit field
+	// try to write an invalid length seal to the CommitedSeal or ParentCommit field
 	invalidAggregatedSeal := types.IstanbulAggregatedSeal{
 		Round:     big.NewInt(3),
 		Bitmap:    big.NewInt(3),

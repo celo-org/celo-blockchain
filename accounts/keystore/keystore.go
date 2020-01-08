@@ -318,7 +318,7 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.Seri
 		return blscrypto.SerializedSignature{}, err
 	}
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -352,7 +352,7 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 		return blscrypto.SerializedSignature{}, err
 	}
 
-  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {
