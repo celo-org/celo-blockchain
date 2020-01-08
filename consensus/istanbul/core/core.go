@@ -78,11 +78,14 @@ type core struct {
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
-	backend               istanbul.Backend
-	events                *event.TypeMuxSubscription
-	finalCommittedSub     *event.TypeMuxSubscription
-	timeoutSub            *event.TypeMuxSubscription
-	futurePreprepareTimer *time.Timer
+	backend           istanbul.Backend
+	events            *event.TypeMuxSubscription
+	finalCommittedSub *event.TypeMuxSubscription
+	timeoutSub        *event.TypeMuxSubscription
+
+	futurePreprepareTimer         *time.Timer
+	resendRoundChangeMessageTimer *time.Timer
+	roundChangeTimer              *time.Timer
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
@@ -92,8 +95,7 @@ type core struct {
 	current   RoundState
 	handlerWg *sync.WaitGroup
 
-	roundChangeSet   *roundChangeSet
-	roundChangeTimer *time.Timer
+	roundChangeSet *roundChangeSet
 
 	pendingRequests   *prque.Prque
 	pendingRequestsMu *sync.Mutex
@@ -424,7 +426,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	// Send round change
-	c.sendRoundChange(r)
+	c.sendRoundChange()
 	return nil
 }
 
@@ -508,34 +510,78 @@ func (c *core) isProposer() bool {
 func (c *core) stopFuturePreprepareTimer() {
 	if c.futurePreprepareTimer != nil {
 		c.futurePreprepareTimer.Stop()
+		c.futurePreprepareTimer = nil
 	}
 }
 
-func (c *core) stopTimer() {
-	c.stopFuturePreprepareTimer()
+func (c *core) stopRoundChangeTimer() {
 	if c.roundChangeTimer != nil {
 		c.roundChangeTimer.Stop()
+		c.roundChangeTimer = nil
 	}
 }
 
-// Stop any current round change timer and set a timer for the desired round.
-func (c *core) resetRoundChangeTimer() {
-	c.stopTimer()
+func (c *core) stopResendRoundChangeTimer() {
+	if c.resendRoundChangeMessageTimer != nil {
+		c.resendRoundChangeMessageTimer.Stop()
+		c.resendRoundChangeMessageTimer = nil
+	}
+}
 
-	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
-	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := view.Round.Uint64()
+func (c *core) stopTimers() {
+	c.stopFuturePreprepareTimer()
+	c.stopRoundChangeTimer()
+	c.stopResendRoundChangeTimer()
+}
+
+func (c *core) getRoundChangeTimeout() time.Duration {
+	baseTimeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
+	round := c.current.DesiredRound().Uint64()
 	if round == 0 {
 		// timeout for first round takes into account expected block period
-		timeout += time.Duration(c.config.BlockPeriod) * time.Second
+		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
 	} else {
 		// timeout for subsequent rounds adds an exponential backoff.
-		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
+		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Second
 	}
+}
 
-	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{view})
+// Reset then set the timer that causes a timeoutAndMoveToNextRoundEvent to be processed.
+// This may also reset the timer for the next resendRoundChangeEvent.
+func (c *core) resetRoundChangeTimer() {
+	c.stopTimers()
+
+	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+	c.roundChangeTimer = time.AfterFunc(c.getRoundChangeTimeout(), func() {
+		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 	})
+
+	c.resetResendRoundChangeTimer()
+}
+
+// Reset then, if in StateWaitingForNewRound and on a large enough round, set a timer
+// that causes a resendRoundChangeEvent to be processed.
+func (c *core) resetResendRoundChangeTimer() {
+	c.stopResendRoundChangeTimer()
+	if c.current.State() == StateWaitingForNewRound && c.current.DesiredRound().Cmp(big.NewInt(4)) > 0 {
+		const maxResendTimeout = time.Duration(5) * time.Minute
+		resendTimeout := c.getRoundChangeTimeout() / 2
+		if resendTimeout > maxResendTimeout {
+			resendTimeout = maxResendTimeout
+		}
+		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
+			c.sendEvent(resendRoundChangeEvent{view})
+		})
+	}
+}
+
+// Broadcast round change message for current desired round and reset timer.
+func (c *core) resendRoundChangeMessage() {
+	if c.current.State() == StateWaitingForNewRound {
+		c.sendRoundChange()
+	}
+	c.resetResendRoundChangeTimer()
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {

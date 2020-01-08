@@ -440,7 +440,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
 	defer newBlocks.Unsubscribe()
 
-	timeout := sys.backends[3].EventMux().Subscribe(timeoutEvent{})
+	timeout := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
 	defer timeout.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}
@@ -507,7 +507,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
 	defer newBlocks.Unsubscribe()
 
-	timeout := sys.backends[3].EventMux().Subscribe(timeoutEvent{})
+	timeout := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
 	defer timeout.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}

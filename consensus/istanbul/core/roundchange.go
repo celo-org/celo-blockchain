@@ -28,15 +28,10 @@ import (
 )
 
 // sendRoundChange sends the ROUND CHANGE message with the given round
-func (c *core) sendRoundChange(round *big.Int) {
-	logger := c.newLogger("func", "sendRoundChange", "target_round", round)
+func (c *core) sendRoundChange() {
+	logger := c.newLogger("func", "sendRoundChange")
 
-	if c.current.View().Round.Cmp(round) >= 0 {
-		logger.Warn("Cannot send round change for previous round")
-		return
-	}
-
-	msg, err := c.buildRoundChangeMsg(round)
+	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
 	if err != nil {
 		logger.Error("Could not build round change message", "err", msg)
 		return
@@ -47,7 +42,7 @@ func (c *core) sendRoundChange(round *big.Int) {
 
 // sendRoundChange sends a ROUND CHANGE message for the current round back to a single address
 func (c *core) sendRoundChangeAgain(addr common.Address) {
-	logger := c.newLogger("func", "sendRoundChange", "desired_round", c.current.DesiredRound(), "to", addr)
+	logger := c.newLogger("func", "sendRoundChangeAgain", "to", addr)
 
 	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
 	if err != nil {
