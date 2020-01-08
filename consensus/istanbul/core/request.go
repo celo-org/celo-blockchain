@@ -17,6 +17,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -64,8 +66,17 @@ func (c *core) checkRequestMsg(request *istanbul.Request) error {
 	}
 }
 
+var (
+	maxNumberForRequestsQueue = big.NewInt(2 << (63 - 2))
+)
+
 func (c *core) storeRequestMsg(request *istanbul.Request) {
 	logger := c.newLogger("func", "storeRequestMsg")
+
+	if request.Proposal.Number().Cmp(maxNumberForRequestsQueue) >= 0 {
+		logger.Debug("Dropping future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
+		return
+	}
 
 	logger.Trace("Store future request", "number", request.Proposal.Number(), "hash", request.Proposal.Hash())
 
@@ -83,7 +94,7 @@ func (c *core) processPendingRequests() {
 		m, prio := c.pendingRequests.Pop()
 		r, ok := m.(*istanbul.Request)
 		if !ok {
-			c.logger.Warn("Malformed request, skip", "msg", m)
+			c.logger.Warn("Malformed request, skip", "m", m)
 			continue
 		}
 

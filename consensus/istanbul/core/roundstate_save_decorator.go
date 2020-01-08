@@ -37,7 +37,7 @@ type rsSaveDecorator struct {
 	db RoundStateDB
 }
 
-func (rsp *rsSaveDecorator) persitOnNoError(err error) error {
+func (rsp *rsSaveDecorator) persistOnNoError(err error) error {
 	if err != nil {
 		return err
 	}
@@ -47,34 +47,38 @@ func (rsp *rsSaveDecorator) persitOnNoError(err error) error {
 
 // mutation functions
 func (rsp *rsSaveDecorator) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
-	return rsp.persitOnNoError(rsp.rs.StartNewRound(nextRound, validatorSet, nextProposer))
+	return rsp.persistOnNoError(rsp.rs.StartNewRound(nextRound, validatorSet, nextProposer))
 }
 func (rsp *rsSaveDecorator) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
-	return rsp.persitOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits))
+	return rsp.persistOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits))
 }
 func (rsp *rsSaveDecorator) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
-	return rsp.persitOnNoError(rsp.rs.TransitionToPreprepared(preprepare))
+	return rsp.persistOnNoError(rsp.rs.TransitionToPreprepared(preprepare))
 }
 func (rsp *rsSaveDecorator) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
-	return rsp.persitOnNoError(rsp.rs.TransitionToWaitingForNewRound(r, nextProposer))
+	return rsp.persistOnNoError(rsp.rs.TransitionToWaitingForNewRound(r, nextProposer))
 }
 func (rsp *rsSaveDecorator) TransitionToCommitted() error {
-	return rsp.persitOnNoError(rsp.rs.TransitionToCommitted())
+	return rsp.persistOnNoError(rsp.rs.TransitionToCommitted())
 }
 func (rsp *rsSaveDecorator) TransitionToPrepared(quorumSize int) error {
-	return rsp.persitOnNoError(rsp.rs.TransitionToPrepared(quorumSize))
+	return rsp.persistOnNoError(rsp.rs.TransitionToPrepared(quorumSize))
 }
 func (rsp *rsSaveDecorator) AddCommit(msg *istanbul.Message) error {
-	return rsp.persitOnNoError(rsp.rs.AddCommit(msg))
+	return rsp.persistOnNoError(rsp.rs.AddCommit(msg))
 }
 func (rsp *rsSaveDecorator) AddPrepare(msg *istanbul.Message) error {
-	return rsp.persitOnNoError(rsp.rs.AddPrepare(msg))
+	return rsp.persistOnNoError(rsp.rs.AddPrepare(msg))
 }
 func (rsp *rsSaveDecorator) AddParentCommit(msg *istanbul.Message) error {
-	return rsp.persitOnNoError(rsp.rs.AddParentCommit(msg))
+	return rsp.persistOnNoError(rsp.rs.AddParentCommit(msg))
 }
 func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) error {
-	return rsp.persitOnNoError(rsp.rs.SetPendingRequest(pendingRequest))
+	return rsp.persistOnNoError(rsp.rs.SetPendingRequest(pendingRequest))
+}
+func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error) {
+	// Don't persist on proposal verification status change, since it's just a cache
+	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
 
 // DesiredRound implements RoundState.DesiredRound
@@ -125,6 +129,11 @@ func (rsp *rsSaveDecorator) GetPrepareOrCommitSize() int { return rsp.rs.GetPrep
 // GetValidatorByAddress implements RoundState.GetValidatorByAddress
 func (rsp *rsSaveDecorator) GetValidatorByAddress(address common.Address) istanbul.Validator {
 	return rsp.rs.GetValidatorByAddress(address)
+}
+
+// GetValidatorByAddress implements RoundState.GetProposalVerificationStatus
+func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
+	return rsp.rs.GetProposalVerificationStatus(proposalHash)
 }
 
 // IsProposer implements RoundState.IsProposer

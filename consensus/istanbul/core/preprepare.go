@@ -44,20 +44,40 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		}
-		logger.Debug("Sending pre-prepare", "msg", msg)
+		logger.Debug("Sending preprepare", "m", msg)
 		c.broadcast(msg)
 	}
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
-	logger.Trace("Got pre-prepare message", "msg", msg)
+	logger.Trace("Got preprepare message", "m", msg)
 
-	// Decode PRE-PREPARE
+	// Decode PREPREPARE
 	var preprepare *istanbul.Preprepare
 	err := msg.Decode(&preprepare)
 	if err != nil {
 		return errFailedDecodePreprepare
+	}
+
+	// TODO(tim) Fix and Move checkMessage check up to here
+
+	// Verify that the proposal is for the sequence number of the view we verified.
+	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence, "view_round", preprepare.View.Round)
+		return errInvalidProposal
+	}
+
+	// Check proposer is valid for the message's view (this may be a subsequent round)
+	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
+	if headBlock == nil {
+		logger.Error("Could not determine head proposer")
+		return errNotFromProposer
+	}
+	proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+	if proposerForMsgRound.Address() != msg.Address {
+		logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
+		return errNotFromProposer
 	}
 
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
@@ -81,8 +101,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errInvalidProposal
 	}
 
-	// Ensure we have the same view with the PRE-PREPARE message
-	// If it is old message, see if we need to broadcast COMMIT
+	// Ensure we have the same view with the PREPREPARE message.
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
@@ -90,34 +109,20 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
 			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
 
-			// Broadcast COMMIT if it is an existing block
-			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
-			// 2. The given block must exist
+			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
+			// However, we log a WARN for potential future debugging value.
 			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
-				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
+				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block_hash", preprepare.Proposal.Hash())
 				return nil
 			}
 		}
 		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
-		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
+		logger.Trace("Check preprepare failed", "err", err)
 		return err
 	}
 
-	// Check if the message comes from current proposer
-	if !c.current.IsProposer(msg.Address) {
-		logger.Warn("Ignore preprepare messages from non-proposer")
-		return errNotFromProposer
-	}
-
-	// Verify that the proposal is for the sequence number of the view we verified.
-	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
-		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence)
-		return errInvalidProposal
-	}
-
 	// Verify the proposal we received
-	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
+	if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
 		if err == consensus.ErrFutureBlock {

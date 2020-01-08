@@ -26,6 +26,7 @@ import (
 
 	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -54,6 +55,10 @@ type testSystemBackend struct {
 	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
+
+	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
+	// can inject in different proposal verification statuses.
+	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
 }
 
 type testCommittedMsgs struct {
@@ -141,7 +146,23 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal
 }
 
 func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+	if self.verifyImpl == nil {
+		return self.verifyWithSuccess(proposal)
+	} else {
+		return self.verifyImpl(proposal)
+	}
+}
+
+func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, nil
+}
+
+func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, error) {
+	return 0, InvalidProposalError
+}
+
+func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	return 5, consensus.ErrFutureBlock
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
@@ -173,7 +194,6 @@ func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
 		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal
 	}
-	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0)
 }
 
@@ -183,7 +203,6 @@ func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal
 		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal, common.Address{}
 	}
-	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
 }
 
@@ -298,6 +317,10 @@ func (self *testSystemBackend) Enode() *enode.Node {
 }
 
 func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
+
+func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)) {
+	self.verifyImpl = verifyImpl
+}
 
 // ==============================================
 //
@@ -472,13 +495,13 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
 			break
 		}
-		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
+		msg, err := backend.getRoundChangeMessage(views[i%len(views)], preparedCertificate)
 		if err != nil {
 			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
 		}

@@ -153,17 +153,22 @@ func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 
 	// Never accept messages too far into the future
 	if view.Sequence.Cmp(new(big.Int).Add(c.currentView.Sequence, acceptMaxFutureSequence)) > 0 {
-		logger.Info("Dropping message", "reason", "too far in the future", "msg", msg)
+		logger.Debug("Dropping message", "reason", "too far in the future", "m", msg)
+		return
+	}
+
+	if view.Round.Cmp(maxRoundForPriorityQueue) >= 0 {
+		logger.Debug("Dropping message", "reason", "round exceeds PQ bounds check", "m", msg)
 		return
 	}
 
 	// Check and inc per-validator future message limit
 	if c.msgCountBySrc[msg.Address] > acceptMaxFutureMsgsFromOneValidator {
-		logger.Info("Dropping message", "reason", "exceeds per-address cap")
+		logger.Debug("Dropping message", "reason", "exceeds per-address cap")
 		return
 	}
 
-	logger.Trace("Store future message", "msg", msg)
+	logger.Trace("Store future message", "m", msg)
 	c.msgCountBySrc[msg.Address]++
 	c.msgCount++
 
@@ -263,9 +268,11 @@ func (c *msgBacklogImpl) updateState(view *istanbul.View, state State) {
 }
 
 func (c *msgBacklogImpl) processBacklog() {
-	for _, seq := range c.getSortedBacklogSeqs() {
 
-		logger := c.logger.New("func", "processBacklog", "current_view", c.currentView, "current_state", c.currentState.String(), "for_seq", seq)
+	logger := c.logger.New("func", "processBacklog", "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
+	processedMsgsConsidered, processedMsgsEnqueued, processedMsgsFuture := 0, 0, 0
+
+	for _, seq := range c.getSortedBacklogSeqs() {
 
 		if seq < c.currentView.Sequence.Uint64() {
 			// Earlier sequence. Prune all messages.
@@ -273,34 +280,50 @@ func (c *msgBacklogImpl) processBacklog() {
 		} else if seq == c.currentView.Sequence.Uint64() {
 			// Current sequence. Process all in order.
 			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
+				processedMsgsConsidered++
+
 				view, err := extractMessageView(msg)
+
 				if err != nil {
-					logger.Error("Error decoding msg", "msg", msg, "err", err)
+					logger.Warn("Error decoding msg", "err", err)
 					return false
 				}
 				if view == nil {
-					logger.Error("Nil view", "msg", msg)
+					logger.Warn("Nil view")
 					return false
 				}
+
+				logger := logger.New("m", msg, "msg_view", view)
 
 				err = c.checkMessage(msg.Code, view)
 
 				if err == errFutureMessage {
-					logger.Warn("Future message in backlog for seq, pushing back to the backlog", "msg", msg)
+					logger.Debug("Future message in backlog for seq, pushing back to the backlog")
+					processedMsgsFuture++
 					return true
 				}
 
 				if err == nil {
-					logger.Trace("Post backlog event", "msg", msg)
+					logger.Trace("Post backlog event")
+					processedMsgsEnqueued++
 					go c.msgProcessor(msg)
 				} else {
-					logger.Trace("Skip the backlog event", "msg", msg, "err", err)
+					logger.Trace("Skip the backlog event", "err", err)
 				}
 				return false
 			})
 		}
 	}
+
+	if processedMsgsConsidered > 0 {
+		logger.Info("Processing istanbul backlog", "considered", processedMsgsConsidered, "future", processedMsgsFuture, "enqueued", processedMsgsEnqueued)
+	}
 }
+
+// A safe maximum for round that prevents overflow
+var (
+	maxRoundForPriorityQueue = big.NewInt(1 << (63 - 5))
+)
 
 func toPriority(msgCode uint64, view *istanbul.View) int64 {
 	if msgCode == istanbul.MsgRoundChange {
@@ -308,7 +331,7 @@ func toPriority(msgCode uint64, view *istanbul.View) int64 {
 		return 0
 	}
 	// 10 * Round limits the range possible message codes to [0, 9]
-	// FIXME: Check for integer overflow
+	// Caller must check for integer overflow.
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }
 
