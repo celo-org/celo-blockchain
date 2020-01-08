@@ -50,7 +50,8 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 				log.Crit("Failed to fetch last view")
 			}
 			return view.Round
-		})
+		},
+	)
 
 	c := &core{
 		config:             config,
