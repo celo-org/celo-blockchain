@@ -109,7 +109,10 @@ func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(time.Minute)
+	// Send out an announce message when this thread starts
+	go sb.sendIstAnnounce()
+
+	ticker := time.NewTicker(10 * time.Minute)
 
 	for {
 		select {
