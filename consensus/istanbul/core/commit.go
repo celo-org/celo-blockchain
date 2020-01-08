@@ -49,7 +49,7 @@ func (c *core) generateEpochSeal() (blscrypto.SerializedSignature, error) {
 	for _, v := range valSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(currentBlockNumber/c.config.Epoch))
+	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(istanbul.GetEpochNumber(currentBlockNumber, c.config.Epoch)))
 	if err != nil {
 		return blscrypto.SerializedSignature{}, nil
 	}
