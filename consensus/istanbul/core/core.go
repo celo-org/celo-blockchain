@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -161,13 +162,13 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
-		logger.Error("Failed to finalize message", "msg", msg, "err", err)
+		logger.Error("Failed to finalize message", "m", msg, "err", err)
 		return
 	}
 
 	// Send payload to the specified addresses
 	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
-		logger.Error("Failed to send message", "msg", msg, "err", err)
+		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
 	}
 }
@@ -185,11 +186,15 @@ func (c *core) commit() error {
 	if proposal != nil {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
-			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
 			return nil
 		}
 		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
-			c.waitForDesiredRound(new(big.Int).Add(c.current.Round(), common.Big1))
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
 			return nil
 		}
 	}
@@ -233,7 +238,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
-	newBitmap := aggregatedSignature.Bitmap
+	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
 	committedSeals := [][]byte{}
 	committedSeals = append(committedSeals, aggregatedSignature.Signature)
 	for _, v := range seals.Values() {
@@ -250,7 +255,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 		// if the bit was not set, this means we should add this signature to
 		// the batch
-		if aggregatedSignature.Bitmap.Bit(int(valIndex)) == 0 {
+		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
 			committedSeals = append(committedSeals, commit.CommittedSeal)
 		}
@@ -270,6 +275,8 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 
 // Generates the next preprepare request and associated round change certificate
 func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)
+
 	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.current.ValidatorSet().MinQuorumSize())
 	if err != nil {
 		return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
@@ -278,15 +285,26 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	request := c.current.PendingRequest()
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
-	// All pre-prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
 	maxRound := big.NewInt(-1)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
 		var roundChangeMsg *istanbul.RoundChange
 		if err := message.Decode(&roundChangeMsg); err != nil {
+			logger.Error("Unexpected: could not decode a previously received RoundChange message")
+			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
+		}
+
+		if !roundChangeMsg.HasPreparedCertificate() {
 			continue
 		}
-		preparedCertificateView := roundChangeMsg.PreparedCertificate.View()
-		if roundChangeMsg.HasPreparedCertificate() && preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
+
+		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChangeMsg.PreparedCertificate)
+		if err != nil {
+			logger.Error("Unexpected: could not verify a previously received PreparedCertificate message", "src_m", message)
+			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
+		}
+
+		if preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
 			maxRound = preparedCertificateView.Round
 			request = &istanbul.Request{
 				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
@@ -329,7 +347,7 @@ func (c *core) startNewRound(round *big.Int) error {
 		return nil
 	}
 
-	// Generate next view and pre-prepare
+	// Generate next view and preprepare
 	var newView *istanbul.View
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var request *istanbul.Request
@@ -522,7 +540,7 @@ func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
 	}
 
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{view})
+		c.sendEvent(timeoutEvent{&istanbul.View{Sequence: view.Sequence, Round: view.Round}})
 	})
 }
 
@@ -551,4 +569,24 @@ func (c *core) Sequence() *big.Int {
 		return nil
 	}
 	return c.current.Sequence()
+}
+
+func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
+	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
+		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
+		return 0, verificationStatus
+	} else {
+		logger.Trace("verification status cache miss")
+
+		duration, err := c.backend.Verify(proposal)
+		logger.Trace("proposal verify return values", "duration", duration, "err", err)
+
+		// Don't cache the verification status if it's a future block
+		if err != consensus.ErrFutureBlock {
+			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+
+		return duration, err
+	}
 }

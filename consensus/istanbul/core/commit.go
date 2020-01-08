@@ -19,7 +19,6 @@ package core
 import (
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -28,14 +27,6 @@ func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
-	c.broadcastCommit(sub)
-}
-
-func (c *core) sendCommitForOldBlock(view *istanbul.View, digest common.Hash) {
-	sub := &istanbul.Subject{
-		View:   view,
-		Digest: digest,
-	}
 	c.broadcastCommit(sub)
 }
 
@@ -122,7 +113,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 
 	// Add the ParentCommit to current round state
 	if err := c.current.AddParentCommit(msg); err != nil {
-		logger.Error("Failed to record parent seal", "msg", msg, "err", err)
+		logger.Error("Failed to record parent seal", "m", msg, "err", err)
 		return err
 	}
 	return nil
@@ -146,12 +137,12 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 	// Add the COMMIT message to current round state
 	if err := c.current.AddCommit(msg); err != nil {
-		logger.Error("Failed to record commit message", "msg", msg, "err", err)
+		logger.Error("Failed to record commit message", "m", msg, "err", err)
 		return err
 	}
 	numberOfCommits := c.current.Commits().Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
-	logger.Trace("Accepted commit", "Number of commits", numberOfCommits)
+	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
