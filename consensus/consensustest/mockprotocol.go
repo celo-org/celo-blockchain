@@ -17,8 +17,13 @@
 package consensustest
 
 import (
+	"crypto/ecdsa"
+	"net"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -34,6 +39,19 @@ func (b *MockBroadcaster) FindPeers(targets map[enode.ID]bool, purpose p2p.Purpo
 
 type MockP2PServer struct {
 	Node *enode.Node
+}
+
+func NewMockP2PServer() *MockP2PServer {
+	mockNode := enode.NewV4(
+		&ecdsa.PublicKey{
+			Curve: crypto.S256(),
+			X:     hexutil.MustDecodeBig("0x760c4460e5336ac9bbd87952a3c7ec4363fc0a97bd31c86430806e287b437fd1"),
+			Y:     hexutil.MustDecodeBig("0xb01abc6e1db640cf3106b520344af1d58b00b57823db3e1407cbc433e1b6d04d")},
+		net.IP{192, 168, 0, 1},
+		30303,
+		30303)
+
+	return &MockP2PServer{Node: mockNode}
 }
 
 func (serv *MockP2PServer) Self() *enode.Node {
