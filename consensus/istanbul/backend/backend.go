@@ -118,15 +118,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
-	istanbulLogger, err := istanbul.NewIstLogger(
+	backend.logger = istanbul.NewIstLogger(
 		func() *big.Int {
 			return backend.core.CurrentView().Round
 		},
 	)
-	if err != nil {
-		logger.Crit("Failed to create Istanbul Logger", "err", err)
-	}
-	backend.logger = istanbulLogger
 
 	vph := &validatorPeerHandler{sb: backend}
 	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)

@@ -28,8 +28,8 @@ type istLogger struct {
 }
 
 // NewIstLogger creates an Istanbul Logger with custom logic for exposing logs
-func NewIstLogger(fn func() *big.Int, ctx ...interface{}) (log.Logger, error) {
-	return &istLogger{logger: log.New(ctx[1:]...), round: fn}, nil
+func NewIstLogger(fn func() *big.Int, ctx ...interface{}) log.Logger {
+	return &istLogger{logger: log.New(ctx[1:]...), round: fn}
 }
 
 func (l *istLogger) New(ctx ...interface{}) log.Logger {

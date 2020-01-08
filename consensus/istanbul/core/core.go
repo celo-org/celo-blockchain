@@ -43,7 +43,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
-	istanbulLogger, err := istanbul.NewIstLogger(
+	istanbulLogger := istanbul.NewIstLogger(
 		func() *big.Int {
 			view, err := rsdb.GetLastView()
 			if err != nil {
@@ -51,9 +51,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 			}
 			return view.Round
 		})
-	if err != nil {
-		log.Crit("Failed to instantiate Istanbul Logger", "err", err)
-	}
 
 	c := &core{
 		config:             config,
