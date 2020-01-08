@@ -140,8 +140,8 @@ func TestCommit(t *testing.T) {
 		{
 			// invalid signature
 			errInvalidAggregatedSeal,
-			[]byte{},
-			[]byte{},
+			nil,
+			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -274,10 +274,7 @@ func signerBLSHashFn(_ accounts.Account, data []byte) (blscrypto.SerializedSigna
 		return blscrypto.SerializedSignature{}, err
 	}
 
-	signatureBytesFixed := blscrypto.SerializedSignature{}
-	copy(signatureBytesFixed[:], signatureBytes)
-
-	return signatureBytesFixed, nil
+  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -303,10 +300,7 @@ func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blsc
 		return blscrypto.SerializedSignature{}, err
 	}
 
-	signatureBytesFixed := blscrypto.SerializedSignature{}
-	copy(signatureBytesFixed[:], signatureBytes)
-
-	return signatureBytesFixed, nil
+  return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func newBackend() (b *Backend) {

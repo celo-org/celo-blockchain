@@ -81,10 +81,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-		signatureBytesFixed := blscrypto.SerializedSignature{}
-		copy(signatureBytesFixed[:], signatureBytes)
-
-		return signatureBytesFixed, nil
+    return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -110,10 +107,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-		signatureBytesFixed := blscrypto.SerializedSignature{}
-		copy(signatureBytesFixed[:], signatureBytes)
-
-		return signatureBytesFixed, nil
+    return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	b, _ := New(config, memDB).(*Backend)
@@ -180,10 +174,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 					return blscrypto.SerializedSignature{}, err
 				}
 
-				signatureBytesFixed := blscrypto.SerializedSignature{}
-				copy(signatureBytesFixed[:], signatureBytes)
-
-				return signatureBytesFixed, nil
+        return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
 			signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -208,10 +199,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 					return blscrypto.SerializedSignature{}, err
 				}
 
-				signatureBytesFixed := blscrypto.SerializedSignature{}
-				copy(signatureBytesFixed[:], signatureBytes)
-
-				return signatureBytesFixed, nil
+        return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
@@ -820,5 +808,21 @@ func TestWriteAggregatedSeal(t *testing.T) {
 	}
 	if !reflect.DeepEqual(actualIstExtra, expectedIstExtra) {
 		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
+	}
+
+  // try to write an invalid length seal to the CommitedSeal or ParentCommit field
+	invalidAggregatedSeal := types.IstanbulAggregatedSeal{
+		Round:     big.NewInt(3),
+		Bitmap:    big.NewInt(3),
+		Signature: append(aggregatedSeal.Signature, make([]byte, 1)...),
+	}
+	err = writeAggregatedSeal(h, invalidAggregatedSeal, false)
+	if err != errInvalidAggregatedSeal {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidAggregatedSeal)
+	}
+
+	err = writeAggregatedSeal(h, invalidAggregatedSeal, true)
+	if err != errInvalidAggregatedSeal {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidAggregatedSeal)
 	}
 }

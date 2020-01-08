@@ -215,9 +215,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-		signatureBytesFixed := blscrypto.SerializedSignature{}
-		copy(signatureBytesFixed[:], signatureBytes)
-		return signatureBytesFixed, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
@@ -242,9 +240,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 			return blscrypto.SerializedSignature{}, err
 		}
 
-		signatureBytesFixed := blscrypto.SerializedSignature{}
-		copy(signatureBytesFixed[:], signatureBytes)
-		return signatureBytesFixed, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	config := istanbul.DefaultConfig
