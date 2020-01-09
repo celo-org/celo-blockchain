@@ -54,7 +54,7 @@ func (c *core) generateEpochValidatorSetSeal() (blscrypto.SerializedSignature, e
 	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
-	fmt.Printf("HERR current valset: %d, %d, %d, %v\n", valSet.Size(), valSet.MinQuorumSize(), uint32(valSet.Size() - valSet.MinQuorumSize() + 1), valSet.List())
+	fmt.Printf("HERR current valset: %d, %d, %d, %v\n", valSet.Size(), valSet.MinQuorumSize(), uint32(valSet.Size()-valSet.MinQuorumSize()+1), valSet.List())
 	maxNonSignersPlusOne := uint32(newValSet.Size() - newValSet.MinQuorumSize() + 1)
 	fmt.Printf("HERR new valset: %d, %d, %d, %v\n", newValSet.Size(), newValSet.MinQuorumSize(), maxNonSignersPlusOne, newValSet.List())
 	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSignersPlusOne, uint16(istanbul.GetEpochNumber(currentBlockNumber, c.config.Epoch)))

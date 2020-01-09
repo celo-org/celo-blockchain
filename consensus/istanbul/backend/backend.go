@@ -285,7 +285,6 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.List()
 }
 
-
 // This function will return the peers with the addresses in the "destAddresses" parameter.
 // If this is a proxied validator, then it will return the proxy.
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {

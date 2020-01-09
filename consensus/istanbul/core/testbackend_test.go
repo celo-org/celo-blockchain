@@ -85,6 +85,11 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
+func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
+	//This doesn't really return the next block validators
+	return self.peers, nil
+}
+
 func (self *testSystemBackend) EventMux() *event.TypeMux {
 	return self.events
 }
