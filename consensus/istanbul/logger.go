@@ -42,7 +42,7 @@ func (l *istLogger) Trace(msg string, ctx ...interface{}) {
 	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
-		l.Trace(msg, ctx)
+		l.Trace(msg, ctx...)
 	}
 }
 
@@ -51,7 +51,7 @@ func (l *istLogger) Debug(msg string, ctx ...interface{}) {
 	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
-		l.Debug(msg, ctx)
+		l.Debug(msg, ctx...)
 	}
 }
 

@@ -43,20 +43,11 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
-	istanbulLogger := istanbul.NewIstLogger(
-		func() *big.Int {
-			view, err := rsdb.GetLastView()
-			if err != nil {
-				log.Crit("Failed to fetch last view")
-			}
-			return view.Round
-		},
-	)
 
 	c := &core{
 		config:             config,
 		address:            backend.Address(),
-		logger:             istanbulLogger,
+		logger:             log.New(),
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
@@ -76,6 +67,14 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		}, c.checkMessage)
 	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
+	c.logger = istanbul.NewIstLogger(
+		func() *big.Int {
+			if c != nil {
+				return c.current.Round()
+			}
+			return big.NewInt(0)
+		},
+	)
 	return c
 }
 
