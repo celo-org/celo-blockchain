@@ -33,10 +33,6 @@ type defaultValidator struct {
 	blsPublicKey []byte
 }
 
-func NewValidatorFromData(data *istanbul.ValidatorData) istanbul.Validator {
-	return newValidatorFromData(data)
-}
-
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
 	return &defaultValidator{
 		address:      data.Address,
@@ -95,17 +91,6 @@ type defaultSet struct {
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	return &defaultSet{
 		validators: mapDataToValidators(validators),
-	}
-}
-
-func NewValidatorSetFromData(data *istanbul.ValidatorSetData) istanbul.ValidatorSet {
-	return newValidatorSetFromData(data)
-}
-
-func newValidatorSetFromData(data *istanbul.ValidatorSetData) *defaultSet {
-	return &defaultSet{
-		validators: mapDataToValidators(data.Validators),
-		randomness: data.Randomness,
 	}
 }
 
@@ -262,7 +247,7 @@ func mapValidatorsToData(validators []istanbul.Validator) []istanbul.ValidatorDa
 func mapDataToValidators(data []istanbul.ValidatorData) []istanbul.Validator {
 	validators := make([]istanbul.Validator, len(data))
 	for i, v := range data {
-		validators[i] = NewValidatorFromData(&v)
+		validators[i] = newValidatorFromData(&v)
 	}
 	return validators
 }
