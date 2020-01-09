@@ -434,7 +434,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
 		block := makeBlockWithDifficulty(1, int64(i))
-		sys.backends[i].NewRequest(block)
+		b.NewRequest(block)
 	}
 
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
@@ -501,7 +501,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
 		block := makeBlockWithDifficulty(1, int64(i))
-		sys.backends[i].NewRequest(block)
+		b.NewRequest(block)
 	}
 
 	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
@@ -546,6 +546,88 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We expect to commit the block proposed by the first proposer.
 			expectedCommitted := makeBlockWithDifficulty(1, 0)
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
+			if expectedCommitted.Hash() != committed.Hash() {
+				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+			}
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // start Istanbul core
+	}
+	close(sys.quit)
+}
+
+// Test periodic round changes at high rounds
+func TestPeriodicRoundChanges(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+
+	for i, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+		block := makeBlockWithDifficulty(1, int64(i))
+		b.NewRequest(block)
+	}
+
+	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	timeoutMoveToNextRound := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeoutMoveToNextRound.Unsubscribe()
+
+	timeoutResendRC := sys.backends[3].EventMux().Subscribe(resendRoundChangeEvent{})
+	defer timeoutResendRC.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+	istMsgDistribution[istanbul.MsgPreprepare] = noGossip
+	istMsgDistribution[istanbul.MsgPrepare] = noGossip
+	istMsgDistribution[istanbul.MsgCommit] = noGossip
+	istMsgDistribution[istanbul.MsgRoundChange] = noGossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	for _, b := range sys.backends {
+		b.engine.(*core).waitForDesiredRound(big.NewInt(5))
+	}
+
+	// Expect at least one repeat RC before move to next round.
+	timeoutResends := 0
+loop:
+	for {
+		select {
+		case <-timeoutResendRC.Chan():
+			testLogger.Info("Got timeoutResendRC")
+			timeoutResends++
+		case <-timeoutMoveToNextRound.Chan():
+			if timeoutResends == 0 {
+				t.Errorf("No Repeat events before moving to next round")
+			}
+			break loop
+		}
+	}
+
+	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+	istMsgDistribution[istanbul.MsgCommit] = gossip
+	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+
+	// Make sure we finalize block in next round.
+	select {
+	case <-timeoutMoveToNextRound.Chan():
+		t.Error("Did not finalize a block.")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+		// Wait for all backends to finalize the block.
+		<-time.After(2 * time.Second)
+		for i, b := range sys.backends {
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
+			// We expect to commit the block proposed by proposer 6 mod 4 = 2.
+			expectedCommitted := makeBlockWithDifficulty(1, 2)
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
 			}

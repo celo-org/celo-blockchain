@@ -542,7 +542,7 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
 	} else {
 		// timeout for subsequent rounds adds an exponential backoff.
-		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Second
+		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
 	}
 }
 
@@ -552,20 +552,30 @@ func (c *core) resetRoundChangeTimer() {
 	c.stopTimers()
 
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
-	c.roundChangeTimer = time.AfterFunc(c.getRoundChangeTimeout(), func() {
+	timeout := c.getRoundChangeTimeout()
+	c.roundChangeTimer = time.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 	})
+
+	if c.current.DesiredRound().Cmp(common.Big1) > 0 {
+		logger := c.newLogger("func", "resetRoundChangeTimer")
+		logger.Info("Reset round change timer", "timeout_ms", timeout/time.Millisecond)
+	}
 
 	c.resetResendRoundChangeTimer()
 }
 
-// Reset then, if in StateWaitingForNewRound and on a large enough round, set a timer
-// that causes a resendRoundChangeEvent to be processed.
+// Reset then, if in StateWaitingForNewRound and on round whose timeout is greater than MinResendRoundChangeTimeout,
+// set a timer that is at most MaxResendRoundChangeTimeout that causes a resendRoundChangeEvent to be processed.
 func (c *core) resetResendRoundChangeTimer() {
 	c.stopResendRoundChangeTimer()
-	if c.current.State() == StateWaitingForNewRound && c.current.DesiredRound().Cmp(big.NewInt(4)) > 0 {
-		const maxResendTimeout = time.Duration(5) * time.Minute
+	if c.current.State() == StateWaitingForNewRound {
+		minResendTimeout := time.Duration(c.config.MinResendRoundChangeTimeout) * time.Millisecond
 		resendTimeout := c.getRoundChangeTimeout() / 2
+		if resendTimeout < minResendTimeout {
+			return
+		}
+		maxResendTimeout := time.Duration(c.config.MaxResendRoundChangeTimeout) * time.Millisecond
 		if resendTimeout > maxResendTimeout {
 			resendTimeout = maxResendTimeout
 		}
