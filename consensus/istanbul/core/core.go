@@ -191,7 +191,7 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		aggregatedEpochSeal, err := GetAggregatedEpochSeal(c.current.Commits(), c.current.Round())
+		aggregatedEpochSeal, err := GetAggregatedEpochSeal(c.current.Commits())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
@@ -239,7 +239,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 
 // GetAggregatedEpochSeal aggregates all the given seals for a the SNARK-friendly epoch encoding
 // to a bls aggregated signature and bitmap
-func GetAggregatedEpochSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedEpochSeal, error) {
+func GetAggregatedEpochSeal(seals MessageSet) (types.IstanbulAggregatedEpochSeal, error) {
 	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		epochSeals[i] = make([]byte, blscrypto.SIGNATUREBYTES)

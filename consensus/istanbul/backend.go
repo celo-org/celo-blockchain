@@ -46,6 +46,7 @@ type Backend interface {
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
+	NextBlockValidators(proposal Proposal) (ValidatorSet, error)
 
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux

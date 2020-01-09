@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -39,17 +40,24 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochSeal() (blscrypto.SerializedSignature, error) {
+func (c *core) generateEpochValidatorSetSeal() (blscrypto.SerializedSignature, error) {
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
 	if !istanbul.IsLastBlockOfEpoch(currentBlockNumber, c.config.Epoch) {
 		return blscrypto.SerializedSignature{}, nil
 	}
 	valSet := c.current.ValidatorSet()
+	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
-	for _, v := range valSet.List() {
+	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, uint32(valSet.F()+1), uint16(istanbul.GetEpochNumber(currentBlockNumber, c.config.Epoch)))
+	fmt.Printf("HERR current valset: %d, %d, %d, %v\n", valSet.Size(), valSet.MinQuorumSize(), uint32(valSet.Size() - valSet.MinQuorumSize() + 1), valSet.List())
+	maxNonSignersPlusOne := uint32(newValSet.Size() - newValSet.MinQuorumSize() + 1)
+	fmt.Printf("HERR new valset: %d, %d, %d, %v\n", newValSet.Size(), newValSet.MinQuorumSize(), maxNonSignersPlusOne, newValSet.List())
+	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSignersPlusOne, uint16(istanbul.GetEpochNumber(currentBlockNumber, c.config.Epoch)))
 	if err != nil {
 		return blscrypto.SerializedSignature{}, nil
 	}
@@ -69,7 +77,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
-	epochSeal, err := c.generateEpochSeal()
+	epochSeal, err := c.generateEpochValidatorSetSeal()
 	if err != nil {
 		logger.Error("Failed to create epoch seal", "err", err)
 		return

@@ -256,10 +256,35 @@ func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.Va
 	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
 }
 
+func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
+	state, err := sb.stateAt(proposal.ParentHash())
+	if err != nil {
+		return nil, err
+	}
+	state = state.Copy()
+
+	istExtra, err := types.ExtractIstanbulExtra(proposal.Header())
+	if err != nil {
+		return nil, err
+	}
+
+	// There was no change
+	if len(istExtra.AddedValidators) == 0 && istExtra.RemovedValidators.BitLen() == 0 {
+		return sb.ParentBlockValidators(proposal), nil
+	}
+
+	newValSet, err := sb.getNewValidatorSet(proposal.Header(), state)
+	if err != nil {
+		return nil, err
+	}
+	return validator.NewSet(newValSet), nil
+}
+
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	validatorSet := sb.getValidators(blockNumber.Uint64(), headerHash)
 	return validatorSet.List()
 }
+
 
 // This function will return the peers with the addresses in the "destAddresses" parameter.
 // If this is a proxied validator, then it will return the proxy.
