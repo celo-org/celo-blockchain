@@ -63,10 +63,6 @@ func (c *core) Stop() error {
 	return nil
 }
 
-func (c *core) CurrentView() *istanbul.View {
-	return c.current.View()
-}
-
 // ----------------------------------------------------------------------------
 
 // Subscribe both internal and external events

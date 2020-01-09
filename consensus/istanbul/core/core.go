@@ -37,41 +37,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-// New creates an Istanbul consensus core
-func New(backend istanbul.Backend, config *istanbul.Config) Engine {
-	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
-	if err != nil {
-		log.Crit("Failed to open RoundStateDB", "err", err)
-	}
-
-	c := &core{
-		config:             config,
-		address:            backend.Address(),
-		logger:             log.New(),
-		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
-		handlerWg:          new(sync.WaitGroup),
-		backend:            backend,
-		pendingRequests:    prque.New(nil),
-		pendingRequestsMu:  new(sync.Mutex),
-		consensusTimestamp: time.Time{},
-		rsdb:               rsdb,
-		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
-		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
-		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
-	}
-	msgBacklog := newMsgBacklog(
-		func(msg *istanbul.Message) {
-			c.sendEvent(backlogEvent{
-				msg: msg,
-			})
-		}, c.checkMessage)
-	c.backlog = msgBacklog
-	c.validateFn = c.checkValidatorSignature
-	return c
-}
-
-// ----------------------------------------------------------------------------
-
 type core struct {
 	config         *istanbul.Config
 	address        common.Address
@@ -109,98 +74,69 @@ type core struct {
 	consensusTimer metrics.Timer
 }
 
-// Appends the current view and state to the given context.
-func (c *core) newLogger(ctx ...interface{}) log.Logger {
-	var seq, round, desired *big.Int
-	var state State
-	if c.current != nil {
-		state = c.current.State()
-		seq = c.current.Sequence()
-		round = c.current.Round()
-		desired = c.current.DesiredRound()
-	} else {
-		seq = common.Big0
-		round = big.NewInt(-1)
-		desired = big.NewInt(-1)
+// New creates an Istanbul consensus core
+func New(backend istanbul.Backend, config *istanbul.Config) Engine {
+	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
+	if err != nil {
+		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
-	logger := c.logger.New(ctx...)
-	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
+
+	c := &core{
+		config:             config,
+		address:            backend.Address(),
+		logger:             log.New(),
+		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:          new(sync.WaitGroup),
+		backend:            backend,
+		pendingRequests:    prque.New(nil),
+		pendingRequestsMu:  new(sync.Mutex),
+		consensusTimestamp: time.Time{},
+		rsdb:               rsdb,
+		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
+		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
+		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+	}
+	msgBacklog := newMsgBacklog(
+		func(msg *istanbul.Message) {
+			c.sendEvent(backlogEvent{
+				msg: msg,
+			})
+		}, c.checkMessage)
+	c.backlog = msgBacklog
+	c.validateFn = c.checkValidatorSignature
+	return c
 }
+
+// ----------------------------------------------------------------------------
 
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
-	// Add sender address
-	msg.Address = c.address
-
-	if err := msg.Sign(c.backend.Sign); err != nil {
-		return nil, err
+func (c *core) CurrentView() *istanbul.View {
+	if c.current == nil {
+		return nil
 	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
+	return c.current.View()
 }
 
-// Send message to all current validators
-func (c *core) broadcast(msg *istanbul.Message) {
-	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List()))
+func (c *core) CurrentRoundState() RoundState { return c.current }
+
+func (c *core) ParentCommits() MessageSet {
+	if c.current == nil {
+		return nil
+	}
+	return c.current.ParentCommits()
 }
 
-// Send message to a specific address
-func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
-	c.sendMsgTo(msg, []common.Address{addr})
-}
-
-func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
-	logger := c.newLogger("func", "sendMsgTo")
-
-	payload, err := c.finalizeMessage(msg)
-	if err != nil {
-		logger.Error("Failed to finalize message", "m", msg, "err", err)
-		return
-	}
-
-	// Send payload to the specified addresses
-	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
-		logger.Error("Failed to send message", "m", msg, "err", err)
-		return
-	}
-}
-
-func (c *core) commit() error {
-	err := c.current.TransitionToCommitted()
-	if err != nil {
-		return err
-	}
-
-	// Process Backlog Messages
-	c.backlog.updateState(c.current.View(), c.current.State())
-
-	proposal := c.current.Proposal()
-	if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-	}
-	return nil
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
+	var buf bytes.Buffer
+	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
+	buf.Write([]byte{byte(istanbul.MsgCommit)})
+	return buf.Bytes()
 }
 
 // GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
@@ -273,6 +209,95 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
+}
+
+// Appends the current view and state to the given context.
+func (c *core) newLogger(ctx ...interface{}) log.Logger {
+	var seq, round, desired *big.Int
+	var state State
+	if c.current != nil {
+		state = c.current.State()
+		seq = c.current.Sequence()
+		round = c.current.Round()
+		desired = c.current.DesiredRound()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+		desired = big.NewInt(-1)
+	}
+	logger := c.logger.New(ctx...)
+	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
+}
+
+func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
+	// Add sender address
+	msg.Address = c.address
+
+	if err := msg.Sign(c.backend.Sign); err != nil {
+		return nil, err
+	}
+
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+// Send message to all current validators
+func (c *core) broadcast(msg *istanbul.Message) {
+	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List()))
+}
+
+// Send message to a specific address
+func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
+	c.sendMsgTo(msg, []common.Address{addr})
+}
+
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+	logger := c.newLogger("func", "sendMsgTo")
+
+	payload, err := c.finalizeMessage(msg)
+	if err != nil {
+		logger.Error("Failed to finalize message", "m", msg, "err", err)
+		return
+	}
+
+	// Send payload to the specified addresses
+	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+		logger.Error("Failed to send message", "m", msg, "err", err)
+		return
+	}
+}
+
+func (c *core) commit() error {
+	err := c.current.TransitionToCommitted()
+	if err != nil {
+		return err
+	}
+
+	// Process Backlog Messages
+	c.backlog.updateState(c.current.View(), c.current.State())
+
+	proposal := c.current.Proposal()
+	if proposal != nil {
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+	}
+	return nil
 }
 
 // Generates the next preprepare request and associated round change certificate
@@ -600,29 +625,6 @@ func (c *core) resendRoundChangeMessage() {
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
-}
-
-// PrepareCommittedSeal returns a committed seal for the given hash and round number.
-func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
-	var buf bytes.Buffer
-	buf.Write(hash.Bytes())
-	buf.Write(round.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
-	return buf.Bytes()
-}
-
-func (c *core) ParentCommits() MessageSet {
-	if c.current == nil {
-		return nil
-	}
-	return c.current.ParentCommits()
-}
-
-func (c *core) Sequence() *big.Int {
-	if c.current == nil {
-		return nil
-	}
-	return c.current.Sequence()
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {

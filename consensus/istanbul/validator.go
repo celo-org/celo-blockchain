@@ -19,6 +19,7 @@ package istanbul
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -60,17 +61,19 @@ type ValidatorData struct {
 }
 
 type Validator interface {
+	fmt.Stringer
+
 	// Address returns address
 	Address() common.Address
 
 	BLSPublicKey() []byte
 
-	// String representation of Validator
-	String() string
-
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
 	Serialize() ([]byte, error)
+
+	// AsData returns Validator representation as ValidatorData
+	AsData() *ValidatorData
 }
 
 func GetAddressesFromValidatorList(validators []Validator) []common.Address {
@@ -132,6 +135,11 @@ type ValidatorSet interface {
 	// Serialize returns binary reprentation of the ValidatorSet
 	// can be use used to instantiate a validator with DeserializeValidatorSet()
 	Serialize() ([]byte, error)
+}
+
+type ValidatorSetData struct {
+	Validators []ValidatorData
+	Randomness common.Hash
 }
 
 // ----------------------------------------------------------------------------
