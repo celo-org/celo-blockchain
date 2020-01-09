@@ -103,8 +103,31 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// This function is meant to be run as a goroutine.  It will periodically gossip announce messages
-// to the rest of the registered validators to communicate it's enodeURL to them.
+// ==============================================
+//
+// define the constant, types, and function for the sendAnnounce thread
+
+type AnnounceFrequencyState int
+
+const (
+	// In this state, send out an announce message every 1 minute until the first peer is established
+	HighFreqBeforeFirstPeerState AnnounceFrequencyState = iota
+
+	// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
+	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
+	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
+	HighFreqAfterFirstPeerState
+
+	// In this state, send out an announce message every 10 minutes
+	LowFreqState
+)
+
+const (
+	HighFreqTickerDuration = 1 * time.Minute
+	LowFreqTickerDuration  = 10 * time.Minute
+)
+
+// The sendAnnounce thread function
 func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
@@ -112,27 +135,9 @@ func (sb *Backend) sendAnnounceMsgs() {
 	// Send out an announce message when this thread starts
 	go sb.sendIstAnnounce()
 
-	const (
-		// In this state, send out an announce message every 1 minute until the first peer is established
-		HIGH_FREQ_BEFORE_FIRST_PEER_STATE = iota
-
-		// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
-		// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
-		// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
-		HIGH_FREQ_AFTER_FIRST_PEER_STATE
-
-		// In this state, send out an announce message every 10 minutes
-		LOW_FREQ_STATE
-	)
-
-	const (
-		HIGH_FREQ_TICKER_DURATION = 1 * time.Minute
-		LOW_FREQ_TICKER_DURATION  = 10 * time.Minute
-	)
-
 	// Set the initial states
-	announceThreadState := HIGH_FREQ_BEFORE_FIRST_PEER_STATE
-	currentTickerDuration := HIGH_FREQ_TICKER_DURATION
+	announceThreadState := HighFreqBeforeFirstPeerState
+	currentTickerDuration := HighFreqTickerDuration
 	ticker := time.NewTicker(currentTickerDuration)
 	numSentMsgsInHighFreqAfterFirstPeerState := 0
 
@@ -140,28 +145,29 @@ func (sb *Backend) sendAnnounceMsgs() {
 		select {
 		case <-sb.newEpochCh:
 			go sb.sendIstAnnounce()
+
 		case <-ticker.C:
 			switch announceThreadState {
-			case HIGH_FREQ_BEFORE_FIRST_PEER_STATE:
+			case HighFreqBeforeFirstPeerState:
 				{
 					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-						announceThreadState = HIGH_FREQ_AFTER_FIRST_PEER_STATE
+						announceThreadState = HighFreqAfterFirstPeerState
 					}
 				}
 
-			case HIGH_FREQ_AFTER_FIRST_PEER_STATE:
+			case HighFreqAfterFirstPeerState:
 				{
 					if numSentMsgsInHighFreqAfterFirstPeerState >= 10 {
-						announceThreadState = LOW_FREQ_STATE
+						announceThreadState = LowFreqState
 					}
 					numSentMsgsInHighFreqAfterFirstPeerState += 1
 				}
 
-			case LOW_FREQ_STATE:
+			case LowFreqState:
 				{
-					if currentTickerDuration != LOW_FREQ_STATE {
+					if currentTickerDuration != LowFreqTickerDuration {
 						// Reset the ticker
-						currentTickerDuration = LOW_FREQ_TICKER_DURATION
+						currentTickerDuration = LowFreqTickerDuration
 						ticker.Stop()
 						ticker = time.NewTicker(currentTickerDuration)
 					}
