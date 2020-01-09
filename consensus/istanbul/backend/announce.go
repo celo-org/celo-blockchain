@@ -117,7 +117,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 		HIGH_FREQ_BEFORE_FIRST_PEER_STATE = iota
 
 		// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
-		// This is on the assumption that when this node first establishes a peer, the sub p2p network centered on this peer may
+		// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
 		// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
 		HIGH_FREQ_AFTER_FIRST_PEER_STATE
 
