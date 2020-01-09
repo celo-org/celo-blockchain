@@ -153,6 +153,12 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
+// GetCurrentRoundState retrieves the current IBFT RoundState
+func (api *API) ForceRoundChange() (bool, error) {
+	api.istanbul.core.ForceRoundChange()
+	return true, nil
+}
+
 // TODO(kevjue) - implement this
 // ProxyInfo retrieves all the information we know about each individual proxy node
 /* func (api *PublicAdminAPI) ProxyInfo() ([]*p2p.PeerInfo, error) {

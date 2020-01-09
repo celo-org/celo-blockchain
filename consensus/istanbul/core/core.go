@@ -130,6 +130,12 @@ func (c *core) ParentCommits() MessageSet {
 	return c.current.ParentCommits()
 }
 
+func (c *core) ForceRoundChange() {
+	// timeout current DesiredView
+	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
+}
+
 // PrepareCommittedSeal returns a committed seal for the given hash and round number.
 func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	var buf bytes.Buffer
