@@ -89,8 +89,6 @@ type ValidatorSet interface {
 
 	// List returns all the validators
 	List() []Validator
-	// ListAddresses returns all the validators addresses
-	ListAddresses() []common.Address
 	// Return the validator index
 	GetIndex(addr common.Address) int
 	// Get validator by index

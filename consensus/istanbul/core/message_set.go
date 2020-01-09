@@ -37,7 +37,7 @@ type MessageSet interface {
 	Values() (result []*istanbul.Message)
 	Size() int
 	Get(addr common.Address) *istanbul.Message
-	ListAddresses() []common.Address
+	Addresses() []common.Address
 	Serialize() ([]byte, error)
 }
 
@@ -122,7 +122,7 @@ func (ms *messageSetImpl) Get(addr common.Address) *istanbul.Message {
 	return ms.messages[addr]
 }
 
-func (ms *messageSetImpl) ListAddresses() []common.Address {
+func (ms *messageSetImpl) Addresses() []common.Address {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 	returnList := make([]common.Address, len(ms.messages))

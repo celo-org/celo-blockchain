@@ -441,11 +441,11 @@ func (rs *roundStateImpl) Summary() *RoundStateSummary {
 		DesiredRound: rs.desiredRound,
 
 		Proposer:     rs.proposer.Address(),
-		ValidatorSet: rs.validatorSet.ListAddresses(),
+		ValidatorSet: istanbul.MapValidatorsToAddresses(rs.validatorSet.List()),
 
-		Prepares:      rs.prepares.ListAddresses(),
-		Commits:       rs.commits.ListAddresses(),
-		ParentCommits: rs.parentCommits.ListAddresses(),
+		Prepares:      rs.prepares.Addresses(),
+		Commits:       rs.commits.Addresses(),
+		ParentCommits: rs.parentCommits.Addresses(),
 	}
 
 	if rs.pendingRequest != nil {
