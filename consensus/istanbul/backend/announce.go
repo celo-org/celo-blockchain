@@ -33,6 +33,7 @@ import (
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -112,7 +113,8 @@ func (sb *Backend) sendAnnounceMsgs() {
 	// Send out an announce message when this thread starts
 	go sb.sendIstAnnounce()
 
-	ticker := time.NewTicker(10 * time.Minute)
+	pollForPeers := true
+	ticker := time.NewTicker(1 * time.Minute)
 
 	for {
 		select {
@@ -121,7 +123,18 @@ func (sb *Backend) sendAnnounceMsgs() {
 		case <-ticker.C:
 			// output the valEnodeTable for debugging purposes
 			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
+
+			if pollForPeers {
+				if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+					pollForPeers = false
+					// Send the message out once every 10 minutes
+					ticker.Stop()
+					ticker = time.NewTicker(10 * time.Minute)
+				}
+			}
+
 			go sb.sendIstAnnounce()
+
 		case <-sb.announceQuit:
 			ticker.Stop()
 			return
