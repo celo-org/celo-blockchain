@@ -257,16 +257,16 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 //
 // 1 2 3 4 5 6 7 8 9
 // x x x x x x
-// 			 y y y y y y
-// 			 F F H
+//       y y y y y y
+//       F F H
 //
 // For N=10, F=3, Q=7. Any two sets of Q=7 nodes from N=10 must overlap by >4 nodes.
 // At least 4-F=4-3=1 must be honest.
 //
 // 1 2 3 4 5 6 7 8 9 10
 // x x x x x x x
-// 	  	 y y y y y y y
-// 			 F F F H
+//       y y y y y y y
+//       F F F H
 
 func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
 
