@@ -528,7 +528,7 @@ func (c *core) stopResendRoundChangeTimer() {
 	}
 }
 
-func (c *core) stopTimers() {
+func (c *core) stopAllTimers() {
 	c.stopFuturePreprepareTimer()
 	c.stopRoundChangeTimer()
 	c.stopResendRoundChangeTimer()
@@ -549,7 +549,10 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 // Reset then set the timer that causes a timeoutAndMoveToNextRoundEvent to be processed.
 // This may also reset the timer for the next resendRoundChangeEvent.
 func (c *core) resetRoundChangeTimer() {
-	c.stopTimers()
+	// Stop all timers here since all 'resends' happen within the interval of a round's timeout.
+	// (Races are handled anyway by checking the seq and desired round haven't changed between
+	// submitting and processing events).
+	c.stopAllTimers()
 
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	timeout := c.getRoundChangeTimeout()
@@ -586,7 +589,8 @@ func (c *core) resetResendRoundChangeTimer() {
 	}
 }
 
-// Broadcast round change message for current desired round and reset timer.
+// Rebroadcast RoundChange message for desired round if still in StateWaitingForNewRound.
+// Do not advance desired round. Then clear/reset timer so we may rebroadcast again.
 func (c *core) resendRoundChangeMessage() {
 	if c.current.State() == StateWaitingForNewRound {
 		c.sendRoundChange()

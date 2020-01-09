@@ -557,7 +557,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 
 	// Manually open and close b/c hijacking sys.listen
 	for _, b := range sys.backends {
-		b.engine.Stop() // start Istanbul core
+		b.engine.Stop() // stop Istanbul core
 	}
 	close(sys.quit)
 }
@@ -639,7 +639,7 @@ loop:
 
 	// Manually open and close b/c hijacking sys.listen
 	for _, b := range sys.backends {
-		b.engine.Stop() // start Istanbul core
+		b.engine.Stop() // stop Istanbul core
 	}
 	close(sys.quit)
 }
