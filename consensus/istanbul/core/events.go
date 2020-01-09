@@ -24,6 +24,9 @@ type backlogEvent struct {
 	msg *istanbul.Message
 }
 
-type timeoutEvent struct {
+type resendRoundChangeEvent struct {
+	view *istanbul.View
+}
+type timeoutAndMoveToNextRoundEvent struct {
 	view *istanbul.View
 }

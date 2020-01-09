@@ -34,7 +34,10 @@ func (c *core) Start() error {
 	c.current = roundState
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
-	c.newRoundChangeTimer()
+	// Reset the Round Change timer for the current round to timeout.
+	// (If we've restored RoundState such that we are in StateWaitingForRoundChange,
+	// this may also start a timer to send a repeat round change message.)
+	c.resetRoundChangeTimer()
 
 	// Process backlog
 	c.processPendingRequests()
@@ -50,7 +53,7 @@ func (c *core) Start() error {
 
 // Stop implements core.Engine.Stop
 func (c *core) Stop() error {
-	c.stopTimer()
+	c.stopAllTimers()
 	c.unsubscribeEvents()
 
 	// Make sure the handler goroutine exits
@@ -76,7 +79,8 @@ func (c *core) subscribeEvents() {
 		backlogEvent{},
 	)
 	c.timeoutSub = c.backend.EventMux().Subscribe(
-		timeoutEvent{},
+		timeoutAndMoveToNextRoundEvent{},
+		resendRoundChangeEvent{},
 	)
 	c.finalCommittedSub = c.backend.EventMux().Subscribe(
 		istanbul.FinalCommittedEvent{},
@@ -133,9 +137,13 @@ func (c *core) handleEvents() {
 				return
 			}
 			switch ev := event.Data.(type) {
-			case timeoutEvent:
-				if err := c.handleTimeoutMsg(ev.view); err != nil {
-					logger.Error("Error on handleTimeoutMsg", "err", err)
+			case timeoutAndMoveToNextRoundEvent:
+				if err := c.handleTimeoutAndMoveToNextRound(ev.view); err != nil {
+					logger.Error("Error on handleTimeoutAndMoveToNextRound", "err", err)
+				}
+			case resendRoundChangeEvent:
+				if err := c.handleResendRoundChangeEvent(ev.view); err != nil {
+					logger.Error("Error on handleResendRoundChangeEvent", "err", err)
 				}
 			}
 		case event, ok := <-c.finalCommittedSub.Chan():
@@ -207,9 +215,10 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutMsg(desiredView *istanbul.View) error {
-	logger := c.newLogger("func", "handleTimeoutMsg", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
+func (c *core) handleTimeoutAndMoveToNextRound(desiredView *istanbul.View) error {
+	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
 
+	// Avoid races where message is enqueued then a later event advances sequence or desired round.
 	if c.current.Sequence().Cmp(desiredView.Sequence) != 0 || c.current.DesiredRound().Cmp(desiredView.Round) != 0 {
 		logger.Trace("Timed out but now on a different view")
 		return nil
@@ -218,4 +227,17 @@ func (c *core) handleTimeoutMsg(desiredView *istanbul.View) error {
 	logger.Debug("Timed out, trying to wait for next round")
 	nextRound := new(big.Int).Add(desiredView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)
+}
+
+func (c *core) handleResendRoundChangeEvent(desiredView *istanbul.View) error {
+	logger := c.newLogger("func", "handleResendRoundChangeEvent", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
+
+	// Avoid races where message is enqueued then a later event advances sequence or desired round.
+	if c.current.Sequence().Cmp(desiredView.Sequence) != 0 || c.current.DesiredRound().Cmp(desiredView.Round) != 0 {
+		logger.Trace("Timed out but now on a different view")
+		return nil
+	}
+
+	c.resendRoundChangeMessage()
+	return nil
 }
