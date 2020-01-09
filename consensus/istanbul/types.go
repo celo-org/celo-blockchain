@@ -146,6 +146,12 @@ type PreprepareData struct {
 	RoundChangeCertificate RoundChangeCertificate
 }
 
+type PreprepareSummary struct {
+	View                          *View            `json:"view"`
+	ProposalHash                  common.Hash      `json:"proposalHash"`
+	RoundChangeCertificateSenders []common.Address `json:"roundChangeCertificateSenders"`
+}
+
 func (pp *Preprepare) HasRoundChangeCertificate() bool {
 	return !pp.RoundChangeCertificate.IsEmpty()
 }
@@ -155,6 +161,14 @@ func (pp *Preprepare) AsData() *PreprepareData {
 		View:                   pp.View,
 		Proposal:               pp.Proposal.(*types.Block),
 		RoundChangeCertificate: pp.RoundChangeCertificate,
+	}
+}
+
+func (pp *Preprepare) Summary() *PreprepareSummary {
+	return &PreprepareSummary{
+		View:                          pp.View,
+		ProposalHash:                  pp.Proposal.Hash(),
+		RoundChangeCertificateSenders: MapMessagesToSenders(pp.RoundChangeCertificate.RoundChangeMessages),
 	}
 }
 
@@ -187,6 +201,12 @@ type PreparedCertificateData struct {
 	PrepareOrCommitMessages []Message
 }
 
+type PreparedCertificateSummary struct {
+	ProposalHash   common.Hash      `json:"proposalHash"`
+	PrepareSenders []common.Address `json:"prepareSenders"`
+	CommitSenders  []common.Address `json:"commitSenders"`
+}
+
 func EmptyPreparedCertificate() PreparedCertificate {
 	emptyHeader := &types.Header{
 		Difficulty: big.NewInt(0),
@@ -212,6 +232,23 @@ func (pc *PreparedCertificate) AsData() *PreparedCertificateData {
 	return &PreparedCertificateData{
 		Proposal:                pc.Proposal.(*types.Block),
 		PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+	}
+}
+
+func (pc *PreparedCertificate) Summary() *PreparedCertificateSummary {
+	var prepareSenders, commitSenders []common.Address
+	for _, msg := range pc.PrepareOrCommitMessages {
+		if msg.Code == MsgPrepare {
+			prepareSenders = append(prepareSenders, msg.Address)
+		} else {
+			commitSenders = append(commitSenders, msg.Address)
+		}
+	}
+
+	return &PreparedCertificateSummary{
+		ProposalHash:   pc.Proposal.Hash(),
+		PrepareSenders: prepareSenders,
+		CommitSenders:  commitSenders,
 	}
 }
 
@@ -361,4 +398,15 @@ func (m *Message) Decode(val interface{}) error {
 
 func (m *Message) String() string {
 	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
+}
+
+// MapMessagesToSenders map a list of Messages to the list of the sender addresses
+func MapMessagesToSenders(messages []Message) []common.Address {
+	returnList := make([]common.Address, len(messages))
+
+	for i, ms := range messages {
+		returnList[i] = ms.Address
+	}
+
+	return returnList
 }

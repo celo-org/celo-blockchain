@@ -29,6 +29,24 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+type MessageSet interface {
+	fmt.Stringer
+	Add(msg *istanbul.Message) error
+	GetAddressIndex(addr common.Address) (uint64, error)
+	Remove(address common.Address)
+	Values() (result []*istanbul.Message)
+	Size() int
+	Get(addr common.Address) *istanbul.Message
+	ListAddresses() []common.Address
+	Serialize() ([]byte, error)
+}
+
+type messageSetImpl struct {
+	valSet     istanbul.ValidatorSet
+	messagesMu *sync.Mutex
+	messages   map[common.Address]*istanbul.Message
+}
+
 // Construct a new message set to accumulate messages for given sequence/view number.
 func newMessageSet(valSet istanbul.ValidatorSet) MessageSet {
 	return &messageSetImpl{
@@ -50,23 +68,6 @@ func deserializeMessageSet(binaryData []byte) (MessageSet, error) {
 
 // ----------------------------------------------------------------------------
 
-type MessageSet interface {
-	fmt.Stringer
-	Add(msg *istanbul.Message) error
-	GetAddressIndex(addr common.Address) (uint64, error)
-	Remove(address common.Address)
-	Values() (result []*istanbul.Message)
-	Size() int
-	Get(addr common.Address) *istanbul.Message
-	Serialize() ([]byte, error)
-}
-
-type messageSetImpl struct {
-	valSet     istanbul.ValidatorSet
-	messagesMu *sync.Mutex
-	messages   map[common.Address]*istanbul.Message
-}
-
 func (ms *messageSetImpl) Add(msg *istanbul.Message) error {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
@@ -83,8 +84,8 @@ func (ms *messageSetImpl) GetAddressIndex(addr common.Address) (uint64, error) {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
-	i, v := ms.valSet.GetByAddress(addr)
-	if v == nil {
+	i := ms.valSet.GetIndex(addr)
+	if i == -1 {
 		return 0, istanbul.ErrUnauthorizedAddress
 	}
 
@@ -121,6 +122,20 @@ func (ms *messageSetImpl) Get(addr common.Address) *istanbul.Message {
 	return ms.messages[addr]
 }
 
+func (ms *messageSetImpl) ListAddresses() []common.Address {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+	returnList := make([]common.Address, len(ms.messages))
+
+	i := 0
+	for addr := range ms.messages {
+		returnList[i] = addr
+		i++
+	}
+
+	return returnList
+}
+
 func (ms *messageSetImpl) String() string {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
@@ -134,6 +149,8 @@ func (ms *messageSetImpl) String() string {
 func (s *messageSetImpl) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes(s)
 }
+
+// RLP Encoding -----------------------------------------------------------------------
 
 // EncodeRLP impl
 func (s *messageSetImpl) EncodeRLP(w io.Writer) error {
