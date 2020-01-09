@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -38,6 +39,9 @@ import (
 )
 
 func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
+	start := time.Now()
+	defer sb.rewardDistributionTimer.UpdateSince(start)
+
 	err := epoch_rewards.UpdateTargetVotingYield(header, state)
 	if err != nil {
 		return err

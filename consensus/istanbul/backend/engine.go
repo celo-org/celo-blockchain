@@ -445,6 +445,8 @@ func (sb *Backend) LookbackWindow() uint64 {
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+	start := time.Now()
+	defer sb.finalizationTimer.UpdateSince(start)
 
 	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
