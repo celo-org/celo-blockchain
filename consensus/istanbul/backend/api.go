@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -85,7 +86,7 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 		return nil, err
 	}
 	validators := api.istanbul.GetValidators(header.Number, header.Hash())
-	return istanbul.GetAddressesFromValidatorList(validators), nil
+	return istanbul.MapValidatorsToAddresses(validators), nil
 }
 
 // GetProposer retrieves the proposer for a given block number (i.e. sequence) and round.
@@ -145,6 +146,11 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 // Retrieve the Validator Enode Table
 func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
 	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
+}
+
+// GetCurrentRoundState retrieves the current IBFT RoundState
+func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
+	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
 // TODO(kevjue) - implement this
