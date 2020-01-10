@@ -150,7 +150,7 @@ func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
-	if api.istanbul.coreStarted {
+	if !api.istanbul.coreStarted {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
@@ -158,7 +158,7 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) ForceRoundChange() (bool, error) {
-	if api.istanbul.coreStarted {
+	if !api.istanbul.coreStarted {
 		return false, istanbul.ErrStoppedEngine
 	}
 	api.istanbul.core.ForceRoundChange()

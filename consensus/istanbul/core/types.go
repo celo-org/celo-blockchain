@@ -32,7 +32,7 @@ type Engine interface {
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
 	ParentCommits() MessageSet
-	// ForceRoundChange will force round change to the current deriredRound + 1
+	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
 }
 
