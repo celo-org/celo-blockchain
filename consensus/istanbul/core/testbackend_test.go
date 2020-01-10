@@ -18,17 +18,15 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math"
 	"math/big"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
 	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -57,8 +55,10 @@ type testSystemBackend struct {
 	blsKey  []byte
 	address common.Address
 	db      ethdb.Database
-	// This should be a writeable dir.
-	dataDir string
+
+	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
+	// can inject in different proposal verification statuses.
+	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
 }
 
 type testCommittedMsgs struct {
@@ -105,6 +105,7 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	}
 	return nil
 }
+
 func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
 	return nil
 }
@@ -133,7 +134,23 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal
 }
 
 func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+	if self.verifyImpl == nil {
+		return self.verifyWithSuccess(proposal)
+	} else {
+		return self.verifyImpl(proposal)
+	}
+}
+
+func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, error) {
 	return 0, nil
+}
+
+func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, error) {
+	return 0, InvalidProposalError
+}
+
+func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	return 5, consensus.ErrFutureBlock
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
@@ -159,32 +176,40 @@ func (self *testSystemBackend) NewRequest(request istanbul.Proposal) {
 	})
 }
 
-func (self *testSystemBackend) LastProposal() (istanbul.Proposal, common.Address) {
+func (self *testSystemBackend) GetCurrentHeadBlock() istanbul.Proposal {
+	l := len(self.committedMsgs)
+	if l > 0 {
+		testLogger.Info("have proposal for block", "num", l)
+		return self.committedMsgs[l-1].commitProposal
+	}
+	return makeBlock(0)
+}
+
+func (self *testSystemBackend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address) {
 	l := len(self.committedMsgs)
 	if l > 0 {
 		testLogger.Info("have proposal for block", "num", l)
 		return self.committedMsgs[l-1].commitProposal, common.Address{}
 	}
-	testLogger.Info("do not have proposal for block", "num", 0)
 	return makeBlock(0), common.Address{}
 }
 
 func (self *testSystemBackend) LastSubject() (istanbul.Subject, error) {
-	lastProposal, _ := self.LastProposal()
+	lastProposal := self.GetCurrentHeadBlock()
 	lastView := &istanbul.View{Sequence: lastProposal.Number(), Round: big.NewInt(1)}
 	return istanbul.Subject{View: lastView, Digest: lastProposal.Hash()}, nil
 }
 
 // Only block height 5 will return true
-func (self *testSystemBackend) HasProposal(hash common.Hash, number *big.Int) bool {
+func (self *testSystemBackend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return number.Cmp(big.NewInt(5)) == 0
 }
 
-func (self *testSystemBackend) GetProposer(number uint64) common.Address {
+func (self *testSystemBackend) AuthorForBlock(number uint64) common.Address {
 	return common.Address{}
 }
 
-func (self *testSystemBackend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
+func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
 }
 
@@ -243,15 +268,16 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		Msg:  payload,
 	}
 
-	// We swap in the provided proposal so that the message is finalized for the provided proposal
-	// and not for the current preprepare.
-	cachePreprepare := self.engine.(*core).current.Preprepare()
-	self.engine.(*core).current.(*roundStateImpl).preprepare = &istanbul.Preprepare{
-		View:     &view,
-		Proposal: proposal,
-	}
+	// // We swap in the provided proposal so that the message is finalized for the provided proposal
+	// // and not for the current preprepare.
+	// cachePreprepare := self.engine.(*core).current.Preprepare()
+	// fmt.Println("5")
+	// self.engine.(*core).current.TransitionToPreprepared(&istanbul.Preprepare{
+	// 	View:     &view,
+	// 	Proposal: proposal,
+	// })
 	message, err := self.finalizeAndReturnMessage(msg)
-	self.engine.(*core).current.(*roundStateImpl).preprepare = cachePreprepare
+	// self.engine.(*core).current.TransitionToPreprepared(cachePreprepare)
 	return message, err
 }
 
@@ -280,8 +306,8 @@ func (self *testSystemBackend) Enode() *enode.Node {
 
 func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
 
-func (self *testSystemBackend) GetDataDir() string {
-	return self.dataDir
+func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)) {
+	self.verifyImpl = verifyImpl
 }
 
 // ==============================================
@@ -331,39 +357,32 @@ func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte, []*ecdsa.Pri
 
 func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	validators, _, _ := generateValidators(n)
-	return validator.NewSet(validators, istanbul.RoundRobin)
-}
-
-func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	return NewTestSystemWithBackendAndCurrentRoundState(n, f, func(vset istanbul.ValidatorSet) RoundState {
-		return newRoundState(&istanbul.View{
-			Round:    big.NewInt(0),
-			Sequence: big.NewInt(1),
-		}, vset, nil, nil, istanbul.EmptyPreparedCertificate(), nil)
-	})
+	return validator.NewSet(validators)
 }
 
 // FIXME: int64 is needed for N and F
-func NewTestSystemWithBackendAndCurrentRoundState(n, f uint64, getRoundState func(vset istanbul.ValidatorSet) RoundState) *testSystem {
+func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
-	config := istanbul.DefaultConfig
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = 300
+	config.TimeoutBackoffFactor = 100
+	config.MinResendRoundChangeTimeout = 1000
+	config.MaxResendRoundChangeTimeout = 10000
 
 	for i := uint64(0); i < n; i++ {
-		vset := validator.NewSet(validators, istanbul.RoundRobin)
+		vset := validator.NewSet(validators)
 		backend := sys.NewBackend(i)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, config).(*core)
-		core.state = StateAcceptRequest
-		core.current = getRoundState(vset)
-		core.roundChangeSet = newRoundChangeSet(vset)
-		core.valSet = vset
+		core := New(backend, &config).(*core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 
@@ -395,7 +414,11 @@ func (t *testSystem) listen() {
 func (t *testSystem) Run(core bool) func() {
 	for _, b := range t.backends {
 		if core {
-			b.engine.Start() // start Istanbul core
+			err := b.engine.Start() // start Istanbul core
+			if err != nil {
+				fmt.Printf("Error Starting istanbul engine: %s", err)
+				panic("Error Starting istanbul engine")
+			}
 		}
 	}
 
@@ -409,45 +432,27 @@ func (t *testSystem) stop(core bool) {
 
 	for _, b := range t.backends {
 		if core {
-			b.engine.Stop()
+			err := b.engine.Stop()
+			if err != nil {
+				fmt.Printf("Error Stopping istanbul engine: %s", err)
+				panic("Error Stopping istanbul engine")
+			}
 		}
-	}
-	// Cleanup all the saved IBFT persistent files.
-	for _, backend := range t.backends {
-		os.RemoveAll(backend.dataDir)
 	}
 }
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
 	ethDB := ethdb.NewMemDatabase()
-	dataDir := createRandomDataDir()
 	backend := &testSystemBackend{
-		id:      id,
-		sys:     t,
-		events:  new(event.TypeMux),
-		db:      ethDB,
-		dataDir: dataDir,
+		id:     id,
+		sys:    t,
+		events: new(event.TypeMux),
+		db:     ethDB,
 	}
 
 	t.backends[id] = backend
 	return backend
-}
-
-func createRandomDataDir() string {
-	rand.Seed(time.Now().UnixNano())
-	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
-		dataDir := filepath.Join("/tmp", dirName)
-		err := os.Mkdir(dataDir, 0700)
-		if os.IsExist(err) {
-			continue // Re-try
-		}
-		if err != nil {
-			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
-		}
-		return dataDir
-	}
 }
 
 func (t *testSystem) F() uint64 {
@@ -482,13 +487,13 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, view istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
 			break
 		}
-		msg, err := backend.getRoundChangeMessage(view, preparedCertificate)
+		msg, err := backend.getRoundChangeMessage(views[i%len(views)], preparedCertificate)
 		if err != nil {
 			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
 		}

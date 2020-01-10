@@ -203,6 +203,11 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
+	GatewayFeeFlag = BigFlag{
+		Name:  "gatewayfee",
+		Usage: "Minimum value of gateway fee to serve a light client transaction",
+		Value: eth.DefaultConfig.GatewayFee,
+	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
@@ -660,6 +665,11 @@ var (
 		Name:  "istanbul.proposerpolicy",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
+	}
+	IstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
+		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 
 	// Proxy node settings
@@ -1198,10 +1208,14 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
 	}
+	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
+		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
+	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
@@ -1223,7 +1237,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
 
-		// Mining must be set for proxies
+		// Mining must not be set for proxies
 		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
 		}
@@ -1248,7 +1262,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
 		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
 
-		// Mining must be set for proxies
+		// Mining must be set for proxied nodes
 		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
@@ -1257,6 +1271,9 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
 		} else {
 			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
+			if len(proxyEnodeURLPair) != 2 {
+				Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairFlag.Name)
+			}
 
 			var err error
 			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
@@ -1265,6 +1282,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 
 			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
 				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
+			}
+
+			// Check that external IP is not a private IP address.
+			if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+				Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
 			}
 		}
 
@@ -1414,6 +1436,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
+	}
+	if ctx.GlobalIsSet(GatewayFeeFlag.Name) {
+		cfg.GatewayFee = GlobalBig(ctx, GatewayFeeFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.

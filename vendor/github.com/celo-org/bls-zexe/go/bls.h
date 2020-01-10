@@ -30,3 +30,5 @@ bool verify_pop(const PublicKey*, const unsigned char*, int32_t, const Signature
 bool aggregate_public_keys(const PublicKey**, int32_t, PublicKey**);
 bool aggregate_public_keys_subtract(const PublicKey*, const PublicKey**, int32_t, PublicKey**);
 bool aggregate_signatures(const Signature**, int32_t, Signature**);
+
+bool encode_epoch_block_to_bytes(uint16_t, uint32_t, const PublicKey*, const PublicKey**, int32_t, unsigned char**, int32_t*);

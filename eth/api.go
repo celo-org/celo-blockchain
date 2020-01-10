@@ -110,7 +110,7 @@ func NewPrivateMinerAPI(e *Ethereum) *PrivateMinerAPI {
 // transaction pool.
 func (api *PrivateMinerAPI) Start(threads *int) error {
 	if api.e.config.Istanbul.Proxy {
-		return errors.New("Can't mine if node is a sentry")
+		return errors.New("Can't mine if node is a proxy")
 	}
 
 	if threads == nil {

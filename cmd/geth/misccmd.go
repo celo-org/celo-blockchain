@@ -17,16 +17,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"os"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/params"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -107,17 +103,9 @@ func makedag(ctx *cli.Context) error {
 }
 
 func version(ctx *cli.Context) error {
-	fmt.Println(strings.Title(clientIdentifier))
-	fmt.Println("Version:", params.VersionWithMeta)
-	if gitCommit != "" {
-		fmt.Println("Git Commit:", gitCommit)
-	}
-	fmt.Println("Architecture:", runtime.GOARCH)
-	fmt.Println("Network Id:", eth.DefaultConfig.NetworkId)
-	fmt.Println("Go Version:", runtime.Version())
-	fmt.Println("Operating System:", runtime.GOOS)
-	fmt.Printf("GOPATH=%s\n", os.Getenv("GOPATH"))
-	fmt.Printf("GOROOT=%s\n", runtime.GOROOT())
+	var buff bytes.Buffer
+	printSystemInformation(&buff)
+	fmt.Printf("%s", buff.String())
 	return nil
 }
 

@@ -17,6 +17,9 @@ build/_vendor/pkg
 *.swp
 target
 
+# created when running tests
+/miner/validatorenodes/
+
 #*
 .#*
 *#

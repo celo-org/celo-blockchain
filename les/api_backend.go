@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -104,10 +105,10 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 
-	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
+	context := vm.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 
@@ -209,6 +210,11 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *LesApiBackend) GasFeeRecipient() common.Address {
+func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 	return b.eth.GetRandomPeerEtherbase()
+}
+
+func (b *LesApiBackend) GatewayFee() *big.Int {
+	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
+	return eth.DefaultConfig.GatewayFee
 }

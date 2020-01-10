@@ -17,7 +17,9 @@
 package istanbul
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +28,109 @@ import (
 var (
 	errInvalidValidatorSetDiffSize = errors.New("istanbul extra validator set data has different size")
 )
+
+type ValidatorData struct {
+	Address      common.Address
+	BLSPublicKey []byte
+}
+
+type Validator interface {
+	fmt.Stringer
+
+	// Address returns address
+	Address() common.Address
+
+	BLSPublicKey() []byte
+
+	// Serialize returns binary reprenstation of the Validator
+	// can be use used to instantiate a validator with DeserializeValidator()
+	Serialize() ([]byte, error)
+
+	// AsData returns Validator representation as ValidatorData
+	AsData() *ValidatorData
+}
+
+// MapValidatorsToAddresses maps a slice of validator to a slice of addresses
+func MapValidatorsToAddresses(validators []Validator) []common.Address {
+	returnList := make([]common.Address, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.Address()
+	}
+
+	return returnList
+}
+
+func GetAddressesFromValidatorList(validators []Validator) []common.Address {
+	returnList := make([]common.Address, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.Address()
+	}
+
+	return returnList
+}
+
+// ----------------------------------------------------------------------------
+
+type ValidatorsDataByAddress []ValidatorData
+
+func (a ValidatorsDataByAddress) Len() int      { return len(a) }
+func (a ValidatorsDataByAddress) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ValidatorsDataByAddress) Less(i, j int) bool {
+	return bytes.Compare(a[i].Address[:], a[j].Address[:]) < 0
+}
+
+// ----------------------------------------------------------------------------
+
+type ValidatorSet interface {
+	// Sets the randomness for use in the proposer policy.
+	// This is injected into the ValidatorSet when we call `getOrderedValidators`
+	SetRandomness(seed common.Hash)
+	// Sets the randomness for use in the proposer policy
+	GetRandomness() common.Hash
+
+	// Return the validator size
+	Size() int
+	// Get the maximum number of faulty nodes
+	F() int
+	// Get the minimum quorum size
+	MinQuorumSize() int
+
+	// List returns all the validators
+	List() []Validator
+	// Return the validator index
+	GetIndex(addr common.Address) int
+	// Get validator by index
+	GetByIndex(i uint64) Validator
+	// Get validator by given address
+	GetByAddress(addr common.Address) (int, Validator)
+	// CointainByAddress indicates if a validator with the given address is present
+	ContainsByAddress(add common.Address) bool
+
+	// Add validators
+	AddValidators(validators []ValidatorData) bool
+	// Remove validators
+	RemoveValidators(removedValidators *big.Int) bool
+	// Copy validator set
+	Copy() ValidatorSet
+
+	// Serialize returns binary reprentation of the ValidatorSet
+	// can be use used to instantiate a validator with DeserializeValidatorSet()
+	Serialize() ([]byte, error)
+}
+
+type ValidatorSetData struct {
+	Validators []ValidatorData
+	Randomness common.Hash
+}
+
+// ----------------------------------------------------------------------------
+
+// ProposerSelector returns the block proposer for a round given the last proposer, round number, and randomness.
+type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.Address, currentRound uint64) Validator
+
+// ----------------------------------------------------------------------------
 
 func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
 	if len(addrs) != len(blsPublicKeys) {
@@ -52,80 +157,3 @@ func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]commo
 
 	return addrs, pubKeys
 }
-
-type ValidatorData struct {
-	Address      common.Address
-	BLSPublicKey []byte
-}
-
-type Validator interface {
-	// Address returns address
-	Address() common.Address
-
-	BLSPublicKey() []byte
-
-	// String representation of Validator
-	String() string
-}
-
-func GetAddressesFromValidatorList(validators []Validator) []common.Address {
-	returnList := make([]common.Address, len(validators))
-
-	for i, val := range validators {
-		returnList[i] = val.Address()
-	}
-
-	return returnList
-}
-
-// ----------------------------------------------------------------------------
-
-type Validators []Validator
-
-// ----------------------------------------------------------------------------
-
-type ValidatorSet interface {
-	// Calculate the proposer
-	CalcProposer(lastProposer common.Address, round uint64)
-	// Get current proposer
-	GetProposer() Validator
-	// Check whether the validator with given address is the current proposer
-	IsProposer(address common.Address) bool
-	// Policy by which this selector chooses proposers
-	Policy() ProposerPolicy
-	// Sets the randomness for use in the proposer policy
-	SetRandomness(seed common.Hash)
-
-	// Return the validator size
-	PaddedSize() int
-	Size() int
-	// Get the maximum number of faulty nodes
-	F() int
-	// Get the minimum quorum size
-	MinQuorumSize() int
-
-	// Return the validator array
-	List() []Validator
-	// Return the validator array without holes
-	FilteredList() []Validator
-	// Return the validator index in the filtered list
-	GetFilteredIndex(addr common.Address) int
-	// Get validator by index
-	GetByIndex(i uint64) Validator
-	// Get validator by given address
-	GetByAddress(addr common.Address) (int, Validator)
-	// CointainByAddress indicates if a validator with the given address is present
-	ContainsByAddress(add common.Address) bool
-
-	// Add validators
-	AddValidators(validators []ValidatorData) bool
-	// Remove validators
-	RemoveValidators(removedValidators *big.Int) bool
-	// Copy validator set
-	Copy() ValidatorSet
-}
-
-// ----------------------------------------------------------------------------
-
-// Returns the block proposer for a round given the last proposer, round number, and randomness.
-type ProposerSelector func(ValidatorSet, common.Address, uint64, common.Hash) Validator

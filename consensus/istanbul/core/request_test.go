@@ -30,12 +30,12 @@ import (
 )
 
 func TestCheckRequestMsg(t *testing.T) {
+	valSet := newTestValidatorSet(4)
 	c := &core{
-		state: StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 
 	// invalid request
@@ -83,14 +83,14 @@ func TestStoreRequestMsg(t *testing.T) {
 	backend := &testSystemBackend{
 		events: new(event.TypeMux),
 	}
+	valSet := newTestValidatorSet(4)
 	c := &core{
 		logger:  log.New("backend", "test", "id", 0),
 		backend: backend,
-		state:   StateAcceptRequest,
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
-		}, newTestValidatorSet(4), nil, nil, istanbul.EmptyPreparedCertificate(), nil),
+		}, valSet, valSet.GetByIndex(0)),
 		pendingRequests:   prque.New(nil),
 		pendingRequestsMu: new(sync.Mutex),
 	}
@@ -113,7 +113,7 @@ func TestStoreRequestMsg(t *testing.T) {
 		t.Errorf("the size of pending requests mismatch: have %v, want %v", c.pendingRequests.Size(), len(requests))
 	}
 
-	c.current.SetSequence(big.NewInt(3))
+	c.current.(*roundStateImpl).sequence = big.NewInt(3)
 
 	c.subscribeEvents()
 	defer c.unsubscribeEvents()

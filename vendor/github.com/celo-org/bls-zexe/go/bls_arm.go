@@ -3,6 +3,6 @@
 package bls
 
 /*
-#cgo LDFLAGS: -L../bls/target/arm-unknown-linux-gnueabi/release -lbls_zexe -ldl -lm
+#cgo LDFLAGS: -L../bls/target/arm-unknown-linux-gnueabi/release -lbls_zexe -lbls_snark -ldl -lm
 */
 import "C"

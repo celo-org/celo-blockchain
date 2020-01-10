@@ -22,7 +22,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
@@ -69,7 +71,7 @@ const (
 	  {
 		"constant": true,
 		"inputs": [],
-		"name": "intrinsicGasForAlternativeGasCurrency",
+		"name": "intrinsicGasForAlternativeFeeCurrency",
 		"outputs": [
 		  {
 			"name": "",
@@ -133,15 +135,19 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 	return gas.Uint64()
 }
 
-func GetIntrinsicGasForAlternativeGasCurrency(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.IntrinsicGasForAlternativeGasCurrency, "intrinsicGasForAlternativeGasCurrency")
+func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.StateDB) uint64 {
+	return GetGasCost(header, state, params.IntrinsicGasForAlternativeFeeCurrency, "intrinsicGasForAlternativeFeeCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 	version, err := GetMinimumVersion(header, state)
 
 	if err != nil {
-		log.Warn("Error checking client version", "err", err, "contract id", params.BlockchainParametersRegistryId)
+		if err == errors.ErrRegistryContractNotDeployed {
+			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		} else {
+			log.Warn("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		}
 		return
 	}
 
@@ -174,6 +180,11 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		state,
 	)
 	if err != nil {
+		if err == errors.ErrRegistryContractNotDeployed {
+			log.Debug("Error obtaining block gas limit", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		} else {
+			log.Warn("Error obtaining block gas limit", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		}
 		return params.DefaultGasLimit, err
 	}
 	return gasLimit.Uint64(), nil

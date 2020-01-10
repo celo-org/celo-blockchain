@@ -19,20 +19,19 @@ package backend
 import (
 	//"bytes"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestSign(t *testing.T) {
@@ -179,10 +178,9 @@ func TestCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
-	fmt.Printf("Data dir is %s\n", engine.GetDataDir())
 	block := makeBlock(chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
-	expected := engine.GetProposer(1)
+	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()
 	if actual != expected {
 		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
@@ -227,7 +225,7 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 			blsPublicKey,
 		}
 	}
-	vset := validator.NewSet(validators, istanbul.RoundRobin)
+	vset := validator.NewSet(validators)
 	return vset, keys
 }
 

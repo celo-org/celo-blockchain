@@ -32,20 +32,34 @@ import (
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
 const validatorsABIString string = `[
-		{
-			"constant": true,
-			"inputs": [],
-			"name": "getRegisteredValidatorSigners",
-			"outputs": [
-			{
-				"name": "",
-				"type": "address[]"
-			}
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-		},
+    {
+        "constant": true,
+        "inputs": [],
+        "name": "getRegisteredValidatorSigners",
+        "outputs": [
+        {
+            "name": "",
+            "type": "address[]"
+        }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "getRegisteredValidators",
+      "outputs": [
+        {
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
     {
       "constant": true,
       "inputs": [
@@ -90,6 +104,10 @@ const validatorsABIString string = `[
         {
           "name": "score",
           "type": "uint256"
+        },
+        {
+          "name": "signer",
+          "type": "address"
         }
       ],
       "payable": false,
@@ -119,7 +137,7 @@ const validatorsABIString string = `[
       "stateMutability": "nonpayable",
       "type": "function"
     },
-		    {
+    {
       "constant": false,
       "inputs": [
         {
@@ -137,7 +155,7 @@ const validatorsABIString string = `[
       "stateMutability": "nonpayable",
       "type": "function"
     },
-		    {
+    {
       "constant": true,
       "inputs": [
         {
@@ -163,15 +181,27 @@ type ValidatorContractData struct {
 	BlsPublicKey   []byte
 	Affiliation    common.Address
 	Score          *big.Int
+	Signer         common.Address
 }
 
 var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
+
+func RetrieveRegisteredValidatorSigners(header *types.Header, state vm.StateDB) ([]common.Address, error) {
+	var regVals []common.Address
+
+	// Get the new epoch's validator signer set
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+		return nil, err
+	}
+
+	return regVals, nil
+}
 
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var regVals []common.Address
 
 	// Get the new epoch's validator set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
 		return nil, err
 	}
 

@@ -1,4 +1,4 @@
-use crate::curve::hash::HashToG2;
+use crate::curve::hash::{HashToG1};
 use algebra::{
     bytes::{
         FromBytes,
@@ -50,25 +50,25 @@ impl PrivateKey {
         self.sk.clone()
     }
 
-    pub fn sign<H: HashToG2>(&self, message: &[u8], extra_data: &[u8], hash_to_g2: &H) -> Result<Signature, Box<dyn Error>> {
-        self.sign_message(SIG_DOMAIN, message, extra_data, hash_to_g2)
+    pub fn sign<H: HashToG1>(&self, message: &[u8], extra_data: &[u8], hash_to_g1: &H) -> Result<Signature, Box<dyn Error>> {
+        self.sign_message(SIG_DOMAIN, message, extra_data, hash_to_g1)
     }
 
-    pub fn sign_pop<H: HashToG2>(&self, message: &[u8], hash_to_g2: &H) -> Result<Signature, Box<dyn Error>> {
-        self.sign_message(POP_DOMAIN, &message, &[], hash_to_g2)
+    pub fn sign_pop<H: HashToG1>(&self, message: &[u8], hash_to_g1: &H) -> Result<Signature, Box<dyn Error>> {
+        self.sign_message(POP_DOMAIN, &message, &[], hash_to_g1)
     }
 
 
-    fn sign_message<H: HashToG2>(&self, domain: &[u8], message: &[u8], extra_data: &[u8], hash_to_g2: &H) -> Result<Signature, Box<dyn  Error>> {
+    fn sign_message<H: HashToG1>(&self, domain: &[u8], message: &[u8], extra_data: &[u8], hash_to_g1: &H) -> Result<Signature, Box<dyn  Error>> {
         Ok(Signature::from_sig(
-            &hash_to_g2
+            &hash_to_g1
                 .hash::<Bls12_377Parameters>(domain, message, extra_data)?
                 .mul(&self.sk),
         ))
     }
 
     pub fn to_public(&self) -> PublicKey {
-        PublicKey::from_pk(&G1Projective::prime_subgroup_generator().mul(&self.sk))
+        PublicKey::from_pk(&G2Projective::prime_subgroup_generator().mul(&self.sk))
     }
 }
 
@@ -107,20 +107,20 @@ impl Error for BLSError {
 }
 
 pub struct PublicKey {
-    pk: G1Projective,
+    pk: G2Projective,
 }
 
 impl PublicKey {
-    pub fn from_pk(pk: &G1Projective) -> PublicKey {
+    pub fn from_pk(pk: &G2Projective) -> PublicKey {
         PublicKey { pk: pk.clone() }
     }
 
-    pub fn get_pk(&self) -> G1Projective {
+    pub fn get_pk(&self) -> G2Projective {
         self.pk.clone()
     }
 
     pub fn aggregate(public_keys: &[&PublicKey]) -> PublicKey {
-        let mut apk = G1Projective::zero();
+        let mut apk = G2Projective::zero();
         for i in public_keys.iter() {
             apk = apk + &(*i).pk;
         }
@@ -128,45 +128,45 @@ impl PublicKey {
         PublicKey { pk: apk }
     }
 
-    pub fn verify<H: HashToG2>(
+    pub fn verify<H: HashToG1>(
         &self,
         message: &[u8],
         extra_data: &[u8],
         signature: &Signature,
-        hash_to_g2: &H,
+        hash_to_g1: &H,
     ) -> Result<(), Box<dyn Error>> {
-        self.verify_sig(SIG_DOMAIN, message, extra_data, signature, hash_to_g2)
+        self.verify_sig(SIG_DOMAIN, message, extra_data, signature, hash_to_g1)
     }
 
-    pub fn verify_pop<H: HashToG2>(
+    pub fn verify_pop<H: HashToG1>(
         &self,
         message: &[u8],
         signature: &Signature,
-        hash_to_g2: &H,
+        hash_to_g1: &H,
     ) -> Result<(), Box<dyn Error>> {
-        self.verify_sig(POP_DOMAIN, &message, &[], signature, hash_to_g2)
+        self.verify_sig(POP_DOMAIN, &message, &[], signature, hash_to_g1)
     }
 
 
-    fn verify_sig<H: HashToG2>(
+    fn verify_sig<H: HashToG1>(
         &self,
         domain: &[u8],
         message: &[u8],
         extra_data: &[u8],
         signature: &Signature,
-        hash_to_g2: &H,
+        hash_to_g1: &H,
     ) -> Result<(), Box<dyn Error>> {
         let pairing = Bls12_377::product_of_pairings(&vec![
             (
-                &G1Affine::prime_subgroup_generator().neg().prepare(),
                 &signature.get_sig().into_affine().prepare(),
+                &G2Affine::prime_subgroup_generator().neg().prepare(),
             ),
             (
-                &self.pk.into_affine().prepare(),
-                &hash_to_g2
+                &hash_to_g1
                     .hash::<Bls12_377Parameters>(domain, message, extra_data)?
                     .into_affine()
                     .prepare(),
+                &self.pk.into_affine().prepare(),
             ),
         ]);
         if pairing == Fq12::one() {
@@ -182,68 +182,6 @@ impl ToBytes for PublicKey {
     fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
         let affine = self.pk.into_affine();
         let mut x_bytes: Vec<u8> = vec![];
-        let y_big = affine.y.into_repr();
-        let half = Fq::modulus_minus_one_div_two();
-        affine.x.write(&mut x_bytes)?;
-        if y_big > half {
-            let num_x_bytes = x_bytes.len();
-            x_bytes[num_x_bytes - 1] |= 0x80;
-        }
-        writer.write(&x_bytes)?;
-        Ok(())
-    }
-}
-
-impl FromBytes for PublicKey {
-    #[inline]
-    fn read<R: Read>(mut reader: R) -> IoResult<Self> {
-        let mut x_bytes_with_y: Vec<u8> = vec![];
-        reader.read_to_end(&mut x_bytes_with_y)?;
-        let x_bytes_with_y_len = x_bytes_with_y.len();
-        let y_over_half = (x_bytes_with_y[x_bytes_with_y_len - 1] & 0x80) == 0x80;
-        x_bytes_with_y[x_bytes_with_y_len - 1] &= 0xFF - 0x80;
-        let x = Fq::read(x_bytes_with_y.as_slice())?;
-        let x3b = <Bls12_377G1Parameters as SWModelParameters>::add_b(
-            &((x.square() * &x) + &<Bls12_377G1Parameters as SWModelParameters>::mul_by_a(&x)),
-        );
-        let y = x3b.sqrt().ok_or(
-            io::Error::new(io::ErrorKind::NotFound, "couldn't find square root for x")
-        )?;
-        let negy = -y;
-        let chosen_y = if (y <= negy) ^ y_over_half { y } else { negy };
-        let pk = G1Affine::new(x, chosen_y, false);
-        Ok(PublicKey::from_pk(&pk.into_projective()))
-    }
-}
-
-pub struct Signature {
-    sig: G2Projective,
-}
-
-impl Signature {
-    pub fn from_sig(sig: &G2Projective) -> Signature {
-        Signature { sig: sig.clone() }
-    }
-
-    pub fn get_sig(&self) -> G2Projective {
-        self.sig.clone()
-    }
-
-    pub fn aggregate(signatures: &[&Signature]) -> Signature {
-        let mut asig = G2Projective::zero();
-        for i in signatures.iter() {
-            asig = asig + &(*i).sig;
-        }
-
-        Signature { sig: asig }
-    }
-}
-
-impl ToBytes for Signature {
-    #[inline]
-    fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
-        let affine = self.sig.into_affine();
-        let mut x_bytes: Vec<u8> = vec![];
         let y_c0_big = affine.y.c0.into_repr();
         let y_c1_big = affine.y.c1.into_repr();
         let half = Fq::modulus_minus_one_div_two();
@@ -255,11 +193,12 @@ impl ToBytes for Signature {
             x_bytes[num_x_bytes - 1] |= 0x80;
         }
         writer.write(&x_bytes)?;
+
         Ok(())
     }
 }
 
-impl FromBytes for Signature {
+impl FromBytes for PublicKey {
     #[inline]
     fn read<R: Read>(mut reader: R) -> IoResult<Self> {
         let mut x_bytes_with_y: Vec<u8> = vec![];
@@ -292,7 +231,70 @@ impl FromBytes for Signature {
         };
 
         let chosen_y = if y_over_half { bigger } else { smaller };
-        let sig = G2Affine::new(x, chosen_y, false);
+        let pk = G2Affine::new(x, chosen_y, false);
+        Ok(PublicKey::from_pk(&pk.into_projective()))
+
+    }
+}
+
+pub struct Signature {
+    sig: G1Projective,
+}
+
+impl Signature {
+    pub fn from_sig(sig: &G1Projective) -> Signature {
+        Signature { sig: sig.clone() }
+    }
+
+    pub fn get_sig(&self) -> G1Projective {
+        self.sig.clone()
+    }
+
+    pub fn aggregate(signatures: &[&Signature]) -> Signature {
+        let mut asig = G1Projective::zero();
+        for i in signatures.iter() {
+            asig = asig + &(*i).sig;
+        }
+
+        Signature { sig: asig }
+    }
+}
+
+impl ToBytes for Signature {
+    #[inline]
+    fn write<W: Write>(&self, mut writer: W) -> IoResult<()> {
+        let affine = self.sig.into_affine();
+        let mut x_bytes: Vec<u8> = vec![];
+        let y_big = affine.y.into_repr();
+        let half = Fq::modulus_minus_one_div_two();
+        affine.x.write(&mut x_bytes)?;
+        if y_big > half {
+            let num_x_bytes = x_bytes.len();
+            x_bytes[num_x_bytes - 1] |= 0x80;
+        }
+        writer.write(&x_bytes)?;
+        Ok(())
+    }
+}
+
+impl FromBytes for Signature {
+    #[inline]
+    fn read<R: Read>(mut reader: R) -> IoResult<Self> {
+        let mut x_bytes_with_y: Vec<u8> = vec![];
+        reader.read_to_end(&mut x_bytes_with_y)?;
+        let x_bytes_with_y_len = x_bytes_with_y.len();
+        let y_over_half = (x_bytes_with_y[x_bytes_with_y_len - 1] & 0x80) == 0x80;
+        x_bytes_with_y[x_bytes_with_y_len - 1] &= 0xFF - 0x80;
+        let x = Fq::read(x_bytes_with_y.as_slice())?;
+        let x3b = <Bls12_377G1Parameters as SWModelParameters>::add_b(
+            &((x.square() * &x) + &<Bls12_377G1Parameters as SWModelParameters>::mul_by_a(&x)),
+        );
+        let y = x3b.sqrt().ok_or(
+            io::Error::new(io::ErrorKind::NotFound, "couldn't find square root for x")
+        )?;
+        let negy = -y;
+        let chosen_y = if (y <= negy) ^ y_over_half { y } else { negy };
+        let sig = G1Affine::new(x, chosen_y, false);
         Ok(Signature::from_sig(&sig.into_projective()))
     }
 }

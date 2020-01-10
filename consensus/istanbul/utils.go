@@ -80,14 +80,19 @@ func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
 	return GetNumberWithinEpoch(number, epochSize) == epochSize
 }
 
+func IsFirstBlockOfEpoch(number uint64, epochSize uint64) bool {
+	return GetNumberWithinEpoch(number, epochSize) == 1
+}
+
 // Retrieves the epoch number given the block number.
 // There is a special case if the number == 0 (the genesis block).  That block will be in the
 // 1st epoch.
 func GetEpochNumber(number uint64, epochSize uint64) uint64 {
-	if number == 0 {
-		return 0
+	epochNumber := number / epochSize
+	if IsLastBlockOfEpoch(number, epochSize) {
+		return epochNumber
 	} else {
-		return (number / epochSize) + 1
+		return epochNumber + 1
 	}
 }
 
@@ -106,6 +111,26 @@ func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 
 	firstBlockNum, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
 	return firstBlockNum + (epochSize - 1)
+}
+
+func GetValScoreTallyFirstBlockNumber(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) uint64 {
+	// We need to wait for the completion of the first window with the start window's block being the
+	// 2nd block of the epoch, before we start tallying the validator score for epoch "epochNumber".
+	// We can't include the epoch's first block since it's aggregated parent seals
+	// is for the previous epoch's valset.
+
+	epochFirstBlock, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
+	return epochFirstBlock + 1 + (lookbackWindowSize - 1)
+}
+
+func GetValScoreTallyLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
+	// We stop tallying for epoch "epochNumber" at the second to last block of that epoch.
+	// We can't include that epoch's last block as part of the tally because the epoch val score is calculated
+	// using a tally that is updated AFTER a block is finalized.
+	// Note that it's possible to count up to the last block of the epoch, but it's much harder to implement
+	// than couting up to the second to last one.
+
+	return GetEpochLastBlockNumber(epochNumber, epochSize) - 1
 }
 
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {

@@ -4,7 +4,7 @@ use algebra::{
     biginteger::BigInteger,
     curves::{
         models::{
-            bls12::{Bls12Parameters, G2Affine, G2Projective},
+            bls12::{Bls12Parameters, G2Affine, G1Projective, G2Projective},
             ModelParameters,
         },
         AffineCurve, ProjectiveCurve,
@@ -127,6 +127,10 @@ pub fn scale_by_cofactor_fuentes<P: Bls12Parameters>(p: &G2Projective<P>) -> G2P
     let p5 = p.double(); //2
 
     p4 + &psi::<P>(&p2, 1) + &psi::<P>(&p5, 2)
+}
+
+pub fn scale_by_cofactor_g1<P: Bls12Parameters>(p: &G1Projective<P>) -> G1Projective<P> {
+    p.into_affine().scale_by_cofactor()
 }
 
 #[cfg(test)]

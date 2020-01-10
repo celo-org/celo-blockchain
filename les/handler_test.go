@@ -525,13 +525,13 @@ func TestTransactionStatusLes2(t *testing.T) {
 	// tx0, _ := types.SignTx(types.NewTransaction(0, acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil), signer, testBankKey)
 	// test(tx0, true, txStatus{Status: core.TxStatusUnknown, Error: core.ErrUnderpriced.Error()})
 
-	tx1, _ := types.SignTx(types.NewTransaction(0, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil), signer, testBankKey)
+	tx1, _ := types.SignTx(types.NewTransaction(0, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, testBankKey)
 	test(tx1, false, txStatus{Status: core.TxStatusUnknown}) // query before sending, should be unknown
 	test(tx1, true, txStatus{Status: core.TxStatusPending})  // send valid processable tx, should return pending
 	test(tx1, true, txStatus{Status: core.TxStatusPending})  // adding it again should not return an error
 
-	tx2, _ := types.SignTx(types.NewTransaction(1, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil), signer, testBankKey)
-	tx3, _ := types.SignTx(types.NewTransaction(2, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil), signer, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, testBankKey)
+	tx3, _ := types.SignTx(types.NewTransaction(2, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, testBankKey)
 	// send transactions in the wrong order, tx3 should be queued
 	test(tx3, true, txStatus{Status: core.TxStatusQueued})
 	test(tx2, true, txStatus{Status: core.TxStatusPending})
@@ -580,4 +580,63 @@ func TestTransactionStatusLes2(t *testing.T) {
 	// check if their status is pending again
 	test(tx1, false, txStatus{Status: core.TxStatusPending})
 	test(tx2, false, txStatus{Status: core.TxStatusPending})
+}
+
+func TestTransactionGatewayFeeRequirementLes2(t *testing.T) {
+	db := ethdb.NewMemDatabase()
+	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil, nil, db)
+	pm.etherbase = common.HexToAddress("2ad937cb878d8beefc84f3d0545750c2ff78cd0e")
+	pm.gatewayFee = big.NewInt(25000)
+	chain := pm.blockchain.(*core.BlockChain)
+	config := core.DefaultTxPoolConfig
+	config.Journal = ""
+	txpool := core.NewTxPool(config, params.TestChainConfig, chain)
+	pm.txpool = txpool
+	peer, _ := newTestPeer(t, "peer", 2, pm, true)
+	defer peer.close()
+	signer := types.HomesteadSigner{}
+
+	wrongAddress := common.HexToAddress("1762042962b8759e17d2b5ac6c5565273df506fd")
+	cases := []struct {
+		desc   string
+		tx     *types.Transaction
+		status txStatus
+	}{{
+		desc:   "no recipient or fee value attached",
+		tx:     types.NewTransaction(0, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil),
+		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got <nil>"},
+	}, {
+		desc:   "wrong recipient",
+		tx:     types.NewTransaction(1, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &wrongAddress, nil, nil),
+		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got 0x1762042962b8759E17d2B5Ac6c5565273df506fD"},
+	}, {
+		desc:   "no fee value attached",
+		tx:     types.NewTransaction(2, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, nil, nil),
+		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 0"},
+	}, {
+		desc:   "fee value too value",
+		tx:     types.NewTransaction(3, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, new(big.Int).Sub(pm.gatewayFee, big.NewInt(1)), nil),
+		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 24999"},
+	}, {
+		desc:   "fee value exactly enough",
+		tx:     types.NewTransaction(4, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, pm.gatewayFee, nil),
+		status: txStatus{Status: core.TxStatusQueued},
+	}, {
+		desc:   "fee value more than enough",
+		tx:     types.NewTransaction(5, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, new(big.Int).Add(pm.gatewayFee, big.NewInt(1)), nil),
+		status: txStatus{Status: core.TxStatusQueued},
+	}}
+
+	for i, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			tx, _ := types.SignTx(c.tx, signer, testBankKey)
+			cost := peer.GetRequestCost(SendTxV2Msg, 1)
+			if err := sendRequest(peer.app, SendTxV2Msg, uint64(i+1), cost, types.Transactions{tx}); err != nil {
+				t.Fatalf("transaction send failed: %v", err)
+			}
+			if err := expectResponse(peer.app, TxStatusMsg, uint64(i+1), testBufLimit, []txStatus{c.status}); err != nil {
+				t.Fatalf("transaction status mismatch: %v", err)
+			}
+		})
+	}
 }

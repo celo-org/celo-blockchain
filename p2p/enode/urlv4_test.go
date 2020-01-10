@@ -28,9 +28,10 @@ import (
 )
 
 var parseNodeTests = []struct {
-	rawurl     string
-	wantError  string
-	wantResult *Node
+	rawurl      string
+	wantError   string
+	wantResult  *Node
+	wantPrivate bool
 }{
 	{
 		rawurl:    "http://foobar",
@@ -62,6 +63,17 @@ var parseNodeTests = []struct {
 			52150,
 			52150,
 		),
+		wantPrivate: true,
+	},
+	{
+		rawurl: "enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@5.1.1.1:52150",
+		wantResult: NewV4(
+			hexPubkey("1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
+			net.IP{0x5, 0x1, 0x1, 0x1},
+			52150,
+			52150,
+		),
+		wantPrivate: false,
 	},
 	{
 		rawurl: "enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@[::]:52150",
@@ -71,6 +83,17 @@ var parseNodeTests = []struct {
 			52150,
 			52150,
 		),
+		wantPrivate: true,
+	},
+	{
+		rawurl: "enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@172.17.0.3:52150",
+		wantResult: NewV4(
+			hexPubkey("1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
+			net.ParseIP("172.17.0.3"),
+			52150,
+			52150,
+		),
+		wantPrivate: true,
 	},
 	{
 		rawurl: "enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@[2001:db8:3c4d:15::abcd:ef12]:52150",
@@ -89,6 +112,7 @@ var parseNodeTests = []struct {
 			52150,
 			22334,
 		),
+		wantPrivate: true,
 	},
 	// Incomplete nodes with no address.
 	{
@@ -147,6 +171,9 @@ func TestParseNode(t *testing.T) {
 			}
 			if !reflect.DeepEqual(n, test.wantResult) {
 				t.Errorf("test %q:\n  result mismatch:\ngot:  %#v\nwant: %#v", test.rawurl, n, test.wantResult)
+			}
+			if !n.Incomplete() && n.IsPrivateIP() != test.wantPrivate {
+				t.Errorf("test %q:\n  isPrivate mismatch:\nfor  %#v\ngot:  %#v\nwant: %#v", test.rawurl, n, n.IsPrivateIP(), test.wantPrivate)
 			}
 		}
 	}

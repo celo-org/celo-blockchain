@@ -19,9 +19,11 @@ package rawdb
 import (
 	"bytes"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -180,6 +182,46 @@ func TestPartialBlockStorage(t *testing.T) {
 		t.Fatalf("Stored block not found")
 	} else if entry.Hash() != block.Hash() {
 		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)
+	}
+}
+
+// Tests uptime accumulator storage and retrieval operations.
+func TestUptimeStorage(t *testing.T) {
+	db := ethdb.NewMemDatabase()
+	epoch := uint64(0)
+
+	// Create a test uptime to move around the database and make sure it's really new
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
+		t.Fatalf("Non existent uptime returned: %v", entry)
+	}
+	// Write and verify the uptime in the database
+	uptimeEntries := make([]istanbul.UptimeEntry, 3)
+	uptimeEntries[0] = istanbul.UptimeEntry{
+		ScoreTally:      0,
+		LastSignedBlock: 1,
+	}
+	uptimeEntries[1] = istanbul.UptimeEntry{
+		ScoreTally:      2,
+		LastSignedBlock: 2,
+	}
+	uptimeEntries[2] = istanbul.UptimeEntry{
+		ScoreTally:      8,
+		LastSignedBlock: 8,
+	}
+	uptime := &istanbul.Uptime{
+		Entries:     uptimeEntries,
+		LatestBlock: 5,
+	}
+	WriteAccumulatedEpochUptime(db, epoch, uptime)
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry == nil {
+		t.Fatalf("Stored uptime not found")
+	} else if !reflect.DeepEqual(entry, uptime) {
+		t.Fatalf("Retrieved uptime mismatch: have %v, want %v", entry, uptime)
+	}
+	// Delete the uptime and verify the execution
+	DeleteAccumulatedEpochUptime(db, epoch)
+	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
+		t.Fatalf("Deleted uptime returned: %v", entry)
 	}
 }
 

@@ -67,27 +67,27 @@ type Backend interface {
 	// the given validator
 	CheckSignature(data []byte, addr common.Address, sig []byte) error
 
-	// LastProposal retrieves latest committed proposal and the address of proposer
-	LastProposal() (Proposal, common.Address)
+	// GetCurrentHeadBlock retrieves the last block
+	GetCurrentHeadBlock() Proposal
+
+	// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the author for that block
+	GetCurrentHeadBlockAndAuthor() (Proposal, common.Address)
 
 	// LastSubject retrieves latest committed subject (view and digest)
 	LastSubject() (Subject, error)
 
-	// HasProposal checks if the combination of the given hash and height matches any existing blocks
-	HasProposal(hash common.Hash, number *big.Int) bool
+	// HasBlock checks if the combination of the given hash and height matches any existing blocks
+	HasBlock(hash common.Hash, number *big.Int) bool
 
-	// GetProposer returns the proposer of the given block height
-	GetProposer(number uint64) common.Address
+	// AuthorForBlock returns the proposer of the given block height
+	AuthorForBlock(number uint64) common.Address
 
-	// ParentValidators returns the validator set of the given proposal's parent block
-	ParentValidators(proposal Proposal) ValidatorSet
+	// ParentBlockValidators returns the validator set of the given proposal's parent block
+	ParentBlockValidators(proposal Proposal) ValidatorSet
 
 	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
-
-	// GetDataDir returns a read-write enabled data dir in which data will persist across restarts.
-	GetDataDir() string
 }

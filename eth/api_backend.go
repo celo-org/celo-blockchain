@@ -124,11 +124,11 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(blockHash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
 	vmError := func() error { return nil }
 
-	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
+	context := vm.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 
@@ -227,6 +227,10 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *EthAPIBackend) GasFeeRecipient() common.Address {
-	return b.eth.GasFeeRecipient()
+func (b *EthAPIBackend) GatewayFeeRecipient() common.Address {
+	return b.eth.GatewayFeeRecipient()
+}
+
+func (b *EthAPIBackend) GatewayFee() *big.Int {
+	return b.eth.GatewayFee()
 }

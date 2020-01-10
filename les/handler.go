@@ -105,6 +105,7 @@ type ProtocolManager struct {
 	reqDist     *requestDistributor
 	retriever   *retrieveManager
 	etherbase   common.Address
+	gatewayFee  *big.Int
 
 	downloader *downloader.Downloader
 	fetcher    *lightFetcher
@@ -129,7 +130,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 	syncMode downloader.SyncMode, networkId uint64, mux *event.TypeMux, engine consensus.Engine,
 	peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database,
 	odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{},
-	wg *sync.WaitGroup, etherbase common.Address) (*ProtocolManager, error) {
+	wg *sync.WaitGroup, etherbase common.Address, gatewayFee *big.Int) (*ProtocolManager, error) {
 	lightSync := !syncMode.SyncFullBlockChain()
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -150,6 +151,7 @@ func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.In
 		wg:          wg,
 		noMorePeers: make(chan struct{}),
 		etherbase:   etherbase,
+		gatewayFee:  gatewayFee,
 	}
 	if odr != nil {
 		manager.retriever = odr.retriever
@@ -361,15 +363,25 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 var reqList = []uint64{GetBlockHeadersMsg, GetBlockBodiesMsg, GetCodeMsg, GetReceiptsMsg, GetProofsV1Msg, SendTxMsg, SendTxV2Msg, GetTxStatusMsg, GetHeaderProofsMsg, GetProofsV2Msg, GetHelperTrieProofsMsg, GetEtherbaseMsg}
 
-func (pm *ProtocolManager) verifyGasFeeRecipient(gasFeeRecipient *common.Address) bool {
-	// If this node does not specify an etherbase, accept any GasFeeRecipient. Otherwise,
+func (pm *ProtocolManager) verifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
+	// If this node does not specify an etherbase, accept any GatewayFeeRecipient. Otherwise,
 	// reject transactions that don't pay gas fees to this node.
 	if (pm.etherbase != common.Address{}) {
-		if gasFeeRecipient == nil || *gasFeeRecipient != pm.etherbase {
-			return false
+		if gatewayFeeRecipient == nil {
+			return fmt.Errorf("gateway fee recipient must be %s, got <nil>", pm.etherbase.String())
+		}
+		if *gatewayFeeRecipient != pm.etherbase {
+			return fmt.Errorf("gateway fee recipient must be %s, got %s", pm.etherbase.String(), (*gatewayFeeRecipient).String())
+		}
+
+		// Check that the value of the supplied gateway fee is at least the minimum.
+		if pm.gatewayFee != nil && pm.gatewayFee.Cmp(common.Big0) > 0 {
+			if gatewayFee == nil || gatewayFee.Cmp(pm.gatewayFee) < 0 {
+				return fmt.Errorf("gateway fee value must be at least %s, got %s", pm.gatewayFee, gatewayFee)
+			}
 		}
 	}
-	return true
+	return nil
 }
 
 // handleMsg is invoked whenever an inbound message is received from a remote
@@ -1068,8 +1080,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrRequestRejected, "")
 		}
 		for _, tx := range txs {
-			if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
-				return errResp(ErrRequestRejected, "Invalid GasFeeRecipient")
+			if err := pm.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
+				return errResp(ErrRequestRejected, "tx %v: %v", tx, err)
 			}
 		}
 		pm.txpool.AddRemotes(txs)
@@ -1102,11 +1114,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for i, stat := range stats {
 			if stat.Status == core.TxStatusUnknown {
 				tx := req.Txs[i]
-				if !pm.verifyGasFeeRecipient(tx.GasFeeRecipient()) {
-					stats[i].Error = fmt.Sprintf("Invalid GasFeeRecipient for node with etherbase %v, got %v", pm.etherbase, tx.GasFeeRecipient())
+				if err := pm.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
+					stats[i].Error = err.Error()
 					continue
 				}
-
 				if errs := pm.txpool.AddRemotes([]*types.Transaction{tx}); errs[0] != nil {
 					stats[i].Error = errs[0].Error()
 					continue

@@ -17,14 +17,15 @@
 package validator
 
 import (
-	"fmt"
+	"encoding/json"
+	"io"
 	"math"
 	"math/big"
-	"reflect"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
@@ -32,73 +33,74 @@ type defaultValidator struct {
 	blsPublicKey []byte
 }
 
-func (val *defaultValidator) Address() common.Address {
-	return val.address
+func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
+	return &defaultValidator{
+		address:      data.Address,
+		blsPublicKey: data.BLSPublicKey,
+	}
 }
 
-func (val *defaultValidator) BLSPublicKey() []byte {
-	return val.blsPublicKey
+func (val *defaultValidator) AsData() *istanbul.ValidatorData {
+	return &istanbul.ValidatorData{
+		Address:      val.address,
+		BLSPublicKey: val.blsPublicKey,
+	}
 }
 
-func (val *defaultValidator) String() string {
-	return val.Address().String()
+func (val *defaultValidator) Address() common.Address { return val.address }
+func (val *defaultValidator) BLSPublicKey() []byte    { return val.blsPublicKey }
+func (val *defaultValidator) String() string          { return val.Address().String() }
+
+func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
+
+// JSON Encoding -----------------------------------------------------------------------
+
+func (val *defaultValidator) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
+func (val *defaultValidator) UnmarshalJSON(b []byte) error {
+	var data istanbul.ValidatorData
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	*val = *newValidatorFromData(&data)
+	return nil
+}
+
+// RLP Encoding -----------------------------------------------------------------------
+
+func (val *defaultValidator) EncodeRLP(w io.Writer) error { return rlp.Encode(w, val.AsData()) }
+func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
+	var v istanbul.ValidatorData
+	if err := stream.Decode(&v); err != nil {
+		return err
+	}
+
+	*val = *newValidatorFromData(&v)
+	return nil
 }
 
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
-	validators istanbul.Validators
-	policy     istanbul.ProposerPolicy
-
-	proposer    istanbul.Validator
+	validators  []istanbul.Validator
 	validatorMu sync.RWMutex
-	selector    istanbul.ProposerSelector
-	randomness  common.Hash
+	// This is set when we call `getOrderedValidators`
+	// TODO Rename to `EpochState` that has validators & randomness
+	randomness common.Hash
 }
 
-func newDefaultSet(validators []istanbul.ValidatorData, policy istanbul.ProposerPolicy) *defaultSet {
-	valSet := &defaultSet{}
-
-	valSet.policy = policy
-	// init validators
-	valSet.validators = make([]istanbul.Validator, len(validators))
-	for i, validator := range validators {
-		valSet.validators[i] = New(validator.Address, validator.BLSPublicKey)
+func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
+	return &defaultSet{
+		validators: mapDataToValidators(validators),
 	}
-	// init proposer
-	if valSet.Size() > 0 {
-		valSet.proposer = valSet.GetByIndex(0)
-	}
-
-	switch policy {
-	case istanbul.Sticky:
-		valSet.selector = StickyProposer
-	case istanbul.RoundRobin:
-		valSet.selector = RoundRobinProposer
-	case istanbul.ShuffledRoundRobin:
-		valSet.selector = ShuffledRoundRobinProposer
-	default:
-		// Programming error.
-		panic(fmt.Sprintf("unknown proposer selection policy: %v", policy))
-	}
-
-	return valSet
 }
+
+func (val *defaultSet) Serialize() ([]byte, error)        { return rlp.EncodeToBytes(val) }
+func (valSet *defaultSet) F() int                         { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
+func (valSet *defaultSet) MinQuorumSize() int             { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
+func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
 
 func (valSet *defaultSet) Size() int {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-
-	size := 0
-	for i := range valSet.validators {
-		if (valSet.validators[i].Address() != common.Address{}) {
-			size++
-		}
-	}
-	return size
-}
-
-func (valSet *defaultSet) PaddedSize() int {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 
@@ -111,24 +113,10 @@ func (valSet *defaultSet) List() []istanbul.Validator {
 	return valSet.validators
 }
 
-func (valSet *defaultSet) FilteredList() []istanbul.Validator {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-
-	filteredList := []istanbul.Validator{}
-	for i := 0; i < valSet.PaddedSize(); i++ {
-		currentValidator := valSet.GetByIndex(uint64(i))
-		if (currentValidator.Address() != common.Address{}) {
-			filteredList = append(filteredList, currentValidator)
-		}
-	}
-	return filteredList
-}
-
 func (valSet *defaultSet) GetByIndex(i uint64) istanbul.Validator {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	if i < uint64(valSet.PaddedSize()) {
+	if i < uint64(valSet.Size()) {
 		return valSet.validators[i]
 	}
 	return nil
@@ -144,47 +132,21 @@ func (valSet *defaultSet) GetByAddress(addr common.Address) (int, istanbul.Valid
 }
 
 func (valSet *defaultSet) ContainsByAddress(addr common.Address) bool {
-	for _, val := range valSet.List() {
-		if addr == val.Address() {
-			return true
-		}
-	}
-	return false
+	i, _ := valSet.GetByAddress(addr)
+	return i != -1
 }
 
-func (valSet *defaultSet) GetFilteredIndex(addr common.Address) int {
-	for i, val := range valSet.FilteredList() {
-		if addr == val.Address() {
-			return i
-		}
-	}
-	return -1
-}
-
-func (valSet *defaultSet) GetProposer() istanbul.Validator {
-	return valSet.proposer
-}
-
-func (valSet *defaultSet) IsProposer(address common.Address) bool {
-	_, val := valSet.GetByAddress(address)
-	return reflect.DeepEqual(valSet.GetProposer(), val)
-}
-
-func (valSet *defaultSet) CalcProposer(lastProposer common.Address, round uint64) {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-	valSet.proposer = valSet.selector(valSet, lastProposer, round, valSet.randomness)
+func (valSet *defaultSet) GetIndex(addr common.Address) int {
+	i, _ := valSet.GetByAddress(addr)
+	return i
 }
 
 func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) bool {
 	newValidators := make([]istanbul.Validator, 0, len(validators))
 	newAddressesMap := make(map[common.Address]bool)
 	for i := range validators {
-		address := validators[i].Address
-		blsPublicKey := validators[i].BLSPublicKey
-
-		newAddressesMap[address] = true
-		newValidators = append(newValidators, New(address, blsPublicKey))
+		newAddressesMap[validators[i].Address] = true
+		newValidators = append(newValidators, newValidatorFromData(&validators[i]))
 	}
 
 	valSet.validatorMu.Lock()
@@ -197,66 +159,95 @@ func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) boo
 		}
 	}
 
-	currentValidatorIndex := 0
-	for i, v := range valSet.validators {
-		if currentValidatorIndex == len(newValidators) {
-			break
-		}
-		if (v.Address() == common.Address{}) {
-			valSet.validators[i] = New(newValidators[currentValidatorIndex].Address(), newValidators[currentValidatorIndex].BLSPublicKey())
-			currentValidatorIndex++
-		}
-	}
-	if currentValidatorIndex < len(newValidators) {
-		valSet.validators = append(valSet.validators, newValidators[currentValidatorIndex:]...)
-	}
+	valSet.validators = append(valSet.validators, newValidators...)
+
 	return true
 }
 
 func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
-	if removedValidators.BitLen() == 0 || (removedValidators.BitLen() > len(valSet.validators)) {
+	if removedValidators.BitLen() == 0 {
 		return true
+	}
+
+	if removedValidators.BitLen() > len(valSet.validators) {
+		return false
 	}
 
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 
-	hadRemoval := false
+	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
+	// new memory will be allocated
+	tempList := valSet.validators[:0]
 	for i, v := range valSet.validators {
-		if removedValidators.Bit(i) == 1 && (v.Address() != common.Address{}) {
-			hadRemoval = true
-			valSet.validators[i] = New(common.Address{}, nil)
+		if removedValidators.Bit(i) == 0 {
+			tempList = append(tempList, v)
 		}
 	}
 
-	if !hadRemoval {
-		return false
-	} else {
-		return true
-	}
+	valSet.validators = tempList
+	return true
 }
 
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
+	newValSet := NewSet(mapValidatorsToData(valSet.validators))
+	newValSet.SetRandomness(valSet.randomness)
+	return newValSet
+}
 
-	validators := make([]istanbul.ValidatorData, 0, len(valSet.validators))
-	for _, v := range valSet.validators {
-		validators = append(validators, istanbul.ValidatorData{
-			v.Address(),
-			v.BLSPublicKey(),
-		})
+func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+	return &istanbul.ValidatorSetData{
+		Validators: mapValidatorsToData(valSet.validators),
+		Randomness: valSet.randomness,
 	}
-
-	return NewSet(validators, valSet.policy)
 }
 
-func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
+// JSON Encoding -----------------------------------------------------------------------
 
-func (valSet *defaultSet) MinQuorumSize() int {
-	return int(math.Ceil(float64(2*valSet.Size()) / 3))
+func (val *defaultSet) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
+
+func (val *defaultSet) UnmarshalJSON(b []byte) error {
+	var data istanbul.ValidatorSetData
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	*val = *newDefaultSet(data.Validators)
+	val.SetRandomness(data.Randomness)
+	return nil
 }
 
-func (valSet *defaultSet) Policy() istanbul.ProposerPolicy { return valSet.policy }
+// RLP Encoding -----------------------------------------------------------------------
 
-func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
+func (val *defaultSet) EncodeRLP(w io.Writer) error { return rlp.Encode(w, val.AsData()) }
+
+func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
+	var data istanbul.ValidatorSetData
+	if err := stream.Decode(&data); err != nil {
+		return err
+	}
+	*val = *newDefaultSet(data.Validators)
+	val.SetRandomness(data.Randomness)
+	return nil
+}
+
+// Utility Functions
+
+func mapValidatorsToData(validators []istanbul.Validator) []istanbul.ValidatorData {
+	validatorsData := make([]istanbul.ValidatorData, len(validators))
+	for i, v := range validators {
+		validatorsData[i] = *v.AsData()
+	}
+	return validatorsData
+}
+
+func mapDataToValidators(data []istanbul.ValidatorData) []istanbul.Validator {
+	validators := make([]istanbul.Validator, len(data))
+	for i, v := range data {
+		validators[i] = newValidatorFromData(&v)
+	}
+	return validators
+}

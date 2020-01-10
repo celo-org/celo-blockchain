@@ -77,7 +77,7 @@ const (
                           "type": "function"
                          }]`
 
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GasCurrency.json
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/FeeCurrency.json
 	getWhitelistABI = `[{"constant": true,
 	                     "inputs": [],
 	                     "name": "getWhitelist",
@@ -190,12 +190,12 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 				log.Warn("Registry address lookup failed", "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
 			} else {
-				log.Error("medianRate invocation error", "gasCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
+				log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
 				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
 			}
 		}
 	}
-	log.Trace("medianRate invocation success", "gasCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
+	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
 	return &exchangeRate{returnArray[0], returnArray[1]}, nil
 }
 
@@ -217,12 +217,12 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, g
 }
 
 // ------------------------------
-// GasCurrencyWhiteList Functions
+// FeeCurrencyWhiteList Functions
 //-------------------------------
 func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
 
-	_, err := contract_comm.MakeStaticCall(params.GasCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
+	_, err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
@@ -239,7 +239,7 @@ func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 func IsWhitelisted(currencyAddress common.Address, header *types.Header, state vm.StateDB) bool {
 	whitelist, err := retrieveWhitelist(header, state)
 	if err != nil {
-		log.Warn("Failed to get gas currency whitelist", "err", err)
+		log.Warn("Failed to get fee currency whitelist", "err", err)
 		return true
 	}
 	return containsCurrency(currencyAddress, whitelist)
@@ -257,7 +257,7 @@ func containsCurrency(currencyAddr common.Address, currencyList []common.Address
 func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	whitelist, err := retrieveWhitelist(header, state)
 	if err != nil {
-		log.Warn("Failed to get gas currency whitelist", "err", err)
+		log.Warn("Failed to get fee currency whitelist", "err", err)
 	}
 	return whitelist, err
 }

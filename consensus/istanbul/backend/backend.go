@@ -30,6 +30,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
@@ -39,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -84,7 +86,7 @@ type proxyInfo struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -100,21 +102,22 @@ func New(config *istanbul.Config, db ethdb.Database, dataDir string) consensus.I
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:               config,
-		istanbulEventMux:     new(event.TypeMux),
-		logger:               logger,
-		db:                   db,
-		commitCh:             make(chan *types.Block, 1),
-		recentSnapshots:      recentSnapshots,
-		coreStarted:          false,
-		recentMessages:       recentMessages,
-		knownMessages:        knownMessages,
-		announceWg:           new(sync.WaitGroup),
-		announceQuit:         make(chan struct{}),
-		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		valEnodesShareWg:     new(sync.WaitGroup),
-		valEnodesShareQuit:   make(chan struct{}),
-		dataDir:              dataDir,
+		config:                  config,
+		istanbulEventMux:        new(event.TypeMux),
+		logger:                  logger,
+		db:                      db,
+		commitCh:                make(chan *types.Block, 1),
+		recentSnapshots:         recentSnapshots,
+		coreStarted:             false,
+		recentMessages:          recentMessages,
+		knownMessages:           knownMessages,
+		announceWg:              new(sync.WaitGroup),
+		announceQuit:            make(chan struct{}),
+		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
+		valEnodesShareWg:        new(sync.WaitGroup),
+		valEnodesShareQuit:      make(chan struct{}),
+		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -186,8 +189,45 @@ type Backend struct {
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
 
-	dataDir    string // A read-write data dir to persist files across restarts
 	newEpochCh chan struct{}
+
+	delegateSignFeed  event.Feed
+	delegateSignScope event.SubscriptionScope
+
+	// Metric timer used to record block finalization times.
+	finalizationTimer metrics.Timer
+	// Metric timer used to record epoch reward distribution times.
+	rewardDistributionTimer metrics.Timer
+}
+
+func (sb *Backend) IsProxy() bool {
+	return sb.proxiedPeer != nil
+}
+
+func (sb *Backend) IsProxiedValidator() bool {
+	return sb.proxyNode != nil && sb.proxyNode.peer != nil
+}
+
+// SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
+// if one exists
+func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
+	if !sb.IsProxiedValidator() {
+		err := errors.New("No Proxy found")
+		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
+		return err
+	}
+	return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
+}
+
+// SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
+// proxied validator if one exists
+func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
+	if !sb.IsProxy() {
+		err := errors.New("No Proxied Validator found")
+		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
+		return err
+	}
+	return sb.proxiedPeer.Send(istanbulDelegateSign, msg)
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -209,6 +249,7 @@ func (sb *Backend) Address() common.Address {
 
 // Close the backend
 func (sb *Backend) Close() error {
+	sb.delegateSignScope.Close()
 	return sb.valEnodeTable.Close()
 }
 
@@ -217,9 +258,14 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
+// ParentBlockValidators implements istanbul.Backend.ParentBlockValidators
+func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
+	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
+}
+
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	validatorSet := sb.getValidators(blockNumber.Uint64(), headerHash)
-	return validatorSet.FilteredList()
+	return validatorSet.List()
 }
 
 // This function will return the peers with the addresses in the "destAddresses" parameter.
@@ -299,9 +345,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 	}
 
 	if len(peers) > 0 {
-		for addr, p := range peers {
+		for nodeID, p := range peers {
 			if !ignoreCache {
-				ms, ok := sb.recentMessages.Get(addr)
+				ms, ok := sb.recentMessages.Get(nodeID)
 				var m *lru.ARCCache
 				if ok {
 					m, _ = ms.(*lru.ARCCache)
@@ -314,17 +360,14 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 				}
 
 				m.Add(hash, true)
-				sb.recentMessages.Add(addr, m)
+				sb.recentMessages.Add(nodeID, m)
 			}
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "nodeID", nodeID)
 
 			go p.Send(ethMsgCode, payload)
 		}
 	}
 	return nil
-}
-
-func (sb *Backend) GetDataDir() string {
-	return sb.dataDir
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -476,7 +519,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 			return errInvalidValidatorSetDiff
 		}
 	} else {
-		parentValidators := sb.ParentValidators(proposal)
+		parentValidators := sb.ParentBlockValidators(proposal)
 		oldValSet := make([]istanbul.ValidatorData, 0, parentValidators.Size())
 
 		for _, val := range parentValidators.List() {
@@ -538,33 +581,25 @@ func (sb *Backend) CheckSignature(data []byte, address common.Address, sig []byt
 	return nil
 }
 
-// HasProposal implements istanbul.Backend.HasProposal
-func (sb *Backend) HasProposal(hash common.Hash, number *big.Int) bool {
+// HasBlock implements istanbul.Backend.HasBlock
+func (sb *Backend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
-// GetProposer implements istanbul.Backend.GetProposer
-func (sb *Backend) GetProposer(number uint64) common.Address {
+// AuthorForBlock implements istanbul.Backend.AuthorForBlock
+func (sb *Backend) AuthorForBlock(number uint64) common.Address {
 	if h := sb.chain.GetHeaderByNumber(number); h != nil {
 		a, _ := sb.Author(h)
 		return a
 	}
-	return common.Address{}
-}
-
-// ParentValidators implements istanbul.Backend.GetParentValidators
-func (sb *Backend) ParentValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
-	if block, ok := proposal.(*types.Block); ok {
-		return sb.getOrderedValidators(block.Number().Uint64()-1, block.ParentHash())
-	}
-	return validator.NewSet(nil, sb.config.ProposerPolicy)
+	return common.ZeroAddress
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
 	snap, err := sb.snapshot(sb.chain, number, hash, nil)
 	if err != nil {
 		sb.logger.Warn("Error getting snapshot", "number", number, "hash", hash, "err", err)
-		return validator.NewSet(nil, sb.config.ProposerPolicy)
+		return validator.NewSet(nil)
 	}
 	return snap.ValSet
 }
@@ -592,10 +627,14 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 		return valSet
 	}
 
-	if valSet.Policy() == istanbul.ShuffledRoundRobin {
+	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
-			sb.logger.Error("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			if err == comm_errors.ErrRegistryContractNotDeployed {
+				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			} else {
+				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			}
 		}
 		valSet.SetRandomness(seed)
 	}
@@ -603,17 +642,24 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 	return valSet
 }
 
-func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
+// GetCurrentHeadBlock retrieves the last block
+func (sb *Backend) GetCurrentHeadBlock() istanbul.Proposal {
+	return sb.currentBlock()
+}
+
+// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the coinbase address for it
+func (sb *Backend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address) {
 	block := sb.currentBlock()
 
-	var proposer common.Address
-	if block.Number().Cmp(common.Big0) > 0 {
-		var err error
-		proposer, err = sb.Author(block.Header())
-		if err != nil {
-			sb.logger.Error("Failed to get block proposer", "err", err)
-			return nil, common.Address{}
-		}
+	if block.Number().Cmp(common.Big0) == 0 {
+		return block, common.ZeroAddress
+	}
+
+	proposer, err := sb.Author(block.Header())
+
+	if err != nil {
+		sb.logger.Error("Failed to get block proposer", "err", err)
+		return nil, common.ZeroAddress
 	}
 
 	// Return header only block here since we don't need block body
@@ -621,7 +667,7 @@ func (sb *Backend) LastProposal() (istanbul.Proposal, common.Address) {
 }
 
 func (sb *Backend) LastSubject() (istanbul.Subject, error) {
-	lastProposal, _ := sb.LastProposal()
+	lastProposal, _ := sb.GetCurrentHeadBlockAndAuthor()
 	istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
 	if err != nil {
 		return istanbul.Subject{}, err
@@ -667,7 +713,7 @@ func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
 		return
 	}
 
-	sb.valEnodeTable.RefreshValPeers(valset, sb.Address())
+	sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
@@ -676,6 +722,17 @@ func (sb *Backend) ValidatorAddress() common.Address {
 		localAddress = sb.config.ProxiedValidatorAddress
 	} else {
 		localAddress = sb.Address()
+	}
+	return localAddress
+}
+
+func (sb *Backend) ConnectToVals() {
+	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
+	// for non proxied validators
+	if sb.config.Proxy {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
 	}
 	return localAddress
 }

@@ -54,7 +54,7 @@ type Backend interface {
 	GetBlock(ctx context.Context, blockHash common.Hash) (*types.Block, error)
 	GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error)
 	GetTd(blockHash common.Hash) *big.Int
-	GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error)
+	GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error)
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 	SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription
@@ -71,7 +71,8 @@ type Backend interface {
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
 
-	GasFeeRecipient() common.Address
+	GatewayFeeRecipient() common.Address
+	GatewayFee() *big.Int
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

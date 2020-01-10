@@ -19,12 +19,9 @@ package backend
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
-	"math/rand"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 
@@ -55,6 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := ethdb.NewMemDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
+	config.RoundStateDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
@@ -113,8 +111,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return signatureBytes, nil
 	}
 
-	dataDir := createRandomDataDir()
-	b, _ := New(config, memDB, dataDir).(*Backend)
+	b, _ := New(config, memDB).(*Backend)
 	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
@@ -126,7 +123,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(&consensustest.MockP2PServer{})
+	b.SetP2PServer(consensustest.NewMockP2PServer())
 
 	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
@@ -146,7 +143,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	if snap == nil {
 		panic("failed to get snapshot")
 	}
-	proposerAddr := snap.ValSet.GetProposer().Address()
+	proposerAddr := b.AuthorForBlock(snap.Number)
+	// proposerAddr := snap.ValSet.GetProposer().Address()
 
 	// find proposer key
 	for _, key := range nodeKeys {
@@ -215,22 +213,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	return blockchain, b
 }
 
-func createRandomDataDir() string {
-	rand.Seed(time.Now().UnixNano())
-	for {
-		dirName := "geth_ibft_" + strconv.Itoa(rand.Int()%1000000)
-		dataDir := filepath.Join("/tmp", dirName)
-		err := os.Mkdir(dataDir, 0700)
-		if os.IsExist(err) {
-			continue // Re-try
-		}
-		if err != nil {
-			panic("Failed to create dir: " + dataDir + " error: " + err.Error())
-		}
-		return dataDir
-	}
-}
-
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
@@ -260,7 +242,10 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		genesis.Config.FullHeaderChainAvailable = false
 	}
 	// force enable Istanbul engine
-	genesis.Config.Istanbul = &params.IstanbulConfig{}
+	genesis.Config.Istanbul = &params.IstanbulConfig{
+		Epoch:          10,
+		LookbackWindow: 2,
+	}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = defaultDifficulty
 	genesis.Nonce = emptyNonce.Uint64()
@@ -294,8 +279,14 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
-	state, _ := chain.StateAt(parent.Root())
-	block, _ := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	state, err := chain.StateAt(parent.Root())
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
+	block, err := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
 	return block
 }
 
@@ -363,10 +354,14 @@ func TestSealStopChannel(t *testing.T) {
 	}
 }
 
+// TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
+// different block hash, it will abort
 func TestSealCommittedOtherHash(t *testing.T) {
 	chain, engine := newBlockChain(4, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	otherBlock := makeBlockWithoutSeal(chain, engine, block)
+
+	// create a second block which will have a different hash
+	otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
 	eventLoop := func() {
 		ev := <-eventSub.Chan()
@@ -498,17 +493,41 @@ func TestVerifySeal(t *testing.T) {
 	}
 
 	block := makeBlock(chain, engine, genesis)
-	// change block content
+
+	// change header content and expect to invalidate signature
 	header := block.Header()
 	header.Number = big.NewInt(4)
-	block1 := block.WithSeal(header)
-	err = engine.VerifySeal(chain, block1.Header())
-	if err != errUnauthorized {
-		t.Errorf("error mismatch: have %v, want %v", err, errUnauthorized)
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidSignature {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
 	}
 
-	// unauthorized users but still can get correct signer address
-	engine.Authorize(common.Address{}, nil, nil, nil)
+	// delete istanbul extra data and expect invalid extra data format
+	header = block.Header()
+	header.Extra = nil
+	err = engine.VerifySeal(chain, header)
+	if err != errInvalidExtraDataFormat {
+		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
+	}
+
+	// modify seal bitmap and expect to fail the quorum check
+	header = block.Header()
+	extra, err := types.ExtractIstanbulExtra(header)
+	if err != nil {
+		t.Fatalf("failed to extract istanbul data: %v", err)
+	}
+	extra.AggregatedSeal.Bitmap = big.NewInt(0)
+	encoded, err := rlp.EncodeToBytes(extra)
+	if err != nil {
+		t.Fatalf("failed to encode istanbul data: %v", err)
+	}
+	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
+	err = engine.VerifySeal(chain, header)
+	if err != errInsufficientSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
+	}
+
+	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -533,6 +552,7 @@ func TestVerifyHeaders(t *testing.T) {
 			b = makeBlockWithoutSeal(chain, engine, blocks[i-1])
 			b, _ = engine.updateBlock(blocks[i-1].Header(), b)
 		}
+
 		blocks = append(blocks, b)
 		headers = append(headers, blocks[i].Header())
 	}

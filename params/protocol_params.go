@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -94,9 +95,13 @@ const (
 	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
 	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas uint64 = 50000 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas      uint64 = 5000  // Cost of reading a validator's address.
-	GetEpochSizeGas      uint64 = 1000  // Cost of querying the number of blocks in an epoch.
+	ProofOfPossessionGas        uint64 = 50000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas             uint64 = 5000  // Cost of reading a validator's address.
+	GetEpochSizeGas             uint64 = 1000  // Cost of querying the number of blocks in an epoch.
+	GetBlockNumberFromHeaderGas uint64 = 10000 // Cost of decoding a block header.
+	HashHeaderGas               uint64 = 20000 // Cost of hashing a block header.
+	GetParentSealBitmapGas      uint64 = 500   // Cost of reading the parent seal bitmap from the chain.
+	GetVerifiedSealBitmapGas    uint64 = 55000 // Cost of verifying the seal on a given RLP encoded header.
 )
 
 var (
@@ -113,7 +118,7 @@ var (
 	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
 	ElectionRegistryId             = makeRegistryId("Election")
 	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
-	GasCurrencyWhitelistRegistryId = makeRegistryId("GasCurrencyWhitelist")
+	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
@@ -130,6 +135,9 @@ var (
 	// pip3 install pyethereum
 	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
 	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
+
+	// Scale factor for the solidity fixidity library
+	Fixidity1 = math.BigPow(10, 24)
 )
 
 func makeRegistryId(contractName string) [32]byte {
@@ -142,7 +150,8 @@ func makeRegistryId(contractName string) [32]byte {
 
 const (
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
-	IntrinsicGasForAlternativeGasCurrency uint64 = 134000
+	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 50000
 
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
@@ -156,10 +165,10 @@ const (
 	MaxGasForGetAddressFor                         uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
-	MaxGasForGetGroupEpochRewards                  uint64 = 50 * 1000
+	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
 	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
-	MaxGasForGetRegisteredValidators               uint64 = 1000000
+	MaxGasForGetRegisteredValidators               uint64 = 2000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000

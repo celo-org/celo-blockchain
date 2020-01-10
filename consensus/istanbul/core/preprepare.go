@@ -17,7 +17,6 @@
 package core
 
 import (
-	"github.com/ethereum/go-ethereum/log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,11 +25,16 @@ import (
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "sendPreprepare")
+	logger := c.newLogger("func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		preprepare, err := c.getPreprepareMessage(request, roundChangeCertificate, logger)
+		curView := c.current.View()
+		preprepare, err := Encode(&istanbul.Preprepare{
+			View:                   curView,
+			Proposal:               request.Proposal,
+			RoundChangeCertificate: roundChangeCertificate,
+		})
 		if err != nil {
 			logger.Error("Failed to prepare message")
 			return
@@ -40,57 +44,40 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 			Code: istanbul.MsgPreprepare,
 			Msg:  preprepare,
 		}
-		logger.Trace("Sending pre-prepare", "msg", msg)
+		logger.Debug("Sending preprepare", "m", msg)
 		c.broadcast(msg)
 	}
 }
 
-func (c *core) getPreprepareMessage(
-	request *istanbul.Request,
-	roundChangeCertificate istanbul.RoundChangeCertificate,
-	logger log.Logger) ([]byte, error) {
-	curView := c.currentView()
-	messageType := istanbul.MsgPreprepare
-	roundNumber := c.current.Round()
-	sequenceNumber := c.current.Sequence()
-	existingPreparedMessage, err := c.getPreprepareMessageFromDisk(
-		messageType, roundNumber, sequenceNumber)
-	if err != nil {
-		logger.Error("Failed to get prepared message from disk", "view", curView)
-		return nil, err
-	}
-
-	if existingPreparedMessage != nil {
-		logger.Info("Got previously prepared messaged from the disk", "msg", existingPreparedMessage)
-		return existingPreparedMessage, nil
-	}
-
-	preprepare, err := Encode(&istanbul.Preprepare{
-		View:                   curView,
-		Proposal:               request.Proposal,
-		RoundChangeCertificate: roundChangeCertificate,
-	})
-	if err != nil {
-		logger.Error("Failed to encode", "view", curView)
-		return nil, err
-	}
-	err2 := c.savePrepareMessageToDisk(messageType, roundNumber, sequenceNumber, preprepare)
-	if err2 != nil {
-		logger.Error("Failed to write prepare message to the disk", "msg", preprepare)
-		return nil, err2
-	}
-	return preprepare, nil
-}
-
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
-	logger := c.logger.New("from", msg.Address, "state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreprepare", "tag", "handleMsg")
-	logger.Trace("Got pre-prepare message", "msg", msg)
+	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
+	logger.Trace("Got preprepare message", "m", msg)
 
-	// Decode PRE-PREPARE
+	// Decode PREPREPARE
 	var preprepare *istanbul.Preprepare
 	err := msg.Decode(&preprepare)
 	if err != nil {
 		return errFailedDecodePreprepare
+	}
+
+	// TODO(tim) Fix and Move checkMessage check up to here
+
+	// Verify that the proposal is for the sequence number of the view we verified.
+	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence, "view_round", preprepare.View.Round)
+		return errInvalidProposal
+	}
+
+	// Check proposer is valid for the message's view (this may be a subsequent round)
+	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
+	if headBlock == nil {
+		logger.Error("Could not determine head proposer")
+		return errNotFromProposer
+	}
+	proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+	if proposerForMsgRound.Address() != msg.Address {
+		logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
+		return errNotFromProposer
 	}
 
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
@@ -114,36 +101,28 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errInvalidProposal
 	}
 
-	// Ensure we have the same view with the PRE-PREPARE message
-	// If it is old message, see if we need to broadcast COMMIT
+	// Ensure we have the same view with the PREPREPARE message.
 	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
 		if err == errOldMessage {
 			// Get validator set for the given proposal
-			valSet := c.backend.ParentValidators(preprepare.Proposal).Copy()
-			previousProposer := c.backend.GetProposer(preprepare.Proposal.Number().Uint64() - 1)
-			valSet.CalcProposer(previousProposer, preprepare.View.Round.Uint64())
-			// Broadcast COMMIT if it is an existing block
-			// 1. The proposer needs to be a proposer matches the given (Sequence + Round)
-			// 2. The given block must exist
-			if valSet.IsProposer(msg.Address) && c.backend.HasProposal(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Trace("Sending a commit message for an old block", "view", preprepare.View, "block hash", preprepare.Proposal.Hash())
-				c.sendCommitForOldBlock(preprepare.View, preprepare.Proposal.Hash())
+			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+
+			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
+			// However, we log a WARN for potential future debugging value.
+			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block_hash", preprepare.Proposal.Hash())
 				return nil
 			}
 		}
 		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
-		logger.Trace("Check pre-prepare failed", "cur_round", c.current.Round(), "err", err)
+		logger.Trace("Check preprepare failed", "err", err)
 		return err
 	}
 
-	// Check if the message comes from current proposer
-	if !c.valSet.IsProposer(msg.Address) {
-		logger.Warn("Ignore preprepare messages from non-proposer")
-		return errNotFromProposer
-	}
-
 	// Verify the proposal we received
-	if duration, err := c.backend.Verify(preprepare.Proposal); err != nil {
+	if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
 		if err == consensus.ErrFutureBlock {
@@ -157,17 +136,19 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	if c.state == StateAcceptRequest {
+	if c.current.State() == StateAcceptRequest {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
-		c.acceptPreprepare(preprepare)
-		c.setState(StatePreprepared)
+		c.consensusTimestamp = time.Now()
+
+		err := c.current.TransitionToPreprepared(preprepare)
+		if err != nil {
+			return err
+		}
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
 	}
 
 	return nil
-}
-
-func (c *core) acceptPreprepare(preprepare *istanbul.Preprepare) {
-	c.consensusTimestamp = time.Now()
-	c.current.SetPreprepare(preprepare)
 }

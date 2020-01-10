@@ -767,35 +767,35 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'getSnapshotAtHash',
-			call: 'istanbul_getSnapshotAtHash',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'getValidators',
 			call: 'istanbul_getValidators',
 			params: 1,
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'getValidatorsAtHash',
-			call: 'istanbul_getValidatorsAtHash',
-			params: 1
+			name: 'getProposer',
+			call: 'istanbul_getProposer',
+			params: 2,
+			inputFormatter: [null, null]
 		}),
 		new web3._extend.Method({
-			name: 'addSentry',
-			call: 'istanbul_addSentry',
+			name: 'addProxy',
+			call: 'istanbul_addProxy',
 			params: 2
 		}),
 		new web3._extend.Method({
-			name: 'removeSentry',
-			call: 'istanbul_removeSentry',
+			name: 'removeProxy',
+			call: 'istanbul_removeProxy',
 			params: 1
 		}),
 		new web3._extend.Property({
-			name: 'sentryInfo',
-			getter: 'istanbul_sentryInfo'
-		}),		
+			name: 'valEnodeTableInfo',
+			getter: 'istanbul_getValEnodeTable',
+		}),				
+		new web3._extend.Property({
+			name: 'currentRoundState',
+			getter: 'istanbul_getCurrentRoundState',
+		}),				
 	],
 	properties:
 	[

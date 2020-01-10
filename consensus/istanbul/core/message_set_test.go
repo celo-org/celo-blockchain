@@ -48,7 +48,7 @@ func TestMessageSetWithSubject(t *testing.T) {
 	msg := &istanbul.Message{
 		Code:    istanbul.MsgPrepare,
 		Msg:     rawSub,
-		Address: valSet.GetProposer().Address(),
+		Address: valSet.GetByIndex(0).Address(),
 	}
 
 	err = ms.Add(msg)

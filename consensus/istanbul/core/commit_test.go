@@ -55,16 +55,15 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					// same view as the expected one to everyone
 					c.current = newTestRoundState(
 						expectedSubject.View,
-						c.valSet,
+						backend.peers,
 					)
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					}
 				}
 				return sys
@@ -79,14 +78,13 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -94,7 +92,7 @@ func TestHandleCommit(t *testing.T) {
 								// proposal from 1 round in the future
 								Sequence: big.NewInt(0).Add(proposal.Number(), common.Big1),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -110,14 +108,14 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
+
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
@@ -127,7 +125,7 @@ func TestHandleCommit(t *testing.T) {
 								// with an old error message
 								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big2),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -143,21 +141,20 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: proposal.Number(),
 						},
-						c.valSet,
+						backend.peers,
 					)
 
 					// only replica0 stays at StatePreprepared
 					// other replicas are at StatePrepared
 					if i != 0 {
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					} else {
-						c.state = StatePreprepared
+						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
 				return sys
@@ -175,21 +172,20 @@ func TestHandleCommit(t *testing.T) {
 				for i, backend := range sys.backends {
 					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{})
 					c := backend.engine.(*core)
-					c.valSet = backend.peers
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
 							expectedSubject.View,
-							c.valSet,
+							backend.peers,
 						)
-						c.state = StatePrepared
+						c.current.(*roundStateImpl).state = StatePrepared
 					} else {
 						c.current = newTestRoundState(
 							&istanbul.View{
 								Round:    big.NewInt(1),
 								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
 							},
-							c.valSet,
+							backend.peers,
 						)
 					}
 				}
@@ -209,7 +205,7 @@ OUTER:
 		r0 := v0.engine.(*core)
 
 		for i, v := range test.system.backends {
-			validator := r0.valSet.GetByIndex(uint64(i))
+			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
 			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
 			defer privateKey.Destroy()
 
@@ -239,37 +235,37 @@ OUTER:
 		// how can we add our signature to the ParentCommit? Broadcast to ourselve
 		// does not make much sense
 		if test.checkParentCommits {
-			if r0.current.ParentCommits().Size() != r0.valSet.Size()-1 { // TODO: Maybe remove the -1?
-				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits().Size(), r0.valSet.Size()-1)
+			if r0.current.ParentCommits().Size() != r0.current.ValidatorSet().Size()-1 { // TODO: Maybe remove the -1?
+				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits().Size(), r0.current.ValidatorSet().Size()-1)
 			}
 		}
 
 		// prepared is normal case
-		if r0.state != StateCommitted {
+		if r0.current.State() != StateCommitted {
 			// There are not enough commit messages in core
-			if r0.state != StatePrepared {
-				t.Errorf("state mismatch: have %v, want %v", r0.state, StatePrepared)
+			if r0.current.State() != StatePrepared {
+				t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePrepared)
 			}
-			if r0.current.Commits().Size() > r0.valSet.MinQuorumSize() {
-				t.Errorf("the size of commit messages should be less than %v", r0.valSet.MinQuorumSize())
+			if r0.current.Commits().Size() > r0.current.ValidatorSet().MinQuorumSize() {
+				t.Errorf("the size of commit messages should be less than %v", r0.current.ValidatorSet().MinQuorumSize())
 			}
 			continue
 		}
 
 		// core should have min quorum size prepare messages
-		if r0.current.Commits().Size() < r0.valSet.MinQuorumSize() {
+		if r0.current.Commits().Size() < r0.current.ValidatorSet().MinQuorumSize() {
 			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits().Size())
 		}
 
 		// check signatures large than MinQuorumSize
 		signedCount := 0
-		for i := 0; i < r0.valSet.Size(); i++ {
+		for i := 0; i < r0.current.ValidatorSet().Size(); i++ {
 			if v0.committedMsgs[0].aggregatedSeal.Bitmap.Bit(i) == 1 {
 				signedCount++
 			}
 		}
-		if signedCount < r0.valSet.MinQuorumSize() {
-			t.Errorf("the expected signed count should be greater than or equal to %v, but got %v", r0.valSet.MinQuorumSize(), signedCount)
+		if signedCount < r0.current.ValidatorSet().MinQuorumSize() {
+			t.Errorf("the expected signed count should be greater than or equal to %v, but got %v", r0.current.ValidatorSet().MinQuorumSize(), signedCount)
 		}
 	}
 }
@@ -286,7 +282,8 @@ func TestVerifyCommit(t *testing.T) {
 			peer.Address(),
 			blsPublicKey,
 		},
-	}, istanbul.RoundRobin)
+	})
+	// }, istanbul.RoundRobin)
 
 	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
 
