@@ -63,10 +63,6 @@ func (c *core) Stop() error {
 	return nil
 }
 
-func (c *core) CurrentView() *istanbul.View {
-	return c.current.View()
-}
-
 // ----------------------------------------------------------------------------
 
 // Subscribe both internal and external events
@@ -215,17 +211,17 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutAndMoveToNextRound(desiredView *istanbul.View) error {
-	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
+func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {
+	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "timed_out_seq", timedOutView.Sequence, "timed_out_round", timedOutView.Round)
 
 	// Avoid races where message is enqueued then a later event advances sequence or desired round.
-	if c.current.Sequence().Cmp(desiredView.Sequence) != 0 || c.current.DesiredRound().Cmp(desiredView.Round) != 0 {
+	if c.current.Sequence().Cmp(timedOutView.Sequence) != 0 || c.current.DesiredRound().Cmp(timedOutView.Round) != 0 {
 		logger.Trace("Timed out but now on a different view")
 		return nil
 	}
 
 	logger.Debug("Timed out, trying to wait for next round")
-	nextRound := new(big.Int).Add(desiredView.Round, common.Big1)
+	nextRound := new(big.Int).Add(timedOutView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)
 }
 

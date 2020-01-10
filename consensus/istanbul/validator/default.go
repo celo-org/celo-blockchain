@@ -17,6 +17,7 @@
 package validator
 
 import (
+	"encoding/json"
 	"io"
 	"math"
 	"math/big"
@@ -32,100 +33,93 @@ type defaultValidator struct {
 	blsPublicKey []byte
 }
 
-func (val *defaultValidator) Address() common.Address {
-	return val.address
-}
-
-func (val *defaultValidator) BLSPublicKey() []byte {
-	return val.blsPublicKey
-}
-
-func (val *defaultValidator) String() string {
-	return val.Address().String()
-}
-
-type defaultValidatorRLP struct {
-	Address      common.Address
-	BlsPublicKey []byte
-}
-
-func (val *defaultValidator) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes(val)
-}
-
-func (val *defaultValidator) EncodeRLP(w io.Writer) error {
-	entry := defaultValidatorRLP{
-		Address:      val.address,
-		BlsPublicKey: val.blsPublicKey,
+func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
+	return &defaultValidator{
+		address:      data.Address,
+		blsPublicKey: data.BLSPublicKey,
 	}
-	return rlp.Encode(w, entry)
 }
 
+func (val *defaultValidator) AsData() *istanbul.ValidatorData {
+	return &istanbul.ValidatorData{
+		Address:      val.address,
+		BLSPublicKey: val.blsPublicKey,
+	}
+}
+
+func (val *defaultValidator) Address() common.Address { return val.address }
+func (val *defaultValidator) BLSPublicKey() []byte    { return val.blsPublicKey }
+func (val *defaultValidator) String() string          { return val.Address().String() }
+
+func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
+
+// JSON Encoding -----------------------------------------------------------------------
+
+func (val *defaultValidator) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
+func (val *defaultValidator) UnmarshalJSON(b []byte) error {
+	var data istanbul.ValidatorData
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	*val = *newValidatorFromData(&data)
+	return nil
+}
+
+// RLP Encoding -----------------------------------------------------------------------
+
+func (val *defaultValidator) EncodeRLP(w io.Writer) error { return rlp.Encode(w, val.AsData()) }
 func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
-	var v defaultValidatorRLP
+	var v istanbul.ValidatorData
 	if err := stream.Decode(&v); err != nil {
 		return err
 	}
 
-	*val = defaultValidator{v.Address, v.BlsPublicKey}
+	*val = *newValidatorFromData(&v)
 	return nil
 }
 
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
-	validators  istanbul.Validators
+	validators  []istanbul.Validator
 	validatorMu sync.RWMutex
 	// This is set when we call `getOrderedValidators`
 	// TODO Rename to `EpochState` that has validators & randomness
 	randomness common.Hash
 }
 
-type defaultSetRLP struct {
-	Validators []*defaultValidator
-	Randomness common.Hash
-}
-
-func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
-	var v defaultSetRLP
-	if err := stream.Decode(&v); err != nil {
-		return err
-	}
-
-	validators := make([]istanbul.Validator, len(v.Validators))
-	for i := range v.Validators {
-		validators[i] = v.Validators[i]
-	}
-
-	*val = defaultSet{
-		validators: validators,
-		randomness: v.Randomness,
-	}
-	return nil
-}
-
-func (val *defaultSet) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{
-		val.validators,
-		val.randomness,
-	})
-}
-
-func (val *defaultSet) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes(val)
-}
-
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
-	valSet := &defaultSet{}
-
-	// init validators
-	valSet.validators = make([]istanbul.Validator, len(validators))
-	for i, validator := range validators {
-		valSet.validators[i] = New(validator.Address, validator.BLSPublicKey)
+	return &defaultSet{
+		validators: mapDataToValidators(validators),
 	}
-
-	return valSet
 }
+
+// We include the optimization described at https://arxiv.org/pdf/1901.07160.pdf as “PM-6” and
+// discussed in Lemma 22. For values of N=3F for integer F=1,2,3,.. we can tolerate a quorum
+// size one smaller than anticipated by Q = N - F. The intersection of any two sets of Q
+// nodes of N=3F must contain an honest validator.
+//
+// For example, with N=9, F=2, Q=6. Any two sets of Q=6 from N=9 nodes must overlap
+// by >9-6=3 nodes. At least 3-F=3-2=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9
+// x x x x x x
+//       y y y y y y
+//       F F H
+//
+// For N=10, F=3, Q=7. Any two sets of Q=7 nodes from N=10 must overlap by >4 nodes.
+// At least 4-F=4-3=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9 10
+// x x x x x x x
+//       y y y y y y y
+//       F F F H
+
+func (valSet *defaultSet) F() int             { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
+func (valSet *defaultSet) MinQuorumSize() int { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+
+func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
+func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
 
 func (valSet *defaultSet) Size() int {
 	valSet.validatorMu.RLock()
@@ -159,32 +153,21 @@ func (valSet *defaultSet) GetByAddress(addr common.Address) (int, istanbul.Valid
 }
 
 func (valSet *defaultSet) ContainsByAddress(addr common.Address) bool {
-	for _, val := range valSet.List() {
-		if addr == val.Address() {
-			return true
-		}
-	}
-	return false
+	i, _ := valSet.GetByAddress(addr)
+	return i != -1
 }
 
 func (valSet *defaultSet) GetIndex(addr common.Address) int {
-	for i, val := range valSet.List() {
-		if addr == val.Address() {
-			return i
-		}
-	}
-	return -1
+	i, _ := valSet.GetByAddress(addr)
+	return i
 }
 
 func (valSet *defaultSet) AddValidators(validators []istanbul.ValidatorData) bool {
 	newValidators := make([]istanbul.Validator, 0, len(validators))
 	newAddressesMap := make(map[common.Address]bool)
 	for i := range validators {
-		address := validators[i].Address
-		blsPublicKey := validators[i].BLSPublicKey
-
-		newAddressesMap[address] = true
-		newValidators = append(newValidators, New(address, blsPublicKey))
+		newAddressesMap[validators[i].Address] = true
+		newValidators = append(newValidators, newValidatorFromData(&validators[i]))
 	}
 
 	valSet.validatorMu.Lock()
@@ -217,62 +200,77 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 	// Using this method to filter the validators list: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating, so that no
 	// new memory will be allocated
 	tempList := valSet.validators[:0]
-	defer func() {
-		valSet.validators = tempList
-	}()
-
 	for i, v := range valSet.validators {
 		if removedValidators.Bit(i) == 0 {
 			tempList = append(tempList, v)
 		}
 	}
 
+	valSet.validators = tempList
 	return true
 }
 
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-
-	validators := make([]istanbul.ValidatorData, 0, len(valSet.validators))
-	for _, v := range valSet.validators {
-		validators = append(validators, istanbul.ValidatorData{
-			v.Address(),
-			v.BLSPublicKey(),
-		})
-	}
-
-	newValSet := NewSet(validators)
-	newValSet.SetRandomness(valSet.GetRandomness())
+	newValSet := NewSet(mapValidatorsToData(valSet.validators))
+	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
 }
 
-// We include the optimization described at https://arxiv.org/pdf/1901.07160.pdf as “PM-6” and
-// discussed in Lemma 22. For values of N=3F for integer F=1,2,3,.. we can tolerate a quorum
-// size one smaller than anticipated by Q = N - F. The intersection of any two sets of Q
-// nodes of N=3F must contain an honest validator.
-//
-// For example, with N=9, F=2, Q=6. Any two sets of Q=6 from N=9 nodes must overlap
-// by >9-6=3 nodes. At least 3-F=3-2=1 must be honest.
-//
-// 1 2 3 4 5 6 7 8 9
-// x x x x x x
-//       y y y y y y
-//       F F H
-//
-// For N=10, F=3, Q=7. Any two sets of Q=7 nodes from N=10 must overlap by >4 nodes.
-// At least 4-F=4-3=1 must be honest.
-//
-// 1 2 3 4 5 6 7 8 9 10
-// x x x x x x x
-//       y y y y y y y
-//       F F F H
-
-func (valSet *defaultSet) F() int { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
-
-func (valSet *defaultSet) MinQuorumSize() int {
-	return int(math.Ceil(float64(2*valSet.Size()) / 3))
+func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+	return &istanbul.ValidatorSetData{
+		Validators: mapValidatorsToData(valSet.validators),
+		Randomness: valSet.randomness,
+	}
 }
 
-func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
-func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
+// JSON Encoding -----------------------------------------------------------------------
+
+func (val *defaultSet) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
+
+func (val *defaultSet) UnmarshalJSON(b []byte) error {
+	var data istanbul.ValidatorSetData
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	*val = *newDefaultSet(data.Validators)
+	val.SetRandomness(data.Randomness)
+	return nil
+}
+
+// RLP Encoding -----------------------------------------------------------------------
+
+func (val *defaultSet) EncodeRLP(w io.Writer) error { return rlp.Encode(w, val.AsData()) }
+
+func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
+	var data istanbul.ValidatorSetData
+	if err := stream.Decode(&data); err != nil {
+		return err
+	}
+	*val = *newDefaultSet(data.Validators)
+	val.SetRandomness(data.Randomness)
+	return nil
+}
+
+func (val *defaultSet) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
+
+// Utility Functions
+
+func mapValidatorsToData(validators []istanbul.Validator) []istanbul.ValidatorData {
+	validatorsData := make([]istanbul.ValidatorData, len(validators))
+	for i, v := range validators {
+		validatorsData[i] = *v.AsData()
+	}
+	return validatorsData
+}
+
+func mapDataToValidators(data []istanbul.ValidatorData) []istanbul.Validator {
+	validators := make([]istanbul.Validator, len(data))
+	for i, v := range data {
+		validators[i] = newValidatorFromData(&v)
+	}
+	return validators
+}

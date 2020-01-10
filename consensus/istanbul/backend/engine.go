@@ -1039,14 +1039,14 @@ func waitCoreToReachSequence(core istanbulCore.Engine, expectedSequence *big.Int
 	for {
 		select {
 		case <-ticker.C:
-			seq := core.Sequence()
-			if seq != nil && seq.Cmp(expectedSequence) == 0 {
-				logger.Trace("Current sequence matches header", "cur_seq", seq)
-				return seq
+			view := core.CurrentView()
+			if view != nil && view.Sequence != nil && view.Sequence.Cmp(expectedSequence) == 0 {
+				logger.Trace("Current sequence matches header", "cur_seq", view.Sequence)
+				return view.Sequence
 			}
 		case <-timeout:
 			// TODO(asa): Why is this logged by full nodes?
-			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_seq", core.Sequence())
+			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_view", core.CurrentView())
 			return nil
 		}
 	}
