@@ -143,3 +143,6 @@ func (rsp *rsSaveDecorator) IsProposer(address common.Address) bool { return rsp
 func (rsp *rsSaveDecorator) PreparedCertificate() istanbul.PreparedCertificate {
 	return rsp.rs.PreparedCertificate()
 }
+
+// Summary implements RoundState.Summary
+func (rsp *rsSaveDecorator) Summary() *RoundStateSummary { return rsp.rs.Summary() }

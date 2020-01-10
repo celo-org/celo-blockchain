@@ -20,17 +20,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
-	"math/big"
 )
 
 type Engine interface {
 	Start() error
 	Stop() error
 	CurrentView() *istanbul.View
+	CurrentRoundState() RoundState
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
 	ParentCommits() MessageSet
-	Sequence() *big.Int
 }
 
 // State represents the IBFT state

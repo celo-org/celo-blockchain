@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -101,20 +102,22 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:               config,
-		istanbulEventMux:     new(event.TypeMux),
-		logger:               logger,
-		db:                   db,
-		commitCh:             make(chan *types.Block, 1),
-		recentSnapshots:      recentSnapshots,
-		coreStarted:          false,
-		recentMessages:       recentMessages,
-		knownMessages:        knownMessages,
-		announceWg:           new(sync.WaitGroup),
-		announceQuit:         make(chan struct{}),
-		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		valEnodesShareWg:     new(sync.WaitGroup),
-		valEnodesShareQuit:   make(chan struct{}),
+		config:                  config,
+		istanbulEventMux:        new(event.TypeMux),
+		logger:                  logger,
+		db:                      db,
+		commitCh:                make(chan *types.Block, 1),
+		recentSnapshots:         recentSnapshots,
+		coreStarted:             false,
+		recentMessages:          recentMessages,
+		knownMessages:           knownMessages,
+		announceWg:              new(sync.WaitGroup),
+		announceQuit:            make(chan struct{}),
+		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
+		valEnodesShareWg:        new(sync.WaitGroup),
+		valEnodesShareQuit:      make(chan struct{}),
+		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -190,6 +193,11 @@ type Backend struct {
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
+
+	// Metric timer used to record block finalization times.
+	finalizationTimer metrics.Timer
+	// Metric timer used to record epoch reward distribution times.
+	rewardDistributionTimer metrics.Timer
 }
 
 func (sb *Backend) IsProxy() bool {

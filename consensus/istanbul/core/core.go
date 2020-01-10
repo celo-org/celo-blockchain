@@ -37,6 +37,43 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+type core struct {
+	config         *istanbul.Config
+	address        common.Address
+	logger         log.Logger
+	selectProposer istanbul.ProposerSelector
+
+	backend           istanbul.Backend
+	events            *event.TypeMuxSubscription
+	finalCommittedSub *event.TypeMuxSubscription
+	timeoutSub        *event.TypeMuxSubscription
+
+	futurePreprepareTimer         *time.Timer
+	resendRoundChangeMessageTimer *time.Timer
+	roundChangeTimer              *time.Timer
+
+	validateFn func([]byte, []byte) (common.Address, error)
+
+	backlog MsgBacklog
+
+	rsdb      RoundStateDB
+	current   RoundState
+	handlerWg *sync.WaitGroup
+
+	roundChangeSet *roundChangeSet
+
+	pendingRequests   *prque.Prque
+	pendingRequestsMu *sync.Mutex
+
+	consensusTimestamp time.Time
+	// the meter to record the round change rate
+	roundMeter metrics.Meter
+	// the meter to record the sequence update rate
+	sequenceMeter metrics.Meter
+	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
+	consensusTimer metrics.Timer
+}
+
 // New creates an Istanbul consensus core
 func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
@@ -72,133 +109,34 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 
 // ----------------------------------------------------------------------------
 
-type core struct {
-	config         *istanbul.Config
-	address        common.Address
-	logger         log.Logger
-	selectProposer istanbul.ProposerSelector
-
-	backend               istanbul.Backend
-	events                *event.TypeMuxSubscription
-	finalCommittedSub     *event.TypeMuxSubscription
-	timeoutSub            *event.TypeMuxSubscription
-	futurePreprepareTimer *time.Timer
-
-	validateFn func([]byte, []byte) (common.Address, error)
-
-	backlog MsgBacklog
-
-	rsdb      RoundStateDB
-	current   RoundState
-	handlerWg *sync.WaitGroup
-
-	roundChangeSet   *roundChangeSet
-	roundChangeTimer *time.Timer
-
-	pendingRequests   *prque.Prque
-	pendingRequestsMu *sync.Mutex
-
-	consensusTimestamp time.Time
-	// the meter to record the round change rate
-	roundMeter metrics.Meter
-	// the meter to record the sequence update rate
-	sequenceMeter metrics.Meter
-	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimer metrics.Timer
-}
-
-// Appends the current view and state to the given context.
-func (c *core) newLogger(ctx ...interface{}) log.Logger {
-	var seq, round, desired *big.Int
-	var state State
-	if c.current != nil {
-		state = c.current.State()
-		seq = c.current.Sequence()
-		round = c.current.Round()
-		desired = c.current.DesiredRound()
-	} else {
-		seq = common.Big0
-		round = big.NewInt(-1)
-		desired = big.NewInt(-1)
-	}
-	logger := c.logger.New(ctx...)
-	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
-}
-
 func (c *core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
-	// Add sender address
-	msg.Address = c.address
-
-	if err := msg.Sign(c.backend.Sign); err != nil {
-		return nil, err
+func (c *core) CurrentView() *istanbul.View {
+	if c.current == nil {
+		return nil
 	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
+	return c.current.View()
 }
 
-// Send message to all current validators
-func (c *core) broadcast(msg *istanbul.Message) {
-	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List()))
+func (c *core) CurrentRoundState() RoundState { return c.current }
+
+func (c *core) ParentCommits() MessageSet {
+	if c.current == nil {
+		return nil
+	}
+	return c.current.ParentCommits()
 }
 
-// Send message to a specific address
-func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
-	c.sendMsgTo(msg, []common.Address{addr})
-}
-
-func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
-	logger := c.newLogger("func", "sendMsgTo")
-
-	payload, err := c.finalizeMessage(msg)
-	if err != nil {
-		logger.Error("Failed to finalize message", "m", msg, "err", err)
-		return
-	}
-
-	// Send payload to the specified addresses
-	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
-		logger.Error("Failed to send message", "m", msg, "err", err)
-		return
-	}
-}
-
-func (c *core) commit() error {
-	err := c.current.TransitionToCommitted()
-	if err != nil {
-		return err
-	}
-
-	// Process Backlog Messages
-	c.backlog.updateState(c.current.View(), c.current.State())
-
-	proposal := c.current.Proposal()
-	if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-	}
-	return nil
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
+	var buf bytes.Buffer
+	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
+	buf.Write([]byte{byte(istanbul.MsgCommit)})
+	return buf.Bytes()
 }
 
 // GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
@@ -271,6 +209,95 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
+}
+
+// Appends the current view and state to the given context.
+func (c *core) newLogger(ctx ...interface{}) log.Logger {
+	var seq, round, desired *big.Int
+	var state State
+	if c.current != nil {
+		state = c.current.State()
+		seq = c.current.Sequence()
+		round = c.current.Round()
+		desired = c.current.DesiredRound()
+	} else {
+		seq = common.Big0
+		round = big.NewInt(-1)
+		desired = big.NewInt(-1)
+	}
+	logger := c.logger.New(ctx...)
+	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
+}
+
+func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
+	// Add sender address
+	msg.Address = c.address
+
+	if err := msg.Sign(c.backend.Sign); err != nil {
+		return nil, err
+	}
+
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+// Send message to all current validators
+func (c *core) broadcast(msg *istanbul.Message) {
+	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
+}
+
+// Send message to a specific address
+func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
+	c.sendMsgTo(msg, []common.Address{addr})
+}
+
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+	logger := c.newLogger("func", "sendMsgTo")
+
+	payload, err := c.finalizeMessage(msg)
+	if err != nil {
+		logger.Error("Failed to finalize message", "m", msg, "err", err)
+		return
+	}
+
+	// Send payload to the specified addresses
+	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+		logger.Error("Failed to send message", "m", msg, "err", err)
+		return
+	}
+}
+
+func (c *core) commit() error {
+	err := c.current.TransitionToCommitted()
+	if err != nil {
+		return err
+	}
+
+	// Process Backlog Messages
+	c.backlog.updateState(c.current.View(), c.current.State())
+
+	proposal := c.current.Proposal()
+	if proposal != nil {
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+	}
+	return nil
 }
 
 // Generates the next preprepare request and associated round change certificate
@@ -392,7 +419,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	if roundChange && c.isProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
-	c.newRoundChangeTimer()
+	c.resetRoundChangeTimer()
 
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
@@ -409,10 +436,6 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	}
 
 	logger.Debug("Round Change: Waiting for desired round")
-	desiredView := &istanbul.View{
-		Sequence: new(big.Int).Set(c.current.Sequence()),
-		Round:    new(big.Int).Set(r),
-	}
 
 	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
@@ -422,13 +445,13 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 		return err
 	}
 
-	c.newRoundChangeTimerForView(desiredView)
+	c.resetRoundChangeTimer()
 
 	// Process Backlog Messages
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	// Send round change
-	c.sendRoundChange(r)
+	c.sendRoundChange()
 	return nil
 }
 
@@ -512,63 +535,96 @@ func (c *core) isProposer() bool {
 func (c *core) stopFuturePreprepareTimer() {
 	if c.futurePreprepareTimer != nil {
 		c.futurePreprepareTimer.Stop()
+		c.futurePreprepareTimer = nil
 	}
 }
 
-func (c *core) stopTimer() {
-	c.stopFuturePreprepareTimer()
+func (c *core) stopRoundChangeTimer() {
 	if c.roundChangeTimer != nil {
 		c.roundChangeTimer.Stop()
+		c.roundChangeTimer = nil
 	}
 }
 
-func (c *core) newRoundChangeTimer() {
-	c.newRoundChangeTimerForView(c.current.View())
+func (c *core) stopResendRoundChangeTimer() {
+	if c.resendRoundChangeMessageTimer != nil {
+		c.resendRoundChangeMessageTimer.Stop()
+		c.resendRoundChangeMessageTimer = nil
+	}
 }
 
-func (c *core) newRoundChangeTimerForView(view *istanbul.View) {
-	c.stopTimer()
+func (c *core) stopAllTimers() {
+	c.stopFuturePreprepareTimer()
+	c.stopRoundChangeTimer()
+	c.stopResendRoundChangeTimer()
+}
 
-	timeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
-	round := view.Round.Uint64()
+func (c *core) getRoundChangeTimeout() time.Duration {
+	baseTimeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
+	round := c.current.DesiredRound().Uint64()
 	if round == 0 {
 		// timeout for first round takes into account expected block period
-		timeout += time.Duration(c.config.BlockPeriod) * time.Second
+		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
 	} else {
 		// timeout for subsequent rounds adds an exponential backoff.
-		timeout += time.Duration(math.Pow(2, float64(round))) * time.Second
+		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+	}
+}
+
+// Reset then set the timer that causes a timeoutAndMoveToNextRoundEvent to be processed.
+// This may also reset the timer for the next resendRoundChangeEvent.
+func (c *core) resetRoundChangeTimer() {
+	// Stop all timers here since all 'resends' happen within the interval of a round's timeout.
+	// (Races are handled anyway by checking the seq and desired round haven't changed between
+	// submitting and processing events).
+	c.stopAllTimers()
+
+	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+	timeout := c.getRoundChangeTimeout()
+	c.roundChangeTimer = time.AfterFunc(timeout, func() {
+		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
+	})
+
+	if c.current.DesiredRound().Cmp(common.Big1) > 0 {
+		logger := c.newLogger("func", "resetRoundChangeTimer")
+		logger.Info("Reset round change timer", "timeout_ms", timeout/time.Millisecond)
 	}
 
-	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{&istanbul.View{Sequence: view.Sequence, Round: view.Round}})
-	})
+	c.resetResendRoundChangeTimer()
+}
+
+// Reset then, if in StateWaitingForNewRound and on round whose timeout is greater than MinResendRoundChangeTimeout,
+// set a timer that is at most MaxResendRoundChangeTimeout that causes a resendRoundChangeEvent to be processed.
+func (c *core) resetResendRoundChangeTimer() {
+	c.stopResendRoundChangeTimer()
+	if c.current.State() == StateWaitingForNewRound {
+		minResendTimeout := time.Duration(c.config.MinResendRoundChangeTimeout) * time.Millisecond
+		resendTimeout := c.getRoundChangeTimeout() / 2
+		if resendTimeout < minResendTimeout {
+			return
+		}
+		maxResendTimeout := time.Duration(c.config.MaxResendRoundChangeTimeout) * time.Millisecond
+		if resendTimeout > maxResendTimeout {
+			resendTimeout = maxResendTimeout
+		}
+		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
+			c.sendEvent(resendRoundChangeEvent{view})
+		})
+	}
+}
+
+// Rebroadcast RoundChange message for desired round if still in StateWaitingForNewRound.
+// Do not advance desired round. Then clear/reset timer so we may rebroadcast again.
+func (c *core) resendRoundChangeMessage() {
+	if c.current.State() == StateWaitingForNewRound {
+		c.sendRoundChange()
+	}
+	c.resetResendRoundChangeTimer()
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
-}
-
-// PrepareCommittedSeal returns a committed seal for the given hash and round number.
-func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
-	var buf bytes.Buffer
-	buf.Write(hash.Bytes())
-	buf.Write(round.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
-	return buf.Bytes()
-}
-
-func (c *core) ParentCommits() MessageSet {
-	if c.current == nil {
-		return nil
-	}
-	return c.current.ParentCommits()
-}
-
-func (c *core) Sequence() *big.Int {
-	if c.current == nil {
-		return nil
-	}
-	return c.current.Sequence()
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {

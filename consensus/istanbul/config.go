@@ -30,13 +30,16 @@ const (
 )
 
 type Config struct {
-	RequestTimeout       uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod          uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy       ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
-	Epoch                uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	LookbackWindow       uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
-	ValidatorEnodeDBPath string         `toml:",omitempty"` // The location for the validator enodes DB
-	RoundStateDBPath     string         `toml:",omitempty"` // The location for the round states DB
+	RequestTimeout              uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	TimeoutBackoffFactor        uint64         `toml:",omitempty"` // Timeout at subsequent rounds is: RequestTimeout + 2**round * TimeoutBackoffFactor (in milliseconds)
+	MinResendRoundChangeTimeout uint64         `toml:",omitempty"` // Minimum interval with which to resend RoundChange messages for same round
+	MaxResendRoundChangeTimeout uint64         `toml:",omitempty"` // Maximum interval with which to resend RoundChange messages for same round
+	BlockPeriod                 uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	LookbackWindow              uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
+	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
+	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
 
 	// Proxy Configs
 	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
@@ -49,13 +52,16 @@ type Config struct {
 }
 
 var DefaultConfig = &Config{
-	RequestTimeout:       3000,
-	BlockPeriod:          1,
-	ProposerPolicy:       ShuffledRoundRobin,
-	Epoch:                30000,
-	LookbackWindow:       12,
-	ValidatorEnodeDBPath: "validatorenodes",
-	RoundStateDBPath:     "roundstates",
-	Proxy:                false,
-	Proxied:              false,
+	RequestTimeout:              3000,
+	TimeoutBackoffFactor:        1000,
+	MinResendRoundChangeTimeout: 15 * 1000,
+	MaxResendRoundChangeTimeout: 2 * 60 * 1000,
+	BlockPeriod:                 1,
+	ProposerPolicy:              ShuffledRoundRobin,
+	Epoch:                       30000,
+	LookbackWindow:              12,
+	ValidatorEnodeDBPath:        "validatorenodes",
+	RoundStateDBPath:            "roundstates",
+	Proxy:                       false,
+	Proxied:                     false,
 }
