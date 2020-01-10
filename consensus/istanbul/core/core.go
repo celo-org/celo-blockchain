@@ -69,7 +69,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 	c.validateFn = c.checkValidatorSignature
 	c.logger = istanbul.NewIstLogger(
 		func() *big.Int {
-			if c != nil {
+			if c != nil && c.current != nil {
 				return c.current.Round()
 			}
 			return big.NewInt(0)

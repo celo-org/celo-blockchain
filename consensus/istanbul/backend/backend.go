@@ -120,7 +120,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	backend.logger = istanbul.NewIstLogger(
 		func() *big.Int {
-			return backend.core.CurrentView().Round
+			if backend.core != nil {
+				return backend.core.CurrentView().Round
+			}
+			return big.NewInt(0)
 		},
 	)
 

@@ -29,11 +29,11 @@ type istLogger struct {
 
 // NewIstLogger creates an Istanbul Logger with custom logic for exposing logs
 func NewIstLogger(fn func() *big.Int, ctx ...interface{}) log.Logger {
-	return &istLogger{logger: log.New(ctx[1:]...), round: fn}
+	return &istLogger{logger: log.New(ctx...), round: fn}
 }
 
 func (l *istLogger) New(ctx ...interface{}) log.Logger {
-	childLogger := l.logger.New(ctx)
+	childLogger := l.logger.New(ctx...)
 	return &istLogger{logger: childLogger, round: l.round}
 }
 
@@ -42,7 +42,7 @@ func (l *istLogger) Trace(msg string, ctx ...interface{}) {
 	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
-		l.Trace(msg, ctx...)
+		l.logger.Trace(msg, ctx...)
 	}
 }
 
@@ -51,7 +51,7 @@ func (l *istLogger) Debug(msg string, ctx ...interface{}) {
 	if l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
-		l.Debug(msg, ctx...)
+		l.logger.Debug(msg, ctx...)
 	}
 }
 
