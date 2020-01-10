@@ -252,14 +252,15 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	return common.BytesToAddress(rawEntry), nil
 }
 
-// GetAllValEnodes will return all entries in the valEnodeDB
-func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
+func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses map[common.Address]bool) (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var entries = make(map[common.Address]*AddressEntry)
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-		entries[address] = entry
+	        if valAddresses[address] {
+		   entries[address] = entry
+		}
 		return nil
 	})
 

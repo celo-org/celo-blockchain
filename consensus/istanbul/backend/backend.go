@@ -78,13 +78,6 @@ type AnnounceGossipTimestamp struct {
 	timestamp         time.Time
 }
 
-// Information about the proxy for a proxied validator
-type proxyInfo struct {
-	node         *enode.Node    // Enode for the internal network interface
-	externalNode *enode.Node    // Enode for the external network interface
-	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
-}
-
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -114,8 +107,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceWg:              new(sync.WaitGroup),
 		announceQuit:            make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
-		valEnodesShareWg:        new(sync.WaitGroup),
-		valEnodesShareQuit:      make(chan struct{}),
 		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
@@ -127,6 +118,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
 	backend.valEnodeTable = table
+
+	if backend.config.Proxied {
+	   backend.proxyHandler = &proxyHandler{istBackend: backend}
+	}
 
 	return backend
 }
@@ -181,13 +176,11 @@ type Backend struct {
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
 
-	valEnodesShareWg   *sync.WaitGroup
-	valEnodesShareQuit chan struct{}
-
-	proxyNode *proxyInfo
-
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
+
+	// Handler for proxies (used by proxied validators)
+	proxyHandler *proxyHandler
 
 	newEpochCh chan struct{}
 
@@ -272,14 +265,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 // If this is a proxied validator, then it will return the proxy.
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied {
-		if sb.proxyNode != nil && sb.proxyNode.peer != nil {
-			returnMap := make(map[enode.ID]consensus.Peer)
-			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
-
-			return returnMap
-		} else {
-			return nil
-		}
+	        return sb.proxyHandler.GetProxiedPeers(destAddresses)
 	} else {
 		var targets map[enode.ID]bool = nil
 
@@ -683,24 +669,6 @@ func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
-	if sb.proxyNode != nil {
-		return errProxyAlreadySet
-	}
-
-	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
-
-	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	return nil
-}
-
-func (sb *Backend) removeProxy(node *enode.Node) {
-	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
-		sb.p2pserver.RemovePeer(node, p2p.ProxyPurpose)
-		sb.proxyNode = nil
-	}
-}
-
 // RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
@@ -735,4 +703,31 @@ func (sb *Backend) ConnectToVals() {
 		sb.RefreshValPeers(valset)
 	}
 	return localAddress
+
+func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
+	validatorsSet := make(map[common.Address]bool)
+
+	registeredValidators, err := validators.RetrieveRegisteredValidators(nil, nil)
+
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == contract_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return validatorsSet, err
+	}
+
+	for _, address := range registeredValidators {
+		validatorsSet[address] = true
+	}
+
+	// Add active validators regardless
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	for _, val := range valSet.List() {
+		validatorsSet[val.Address()] = true
+	}
+
+	return validatorsSet, nil
 }

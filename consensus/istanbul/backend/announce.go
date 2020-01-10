@@ -28,9 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
-	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -181,51 +179,60 @@ func (sb *Backend) sendAnnounceMsgs() {
 }
 
 func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
-	var enodeUrl string
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			enodeUrl = sb.proxyNode.externalNode.String()
-		} else {
-			sb.logger.Error("Proxied node is not connected to a proxy")
-			return nil, errNoProxyConnection
-		}
-	} else {
-		enodeUrl = sb.p2pserver.Self().String()
-	}
-
-	// If the message is not within the registered validator set, then ignore it
+	// Retrieve the registered and active validators.  The receivers for the announce message
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
 		return nil, err
 	}
 
-	announceRecords := make([]*announceRecord, 0, len(regAndActiveVals))
-	for addr := range regAndActiveVals {
-		// TODO - Need to encrypt using the remote validator's validator key
-		announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
-	}
+	// TODO - Need to encrypt using the remote validator's validator key
+	var announceRecords []*announceRecord
+	if sb.config.Proxied {
+	        proxiesForAddresses := sb.proxyHandler.GetProxiesForAddresses(regAndActiveVals)
+		if len(proxiesForAddresses) > 0 {
+		   announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
 
-	announceData := &announceData{
+		   for valAddress, proxy := range proxiesForAddresses {
+		       announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.ExternalNode.String())})
+		   }
+		}
+	} else {
+		selfEnodeUrl := sb.p2pserver.Self().String()
+		if len(regAndActiveVals) > 0 {
+		   announceRecords = make([]*announceRecord, 0, len(regAndActiveVals))
+	           for addr := range regAndActiveVals {
+		       announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(selfEnodeUrl)})
+	           }
+		}
+	}
+	view := sb.core.CurrentView()
+
+	var msg *istanbul.Message
+	if announceRecords != nil && len(announceRecords) > 0 {
+	   announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
 		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 		Timestamp: uint(time.Now().Unix()),
 	}
 
-	announceBytes, err := rlp.EncodeToBytes(announceData)
-	if err != nil {
+	   announceBytes, err := rlp.EncodeToBytes(announceData)
+	   if err != nil {
 		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
 		return nil, err
-	}
+	   }
 
-	msg := &istanbul.Message{
+	   msg := &istanbul.Message{
 		Code:      istanbulAnnounceMsg,
 		Msg:       announceBytes,
 		Address:   sb.Address(),
 		Signature: []byte{},
-	}
+	   }
 
-	sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
+ 	   sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
+	} else {
+	   sb.logger.Warn("Did not generate an announce message, since no announce records were generated")
+	}
 
 	return msg, nil
 }
@@ -256,34 +263,6 @@ func (sb *Backend) sendIstAnnounce() error {
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
 
 	return nil
-}
-
-func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
-	validatorsSet := make(map[common.Address]bool)
-
-	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(nil, nil)
-
-	// The validator contract may not be deployed yet.
-	// Even if it is deployed, it may not have any registered validators yet.
-	if err == contract_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
-	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
-		return validatorsSet, err
-	}
-
-	for _, address := range registeredValidators {
-		validatorsSet[address] = true
-	}
-
-	// Add active validators regardless
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	for _, val := range valSet.List() {
-		validatorsSet[val.Address()] = true
-	}
-
-	return validatorsSet, nil
 }
 
 func (sb *Backend) handleIstAnnounce(payload []byte) error {

@@ -623,17 +623,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	go sb.sendAnnounceMsgs()
 
 	if sb.config.Proxied {
-		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-			}
-		}
-
-		go sb.sendValEnodesShareMsgs()
-	} else {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
-		sb.RefreshValPeers(valset)
+	   sb.proxyHandler.Start()
+	   if len(sb.config.ProxyNodes) > 0 {
+	      sb.proxyHandler.AddProxies(sb.config.ProxyNodes)
+	   }
 	}
 
 	return nil
@@ -656,12 +649,7 @@ func (sb *Backend) Stop() error {
 	sb.announceWg.Wait()
 
 	if sb.config.Proxied {
-		sb.valEnodesShareQuit <- struct{}{}
-		sb.valEnodesShareWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
+	   sb.proxyHandler.Stop()
 	}
 	return nil
 }

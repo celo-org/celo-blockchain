@@ -247,11 +247,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
-		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
-			sb.proxyNode.peer = peer
-		} else {
-			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
-		}
+	        sb.proxyHandler.AddProxyPeer(peer)
 	}
 }
 
@@ -259,8 +255,6 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
 	} else if sb.config.Proxied {
-		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
-			sb.proxyNode.peer = nil
-		}
+	        sb.proxyHandler.RemoveProxyPeer(peer)
 	}
 }

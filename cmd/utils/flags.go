@@ -692,9 +692,9 @@ var (
 		Name:  "proxy.proxied",
 		Usage: "Specifies whether this validator will be proxied by a proxy node",
 	}
-	ProxyEnodeURLPairFlag = cli.StringFlag{
-		Name:  "proxy.proxyenodeurlpair",
-		Usage: "proxy enode URL pair separated by a semicolon.  The format should be \"<internal facing enode URL>;<external facing enode URL>\"",
+	ProxyEnodeURLPairsFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpairs",
+		Usage: "proxy enode URL pairs separated by a comma.  Each pair's enodeURLs is separated by a semicolon.  The format should be \"<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,<proxy 2 internal facing enode URL>;<proxy 2 external facing enode URL>,...\"",
 	}
 )
 
@@ -1267,21 +1267,31 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
 		} else {
-			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
-			if len(proxyEnodeURLPair) != 2 {
+			proxyEnodeURLPairs := strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+			// TODO - Check that each pair has 2 enode urls
+
+			ethCfg.Istanbul.ProxyNodes := make([]istanbul.ProxyNodes, 0, len(proxyEnodeURLPairs))
+
+			for _, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
+			    var err error
+
+			    proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
+			    if len(proxyEnodeURLPair) != 2 {
 				Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairFlag.Name)
-			}
+			    }
 
-			var err error
-			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
+			    if proxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
 				Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
-			}
+			    }
 
-			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
+			    if proxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
 				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
+			    }
+
+			    ethCfg.Istanbuul.ProxyNodes[i] = &istanbul.ProxyNode{InternalFacingNode: proxyInternalFacingNode, ExternalFacingNode: proxyExternalFacingNode}
 			}
 
 			// Check that external IP is not a private IP address.

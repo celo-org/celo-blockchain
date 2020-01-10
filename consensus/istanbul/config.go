@@ -29,6 +29,11 @@ const (
 	ShuffledRoundRobin
 )
 
+type ProxyNodes struct {
+     InternalFacingNode *enode.Node   `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
+     ExternalFacingNode *enode.Node   `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+}
+
 type Config struct {
 	RequestTimeout              uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
 	TimeoutBackoffFactor        uint64         `toml:",omitempty"` // Timeout at subsequent rounds is: RequestTimeout + 2**round * TimeoutBackoffFactor (in milliseconds)
@@ -47,8 +52,7 @@ type Config struct {
 
 	// Proxied Validator Configs
 	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
-	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+	ProxyNodes              []ProxyNodes `toml:",omitempty"` // The set of proxy internal and external facing nodes for this proxied validator 
 }
 
 var DefaultConfig = &Config{

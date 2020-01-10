@@ -20,12 +20,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -78,30 +77,8 @@ func (sd *valEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// This function is meant to be run as a goroutine.  It will periodically send validator enode share messages
-// to this node's proxies so that proxies know the enodes of validators
-func (sb *Backend) sendValEnodesShareMsgs() {
-	sb.valEnodesShareWg.Add(1)
-	defer sb.valEnodesShareWg.Done()
-
-	ticker := time.NewTicker(time.Minute)
-
-	for {
-		select {
-		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
-			go sb.sendValEnodesShareMsg()
-
-		case <-sb.valEnodesShareQuit:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
-	vetEntries, err := sb.valEnodeTable.GetAllValEnodes()
+func (sb *Backend) generateValEnodesShareMsg(valAddresses map[common.Address]bool) (*istanbul.Message, error) {
+	vetEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
 
 	if err != nil {
 		sb.logger.Error("Error in retrieving all the entries from the ValEnodeTable", "err", err)
@@ -139,13 +116,13 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	return msg, nil
 }
 
-func (sb *Backend) sendValEnodesShareMsg() error {
+func (sb *Backend) sendValEnodesShareMsg(proxyPeer consensus.Peer, proxyExternalNode *enode.Node, valAddresses map[common.Address]bool) error {
 	if sb.proxyNode == nil || sb.proxyNode.peer == nil {
 		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
 		return nil
 	}
 
-	msg, err := sb.generateValEnodesShareMsg()
+	msg, err := sb.generateValEnodesShareMsg(proxyNode, valAddresses)
 	if err != nil {
 		return err
 	}
