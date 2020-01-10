@@ -248,7 +248,7 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 
 // Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
-	c.sendMsgTo(msg, istanbul.GetAddressesFromValidatorList(c.current.ValidatorSet().List()))
+	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
 }
 
 // Send message to a specific address

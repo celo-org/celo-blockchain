@@ -29,32 +29,6 @@ var (
 	errInvalidValidatorSetDiffSize = errors.New("istanbul extra validator set data has different size")
 )
 
-func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
-	if len(addrs) != len(blsPublicKeys) {
-		return nil, errInvalidValidatorSetDiffSize
-	}
-	validators := []ValidatorData{}
-	for i := range addrs {
-		validators = append(validators, ValidatorData{
-			Address:      addrs[i],
-			BLSPublicKey: blsPublicKeys[i],
-		})
-	}
-
-	return validators, nil
-}
-
-func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
-	addrs := []common.Address{}
-	pubKeys := [][]byte{}
-	for i := range validators {
-		addrs = append(addrs, validators[i].Address)
-		pubKeys = append(pubKeys, validators[i].BLSPublicKey)
-	}
-
-	return addrs, pubKeys
-}
-
 type ValidatorData struct {
 	Address      common.Address
 	BLSPublicKey []byte
@@ -76,7 +50,8 @@ type Validator interface {
 	AsData() *ValidatorData
 }
 
-func GetAddressesFromValidatorList(validators []Validator) []common.Address {
+// MapValidatorsToAddresses maps a slice of validator to a slice of addresses
+func MapValidatorsToAddresses(validators []Validator) []common.Address {
 	returnList := make([]common.Address, len(validators))
 
 	for i, val := range validators {
@@ -87,8 +62,6 @@ func GetAddressesFromValidatorList(validators []Validator) []common.Address {
 }
 
 // ----------------------------------------------------------------------------
-
-type Validators []Validator
 
 type ValidatorsDataByAddress []ValidatorData
 
@@ -114,7 +87,7 @@ type ValidatorSet interface {
 	// Get the minimum quorum size
 	MinQuorumSize() int
 
-	// Return the validator array
+	// List returns all the validators
 	List() []Validator
 	// Return the validator index
 	GetIndex(addr common.Address) int
@@ -146,3 +119,31 @@ type ValidatorSetData struct {
 
 // ProposerSelector returns the block proposer for a round given the last proposer, round number, and randomness.
 type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.Address, currentRound uint64) Validator
+
+// ----------------------------------------------------------------------------
+
+func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
+	if len(addrs) != len(blsPublicKeys) {
+		return nil, errInvalidValidatorSetDiffSize
+	}
+	validators := []ValidatorData{}
+	for i := range addrs {
+		validators = append(validators, ValidatorData{
+			Address:      addrs[i],
+			BLSPublicKey: blsPublicKeys[i],
+		})
+	}
+
+	return validators, nil
+}
+
+func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
+	addrs := []common.Address{}
+	pubKeys := [][]byte{}
+	for i := range validators {
+		addrs = append(addrs, validators[i].Address)
+		pubKeys = append(pubKeys, validators[i].BLSPublicKey)
+	}
+
+	return addrs, pubKeys
+}

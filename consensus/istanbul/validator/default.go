@@ -81,7 +81,7 @@ func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
 // ----------------------------------------------------------------------------
 
 type defaultSet struct {
-	validators  istanbul.Validators
+	validators  []istanbul.Validator
 	validatorMu sync.RWMutex
 	// This is set when we call `getOrderedValidators`
 	// TODO Rename to `EpochState` that has validators & randomness
