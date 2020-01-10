@@ -68,7 +68,7 @@ func (c *core) CurrentView() *istanbul.View {
 		return c.current.View()
 	}
 	return &istanbul.View{
-		Round: big.NewInt(0),
+		Round:    big.NewInt(0),
 		Sequence: big.NewInt(0),
 	}
 }
