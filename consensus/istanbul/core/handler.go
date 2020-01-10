@@ -63,15 +63,6 @@ func (c *core) Stop() error {
 	return nil
 }
 
-func (c *core) CurrentView() *istanbul.View {
-	if c.current != nil {
-		return c.current.View()
-	}
-	return &istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(0),
-	}
-}
 // ----------------------------------------------------------------------------
 
 // Subscribe both internal and external events
