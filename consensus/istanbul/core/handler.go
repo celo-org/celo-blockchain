@@ -212,7 +212,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {
-	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "set_at_seq", timedOutView.Sequence, "set_at_desiredRound", timedOutView.Round)
+	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "timed_out_seq", timedOutView.Sequence, "timed_out_round", timedOutView.Round)
 
 	// Avoid races where message is enqueued then a later event advances sequence or desired round.
 	if c.current.Sequence().Cmp(timedOutView.Sequence) != 0 || c.current.DesiredRound().Cmp(timedOutView.Round) != 0 {
