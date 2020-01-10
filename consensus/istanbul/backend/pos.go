@@ -161,6 +161,8 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 	// Fixed epoch reward to the infrastructure fund.
 	// TODO(joshua): The community reward needs to be split among different recipients
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
+	// TODO: Divert to the reserve when it is low
+	// reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {
 		return totalCommunityRewards, err
 	}
