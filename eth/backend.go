@@ -89,6 +89,7 @@ type Ethereum struct {
 	miner      *miner.Miner
 	gasPrice   *big.Int
 	gatewayFee *big.Int
+	validator  common.Address
 	etherbase  common.Address
 	blsbase    common.Address
 
@@ -144,6 +145,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		networkID:      config.NetworkId,
 		gasPrice:       config.MinerGasPrice,
 		gatewayFee:     config.GatewayFee,
+		validator:      config.Validator,
 		etherbase:      config.Etherbase,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
@@ -363,6 +365,29 @@ func (s *Ethereum) ResetWithGenesisBlock(gb *types.Block) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
 
+func (s *Ethereum) Validator() (val common.Address, err error) {
+	s.lock.RLock()
+	validator := s.validator
+	s.lock.RUnlock()
+
+	if validator != (common.Address{}) {
+		return validator, nil
+	}
+	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
+		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+			validator := accounts[0].Address
+
+			s.lock.Lock()
+			s.validator = validator
+			s.lock.Unlock()
+
+			log.Info("Validator automatically configured", "address", validator)
+			return validator, nil
+		}
+	}
+	return common.Address{}, fmt.Errorf("validator must be explicitly specified")
+}
+
 func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	s.lock.RLock()
 	etherbase := s.etherbase
@@ -395,25 +420,25 @@ func (s *Ethereum) BLSbase() (eb common.Address, err error) {
 		return blsbase, nil
 	}
 
-	return s.Etherbase()
+	return s.Validator()
 }
 
 // isLocalBlock checks whether the specified block is mined
 // by local miner accounts.
 //
-// We regard two types of accounts as local miner account: etherbase
-// and accounts specified via `txpool.locals` flag.
+// We regard two types of accounts as local miner account: the validator
+// address and accounts specified via `txpool.locals` flag.
 func (s *Ethereum) isLocalBlock(block *types.Block) bool {
 	author, err := s.engine.Author(block.Header())
 	if err != nil {
 		log.Warn("Failed to retrieve block author", "number", block.NumberU64(), "hash", block.Hash(), "err", err)
 		return false
 	}
-	// Check whether the given address is etherbase.
+	// Check whether the given address is configured validator.
 	s.lock.RLock()
-	etherbase := s.etherbase
+	validator := s.validator
 	s.lock.RUnlock()
-	if author == etherbase {
+	if author == validator {
 		return true
 	}
 	// Check whether the given address is specified by `txpool.local`
@@ -485,11 +510,18 @@ func (s *Ethereum) StartMining(threads int) error {
 		s.txPool.SetGasPrice(price)
 
 		// Configure the local mining address
+		val, err := s.Validator()
+		if err != nil {
+			log.Error("Cannot start mining without validator", "err", err)
+			return fmt.Errorf("validator missing: %v", err)
+		}
+
 		eb, err := s.Etherbase()
 		if err != nil {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
+
 		blsbase, err := s.BLSbase()
 		if err != nil {
 			log.Error("Cannot start mining without blsbase", "err", err)
@@ -498,9 +530,9 @@ func (s *Ethereum) StartMining(threads int) error {
 		clique, isClique := s.engine.(*clique.Clique)
 		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
 		if isIstanbul || isClique {
-			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			wallet, err := s.accountManager.Find(accounts.Account{Address: val})
 			if wallet == nil || err != nil {
-				log.Error("Etherbase account unavailable locally", "err", err)
+				log.Error("Validator account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
 			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
@@ -509,10 +541,10 @@ func (s *Ethereum) StartMining(threads int) error {
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
 			if isClique {
-				clique.Authorize(eb, wallet.SignHash)
+				clique.Authorize(val, wallet.SignHash)
 			}
 			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignHash, blswallet.SignHashBLS, blswallet.SignMessageBLS)
+				istanbul.Authorize(val, wallet.SignHash, blswallet.SignHashBLS, blswallet.SignMessageBLS)
 			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism

@@ -94,6 +94,7 @@ type Config struct {
 	GatewayFee *big.Int `toml:",omitempty"`
 	// Etherbase is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	// Also the coinbase used for mining.
+	Validator common.Address `toml:",omitempty"`
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`
 
