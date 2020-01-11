@@ -109,7 +109,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 			if c != nil && c.current != nil {
 				return c.current.Round()
 			}
-			return big.NewInt(0)
+			return common.Big0
 		},
 	)
 	return c

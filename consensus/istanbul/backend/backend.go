@@ -128,7 +128,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 					return backend.core.CurrentView().Round
 				}
 			}
-			return big.NewInt(0)
+			return common.Big0
 		},
 	)
 
