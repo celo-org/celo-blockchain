@@ -299,28 +299,28 @@ func (b *Subject) String() string {
 }
 
 type CommittedSubject struct {
-	Subject       *Subject
-	CommittedSeal []byte
-	EpochSeal     []byte
+	Subject               *Subject
+	CommittedSeal         []byte
+	EpochValidatorSetSeal []byte
 }
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (cs *CommittedSubject) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{cs.Subject, cs.CommittedSeal, cs.EpochSeal})
+	return rlp.Encode(w, []interface{}{cs.Subject, cs.CommittedSeal, cs.EpochValidatorSetSeal})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (cs *CommittedSubject) DecodeRLP(s *rlp.Stream) error {
 	var committedSubject struct {
-		Subject       *Subject
-		CommittedSeal []byte
-		EpochSeal     []byte
+		Subject               *Subject
+		CommittedSeal         []byte
+		EpochValidatorSetSeal []byte
 	}
 
 	if err := s.Decode(&committedSubject); err != nil {
 		return err
 	}
-	cs.Subject, cs.CommittedSeal, cs.EpochSeal = committedSubject.Subject, committedSubject.CommittedSeal, committedSubject.EpochSeal
+	cs.Subject, cs.CommittedSeal, cs.EpochValidatorSetSeal = committedSubject.Subject, committedSubject.CommittedSeal, committedSubject.EpochValidatorSetSeal
 	return nil
 }
 
@@ -360,7 +360,6 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
-	EpochSeal []byte         // Signature on the SNARK-friendly encoding of the epoch data
 }
 
 // ==============================================

@@ -126,7 +126,7 @@ func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte,
 func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	signatureObjs := []*bls.Signature{}
 	for _, signature := range signatures {
-		signatureObj, err := bls.DeserializeSignature(signature[:])
+		signatureObj, err := bls.DeserializeSignature(signature)
 		if err != nil {
 			return nil, err
 		}

@@ -62,9 +62,9 @@ type testSystemBackend struct {
 }
 
 type testCommittedMsgs struct {
-	commitProposal      istanbul.Proposal
-	aggregatedSeal      types.IstanbulAggregatedSeal
-	aggregatedEpochSeal types.IstanbulAggregatedEpochSeal
+	commitProposal                  istanbul.Proposal
+	aggregatedSeal                  types.IstanbulAggregatedSeal
+	aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal
 }
 
 // ==============================================
@@ -137,12 +137,12 @@ func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.
 	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
-		commitProposal:      proposal,
-		aggregatedSeal:      aggregatedSeal,
-		aggregatedEpochSeal: aggregatedEpochSeal,
+		commitProposal:                  proposal,
+		aggregatedSeal:                  aggregatedSeal,
+		aggregatedEpochValidatorSetSeal: aggregatedEpochValidatorSetSeal,
 	})
 
 	// fake new head events

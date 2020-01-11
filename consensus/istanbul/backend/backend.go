@@ -18,6 +18,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"sync"
@@ -257,12 +258,6 @@ func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.Va
 }
 
 func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
-	state, err := sb.stateAt(proposal.ParentHash())
-	if err != nil {
-		return nil, err
-	}
-	state = state.Copy()
-
 	istExtra, err := types.ExtractIstanbulExtra(proposal.Header())
 	if err != nil {
 		return nil, err
@@ -273,11 +268,25 @@ func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.Val
 		return sb.ParentBlockValidators(proposal), nil
 	}
 
-	newValSet, err := sb.getNewValidatorSet(proposal.Header(), state)
+	snap, err := sb.snapshot(sb.chain, proposal.Number().Uint64() - 1, common.Hash{}, nil)
 	if err != nil {
 		return nil, err
 	}
-	return validator.NewSet(newValSet), nil
+	snap = snap.copy()
+
+	validators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
+		return nil, fmt.Errorf("could not obtain next block validators: failed at remove validators")
+	}
+	if !snap.ValSet.AddValidators(validators) {
+		return nil, fmt.Errorf("could not obtain next block validators: failed at add validators")
+	}
+
+	return snap.ValSet, nil
 }
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
@@ -388,7 +397,7 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochSeal types.IstanbulAggregatedEpochSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -406,7 +415,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// update block's header
 	block = block.WithSeal(h)
 	block = block.WithEpochSnarkData(&types.EpochSnarkData{
-		Signature: aggregatedEpochSeal.Signature,
+		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())

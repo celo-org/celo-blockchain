@@ -120,10 +120,10 @@ func TestCommit(t *testing.T) {
 	commitCh := make(chan *types.Block)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
-		expectedErr       error
-		expectedSignature []byte
-		expectedEpochSeal []byte
-		expectedBlock     func() *types.Block
+		expectedErr                   error
+		expectedSignature             []byte
+		expectedEpochValidatorSetSeal []byte
+		expectedBlock                 func() *types.Block
 	}{
 		{
 			// normal case
@@ -159,7 +159,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulAggregatedEpochSeal{Signature: test.expectedEpochSeal}); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Signature: test.expectedEpochValidatorSetSeal}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

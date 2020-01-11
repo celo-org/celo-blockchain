@@ -50,7 +50,7 @@ type IstanbulAggregatedSeal struct {
 	Round *big.Int
 }
 
-type IstanbulAggregatedEpochSeal struct {
+type IstanbulEpochValidatorSetSeal struct {
 	// We don't add a bitmap here since it's assumed the same signers for the block have signed this
 
 	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block

@@ -369,7 +369,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 		if !ok {
 			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 		}
-		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulAggregatedEpochSeal{})
+		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
