@@ -39,7 +39,7 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochValidatorSetSeal(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
 		return nil, errNotLastBlockInEpoch
 	}
@@ -71,15 +71,18 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to commit epoch validator set seal", "err", err)
 		return
 	}
-	epochValidatorSetData, err := c.generateEpochValidatorSetSeal(currentBlockNumber, newValSet)
+	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
 	}
-	epochValidatorSetSeal, err := c.backend.SignBLSWithCompositeHash(epochValidatorSetData[:])
-	if err != nil {
-		logger.Error("Failed to sign epoch validator set seal", "err", err)
-		return
+	var epochValidatorSetSeal blscrypto.SerializedSignature
+	if err == nil {
+		epochValidatorSetSeal, err = c.backend.SignBLSWithCompositeHash(epochValidatorSetData[:])
+		if err != nil {
+			logger.Error("Failed to sign epoch validator set seal", "err", err)
+			return
+		}
 	}
 
 	committedSub := &istanbul.CommittedSubject{
@@ -244,12 +247,10 @@ func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanb
 
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
 func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
-	return nil
-
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, err := c.generateEpochValidatorSetSeal(blockNumber, newValSet)
+	epochData, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil
