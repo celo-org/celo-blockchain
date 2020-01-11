@@ -268,7 +268,7 @@ func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.Val
 		return sb.ParentBlockValidators(proposal), nil
 	}
 
-	snap, err := sb.snapshot(sb.chain, proposal.Number().Uint64() - 1, common.Hash{}, nil)
+	snap, err := sb.snapshot(sb.chain, proposal.Number().Uint64()-1, common.Hash{}, nil)
 	if err != nil {
 		return nil, err
 	}
