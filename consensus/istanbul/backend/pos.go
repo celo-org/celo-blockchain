@@ -158,16 +158,20 @@ func (sb *Backend) distributeValidatorRewards(header *types.Header, state *state
 
 func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state.StateDB, communityReward *big.Int) (*big.Int, error) {
 	totalCommunityRewards := big.NewInt(0)
-	// Fixed epoch reward to the infrastructure fund.
-	// TODO(joshua): The community reward needs to be split among different recipients
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
-	// TODO: Divert to the reserve when it is low
-	// reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {
 		return totalCommunityRewards, err
 	}
-
-	if governanceAddress != nil {
+	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
+	if err != nil {
+		return totalCommunityRewards, err
+	}
+	// TODO: replace 'false' with 'isReserveLow'
+	if false && reserveAddress != nil {
+		state.AddBalance(*reserveAddress, communityReward)
+		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
+	} else if governanceAddress != nil {
+		// TODO: How to split eco fund here
 		state.AddBalance(*governanceAddress, communityReward)
 		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
 	}
