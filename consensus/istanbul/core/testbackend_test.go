@@ -111,6 +111,7 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	}
 	return nil
 }
+
 func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
 	return nil
 }
@@ -386,6 +387,10 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	config := *istanbul.DefaultConfig
 	config.ProposerPolicy = istanbul.RoundRobin
 	config.RoundStateDBPath = ""
+	config.RequestTimeout = 300
+	config.TimeoutBackoffFactor = 100
+	config.MinResendRoundChangeTimeout = 1000
+	config.MaxResendRoundChangeTimeout = 10000
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)

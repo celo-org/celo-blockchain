@@ -168,7 +168,7 @@ const (
 	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
 	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
-	MaxGasForGetRegisteredValidators               uint64 = 1000000
+	MaxGasForGetRegisteredValidators               uint64 = 2000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000

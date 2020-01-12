@@ -18,12 +18,12 @@ package validator
 
 import (
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var testAddresses = []string{
