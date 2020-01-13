@@ -31,11 +31,15 @@ import (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg      = 0x11
-	istanbulAnnounceMsg       = 0x12
-	istanbulValEnodesShareMsg = 0x13
-	istanbulFwdMsg            = 0x14
-	istanbulDelegateSign      = 0x15
+	istanbulConsensusMsg           = 0x11
+	istanbulGetAnnouncesMsg        = 0x12
+	// TODO:  Support sending multiple announce messages withone one message
+	istanbulAnnounceMsg           = 0x13
+	istanbulGetAnnounceVersionsMsg = 0x14
+	istanbulAnnounceVersionsMsg    = 0x15
+	istanbulValEnodesShareMsg      = 0x16
+	istanbulFwdMsg                 = 0x17
+	istanbulDelegateSign           = 0x18
 )
 
 var (

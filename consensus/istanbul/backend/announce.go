@@ -41,57 +41,61 @@ import (
 //
 // define the istanbul announce data and announce record structure
 
-type announceRecord struct {
-	DestAddress       common.Address
+// EnodeURL ciphertext encrypted with the public key associated with the DecryptorAddress field
+type encryptedEnode struct {
+	DecrypterAddress  common.Address
 	EncryptedEnodeURL []byte
 }
 
-func (ar *announceRecord) String() string {
-	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ar.DestAddress.String(), len(ar.EncryptedEnodeURL))
+func (ee *encryptedEnode) String() string {
+	return fmt.Sprintf("{DecrypterAddress: %s, EncryptedEnodeURL length: %d}", ee.DecrypterAddress.String(), len(ee.EncryptedEnodeURL))
 }
 
-type announceData struct {
-	AnnounceRecords []*announceRecord
+// The set of encrypted enodes of ValAddress's enodeURL.  There is an encrypted enode for each registered validator
+type valEncryptedEnodes struct {
+        ValAddress      common.Address
+	EncryptedEnodes []*encryptedEnode
 	EnodeURLHash    common.Hash
 	Timestamp       uint
 }
 
-func (ad *announceData) String() string {
-	return fmt.Sprintf("{Timestamp: %v, EnodeURLHash: %v, AnnounceRecords: %v}", ad.Timestamp, ad.EnodeURLHash.Hex(), ad.AnnounceRecords)
+func (vee *valEncryptedEnodes) String() string {
+	return fmt.Sprintf("{ValAddress: %s, Timestamp: %v, EnodeURLHash: %v, AnnounceRecords: %v}", vee.ValAddress.String(), vee.Timestamp, vee.EnodeURLHash.Hex(), vee.EncryptedEnodes)
 }
 
 // ==============================================
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes ar into the Ethereum RLP format.
-func (ar *announceRecord) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ar.DestAddress, ar.EncryptedEnodeURL})
+// EncodeRLP serializes ee into the Ethereum RLP format.
+func (ee *encryptedEnode) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ee.DecrypterAddress, ee.EncryptedEnodeURL})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the ee fields from a RLP stream.
+func (ee *encryptedEnode) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		DestAddress       common.Address
+		DecrypterAddress       common.Address
 		EncryptedEnodeURL []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ar.DestAddress, ar.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
+	ee.ValAddress, ee.EncryptedEnodeURL = msg.ValAddress, msg.EncryptedEnodeURL
 	return nil
 }
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
-func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp})
+func (vee *valEncryptedEnodes) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
+func (vee *valEncryptedEnodes) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		AnnounceRecords []*announceRecord
+	        ValAddress common.Address
+		EncryptedEnodes []*encryptedEnode
 		EnodeURLHash    common.Hash
 		Timestamp       uint
 	}
@@ -99,7 +103,7 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.EnodeURLHash, ad.Timestamp = msg.AnnounceRecords, msg.EnodeURLHash, msg.Timestamp
+	vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Timestamp = msg.ValAddress, msg.EncryptedEnodes, msg.EnodeURLHash, msg.Timestamp
 	return nil
 }
 
@@ -243,20 +247,21 @@ func (sb *Backend) sendIstAnnounce() error {
 		return nil
 	}
 
-	// Sign the announce message
-	if err := istMsg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", istMsg.String(), "err", err)
-		return err
-	}
-
-	// Convert to payload
-	payload, err := istMsg.Payload()
-	if err != nil {
-		sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
-		return err
-	}
 
 	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+
+        // Sign the announce message
+        if err := istMsg.Sign(sb.Sign); err != nil {
+                sb.logger.Error("Error in signing an Istanbul Announce Message", "AnnounceMsg", istMsg.String(), "err", err)
+                return err
+        }
+
+        // Convert to payload
+        payload, err := istMsg.Payload()
+        if err != nil {
+                sb.logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
+                return err
+        }
 
 	return nil
 }
