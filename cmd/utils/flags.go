@@ -199,7 +199,7 @@ var (
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
 	ValidatorFlag = cli.StringFlag{
-		Name: "validator",
+		Name:  "validator",
 		Usage: "Public address for transaction broadcasting (default = first account)",
 		Value: "0",
 	}
