@@ -510,16 +510,16 @@ func (s *Ethereum) StartMining(threads int) error {
 		s.txPool.SetGasPrice(price)
 
 		// Configure the local mining address
-		val, err := s.Validator()
-		if err != nil {
-			log.Error("Cannot start mining without validator", "err", err)
-			return fmt.Errorf("validator missing: %v", err)
-		}
-
 		eb, err := s.Etherbase()
 		if err != nil {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
+		}
+
+		val, err := s.Validator()
+		if err != nil {
+			log.Trace("Validator address not provided, defaulting to provided etherbase address")
+			val = eb
 		}
 
 		blsbase, err := s.BLSbase()
