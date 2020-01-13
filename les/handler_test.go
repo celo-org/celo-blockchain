@@ -614,7 +614,7 @@ func TestTransactionGatewayFeeRequirementLes2(t *testing.T) {
 		tx:     types.NewTransaction(2, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, nil, nil),
 		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 0"},
 	}, {
-		desc:   "fee value too value",
+		desc:   "fee value too low",
 		tx:     types.NewTransaction(3, acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &pm.etherbase, new(big.Int).Sub(pm.gatewayFee, big.NewInt(1)), nil),
 		status: txStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 24999"},
 	}, {
