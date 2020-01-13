@@ -198,9 +198,14 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
+	ValidatorFlag = cli.StringFlag{
+		Name: "validator",
+		Usage: "Public address for transaction broadcasting (default = first account)",
+		Value: "0",
+	}
 	EtherbaseFlag = cli.StringFlag{
 		Name:  "etherbase",
-		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+		Usage: "Public address for block mining rewards (default = first account)",
 		Value: "0",
 	}
 	GatewayFeeFlag = BigFlag{
@@ -947,6 +952,23 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
+// setValidator retrieves the validator address either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	var validator string
+	if ctx.GlobalIsSet(ValidatorFlag.Name) {
+		validator = ctx.GlobalString(ValidatorFlag.Name)
+	}
+	// Convert the validator into an address and configure it
+	if validator != "" {
+		account, err := MakeAddress(ks, validator)
+		if err != nil {
+			Fatalf("Invalid validator: %v", err)
+		}
+		cfg.Validator = account.Address
+	}
+}
+
 // setEtherbase retrieves the etherbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
 func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
@@ -968,12 +990,12 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
+	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
 	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
 		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
+	// Convert the blsbase into an address and configure it
 	if blsbase != "" {
 		account, err := MakeAddress(ks, blsbase)
 		if err != nil {
@@ -1357,6 +1379,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	checkExclusive(ctx, LightServFlag, SyncModeFlag, "light")
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	setValidator(ctx, ks, cfg)
 	setEtherbase(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
