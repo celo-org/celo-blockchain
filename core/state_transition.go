@@ -35,7 +35,8 @@ import (
 
 var (
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-	ErrInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
+	
+	errInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
 	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
 )
 
@@ -179,7 +180,7 @@ func (st *StateTransition) payFees() error {
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
-		return ErrInsufficientBalanceForFees
+		return errInsufficientBalanceForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
