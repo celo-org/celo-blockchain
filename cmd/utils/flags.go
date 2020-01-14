@@ -203,9 +203,14 @@ var (
 		Usage: "Public address for transaction broadcasting (default = first account)",
 		Value: "0",
 	}
-	EtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
+	TxFeeRecipientFlag = cli.StringFlag{
+		Name:  "tx-fee-recipient",
 		Usage: "Public address for block mining rewards (default = first account)",
+		Value: "0",
+	}
+	EtherbaseLegacyFlag = cli.StringFlag{
+		Name:  "etherbase",
+		Usage: "Public address for block mining rewards (default = first account, deprecated, use --tax-fee-recipient)",
 		Value: "0",
 	}
 	GatewayFeeFlag = BigFlag{
@@ -974,8 +979,10 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current etherbase, new flag overriding legacy one
 	var etherbase string
-	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(EtherbaseFlag.Name)
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		etherbase = ctx.GlobalString(TxFeeRecipientFlag.Name)
+	} else if ctx.GlobalIsSet(EtherbaseLegacyFlag.Name) {
+		etherbase = ctx.GlobalString(EtherbaseLegacyFlag.Name)
 	}
 	// Convert the etherbase into an address and configure it
 	if etherbase != "" {
