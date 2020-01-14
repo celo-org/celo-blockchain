@@ -112,15 +112,15 @@ func (api *API) GetProposer(sequence *rpc.BlockNumber, round *uint64) (common.Ad
 }
 
 // AddProxy peers with a remote node that acts as a proxy, even if slots are full
-func (api *API) AddProxy(url, externalUrl string) (bool, error) {
+func (api *API) AddProxy(internalUrl, externalUrl string) (bool, error) {
 	if !api.istanbul.config.Proxied {
 		api.istanbul.logger.Error("Add proxy node failed: this node is not configured to be proxied")
 		return false, errors.New("Can't add proxy for node that is not configured to be proxied")
 	}
 
-	node, err := enode.ParseV4(url)
+	internalNode, err := enode.ParseV4(internalUrl)
 	if err != nil {
-		return false, fmt.Errorf("invalid enode: %v", err)
+		return false, fmt.Errorf("invalid internal enode: %v", err)
 	}
 
 	externalNode, err := enode.ParseV4(externalUrl)
@@ -128,18 +128,22 @@ func (api *API) AddProxy(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	err = api.istanbul.addProxy(node, externalNode)
+	api.istanbul.proxyHandler.addProxies <- []*istanbul.ProxyNodes{
+		{InternalFacingNode: internalNode, ExternalFacingNode: externalNode},
+	}
+
+	// err = api.istanbul.addProxy(node, externalNode)
 	return true, err
 }
 
 // RemoveProxy removes a node from acting as a proxy
-func (api *API) RemoveProxy(url string) (bool, error) {
+func (api *API) RemoveProxy(internalUrl string) (bool, error) {
 	// Try to remove the url as a proxy and return
-	node, err := enode.ParseV4(url)
+	internalNode, err := enode.ParseV4(internalUrl)
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.removeProxy(node)
+	api.istanbul.proxyHandler.removeProxies <- []*enode.Node{internalNode}
 	return true, nil
 }
 

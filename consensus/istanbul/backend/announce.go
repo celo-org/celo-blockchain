@@ -25,6 +25,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
@@ -185,52 +186,57 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		return nil, err
 	}
 
+	var enodeURLHash common.Hash
+
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
 	    proxiesForAddresses := sb.proxyHandler.GetProxiesForAddresses(regAndActiveVals)
 		if len(proxiesForAddresses) > 0 {
-		   announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
+			announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
 
-		   for valAddress, proxy := range proxiesForAddresses {
-		       announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
-		   }
+			for valAddress, proxy := range proxiesForAddresses {
+		    	announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
+			}
 		}
+		enodeURLHash = common.BytesToHash([]byte("test"))
 	} else {
-		selfEnodeUrl := sb.p2pserver.Self().String()
+		selfEnodeURL := sb.p2pserver.Self().String()
 		if len(regAndActiveVals) > 0 {
 		   announceRecords = make([]*announceRecord, 0, len(regAndActiveVals))
-	           for addr := range regAndActiveVals {
-		       announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(selfEnodeUrl)})
-	           }
+	        for addr := range regAndActiveVals {
+		    	announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(selfEnodeURL)})
+	        }
+			enodeURLHash = istanbul.RLPHash(selfEnodeURL)
 		}
+
 	}
 
 	var msg *istanbul.Message
 	if announceRecords != nil && len(announceRecords) > 0 {
-	   announceData := &announceData{
-		AnnounceRecords: announceRecords,
-		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Timestamp: uint(time.Now().Unix()),
-	}
+		announceData := &announceData{
+			AnnounceRecords: announceRecords,
+			EnodeURLHash:    enodeURLHash,
+			// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+			Timestamp: uint(time.Now().Unix()),
+		}
 
 	   announceBytes, err := rlp.EncodeToBytes(announceData)
-	   if err != nil {
-		sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
-		return nil, err
-	   }
+		if err != nil {
+		   sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
+		   return nil, err
+		}
 
-	   msg := &istanbul.Message{
-		Code:      istanbulAnnounceMsg,
-		Msg:       announceBytes,
-		Address:   sb.Address(),
-		Signature: []byte{},
-	   }
+		msg := &istanbul.Message{
+			Code:      istanbulAnnounceMsg,
+			Msg:       announceBytes,
+			Address:   sb.Address(),
+			Signature: []byte{},
+		}
 
- 	   sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
+		sb.logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceMsg", announceData.String())
 	} else {
-	   sb.logger.Warn("Did not generate an announce message, since no announce records were generated")
+		sb.logger.Warn("Did not generate an announce message, since no announce records were generated")
 	}
 
 	return msg, nil
