@@ -808,7 +808,6 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 			return 0, fmt.Errorf("gas required exceeds allowance or always failing transaction")
 		}
 	}
-	
 	return hexutil.Uint64(hi), nil
 }
 

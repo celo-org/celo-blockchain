@@ -35,7 +35,7 @@ import (
 
 var (
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-	
+
 	errInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
 	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
 )
@@ -197,7 +197,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
-	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed, "value", st.msg.value)
+	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
 	if err != nil {
 		return false
