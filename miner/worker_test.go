@@ -357,7 +357,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
-	engine.(*istanbulBackend.Backend).SetP2PServer(&consensustest.MockP2PServer{})
+	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

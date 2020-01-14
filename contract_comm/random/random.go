@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
@@ -118,7 +119,7 @@ func commitmentDbLocation(commitment common.Hash) []byte {
 func address() *common.Address {
 	randomAddress, err := contract_comm.GetRegisteredAddress(params.RandomRegistryId, nil, nil)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		log.Debug("Registry address lookup failed", "err", err, "contract id", params.RandomRegistryId)
+		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
 	} else if err != nil {
 		log.Error(err.Error())
 	}

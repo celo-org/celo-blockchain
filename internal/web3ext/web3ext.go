@@ -815,20 +815,16 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'getSnapshotAtHash',
-			call: 'istanbul_getSnapshotAtHash',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'getValidators',
 			call: 'istanbul_getValidators',
 			params: 1,
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'getValidatorsAtHash',
-			call: 'istanbul_getValidatorsAtHash',
-			params: 1
+			name: 'getProposer',
+			call: 'istanbul_getProposer',
+			params: 2,
+			inputFormatter: [null, null]
 		}),
 		new web3._extend.Method({
 			name: 'addProxy',
@@ -843,11 +839,11 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
-		}),		
+		}),				
 		new web3._extend.Property({
-			name: 'proxyInfo',
-			getter: 'istanbul_proxyInfo'
-		}),		
+			name: 'currentRoundState',
+			getter: 'istanbul_getCurrentRoundState',
+		}),				
 	],
 	properties:
 	[

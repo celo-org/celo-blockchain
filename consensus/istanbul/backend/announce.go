@@ -32,7 +32,7 @@ import (
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -103,22 +103,79 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// This function is meant to be run as a goroutine.  It will periodically gossip announce messages
-// to the rest of the registered validators to communicate it's enodeURL to them.
+// ==============================================
+//
+// define the constant, types, and function for the sendAnnounce thread
+
+type AnnounceFrequencyState int
+
+const (
+	// In this state, send out an announce message every 1 minute until the first peer is established
+	HighFreqBeforeFirstPeerState AnnounceFrequencyState = iota
+
+	// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
+	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
+	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
+	HighFreqAfterFirstPeerState
+
+	// In this state, send out an announce message every 10 minutes
+	LowFreqState
+)
+
+const (
+	HighFreqTickerDuration = 1 * time.Minute
+	LowFreqTickerDuration  = 10 * time.Minute
+)
+
+// The sendAnnounce thread function
 func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
-	ticker := time.NewTicker(time.Minute)
+	// Send out an announce message when this thread starts
+	go sb.sendIstAnnounce()
+
+	// Set the initial states
+	announceThreadState := HighFreqBeforeFirstPeerState
+	currentTickerDuration := HighFreqTickerDuration
+	ticker := time.NewTicker(currentTickerDuration)
+	numSentMsgsInHighFreqAfterFirstPeerState := 0
 
 	for {
 		select {
 		case <-sb.newEpochCh:
 			go sb.sendIstAnnounce()
+
 		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeDB dump", "ValidatorEnodeDB", sb.valEnodeTable.String())
+			switch announceThreadState {
+			case HighFreqBeforeFirstPeerState:
+				{
+					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+						announceThreadState = HighFreqAfterFirstPeerState
+					}
+				}
+
+			case HighFreqAfterFirstPeerState:
+				{
+					if numSentMsgsInHighFreqAfterFirstPeerState >= 10 {
+						announceThreadState = LowFreqState
+					}
+					numSentMsgsInHighFreqAfterFirstPeerState += 1
+				}
+
+			case LowFreqState:
+				{
+					if currentTickerDuration != LowFreqTickerDuration {
+						// Reset the ticker
+						currentTickerDuration = LowFreqTickerDuration
+						ticker.Stop()
+						ticker = time.NewTicker(currentTickerDuration)
+					}
+				}
+			}
+
 			go sb.sendIstAnnounce()
+
 		case <-sb.announceQuit:
 			ticker.Stop()
 			return
@@ -254,7 +311,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	var announceData announceData
 	err = rlp.DecodeBytes(msg.Msg, &announceData)
 	if err != nil {
-		logger.Error("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
@@ -276,7 +333,7 @@ func (sb *Backend) handleIstAnnounce(payload []byte) error {
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Warn("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
+		logger.Debug("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
 		return errUnauthorizedAnnounceMessage
 	}
 

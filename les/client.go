@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/consensus"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -56,6 +57,7 @@ type LightEthereum struct {
 	txPool     *light.TxPool
 	blockchain *light.LightChain
 	serverPool *serverPool
+	chainreader *LightChainReader
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -170,6 +172,16 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	}
 
 	leth.ApiBackend = &LesApiBackend{ctx.ExtRPCEnabled(), leth}
+
+	leth.chainreader = &LightChainReader{
+		config:     leth.chainConfig,
+		blockchain: leth.blockchain,
+	}
+
+	// If the engine is istanbul, then inject the blockchain
+	if istanbul, isIstanbul := leth.engine.(*istanbulBackend.Backend); isIstanbul {
+		istanbul.SetChain(leth.chainreader, nil)
+	}	
 	return leth, nil
 }
 

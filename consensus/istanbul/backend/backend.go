@@ -30,6 +30,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
+	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
@@ -39,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -100,20 +102,22 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:               config,
-		istanbulEventMux:     new(event.TypeMux),
-		logger:               logger,
-		db:                   db,
-		commitCh:             make(chan *types.Block, 1),
-		recentSnapshots:      recentSnapshots,
-		coreStarted:          false,
-		recentMessages:       recentMessages,
-		knownMessages:        knownMessages,
-		announceWg:           new(sync.WaitGroup),
-		announceQuit:         make(chan struct{}),
-		lastAnnounceGossiped: make(map[common.Address]*AnnounceGossipTimestamp),
-		valEnodesShareWg:     new(sync.WaitGroup),
-		valEnodesShareQuit:   make(chan struct{}),
+		config:                  config,
+		istanbulEventMux:        new(event.TypeMux),
+		logger:                  logger,
+		db:                      db,
+		commitCh:                make(chan *types.Block, 1),
+		recentSnapshots:         recentSnapshots,
+		coreStarted:             false,
+		recentMessages:          recentMessages,
+		knownMessages:           knownMessages,
+		announceWg:              new(sync.WaitGroup),
+		announceQuit:            make(chan struct{}),
+		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
+		valEnodesShareWg:        new(sync.WaitGroup),
+		valEnodesShareQuit:      make(chan struct{}),
+		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -189,6 +193,11 @@ type Backend struct {
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
+
+	// Metric timer used to record block finalization times.
+	finalizationTimer metrics.Timer
+	// Metric timer used to record epoch reward distribution times.
+	rewardDistributionTimer metrics.Timer
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -249,7 +258,7 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 	return sb.getOrderedValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
-// ParentBlockValidators implements istanbul.Backend.GetParentValidators
+// ParentBlockValidators implements istanbul.Backend.ParentBlockValidators
 func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
 }
@@ -336,9 +345,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 	}
 
 	if len(peers) > 0 {
-		for addr, p := range peers {
+		for nodeID, p := range peers {
 			if !ignoreCache {
-				ms, ok := sb.recentMessages.Get(addr)
+				ms, ok := sb.recentMessages.Get(nodeID)
 				var m *lru.ARCCache
 				if ok {
 					m, _ = ms.(*lru.ARCCache)
@@ -351,9 +360,9 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 				}
 
 				m.Add(hash, true)
-				sb.recentMessages.Add(addr, m)
+				sb.recentMessages.Add(nodeID, m)
 			}
-			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "address", addr)
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "nodeID", nodeID)
 
 			go p.Send(ethMsgCode, payload)
 		}
@@ -621,7 +630,11 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
-			sb.logger.Error("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			if err == comm_errors.ErrRegistryContractNotDeployed {
+				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			} else {
+				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
+			}
 		}
 		valSet.SetRandomness(seed)
 	}

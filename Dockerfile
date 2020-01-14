@@ -6,10 +6,12 @@
 # docker exec -t -i geth_container /bin/sh
 #
 # Once you are satisfied, build the image using
-# TAG is the git commit hash of the geth repo.
-# docker build -f Dockerfile -t gcr.io/celo-testnet/geth:$TAG .
+# export COMMIT_SHA=$(git rev-parse HEAD)
+# docker build -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
+#
 # push the image to the cloud
-# docker push gcr.io/celo-testnet/geth:$TAG
+# docker push gcr.io/celo-testnet/geth:$COMMIT_SHA
+#
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 FROM ubuntu:16.04 as rustbuilder

@@ -19,6 +19,7 @@ package backend
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"reflect"
 	"testing"
@@ -122,7 +123,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 
 	b.SetChain(blockchain, blockchain.CurrentBlock)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(&consensustest.MockP2PServer{})
+	b.SetP2PServer(consensustest.NewMockP2PServer())
 
 	b.Start(blockchain.HasBadBlock,
 		func(parentHash common.Hash) (*state.StateDB, error) {
@@ -278,9 +279,12 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
-	state, _ := chain.StateAt(parent.Root())
+	state, err := chain.StateAt(parent.Root())
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
 	engine.Finalize(chain, header, state, nil, nil)
-	block, _ := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
+	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
 	return block
 }
 
@@ -348,10 +352,14 @@ func TestSealStopChannel(t *testing.T) {
 	}
 }
 
+// TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
+// different block hash, it will abort
 func TestSealCommittedOtherHash(t *testing.T) {
 	chain, engine := newBlockChain(4, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	otherBlock := makeBlockWithoutSeal(chain, engine, block)
+
+	// create a second block which will have a different hash
+	otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
 	eventLoop := func() {
 		ev := <-eventSub.Chan()
@@ -542,6 +550,7 @@ func TestVerifyHeaders(t *testing.T) {
 			b = makeBlockWithoutSeal(chain, engine, blocks[i-1])
 			b, _ = engine.updateBlock(blocks[i-1].Header(), b)
 		}
+
 		blocks = append(blocks, b)
 		headers = append(headers, blocks[i].Header())
 	}
