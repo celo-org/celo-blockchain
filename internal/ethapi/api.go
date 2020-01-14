@@ -808,7 +808,7 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 	if hi == cap {
 		exec, _ := executable(hi)
 		if !exec {
-			return 0, fmt.Errorf("hit hi- gas required exceeds allowance or always failing transaction")
+			return 0, fmt.Errorf("gas required exceeds allowance or always failing transaction")
 		}
 	}
 	return hexutil.Uint64(hi), nil
