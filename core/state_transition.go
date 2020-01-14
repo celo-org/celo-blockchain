@@ -35,14 +35,9 @@ import (
 
 var (
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-<<<<<<< HEAD
-	ErrInsufficientBalanceForFees   = errors.New("insufficient balance to pay for fees")
-	errNonWhitelistedFeeCurrency    = errors.New("non-whitelisted fee currency address")
-=======
 
 	errInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
 	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
->>>>>>> fba8a9d3e689a9317822a4ce498408f8d77cef1b
 )
 
 /*
