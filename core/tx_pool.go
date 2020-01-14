@@ -1215,7 +1215,7 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 
 		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
 		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
-			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance, "gasFee", gasFee)
 			return ErrInsufficientFunds
 		}
 
@@ -1309,7 +1309,7 @@ type txLookup struct {
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-		all:                       make(map[common.Hash]*types.Transaction),
+		all: make(map[common.Hash]*types.Transaction),
 		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
 	}
 }

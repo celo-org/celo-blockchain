@@ -35,8 +35,8 @@ import (
 
 var (
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-	ErrInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
-	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
+	ErrInsufficientBalanceForFees   = errors.New("insufficient balance to pay for fees")
+	errNonWhitelistedFeeCurrency    = errors.New("non-whitelisted fee currency address")
 )
 
 /*
@@ -167,6 +167,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+	log.Trace("payFees called", "feeVal", feeVal, "gas", st.msg.Gas(), "gasPrice", st.gasPrice)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
@@ -178,7 +179,7 @@ func (st *StateTransition) payFees() error {
 		return errNonWhitelistedFeeCurrency
 	}
 
-	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
+	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), st.msg.Value()) {
 		return ErrInsufficientBalanceForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -196,7 +197,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
-	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed, "balanceOf", balanceOf)
 
 	if err != nil {
 		return false
@@ -221,7 +222,7 @@ func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, fe
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
 	gasUsed := params.MaxGasForDebitFromTransactions - leftoverGas
-	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed, "address", address, "amount", amount)
 	return err
 }
 
@@ -246,7 +247,7 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, fee
 }
 
 func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	log.Trace("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
+	log.Debug("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
 	// native currency
 	if feeCurrency == nil {
 		st.state.SubBalance(from, amount)
