@@ -168,7 +168,6 @@ func (st *StateTransition) useGas(amount uint64) error {
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	log.Trace("payFees called", "feeVal", feeVal, "gas", st.msg.Gas(), "gasPrice", st.gasPrice)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
@@ -198,7 +197,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
-	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed, "balanceOf", balanceOf)
+	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
 	if err != nil {
 		return false
@@ -223,7 +222,7 @@ func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, fe
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
 	gasUsed := params.MaxGasForDebitFromTransactions - leftoverGas
-	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed, "address", address, "amount", amount)
+	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -248,7 +247,7 @@ func (st *StateTransition) creditTo(address common.Address, amount *big.Int, fee
 }
 
 func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	log.Debug("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
+	log.Trace("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
 	// native currency
 	if feeCurrency == nil {
 		st.state.SubBalance(from, amount)
