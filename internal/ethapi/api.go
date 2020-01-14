@@ -778,28 +778,37 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 	cap = hi
 
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
+	executable := func(gas uint64) (bool, error) {
 		args.Gas = hexutil.Uint64(gas)
 
 		_, _, failed, err := s.doCall(ctx, args, rpc.PendingBlockNumber, 0)
 		if err != nil || failed {
-			return false
+			return false, err
 		}
-		return true
+		return true, nil
 	}
 	// Execute the binary search and hone in on an executable gas limit
 	for lo+1 < hi {
 		mid := (hi + lo) / 2
-		if !executable(mid) {
-			lo = mid
+		exec, execError := executable(mid)
+		if !exec {
+			log.Debug("Exec error execError", execError)
+			if execError == core.ErrInsufficientBalanceForFees { // Failed because gas too high
+				log.Debug("Failed because gas too high, lowering")
+				hi = mid
+			} else { // Failed because gas too low
+				log.Debug("Failed because gas too low, will increase lo to mid")
+				lo = mid
+			}
 		} else {
 			hi = mid
 		}
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
-		if !executable(hi) {
-			return 0, fmt.Errorf("gas required exceeds allowance or always failing transaction")
+		exec, _ := executable(hi)
+		if !exec {
+			return 0, fmt.Errorf("hit hi- gas required exceeds allowance or always failing transaction")
 		}
 	}
 	return hexutil.Uint64(hi), nil

@@ -35,8 +35,7 @@ import (
 
 var (
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-
-	errInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
+	ErrInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
 	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
 )
 
@@ -180,7 +179,7 @@ func (st *StateTransition) payFees() error {
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
-		return errInsufficientBalanceForFees
+		return ErrInsufficientBalanceForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -318,7 +317,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	err = st.payFees()
 	if err != nil {
-		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
+		// Expected error when called by EstimateGas() for accounts with balance < binary search hi
+		log.Warn("Transaction failed to buy gas. This is expected when invoked by EstimateGas() for accounts with small balances", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
