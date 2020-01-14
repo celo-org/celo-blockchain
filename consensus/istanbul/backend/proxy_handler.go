@@ -58,7 +58,7 @@ func (ps *proxySet) Less(i, j int) bool {
      // We want to sort by number of assigned validators
      numAssignedValsI := len(ps.getAssignedValidators(ps.proxyHeap[i].internalNode.ID()))
      numAssignedValsJ := len(ps.getAssignedValidators(ps.proxyHeap[j].internalNode.ID()))
-     
+
      return numAssignedValsI < numAssignedValsJ
 }
 
@@ -80,7 +80,7 @@ func (ps *proxySet) Pop() interface{} {
      // Pop the last entry of the heap
      heapLen := len(ps.proxyHeap)
      proxy := origHeap[heapLen-1]
-     proxy.index = -1     
+     proxy.index = -1
      ps.proxyHeap = origHeap[0 : heapLen-1]
      return proxy
 }
@@ -224,6 +224,10 @@ func (ph *proxyHandler) Stop() {
 	ph.loopWG.Wait()
 }
 
+func (ph *proxyHandler) GetProxiesForAddresses(map[common.Address]bool) map[common.Address]proxy {
+
+}
+
 func (ph *proxyHandler) run() {
      defer ph.loopWG.Done()
 
@@ -258,7 +262,7 @@ running:
 		    ph.p2pserver.addStatic(proxyNode.InternalFacingNode, p2p.ProxyPurpose)
 		 }
 	     }
-     	 
+
 	 case rmProxyNodes := <-ph.removeProxies:
 	      // Got command to remove proxy nodes.  Disassociate the validators that were assigned to them, remove the proxies from the proxies set, and remove the p2p static connection
 	      for _, proxyNode := range rmProxyNodes {
@@ -278,7 +282,7 @@ running:
 		     ps.removePoxy(proxyID)
 	      	  }
 	      }
-	      
+
 	 case connectedPeer := <-ph.addProxyPeer:
 	      // Proxied peer just connected.  Set the corresponding proxyInfo's peer info and add this peer to the recentlyPeeredProxies set
 	      peerNode := connectedPeer.Node()
@@ -323,7 +327,7 @@ running:
 		     }
 		 }
 	      }
-	      
+
 	      // 4) Send out val_enode_share messages to the proxies
 	      for _, proxy := range ps.getConnectedProxied() {
 	      	  go sb.sendValEnodesShareMsg(proxy.peer, proxy.externalNode, proxy.assignedValidators)

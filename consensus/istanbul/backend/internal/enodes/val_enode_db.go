@@ -252,14 +252,16 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	return common.BytesToAddress(rawEntry), nil
 }
 
+// GetValEnodes will return all validator enodes if valAddresses is nil, otherwise
+// it will return the enodes for validators with addresses found in valAddresses
 func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses map[common.Address]bool) (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var entries = make(map[common.Address]*AddressEntry)
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-	        if valAddresses[address] {
-		   entries[address] = entry
+    	if valAddresses == nil || valAddresses[address] {
+			entries[address] = entry
 		}
 		return nil
 	})
@@ -447,7 +449,7 @@ type ValEnodeEntryInfo struct {
 func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
 	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
 
-	valEnodeTable, err := vet.GetAllValEnodes()
+	valEnodeTable, err := vet.GetValEnodes(nil)
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
 			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{Enode: valEnodeEntry.Node.String(),

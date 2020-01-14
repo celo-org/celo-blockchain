@@ -37,7 +37,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	if entries, err := b.valEnodeTable.GetAllValEnodes(); err != nil {
+	if entries, err := b.valEnodeTable.GetValEnodes(nil); err != nil {
 		t.Errorf("Error in calling GetAllValEndoes: %v", err)
 	} else {
 		if len(entries) > 0 {

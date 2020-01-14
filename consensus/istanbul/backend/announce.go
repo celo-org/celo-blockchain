@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -188,12 +188,12 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
-	        proxiesForAddresses := sb.proxyHandler.GetProxiesForAddresses(regAndActiveVals)
+	    proxiesForAddresses := sb.proxyHandler.GetProxiesForAddresses(regAndActiveVals)
 		if len(proxiesForAddresses) > 0 {
 		   announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
 
 		   for valAddress, proxy := range proxiesForAddresses {
-		       announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.ExternalNode.String())})
+		       announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
 		   }
 		}
 	} else {
@@ -205,7 +205,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	           }
 		}
 	}
-	view := sb.core.CurrentView()
 
 	var msg *istanbul.Message
 	if announceRecords != nil && len(announceRecords) > 0 {

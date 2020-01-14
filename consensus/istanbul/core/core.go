@@ -197,12 +197,6 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 			return types.IstanbulAggregatedSeal{}, err
 		}
 
-		var commit *istanbul.CommittedSubject
-		err = v.Decode(&commit)
-		if err != nil {
-			panic(fmt.Sprintf("couldn't decode committedSubject for address %s", hex.EncodeToString(v.Address[:])))
-		}
-
 		// if the bit was not set, this means we should add this signature to
 		// the batch
 		if newBitmap.Bit(int(valIndex)) == 0 {

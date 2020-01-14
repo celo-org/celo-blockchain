@@ -703,6 +703,7 @@ func (sb *Backend) ConnectToVals() {
 		sb.RefreshValPeers(valset)
 	}
 	return localAddress
+}
 
 func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
 	validatorsSet := make(map[common.Address]bool)
