@@ -459,6 +459,12 @@
 			"revisionTime": "2016-06-18T19:32:21Z"
 		},
 		{
+			"checksumSHA1": "cgD0OFQ5X6JViEyDi7jsTryqgiw=",
+			"path": "github.com/serialx/hashring",
+			"revision": "7706f26af1941a4e865d509c4681eb86c3b62bf8",
+			"revisionTime": "2019-04-25T15:18:19Z"
+		},
+		{
 			"checksumSHA1": "mGbTYZ8dHVTiPTTJu3ktp+84pPI=",
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",

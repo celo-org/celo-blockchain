@@ -248,7 +248,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.ProxyInternalFacingEndpointFlag,
 			utils.ProxiedValidatorAddressFlag,
 			utils.ProxiedFlag,
-			utils.ProxyEnodeURLPairFlag,
+			utils.ProxyEnodeURLPairsFlag,
 		},
 	},
 	{

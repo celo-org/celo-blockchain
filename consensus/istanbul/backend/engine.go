@@ -625,7 +625,8 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	if sb.config.Proxied {
 	   sb.proxyHandler.Start()
 	   if len(sb.config.ProxyNodes) > 0 {
-	      sb.proxyHandler.AddProxies(sb.config.ProxyNodes)
+			// TODO revist this
+	    // sb.proxyHandler.AddProxies(sb.config.ProxyNodes)
 	   }
 	}
 

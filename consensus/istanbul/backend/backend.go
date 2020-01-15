@@ -198,7 +198,9 @@ func (sb *Backend) IsProxy() bool {
 }
 
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.proxyNode != nil && sb.proxyNode.peer != nil
+	// TODO change this
+	return true
+	// return sb.proxyNode != nil && sb.proxyNode.peer != nil
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -209,7 +211,9 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
 	}
-	return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
+	return nil
+	// TODO revisit this
+	// return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
@@ -265,7 +269,9 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 // If this is a proxied validator, then it will return the proxy.
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied {
-	        return sb.proxyHandler.GetProxiedPeers(destAddresses)
+		// TODO revist this
+	    // return sb.proxyHandler.GetProxiedPeers(destAddresses)
+		return nil
 	} else {
 		var targets map[enode.ID]bool = nil
 
@@ -702,7 +708,6 @@ func (sb *Backend) ConnectToVals() {
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.RefreshValPeers(valset)
 	}
-	return localAddress
 }
 
 func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
@@ -712,7 +717,7 @@ func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]b
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == contract_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
+	if err == comm_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
 		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
 	} else if err != nil {
 		sb.logger.Error("Error in retrieving the registered validators", "err", err)

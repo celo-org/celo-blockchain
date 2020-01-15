@@ -116,33 +116,34 @@ func (sb *Backend) generateValEnodesShareMsg(valAddresses map[common.Address]boo
 	return msg, nil
 }
 
+// TODO come back to this
 func (sb *Backend) sendValEnodesShareMsg(proxyPeer consensus.Peer, proxyExternalNode *enode.Node, valAddresses map[common.Address]bool) error {
-	if sb.proxyNode == nil || sb.proxyNode.peer == nil {
-		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
-		return nil
-	}
-
-	msg, err := sb.generateValEnodesShareMsg(proxyNode, valAddresses)
-	if err != nil {
-		return err
-	}
-
-	// Sign the validator enode share message
-	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
-		return err
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		sb.logger.Error("Error in converting Istanbul ValEnodesShare Message to payload", "ValEnodesShareMsg", msg.String(), "err", err)
-		return err
-	}
-
-	sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
-	go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
-
+	// if sb.proxyNode == nil || sb.proxyNode.peer == nil {
+	// 	sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
+	// 	return nil
+	// }
+	//
+	// msg, err := sb.generateValEnodesShareMsg(proxyNode, valAddresses)
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// // Sign the validator enode share message
+	// if err := msg.Sign(sb.Sign); err != nil {
+	// 	sb.logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
+	// 	return err
+	// }
+	//
+	// // Convert to payload
+	// payload, err := msg.Payload()
+	// if err != nil {
+	// 	sb.logger.Error("Error in converting Istanbul ValEnodesShare Message to payload", "ValEnodesShareMsg", msg.String(), "err", err)
+	// 	return err
+	// }
+	//
+	// sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
+	// go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
+	//
 	return nil
 }
 
