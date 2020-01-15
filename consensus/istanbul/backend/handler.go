@@ -260,7 +260,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	// See if the new peer has a more recent persisted announce message set
+	sb.sendGetAnnounceVersions(peer)
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {

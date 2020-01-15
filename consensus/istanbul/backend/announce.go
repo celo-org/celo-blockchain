@@ -355,7 +355,7 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 	defer sb.cachedAnnounceMsgsMu.Unlock()
 	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgTimestamp >= announcePayload.Timestamp {
 		logger.Trace("Received announce message that has older version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgTimestamp)
-		return nil
+		return errOldAnnounceMessage
 	}
 
 	// TODO: Figure out if all nodes should do some more basic sanity checking of the announce message
@@ -364,10 +364,10 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 
 	// If this is a registered or elected validator, then process the announce message
 	var destAddresses = make([]string, 0, len(announcePayload.EncryptedEnodes))
+	var msgHasDupsOrIrrelevantEntries bool = false
 	if sb.coreStarted && regAndActiveVals[sb.Address()] {
 		var node *enode.Node
 		var processedAddresses = make(map[common.Address]bool)
-		var msgHasDupsOrIrrelevantEntries bool = false
 		for _, encryptedEnode := range announcePayload.EncryptedEnodes {
 			// Don't process duplicate entries or entries that are not in the regAndActive valset
 			if !regAndActiveVals[encryptedEnode.DecrypterAddress] || processedAddresses[encryptedEnode.DecrypterAddress] {
@@ -397,19 +397,21 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 		}
 	}
 
-	// Save this announce message
-	sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
-		MsgPayload: payload}
+	if !msgHasDupsOrIrrelevantEntries {
+		// Save this announce message
+		sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
+			MsgPayload: payload}
 
-	// Prune the announce cache for entries that are not in the current registered/elected validator set
-	for cachedValAddress := range sb.cachedAnnounceMsgs {
-		if !regAndActiveVals[cachedValAddress] {
-			delete(sb.cachedAnnounceMsgs, cachedValAddress)
+		// Prune the announce cache for entries that are not in the current registered/elected validator set
+		for cachedValAddress := range sb.cachedAnnounceMsgs {
+			if !regAndActiveVals[cachedValAddress] {
+				delete(sb.cachedAnnounceMsgs, cachedValAddress)
+			}
 		}
-	}
 
-	if err = sb.regossipAnnounce(msg, payload, announcePayload, regAndActiveVals, destAddresses); err != nil {
-		return err
+		if err = sb.regossipAnnounce(msg, payload, announcePayload, regAndActiveVals, destAddresses); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -515,7 +517,7 @@ func (sb *Backend) handleGetAnnounceVersions(peer consensus.Peer) error {
 
 	announceVersionsBytes, err := rlp.EncodeToBytes(announceVersions)
 	if err != nil {
-		logger.Error("Error encoding announce versions array", "AnnounceVersions", common.ConvertToStringSlice(announceVersions), "err", err)
+		logger.Error("Error encoding announce versions array", "AnnounceVersions", announceVersions, "err", err)
 		return err
 	}
 
@@ -563,4 +565,12 @@ func (sb *Backend) handleAnnounceVersions(peer consensus.Peer, data []byte) erro
 	logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest))
 	go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
 	return nil
+}
+
+func (sb *Backend) checkPeersAnnounceVersions() {
+	peers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
+
+	for _, peer := range peers {
+		sb.sendGetAnnounceVersions(peer)
+	}
 }
