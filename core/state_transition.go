@@ -318,8 +318,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	err = st.payFees()
 	if err != nil {
-		// Expected error when called by EstimateGas() for accounts with balance < binary search hi
-		log.Warn("Transaction failed to buy gas. This is expected when invoked by EstimateGas() for accounts with small balances", "err", err, "gas", gas)
+		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, 0, false, err
 	}
 
