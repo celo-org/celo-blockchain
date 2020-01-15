@@ -83,7 +83,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightPeersFlag,
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
-			utils.EtherbaseFlag,
+			utils.ValidatorFlag,
+			utils.TxFeeRecipientFlag,
 		},
 	},
 	{
@@ -258,6 +259,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MinerLegacyGasTargetFlag,
 			utils.MinerLegacyGasPriceFlag,
 			utils.MinerLegacyExtraDataFlag,
+			utils.EtherbaseLegacyFlag,
 		},
 	},
 	{
