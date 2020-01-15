@@ -803,7 +803,7 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 			hi = mid
 		}
 	}
-	// Reject the transaction as invalid if it still fails at the highest allowance
+	// Reject the transaction as invalid if it still runs out of gas at the highest allowance
 	if hi == cap {
 		exec, _ := executable(hi)
 		if !exec {
