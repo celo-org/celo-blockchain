@@ -74,6 +74,8 @@ func (a ValidatorsDataByAddress) Less(i, j int) bool {
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
+	fmt.Stringer
+
 	// Sets the randomness for use in the proposer policy.
 	// This is injected into the ValidatorSet when we call `getOrderedValidators`
 	SetRandomness(seed common.Hash)

@@ -153,14 +153,7 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 }
 
 func (s *Snapshot) validators() []istanbul.ValidatorData {
-	validators := make([]istanbul.ValidatorData, 0, s.ValSet.Size())
-	for _, validator := range s.ValSet.List() {
-		validators = append(validators, istanbul.ValidatorData{
-			Address:      validator.Address(),
-			BLSPublicKey: validator.BLSPublicKey(),
-		})
-	}
-	return validators
+	return validator.MapValidatorsToData(s.ValSet.List())
 }
 
 type snapshotJSON struct {

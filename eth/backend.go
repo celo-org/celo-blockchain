@@ -525,9 +525,16 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without blsbase", "err", err)
 			return fmt.Errorf("blsbase missing: %v", err)
 		}
-		clique, isClique := s.engine.(*clique.Clique)
-		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
-		if isIstanbul || isClique {
+		if clique, isClique := s.engine.(*clique.Clique); isClique {
+			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			if wallet == nil || err != nil {
+				log.Error("Etherbase account unavailable locally", "err", err)
+				return fmt.Errorf("signer missing: %v", err)
+			}
+			clique.Authorize(eb, wallet.SignData)
+		}
+
+		if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
@@ -538,13 +545,9 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("BLSbase account unavailable locally", "err", err)
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
-			if isClique {
-				clique.Authorize(eb, wallet.SignData)
-			}
-			if isIstanbul {
-				istanbul.Authorize(eb, wallet.SignData, blswallet.SignHashBLS, blswallet.SignMessageBLS)
-			}
+			istanbul.Authorize(eb, wallet.SignData, blswallet.SignHashBLS, blswallet.SignMessageBLS)
 		}
+
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.
 		atomic.StoreUint32(&s.protocolManager.acceptTxs, 1)

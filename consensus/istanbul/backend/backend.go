@@ -36,7 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -552,10 +551,9 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	if sb.signFn == nil {
 		return nil, errInvalidSigningFn
 	}
-	hashData := crypto.Keccak256(data)
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, hashData)
+	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, data)
 }
 
 func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
