@@ -792,12 +792,11 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 		mid := (hi + lo) / 2
 		exec, execError := executable(mid)
 		if !exec {
-			log.Debug("Exec error", "execError", execError)
-			if execError == vm.ErrOutOfGas {
-				log.Debug("Failed because gas too low, will increase lo to mid", "gas", mid, "err", execError)
+			if execError == vm.ErrOutOfGas { // Not enough gas
+				log.Debug("Ran out of gas, will increase lo to mid", "gas", mid)
 				lo = mid
-			} else {
-				log.Debug("Failed because gas too high, lowering", "gas", mid, "err", execError)
+			} else { // Gas too high
+				log.Debug("Failed because gas too high, lowering hi to mid", "gas", mid)
 				hi = mid
 			}
 		} else {
