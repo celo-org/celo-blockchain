@@ -114,6 +114,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceWg:              new(sync.WaitGroup),
 		announceQuit:            make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
+		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
 		valEnodesShareWg:        new(sync.WaitGroup),
 		valEnodesShareQuit:      make(chan struct{}),
 		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
@@ -180,6 +181,10 @@ type Backend struct {
 
 	announceWg   *sync.WaitGroup
 	announceQuit chan struct{}
+
+	// Map of the received announce message where key is originating address and value is the msg byte array
+	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
+	cachedAnnounceMsgsMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
@@ -734,4 +739,32 @@ func (sb *Backend) ConnectToVals() {
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.RefreshValPeers(valset)
 	}
+}
+
+func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
+	validatorsSet := make(map[common.Address]bool)
+
+	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(nil, nil)
+
+	// The validator contract may not be deployed yet.
+	// Even if it is deployed, it may not have any registered validators yet.
+	if err == comm_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
+		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
+	} else if err != nil {
+		sb.logger.Error("Error in retrieving the registered validators", "err", err)
+		return validatorsSet, err
+	}
+
+	for _, address := range registeredValidators {
+		validatorsSet[address] = true
+	}
+
+	// Add active validators regardless
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	for _, val := range valSet.List() {
+		validatorsSet[val.Address()] = true
+	}
+
+	return validatorsSet, nil
 }

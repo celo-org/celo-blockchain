@@ -620,7 +620,7 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 
 	sb.coreStarted = true
 
-	go sb.sendAnnounceMsgs()
+	go sb.announceThread()
 
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {

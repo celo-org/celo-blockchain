@@ -31,10 +31,10 @@ import (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg           = 0x11
-	istanbulGetAnnouncesMsg        = 0x12
+	istanbulConsensusMsg    = 0x11
+	istanbulGetAnnouncesMsg = 0x12
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg           = 0x13
+	istanbulAnnounceMsg            = 0x13
 	istanbulGetAnnounceVersionsMsg = 0x14
 	istanbulAnnounceVersionsMsg    = 0x15
 	istanbulValEnodesShareMsg      = 0x16
@@ -118,7 +118,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
 		} else if msg.Code == istanbulAnnounceMsg {
-			go sb.handleIstAnnounce(data)
+			go sb.handleAnnounce(data)
 		} else if msg.Code == istanbulValEnodesShareMsg {
 			go sb.handleValEnodesShareMsg(data)
 		}
@@ -248,6 +248,8 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
 	//        registered with the proxy, and verify that all newly connected proxied peer has
 	//        the correct node key
+
+	// Check to see if this connecting peer if a proxied validator
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
@@ -257,6 +259,8 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
 		}
 	}
+
+	// See if the new peer has a more recent persisted announce message set
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
