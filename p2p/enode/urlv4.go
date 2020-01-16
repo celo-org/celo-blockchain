@@ -99,6 +99,7 @@ func NewV4(pubkey *ecdsa.PublicKey, ip net.IP, tcp, udp int) *Node {
 }
 
 func parseComplete(rawurl string) (*Node, error) {
+	fmt.Printf("rawURL %s\n", rawurl)
 	var (
 		id               *ecdsa.PublicKey
 		ip               net.IP

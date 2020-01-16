@@ -1273,7 +1273,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			proxyEnodeURLPairs := strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
 			// TODO - Check that each pair has 2 enode urls
 
-			ethCfg.Istanbul.ProxyNodes = make([]istanbul.ProxyNodes, 0, len(proxyEnodeURLPairs))
+			ethCfg.Istanbul.ProxyNodes = make([]*istanbul.ProxyNodes, len(proxyEnodeURLPairs))
 
 			for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
 			    var err error
@@ -1285,7 +1285,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 
 				proxyInternalFacingNode, err := enode.ParseV4(proxyEnodeURLPair[0])
 			    if err != nil {
-					Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
+					Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0],  err)
 			    }
 
 				proxyExternalFacingNode, err := enode.ParseV4(proxyEnodeURLPair[1])
@@ -1293,13 +1293,13 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 					Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
 			    }
 
-
+				// TODO use this again!!!!!
 				// Check that external IP is not a private IP address.
-				if proxyExternalFacingNode.IsPrivateIP() {
+				if false && proxyExternalFacingNode.IsPrivateIP() {
 					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyExternalFacingNode)
 				}
 
-			    ethCfg.Istanbul.ProxyNodes[i] = istanbul.ProxyNodes{InternalFacingNode: proxyInternalFacingNode, ExternalFacingNode: proxyExternalFacingNode}
+			    ethCfg.Istanbul.ProxyNodes[i] = &istanbul.ProxyNodes{InternalFacingNode: proxyInternalFacingNode, ExternalFacingNode: proxyExternalFacingNode}
 			}
 		}
 

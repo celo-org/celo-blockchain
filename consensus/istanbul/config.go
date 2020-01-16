@@ -52,7 +52,7 @@ type Config struct {
 
 	// Proxied Validator Configs
 	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyNodes              []ProxyNodes `toml:",omitempty"` // The set of proxy internal and external facing nodes for this proxied validator 
+	ProxyNodes              []*ProxyNodes `toml:",omitempty"` // The set of proxy internal and external facing nodes for this proxied validator
 }
 
 var DefaultConfig = &Config{

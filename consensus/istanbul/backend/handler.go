@@ -199,6 +199,9 @@ func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 // SetP2PServer implements consensus.Handler.SetP2PServer
 func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
+	if sb.proxyHandler != nil {
+		sb.proxyHandler.setP2PServer(p2pserver)
+	}
 }
 
 // This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
@@ -247,8 +250,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
-		// TODO revist this
-	    // sb.proxyHandler.AddProxyPeer(peer)
+	    sb.proxyHandler.addProxyPeer <- peer
 	}
 }
 
@@ -256,7 +258,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
 	} else if sb.config.Proxied {
-		// TODO revist this
-	    // sb.proxyHandler.RemoveProxyPeer(peer)
+		// TODO need to test this
+	    sb.proxyHandler.delProxyPeer <- peer
 	}
 }

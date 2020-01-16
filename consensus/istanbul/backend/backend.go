@@ -120,7 +120,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.valEnodeTable = table
 
 	if backend.config.Proxied {
-	   backend.proxyHandler = &proxyHandler{}
+	   backend.proxyHandler = &proxyHandler{
+		   sb: backend,
+	   }
 	}
 
 	return backend
