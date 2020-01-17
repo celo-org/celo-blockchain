@@ -83,7 +83,7 @@ func (ps *proxySet) removeProxy(proxyID enode.ID) {
 }
 
 func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) {
-	if ps.proxiesByID[proxyID] != nil && ps.proxiesByID[proxyID].peer == nil {
+	if ps.proxiesByID[proxyID] != nil {
 		ps.proxiesByID[proxyID].peer = peer
 	}
 	log.Warn("after:", "ps.proxiesByID[proxyID]", ps.proxiesByID[proxyID])
@@ -254,7 +254,7 @@ func (va *valAssignments) disassociateValidator(valAddress common.Address) {
 	proxyID := va.valToProxy[valAddress]
 
 	if proxyID != nil {
-		va.valToProxy = nil
+		va.valToProxy[valAddress] = nil
 		delete(va.proxyToVals[*proxyID], valAddress)
 
 		if len(va.proxyToVals[*proxyID]) == 0 {

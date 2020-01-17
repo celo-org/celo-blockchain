@@ -133,7 +133,7 @@ func (api *API) AddProxy(internalUrl, externalUrl string) (bool, error) {
 	}
 
 	// err = api.istanbul.addProxy(node, externalNode)
-	return true, err
+	return true, nil
 }
 
 // RemoveProxy removes a node from acting as a proxy
