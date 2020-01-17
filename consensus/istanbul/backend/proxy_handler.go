@@ -97,7 +97,6 @@ func (ps *proxySet) removeProxyPeer(proxyID enode.ID) {
 }
 
 func (ps *proxySet) addValidators(validators map[common.Address]bool) {
-	log.Warn("like cmon")
 	ps.valAssigner.addValidators(validators)
 }
 
@@ -105,8 +104,21 @@ func (ps *proxySet) removeValidators(validators map[common.Address]bool) {
 	ps.valAssigner.removeValidators(validators)
 }
 
-func (ps *proxySet) getDisconnectedProxies(minAge time.Duration) []*enode.Node {
-	return nil
+// GetNonPeeredProxies returns proxies that are not peered with and were added
+// as a proxy at least minAge ago
+func (ps *proxySet) getNonPeeredProxyNodes(minAge time.Duration) []*enode.Node {
+	var nonPeeredProxies []*enode.Node
+	for _, proxy := range ps.proxiesByID {
+		if proxy.peer == nil && time.Now().Sub(proxy.addTimestamp) >= minAge {
+			nonPeeredProxies = append(nonPeeredProxies, proxy.internalNode)
+		}
+	}
+	return nonPeeredProxies
+}
+
+// getProxyValidators returns the validators that a proxy is assigned to
+func (ps *proxySet) getProxyValidators(proxyID enode.ID) map[common.Address]bool {
+	return ps.valAssigner.getValAssignments().getAssignedValidatorsForProxy(proxyID)
 }
 
 // func (ps *proxySet) proxyAssignmentChanged(proxyID enode.ID) {
@@ -130,6 +142,8 @@ type assignmentPolicy interface {
 
 	addValidators(map[common.Address]bool)
 	removeValidators(map[common.Address]bool)
+
+	reassignValidators()
     //
     // addValidator() valAssignments
     // removeValidator() valAssignments
@@ -166,7 +180,6 @@ func (ch *consistentHashingPolicy) removeProxy(proxy *proxy) {
 }
 
 func (ch *consistentHashingPolicy) addValidators(vals map[common.Address]bool) {
-	log.Warn("dood")
 	ch.valAssignments.addValidators(vals)
 	ch.reassignValidators()
 }
@@ -248,6 +261,15 @@ func (va *valAssignments) disassociateValidator(valAddress common.Address) {
 			delete(va.proxyToVals, *proxyID)
 		}
 	}
+}
+
+func (va *valAssignments) getValidators() map[common.Address]bool {
+	vals := make(map[common.Address]bool)
+
+	for val := range va.valToProxy {
+		vals[val] = true
+	}
+	return vals
 }
 
 // This struct defines the handler that will manage all of the proxies and
@@ -414,6 +436,7 @@ running:
 
 		case <-phEpochTicker.C:
 			log.Info("PH Epoch ticker", "valAssignments", ps.valAssigner.getValAssignments(), "proxiesByID", ps.proxiesByID)
+
 			// At every proxy handler epoch, do the following
 			// 1) Check for validator changes
 			// 2) Kick out proxy nodes that haven't connected within 60 seconds of when it was added.
@@ -422,16 +445,28 @@ running:
 			// 5) Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 
 			// 1) Check for validator changes
-			// ph.checkForActiveRegValChanges(validators, ps)
+			validatorsKnownByProxies := ps.valAssigner.getValAssignments().getValidators()
+			log.Info("Current vals", "vals", validatorsKnownByProxies)
+
+			newVals, rmVals, err := ph.checkForActiveRegValChanges(validatorsKnownByProxies)
+			log.Warn("checkForActiveRegValChanges", "newVals", newVals, "rmVals", rmVals, "err", err)
+			// It's okay if this fails
+			if err != nil {
+				log.Warn("Error checking for active registered validator changes", "err", err)
+			} else {
+				ps.addValidators(newVals)
+				ps.removeValidators(rmVals)
+			}
 
 			// 2) Kick out proxy nodes that haven't connected within 60 seconds of when it was added.
-			// disconnectedProxies := ps.GetDisconnectedProxies(time.Minute)
-			// if disconnectedProxies != nil && len(disconnectedProxies) > 0 {
-			// 	log.Info("Disconnecting proxies", "proxies", disconnectedProxies)
-			// 	ph.removeProxies <- disconnectedProxies
-			// }
+			nonPeeredProxies := ps.getNonPeeredProxyNodes(time.Minute)
+			if nonPeeredProxies != nil && len(nonPeeredProxies) > 0 {
+				log.Info("Non peered proxies", "proxies", nonPeeredProxies)
+				ph.removeProxies <- nonPeeredProxies
+			}
 
 			// 3) Redistribute unassigned validators to ready peers and existing peers.
+			ps.valAssigner.reassignValidators()
 			// if ps.hasConnectedProxies() {
 			// 	for val, proxyID := range validators {
 			// 		if proxyID == nil {
@@ -441,9 +476,13 @@ running:
 			// }
 
 			// 4) Send out val_enode_share messages to the proxies
-			// for _, proxy := range ps.getConnectedProxied() {
-			// 	go sb.sendValEnodesShareMsg(proxy.peer, proxy.externalNode, proxy.assignedValidators)
-			// }
+			for _, proxy := range ps.proxiesByID {
+				if proxy.peer != nil {
+					assignedValidators := ps.getProxyValidators(proxy.ID())
+					log.Warn("Hey we're sending out a val enode sharm msg", "proxy.ID()", proxy.ID(), "proxy", proxy, "assignedValidators", assignedValidators)
+					go ph.sb.sendValEnodesShareMsg(proxy.peer, proxy.externalNode, assignedValidators)
+				}
+			}
 
 			// 5) Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 		}

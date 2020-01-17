@@ -271,6 +271,8 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses map[common.Address]bool) 
 		return nil, err
 	}
 
+	vet.logger.Warn("GetValEnodes", "valAddresses", valAddresses, "entries", entries)
+
 	return entries, nil
 }
 
