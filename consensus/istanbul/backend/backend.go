@@ -268,12 +268,16 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // This function will return the peers with the addresses in the "destAddresses" parameter.
-// If this is a proxied validator, then it will return the proxy.
+// If this is a proxied validator, then it will return the proxy
+// If destAddresses is nil, all peers are returned
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied {
+		// TODO rename this to be more similar to `getPeersForMessage`
+		return sb.proxyHandler.getProxyPeersForAddresses(destAddresses)
+		// return b.proxyHandler.proxySet.proxiesByID
 		// TODO revist this
 	    // return sb.proxyHandler.GetProxiedPeers(destAddresses)
-		return nil
+		// return nil
 	} else {
 		var targets map[enode.ID]bool = nil
 
@@ -285,6 +289,7 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 				}
 			}
 		}
+		log.Warn("In getPeersForMessage", "targets??", targets, "destAddresses", destAddresses)
 		return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 	}
 }
@@ -330,7 +335,11 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 		ethMsgCode = istanbulFwdMsg
 	}
 
+	sb.logger.Warn("Gossiping to destAddresses", "destaddresses", destAddresses, "ethMsgCode", ethMsgCode)
+
 	peers := sb.getPeersForMessage(destAddresses)
+
+	sb.logger.Warn("Gossiping to peers", "peers", peers)
 
 	var hash common.Hash
 	if !ignoreCache {

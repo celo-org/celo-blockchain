@@ -191,7 +191,8 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
-	    proxiesForAddresses := sb.proxyHandler.GetProxiesForAddresses(regAndActiveVals)
+		// var proxiesForAddresses map[common.Address]*proxy
+	    proxiesForAddresses := sb.proxyHandler.getProxiesForAddresses(regAndActiveVals)
 		if len(proxiesForAddresses) > 0 {
 			announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
 
@@ -227,7 +228,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		   return nil, err
 		}
 
-		msg := &istanbul.Message{
+		msg = &istanbul.Message{
 			Code:      istanbulAnnounceMsg,
 			Msg:       announceBytes,
 			Address:   sb.Address(),
@@ -244,6 +245,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 
 func (sb *Backend) sendIstAnnounce() error {
 	istMsg, err := sb.generateIstAnnounce()
+	sb.logger.Warn("sendIstAnnounce()", "istMsg", istMsg, "err", err)
 	if err != nil {
 		return err
 	}
