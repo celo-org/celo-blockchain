@@ -2,7 +2,7 @@ version: 2
 
 geth-defaults: &geth-defaults
   docker:
-    - image: circleci/golang:1.12
+    - image: circleci/golang:1.11
 
 rust-defaults: &rust-defaults
   docker:
