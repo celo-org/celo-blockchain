@@ -112,6 +112,8 @@ jobs:
             - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_snark.a
 
   publish-mobile:
+    docker:
+      - image: celohq/node10-gcloud
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
