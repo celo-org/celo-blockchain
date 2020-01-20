@@ -36,7 +36,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = valSet.GetByIndex(2).Address()
 
 	// Handle val1's announce message
-	if err = b.handleAnnounce(payload); err != nil {
+	if err = b.handleAnnounceMsg(nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

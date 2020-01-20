@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/log"
@@ -169,7 +170,7 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
+func (sb *Backend) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)

@@ -129,6 +129,14 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = table
 
+	// Set the handler functions for each istanbul message type
+	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
+	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnouncesMsg] = backend.handleGetAnnouncesMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
+
 	return backend
 }
 
@@ -203,6 +211,8 @@ type Backend struct {
 	finalizationTimer metrics.Timer
 	// Metric timer used to record epoch reward distribution times.
 	rewardDistributionTimer metrics.Timer
+
+	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -300,28 +310,16 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 	}
 }
 
-// Broadcast implements istanbul.Backend.BroadcastConsensusMsg
+// BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
+// This function will first determine if it's a proxied validator (which it will then wrap in a fwdMessage)
+// and then multicast this message to other validators as well as send it to self.
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
-	// send to others
-	if err := sb.Gossip(destAddresses, payload, istanbulConsensusMsg, false); err != nil {
-		return err
-	}
-
-	// send to self
-	msg := istanbul.MessageEvent{
-		Payload: payload,
-	}
-	go sb.istanbulEventMux.Post(msg)
-	return nil
-}
-
-// Gossip implements istanbul.Backend.Gossip
-func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error {
-	// If this is a proxied validator and it wants to send a consensus message,
-	// wrap the consensus message in a forward message.
-	if sb.config.Proxied && ethMsgCode == istanbulConsensusMsg {
+	payloadForOtherValidators := payload
+	var ethMsgCode uint64 = istanbulConsensusMsg
+	if sb.config.Proxied {
+		// Convert the message to a fwdMessage
 		var err error
 
 		fwdMessage := &istanbul.ForwardMessage{DestAddresses: destAddresses, Msg: payload}
@@ -333,7 +331,7 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 
 		// Note that we are not signing message.  The message that is being wrapped is already signed.
 		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
-		payload, err = msg.Payload()
+		payloadForOtherValidators, err = msg.Payload()
 		if err != nil {
 			return err
 		}
@@ -341,17 +339,38 @@ func (sb *Backend) Gossip(destAddresses []common.Address, payload []byte, ethMsg
 		ethMsgCode = istanbulFwdMsg
 	}
 
+	// send to others
+	if err := sb.Multicast(destAddresses, payloadForOtherValidators, ethMsgCode); err != nil {
+		return err
+	}
+
+	// send to self.
+	msg := istanbul.MessageEvent{
+		Payload: payload,
+	}
+	go sb.istanbulEventMux.Post(msg)
+	return nil
+}
+
+// Multicast implements istanbul.Backend.Multicast
+// Multicast will send the eth message (with the message's payload and msgCode field set to the params
+// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+// If the destAddresses param is set to nil, then this function will send the message to all connected
+// peers.
+func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
+	// Get peers to send.
 	peers := sb.getPeersForMessage(destAddresses)
 
+	// Only cache for the announceMsg, as that is the only message that is gossiped.
 	var hash common.Hash
-	if !ignoreCache {
+	if ethMsgCode == istanbulAnnounceMsg {
 		hash = istanbul.RLPHash(payload)
 		sb.knownMessages.Add(hash, true)
 	}
 
 	if len(peers) > 0 {
 		for nodeID, p := range peers {
-			if !ignoreCache {
+			if ethMsgCode == istanbulAnnounceMsg {
 				ms, ok := sb.recentMessages.Get(nodeID)
 				var m *lru.ARCCache
 				if ok {

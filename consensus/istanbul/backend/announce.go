@@ -54,8 +54,8 @@ const (
 )
 
 const (
-	HighFreqTickerDuration = 1 * time.Minute
-	LowFreqTickerDuration  = 10 * time.Minute
+	HighFreqTickerDuration = 1 * time.Hour
+	LowFreqTickerDuration  = 10 * time.Hour
 )
 
 // The announceThread thread function
@@ -209,11 +209,11 @@ func (sb *Backend) sendGetAnnounces(peer consensus.Peer, valAddresses []common.A
 
 // This function will reply from a GetAnnounce message.  It will retrieve the requested announce messages
 // from it's announceMsgCache.
-func (sb *Backend) handleGetAnnounces(peer consensus.Peer, data []byte) error {
-	logger := sb.logger.New("func", "handleGetAnnounces")
+func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleGetAnnouncesMsg")
 	var valAddresses []common.Address
 
-	if err := rlp.DecodeBytes(data, &valAddresses); err != nil {
+	if err := rlp.DecodeBytes(payload, &valAddresses); err != nil {
 		logger.Error("Error in decoding valAddresses", "err", err)
 		return err
 	}
@@ -222,9 +222,9 @@ func (sb *Backend) handleGetAnnounces(peer consensus.Peer, data []byte) error {
 	defer sb.cachedAnnounceMsgsMu.RUnlock()
 	// TODO:  Add support for the AnnounceMsg to contain multiple announce messages within it's payload
 	for _, valAddress := range valAddresses {
-		if payload, ok := sb.cachedAnnounceMsgs[valAddress]; ok {
+		if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[valAddress]; ok {
 			logger.Trace("Sending announce msg", "peer", peer, "valAddress", valAddress)
-			go peer.Send(istanbulAnnounceMsg, payload)
+			go peer.Send(istanbulAnnounceMsg, cachedAnnounceMsgEntry.MsgPayload)
 		}
 	}
 
@@ -234,8 +234,16 @@ func (sb *Backend) handleGetAnnounces(peer consensus.Peer, data []byte) error {
 // This function will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
 // which should then gossip the announce msg message throughout the p2p network (since this announce msg's timestamp should be the latest among all of this
 // validator's previous announce msgs).
+// Note that ANY node with the command line option --mine enabled, will send an announce message.  Ideally, only registered or elected validators should
+// send this message.  However, this gossip message is infrequently sent (once an hour), and the time between registration and the first announce message
+// could be up to 1 hour.  At each epoch transition, nodes will exchange their announceVersions, and if this node is now registered or elected, then
+// this node's enode will be gossiped throughout the network.
+// Ideally, this node should listen for registration smart contract events and send out the gossip message then (and stop gossiping
+// once an hour on unregistration event).  Note that when a non registered/elected validators sends a gossip message, it's neighbors will not regossip
+// those messages.
 func (sb *Backend) gossipAnnounce() error {
 	logger := sb.logger.New("func", "gossipAnnounce")
+	logger.Trace("gossipAnnounce called")
 	istMsg, err := sb.generateAnnounce()
 	if err != nil {
 		return err
@@ -258,7 +266,11 @@ func (sb *Backend) gossipAnnounce() error {
 		return err
 	}
 
-	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+	sb.Multicast(nil, payload, istanbulAnnounceMsg)
+	var announcePayload valEncryptedEnodes
+	rlp.DecodeBytes(istMsg.Msg, &announcePayload)
+	sb.cachedAnnounceMsgs[announcePayload.ValAddress] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
+		MsgPayload: payload}
 
 	return nil
 }
@@ -317,8 +329,8 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 }
 
 // This function will handle an announce message.
-func (sb *Backend) handleAnnounce(payload []byte) error {
-	logger := sb.logger.New("func", "handleAnnounce")
+func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleAnnounceMsg")
 
 	msg := new(istanbul.Message)
 
@@ -330,14 +342,14 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 	}
 	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
-	// If the message is not within the registered validator set, then ignore it
+	// Check if the sender is within the registered/elected valset
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
 		return err
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Debug("Received an IstanbulAnnounce message from a non registered validator. Ignoring it.", "AnnounceMsg", msg.String(), "err", err)
+		logger.Debug("Received a message from a non registered/elected validator. Ignoring it.", "sender", msg.Address)
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -354,7 +366,7 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 	sb.cachedAnnounceMsgsMu.Lock()
 	defer sb.cachedAnnounceMsgsMu.Unlock()
 	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgTimestamp >= announcePayload.Timestamp {
-		logger.Trace("Received announce message that has older version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgTimestamp)
+		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgTimestamp)
 		return errOldAnnounceMessage
 	}
 
@@ -398,7 +410,7 @@ func (sb *Backend) handleAnnounce(payload []byte) error {
 	}
 
 	if !msgHasDupsOrIrrelevantEntries {
-		// Save this announce message
+		// Cache this announce message
 		sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
 			MsgPayload: payload}
 
@@ -438,7 +450,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, annou
 	sb.lastAnnounceGossipedMu.RUnlock()
 
 	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
-	sb.Gossip(nil, payload, istanbulAnnounceMsg, true)
+	sb.Multicast(nil, payload, istanbulAnnounceMsg)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
@@ -496,20 +508,21 @@ func (av *announceVersion) String() string {
 
 // This function will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
 func (sb *Backend) sendGetAnnounceVersions(peer consensus.Peer) {
-	sb.logger.Trace("sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
+	sb.logger.Trace("Sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
 	go peer.Send(istanbulGetAnnounceVersionsMsg, []byte{})
 }
 
 // This function will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
 // all of this node's cached announce msgs' version.
-func (sb *Backend) handleGetAnnounceVersions(peer consensus.Peer) error {
-	logger := sb.logger.New("func", "handleGetAnnounceVersions")
+func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleGetAnnounceVersionsMsg", "peer", peer)
+
+	logger.Trace("Handling a GetAnnounceVersions message")
+
 	sb.cachedAnnounceMsgsMu.RLock()
 	defer sb.cachedAnnounceMsgsMu.RUnlock()
 
-	logger.Trace("Got a GetAnnounceVersions message", "peer", peer)
-
-	announceVersions := make([]*announceVersion, len(sb.cachedAnnounceMsgs), 0)
+	announceVersions := make([]*announceVersion, 0, len(sb.cachedAnnounceMsgs))
 
 	for valAddress, cachedAnnounceEntry := range sb.cachedAnnounceMsgs {
 		announceVersions = append(announceVersions, &announceVersion{ValAddress: valAddress, AnnounceMsgTimestamp: cachedAnnounceEntry.MsgTimestamp})
@@ -521,7 +534,7 @@ func (sb *Backend) handleGetAnnounceVersions(peer consensus.Peer) error {
 		return err
 	}
 
-	logger.Trace("Going to send a AnnounceVersions message", "announceVersions", announceVersions)
+	logger.Trace("Sending an AnnounceVersions message", "announceVersions", announceVersions, "peer", peer)
 	go peer.Send(istanbulAnnounceVersionsMsg, announceVersionsBytes)
 
 	return nil
@@ -530,15 +543,17 @@ func (sb *Backend) handleGetAnnounceVersions(peer consensus.Peer) error {
 // This function will handle a received AnnounceVersions message.
 // Specifically, this node will compare the received version set with it's own,
 // and request announce messages that have a higher version that it's own.
-func (sb *Backend) handleAnnounceVersions(peer consensus.Peer, data []byte) error {
-	logger := sb.logger.New("func", "handleAnnounceVersions")
+func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleAnnounceVersionsMsg", "peer", peer)
 	var announceVersions []announceVersion
 
-	if err := rlp.DecodeBytes(data, &announceVersions); err != nil {
+	if err := rlp.DecodeBytes(payload, &announceVersions); err != nil {
 		logger.Error("Error in decoding announce versions array", "err", err)
 	}
 
-	// If the message is not within the registered validator set, then ignore it
+	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
+
+	// If the announce's valAddress is not within the registered validator set, then ignore it
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
 		return err
@@ -548,6 +563,7 @@ func (sb *Backend) handleAnnounceVersions(peer consensus.Peer, data []byte) erro
 	for _, announceVersion := range announceVersions {
 		// Ignore this announceVersion entry if it's val address is not in the current registered or elected valset.
 		if !regAndActiveVals[announceVersion.ValAddress] {
+			logger.Trace("Ignoring announceVersion since it's not in active/elected valset", "valAddress", announceVersion.ValAddress)
 			continue
 		}
 
@@ -556,14 +572,18 @@ func (sb *Backend) handleAnnounceVersions(peer consensus.Peer, data []byte) erro
 		}
 	}
 
-	announcesToRequestBytes, err := rlp.EncodeToBytes(announcesToRequest)
-	if err != nil {
-		logger.Error("Error encoding announce to request array", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "err", err)
-		return err
+	if len(announcesToRequest) > 0 {
+		announcesToRequestBytes, err := rlp.EncodeToBytes(announcesToRequest)
+		if err != nil {
+			logger.Error("Error encoding announce to request array", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "err", err)
+			return err
+		}
+
+		logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "peer", peer)
+
+		go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
 	}
 
-	logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest))
-	go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
 	return nil
 }
 
