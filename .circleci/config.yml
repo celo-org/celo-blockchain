@@ -96,6 +96,7 @@ jobs:
           command: |
             set -euo pipefail
             curl https://sh.rustup.rs -sSf | sh -s -- -y
+            export PATH=$PATH:$HOME/.cargo/bin
             rustup install 1.37.0
             rustup default 1.37.0
       - run:
