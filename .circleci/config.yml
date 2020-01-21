@@ -117,7 +117,7 @@ jobs:
 
   publish-mobile:
     docker:
-      - image: celohq/node10-gcloud
+      - image: circleci/node:10
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
