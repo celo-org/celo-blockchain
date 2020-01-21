@@ -65,7 +65,9 @@ jobs:
   android:
     docker:
       - image: celohq/android-client
-        user: circleci
+        user: root
+        environment:
+          HOME: /home/circleci
     working_directory: ~/repos/geth
     steps:
       - checkout
