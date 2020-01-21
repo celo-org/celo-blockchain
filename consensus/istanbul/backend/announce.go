@@ -54,8 +54,8 @@ const (
 )
 
 const (
-	HighFreqTickerDuration = 1 * time.Hour
-	LowFreqTickerDuration  = 10 * time.Hour
+	HighFreqTickerDuration = 1 * time.Minute
+	LowFreqTickerDuration  = 1 * time.Hour
 )
 
 // The announceThread thread function
@@ -266,11 +266,22 @@ func (sb *Backend) gossipAnnounce() error {
 		return err
 	}
 
-	sb.Multicast(nil, payload, istanbulAnnounceMsg)
+	// Add the generated announce message to this node's cache
 	var announcePayload valEncryptedEnodes
 	rlp.DecodeBytes(istMsg.Msg, &announcePayload)
 	sb.cachedAnnounceMsgs[announcePayload.ValAddress] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
 		MsgPayload: payload}
+
+	// Multicast the announce if this node is a registered/elected validator
+	// If the message is not within the registered validator set, then ignore it
+	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	if err != nil {
+		return err
+	}
+
+	if regAndActiveVals[sb.Address()] {
+		sb.Multicast(nil, payload, istanbulAnnounceMsg)
+	}
 
 	return nil
 }
@@ -369,10 +380,6 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgTimestamp)
 		return errOldAnnounceMessage
 	}
-
-	// TODO: Figure out if all nodes should do some more basic sanity checking of the announce message
-
-	// TODO: The valEnodeDB is going to be a subset of the announce msg cache data.  Figure out if they should be combined in any way.
 
 	// If this is a registered or elected validator, then process the announce message
 	var destAddresses = make([]string, 0, len(announcePayload.EncryptedEnodes))
