@@ -191,13 +191,12 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
-		// var proxiesForAddresses map[common.Address]*proxy
-	    proxiesForAddresses := sb.proxyHandler.getValidatorProxies(regAndActiveVals)
-		sb.logger.Warn("generateIstAnnounce", "proxiedForAddresses", proxiesForAddresses, "regAndActiveVals", regAndActiveVals)
+	    proxiesForValidators := sb.proxyHandler.getValidatorProxies(regAndActiveVals)
+		sb.logger.Warn("generateIstAnnounce", "proxiesForValidators", proxiesForValidators, "regAndActiveVals", regAndActiveVals)
 		if len(proxiesForAddresses) > 0 {
-			announceRecords = make([]*announceRecord, 0, len(proxiesForAddresses))
+			announceRecords = make([]*announceRecord, 0, len(proxiesForValidators))
 
-			for valAddress, proxy := range proxiesForAddresses {
+			for valAddress, proxy := range proxiesForValidators {
 		    	announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
 			}
 		}

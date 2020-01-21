@@ -694,7 +694,7 @@ var (
 	}
 	ProxyEnodeURLPairsFlag = cli.StringFlag{
 		Name:  "proxy.proxyenodeurlpairs",
-		Usage: "proxy enode URL pairs separated by a comma.  Each pair's enodeURLs is separated by a semicolon.  The format should be \"<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,<proxy 2 internal facing enode URL>;<proxy 2 external facing enode URL>,...\"",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a comma. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
 )
 
@@ -1271,7 +1271,6 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
 		} else {
 			proxyEnodeURLPairs := strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
-			// TODO - Check that each pair has 2 enode urls
 
 			ethCfg.Istanbul.ProxyNodes = make([]*istanbul.ProxyNodes, len(proxyEnodeURLPairs))
 

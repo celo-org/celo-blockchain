@@ -235,17 +235,17 @@ func (ch *consistentHashingPolicy) getValAssignments() *valAssignments {
 
 // addProxy adds a proxy to the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) addProxy(proxy *proxy) {
-	mu.Lock()
+	ch.mu.Lock()
     ch.hashRing = ch.hashRing.AddNode(proxy.ID().String())
-	mu.Unlock()
+	ch.mu.Unlock()
     ch.reassignValidators()
 }
 
 // removeProxy removes a proxy to the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) removeProxy(proxy *proxy) {
-	mu.Lock()
+	ch.mu.Lock()
     ch.hashRing = ch.hashRing.RemoveNode(proxy.ID().String())
-	mu.Unlock()
+	ch.mu.Unlock()
     ch.reassignValidators()
 }
 
@@ -263,9 +263,9 @@ func (ch *consistentHashingPolicy) removeValidators(vals map[common.Address]bool
 func (ch *consistentHashingPolicy) reassignValidators() {
 	assignments := ch.getValAssignments()
     for val, proxyID := range assignments.valToProxy {
-		mu.RLock()
+		ch.mu.RLock()
         newProxyID, ok := ch.hashRing.GetNode(val.Hex())
-		mu.RUnlock()
+		ch.mu.RUnlock()
         if ok && (proxyID == nil || newProxyID != proxyID.String()) {
             ch.valAssignments.disassociateValidator(val)
             ch.valAssignments.assignValidator(val, enode.HexID(newProxyID))
