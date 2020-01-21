@@ -802,7 +802,7 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 		lo = params.TxGas - 1 // Re initialize to lower limit
 		for lo + 1 < hi {
 			mid := (hi + lo) / 2
-			if !executable(mid) { // Assume failure from insufficent balance
+			if !executable(mid) { // Assume failure from insufficient balance
 				hi = mid
 			} else {
 				lo = mid
