@@ -115,7 +115,7 @@ jobs:
             - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a
             - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_snark.a
 
-  publish-mobile:
+  publish-mobile-client:
     docker:
       - image: circleci/node:10
     working_directory: ~/repos/geth
@@ -233,10 +233,11 @@ workflows:
       - lint
       - android
       - ios
-      - publish-mobile:
+      - publish-mobile-client:
           requires:
             - android
             - ios
+            - bls-zexe # temp, should be all important end-to-end tests
       - end-to-end-monorepo-checkout
       - unit-tests:
           requires:
