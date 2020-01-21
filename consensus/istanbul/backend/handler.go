@@ -36,19 +36,19 @@ var (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg    = 0x11
-	istanbulGetAnnouncesMsg = 0x12
+	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg            = 0x13
-	istanbulGetAnnounceVersionsMsg = 0x14
-	istanbulAnnounceVersionsMsg    = 0x15
-	istanbulValEnodesShareMsg      = 0x16
-	istanbulFwdMsg                 = 0x17
-	istanbulDelegateSign           = 0x18
+	istanbulAnnounceMsg            = 0x12
+	istanbulValEnodesShareMsg      = 0x13
+	istanbulFwdMsg                 = 0x14
+	istanbulDelegateSign           = 0x15
+	istanbulGetAnnouncesMsg        = 0x16
+	istanbulGetAnnounceVersionsMsg = 0x17
+	istanbulAnnounceVersionsMsg    = 0x18
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulDelegateSign
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulAnnounceVersionsMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error

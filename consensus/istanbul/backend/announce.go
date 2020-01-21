@@ -55,7 +55,7 @@ const (
 
 const (
 	HighFreqTickerDuration = 1 * time.Minute
-	LowFreqTickerDuration  = 1 * time.Hour
+	LowFreqTickerDuration  = 10 * time.Minute
 )
 
 // The announceThread thread function
