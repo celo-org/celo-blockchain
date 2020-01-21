@@ -73,8 +73,8 @@ jobs:
           name: Compile android client
           command: |
             set -euo pipefail
-            # Temp fix until docker image user/home is fixed
-            sudo chown -R circleci:circleci $HOME
+            # TODO(jeanregisser): Fix docker image so build works directly with circleci user
+            sudo chown -R circleci:circleci $HOME/.rustup $HOME/.cargo
             export PATH=$PATH:$HOME/.cargo/bin
             export NDK_VERSION=android-ndk-r19c
             export ANDROID_NDK=/opt/android/${NDK_VERSION}
