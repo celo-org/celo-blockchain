@@ -103,7 +103,7 @@ jobs:
           name: Compile ios client
           command: |
             set -euo pipefail
-            export PATH=$PATH:$HOME/.cargo/bin
+            export PATH="/usr/local/opt/go@1.11/bin:$HOME/.cargo/bin:$PATH"
             make ios
       - persist_to_workspace:
           root: ~/repos
