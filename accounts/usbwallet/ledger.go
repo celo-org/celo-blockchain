@@ -52,6 +52,13 @@ const (
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs an Ethereum transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
 
+	ledgerOpSignHashBLS ledgerOpcode = 0x02 // Signs hash for BLS validator app
+
+	ledgerOpGetPubkeyBLS ledgerOpcode = 0x04 // Returns public key for BLS validator app
+
+	ledgerP1UnfinishedBLSData ledgerParam1 = 0x00 // BLS message/hash data to be signed, not finished 
+	ledgerP1FinalBLSData ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
+
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
@@ -166,6 +173,13 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	}
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSign(path, tx, chainID)
+}
+
+func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
+	if w.offline() {
+		return common.Address{}, nil, accounts.ErrWalletClosed
+	}
+	return w.ledgerBLSHashSign(hash)
 }
 
 // ledgerVersion retrieves the current version of the Ethereum wallet app running
@@ -363,6 +377,31 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		return common.Address{}, nil, err
 	}
 	return sender, signed, nil
+}
+
+// TODO: Describe protocol
+func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
+	hashrlp = rlp.EncodeToBytes(hash)
+	payload := append(hashrlp...)
+
+	// Send the request and wait for the response
+	var (
+		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
+		signed []byte
+	)
+		// Send the chunk over, ensuring it's processed correctly
+		signed, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, payload)
+		if err != nil {
+			return common.Address{}, nil, err
+		}
+	}
+	// Extract the Ethereum signature and do a sanity validation
+//	if len(reply) != 65 {
+//		return common.Address{}, nil, errors.New("reply lacks signature")
+//	}
+
+	return signed, nil
+}
 }
 
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a

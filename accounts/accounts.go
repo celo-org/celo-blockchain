@@ -108,6 +108,7 @@ type Wallet interface {
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)
 	GetPublicKey(account Account) (*ecdsa.PublicKey, error)
+	GetPublicKeyBLS(account Account) ([]byte, error)
 
 	// SignTx requests the wallet to sign the given transaction.
 	//

@@ -431,6 +431,41 @@ func (ks *KeyStore) GetPublicKey(a accounts.Account) (*ecdsa.PublicKey, error) {
 	return &unlockedKey.PrivateKey.PublicKey, nil
 }
 
+// Retrieve the BLS public key for a given account.
+func (ks *KeyStore) GetPublicKeyBLS(a accounts.Account) ([]byte, error) {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, nil, ErrLocked
+	}
+
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer privateKey.Destroy()
+
+	publicKey, err := privateKey.ToPublic()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer publicKey.Destroy()
+	publicKeyBytes, err := publicKey.Serialize()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return publicKeyBytes, nil
+}
+
+
 // SignTx signs the given transaction with the requested account.
 func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	// Look up the key to sign with and abort if it cannot be found
