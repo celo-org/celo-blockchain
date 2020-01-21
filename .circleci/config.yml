@@ -124,6 +124,7 @@ jobs:
           at: ~/repos
       - run: ls -l "$HOME/repos/geth"
       - run: ls -l "$HOME/repos/geth/build/bin"
+      - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} "TODO_NPM_TOKEN"
 
   end-to-end-monorepo-checkout:
     <<: *end-to-end-defaults
