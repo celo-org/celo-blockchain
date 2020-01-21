@@ -273,7 +273,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
 	if sb.config.Proxied {
 		// TODO rename this to be more similar to `getPeersForMessage`
-		return sb.proxyHandler.getProxyPeersForAddresses(destAddresses)
+		return sb.proxyHandler.getValidatorProxyPeers(destAddresses)
 		// return b.proxyHandler.proxySet.proxiesByID
 		// TODO revist this
 	    // return sb.proxyHandler.GetProxiedPeers(destAddresses)

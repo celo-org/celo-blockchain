@@ -37,13 +37,14 @@ type proxy struct {
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 	addTimestamp time.Time      // Timestamp when this proxy was added to the proxy set.  If it hasn't been connected within 60 seconds, then it's removed from the proxy set.
 }
-// TODO might need this later
+
 func (p proxy) ID() enode.ID {
     return p.internalNode.ID()
 }
 
 // This type defines the set of proxies that the validator is aware of (communicated via the command line and/or the rpc api).
 type proxySet struct {
+	mu sync.RWMutex // protects proxiesByID
 	proxiesByID map[enode.ID]*proxy
     valAssigner assignmentPolicy
 }
@@ -64,7 +65,9 @@ func (ps *proxySet) addProxy(proxyNodes *istanbul.ProxyNodes) {
             peer: nil,
             addTimestamp: time.Now(),
         }
+		ps.mu.Lock()
 		ps.proxiesByID[internalID] = p
+		ps.mu.Unlock()
         ps.valAssigner.addProxy(p)
         // TODO log that the proxy was added
 	} else {
@@ -73,16 +76,26 @@ func (ps *proxySet) addProxy(proxyNodes *istanbul.ProxyNodes) {
 }
 
 func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	return ps.proxiesByID[proxyID]
 }
 
 func (ps *proxySet) removeProxy(proxyID enode.ID) {
-	if ps.proxiesByID[proxyID] != nil {
+	proxy := ps.getProxy(proxyID)
+	if proxy != nil {
+		ps.valAssigner.removeProxy(proxy)
+		ps.mu.Lock()
 		delete(ps.proxiesByID, proxyID)
+		ps.mu.Unlock()
 	}
 }
 
 func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
 	if ps.proxiesByID[proxyID] != nil {
 		ps.proxiesByID[proxyID].peer = peer
 	}
@@ -91,6 +104,9 @@ func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) {
 
 // called when a proxy peer is disconnected
 func (ps *proxySet) removeProxyPeer(proxyID enode.ID) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
     if ps.proxiesByID[proxyID] != nil && ps.proxiesByID[proxyID].peer != nil {
 		ps.proxiesByID[proxyID].peer = nil
 	}
@@ -104,9 +120,63 @@ func (ps *proxySet) removeValidators(validators map[common.Address]bool) {
 	ps.valAssigner.removeValidators(validators)
 }
 
+// getValidatorProxies returns a map of validator -> proxy for each validator
+// address specified in validators. If validators is nil, all pairings are returned
+func (ps *proxySet) getValidatorProxies(validators map[common.Address]bool) map[common.Address]*proxy {
+	proxies := make(map[common.Address]*proxy)
+
+	if validators == nil {
+		for val, proxyID := range ps.valAssigner.getValAssignments().valToProxy {
+			if proxyID != nil {
+				proxy := ps.getProxy(*proxyID)
+				if proxy.peer != nil {
+					proxies[val] = proxy
+				}
+			}
+		}
+	} else {
+		for val := range validators {
+			proxyID := ps.valAssigner.getValAssignments().valToProxy[val]
+			if proxyID != nil {
+				proxy := ps.getProxy(*proxyID)
+				if proxy.peer != nil {
+					proxies[val] = proxy
+				}
+			}
+		}
+	}
+
+	return proxies
+}
+
+func (ps *proxySet) getValidatorProxyPeers(validators []common.Address) map[enode.ID]consensus.Peer {
+	peers := make(map[enode.ID]consensus.Peer)
+
+	if validators == nil {
+		for _, proxy := range ps.proxiesByID {
+			if proxy.peer != nil {
+				peers[proxy.ID()] = proxy.peer
+			}
+		}
+	} else {
+		for _, val := range validators {
+			proxyID := ps.valAssigner.getValAssignments().valToProxy[val]
+			proxy := ps.getProxy(*proxyID)
+			if proxy != nil && proxy.peer != nil {
+				peers[proxy.ID()] = proxy.peer
+			}
+		}
+	}
+
+	return peers
+}
+
 // GetNonPeeredProxies returns proxies that are not peered with and were added
 // as a proxy at least minAge ago
 func (ps *proxySet) getNonPeeredProxyNodes(minAge time.Duration) []*enode.Node {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	var nonPeeredProxies []*enode.Node
 	for _, proxy := range ps.proxiesByID {
 		if proxy.peer == nil && time.Now().Sub(proxy.addTimestamp) >= minAge {
@@ -121,11 +191,9 @@ func (ps *proxySet) getProxyValidators(proxyID enode.ID) map[common.Address]bool
 	return ps.valAssigner.getValAssignments().getAssignedValidatorsForProxy(proxyID)
 }
 
-// func (ps *proxySet) proxyAssignmentChanged(proxyID enode.ID) {
-// 	// if ps.proxiesByID[ID].index != -1 {
-// 	// 	heap.Fix(&ps, ps.proxiesByID[ID].index)
-// 	// }
-// }
+func (ps *proxySet) getValidators() map[common.Address]bool {
+	return ps.valAssigner.getValAssignments().getValidators()
+}
 
 // TODO come back to this
 func (ps *proxySet) hasConnectedProxies() bool {
@@ -144,14 +212,12 @@ type assignmentPolicy interface {
 	removeValidators(map[common.Address]bool)
 
 	reassignValidators()
-    //
-    // addValidator() valAssignments
-    // removeValidator() valAssignments
 }
 
 // consistentHashingPolicy uses consistent hashing to assign validators to proxies
 type consistentHashingPolicy struct {
-    hashRing *hashring.HashRing
+	mu sync.RWMutex // protects hashRing
+    hashRing *hashring.HashRing // used for consistent hashing
     valAssignments *valAssignments
 }
 
@@ -164,18 +230,22 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 }
 
 func (ch *consistentHashingPolicy) getValAssignments() *valAssignments {
-    return ch.valAssignments
+    return ch.valAssignments.copy()
 }
 
 // addProxy adds a proxy to the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) addProxy(proxy *proxy) {
+	mu.Lock()
     ch.hashRing = ch.hashRing.AddNode(proxy.ID().String())
+	mu.Unlock()
     ch.reassignValidators()
 }
 
 // removeProxy removes a proxy to the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) removeProxy(proxy *proxy) {
+	mu.Lock()
     ch.hashRing = ch.hashRing.RemoveNode(proxy.ID().String())
+	mu.Unlock()
     ch.reassignValidators()
 }
 
@@ -191,8 +261,11 @@ func (ch *consistentHashingPolicy) removeValidators(vals map[common.Address]bool
 
 // reassignValidators recalculates all validator <-> proxy pairings
 func (ch *consistentHashingPolicy) reassignValidators() {
-    for val, proxyID := range ch.valAssignments.valToProxy {
+	assignments := ch.getValAssignments()
+    for val, proxyID := range assignments.valToProxy {
+		mu.RLock()
         newProxyID, ok := ch.hashRing.GetNode(val.Hex())
+		mu.RUnlock()
         if ok && (proxyID == nil || newProxyID != proxyID.String()) {
             ch.valAssignments.disassociateValidator(val)
             ch.valAssignments.assignValidator(val, enode.HexID(newProxyID))
@@ -200,10 +273,9 @@ func (ch *consistentHashingPolicy) reassignValidators() {
     }
 }
 
-
-
 // This struct maintains the validators assignments to proxies
 type valAssignments struct {
+	mu          sync.RWMutex // protects both valToProxy and proxyToVals
 	valToProxy  map[common.Address]*enode.ID         // map of validator address -> proxy ID.  If the proxy ID is nil, then the validator is unassigned
 	proxyToVals map[enode.ID]map[common.Address]bool // map of proxy ID to array of validator addresses
 }
@@ -215,11 +287,27 @@ func newValAssignments() *valAssignments {
 	}
 }
 
+func (va *valAssignments) copy() *valAssignments {
+	va.mu.RLock()
+	defer va.mu.RUnlock()
+
+	c := newValAssignments()
+	for k, v := range va.valToProxy {
+		c.valToProxy[k] = v
+	}
+	for k, v := range va.proxyToVals {
+		c.proxyToVals[k] = make(map[common.Address]bool)
+		for k1, v1 := range v {
+			c.proxyToVals[k][k1] = v1
+		}
+	}
+	return c
+}
+
 func (va *valAssignments) addValidators(vals map[common.Address]bool) {
-	log.Warn("yooooooeeeeetttt", "sup", vals)
-	// TODO this needs another look
+	va.mu.Lock()
+	defer va.mu.Unlock()
 	for val := range vals {
-		log.Warn("valAssignments addValidator", "vals", vals)
 		va.valToProxy[val] = nil
 	}
 }
@@ -227,15 +315,23 @@ func (va *valAssignments) addValidators(vals map[common.Address]bool) {
 func (va *valAssignments) removeValidators(vals map[common.Address]bool) {
 	for val := range vals {
 		va.disassociateValidator(val)
+		va.mu.Lock()
 		delete(va.valToProxy, val)
+		va.mu.Unlock()
 	}
 }
 
 func (va *valAssignments) getAssignedValidatorsForProxy(proxyID enode.ID) map[common.Address]bool {
+	va.mu.RLock()
+	defer va.mu.RUnlock()
+
 	return va.proxyToVals[proxyID]
 }
 
 func (va *valAssignments) assignValidator(valAddress common.Address, proxyID enode.ID) {
+	va.mu.Lock()
+	defer va.mu.Unlock()
+
 	va.valToProxy[valAddress] = &proxyID
 
 	if _, ok := va.proxyToVals[proxyID]; !ok {
@@ -251,6 +347,9 @@ func (va *valAssignments) disassociateProxyValidators(proxyID enode.ID) {
 }
 
 func (va *valAssignments) disassociateValidator(valAddress common.Address) {
+	va.mu.Lock()
+	defer va.mu.Unlock()
+
 	proxyID := va.valToProxy[valAddress]
 
 	if proxyID != nil {
@@ -264,6 +363,9 @@ func (va *valAssignments) disassociateValidator(valAddress common.Address) {
 }
 
 func (va *valAssignments) getValidators() map[common.Address]bool {
+	va.mu.RLock()
+	defer va.mu.RUnlock()
+
 	vals := make(map[common.Address]bool)
 
 	for val := range va.valToProxy {
@@ -294,25 +396,8 @@ type proxyHandler struct {
 	sb *Backend
 	p2pserver consensus.P2PServer
 
-	// This data structure will store all the proxies.  It will need the proxyToValsAssignments map so that it can
-	// sort the proxies based on how many validators are assigned to it.
 	ps *proxySet
 }
-
-// func newProxyHandler() *proxyHandler {
-//     return &proxyHandler{
-//         quit: make(chan struct{}),
-//
-//         addProxies: make(chan []*ProxyNode),
-//         removeProxies: make(chan []*enode.Node),
-//
-//         addProxyPeer: make(chan consensus.Peer),
-//         delProxyPeer: make(chan consensus.Peer),
-//
-//         newBlockchainEpoch: make(chan struct{}),
-//
-//     }
-// }
 
 func (ph *proxyHandler) Start() error {
 	ph.lock.Lock()
@@ -352,78 +437,21 @@ func (ph *proxyHandler) Stop() {
 	ph.loopWG.Wait()
 }
 
-func (ph *proxyHandler) getProxiesForAddresses(addresses map[common.Address]bool) map[common.Address]*proxy {
-	proxies := make(map[common.Address]*proxy)
-
-	if addresses == nil {
-		for val, proxyID := range ph.ps.valAssigner.getValAssignments().valToProxy {
-			if proxyID != nil {
-				proxy := ph.ps.getProxy(*proxyID)
-				if proxy.peer != nil {
-					proxies[val] = proxy
-				}
-			}
-		}
-	} else {
-		for address := range addresses {
-			proxyID := ph.ps.valAssigner.getValAssignments().valToProxy[address]
-			if proxyID != nil {
-				proxy := ph.ps.getProxy(*proxyID)
-				if proxy.peer != nil {
-					proxies[address] = proxy
-				}
-			}
-		}
-	}
-
-	return proxies
+func (ph *proxyHandler) getValidatorProxies(validators map[common.Address]bool) map[common.Address]*proxy {
+	return ph.ps.getValidatorProxies(validators)
 }
 
-func (ph *proxyHandler) getProxyPeersForAddresses(addresses []common.Address) map[enode.ID]consensus.Peer {
-	peers := make(map[enode.ID]consensus.Peer)
-
-	if addresses == nil {
-		for _, proxy := range ph.ps.proxiesByID {
-			if proxy.peer != nil {
-				peers[proxy.ID()] = proxy.peer
-			}
-		}
-	} else {
-		for _, address := range addresses {
-			proxyID := ph.ps.valAssigner.getValAssignments().valToProxy[address]
-			proxy := ph.ps.getProxy(*proxyID)
-			if proxy != nil && proxy.peer != nil {
-				peers[proxy.ID()] = proxy.peer
-			}
-		}
-	}
-
-	return peers
+func (ph *proxyHandler) getValidatorProxyPeers(validators []common.Address) map[enode.ID]consensus.Peer {
+	return ph.ps.getValidatorProxyPeers(validators)
 }
-
-// func (ph *proxyHandler) getProxyPeersForValidators()
 
 func (ph *proxyHandler) run() {
 	defer ph.loopWG.Done()
 
-	var (
-		// // This data structure will store all the proxies.  It will need the proxyToValsAssignments map so that it can
-		// // sort the proxies based on how many validators are assigned to it.
-		// ps = newProxySet(newConsistentHashingPolicy())
-	)
-
 	phEpochTicker := time.NewTicker(ph.proxyHandlerEpochLength)
 	defer phEpochTicker.Stop()
 
-	// TODO come back to this
-
-	newVals, rmVals, err := ph.checkForActiveRegValChanges(nil)
-	log.Warn("suhhh???????", "newVals", newVals, "rmVals", rmVals, "err", err)
-	if err == nil {
-		log.Warn("okay like what")
-		ph.ps.addValidators(newVals)
-		ph.ps.removeValidators(rmVals)
-	}
+	ph.updateValidators()
 
 running:
 	for {
@@ -433,20 +461,21 @@ running:
 			break running
 
 		case addProxyNodes := <-ph.addProxies:
-			// Got command to add proxy nodes.  Add any unseen proxies to the proxies set and add p2p static connections to them.
+			// Got command to add proxy nodes.
+			// Add any unseen proxies to the proxies set and add p2p static connections to them.
 			for _, proxyNode := range addProxyNodes {
 				proxyID := proxyNode.InternalFacingNode.ID()
 				if ph.ps.getProxy(proxyID) == nil && ph.p2pserver != nil {
 					log.Warn("Adding proxy node", "proxyNode", proxyNode)
 
 					ph.ps.addProxy(proxyNode)
-					// TODO: check on this
 					ph.p2pserver.AddPeer(proxyNode.InternalFacingNode, p2p.ProxyPurpose)
 				}
 			}
 
 		case rmProxyNodes := <-ph.removeProxies:
-			// Got command to remove proxy nodes.  Disassociate the validators that were assigned to them, remove the proxies from the proxies set, and remove the p2p static connection
+			// Got command to remove proxy nodes.
+			// Remove the proxy and remove the p2p static connection
 			for _, proxyNode := range rmProxyNodes {
 				proxyID := proxyNode.ID()
 				proxy := ph.ps.getProxy(proxyID)
@@ -454,12 +483,8 @@ running:
 				if proxy != nil {
 					log.Warn("Removing proxy node", "proxyNode", proxyNode)
 
-					// Disassociate the assigned validators
-
-					// TODO: check on this
-					// ph.p2pserver.removeStatic(proxy.InternalFacingNode, p2p.ProxyPurpose)
-
 					ph.ps.removeProxy(proxyID)
+					ph.p2pserver.RemovePeer(proxy.internalNode, p2p.ProxyPurpose)
 				}
 			}
 
@@ -476,15 +501,15 @@ running:
 
         // When any peer on the p2p level is disconnected
 		case disconnectedPeer := <-ph.delProxyPeer:
-			// Proxied peer just disconnected. Remove the proxy
-			proxy := ph.ps.getProxy(disconnectedPeer.Node().ID())
-			if proxy != nil {
-				ph.removeProxies <- []*enode.Node{proxy.internalNode}
-			}
+			peerID := disconnectedPeer.Node().ID()
+			if ph.ps.getProxy(peerID) != nil {
+				log.Info("Disconnected proxy peer", "peerID", peerID)
+                ph.ps.setProxyPeer(peerID, nil)
+            }
 
 		case <-ph.newBlockchainEpoch:
 			// New epoch.  Need to see if any of the validators changed.
-			// ph.checkForActiveRegValChanges(validators)
+			ph.updateValidators()
 
 		case <-phEpochTicker.C:
 			log.Info("PH Epoch ticker", "valAssignments", ph.ps.valAssigner.getValAssignments(), "proxiesByID", ph.ps.proxiesByID)
@@ -497,20 +522,10 @@ running:
 			// 5) Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 
 			// 1) Check for validator changes
-			validatorsKnownByProxies := ph.ps.valAssigner.getValAssignments().getValidators()
-			log.Info("Current vals", "vals", validatorsKnownByProxies)
-
-			newVals, rmVals, err := ph.checkForActiveRegValChanges(validatorsKnownByProxies)
-			log.Warn("checkForActiveRegValChanges", "newVals", newVals, "rmVals", rmVals, "err", err)
-			// It's okay if this fails
-			if err != nil {
-				log.Warn("Error checking for active registered validator changes", "err", err)
-			} else {
-				ph.ps.addValidators(newVals)
-				ph.ps.removeValidators(rmVals)
-			}
+			ph.updateValidators()
 
 			// 2) Kick out proxy nodes that haven't connected within 60 seconds of when it was added.
+			// I think this might be a bad idea-- no step 3 and 4 do not wait for this to happen...
 			nonPeeredProxies := ph.ps.getNonPeeredProxyNodes(time.Minute)
 			if nonPeeredProxies != nil && len(nonPeeredProxies) > 0 {
 				log.Info("Non peered proxies", "proxies", nonPeeredProxies)
@@ -519,13 +534,6 @@ running:
 
 			// 3) Redistribute unassigned validators to ready peers and existing peers.
 			ph.ps.valAssigner.reassignValidators()
-			// if ph.ps.hasConnectedProxies() {
-			// 	for val, proxyID := range validators {
-			// 		if proxyID == nil {
-			// 			validators[val] = ph.ps.assignValidator(val)
-			// 		}
-			// 	}
-			// }
 
 			// 4) Send out val_enode_share messages to the proxies
 			for _, proxy := range ph.ps.proxiesByID {
@@ -539,6 +547,17 @@ running:
 			// 5) Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 		}
 	}
+}
+
+func (ph *proxyHandler) updateValidators() error {
+	newVals, rmVals, err := ph.checkForActiveRegValChanges(ph.ps.getValidators())
+	log.Warn("Inside updateValidators", "newVals", newVals, "rmVals", rmVals, "err", err)
+	if err != nil {
+		return err
+	}
+	ph.ps.addValidators(newVals)
+	ph.ps.removeValidators(rmVals)
+	return nil
 }
 
 // This function will see if there are any changes in the ActiveAndRegisteredValidator set,

@@ -220,7 +220,7 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// This function is called by all nodes.
+// NewChainHead is called by all nodes.
 // At the end of each epoch, this function will
 //    1)  Output if it is or isn't an elected validator if it has mining turned on.
 //    2)  Refresh the validator connections if it's a proxy or non proxied validator
@@ -244,6 +244,11 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		// new epoch just started, then refresh the validator enode table
 		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new block number", newBlock.Number().Uint64())
 		sb.RefreshValPeers(valset)
+
+		// If this is a proxied validator, trigger any changes needed for the proxy handler
+		if sb.config.Proxied {
+			sb.proxyHandler.newBlockchainEpoch <- struct{}{}
+		}
 	}
 }
 
