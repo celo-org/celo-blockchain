@@ -65,6 +65,8 @@ jobs:
   android:
     docker:
       - image: celohq/android-client
+        environment:
+          HOME: /root
     working_directory: ~/repos/geth
     steps:
       - checkout
