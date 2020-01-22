@@ -148,6 +148,7 @@ var (
 		utils.ProxiedValidatorAddressFlag,
 		utils.ProxiedFlag,
 		utils.ProxyEnodeURLPairFlag,
+		utils.ProxyAllowPrivateIPFlag,
 	}
 
 	rpcFlags = []cli.Flag{
