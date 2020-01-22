@@ -187,13 +187,13 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	var enodeUrl string
 	if sb.config.Proxied {
 		if sb.proxyNode != nil {
-			enodeUrl = sb.proxyNode.externalNode.String()
+			enodeUrl = sb.proxyNode.externalNode.URLv4()
 		} else {
 			sb.logger.Error("Proxied node is not connected to a proxy")
 			return nil, errNoProxyConnection
 		}
 	} else {
-		enodeUrl = sb.p2pserver.Self().String()
+		enodeUrl = sb.p2pserver.Self().URLv4()
 	}
 
 	// If the message is not within the registered validator set, then ignore it
