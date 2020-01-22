@@ -118,12 +118,6 @@ func (sb *Backend) generateValEnodesShareMsg(valAddresses map[common.Address]boo
 
 // TODO come back to this
 func (sb *Backend) sendValEnodesShareMsg(proxyPeer consensus.Peer, proxyExternalNode *enode.Node, valAddresses map[common.Address]bool) error {
-
-	// if sb.proxyNode == nil || sb.proxyNode.peer == nil {
-	// 	sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
-	// 	return nil
-	// }
-	//
 	msg, err := sb.generateValEnodesShareMsg(valAddresses)
 	if err != nil {
 		return err

@@ -36,13 +36,15 @@ type proxy struct {
 	internalNode *enode.Node    // Enode for the proxy's internal network interface
 	externalNode *enode.Node    // Enode for the proxy's external network interface
 	peer         consensus.Peer // Connected proxy peer. Is nil if this node is not connected to the proxy
-	dcTimestamp  time.Time      // Timestamp when this proxy was added to the proxy set. Maybe? -> If it hasn't been connected within 60 seconds, then it's removed from the proxy set.
+	dcTimestamp  time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
 }
 
+// ProxyInfo is used to provide info on a proxy that can be given via an RPC
 type ProxyInfo struct {
 	InternalNode *enode.Node `json:"internalEnodeUrl"`
 	ExternalNode *enode.Node `json:"externalEnodeUrl"`
 	IsPeered     bool `json:"isPeered"`
+	Validators   []common.Address `json:"validators"` // All validator addresses the proxy is associated with
 	DcTimestamp  int64 `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
 }
 
@@ -82,13 +84,12 @@ func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 func (ps *proxySet) addProxy(proxyNodes *istanbul.ProxyNodes) {
     internalID := proxyNodes.InternalFacingNode.ID()
 	if _, ok := ps.proxiesByID[internalID]; !ok {
-        p := &proxy{
+        ps.proxiesByID[internalID] = &proxy{
             internalNode: proxyNodes.InternalFacingNode,
             externalNode: proxyNodes.ExternalFacingNode,
             peer: nil,
             dcTimestamp: time.Now(),
         }
-		ps.proxiesByID[internalID] = p
 	}
 }
 
@@ -209,17 +210,12 @@ func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) {
 
 // getProxyValidators returns the validators that a proxy is assigned to
 func (ps *proxySet) getProxyValidators(proxyID enode.ID) map[common.Address]bool {
-	return ps.valAssigner.getValAssignments().getAssignedValidatorsForProxy(proxyID)
+	return ps.valAssigner.getValAssignments().proxyToVals[proxyID]
 }
 
 // getValidators returns all validators that are known by the valAssigner
 func (ps *proxySet) getValidators() map[common.Address]bool {
 	return ps.valAssigner.getValAssignments().getValidators()
-}
-
-// TODO come back to this- not sure why this was here to begin with
-func (ps *proxySet) hasConnectedProxies() bool {
-	return true
 }
 
 // getProxyInfo returns basic info on all the proxies in the proxySet
@@ -228,8 +224,20 @@ func (ps *proxySet) getProxyInfo() []ProxyInfo {
 	proxies := make([]ProxyInfo, len(proxiesByID))
 
 	i := 0
-	for _, proxy := range proxiesByID {
+	for proxyID, proxy := range proxiesByID {
 		proxies[i] = proxy.Info()
+
+		validators := ps.getProxyValidators(proxyID)
+		if validators != nil {
+			valAddresses := make([]common.Address, len(validators))
+			j := 0
+			for val := range validators {
+				valAddresses[j] = val
+				j++
+			}
+			proxies[i].Validators = valAddresses
+		}
+
 		i++
 	}
 	return proxies
@@ -339,12 +347,6 @@ func (va *valAssignments) removeValidators(vals map[common.Address]bool) {
 	}
 }
 
-// getAssignedValidatorsForProxy gives all validator addresses that are assigned
-// to the proxy with ID proxyID
-func (va *valAssignments) getAssignedValidatorsForProxy(proxyID enode.ID) map[common.Address]bool {
-	return va.proxyToVals[proxyID]
-}
-
 // assignValidator assigns a validator with address valAddress to the proxy
 // with ID proxyID
 func (va *valAssignments) assignValidator(valAddress common.Address, proxyID enode.ID) {
@@ -355,12 +357,6 @@ func (va *valAssignments) assignValidator(valAddress common.Address, proxyID eno
 	}
 
 	va.proxyToVals[proxyID][valAddress] = true
-}
-
-// TODO implement this to remove all validators from a proxy
-// Maybe? look into if needed
-func (va *valAssignments) disassociateProxyValidators(proxyID enode.ID) {
-
 }
 
 // unassignValidator unassigns a validator with address valAddress from
