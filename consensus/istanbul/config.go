@@ -30,8 +30,8 @@ const (
 )
 
 type ProxyNodes struct {
-     InternalFacingNode *enode.Node   `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
-     ExternalFacingNode *enode.Node   `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+	InternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
+	ExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }
 
 type Config struct {
@@ -51,8 +51,8 @@ type Config struct {
 	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
 
 	// Proxied Validator Configs
-	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyNodes              []*ProxyNodes `toml:",omitempty"` // The set of proxy internal and external facing nodes for this proxied validator
+	Proxied    bool          `toml:",omitempty"` // Specifies if this node is proxied
+	ProxyNodes []*ProxyNodes `toml:",omitempty"` // The set of proxy internal and external facing nodes for this proxied validator
 }
 
 var DefaultConfig = &Config{

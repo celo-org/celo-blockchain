@@ -26,13 +26,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // ===============================================================
@@ -198,26 +198,26 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		}
 		request := &validatorProxiesRequest{
 			validators: regAndActiveVals,
-			resultCh: make(chan map[common.Address]*proxy),
+			resultCh:   make(chan map[common.Address]*proxy),
 		}
 		sb.proxyHandler.getValidatorProxies <- request
-	    proxiesForValidators := <-request.resultCh
+		proxiesForValidators := <-request.resultCh
 		sb.logger.Warn("generateIstAnnounce", "proxiesForValidators", proxiesForValidators, "regAndActiveVals", regAndActiveVals)
 		if len(proxiesForValidators) > 0 {
 			announceRecords = make([]*announceRecord, 0, len(proxiesForValidators))
 
 			for valAddress, proxy := range proxiesForValidators {
-		    	announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
+				announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
 			}
 		}
 		enodeURLHash = common.BytesToHash([]byte("test"))
 	} else {
 		selfEnodeURL := sb.p2pserver.Self().String()
 		if len(regAndActiveVals) > 0 {
-		   announceRecords = make([]*announceRecord, 0, len(regAndActiveVals))
-	        for addr := range regAndActiveVals {
-		    	announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(selfEnodeURL)})
-	        }
+			announceRecords = make([]*announceRecord, 0, len(regAndActiveVals))
+			for addr := range regAndActiveVals {
+				announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(selfEnodeURL)})
+			}
 			enodeURLHash = istanbul.RLPHash(selfEnodeURL)
 		}
 
@@ -232,10 +232,10 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 			Timestamp: uint(time.Now().Unix()),
 		}
 
-	   announceBytes, err := rlp.EncodeToBytes(announceData)
+		announceBytes, err := rlp.EncodeToBytes(announceData)
 		if err != nil {
-		   sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
-		   return nil, err
+			sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
+			return nil, err
 		}
 
 		msg = &istanbul.Message{

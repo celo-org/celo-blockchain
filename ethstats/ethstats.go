@@ -282,7 +282,7 @@ func (s *Service) loop() {
 					// proxied validator should sign
 					signCh <- &DelegateSignStats{
 						Payload: &statsPayload,
-						PeerID: delegateSignMsg.PeerID,
+						PeerID:  delegateSignMsg.PeerID,
 					}
 				}
 			}

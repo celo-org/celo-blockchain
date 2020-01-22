@@ -142,7 +142,6 @@ func (api *API) RemoveProxy(internalUrl string) (bool, error) {
 		return false, err
 	}
 
-
 	// Try to remove the url as a proxy and return
 	internalNode, err := enode.ParseV4(internalUrl)
 	if err != nil {

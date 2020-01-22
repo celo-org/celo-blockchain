@@ -212,7 +212,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error
 		return err
 	}
 	request := &proxyPeerRequest{
-		peerID: peerID,
+		peerID:   peerID,
 		resultCh: make(chan consensus.Peer),
 	}
 	sb.proxyHandler.getProxyPeer <- request
@@ -283,7 +283,7 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 	if sb.proxyHandlerIsRunning() {
 		request := &validatorProxyPeersRequest{
 			validators: destAddresses,
-			resultCh: make(chan map[enode.ID]consensus.Peer),
+			resultCh:   make(chan map[enode.ID]consensus.Peer),
 		}
 		sb.proxyHandler.getValidatorProxyPeers <- request
 		return <-request.resultCh

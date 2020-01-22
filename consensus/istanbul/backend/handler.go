@@ -260,7 +260,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.proxyHandlerIsRunning() {
-	    sb.proxyHandler.addProxyPeer <- peer
+		sb.proxyHandler.addProxyPeer <- peer
 	}
 }
 
@@ -268,7 +268,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
 	} else if sb.proxyHandlerIsRunning() {
-	    sb.proxyHandler.delProxyPeer <- peer
+		sb.proxyHandler.delProxyPeer <- peer
 	}
 }
 

@@ -623,10 +623,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	go sb.sendAnnounceMsgs()
 
 	if sb.config.Proxied {
-	   sb.proxyHandler.Start()
-	   if len(sb.config.ProxyNodes) > 0 {
-	    	sb.proxyHandler.addProxies <- sb.config.ProxyNodes
-	   }
+		sb.proxyHandler.Start()
+		if len(sb.config.ProxyNodes) > 0 {
+			sb.proxyHandler.addProxies <- sb.config.ProxyNodes
+		}
 	}
 
 	return nil
@@ -649,7 +649,7 @@ func (sb *Backend) Stop() error {
 	sb.announceWg.Wait()
 
 	if sb.config.Proxied {
-	   sb.proxyHandler.Stop()
+		sb.proxyHandler.Stop()
 	}
 	return nil
 }
