@@ -193,7 +193,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	if sb.config.Proxied {
 	    proxiesForValidators := sb.proxyHandler.getValidatorProxies(regAndActiveVals)
 		sb.logger.Warn("generateIstAnnounce", "proxiesForValidators", proxiesForValidators, "regAndActiveVals", regAndActiveVals)
-		if len(proxiesForAddresses) > 0 {
+		if len(proxiesForValidators) > 0 {
 			announceRecords = make([]*announceRecord, 0, len(proxiesForValidators))
 
 			for valAddress, proxy := range proxiesForValidators {

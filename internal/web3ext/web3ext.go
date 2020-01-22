@@ -791,17 +791,21 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
-		}),				
+		}),
 		new web3._extend.Property({
 			name: 'currentRoundState',
 			getter: 'istanbul_getCurrentRoundState',
-		}),				
+		}),
 	],
 	properties:
 	[
 		new web3._extend.Property({
 			name: 'candidates',
 			getter: 'istanbul_candidates'
+		}),
+		new web3._extend.Property({
+			name: 'proxies',
+			getter: 'istanbul_getProxies'
 		}),
 	]
 });

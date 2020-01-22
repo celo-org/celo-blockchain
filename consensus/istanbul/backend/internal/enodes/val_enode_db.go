@@ -137,7 +137,6 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	if err != nil {
 		return nil, err
 	}
-	log.Info("just about to create vet", "handler", handler)
 	return &ValidatorEnodeDB{
 		db:      db,
 		handler: handler,
@@ -260,7 +259,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses map[common.Address]bool) 
 	var entries = make(map[common.Address]*AddressEntry)
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-    	if valAddresses == nil || valAddresses[address] {
+		if valAddresses == nil || valAddresses[address] {
 			entries[address] = entry
 		}
 		return nil
@@ -270,8 +269,6 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses map[common.Address]bool) 
 		vet.logger.Error("ValidatorEnodeDB.GetAllAddressEntries error", "err", err)
 		return nil, err
 	}
-
-	vet.logger.Warn("GetValEnodes", "valAddresses", valAddresses, "entries", entries)
 
 	return entries, nil
 }

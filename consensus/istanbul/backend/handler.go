@@ -65,11 +65,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.logger.Trace("HandleMsg called", "address", addr, "m", msg, "peer", peer.Node())
 
 	if sb.isIstanbulMsg(msg) {
-		sb.logger.Warn("trevor a")
 		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
-		sb.logger.Warn("trevor b")
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
 			if err == errUnauthorized {
@@ -80,7 +78,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errDecodeFailed
 		}
 
-		sb.logger.Warn("trevor c")
 		if msg.Code == istanbulDelegateSign {
 			if sb.shouldHandleDelegateSign() {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
@@ -102,7 +99,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			sb.recentMessages.Add(addr, m)
 		}
 		m.Add(hash, true)
-		sb.logger.Warn("trevor d")
 
 		// Mark self known message
 		if _, ok := sb.knownMessages.Get(hash); ok {
@@ -119,7 +115,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if msg.Code == istanbulAnnounceMsg {
 			go sb.handleIstAnnounce(data)
 		} else if msg.Code == istanbulValEnodesShareMsg {
-			sb.logger.Warn("help me istanbulValEnodesShareMsg")
 			go sb.handleValEnodesShareMsg(data)
 		}
 
@@ -246,7 +241,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		sb.RefreshValPeers(valset)
 
 		// If this is a proxied validator, trigger any changes needed for the proxy handler
-		if sb.config.Proxied {
+		if sb.proxyHandlerIsRunning() {
 			sb.proxyHandler.newBlockchainEpoch <- struct{}{}
 		}
 	}
@@ -258,7 +253,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	//        the correct node key
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
-	} else if sb.config.Proxied {
+	} else if sb.proxyHandlerIsRunning() {
 	    sb.proxyHandler.addProxyPeer <- peer
 	}
 }
@@ -266,8 +261,11 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
-	} else if sb.config.Proxied {
-		// TODO need to test this
+	} else if sb.proxyHandlerIsRunning() {
 	    sb.proxyHandler.delProxyPeer <- peer
 	}
+}
+
+func (sb *Backend) proxyHandlerIsRunning() bool {
+	return sb.config.Proxied && sb.proxyHandler != nil && sb.proxyHandler.isRunning()
 }

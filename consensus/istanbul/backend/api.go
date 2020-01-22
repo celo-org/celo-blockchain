@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -113,9 +114,10 @@ func (api *API) GetProposer(sequence *rpc.BlockNumber, round *uint64) (common.Ad
 
 // AddProxy peers with a remote node that acts as a proxy, even if slots are full
 func (api *API) AddProxy(internalUrl, externalUrl string) (bool, error) {
-	if !api.istanbul.config.Proxied {
-		api.istanbul.logger.Error("Add proxy node failed: this node is not configured to be proxied")
-		return false, errors.New("Can't add proxy for node that is not configured to be proxied")
+	err := api.checkIsProxied()
+	if err != nil {
+		api.istanbul.logger.Error("Add proxy failed", "err", err)
+		return false, err
 	}
 
 	internalNode, err := enode.ParseV4(internalUrl)
@@ -127,16 +129,21 @@ func (api *API) AddProxy(internalUrl, externalUrl string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
-	fmt.Printf("Trevor beforeeee %s %s\n", internalUrl, externalUrl)
 	api.istanbul.proxyHandler.addProxies <- []*istanbul.ProxyNodes{
 		{InternalFacingNode: internalNode, ExternalFacingNode: externalNode},
 	}
-	fmt.Printf("Trevor afterrrr %s %s\n", internalUrl, externalUrl)
 	return true, nil
 }
 
 // RemoveProxy removes a node from acting as a proxy
 func (api *API) RemoveProxy(internalUrl string) (bool, error) {
+	err := api.checkIsProxied()
+	if err != nil {
+		api.istanbul.logger.Error("Remove proxy failed", "err", err)
+		return false, err
+	}
+
+
 	// Try to remove the url as a proxy and return
 	internalNode, err := enode.ParseV4(internalUrl)
 	if err != nil {
@@ -144,6 +151,24 @@ func (api *API) RemoveProxy(internalUrl string) (bool, error) {
 	}
 	api.istanbul.proxyHandler.removeProxies <- []*enode.Node{internalNode}
 	return true, nil
+}
+
+func (api *API) GetProxies() ([]ProxyInfo, error) {
+	err := api.checkIsProxied()
+	if err != nil {
+		api.istanbul.logger.Error("Get proxy failed", "err", err)
+		return nil, err
+	}
+
+	proxiesByID := api.istanbul.proxyHandler.ps.proxiesByID
+	proxies := make([]ProxyInfo, len(proxiesByID))
+
+	i := 0
+	for _, proxy := range proxiesByID {
+		proxies[i] = proxy.Info()
+		i++
+	}
+	return proxies, nil
 }
 
 // Retrieve the Validator Enode Table
@@ -166,6 +191,16 @@ func (api *API) ForceRoundChange() (bool, error) {
 	}
 	api.istanbul.core.ForceRoundChange()
 	return true, nil
+}
+
+func (api *API) checkIsProxied() error {
+	if !api.istanbul.config.Proxied {
+		return errors.New("Can't add proxy for node that is not configured to be proxied")
+	}
+	if !api.istanbul.proxyHandlerIsRunning() {
+		return errors.New("Proxy handler is not running")
+	}
+	return nil
 }
 
 // TODO(kevjue) - implement this
