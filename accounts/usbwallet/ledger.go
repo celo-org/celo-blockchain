@@ -177,7 +177,7 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 
 func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	if w.offline() {
-		return common.Address{}, nil, accounts.ErrWalletClosed
+		return nil, accounts.ErrWalletClosed
 	}
 	return w.ledgerBLSHashSign(hash)
 }
@@ -381,8 +381,15 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 
 // TODO: Describe protocol
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
-	hashrlp = rlp.EncodeToBytes(hash)
-	payload := append(hashrlp...)
+	var (
+		hashrlp []byte
+		err error
+	)
+	hashrlp, err = rlp.EncodeToBytes(hash)
+	if err != nil {
+		return nil, err
+	}
+	payload := append(hashrlp)
 
 	// Send the request and wait for the response
 	var (
@@ -392,16 +399,14 @@ func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 		// Send the chunk over, ensuring it's processed correctly
 		signed, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, payload)
 		if err != nil {
-			return common.Address{}, nil, err
+			return nil, err
 		}
-	}
 	// Extract the Ethereum signature and do a sanity validation
 //	if len(reply) != 65 {
 //		return common.Address{}, nil, errors.New("reply lacks signature")
 //	}
 
 	return signed, nil
-}
 }
 
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a

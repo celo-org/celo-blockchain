@@ -119,6 +119,15 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 	return w.keystore.GetPublicKey(account)
 }
 
+func (w *keystoreWallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
+	if !w.Contains(account) {
+		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
+		return nil, accounts.ErrUnknownAccount
+	}
+	// Account seems valid, request the public key
+	return w.keystore.GetPublicKeyBLS(account)
+}
+
 func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {

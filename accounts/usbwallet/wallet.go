@@ -514,7 +514,7 @@ func (w *wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error
 }
 
 func (w *wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
-	
+	return nil, accounts.ErrNotSupported
 }
 
 
