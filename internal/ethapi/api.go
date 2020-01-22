@@ -1244,7 +1244,10 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		state, header, _ := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+		if err != nil {
+			return err
+		}
 		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
 			return err
