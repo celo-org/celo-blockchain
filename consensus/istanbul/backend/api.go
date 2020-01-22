@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -160,15 +159,9 @@ func (api *API) GetProxies() ([]ProxyInfo, error) {
 		return nil, err
 	}
 
-	proxiesByID := api.istanbul.proxyHandler.ps.proxiesByID
-	proxies := make([]ProxyInfo, len(proxiesByID))
-
-	i := 0
-	for _, proxy := range proxiesByID {
-		proxies[i] = proxy.Info()
-		i++
-	}
-	return proxies, nil
+	resultCh := make(chan []ProxyInfo)
+	api.istanbul.proxyHandler.getProxyInfo <- resultCh
+	return <-resultCh, nil
 }
 
 // Retrieve the Validator Enode Table

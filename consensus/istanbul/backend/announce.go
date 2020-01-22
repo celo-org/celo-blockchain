@@ -19,6 +19,7 @@ package backend
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	mrand "math/rand"
@@ -191,7 +192,16 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
-	    proxiesForValidators := sb.proxyHandler.getValidatorProxies(regAndActiveVals)
+		if !sb.proxyHandlerIsRunning() {
+			sb.logger.Warn("Cannot generate an announce msg, proxy handler is not running")
+			return nil, errors.New("Proxy handler is not running")
+		}
+		request := &validatorProxiesRequest{
+			validators: regAndActiveVals,
+			resultCh: make(chan map[common.Address]*proxy),
+		}
+		sb.proxyHandler.getValidatorProxies <- request
+	    proxiesForValidators := <-request.resultCh
 		sb.logger.Warn("generateIstAnnounce", "proxiesForValidators", proxiesForValidators, "regAndActiveVals", regAndActiveVals)
 		if len(proxiesForValidators) > 0 {
 			announceRecords = make([]*announceRecord, 0, len(proxiesForValidators))

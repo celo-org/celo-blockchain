@@ -269,8 +269,14 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 // If this is a proxied validator, then it will return the proxies for the destAddresses
 // If destAddresses is nil, all peers are returned
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
-	if sb.config.Proxied {
-		return sb.proxyHandler.getValidatorProxyPeers(destAddresses)
+	if sb.proxyHandlerIsRunning() {
+		request := &validatorProxyPeersRequest{
+			validators: destAddresses,
+			resultCh: make(chan map[enode.ID]consensus.Peer),
+		}
+		sb.proxyHandler.getValidatorProxyPeers <- request
+		return <-request.resultCh
+		// return sb.proxyHandler.getValidatorProxyPeers(destAddresses)
 	} else {
 		var targets map[enode.ID]bool = nil
 
