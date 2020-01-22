@@ -709,7 +709,10 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
 		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
-		log.Trace("Suggesting gas price", "value", gasPrice, "block", blockNr)
+		if err != nil {
+			log.Error("Error suggesting gas price", gasPrice, "block", blockNr, "err", err)
+			return nil, 0, false, err
+		}
 	}
 
 	// Create new call message
