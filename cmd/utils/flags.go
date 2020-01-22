@@ -696,6 +696,10 @@ var (
 		Name:  "proxy.proxyenodeurlpairs",
 		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a comma. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
+	ProxyAllowPrivateIPFlag = cli.BoolFlag{
+		Name:  "proxy.allowprivateip",
+		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1292,12 +1296,14 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 					Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
 				}
 
-				// TODO use this again!!!!!
 				// Check that external IP is not a private IP address.
-				if false && proxyExternalFacingNode.IsPrivateIP() {
-					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyExternalFacingNode)
+				if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+					if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
+						log.Warn("Proxy external facing enodeURL (%s) is private IP.", proxyEnodeURLPair[1])
+					} else {
+						Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
+					}
 				}
-
 				ethCfg.Istanbul.ProxyNodes[i] = &istanbul.ProxyNodes{InternalFacingNode: proxyInternalFacingNode, ExternalFacingNode: proxyExternalFacingNode}
 			}
 		}
