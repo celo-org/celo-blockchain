@@ -438,28 +438,28 @@ func (ks *KeyStore) GetPublicKeyBLS(a accounts.Account) ([]byte, error) {
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, nil, ErrLocked
+		return nil, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer privateKey.Destroy()
 
 	publicKey, err := privateKey.ToPublic()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer publicKey.Destroy()
 	publicKeyBytes, err := publicKey.Serialize()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	return publicKeyBytes, nil
