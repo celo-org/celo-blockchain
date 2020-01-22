@@ -111,7 +111,7 @@ jobs:
       - persist_to_workspace:
           root: ~/repos
           paths:
-            - geth/build/bin/Geth.framework.zip
+            - geth/build/bin/Geth.framework.tgz
             - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a
             - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_snark.a
 
