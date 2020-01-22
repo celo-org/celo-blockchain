@@ -80,7 +80,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		if msg.Code == istanbulDelegateSign {
 			if sb.shouldHandleDelegateSign() {
-				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				msgEvent := istanbul.DelegateSignMessageEvent{
+					MessageEvent: istanbul.MessageEvent{
+						Payload: data,
+					},
+					PeerID: peer.Node().ID(),
+				}
+				go sb.delegateSignFeed.Send(msgEvent)
 				return true, nil
 			}
 
@@ -186,7 +192,7 @@ func (sb *Backend) shouldHandleDelegateSign() bool {
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
-func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
+func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.DelegateSignMessageEvent) event.Subscription {
 	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 

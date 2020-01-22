@@ -205,13 +205,24 @@ func (sb *Backend) IsProxiedValidator() bool {
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
-	if !sb.IsProxiedValidator() {
-		err := errors.New("No Proxy found")
+func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error {
+	if !sb.proxyHandlerIsRunning() {
+		err := errors.New("Proxy handler is not running")
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
 	}
-	return nil
+	request := &proxyPeerRequest{
+		peerID: peerID,
+		resultCh: make(chan consensus.Peer),
+	}
+	sb.proxyHandler.getProxyPeer <- request
+	peer := <-request.resultCh
+	if peer == nil {
+		err := errors.New("Could not find proxy peer to send message to")
+		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
+		return err
+	}
+	return peer.Send(istanbulDelegateSign, msg)
 	// TODO revisit this
 	// return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
 }

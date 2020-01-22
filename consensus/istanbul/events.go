@@ -16,9 +16,18 @@
 
 package istanbul
 
+import (
+	"github.com/ethereum/go-ethereum/p2p/enode"
+)
+
 // RequestEvent is posted to propose a proposal
 type RequestEvent struct {
 	Proposal Proposal
+}
+
+type DelegateSignMessageEvent struct {
+	MessageEvent
+	PeerID enode.ID
 }
 
 // MessageEvent is posted for Istanbul engine communication

@@ -47,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/les"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/net/websocket"
 )
@@ -200,6 +201,11 @@ type StatsPayload struct {
 	Stats  interface{} `json:"stats"`
 }
 
+type DelegateSignStats struct {
+	Payload *StatsPayload
+	PeerID  enode.ID
+}
+
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
 func (s *Service) loop() {
@@ -222,7 +228,7 @@ func (s *Service) loop() {
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
 
-	istDelegateSignCh := make(chan istanbul.MessageEvent, istDelegateSignChanSize)
+	istDelegateSignCh := make(chan istanbul.DelegateSignMessageEvent, istDelegateSignChanSize)
 	istDelegateSignSub := s.backend.SubscribeNewDelegateSignEvent(istDelegateSignCh)
 	defer istDelegateSignSub.Unsubscribe()
 
@@ -231,7 +237,7 @@ func (s *Service) loop() {
 		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
-		signCh = make(chan *StatsPayload, 1)
+		signCh = make(chan *DelegateSignStats, 1)
 		sendCh = make(chan *StatsPayload, 1)
 	)
 	go func() {
@@ -269,15 +275,16 @@ func (s *Service) loop() {
 				if err != nil {
 					break HandleLoop
 				}
-				var channel chan *StatsPayload
 				if s.backend.IsProxy() {
 					// proxy should send to websocket
-					channel = sendCh
+					sendCh <- &statsPayload
 				} else if s.backend.IsProxiedValidator() {
 					// proxied validator should sign
-					channel = signCh
+					signCh <- &DelegateSignStats{
+						Payload: &statsPayload,
+						PeerID: delegateSignMsg.PeerID,
+					}
 				}
-				channel <- &statsPayload
 			}
 		}
 		close(quitCh)
@@ -286,8 +293,8 @@ func (s *Service) loop() {
 	// Loop reporting until termination
 	for {
 		if s.backend.IsProxiedValidator() {
-			messageToSign := <-signCh
-			if err := s.handleDelegateSign(messageToSign); err != nil {
+			delegateSignStats := <-signCh
+			if err := s.handleDelegateSign(delegateSignStats); err != nil {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
@@ -457,21 +464,21 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	return nil
 }
 
-func (s *Service) handleDelegateSign(messageToSign *StatsPayload) error {
-	signedStats, err := s.signStats(messageToSign.Stats)
+func (s *Service) handleDelegateSign(delegateSign *DelegateSignStats) error {
+	signedStats, err := s.signStats(delegateSign.Payload.Stats)
 	if err != nil {
 		return err
 	}
 
 	signedMessage := &StatsPayload{
-		Action: messageToSign.Action,
+		Action: delegateSign.Payload.Action,
 		Stats:  signedStats,
 	}
 	msg, err := json.Marshal(signedMessage)
 	if err != nil {
 		return err
 	}
-	return s.backend.SendDelegateSignMsgToProxy(msg)
+	return s.backend.SendDelegateSignMsgToProxy(delegateSign.PeerID, msg)
 }
 
 func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsPayload) error {

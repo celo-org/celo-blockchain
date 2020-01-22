@@ -398,6 +398,11 @@ type validatorProxiesRequest struct {
 	resultCh   chan map[common.Address]*proxy
 }
 
+type proxyPeerRequest struct {
+	peerID   enode.ID
+	resultCh chan consensus.Peer
+}
+
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
@@ -416,6 +421,7 @@ type proxyHandler struct {
 	getValidatorProxyPeers chan *validatorProxyPeersRequest
 	getValidatorProxies    chan *validatorProxiesRequest
 	getProxyInfo           chan chan []ProxyInfo
+	getProxyPeer           chan *proxyPeerRequest
 
 	newBlockchainEpoch chan struct{} // This channel is when a new blockchain epoch has started and we need to check if any validators are removed or added
 
@@ -444,6 +450,7 @@ func newProxyHandler(sb *Backend) *proxyHandler {
 	ph.getValidatorProxyPeers = make(chan *validatorProxyPeersRequest)
 	ph.getValidatorProxies = make(chan *validatorProxiesRequest)
 	ph.getProxyInfo = make(chan chan []ProxyInfo)
+	ph.getProxyPeer = make(chan *proxyPeerRequest)
 
 	// TODO change back to a minute after testing changes
 	ph.proxyHandlerEpochLength = time.Minute / 6.0
@@ -567,6 +574,14 @@ loop:
 
 		case request := <-ph.getValidatorProxies:
 			request.resultCh <- ph.ps.getValidatorProxies(request.validators)
+
+		case request := <-ph.getProxyPeer:
+			proxy := ph.ps.getProxy(request.peerID)
+			if proxy == nil {
+				request.resultCh <- nil
+			} else {
+				request.resultCh <- proxy.peer
+			}
 
 		case resultCh := <-ph.getProxyInfo:
 			resultCh <- ph.ps.getProxyInfo()
