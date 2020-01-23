@@ -216,7 +216,7 @@ func (sb *Backend) IsProxiedValidator() bool {
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error {
 	if !sb.proxyHandlerIsRunning() {
-		err := errors.New("Proxy handler is not running")
+		err := errStoppedProxyHandler
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
 	}

@@ -1297,7 +1297,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 				}
 
 				// Check that external IP is not a private IP address.
-				if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+				if proxyExternalFacingNode.IsPrivateIP() {
 					if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
 						log.Warn("Proxy external facing enodeURL (%s) is private IP.", proxyEnodeURLPair[1])
 					} else {

@@ -190,7 +190,7 @@ func (api *API) checkIsProxied() error {
 		return errors.New("Can't add proxy for node that is not configured to be proxied")
 	}
 	if !api.istanbul.proxyHandlerIsRunning() {
-		return errors.New("Proxy handler is not running")
+		return errStoppedProxyHandler
 	}
 	return nil
 }

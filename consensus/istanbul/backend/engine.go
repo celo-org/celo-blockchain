@@ -91,6 +91,8 @@ var (
 	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
 	// an unauthorized sender
 	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
+	// errStoppedProxyHandler is returned if the proxy handler is not running
+	errStoppedProxyHandler = errors.New("Proxy handler is not running")
 )
 
 var (

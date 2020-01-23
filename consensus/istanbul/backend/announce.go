@@ -19,7 +19,6 @@ package backend
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	mrand "math/rand"
@@ -194,7 +193,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	if sb.config.Proxied {
 		if !sb.proxyHandlerIsRunning() {
 			sb.logger.Warn("Cannot generate an announce msg, proxy handler is not running")
-			return nil, errors.New("Proxy handler is not running")
+			return nil, errStoppedProxyHandler
 		}
 		request := &validatorProxiesRequest{
 			validators: regAndActiveVals,
