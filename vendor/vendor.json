@@ -63,6 +63,12 @@
 			"revisionTime": "2017-11-28T15:02:46Z"
 		},
 		{
+			"checksumSHA1": "sgMRdzbQQQHsdegxD+Wfs10RWYc=",
+			"path": "github.com/buraksezer/consistent",
+			"revision": "693edf70fd72b9a07bb0f323f85b0ee27b0dec1a",
+			"revisionTime": "2019-10-06T19:08:39Z"
+		},
+		{
 			"checksumSHA1": "/yX36dBBvVRz+wSFLlRAy+zqugc=",
 			"path": "github.com/celo-org/bls-zexe",
 			"revision": "4c80fd83fe7efefe2b1df39e02474139fc95eb57",
@@ -83,6 +89,12 @@
 			"path": "github.com/cespare/cp",
 			"revision": "165db2f241fd235aec29ba6d9b1ccd5f1c14637c",
 			"revisionTime": "2015-01-22T07:26:53Z"
+		},
+		{
+			"checksumSHA1": "dBlNHAAacvuK/PoHhqNgz/DBu9s=",
+			"path": "github.com/cespare/xxhash",
+			"revision": "d7df74196a9e781ede915320c11c378c1b2f3a1f",
+			"revisionTime": "2019-11-14T17:47:13Z"
 		},
 		{
 			"checksumSHA1": "7gK+lSShSu1NRw83/A95BcgMqsI=",
@@ -457,12 +469,6 @@
 			"path": "github.com/rs/xhandler",
 			"revision": "ed27b6fd65218132ee50cd95f38474a3d8a2cd12",
 			"revisionTime": "2016-06-18T19:32:21Z"
-		},
-		{
-			"checksumSHA1": "cgD0OFQ5X6JViEyDi7jsTryqgiw=",
-			"path": "github.com/serialx/hashring",
-			"revision": "7706f26af1941a4e865d509c4681eb86c3b62bf8",
-			"revisionTime": "2019-04-25T15:18:19Z"
 		},
 		{
 			"checksumSHA1": "mGbTYZ8dHVTiPTTJu3ktp+84pPI=",

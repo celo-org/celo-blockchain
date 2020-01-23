@@ -22,13 +22,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/consistent"
+	"github.com/cespare/xxhash"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/serialx/hashring"
 )
 
 // This type defines a proxy
@@ -261,18 +262,44 @@ type assignmentPolicy interface {
 	reassignValidators()
 }
 
+type hasher struct{}
+
+func (h hasher) Sum64(data []byte) uint64 {
+	return xxhash.Sum64(data)
+}
+
 // consistentHashingPolicy uses consistent hashing to assign validators to proxies.
 // Validator <-> proxy pairings are recalculated every time a proxy or validator
 // is added/removed
 type consistentHashingPolicy struct {
-	hashRing       *hashring.HashRing // used for consistent hashing
+	c              *consistent.Consistent // used for consistent hashing
 	valAssignments *valAssignments
 }
 
 func newConsistentHashingPolicy() *consistentHashingPolicy {
+	// This sets up a consistent hasher with bounded loads:
+	// https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html
+	// Partitions are assigned to members (proxies in this case)
+	// using a hash ring.
+	// When locating a key's member using `LocateKey`, the key is assigned
+	// to a partition using hash(key) % PartitionCount in constant time.
+	cfg := consistent.Config{
+		// Prime to distribute keys more uniformly.
+		// Higher partition count generally gives a more even distribution
+		PartitionCount:    271,
+		// The number of replications of a member (proxy) on the hash ring
+		ReplicationFactor: 40,
+		// Used to enforce a max # of partitions assigned per member, which is
+		// (PartitionCount / len(members)) * Load. A load closer to 1 gives
+		// more uniformity in the # of partitions assigned to specific members,
+		// but a higher load results in less relocations when members are added/removed
+		Load:              1.2,
+		Hasher:            hasher{},
+	}
+
 	return &consistentHashingPolicy{
-		hashRing:       hashring.New(nil),
 		valAssignments: newValAssignments(),
+		c: consistent.New(nil, cfg),
 	}
 }
 
@@ -283,13 +310,13 @@ func (ch *consistentHashingPolicy) getValAssignments() *valAssignments {
 
 // addProxy adds a proxy to the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) addProxy(proxy *proxy) {
-	ch.hashRing = ch.hashRing.AddNode(proxy.ID().String())
+	ch.c.Add(proxy.ID())
 	ch.reassignValidators()
 }
 
 // removeProxy removes a proxy from the consistent hasher and recalculates all validator assignments
 func (ch *consistentHashingPolicy) removeProxy(proxy *proxy) {
-	ch.hashRing = ch.hashRing.RemoveNode(proxy.ID().String())
+	ch.c.Remove(proxy.ID().String())
 	ch.reassignValidators()
 }
 
@@ -311,15 +338,15 @@ func (ch *consistentHashingPolicy) removeValidators(vals map[common.Address]bool
 func (ch *consistentHashingPolicy) reassignValidators() {
 	assignments := ch.getValAssignments()
 	for val, proxyID := range assignments.valToProxy {
-		newProxyID, ok := ch.hashRing.GetNode(val.Hex())
-		if !ok {
-			log.Warn("Unable to reassign validator")
+		newProxyID := ch.c.LocateKey(val.Bytes())
+		if newProxyID == nil {
+			log.Warn("Unable to assign validator to proxy", "validator", val)
 			continue
 		}
-		// if the proxy for a validator changes, make the change
-		if proxyID == nil || newProxyID != proxyID.String() {
+
+		if proxyID == nil || newProxyID.String() != proxyID.String() {
 			ch.valAssignments.unassignValidator(val)
-			ch.valAssignments.assignValidator(val, enode.HexID(newProxyID))
+			ch.valAssignments.assignValidator(val, enode.HexID(newProxyID.String()))
 		}
 	}
 }
@@ -416,7 +443,7 @@ type proxyPeerRequest struct {
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
-	lock    sync.Mutex // protects the "running" field
+	lock    sync.Mutex // protects "running" and "p2pserver"
 	running bool       // indicates if `run` is currently being run in a goroutine
 
 	loopWG sync.WaitGroup
@@ -507,6 +534,9 @@ func (ph *proxyHandler) isRunning() bool {
 
 // setP2PServer sets the p2pserver
 func (ph *proxyHandler) setP2PServer(p2pserver consensus.P2PServer) {
+	ph.lock.Lock()
+	defer ph.lock.Unlock()
+
 	ph.p2pserver = p2pserver
 }
 
