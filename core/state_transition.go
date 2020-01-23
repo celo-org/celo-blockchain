@@ -167,9 +167,9 @@ func NewStateTransitionGasEstimator(evm *vm.EVM, msg vm.Message, gp *GasPool) *S
 
 // ApplyEstimatorMessage applies the given message in a way that allows for estimation of gas consumption.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyEstimatorMessage(evm *vm.EVM, msg vm.Message) ([]byte, uint64, bool, error) {
+func ApplyEstimatorMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
 	log.Trace("Estimating gas for message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransitionGasEstimator(evm, msg).TransitionDb()
+	return NewStateTransitionGasEstimator(evm, msg, gp).TransitionDb()
 }
 
 // to returns the recipient of the message.
