@@ -710,7 +710,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
 		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
-			log.Error("Error suggesting gas price", gasPrice, "block", blockNr, "err", err)
+			log.Error("Error suggesting gas price", "block", blockNr, "err", err)
 			return nil, 0, false, err
 		}
 	}

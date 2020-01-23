@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -101,11 +100,9 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 			return FallbackGasPriceMinimum, nil
 		}
 		if err == errors.ErrNoInternalEvmHandlerSingleton {
-			log.Error(err.Error())
 			return FallbackGasPriceMinimum, nil
 		}
 		if err != nil {
-			log.Error(err.Error())
 			return FallbackGasPriceMinimum, err
 		}
 	} else {
@@ -124,6 +121,12 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 		state,
 	)
 
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+		return FallbackGasPriceMinimum, nil
+	}
+	if err == errors.ErrNoInternalEvmHandlerSingleton {
+		return FallbackGasPriceMinimum, nil
+	}
 	if err != nil {
 		return FallbackGasPriceMinimum, err
 	}
