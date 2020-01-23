@@ -93,7 +93,7 @@ jobs:
       - checkout
       - run:
           name: Setup Go language
-          command: brew install go@1.11
+          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install go@1.11
       - run:
           name: Setup Rust language
           command: |
