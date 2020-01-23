@@ -317,7 +317,7 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 
 // BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
 // This function will wrap the consensus message in a fwdMessage if it's a proxied validator.  It will then
-// multicast the msg (the wrapped or original version), and then multicast the message to the other validators as well as send it to self.
+// multicast the msg (the wrapped or original version) to the other validators and send it to itself.
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
