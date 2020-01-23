@@ -536,6 +536,8 @@ loop:
 					log.Debug("Proxy is already in the proxy set", "proxyNode", proxyNode, "proxyID", proxyID)
 					continue
 				}
+				// TODO: What happens if the proxies are set at startup via the cmd
+				// line flag, and the p2pserver isn't set yet?
 				if ph.p2pserver == nil {
 					log.Warn("Proxy handler p2pserver not set, cannot add proxy", "proxyNode", proxyNode, "proxyID", proxyID)
 					continue
