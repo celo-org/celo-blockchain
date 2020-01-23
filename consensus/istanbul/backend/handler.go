@@ -188,7 +188,7 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 }
 
 func (sb *Backend) shouldHandleDelegateSign() bool {
-	return sb.IsProxy() || sb.IsProxiedValidator()
+	return sb.IsProxy() || sb.proxyHandlerIsRunning()
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages

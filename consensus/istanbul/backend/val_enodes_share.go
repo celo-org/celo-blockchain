@@ -116,7 +116,6 @@ func (sb *Backend) generateValEnodesShareMsg(valAddresses map[common.Address]boo
 	return msg, nil
 }
 
-// TODO come back to this
 func (sb *Backend) sendValEnodesShareMsg(proxyPeer consensus.Peer, proxyExternalNode *enode.Node, valAddresses map[common.Address]bool) error {
 	msg, err := sb.generateValEnodesShareMsg(valAddresses)
 	if err != nil {

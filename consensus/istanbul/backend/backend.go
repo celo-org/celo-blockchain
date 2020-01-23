@@ -206,12 +206,6 @@ func (sb *Backend) IsProxy() bool {
 	return sb.proxiedPeer != nil
 }
 
-func (sb *Backend) IsProxiedValidator() bool {
-	// TODO change this
-	return true
-	// return sb.proxyNode != nil && sb.proxyNode.peer != nil
-}
-
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error {
@@ -232,8 +226,6 @@ func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error
 		return err
 	}
 	return peer.Send(istanbulDelegateSign, msg)
-	// TODO revisit this
-	// return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
@@ -296,7 +288,6 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 		}
 		sb.proxyHandler.getValidatorProxyPeers <- request
 		return <-request.resultCh
-		// return sb.proxyHandler.getValidatorProxyPeers(destAddresses)
 	} else {
 		var targets map[enode.ID]bool = nil
 

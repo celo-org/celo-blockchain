@@ -201,7 +201,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 		}
 		sb.proxyHandler.getValidatorProxies <- request
 		proxiesForValidators := <-request.resultCh
-		sb.logger.Warn("generateIstAnnounce", "proxiesForValidators", proxiesForValidators, "regAndActiveVals", regAndActiveVals)
 		if len(proxiesForValidators) > 0 {
 			announceRecords = make([]*announceRecord, 0, len(proxiesForValidators))
 
@@ -209,6 +208,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 				announceRecords = append(announceRecords, &announceRecord{DestAddress: valAddress, EncryptedEnodeURL: []byte(proxy.externalNode.String())})
 			}
 		}
+		// NOTE ignoring this for now in favor of the new announce protocol
 		enodeURLHash = common.BytesToHash([]byte("test"))
 	} else {
 		selfEnodeURL := sb.p2pserver.Self().String()
@@ -233,7 +233,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 
 		announceBytes, err := rlp.EncodeToBytes(announceData)
 		if err != nil {
-			sb.logger.Error("Error encoding announce content in an Istanbul Validator Enode Share message", "AnnounceData", announceData.String(), "err", err)
+			sb.logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
 			return nil, err
 		}
 
@@ -254,7 +254,6 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 
 func (sb *Backend) sendIstAnnounce() error {
 	istMsg, err := sb.generateIstAnnounce()
-	sb.logger.Warn("sendIstAnnounce()", "istMsg", istMsg, "err", err)
 	if err != nil {
 		return err
 	}

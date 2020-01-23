@@ -129,7 +129,7 @@ func (api *API) AddProxy(internalUrl, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 	api.istanbul.proxyHandler.addProxies <- []*istanbul.ProxyNodes{
-		{InternalFacingNode: internalNode, ExternalFacingNode: externalNode},
+		{InternalNode: internalNode, ExternalNode: externalNode},
 	}
 	return true, nil
 }

@@ -870,17 +870,13 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 
 func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
 	m := make(map[enode.ID]consensus.Peer)
-	log.Warn("in FindPeers")
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
-		log.Warn("FindPeers", "p", p, "targets", targets, "id", id)
 		if targets[id] || (targets == nil) {
 			if purpose == p2p.AnyPurpose || p.Peer.StaticNodePurposes.IsSet(purpose) || p.Peer.TrustedNodePurposes.IsSet(purpose) {
-				log.Warn("in the if")
 				m[id] = p
 			}
 		}
 	}
-	log.Warn("returning", "m", m)
 	return m
 }

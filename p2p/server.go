@@ -391,7 +391,6 @@ func (srv *Server) PeerCount() int {
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
 func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
-	log.Warn("Inside p2p AddPeer", "node", node)
 	select {
 	case srv.addstatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
