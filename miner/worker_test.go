@@ -248,7 +248,8 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	config.ValidatorEnodeDBPath = ""
 
 	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
-	engine.(*istanbulBackend.Backend).SetLowerLevelComponents(&consensustest.MockBroadcaster{}, consensustest.NewMockP2PServer())
+	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
+	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
 	return engine
 }

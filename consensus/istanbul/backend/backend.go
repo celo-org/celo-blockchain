@@ -109,8 +109,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		commitCh:                make(chan *types.Block, 1),
 		recentSnapshots:         recentSnapshots,
 		coreStarted:             false,
-		announceStarted:         false,
 		coreStartStopCh:         make(chan bool),
+		announceStarted:         false,
 		recentMessages:          recentMessages,
 		knownMessages:           knownMessages,
 		announceThreadWg:        new(sync.WaitGroup),
@@ -138,10 +138,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
-
-	// Start the announce thread.  Note that both full nodes and validators need to run this thread,
-	// so this is invoked in backend.New instead of backend.Start
-	go backend.announceThread()
 
 	return backend
 }
@@ -320,8 +316,8 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 }
 
 // BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
-// This function will first determine if it's a proxied validator (which it will then wrap in a fwdMessage)
-// and then multicast this message to other validators as well as send it to self.
+// This function will wrap the consensus message in a fwdMessage if it's a proxied validator.  It will then
+// multicast the msg (the wrapped or original version), and then multicast the message to the other validators as well as send it to self.
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
@@ -348,12 +344,12 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 		ethMsgCode = istanbulFwdMsg
 	}
 
-	// send to others
+	// Send to others
 	if err := sb.Multicast(destAddresses, payloadForOtherValidators, ethMsgCode); err != nil {
 		return err
 	}
 
-	// send to self.
+	// Send to self.  Note that it will never be a wrapped version of the consensus message.
 	msg := istanbul.MessageEvent{
 		Payload: payload,
 	}

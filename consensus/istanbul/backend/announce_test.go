@@ -24,7 +24,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	val1P2pServer := &consensustest.MockP2PServer{Node: val1Node}
 
 	// Set backend to val1
-	b.SetLowerLevelComponents(nil, val1P2pServer)
+	b.SetP2PServer(val1P2pServer)
 	b.Authorize(val1Addr, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	// Generate an ist announce message using val1

@@ -205,9 +205,13 @@ func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent
 	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 
-// SetLowerLevelComponents implements consensus.Handler.SetLowerLevelComponents
-func (sb *Backend) SetLowerLevelComponents(broadcaster consensus.Broadcaster, p2pserver consensus.P2PServer) {
+// SetBroadcaster implements consensus.Handler.SetBroadcaster
+func (sb *Backend) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	sb.broadcaster = broadcaster
+}
+
+// SetP2PServer implements consensus.Handler.SetP2PServer
+func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 

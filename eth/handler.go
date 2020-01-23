@@ -131,7 +131,8 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
-		handler.SetLowerLevelComponents(manager, server)
+		handler.SetBroadcaster(manager)
+		handler.SetP2PServer(server)
 	}
 
 	// Figure out whether to allow fast sync or not

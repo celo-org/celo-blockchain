@@ -618,6 +618,9 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return err
 	}
 
+	sb.coreStarted = true
+	sb.coreStartStopCh <- true
+
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
 			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
@@ -631,9 +634,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.RefreshValPeers(valset)
 	}
-
-	sb.coreStarted = true
-	sb.coreStartStopCh <- true
 
 	return nil
 }
