@@ -586,8 +586,8 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 	sb.currentBlock = currentBlock
 }
 
-// Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -613,14 +613,10 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
-	sb.logger.Info("Starting istanbul.Engine")
+	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
-
-	sb.coreStarted = true
-
-	go sb.announceThread()
 
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
@@ -636,24 +632,25 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 		sb.RefreshValPeers(valset)
 	}
 
+	sb.coreStarted = true
+	sb.coreStartStopCh <- true
+
 	return nil
 }
 
-// Stop implements consensus.Istanbul.Stop
-func (sb *Backend) Stop() error {
+// StopValidating implements consensus.Istanbul.StopValidating
+func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	sb.logger.Info("Stopping istanbul.Engine")
+	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
 	sb.coreStarted = false
-
-	sb.announceQuit <- struct{}{}
-	sb.announceWg.Wait()
+	sb.coreStartStopCh <- false
 
 	if sb.config.Proxied {
 		sb.valEnodesShareQuit <- struct{}{}
@@ -663,6 +660,36 @@ func (sb *Backend) Stop() error {
 			sb.removeProxy(sb.proxyNode.node)
 		}
 	}
+	return nil
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+	if sb.announceStarted {
+		return istanbul.ErrStartedAnnounce
+	}
+
+	go sb.announceThread()
+
+	sb.announceStarted = true
+	return nil
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+
+	if !sb.announceStarted {
+		return istanbul.ErrStoppedAnnounce
+	}
+
+	sb.announceThreadQuit <- struct{}{}
+	sb.announceThreadWg.Wait()
+
+	sb.announceStarted = false
 	return nil
 }
 

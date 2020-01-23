@@ -109,10 +109,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		commitCh:                make(chan *types.Block, 1),
 		recentSnapshots:         recentSnapshots,
 		coreStarted:             false,
+		announceStarted:         false,
+		coreStartStopCh:         make(chan bool),
 		recentMessages:          recentMessages,
 		knownMessages:           knownMessages,
-		announceWg:              new(sync.WaitGroup),
-		announceQuit:            make(chan struct{}),
+		announceThreadWg:        new(sync.WaitGroup),
+		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
 		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
 		valEnodesShareWg:        new(sync.WaitGroup),
@@ -136,6 +138,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
+
+	// Start the announce thread.  Note that both full nodes and validators need to run this thread,
+	// so this is invoked in backend.New instead of backend.Start
+	go backend.announceThread()
 
 	return backend
 }
@@ -169,6 +175,7 @@ type Backend struct {
 	sealMu            sync.Mutex
 	coreStarted       bool
 	coreMu            sync.RWMutex
+	coreStartStopCh   chan bool
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -187,8 +194,10 @@ type Backend struct {
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	announceWg   *sync.WaitGroup
-	announceQuit chan struct{}
+	announceStarted    bool
+	announceMu         sync.RWMutex
+	announceThreadWg   *sync.WaitGroup
+	announceThreadQuit chan struct{}
 
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry

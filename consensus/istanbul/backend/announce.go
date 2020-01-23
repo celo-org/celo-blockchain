@@ -38,11 +38,11 @@ import (
 //
 // define the constant, types, and function for the sendAnnounce thread
 
-type AnnounceFrequencyState int
+type AnnounceGossipFrequencyState int
 
 const (
 	// In this state, send out an announce message every 1 minute until the first peer is established
-	HighFreqBeforeFirstPeerState AnnounceFrequencyState = iota
+	HighFreqBeforeFirstPeerState AnnounceGossipFrequencyState = iota
 
 	// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
 	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
@@ -62,57 +62,85 @@ const (
 // It will generate and gossip it's announce message periodically.
 // It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
 func (sb *Backend) announceThread() {
-	sb.announceWg.Add(1)
-	defer sb.announceWg.Done()
+	sb.announceThreadWg.Add(1)
+	defer sb.announceThreadWg.Done()
 
-	// Send out an announce message when this thread starts
-	go sb.gossipAnnounce()
+	// Create a ticker for this node to check it's peers' announce versions one every 10 minutes
+	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
 
-	// Set the initial states
-	announceThreadState := HighFreqBeforeFirstPeerState
-	currentTickerDuration := HighFreqTickerDuration
-	ticker := time.NewTicker(currentTickerDuration)
-	numSentMsgsInHighFreqAfterFirstPeerState := 0
+	// Periodic gossip related params
+	var announceGossipTicker *time.Ticker
+	var announceGossipTickerCh <-chan time.Time
+	var announceGossipFrequencyState AnnounceGossipFrequencyState
+	var currentAnnounceGossipTickerDuration time.Duration
+	var numGossipedMsgsInHighFreqAfterFirstPeerState int
 
 	for {
 		select {
+		case coreRunning := <-sb.coreStartStopCh:
+			// coreRunning is true if sb.StartValidating was called.
+			// coreRunning is false if sb.StopValidating was called.
+			if coreRunning {
+				// Immediate gossip an announce
+				go sb.gossipAnnounce()
+
+				announceGossipFrequencyState = HighFreqBeforeFirstPeerState
+				currentAnnounceGossipTickerDuration = HighFreqTickerDuration
+				numGossipedMsgsInHighFreqAfterFirstPeerState = 0
+				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
+				announceGossipTickerCh = announceGossipTicker.C
+			} else {
+				// Don't periodically gossip the announce message
+				announceGossipTicker.Stop()
+				announceGossipTickerCh = nil
+			}
+
 		case <-sb.newEpochCh:
-			go sb.gossipAnnounce()
+			if sb.coreStarted {
+				go sb.gossipAnnounce()
+			}
 			go sb.checkPeersAnnounceVersions()
 
-		case <-ticker.C:
-			switch announceThreadState {
+		case <-announceGossipTickerCh: // If this is nil (when sb.coreStarted == false), this channel will never receive an event
+
+			switch announceGossipFrequencyState {
 			case HighFreqBeforeFirstPeerState:
 				{
 					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-						announceThreadState = HighFreqAfterFirstPeerState
+						announceGossipFrequencyState = HighFreqAfterFirstPeerState
 					}
 				}
 
 			case HighFreqAfterFirstPeerState:
 				{
-					if numSentMsgsInHighFreqAfterFirstPeerState >= 10 {
-						announceThreadState = LowFreqState
+					if numGossipedMsgsInHighFreqAfterFirstPeerState >= 10 {
+						announceGossipFrequencyState = LowFreqState
 					}
-					numSentMsgsInHighFreqAfterFirstPeerState += 1
+					numGossipedMsgsInHighFreqAfterFirstPeerState += 1
 				}
 
 			case LowFreqState:
 				{
-					if currentTickerDuration != LowFreqTickerDuration {
+					if currentAnnounceGossipTickerDuration != LowFreqTickerDuration {
 						// Reset the ticker
-						currentTickerDuration = LowFreqTickerDuration
-						ticker.Stop()
-						ticker = time.NewTicker(currentTickerDuration)
+						currentAnnounceGossipTickerDuration = LowFreqTickerDuration
+						announceGossipTicker.Stop()
+						announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
+						announceGossipTickerCh = announceGossipTicker.C
 					}
 				}
 			}
 
 			go sb.gossipAnnounce()
+
+		case <-announceVersionsCheckTicker.C:
 			go sb.checkPeersAnnounceVersions()
 
-		case <-sb.announceQuit:
-			ticker.Stop()
+		case <-sb.announceThreadQuit:
+			announceVersionsCheckTicker.Stop()
+			if announceGossipTicker != nil {
+				announceGossipTicker.Stop()
+			}
 			return
 		}
 	}
