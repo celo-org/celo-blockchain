@@ -226,7 +226,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		}
 		// Static portion of gas
 		cost = operation.constantGas // For tracing
-		if !contract.UseGas(operation.constantGas) {
+		if !in.evm.DontMeterGas && !contract.UseGas(operation.constantGas) {
 			return nil, ErrOutOfGas
 		}
 

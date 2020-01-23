@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -40,6 +39,7 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
+	// TODO(mcortesi) remove registrypoxy deployed at genesis
 	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return nil, errors.ErrRegistryContractNotDeployed
 	}
@@ -49,7 +49,6 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 
 	// TODO(asa): Why was this change necessary?
 	if err == abi.ErrEmptyOutput || err == errExecutionReverted {
-		log.Trace("Registry contract not deployed")
 		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err
