@@ -188,7 +188,7 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 }
 
 func (sb *Backend) shouldHandleDelegateSign() bool {
-	return sb.IsProxy() || sb.proxyHandlerIsRunning()
+	return sb.IsProxy() || sb.ProxyHandlerIsRunning()
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
@@ -247,7 +247,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		sb.RefreshValPeers(valset)
 
 		// If this is a proxied validator, trigger any changes needed for the proxy handler
-		if sb.proxyHandlerIsRunning() {
+		if sb.ProxyHandlerIsRunning() {
 			sb.proxyHandler.newBlockchainEpoch <- struct{}{}
 		}
 	}
@@ -259,7 +259,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	//        the correct node key
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
-	} else if sb.proxyHandlerIsRunning() {
+	} else if sb.ProxyHandlerIsRunning() {
 		sb.proxyHandler.addProxyPeer <- peer
 	}
 }
@@ -267,11 +267,11 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.config.Proxy && isProxiedPeer && reflect.DeepEqual(sb.proxiedPeer, peer) {
 		sb.proxiedPeer = nil
-	} else if sb.proxyHandlerIsRunning() {
+	} else if sb.ProxyHandlerIsRunning() {
 		sb.proxyHandler.delProxyPeer <- peer
 	}
 }
 
-func (sb *Backend) proxyHandlerIsRunning() bool {
+func (sb *Backend) ProxyHandlerIsRunning() bool {
 	return sb.config.Proxied && sb.proxyHandler != nil && sb.proxyHandler.isRunning()
 }

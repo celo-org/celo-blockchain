@@ -20,7 +20,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	// Tests that a validator enode share message without any validator info
 	// in the payload will not result in errors
-	msg, err := b.generateValEnodesShareMsg()
+	msg, err := b.generateValEnodesShareMsg(nil)
 	if err != nil {
 		t.Errorf("error %v", err)
 	}
@@ -55,7 +55,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		Timestamp: 0,
 	}})
 	senderAddress = b.Address()
-	newMsg, err := b.generateValEnodesShareMsg()
+	newMsg, err := b.generateValEnodesShareMsg(nil)
 	if err != nil {
 		t.Errorf("error %v", err)
 	}

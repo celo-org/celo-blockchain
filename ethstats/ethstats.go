@@ -278,7 +278,7 @@ func (s *Service) loop() {
 				if s.backend.IsProxy() {
 					// proxy should send to websocket
 					sendCh <- &statsPayload
-				} else if s.backend.IsProxiedValidator() {
+				} else if s.backend.ProxyHandlerIsRunning() {
 					// proxied validator should sign
 					signCh <- &DelegateSignStats{
 						Payload: &statsPayload,
@@ -292,7 +292,7 @@ func (s *Service) loop() {
 
 	// Loop reporting until termination
 	for {
-		if s.backend.IsProxiedValidator() {
+		if s.backend.ProxyHandlerIsRunning() {
 			delegateSignStats := <-signCh
 			if err := s.handleDelegateSign(delegateSignStats); err != nil {
 				log.Warn("Delegate sign failed", "err", err)

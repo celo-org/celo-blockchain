@@ -650,7 +650,7 @@ func (sb *Backend) Stop() error {
 	sb.announceQuit <- struct{}{}
 	sb.announceWg.Wait()
 
-	if sb.proxyHandlerIsRunning() {
+	if sb.ProxyHandlerIsRunning() {
 		sb.proxyHandler.Stop()
 	}
 	return nil

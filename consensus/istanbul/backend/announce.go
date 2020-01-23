@@ -191,7 +191,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	// TODO - Need to encrypt using the remote validator's validator key
 	var announceRecords []*announceRecord
 	if sb.config.Proxied {
-		if !sb.proxyHandlerIsRunning() {
+		if !sb.ProxyHandlerIsRunning() {
 			sb.logger.Warn("Cannot generate an announce msg, proxy handler is not running")
 			return nil, errStoppedProxyHandler
 		}
@@ -223,7 +223,7 @@ func (sb *Backend) generateIstAnnounce() (*istanbul.Message, error) {
 	}
 
 	var msg *istanbul.Message
-	if announceRecords != nil && len(announceRecords) > 0 {
+	if len(announceRecords) > 0 {
 		announceData := &announceData{
 			AnnounceRecords: announceRecords,
 			EnodeURLHash:    enodeURLHash,

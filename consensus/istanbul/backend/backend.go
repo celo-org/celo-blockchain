@@ -56,13 +56,6 @@ var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 
-	// errProxyAlreadySet is returned if a user tries to add a proxy that is already set.
-	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
-	errProxyAlreadySet = errors.New("proxy already set")
-
-	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
-	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
-
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
@@ -209,7 +202,7 @@ func (sb *Backend) IsProxy() bool {
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(peerID enode.ID, msg []byte) error {
-	if !sb.proxyHandlerIsRunning() {
+	if !sb.ProxyHandlerIsRunning() {
 		err := errStoppedProxyHandler
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
@@ -281,7 +274,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 // If this is a proxied validator, then it will return the proxies for the destAddresses
 // If destAddresses is nil, all peers are returned
 func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
-	if sb.proxyHandlerIsRunning() {
+	if sb.ProxyHandlerIsRunning() {
 		request := &validatorProxyPeersRequest{
 			validators: destAddresses,
 			resultCh:   make(chan map[enode.ID]consensus.Peer),

@@ -69,7 +69,7 @@ func (p proxy) String() string {
 // validator/proxy assignments
 type proxySet struct {
 	proxiesByID map[enode.ID]*proxy // all proxies known by this node, whether or not they are peered
-	valAssigner assignmentPolicy // used for assigning peered proxies with validators
+	valAssigner assignmentPolicy    // used for assigning peered proxies with validators
 }
 
 func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
@@ -205,7 +205,7 @@ func (ps *proxySet) getValidatorProxyPeers(validators []common.Address) map[enod
 func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) {
 	for proxyID := range ps.valAssigner.getValAssignments().proxyToVals {
 		proxy := ps.getProxy(proxyID)
-		if proxy != nil && proxy.peer == nil && time.Now().Sub(proxy.dcTimestamp) >= minAge {
+		if proxy != nil && proxy.peer == nil && time.Since(proxy.dcTimestamp) >= minAge {
 			log.Debug("Unassigning disconnected proxy", "proxy", proxy.String())
 			ps.valAssigner.removeProxy(proxy)
 		}
@@ -397,7 +397,7 @@ func (va *valAssignments) getValidators() map[common.Address]bool {
 // from the peerHandler event loop
 type validatorProxyPeersRequest struct {
 	validators []common.Address
-	resultCh   chan<- map[enode.ID]consensus.Peer
+	resultCh   chan map[enode.ID]consensus.Peer
 }
 
 // This struct is used for requesting proxies for particular validators
@@ -429,8 +429,8 @@ type proxyHandler struct {
 	delProxyPeer chan consensus.Peer // This channel is for newly disconnected peers
 
 	getValidatorProxyPeers chan *validatorProxyPeersRequest // This channel is for getting the peers of proxies for a set of validators
-	getValidatorProxies    chan *validatorProxiesRequest // This channel is for getting the proxies for a set of validators
-	getProxyPeer           chan *proxyPeerRequest // This channel is for getting the peers of a proxy with a specific ID
+	getValidatorProxies    chan *validatorProxiesRequest    // This channel is for getting the proxies for a set of validators
+	getProxyPeer           chan *proxyPeerRequest           // This channel is for getting the peers of a proxy with a specific ID
 
 	getProxyInfo chan chan []ProxyInfo // This channel is for getting info on the proxies in proxySet
 
