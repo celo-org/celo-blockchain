@@ -65,10 +65,19 @@ func (sb *Backend) announceThread() {
 	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
-	// Create a ticker for this node to check it's peers' announce versions one every 10 minutes
+	// The announce thread does 3 things
+	// 1) Is will poll to see if the istanbul core is started once a minute
+	// 2) If it is started, then it will periodically gossip an announce message
+	// 3) Regardless of whether core is started, it will periodically ask it's peers for their announceVersions set, and update it's own announce version set accordingly
+	// 4) Gossip and announce message (if core is started) and check peers' announceVersions set at every new epoch
+
+	// Create a ticker to poll if istanbul core is running
+	coreStartedTicker := time.NewTicker(1 * time.Minute)
+
+	// Create a ticker to check peers' announce versions one every 10 minutes
 	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
 
-	// Periodic gossip related params
+	// Create all the variables needed for the periodic gossip
 	var announceGossipTicker *time.Ticker
 	var announceGossipTickerCh <-chan time.Time
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
@@ -77,11 +86,10 @@ func (sb *Backend) announceThread() {
 
 	for {
 		select {
-		case coreRunning := <-sb.coreStartStopCh:
-			// coreRunning is true if sb.StartValidating was called.
-			// coreRunning is false if sb.StopValidating was called.
-			if coreRunning {
-				// Immediate gossip an announce
+		case <-coreStartedTicker.C:
+			sb.coreMu.RLock()
+			if sb.coreStarted && announceGossipTickerCh == nil {
+				// Immediately gossip an announce
 				go sb.gossipAnnounce()
 
 				announceGossipFrequencyState = HighFreqBeforeFirstPeerState
@@ -89,17 +97,12 @@ func (sb *Backend) announceThread() {
 				numGossipedMsgsInHighFreqAfterFirstPeerState = 0
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 				announceGossipTickerCh = announceGossipTicker.C
-			} else {
+			} else if !sb.coreStarted && announceGossipTickerCh != nil {
 				// Don't periodically gossip the announce message
 				announceGossipTicker.Stop()
 				announceGossipTickerCh = nil
 			}
-
-		case <-sb.newEpochCh:
-			if sb.coreStarted {
-				go sb.gossipAnnounce()
-			}
-			go sb.checkPeersAnnounceVersions()
+			sb.coreMu.RUnlock()
 
 		case <-announceGossipTickerCh: // If this is nil (when sb.coreStarted == false), this channel will never receive an event
 
@@ -134,6 +137,12 @@ func (sb *Backend) announceThread() {
 			go sb.gossipAnnounce()
 
 		case <-announceVersionsCheckTicker.C:
+			go sb.checkPeersAnnounceVersions()
+
+		case <-sb.newEpochCh:
+			if sb.coreStarted {
+				go sb.gossipAnnounce()
+			}
 			go sb.checkPeersAnnounceVersions()
 
 		case <-sb.announceThreadQuit:

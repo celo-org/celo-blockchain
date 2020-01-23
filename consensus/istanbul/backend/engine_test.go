@@ -135,6 +135,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 			return blockchain.Validator().ValidateState(block, nil, state, receipts, usedGas)
 		})
+	b.StartAnnouncing()
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)

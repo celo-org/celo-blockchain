@@ -619,7 +619,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	}
 
 	sb.coreStarted = true
-	sb.coreStartStopCh <- true
 
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
@@ -650,7 +649,6 @@ func (sb *Backend) StopValidating() error {
 		return err
 	}
 	sb.coreStarted = false
-	sb.coreStartStopCh <- false
 
 	if sb.config.Proxied {
 		sb.valEnodesShareQuit <- struct{}{}

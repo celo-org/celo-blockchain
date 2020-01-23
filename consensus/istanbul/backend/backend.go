@@ -109,7 +109,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		commitCh:                make(chan *types.Block, 1),
 		recentSnapshots:         recentSnapshots,
 		coreStarted:             false,
-		coreStartStopCh:         make(chan bool),
 		announceStarted:         false,
 		recentMessages:          recentMessages,
 		knownMessages:           knownMessages,
@@ -171,7 +170,6 @@ type Backend struct {
 	sealMu            sync.Mutex
 	coreStarted       bool
 	coreMu            sync.RWMutex
-	coreStartStopCh   chan bool
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
