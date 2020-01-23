@@ -213,6 +213,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// Get the operation from the jump table and validate the stack to ensure there are
 		// enough stack items available to perform the operation.
 		op = contract.GetOp(pc)
+		log.Info("Running op", "op", op.String())
 		operation := in.cfg.JumpTable[op]
 		if !operation.valid {
 			return nil, fmt.Errorf("invalid opcode 0x%x", int(op))
@@ -245,6 +246,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 			cost, err = operation.gasCost(in.gasTable, in.evm, contract, stack, mem, memorySize)
 			if err != nil || !contract.UseGas(cost) {
 				log.Debug("Run out of gas during execution", "cost", cost, "err", err, "operation", op.String())
+				in.evm.Cancel()
 				return nil, ErrOutOfGas
 			}
 		}
@@ -258,7 +260,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		}
 
 		// execute the operation
+		// log.Info("Calling execute", "op", operation)
 		res, err := operation.execute(&pc, in, contract, mem, stack)
+		// log.Info("result of execute", "res", res, "err", err)
 		// verifyPool is a build flag. Pool verification makes sure the integrity
 		// of the integer pool by comparing values to a default value.
 		if verifyPool {

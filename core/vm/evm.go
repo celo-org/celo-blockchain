@@ -268,6 +268,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}()
 	}
 	ret, err = run(evm, contract, input, false)
+	log.Info("Connor debug", "ret", ret, "err", err)
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
@@ -464,12 +465,15 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// by the error checking condition below.
 	if err == nil && !maxCodeSizeExceeded {
 		createDataGas := uint64(len(ret)) * params.CreateDataGas
+		log.Info("createDataGas", "createGas", createDataGas)
 		if contract.UseGas(createDataGas) {
 			evm.StateDB.SetCode(address, ret)
 		} else {
 			err = ErrCodeStoreOutOfGas
 		}
 	}
+
+	log.Info("connor", "err", err)
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally

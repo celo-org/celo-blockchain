@@ -684,7 +684,9 @@ type CallArgs struct {
 }
 
 func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration) ([]byte, uint64, bool, error) {
-	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
+	defer func(start time.Time) {
+		log.Debug("Executing EVM call finished", "runtime", time.Since(start), "from", args.From, "to", args.To)
+	}(time.Now())
 
 	state, header, err := s.b.StateAndHeaderByNumber(ctx, blockNr)
 	if state == nil || err != nil {
@@ -792,11 +794,12 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 		mid := (hi + lo) / 2
 		exec, execError := executable(mid)
 		if !exec {
+			log.Info("ExecError", "error", execError)
 			if execError == vm.ErrOutOfGas { // Not enough gas
-				log.Trace("Ran out of gas, will increase lo to mid", "gas", mid)
+				log.Info("Ran out of gas, will increase lo to mid", "gas", mid)
 				lo = mid
 			} else { // Gas too high
-				log.Trace("Failed because gas too high, lowering hi to mid", "gas", mid)
+				log.Info("Failed because gas too high, lowering hi to mid", "gas", mid)
 				hi = mid
 			}
 		} else {
