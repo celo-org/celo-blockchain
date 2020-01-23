@@ -21,7 +21,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
-      - run: build/env.sh go run build/ci.go test -verbose
+      - run: build/env.sh go run build/ci.go test -v
 
   coverage:
     <<: *geth-defaults
@@ -86,8 +86,8 @@ jobs:
             export CELO_MONOREPO_DIR="$PWD"
             GO_LANG_DIR="${CELO_MONOREPO_DIR}/golang"
             mkdir -p ${GO_LANG_DIR}
-            wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
-            tar xf go1.11.5.linux-amd64.tar.gz -C ${GO_LANG_DIR}
+            wget https://dl.google.com/go/go1.13.6.linux-amd64.tar.gz
+            tar xf go1.13.6.linux-amd64.tar.gz -C ${GO_LANG_DIR}
             ${GO_LANG_DIR}/go/bin/go version
       - persist_to_workspace:
           root: ~/repos
