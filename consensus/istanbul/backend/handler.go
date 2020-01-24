@@ -133,6 +133,11 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return nil
 		}
 
+		if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
+			sb.logger.Trace("Got a consensus message from a non validator.  Ignoring it")
+			return nil
+		}
+
 		// Need to forward the message to the proxied validator
 		sb.logger.Trace("Forwarding consensus message to proxied validator")
 		if sb.proxiedPeer != nil {

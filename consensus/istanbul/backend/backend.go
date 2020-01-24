@@ -195,9 +195,11 @@ type Backend struct {
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
 
+	// Validator's proxy
 	proxyNode *proxyInfo
 
 	// Right now, we assume that there is at most one proxied peer for a proxy
+	// Proxy's validator
 	proxiedPeer consensus.Peer
 
 	newEpochCh chan struct{}
