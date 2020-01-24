@@ -240,7 +240,7 @@ func (slice Keys) Swap(i, j int) {
 
 func signerFn(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
-	return crypto.Sign(data, key)
+	return crypto.Sign(crypto.Keccak256(data), key)
 }
 
 func signerBLSHashFn(_ accounts.Account, data []byte) ([]byte, error) {

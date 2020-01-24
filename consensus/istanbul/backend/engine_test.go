@@ -56,7 +56,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
 	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
-		return crypto.Sign(data, nodeKeys[0])
+		return crypto.Sign(crypto.Keccak256(data), nodeKeys[0])
 	}
 
 	signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
