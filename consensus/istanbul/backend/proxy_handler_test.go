@@ -59,6 +59,58 @@ func TestProxySet(t *testing.T) {
 		t.Errorf("ps.addProxyPeer() did not result in an assignment")
 	}
 
+	// Adding another validator for more testing
+	barVal := common.BytesToAddress([]byte("bar"))
+	validators[barVal] = true
+	ps.addValidators(validators)
+
+	// Testing that getValidatorProxies will return all validator assignments if validators is nil
+	proxies := ps.getValidatorProxies(nil)
+	// Should be two entries, one for fooVal and barVal
+	if len(proxies) != 2 {
+		t.Errorf("ps.getValidatorProxies() did not return all assignments when validators is nil")
+	}
+	// Both validators should be assigned to the same proxy
+	for _, p := range proxies {
+		if p.ID() != proxy.ID() {
+			t.Errorf("ps.getValidatorProxies() did not return the correct assignments with nil validators")
+		}
+	}
+
+	// Testing that getValidatorProxies will return the proxy for a specified validator
+	fooValMap := make(map[common.Address]bool)
+	fooValMap[fooVal] = true
+	proxies = ps.getValidatorProxies(fooValMap)
+	if len(proxies) != 1 || !bytes.Equal(proxies[fooVal].ID().Bytes(), proxy.ID().Bytes()) {
+		t.Errorf("ps.getValidatorProxies did not return the correct assignments with a specified validator")
+	}
+
+	// Adding another proxy for more testing
+	proxyNodes1 := newProxyNodes(rng)
+	ps.addProxy(proxyNodes1)
+	proxy1 := ps.getProxy(proxyNodes1.InternalNode.ID())
+	peer1 := &testPeer{}
+	ps.addProxyPeer(proxy1.ID(), peer1)
+
+	// Testing that getValidatorProxyPeers will return all proxy peers if validators is nil
+	peers := ps.getValidatorProxyPeers(nil)
+	// Should be two entries, one for fooVal and barVal
+	if len(peers) != 2 {
+		t.Errorf("ps.getValidatorProxyPeers() did not return all peers when validators is nil")
+	}
+	// Both validators should be assigned to the same proxy
+	for _, p := range peers {
+		if p == nil {
+			t.Errorf("ps.getValidatorProxyPeers() did not return the correct peers with nil validators")
+		}
+	}
+
+	// Testing that getValidatorProxyPeers will return all  the peer for a specified validator
+	peers = ps.getValidatorProxyPeers([]common.Address{fooVal})
+	if len(peers) != 1 {
+		t.Errorf("ps.getValidatorProxyPeers did not return the correct peer with a specified validator")
+	}
+
 	oldDcTimestamp := proxy.dcTimestamp
 	// Testing that removing a proxy peer works as intended
 	ps.removeProxyPeer(proxy.ID())
@@ -67,8 +119,9 @@ func TestProxySet(t *testing.T) {
 		t.Errorf("ps.removeProxyPeer() did not remove the peer or the dcTimestamp was not updated. oldDcTimestamp: %v proxy.dcTimestamp: %v", oldDcTimestamp, proxy.dcTimestamp)
 	}
 
-	// Testing that removing a proxy works as intended
+	// Testing that removing proxies works as intended
 	ps.removeProxy(proxy.ID())
+	ps.removeProxy(proxy1.ID())
 	va = ps.valAssigner.getValAssignments()
 	proxy = ps.getProxy(proxyNodes.InternalNode.ID())
 	if len(ps.proxiesByID) != 0 || proxy != nil || va.valToProxy[fooVal] != nil {
@@ -142,7 +195,7 @@ func TestConsistentHashingPolicy(t *testing.T) {
 	}
 	ch.addValidators(newValidators)
 
-	testValAssignmentsDistribution(t, "Adding multiple proxies and validators", ch.getValAssignments(), nVals / nProxies, 0.7)
+	testValAssignmentsDistribution(t, "Adding multiple proxies and validators", ch.getValAssignments(), nVals/nProxies, 0.7)
 
 	// Testing that removing half the proxies will reassign validators as expected
 	nProxiesRemoved := nProxies / 2
@@ -150,7 +203,7 @@ func TestConsistentHashingPolicy(t *testing.T) {
 		ch.removeProxy(proxies[i])
 	}
 	nProxies -= nProxiesRemoved
-	testValAssignmentsDistribution(t, "Removing half the proxies", ch.getValAssignments(), nVals / nProxies, 0.7)
+	testValAssignmentsDistribution(t, "Removing half the proxies", ch.getValAssignments(), nVals/nProxies, 0.7)
 
 	// Testing that removing half the validators will reassign validators as expected
 	nValsRemoved := nVals / 2
@@ -164,7 +217,7 @@ func TestConsistentHashingPolicy(t *testing.T) {
 	}
 	ch.removeValidators(newValidators)
 	nVals -= nValsRemoved
-	testValAssignmentsDistribution(t, "Removing half the validators", ch.getValAssignments(), nVals / nProxies, 0.7)
+	testValAssignmentsDistribution(t, "Removing half the validators", ch.getValAssignments(), nVals/nProxies, 0.7)
 }
 
 func TestValAssignments(t *testing.T) {
@@ -240,10 +293,10 @@ func TestValAssignments(t *testing.T) {
 	}
 }
 
-type testPeer struct {}
+type testPeer struct{}
 
 func (tp *testPeer) Send(msgcode uint64, data interface{}) error { return nil }
-func (tp *testPeer) Node() *enode.Node { return nil }
+func (tp *testPeer) Node() *enode.Node                           { return nil }
 
 func newProxy(rng *rand.Rand) *proxy {
 	pNodes := newProxyNodes(rng)
