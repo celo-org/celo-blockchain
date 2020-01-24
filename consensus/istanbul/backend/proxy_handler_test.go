@@ -1,17 +1,85 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"math/rand"
-	"log"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
+func TestProxySet(t *testing.T) {
+	// Using math/rand to keep rng deterministic for tests
+	rng := rand.New(rand.NewSource(0))
+
+	// Testing with consistentHashingPolicy but keeping all tests as
+	// implementation-agnostic as possible
+	ps := newProxySet(newConsistentHashingPolicy())
+	proxyNodes := newProxyNodes(rng)
+	ps.addProxy(proxyNodes)
+
+	// Testing that adding a single proxy results in an entry in proxiesByID
+	if len(ps.proxiesByID) != 1 {
+		t.Errorf("ps.addProxy() should first result in a single entry in proxiesByID")
+	}
+
+	// Testing that getting a proxy works as intended
+	proxy := ps.getProxy(proxyNodes.InternalNode.ID())
+	if proxy == nil || proxy.internalNode != proxyNodes.InternalNode || proxy.externalNode != proxyNodes.ExternalNode {
+		t.Errorf("ps.getProxy() did not get the correct proxy")
+	}
+
+	// Testing that adding a validator while there are no proxies that are peered with
+	// will not result in an assignment but will add the validator to the valAssignments
+	fooVal := common.BytesToAddress([]byte("foo"))
+	validators := make(map[common.Address]bool)
+	validators[fooVal] = true
+	ps.addValidators(validators)
+	va := ps.valAssigner.getValAssignments()
+	if value, ok := va.valToProxy[fooVal]; value != nil || !ok {
+		t.Errorf("ps.addValidators() without any proxy peers did not result in validators added but no assignments")
+	}
+
+	// Testing that adding a proxy peer works as intended
+	peer := &testPeer{}
+	ps.addProxyPeer(proxy.ID(), peer)
+	proxy = ps.getProxy(proxyNodes.InternalNode.ID())
+	if proxy.peer == nil {
+		t.Errorf("ps.addProxyPeer() did not set the peer")
+	}
+
+	// Testing that there will now be an assignment as a result of the proxy peer
+	// being added
+	va = ps.valAssigner.getValAssignments()
+	if va.valToProxy[fooVal] == nil || !bytes.Equal(va.valToProxy[fooVal].Bytes(), proxy.ID().Bytes()) {
+		t.Errorf("ps.addProxyPeer() did not result in an assignment")
+	}
+
+	oldDcTimestamp := proxy.dcTimestamp
+	// Testing that removing a proxy peer works as intended
+	ps.removeProxyPeer(proxy.ID())
+	proxy = ps.getProxy(proxyNodes.InternalNode.ID())
+	if proxy.peer != nil || !proxy.dcTimestamp.After(oldDcTimestamp) {
+		t.Errorf("ps.removeProxyPeer() did not remove the peer or the dcTimestamp was not updated. oldDcTimestamp: %v proxy.dcTimestamp: %v", oldDcTimestamp, proxy.dcTimestamp)
+	}
+
+	// Testing that removing a proxy works as intended
+	ps.removeProxy(proxy.ID())
+	va = ps.valAssigner.getValAssignments()
+	proxy = ps.getProxy(proxyNodes.InternalNode.ID())
+	if len(ps.proxiesByID) != 0 || proxy != nil || va.valToProxy[fooVal] != nil {
+		t.Errorf("ps.removeProxy did not remove the proxy or did not unassign the validator %v %v %v", len(ps.proxiesByID), proxy != nil, va.valToProxy[fooVal])
+	}
+}
+
 func TestConsistentHashingPolicy(t *testing.T) {
+	// Using math/rand to keep rng deterministic for tests
+	rng := rand.New(rand.NewSource(0))
+
 	ch := newConsistentHashingPolicy()
 
 	// Testing that the valAssignments are empty at first
@@ -40,7 +108,7 @@ func TestConsistentHashingPolicy(t *testing.T) {
 
 	// Testing that adding a proxy will now result in an assignment to the previously added
 	// validator
-	fooProxy := newProxy()
+	fooProxy := newProxy(rng)
 	ch.addProxy(fooProxy)
 	if len(va.proxyToVals) != 1 || !eqValidators(va.proxyToVals[fooProxy.ID()], validators) {
 		t.Errorf("ch.addProxy() should assign any previously added validators")
@@ -59,35 +127,44 @@ func TestConsistentHashingPolicy(t *testing.T) {
 
 	// Testing that multiple proxies will have validators distributed amongst them
 	nProxies := 10
+	proxies := make([]*proxy, nProxies)
 	for i := 0; i < nProxies; i++ {
-		ch.addProxy(newProxy())
+		proxies[i] = newProxy(rng)
+		ch.addProxy(proxies[i])
 	}
 	nVals := 100
 	newValidators = make(map[common.Address]bool)
 	for i := 0; i < nVals; i++ {
 		addrBytes := make([]byte, 32)
-		rand.Read(addrBytes)
+		rng.Read(addrBytes)
 		addr := common.BytesToAddress(addrBytes)
 		newValidators[addr] = true
 	}
 	ch.addValidators(newValidators)
 
-	expectedValsPerProxy := nVals / nProxies
-	tolerance := int(float64(expectedValsPerProxy) * 0.7)
-	min := expectedValsPerProxy - tolerance
-	max := expectedValsPerProxy + tolerance
-	va = ch.getValAssignments()
-	sum := 0
-	for proxy, vals := range va.proxyToVals {
-		sum += len(vals)
-		log.Printf("proxy: %v\n vals: %v\n len: %v\n", proxy, vals, len(vals))
-		if len(vals) < expectedValsPerProxy - tolerance || len(vals) > expectedValsPerProxy + tolerance {
-			t.Errorf("Adding multiple proxies & validators resulted in a proxy being assigned %v validators. Expected min: %v max: %v", len(vals), min, max)
-		}
+	testValAssignmentsDistribution(t, "Adding multiple proxies and validators", ch.getValAssignments(), nVals / nProxies, 0.7)
+
+	// Testing that removing half the proxies will reassign validators as expected
+	nProxiesRemoved := nProxies / 2
+	for i := 0; i < nProxiesRemoved; i++ {
+		ch.removeProxy(proxies[i])
 	}
+	nProxies -= nProxiesRemoved
+	testValAssignmentsDistribution(t, "Removing half the proxies", ch.getValAssignments(), nVals / nProxies, 0.7)
 
-	log.Printf("sum %v", sum)
-
+	// Testing that removing half the validators will reassign validators as expected
+	nValsRemoved := nVals / 2
+	i := 0
+	for val := range newValidators {
+		if i >= nValsRemoved {
+			break
+		}
+		delete(newValidators, val)
+		i++
+	}
+	ch.removeValidators(newValidators)
+	nVals -= nValsRemoved
+	testValAssignmentsDistribution(t, "Removing half the validators", ch.getValAssignments(), nVals / nProxies, 0.7)
 }
 
 func TestValAssignments(t *testing.T) {
@@ -163,19 +240,50 @@ func TestValAssignments(t *testing.T) {
 	}
 }
 
-func newProxy() *proxy {
+type testPeer struct {}
+
+func (tp *testPeer) Send(msgcode uint64, data interface{}) error { return nil }
+func (tp *testPeer) Node() *enode.Node { return nil }
+
+func newProxy(rng *rand.Rand) *proxy {
+	pNodes := newProxyNodes(rng)
 	return &proxy{
-		internalNode: enode.NewV4(&newKey().PublicKey, nil, 0, 0),
-		externalNode: enode.NewV4(&newKey().PublicKey, nil, 0, 0),
+		internalNode: pNodes.InternalNode,
+		externalNode: pNodes.ExternalNode,
 	}
 }
 
-func newKey() *ecdsa.PrivateKey {
-	key, err := crypto.GenerateKey()
+func newProxyNodes(rng *rand.Rand) *istanbul.ProxyNodes {
+	return &istanbul.ProxyNodes{
+		InternalNode: enode.NewV4(&newKey(rng).PublicKey, nil, 0, 0),
+		ExternalNode: enode.NewV4(&newKey(rng).PublicKey, nil, 0, 0),
+	}
+}
+
+func newKey(rng *rand.Rand) *ecdsa.PrivateKey {
+	key, err := ecdsa.GenerateKey(crypto.S256(), rng)
 	if err != nil {
 		panic("couldn't generate key: " + err.Error())
 	}
 	return key
+}
+
+func testValAssignmentsDistribution(t *testing.T, testMsg string, va *valAssignments, expectedValsPerProxy int, toleranceMultiplier float64) {
+	// Allows some variance-- setting this relatively high to prevent flaky tests
+	tolerance := int(float64(expectedValsPerProxy) * toleranceMultiplier)
+	min := expectedValsPerProxy - tolerance
+	max := expectedValsPerProxy + tolerance
+	valCount := 0
+	for _, vals := range va.proxyToVals {
+		valCount += len(vals)
+		if len(vals) < expectedValsPerProxy-tolerance || len(vals) > expectedValsPerProxy+tolerance {
+			t.Errorf("%s: adding multiple proxies & validators resulted in a proxy being assigned %v validators. Expected min: %v max: %v", testMsg, len(vals), min, max)
+		}
+	}
+	// Should be nVals + the two we added earlier
+	if len(va.valToProxy) != valCount {
+		t.Errorf("%s: adding multiple proxies & validators did not result in the correct amount of validators assigned: %v != %v", testMsg, len(va.valToProxy), valCount)
+	}
 }
 
 func valAssignmentsIsEmpty(va *valAssignments) bool {

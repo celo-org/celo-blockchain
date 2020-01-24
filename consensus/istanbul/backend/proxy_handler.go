@@ -286,20 +286,20 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 	cfg := consistent.Config{
 		// Prime to distribute keys more uniformly.
 		// Higher partition count generally gives a more even distribution
-		PartitionCount:    271,
+		PartitionCount: 271,
 		// The number of replications of a member (proxy) on the hash ring
 		ReplicationFactor: 40,
 		// Used to enforce a max # of partitions assigned per member, which is
 		// (PartitionCount / len(members)) * Load. A load closer to 1 gives
 		// more uniformity in the # of partitions assigned to specific members,
 		// but a higher load results in less relocations when members are added/removed
-		Load:              1.2,
-		Hasher:            hasher{},
+		Load:   1.2,
+		Hasher: hasher{},
 	}
 
 	return &consistentHashingPolicy{
 		valAssignments: newValAssignments(),
-		c: consistent.New(nil, cfg),
+		c:              consistent.New(nil, cfg),
 	}
 }
 
@@ -339,12 +339,10 @@ func (ch *consistentHashingPolicy) reassignValidators() {
 	assignments := ch.getValAssignments()
 	for val, proxyID := range assignments.valToProxy {
 		newProxyID := ch.c.LocateKey(val.Bytes())
-		if newProxyID == nil {
-			log.Warn("Unable to assign validator to proxy", "validator", val)
-			continue
-		}
 
-		if proxyID == nil || newProxyID.String() != proxyID.String() {
+		if newProxyID == nil {
+			ch.valAssignments.unassignValidator(val)
+		} else if proxyID == nil || newProxyID.String() != proxyID.String() {
 			ch.valAssignments.unassignValidator(val)
 			ch.valAssignments.assignValidator(val, enode.HexID(newProxyID.String()))
 		}
