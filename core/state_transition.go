@@ -71,7 +71,7 @@ type StateTransition struct {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation {
@@ -89,7 +89,10 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 			}
 		}
 		// Make sure we don't exceed uint64 for all data combinations
-		nonZeroGas := params.TxDataNonZeroGasEIP2028
+		nonZeroGas := params.TxDataNonZeroGasFrontier
+		if isEIP2028 {
+			nonZeroGas = params.TxDataNonZeroGasEIP2028
+		}
 
 		if (math.MaxUint64-gas)/nonZeroGas < nz {
 			log.Debug("IntrinsicGas", "out of gas")
@@ -300,10 +303,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
+	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas.
-	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.GetHeader(), st.state, msg.FeeCurrency())
+	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.GetHeader(), st.state, msg.FeeCurrency(), istanbul)
 	if err != nil {
 		return nil, 0, false, err
 	}
