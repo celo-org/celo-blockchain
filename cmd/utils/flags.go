@@ -959,7 +959,7 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 
 // setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `Validator` determines the address used to sign hashes using ECDSA.
+// `Validator` is the address used to sign consensus messages.
 func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	var validator string
 	if ctx.GlobalIsSet(ValidatorFlag.Name) {
@@ -998,7 +998,7 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `BLSbase` is the public address used for block mining BLS signatures.
+// `BLSbase` is the public address used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string

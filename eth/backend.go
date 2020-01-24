@@ -518,7 +518,7 @@ func (s *Ethereum) StartMining(threads int) error {
 
 		val, err := s.Validator()
 		if err != nil {
-			log.Error("Cannot start mining without validator", "err", err)
+			log.Error("Cannot start validating without validator", "err", err)
 			return fmt.Errorf("validator missing: %v", err)
 		}
 
