@@ -288,7 +288,7 @@ func TestValAssignments(t *testing.T) {
 
 	// Testing that unassignValidator a validator works
 	va.unassignValidator(fooVal)
-	if val, ok := va.valToProxy[fooVal]; val != nil || ok == false || len(va.proxyToVals[fooProxy]) != 0 {
+	if val, ok := va.valToProxy[fooVal]; val != nil || !ok || len(va.proxyToVals[fooProxy]) != 0 {
 		t.Errorf("va.unassignValidator() did not correctly unassign a validator from its proxy")
 	}
 }
