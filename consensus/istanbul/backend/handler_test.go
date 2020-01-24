@@ -48,12 +48,12 @@ func TestIstanbulMessage(t *testing.T) {
 
 	// 1. this message should not be in cache
 	// for peers
-	if _, ok := backend.recentMessages.Get(addr); ok {
+	if _, ok := backend.peerRecentMessages.Get(addr); ok {
 		t.Fatalf("the cache of messages for this peer should be nil")
 	}
 
 	// for self
-	if _, ok := backend.knownMessages.Get(hash); ok {
+	if _, ok := backend.selfRecentMessages.Get(hash); ok {
 		t.Fatalf("the cache of messages should be nil")
 	}
 
@@ -63,7 +63,7 @@ func TestIstanbulMessage(t *testing.T) {
 		t.Fatalf("handle message failed: %v", err)
 	}
 	// for peers
-	if ms, ok := backend.recentMessages.Get(addr); ms == nil || !ok {
+	if ms, ok := backend.selfRecentMessages.Get(addr); ms == nil || !ok {
 		t.Fatalf("the cache of messages for this peer cannot be nil")
 	} else if m, ok := ms.(*lru.ARCCache); !ok {
 		t.Fatalf("the cache of messages for this peer cannot be casted")
@@ -72,7 +72,7 @@ func TestIstanbulMessage(t *testing.T) {
 	}
 
 	// for self
-	if _, ok := backend.knownMessages.Get(hash); !ok {
+	if _, ok := backend.selfRecentMessages.Get(hash); !ok {
 		t.Fatalf("the cache of messages cannot be found")
 	}
 }

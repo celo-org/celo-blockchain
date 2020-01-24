@@ -93,11 +93,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	if err != nil {
 		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
-	recentMessages, err := lru.NewARC(inmemoryPeers)
+	peerRecentMessages, err := lru.NewARC(inmemoryPeers)
 	if err != nil {
 		logger.Crit("Failed to create recent messages cache", "err", err)
 	}
-	knownMessages, err := lru.NewARC(inmemoryMessages)
+	selfRecentMessages, err := lru.NewARC(inmemoryMessages)
 	if err != nil {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
@@ -110,8 +110,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		recentSnapshots:         recentSnapshots,
 		coreStarted:             false,
 		announceStarted:         false,
-		recentMessages:          recentMessages,
-		knownMessages:           knownMessages,
+		peerRecentMessages:      peerRecentMessages,
+		selfRecentMessages:      selfRecentMessages,
 		announceThreadWg:        new(sync.WaitGroup),
 		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]*AnnounceGossipTimestamp),
@@ -180,8 +180,8 @@ type Backend struct {
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
 
-	recentMessages *lru.ARCCache // the cache of peer's messages
-	knownMessages  *lru.ARCCache // the cache of self messages
+	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
+	selfRecentMessages *lru.ARCCache // the cache of self recent messages
 
 	lastAnnounceGossiped   map[common.Address]*AnnounceGossipTimestamp
 	lastAnnounceGossipedMu sync.RWMutex
@@ -368,13 +368,15 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	var hash common.Hash
 	if ethMsgCode == istanbulAnnounceMsg {
 		hash = istanbul.RLPHash(payload)
-		sb.knownMessages.Add(hash, true)
+		sb.selfRecentMessages.Add(hash, true)
 	}
 
 	if len(peers) > 0 {
-		for nodeID, p := range peers {
+		for _, p := range peers {
 			if ethMsgCode == istanbulAnnounceMsg {
-				ms, ok := sb.recentMessages.Get(nodeID)
+				nodePubKey := p.Node().Pubkey()
+				nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
+				ms, ok := sb.peerRecentMessages.Get(nodeAddr)
 				var m *lru.ARCCache
 				if ok {
 					m, _ = ms.(*lru.ARCCache)
@@ -387,9 +389,9 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 				}
 
 				m.Add(hash, true)
-				sb.recentMessages.Add(nodeID, m)
+				sb.peerRecentMessages.Add(nodeAddr, m)
 			}
-			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "nodeID", nodeID)
+			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "peer", p)
 
 			go p.Send(ethMsgCode, payload)
 		}

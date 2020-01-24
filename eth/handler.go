@@ -377,9 +377,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// e.g. for IBFT, let the consensus handler handle the message.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
 		pubKey := p.Node().Pubkey()
-		if err != nil {
-			return err
-		}
 		addr := crypto.PubkeyToAddress(*pubKey)
 		handled, err := handler.HandleMsg(addr, msg, p)
 		if handled {

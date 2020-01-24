@@ -58,10 +58,26 @@ const (
 	LowFreqTickerDuration  = 10 * time.Minute
 )
 
+func (sb *Backend) shouldAnnounce() (bool, error) {
+
+	// Check if this node is in the registered/elected validator set
+	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	if err != nil {
+		return false, err
+	}
+
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+
+	return sb.coreStarted && regAndActiveVals[sb.Address()], nil
+}
+
 // The announceThread thread function
 // It will generate and gossip it's announce message periodically.
 // It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
 func (sb *Backend) announceThread() {
+	logger := sb.logger.New("func", "announceThread")
+
 	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
@@ -71,8 +87,9 @@ func (sb *Backend) announceThread() {
 	// 3) Regardless of whether core is started, it will periodically ask it's peers for their announceVersions set, and update it's own announce version set accordingly
 	// 4) Gossip and announce message (if core is started) and check peers' announceVersions set at every new epoch
 
-	// Create a ticker to poll if istanbul core is running
-	coreStartedTicker := time.NewTicker(1 * time.Minute)
+	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
+	// If both conditions are true, then this node should announce.
+	checkIfShouldAnnounceTicker := time.NewTicker(1 * time.Minute)
 
 	// Create a ticker to check peers' announce versions one every 10 minutes
 	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
@@ -86,26 +103,36 @@ func (sb *Backend) announceThread() {
 
 	for {
 		select {
-		case <-coreStartedTicker.C:
-			sb.coreMu.RLock()
-			if sb.coreStarted && announceGossipTickerCh == nil {
+		case <-checkIfShouldAnnounceTicker.C:
+			logger.Trace("Checking if this node should announce it's enode")
+
+			shouldAnnounce, err := sb.shouldAnnounce()
+			if err != nil {
+				logger.Warn("Error in checking if should announce", err)
+				break
+			}
+
+			if shouldAnnounce && announceGossipTickerCh == nil {
 				// Immediately gossip an announce
 				go sb.gossipAnnounce()
 
 				announceGossipFrequencyState = HighFreqBeforeFirstPeerState
 				currentAnnounceGossipTickerDuration = HighFreqTickerDuration
 				numGossipedMsgsInHighFreqAfterFirstPeerState = 0
+
+				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 				announceGossipTickerCh = announceGossipTicker.C
-			} else if !sb.coreStarted && announceGossipTickerCh != nil {
-				// Don't periodically gossip the announce message
+				logger.Trace("Enabled periodic gossiping of announce message")
+			} else if !shouldAnnounce && announceGossipTickerCh != nil {
+				// Disable periodic gossiping by setting announceGossipTickerCh to nil
 				announceGossipTicker.Stop()
 				announceGossipTickerCh = nil
+				logger.Trace("Disabled periodic gossiping of announce message")
 			}
-			sb.coreMu.RUnlock()
 
 		case <-announceGossipTickerCh: // If this is nil (when sb.coreStarted == false), this channel will never receive an event
-
+			logger.Trace("Going to gossip an announce message", "announceGossipFrequencyState", announceGossipFrequencyState, "numGossipedMsgsInHighFreqAfterFirstPeerState", numGossipedMsgsInHighFreqAfterFirstPeerState)
 			switch announceGossipFrequencyState {
 			case HighFreqBeforeFirstPeerState:
 				{
@@ -137,10 +164,19 @@ func (sb *Backend) announceThread() {
 			go sb.gossipAnnounce()
 
 		case <-announceVersionsCheckTicker.C:
+			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
 
 		case <-sb.newEpochCh:
-			if sb.coreStarted {
+			logger.Trace("New epoch: going to check peers' announce version set and gossip announce if needed")
+
+			shouldAnnounce, err := sb.shouldAnnounce()
+			if err != nil {
+				logger.Warn("Error in checking if should announce", err)
+				break
+			}
+
+			if shouldAnnounce {
 				go sb.gossipAnnounce()
 			}
 			go sb.checkPeersAnnounceVersions()
@@ -269,15 +305,8 @@ func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) er
 }
 
 // This function will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
-// which should then gossip the announce msg message throughout the p2p network (since this announce msg's timestamp should be the latest among all of this
-// validator's previous announce msgs).
-// Note that ANY node with the command line option --mine enabled, will send an announce message.  Ideally, only registered or elected validators should
-// send this message.  However, this gossip message is infrequently sent (once an hour), and the time between registration and the first announce message
-// could be up to 1 hour.  At each epoch transition, nodes will exchange their announceVersions, and if this node is now registered or elected, then
-// this node's enode will be gossiped throughout the network.
-// Ideally, this node should listen for registration smart contract events and send out the gossip message then (and stop gossiping
-// once an hour on unregistration event).  Note that when a non registered/elected validators sends a gossip message, it's neighbors will not regossip
-// those messages.
+// which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
+// validator's previous announce msgs.
 func (sb *Backend) gossipAnnounce() error {
 	logger := sb.logger.New("func", "gossipAnnounce")
 	logger.Trace("gossipAnnounce called")
@@ -309,16 +338,7 @@ func (sb *Backend) gossipAnnounce() error {
 	sb.cachedAnnounceMsgs[announcePayload.ValAddress] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
 		MsgPayload: payload}
 
-	// Multicast the announce if this node is a registered/elected validator
-	// If the message is not within the registered validator set, then ignore it
-	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
-	if err != nil {
-		return err
-	}
-
-	if regAndActiveVals[sb.Address()] {
-		sb.Multicast(nil, payload, istanbulAnnounceMsg)
-	}
+	sb.Multicast(nil, payload, istanbulAnnounceMsg)
 
 	return nil
 }

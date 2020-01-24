@@ -102,21 +102,21 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			hash := istanbul.RLPHash(data)
 
 			// Mark peer's message
-			ms, ok := sb.recentMessages.Get(addr)
+			ms, ok := sb.peerRecentMessages.Get(addr)
 			var m *lru.ARCCache
 			if ok {
 				m, _ = ms.(*lru.ARCCache)
 			} else {
 				m, _ = lru.NewARC(inmemoryMessages)
-				sb.recentMessages.Add(addr, m)
+				sb.peerRecentMessages.Add(addr, m)
 			}
 			m.Add(hash, true)
 
 			// Mark self known message
-			if _, ok := sb.knownMessages.Get(hash); ok {
+			if _, ok := sb.selfRecentMessages.Get(hash); ok {
 				return true, nil
 			}
-			sb.knownMessages.Add(hash, true)
+			sb.selfRecentMessages.Add(hash, true)
 		}
 
 		if msg.Code == istanbulConsensusMsg {
