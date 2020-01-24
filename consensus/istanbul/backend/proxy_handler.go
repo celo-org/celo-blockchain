@@ -93,7 +93,7 @@ func (ps *proxySet) addProxy(proxyNodes *istanbul.ProxyNodes) {
 			dcTimestamp:  time.Now(),
 		}
 	} else {
-		log.Warn("Cannot add proxy, a proxy with the same internal ID exists already")
+		log.Warn("Cannot add proxy, a proxy with the same internal ID exists already", "func", "addProxy")
 	}
 }
 
@@ -187,7 +187,7 @@ func (ps *proxySet) getValidatorProxyPeers(validators []common.Address) map[enod
 		for _, val := range validators {
 			proxyID := ps.valAssigner.getValAssignments().valToProxy[val]
 			if proxyID == nil {
-				log.Warn("No proxy assigned", "val", val)
+				log.Warn("No proxy assigned", "val", val, "func", "getValidatorProxyPeers")
 				continue
 			}
 
@@ -207,7 +207,7 @@ func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) {
 	for proxyID := range ps.valAssigner.getValAssignments().proxyToVals {
 		proxy := ps.getProxy(proxyID)
 		if proxy != nil && proxy.peer == nil && time.Since(proxy.dcTimestamp) >= minAge {
-			log.Debug("Unassigning disconnected proxy", "proxy", proxy.String())
+			log.Debug("Unassigning disconnected proxy", "proxy", proxy.String(), "func", "unassignDisconnectedProxies")
 			ps.valAssigner.removeProxy(proxy)
 		}
 	}
@@ -546,6 +546,8 @@ func (ph *proxyHandler) run() {
 	phEpochTicker := time.NewTicker(ph.proxyHandlerEpochLength)
 	defer phEpochTicker.Stop()
 
+	logger := log.New("func", "run")
+
 	ph.updateValidators()
 
 loop:
@@ -561,13 +563,13 @@ loop:
 			for _, proxyNode := range addProxyNodes {
 				proxyID := proxyNode.InternalNode.ID()
 				if ph.ps.getProxy(proxyID) != nil {
-					log.Debug("Proxy is already in the proxy set", "proxyNode", proxyNode, "proxyID", proxyID)
+					logger.Debug("Proxy is already in the proxy set", "proxyNode", proxyNode, "proxyID", proxyID, "chan", "addProxies")
 					continue
 				}
 				// TODO: What happens if the proxies are set at startup via the cmd
 				// line flag, and the p2pserver isn't set yet?
 				if ph.p2pserver == nil {
-					log.Warn("Proxy handler p2pserver not set, cannot add proxy", "proxyNode", proxyNode, "proxyID", proxyID)
+					logger.Warn("Proxy handler p2pserver not set, cannot add proxy", "proxyNode", proxyNode, "proxyID", proxyID, "chan", "addProxies")
 					continue
 				}
 				log.Debug("Adding proxy node", "proxyNode", proxyNode, "proxyID", proxyID)
@@ -582,11 +584,11 @@ loop:
 				proxyID := proxyNode.ID()
 				proxy := ph.ps.getProxy(proxyID)
 				if proxy == nil {
-					log.Warn("Proxy is not in the proxy set", "proxy", proxyNode, "proxyID", proxyID)
+					logger.Warn("Proxy is not in the proxy set", "proxy", proxyNode, "proxyID", proxyID, "chan", "removeProxies")
 					continue
 				}
 
-				log.Debug("Removing proxy node", "proxy", proxy.String())
+				logger.Debug("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
 
 				ph.ps.removeProxy(proxyID)
 				ph.p2pserver.RemovePeer(proxy.internalNode, p2p.ProxyPurpose)
@@ -600,7 +602,7 @@ loop:
 			peerID := peerNode.ID()
 			proxy := ph.ps.getProxy(peerID)
 			if proxy != nil {
-				log.Debug("Connected proxy", "proxy", proxy.String())
+				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
 				ph.ps.addProxyPeer(peerID, connectedPeer)
 			}
 
@@ -608,7 +610,7 @@ loop:
 		case disconnectedPeer := <-ph.delProxyPeer:
 			peerID := disconnectedPeer.Node().ID()
 			if ph.ps.getProxy(peerID) != nil {
-				log.Debug("Disconnected proxy peer", "peerID", peerID)
+				logger.Debug("Disconnected proxy peer", "peerID", peerID, "chan", "delProxyPeer")
 				ph.ps.removeProxyPeer(peerID)
 			}
 
@@ -657,7 +659,7 @@ loop:
 
 func (ph *proxyHandler) updateValidators() error {
 	newVals, rmVals, err := ph.checkForActiveRegValChanges(ph.ps.getValidators())
-	log.Trace("Proxy Handler updating validators", "newVals", newVals, "rmVals", rmVals, "err", err)
+	log.Trace("Proxy Handler updating validators", "newVals", newVals, "rmVals", rmVals, "err", err, "func", "updateValiadtors")
 	if err != nil {
 		return err
 	}
@@ -672,7 +674,7 @@ func (ph *proxyHandler) checkForActiveRegValChanges(validators map[common.Addres
 	// Get the set of active and registered validators
 	activeAndRegVals, err := ph.sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
-		log.Warn("Proxy Handler couldn't get the active and registered validators", "err", err)
+		log.Warn("Proxy Handler couldn't get the active and registered validators", "err", err, "func", "checkForActiveRegValChanges")
 		return nil, nil, err
 	}
 
