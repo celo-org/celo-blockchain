@@ -49,19 +49,25 @@ type Config struct {
 	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
 	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
 	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+
+	// Announce Configs
+	AnnounceGossipPeriod                 uint64 `toml:",omitemptry"` // Time duration (in seconds) between gossiped announce messages
+	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitemptry"` // Specifies if this node should do aggressive gossip on announce enablement
 }
 
 var DefaultConfig = &Config{
-	RequestTimeout:              3000,
-	TimeoutBackoffFactor:        1000,
-	MinResendRoundChangeTimeout: 15 * 1000,
-	MaxResendRoundChangeTimeout: 2 * 60 * 1000,
-	BlockPeriod:                 1,
-	ProposerPolicy:              ShuffledRoundRobin,
-	Epoch:                       30000,
-	LookbackWindow:              12,
-	ValidatorEnodeDBPath:        "validatorenodes",
-	RoundStateDBPath:            "roundstates",
-	Proxy:                       false,
-	Proxied:                     false,
+	RequestTimeout:                       3000,
+	TimeoutBackoffFactor:                 1000,
+	MinResendRoundChangeTimeout:          15 * 1000,
+	MaxResendRoundChangeTimeout:          2 * 60 * 1000,
+	BlockPeriod:                          1,
+	ProposerPolicy:                       ShuffledRoundRobin,
+	Epoch:                                30000,
+	LookbackWindow:                       12,
+	ValidatorEnodeDBPath:                 "validatorenodes",
+	RoundStateDBPath:                     "roundstates",
+	Proxy:                                false,
+	Proxied:                              false,
+	AnnounceGossipPeriod:                 600,
+	AnnounceAggressiveGossipOnEnablement: false,
 }

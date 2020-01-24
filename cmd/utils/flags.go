@@ -672,6 +672,17 @@ var (
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 
+	// Announce settings
+	AnnounceGossipPeriodFlag = cli.Uint64Flag{
+		Name:  "announce.gossipperiod",
+		Usage: "Time duration (in seconds) between gossiped announce messages",
+		Value: eth.DefaultConfig.Istanbul.AnnounceGossipPeriod,
+	}
+	AnnounceAggressiveGossipOnEnablementFlag = cli.BoolFlag{
+		Name:  "announce.aggressivegossiponenablement",
+		Usage: "Specifies if this node should do aggressive gossip on announce enablement",
+	}
+
 	// Proxy node settings
 	ProxyFlag = cli.BoolFlag{
 		Name:  "proxy.proxy",
@@ -1216,6 +1227,15 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
+}
+
+func setAnnounce(ctx *cli.Context, cfg *eth.Config) {
+	cfg.Istanbul.AnnounceGossipPeriod = ctx.GlobalUint64(AnnounceGossipPeriodFlag.Name)
+	if ctx.GlobalIsSet(AnnounceAggressiveGossipOnEnablementFlag.Name) {
+		cfg.Istanbul.AnnounceAggressiveGossipOnEnablement = true
+	} else {
+		cfg.Istanbul.AnnounceAggressiveGossipOnEnablement = istanbul.DefaultConfig.AnnounceAggressiveGossipOnEnablement
+	}
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {

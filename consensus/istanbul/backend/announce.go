@@ -53,11 +53,6 @@ const (
 	LowFreqState
 )
 
-const (
-	HighFreqTickerDuration = 1 * time.Minute
-	LowFreqTickerDuration  = 10 * time.Minute
-)
-
 func (sb *Backend) shouldAnnounce() (bool, error) {
 
 	// Check if this node is in the registered/elected validator set
@@ -116,9 +111,17 @@ func (sb *Backend) announceThread() {
 				// Immediately gossip an announce
 				go sb.gossipAnnounce()
 
-				announceGossipFrequencyState = HighFreqBeforeFirstPeerState
-				currentAnnounceGossipTickerDuration = HighFreqTickerDuration
-				numGossipedMsgsInHighFreqAfterFirstPeerState = 0
+				if sb.config.AnnounceAggressiveGossipOnEnablement {
+					announceGossipFrequencyState = HighFreqBeforeFirstPeerState
+
+					// Send an announce message once a minute
+					currentAnnounceGossipTickerDuration = 1 * time.Minute
+
+					numGossipedMsgsInHighFreqAfterFirstPeerState = 0
+				} else {
+					announceGossipFrequencyState = LowFreqState
+					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
+				}
 
 				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
@@ -151,9 +154,9 @@ func (sb *Backend) announceThread() {
 
 			case LowFreqState:
 				{
-					if currentAnnounceGossipTickerDuration != LowFreqTickerDuration {
+					if currentAnnounceGossipTickerDuration != time.Duration(sb.config.AnnounceGossipPeriod)*time.Second {
 						// Reset the ticker
-						currentAnnounceGossipTickerDuration = LowFreqTickerDuration
+						currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
 						announceGossipTicker.Stop()
 						announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 						announceGossipTickerCh = announceGossipTicker.C
