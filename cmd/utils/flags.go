@@ -200,17 +200,17 @@ var (
 	}
 	ValidatorFlag = cli.StringFlag{
 		Name:  "validator",
-		Usage: "Public address for transaction broadcasting (default = first account)",
+		Usage: "Public address for participation in consensus (default = first account)",
 		Value: "0",
 	}
 	TxFeeRecipientFlag = cli.StringFlag{
 		Name:  "tx-fee-recipient",
-		Usage: "Public address for block mining rewards (default = first account)",
+		Usage: "Public address for block transaction fees (default = first account)",
 		Value: "0",
 	}
 	EtherbaseLegacyFlag = cli.StringFlag{
 		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --tax-fee-recipient)",
+		Usage: "Public address for block transaction fees (default = first account, deprecated, use --tx-fee-recipient)",
 		Value: "0",
 	}
 	GatewayFeeFlag = BigFlag{
@@ -959,6 +959,7 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 
 // setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `Validator` determines the address used to sign hashes using ECDSA.
 func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	var validator string
 	if ctx.GlobalIsSet(ValidatorFlag.Name) {
@@ -976,6 +977,7 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 
 // setEtherbase retrieves the etherbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `Etherbase` is the public address earned block transaction fees are sent to.
 func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current etherbase, new flag overriding legacy one
 	var etherbase string
@@ -996,6 +998,7 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `BLSbase` is the public address used for block mining BLS signatures.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string

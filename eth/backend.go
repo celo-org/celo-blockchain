@@ -518,8 +518,8 @@ func (s *Ethereum) StartMining(threads int) error {
 
 		val, err := s.Validator()
 		if err != nil {
-			log.Trace("Validator address not provided, defaulting to provided etherbase address")
-			val = eb
+			log.Error("Cannot start mining without validator", "err", err)
+			return fmt.Errorf("validator missing: %v", err)
 		}
 
 		blsbase, err := s.BLSbase()
