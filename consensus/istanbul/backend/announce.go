@@ -80,7 +80,6 @@ func (sb *Backend) announceThread() {
 	// 1) Is will poll to see if this node should send an announce once a minute
 	// 2) If it should announce, then it will periodically gossip an announce message
 	// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
-	// 4)
 
 	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
 	// If both conditions are true, then this node should announce.
@@ -495,7 +494,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, annou
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 
 		if lastGossipTs.enodeURLHash == announcePayload.EnodeURLHash && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < 5*time.Minute {
-			logger.Trace("Already regossiped the msg within the last 10 minutes, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
+			logger.Trace("Already regossiped the msg within the last 5 minutes, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}
