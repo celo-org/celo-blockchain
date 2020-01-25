@@ -120,9 +120,9 @@ func TestCommit(t *testing.T) {
 	commitCh := make(chan *types.Block)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
-		expectedErr                   error
-		expectedSignature             []byte
-		expectedBlock                 func() *types.Block
+		expectedErr       error
+		expectedSignature []byte
+		expectedBlock     func() *types.Block
 	}{
 		{
 			// normal case
