@@ -313,8 +313,8 @@ func (c *core) commit() error {
 	return nil
 }
 
-// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for a the SNARK-friendly epoch encoding
-// to a bls aggregated signature and bitmap
+// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
+// to a bls aggregated signature
 func GetAggregatedEpochValidatorSetSeal(seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
 	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {

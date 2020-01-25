@@ -282,7 +282,7 @@ func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.Val
 	}
 	snap = snap.copy()
 
-	validators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
+	addedValidators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.Val
 	if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
 		return nil, fmt.Errorf("could not obtain next block validators: failed at remove validators")
 	}
-	if !snap.ValSet.AddValidators(validators) {
+	if !snap.ValSet.AddValidators(addedValidators) {
 		return nil, fmt.Errorf("could not obtain next block validators: failed at add validators")
 	}
 

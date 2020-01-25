@@ -68,7 +68,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {
-		logger.Error("Failed to commit epoch validator set seal", "err", err)
+		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
 	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)

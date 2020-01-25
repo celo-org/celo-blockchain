@@ -122,14 +122,12 @@ func TestCommit(t *testing.T) {
 	testCases := []struct {
 		expectedErr                   error
 		expectedSignature             []byte
-		expectedEpochValidatorSetSeal []byte
 		expectedBlock                 func() *types.Block
 	}{
 		{
 			// normal case
 			nil,
 			make([]byte, types.IstanbulExtraBlsSignature),
-			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -140,7 +138,6 @@ func TestCommit(t *testing.T) {
 		{
 			// invalid signature
 			errInvalidAggregatedSeal,
-			nil,
 			nil,
 			func() *types.Block {
 				chain, engine := newBlockChain(1, true)
@@ -159,7 +156,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Signature: test.expectedEpochValidatorSetSeal}); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Signature: nil}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
