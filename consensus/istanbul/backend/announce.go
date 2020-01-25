@@ -77,10 +77,10 @@ func (sb *Backend) announceThread() {
 	defer sb.announceThreadWg.Done()
 
 	// The announce thread does 3 things
-	// 1) Is will poll to see if the istanbul core is started once a minute
-	// 2) If it is started, then it will periodically gossip an announce message
-	// 3) Regardless of whether core is started, it will periodically ask it's peers for their announceVersions set, and update it's own announce version set accordingly
-	// 4) Gossip and announce message (if core is started) and check peers' announceVersions set at every new epoch
+	// 1) Is will poll to see if this node should send an announce once a minute
+	// 2) If it should announce, then it will periodically gossip an announce message
+	// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
+	// 4)
 
 	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
 	// If both conditions are true, then this node should announce.
@@ -168,20 +168,6 @@ func (sb *Backend) announceThread() {
 
 		case <-announceVersionsCheckTicker.C:
 			logger.Trace("Going to check peers' announce version set")
-			go sb.checkPeersAnnounceVersions()
-
-		case <-sb.newEpochCh:
-			logger.Trace("New epoch: going to check peers' announce version set and gossip announce if needed")
-
-			shouldAnnounce, err := sb.shouldAnnounce()
-			if err != nil {
-				logger.Warn("Error in checking if should announce", err)
-				break
-			}
-
-			if shouldAnnounce {
-				go sb.gossipAnnounce()
-			}
 			go sb.checkPeersAnnounceVersions()
 
 		case <-sb.announceThreadQuit:
@@ -508,8 +494,8 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, annou
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 
-		if lastGossipTs.enodeURLHash == announcePayload.EnodeURLHash && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < time.Minute {
-			logger.Trace("Already regossiped the msg within the last minute, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
+		if lastGossipTs.enodeURLHash == announcePayload.EnodeURLHash && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < 5*time.Minute {
+			logger.Trace("Already regossiped the msg within the last 10 minutes, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
 		}

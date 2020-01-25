@@ -603,11 +603,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	}
 	sb.commitCh = make(chan *types.Block, 1)
 
-	if sb.newEpochCh != nil {
-		close(sb.newEpochCh)
-	}
-	sb.newEpochCh = make(chan struct{})
-
 	sb.hasBadBlock = hasBadBlock
 	sb.stateAt = stateAt
 	sb.processBlock = processBlock

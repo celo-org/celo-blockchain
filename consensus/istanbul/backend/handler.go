@@ -243,8 +243,6 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		if sb.coreStarted {
 			_, val := valset.GetByAddress(sb.ValidatorAddress())
 			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
-
-			sb.newEpochCh <- struct{}{}
 		}
 
 		// If this is a proxy or a non proxied validator and a

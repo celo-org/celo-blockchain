@@ -205,8 +205,6 @@ type Backend struct {
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	proxiedPeer consensus.Peer
 
-	newEpochCh chan struct{}
-
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
 
