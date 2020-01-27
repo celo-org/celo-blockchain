@@ -77,16 +77,16 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 // The announceThread thread function
 // It will generate and gossip it's announce message periodically.
 // It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
+//
+// The announce thread does 3 things
+// 1) Is will poll to see if this node should send an announce once a minute
+// 2) If it should announce, then it will periodically gossip an announce message
+// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
 	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
-
-	// The announce thread does 3 things
-	// 1) Is will poll to see if this node should send an announce once a minute
-	// 2) If it should announce, then it will periodically gossip an announce message
-	// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
 
 	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
 	// If both conditions are true, then this node should announce.
@@ -423,7 +423,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		return err
 	}
 
-	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announcePayload.Version)
+	logger = logger.New("msgAddress", msg.Address, "msgVersion", announcePayload.Version)
 
 	// Ignore the message if it's older than the one that this node currently has persisted and return from this function
 	sb.cachedAnnounceMsgsMu.Lock()

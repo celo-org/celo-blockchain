@@ -538,7 +538,7 @@ func (s *Ethereum) StopMining() {
 	s.miner.Stop()
 }
 
-func (s *Ethereum) StartAnnounce() error {
+func (s *Ethereum) startAnnounce() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		return istanbul.StartAnnouncing()
 	}
@@ -546,7 +546,7 @@ func (s *Ethereum) StartAnnounce() error {
 	return nil
 }
 
-func (s *Ethereum) StopAnnounce() error {
+func (s *Ethereum) stopAnnounce() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		return istanbul.StopAnnouncing()
 	}
@@ -603,7 +603,7 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 		s.lesServer.Start(srvr)
 	}
 
-	if err := s.StartAnnounce(); err != nil {
+	if err := s.startAnnounce(); err != nil {
 		return err
 	}
 
@@ -620,7 +620,7 @@ func (s *Ethereum) Stop() error {
 	if s.lesServer != nil {
 		s.lesServer.Stop()
 	}
-	s.StopAnnounce()
+	s.stopAnnounce()
 	s.txPool.Stop()
 	s.miner.Stop()
 	s.eventMux.Stop()

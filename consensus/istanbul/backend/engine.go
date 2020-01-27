@@ -660,13 +660,13 @@ func (sb *Backend) StopValidating() error {
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
-	if sb.announceStarted {
+	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
 
 	go sb.announceThread()
 
-	sb.announceStarted = true
+	sb.announceRunning = true
 	return nil
 }
 
@@ -675,14 +675,14 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
 
-	if !sb.announceStarted {
+	if !sb.announceRunning {
 		return istanbul.ErrStoppedAnnounce
 	}
 
 	sb.announceThreadQuit <- struct{}{}
 	sb.announceThreadWg.Wait()
 
-	sb.announceStarted = false
+	sb.announceRunning = false
 	return nil
 }
 

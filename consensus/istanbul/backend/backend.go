@@ -102,7 +102,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		commitCh:                make(chan *types.Block, 1),
 		recentSnapshots:         recentSnapshots,
 		coreStarted:             false,
-		announceStarted:         false,
+		announceRunning:         false,
 		peerRecentMessages:      peerRecentMessages,
 		selfRecentMessages:      selfRecentMessages,
 		announceThreadWg:        new(sync.WaitGroup),
@@ -181,7 +181,7 @@ type Backend struct {
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	announceStarted    bool
+	announceRunning    bool
 	announceMu         sync.RWMutex
 	announceThreadWg   *sync.WaitGroup
 	announceThreadQuit chan struct{}
