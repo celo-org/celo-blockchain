@@ -96,6 +96,7 @@ type Config struct {
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`
+	BLSwallet bool
 
 	// Database options
 	SkipBcVersionCheck bool `toml:"-"`
