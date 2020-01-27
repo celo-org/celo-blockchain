@@ -104,6 +104,14 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		}, c.checkMessage)
 	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
+	c.logger = istanbul.NewIstLogger(
+		func() *big.Int {
+			if c != nil && c.current != nil {
+				return c.current.Round()
+			}
+			return common.Big0
+		},
+	)
 	return c
 }
 

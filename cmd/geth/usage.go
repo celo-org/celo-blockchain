@@ -251,6 +251,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.ProxiedValidatorAddressFlag,
 			utils.ProxiedFlag,
 			utils.ProxyEnodeURLPairFlag,
+			utils.ProxyAllowPrivateIPFlag,
 		},
 	},
 	{
