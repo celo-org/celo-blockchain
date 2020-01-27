@@ -236,7 +236,14 @@ workflows:
           requires:
             - android
             - ios
-            - bls-zexe # temp, should be all important end-to-end tests
+            # Makes sure tests are all green before publishing
+            # Though these are not using the mobile built binaries
+            # they should be a good indicator
+            - unit-tests
+            - end-to-end-transfer-test
+            - end-to-end-sync-test
+            - end-to-end-blockchain-parameters-test
+            - end-to-end-geth-governance-test
           filters:
             branches:
               only: master
