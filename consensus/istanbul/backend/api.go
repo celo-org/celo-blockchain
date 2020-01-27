@@ -187,7 +187,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 
 func (api *API) checkIsProxied() error {
 	if !api.istanbul.config.Proxied {
-		return errors.New("Can't add proxy for node that is not configured to be proxied")
+		return errors.New("Node is not proxied")
 	}
 	if !api.istanbul.ProxyHandlerIsRunning() {
 		return errStoppedProxyHandler
