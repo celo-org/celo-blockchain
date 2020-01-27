@@ -180,7 +180,17 @@ func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
 	if len(upsertBatch) > 0 {
 		if err := sb.valEnodeTable.Upsert(upsertBatch); err != nil {
 			sb.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
+			return nil
 		}
+		// Remove any other entries
+		entriesToKeep := make(map[common.Address]bool)
+		for address := range upsertBatch {
+			entriesToKeep[address] = true
+		}
+		if err := sb.valEnodeTable.PruneEntries(entriesToKeep); err != nil {
+			sb.logger.Warn("Error in pruning entries in the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "EntriesToKeep", entriesToKeep, "error", err)
+		}
+		sb.ConnectToVals()
 	}
 
 	sb.logger.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())

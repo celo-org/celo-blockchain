@@ -591,10 +591,12 @@ loop:
 				logger.Debug("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
 
 				ph.ps.removeProxy(proxyID)
+				// This will most likely result in validator reassignments, send
+				// val enode share messages
+				ph.sendValEnodeShareMsgs()
 				ph.p2pserver.RemovePeer(proxy.internalNode, p2p.ProxyPurpose)
 			}
 
-			// When any peer on the p2p level is connected
 		case connectedPeer := <-ph.addProxyPeer:
 			// Proxied peer just connected.
 			// Set the corresponding proxyInfo's peer
@@ -604,10 +606,14 @@ loop:
 			if proxy != nil {
 				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
 				ph.ps.addProxyPeer(peerID, connectedPeer)
+				// This may result in validator reassignments, send
+				// val enode share messages regardless
+				ph.sendValEnodeShareMsgs()
 			}
 
-			// When any peer on the p2p level is disconnected
+
 		case disconnectedPeer := <-ph.delProxyPeer:
+			// Proxied peer just disconnected.
 			peerID := disconnectedPeer.Node().ID()
 			if ph.ps.getProxy(peerID) != nil {
 				logger.Debug("Disconnected proxy peer", "peerID", peerID, "chan", "delProxyPeer")
@@ -645,14 +651,18 @@ loop:
 			ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength)
 
 			// 2. Send out a val enode share message to the proxies
-			for _, proxy := range ph.ps.proxiesByID {
-				if proxy.peer != nil {
-					assignedValidators := ph.ps.getProxyValidators(proxy.ID())
-					go ph.sb.sendValEnodesShareMsg(proxy.peer, proxy.externalNode, assignedValidators)
-				}
-			}
+			ph.sendValEnodeShareMsgs()
 
 			// 3. TODO - Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
+		}
+	}
+}
+
+func (ph *proxyHandler) sendValEnodeShareMsgs() {
+	for _, proxy := range ph.ps.proxiesByID {
+		if proxy.peer != nil {
+			assignedValidators := ph.ps.getProxyValidators(proxy.ID())
+			go ph.sb.sendValEnodesShareMsg(proxy.peer, proxy.externalNode, assignedValidators)
 		}
 	}
 }
