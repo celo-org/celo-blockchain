@@ -71,13 +71,6 @@ var (
 	errOldAnnounceMessage = errors.New("old announce message")
 )
 
-// Entries for the recent announce messages
-type AnnounceGossipTimestamp struct {
-	enodeURLHash      common.Hash
-	destAddressesHash common.Hash
-	timestamp         time.Time
-}
-
 // Information about the proxy for a proxied validator
 type proxyInfo struct {
 	node         *enode.Node    // Enode for the internal network interface

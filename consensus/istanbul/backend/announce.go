@@ -53,16 +53,23 @@ const (
 	LowFreqState
 )
 
-func (sb *Backend) shouldAnnounce() (bool, error) {
+// Entries for the recent announce messages.  This is used to throttle announce message gossiping.
+// A malicious registered validator could initiate a DOS attack on the network's networking resources
+// by sending out a ton of announce messages.  This will throttle those announce messages so that they
+// are only regossiped once every 5 minutes.
+type AnnounceGossipTimestamp struct {
+	enodeURLHash      common.Hash
+	destAddressesHash common.Hash
+	timestamp         time.Time
+}
+
+func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 	// Check if this node is in the registered/elected validator set
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
 		return false, err
 	}
-
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
 
 	return sb.coreStarted && regAndActiveVals[sb.Address()], nil
 }
@@ -100,7 +107,7 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldAnnounce, err := sb.shouldAnnounce()
+			shouldAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
@@ -429,7 +436,13 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	// If this is a registered or elected validator, then process the announce message
 	var destAddresses = make([]string, 0, len(announcePayload.EncryptedEnodes))
 	var msgHasDupsOrIrrelevantEntries bool = false
-	if sb.coreStarted && regAndActiveVals[sb.Address()] {
+	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
+	if err != nil {
+		logger.Warn("Error in checking if should process announce", err)
+		return err
+	}
+
+	if shouldProcessAnnounce {
 		var node *enode.Node
 		var processedAddresses = make(map[common.Address]bool)
 		for _, encryptedEnode := range announcePayload.EncryptedEnodes {
@@ -534,12 +547,12 @@ type announceVersion struct {
 	AnnounceMsgVersion uint64
 }
 
-// EncodeRLP serializes av into the Ethereum RLP format.
+// EncodeRLP serializes announceVersion into the Ethereum RLP format.
 func (av *announceVersion) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{av.ValAddress, av.AnnounceMsgVersion})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ee fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
 func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		ValAddress         common.Address
@@ -553,18 +566,18 @@ func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// The stringer function for the announceVersion type
+// String returns the string representation of announceVersion.
 func (av *announceVersion) String() string {
 	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgTimstamp: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
 }
 
-// This function will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
+// sendGetAnnounceVersions will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
 func (sb *Backend) sendGetAnnounceVersions(peer consensus.Peer) {
 	sb.logger.Trace("Sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
 	go peer.Send(istanbulGetAnnounceVersionsMsg, []byte{})
 }
 
-// This function will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
+// handleGetAnnounceVersionsMsg will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
 // all of this node's cached announce msgs' version.
 func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleGetAnnounceVersionsMsg", "peer", peer)
@@ -592,7 +605,7 @@ func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []b
 	return nil
 }
 
-// This function will handle a received AnnounceVersions message.
+// handleAnnounceVersionsMsg will handle a received AnnounceVersions message.
 // Specifically, this node will compare the received version set with it's own,
 // and request announce messages that have a higher version that it's own.
 func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
