@@ -214,35 +214,35 @@ func (ee *encryptedEnode) String() string {
 
 // The set of encrypted enodes of ValAddress's enodeURL.  There is an encrypted enode for each registered validator.
 // The RLP encoding of this struct is the payload for the IstanbulAnnounce message.
-type valEncryptedEnodes struct {
+type validatorEncryptedEnodes struct {
 	ValAddress      common.Address
 	EncryptedEnodes []*encryptedEnode
 	EnodeURLHash    common.Hash
-	Timestamp       uint
+	Version         uint64 // This fields first version will have a value of the ValAddress's local timestamp at the time it sent it's announce message
 }
 
-func (vee *valEncryptedEnodes) String() string {
-	return fmt.Sprintf("{ValAddress: %s, Timestamp: %v, EnodeURLHash: %v, AnnounceRecords: %v}", vee.ValAddress.String(), vee.Timestamp, vee.EnodeURLHash.Hex(), vee.EncryptedEnodes)
+func (vee *validatorEncryptedEnodes) String() string {
+	return fmt.Sprintf("{ValAddress: %s, Version: %v, EnodeURLHash: %v, AnnounceRecords: %v}", vee.ValAddress.String(), vee.Version, vee.EnodeURLHash.Hex(), vee.EncryptedEnodes)
 }
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
-func (vee *valEncryptedEnodes) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Timestamp})
+func (vee *validatorEncryptedEnodes) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Version})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (vee *valEncryptedEnodes) DecodeRLP(s *rlp.Stream) error {
+func (vee *validatorEncryptedEnodes) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		ValAddress      common.Address
 		EncryptedEnodes []*encryptedEnode
 		EnodeURLHash    common.Hash
-		Timestamp       uint
+		Version         uint64
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Timestamp = msg.ValAddress, msg.EncryptedEnodes, msg.EnodeURLHash, msg.Timestamp
+	vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Version = msg.ValAddress, msg.EncryptedEnodes, msg.EnodeURLHash, msg.Version
 	return nil
 }
 
@@ -251,8 +251,8 @@ func (vee *valEncryptedEnodes) DecodeRLP(s *rlp.Stream) error {
 // by this node.  Note that it will only cache the announce msgs from registered or elected
 // validators.
 type announceMsgCachedEntry struct {
-	MsgTimestamp uint
-	MsgPayload   []byte
+	MsgVersion uint64
+	MsgPayload []byte
 }
 
 // This function will request announce messages from a set of validator addresses from a peer
@@ -321,9 +321,9 @@ func (sb *Backend) gossipAnnounce() error {
 	}
 
 	// Add the generated announce message to this node's cache
-	var announcePayload valEncryptedEnodes
+	var announcePayload validatorEncryptedEnodes
 	rlp.DecodeBytes(istMsg.Msg, &announcePayload)
-	sb.cachedAnnounceMsgs[announcePayload.ValAddress] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
+	sb.cachedAnnounceMsgs[announcePayload.ValAddress] = &announceMsgCachedEntry{MsgVersion: announcePayload.Version,
 		MsgPayload: payload}
 
 	sb.Multicast(nil, payload, istanbulAnnounceMsg)
@@ -358,12 +358,12 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 		encryptedEnodes = append(encryptedEnodes, &encryptedEnode{DecrypterAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
 	}
 
-	announcePayload := &valEncryptedEnodes{
+	announcePayload := &validatorEncryptedEnodes{
 		ValAddress:      sb.Address(),
 		EncryptedEnodes: encryptedEnodes,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
 		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Timestamp: uint(time.Now().Unix()),
+		Version: uint64(time.Now().Unix()),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announcePayload)
@@ -409,20 +409,20 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var announcePayload valEncryptedEnodes
+	var announcePayload validatorEncryptedEnodes
 	err = rlp.DecodeBytes(msg.Msg, &announcePayload)
 	if err != nil {
 		logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
-	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announcePayload.Timestamp)
+	logger = logger.New("msgAddress", msg.Address, "msg_timestamp", announcePayload.Version)
 
 	// Ignore the message if it's older than the one that this node currently has persisted and return from this function
 	sb.cachedAnnounceMsgsMu.Lock()
 	defer sb.cachedAnnounceMsgsMu.Unlock()
-	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgTimestamp >= announcePayload.Timestamp {
-		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgTimestamp)
+	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgVersion >= announcePayload.Version {
+		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgVersion)
 		return errOldAnnounceMessage
 	}
 
@@ -454,7 +454,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 		// Save in the valEnodeTable
 		if node != nil {
-			if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Timestamp: announcePayload.Timestamp}}); err != nil {
+			if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announcePayload.Version}}); err != nil {
 				logger.Warn("Error in upserting a valenode entry", "AnnouncePayload", announcePayload.String(), "error", err)
 				return err
 			}
@@ -463,7 +463,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 	if !msgHasDupsOrIrrelevantEntries {
 		// Cache this announce message
-		sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgTimestamp: announcePayload.Timestamp,
+		sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announcePayload.Version,
 			MsgPayload: payload}
 
 		// Prune the announce cache for entries that are not in the current registered/elected validator set
@@ -482,8 +482,8 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 }
 
 // This function will regossip a newly received announce message
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, announcePayload valEncryptedEnodes, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "msgAddress", msg.Address, "msg_timestamp", announcePayload.Timestamp)
+func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, announcePayload validatorEncryptedEnodes, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
+	logger := sb.logger.New("func", "regossipAnnounce", "msgAddress", msg.Address, "msg_timestamp", announcePayload.Version)
 	// If we gossiped this address/enodeURL within the last 60 seconds and the enodeURLHash and destAddressHash didn't change, then don't regossip
 
 	// Generate the destAddresses hash
@@ -530,32 +530,32 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, annou
 // define the AnnounceVersion messge format, the getAnnounceVersions send and handle function, and the announceVersions handle function
 
 type announceVersion struct {
-	ValAddress           common.Address
-	AnnounceMsgTimestamp uint
+	ValAddress         common.Address
+	AnnounceMsgVersion uint64
 }
 
 // EncodeRLP serializes av into the Ethereum RLP format.
 func (av *announceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{av.ValAddress, av.AnnounceMsgTimestamp})
+	return rlp.Encode(w, []interface{}{av.ValAddress, av.AnnounceMsgVersion})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ee fields from a RLP stream.
 func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		ValAddress           common.Address
-		AnnounceMsgTimestamp uint
+		ValAddress         common.Address
+		AnnounceMsgVersion uint64
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	av.ValAddress, av.AnnounceMsgTimestamp = msg.ValAddress, msg.AnnounceMsgTimestamp
+	av.ValAddress, av.AnnounceMsgVersion = msg.ValAddress, msg.AnnounceMsgVersion
 	return nil
 }
 
 // The stringer function for the announceVersion type
 func (av *announceVersion) String() string {
-	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgTimstamp: %d}", av.ValAddress.String(), av.AnnounceMsgTimestamp)
+	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgTimstamp: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
 }
 
 // This function will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
@@ -577,7 +577,7 @@ func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []b
 	announceVersions := make([]*announceVersion, 0, len(sb.cachedAnnounceMsgs))
 
 	for valAddress, cachedAnnounceEntry := range sb.cachedAnnounceMsgs {
-		announceVersions = append(announceVersions, &announceVersion{ValAddress: valAddress, AnnounceMsgTimestamp: cachedAnnounceEntry.MsgTimestamp})
+		announceVersions = append(announceVersions, &announceVersion{ValAddress: valAddress, AnnounceMsgVersion: cachedAnnounceEntry.MsgVersion})
 	}
 
 	announceVersionsBytes, err := rlp.EncodeToBytes(announceVersions)
@@ -619,7 +619,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 			continue
 		}
 
-		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgTimestamp < announceVersion.AnnounceMsgTimestamp {
+		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgVersion < announceVersion.AnnounceMsgVersion {
 			announcesToRequest = append(announcesToRequest, announceVersion.ValAddress)
 		}
 	}
