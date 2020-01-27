@@ -738,7 +738,7 @@ type CallArgs struct {
 	GasPrice            *hexutil.Big    `json:"gasPrice"`
 	FeeCurrency         *common.Address `json:"feeCurrency"`
 	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"`
-	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	GatewayFee          hexutil.Big     `json:"gatewayFee"`
 	Value               *hexutil.Big    `json:"value"`
 	Data                *hexutil.Bytes  `json:"data"`
 }
