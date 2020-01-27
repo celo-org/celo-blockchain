@@ -237,6 +237,9 @@ workflows:
             - android
             - ios
             - bls-zexe # temp, should be all important end-to-end tests
+          filters:
+            branches:
+              only: master
       - end-to-end-monorepo-checkout
       - unit-tests:
           requires:
