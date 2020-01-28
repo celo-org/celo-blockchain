@@ -154,7 +154,6 @@ func (api *API) RemoveProxy(internalUrl string) (bool, error) {
 func (api *API) GetProxies() ([]ProxyInfo, error) {
 	err := api.checkIsProxied()
 	if err != nil {
-		api.istanbul.logger.Error("Get proxy failed", "err", err)
 		return nil, err
 	}
 
