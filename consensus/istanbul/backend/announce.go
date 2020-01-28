@@ -17,12 +17,10 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
 	mrand "math/rand"
-	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -53,16 +51,6 @@ const (
 	LowFreqState
 )
 
-// Entries for the recent announce messages.  This is used to throttle announce message gossiping.
-// A malicious registered validator could initiate a DOS attack on the network's networking resources
-// by sending out a ton of announce messages.  This will throttle those announce messages so that they
-// are only regossiped once every 5 minutes.
-type AnnounceGossipTimestamp struct {
-	enodeURLHash      common.Hash
-	destAddressesHash common.Hash
-	timestamp         time.Time
-}
-
 func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 	// Check if this node is in the registered/elected validator set
@@ -79,7 +67,7 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 // It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
 //
 // The announce thread does 3 things
-// 1) Is will poll to see if this node should send an announce once a minute
+// 1) It will poll to see if this node should send an announce once a minute
 // 2) If it should announce, then it will periodically gossip an announce message
 // 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
 func (sb *Backend) announceThread() {
@@ -140,33 +128,27 @@ func (sb *Backend) announceThread() {
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-announceGossipTickerCh: // If this is nil (when sb.coreStarted == false), this channel will never receive an event
+		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
 			logger.Trace("Going to gossip an announce message", "announceGossipFrequencyState", announceGossipFrequencyState, "numGossipedMsgsInHighFreqAfterFirstPeerState", numGossipedMsgsInHighFreqAfterFirstPeerState)
 			switch announceGossipFrequencyState {
 			case HighFreqBeforeFirstPeerState:
-				{
-					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-						announceGossipFrequencyState = HighFreqAfterFirstPeerState
-					}
+				if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+					announceGossipFrequencyState = HighFreqAfterFirstPeerState
 				}
 
 			case HighFreqAfterFirstPeerState:
-				{
-					if numGossipedMsgsInHighFreqAfterFirstPeerState >= 10 {
-						announceGossipFrequencyState = LowFreqState
-					}
-					numGossipedMsgsInHighFreqAfterFirstPeerState += 1
+				if numGossipedMsgsInHighFreqAfterFirstPeerState >= 10 {
+					announceGossipFrequencyState = LowFreqState
 				}
+				numGossipedMsgsInHighFreqAfterFirstPeerState += 1
 
 			case LowFreqState:
-				{
-					if currentAnnounceGossipTickerDuration != time.Duration(sb.config.AnnounceGossipPeriod)*time.Second {
-						// Reset the ticker
-						currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
-						announceGossipTicker.Stop()
-						announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
-						announceGossipTickerCh = announceGossipTicker.C
-					}
+				if currentAnnounceGossipTickerDuration != time.Duration(sb.config.AnnounceGossipPeriod)*time.Second {
+					// Reset the ticker
+					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
+					announceGossipTicker.Stop()
+					announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
+					announceGossipTickerCh = announceGossipTicker.C
 				}
 			}
 
@@ -188,7 +170,7 @@ func (sb *Backend) announceThread() {
 
 // ===============================================================
 //
-// define the IstanbulAnnounce messge format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+// define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
 // EnodeURL ciphertext encrypted with the public key associated with the DecryptorAddress field
 type encryptedEnode struct {
@@ -232,12 +214,12 @@ func (vee *validatorEncryptedEnodes) String() string {
 	return fmt.Sprintf("{ValAddress: %s, Version: %v, EnodeURLHash: %v, AnnounceRecords: %v}", vee.ValAddress.String(), vee.Version, vee.EnodeURLHash.Hex(), vee.EncryptedEnodes)
 }
 
-// EncodeRLP serializes ad into the Ethereum RLP format.
+// EncodeRLP serializes vee into the Ethereum RLP format.
 func (vee *validatorEncryptedEnodes) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{vee.ValAddress, vee.EncryptedEnodes, vee.EnodeURLHash, vee.Version})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the vee fields from a RLP stream.
 func (vee *validatorEncryptedEnodes) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		ValAddress      common.Address
@@ -353,7 +335,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 		enodeUrl = sb.p2pserver.Self().String()
 	}
 
-	// If the message is not within the registered validator set, then ignore it
+	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
 	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
 	if err != nil {
 		return nil, err
@@ -369,8 +351,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 		ValAddress:      sb.Address(),
 		EncryptedEnodes: encryptedEnodes,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Version: uint64(time.Now().Unix()),
+		Version:         uint64(time.Now().Unix()),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announcePayload)
@@ -379,6 +360,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 		return nil, err
 	}
 
+	// This message should be signed before it's sent out, or else the other nodes will reject it.
 	msg := &istanbul.Message{
 		Code:      istanbulAnnounceMsg,
 		Msg:       announceBytes,
@@ -497,16 +479,15 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 // This function will regossip a newly received announce message
 func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, announcePayload validatorEncryptedEnodes, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
 	logger := sb.logger.New("func", "regossipAnnounce", "msgAddress", msg.Address, "msg_timestamp", announcePayload.Version)
-	// If we gossiped this address/enodeURL within the last 60 seconds and the enodeURLHash and destAddressHash didn't change, then don't regossip
-
-	// Generate the destAddresses hash
-	sort.Strings(destAddresses)
-	destAddressesHash := istanbul.RLPHash(destAddresses)
+	// If we gossiped an announce from this address within the last 5 minutes, then don't regossip.
+	// This is to prevent a malicious registered/elected validator from DOS the network with very frequent announce messages.
+	// Note that even if the registered/elected validator is not malicious, but changing their enode very frequently, the
+	// other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
+	// for updated announce messages.
 
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-
-		if lastGossipTs.enodeURLHash == announcePayload.EnodeURLHash && bytes.Equal(lastGossipTs.destAddressesHash.Bytes(), destAddressesHash.Bytes()) && time.Since(lastGossipTs.timestamp) < 5*time.Minute {
+		if time.Since(lastGossipTs) < 5*time.Minute {
 			logger.Trace("Already regossiped the msg within the last 5 minutes, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
@@ -519,7 +500,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, annou
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &AnnounceGossipTimestamp{enodeURLHash: announcePayload.EnodeURLHash, timestamp: time.Now(), destAddressesHash: destAddressesHash}
+	sb.lastAnnounceGossiped[msg.Address] = time.Now()
 
 	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
 	if (mrand.Int() % 100) <= 5 {

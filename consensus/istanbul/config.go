@@ -51,8 +51,8 @@ type Config struct {
 	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 
 	// Announce Configs
-	AnnounceGossipPeriod                 uint64 `toml:",omitemptry"` // Time duration (in seconds) between gossiped announce messages
-	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitemptry"` // Specifies if this node should do aggressive gossip on announce enablement
+	AnnounceGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped announce messages
+	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should do aggressive gossip on announce enablement
 }
 
 var DefaultConfig = &Config{

@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
+	// lru "github.com/hashicorp/golang-lru"
 )
 
 type MockPeer struct{}
@@ -42,6 +42,20 @@ func TestIstanbulMessage(t *testing.T) {
 
 	// generate one msg
 	data := []byte("data1")
+	msg := makeMsg(istanbulAnnounceMsg, data)
+	addr := common.BytesToAddress([]byte("address"))
+
+	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
+	if err != nil {
+		t.Fatalf("handle message failed: %v", err)
+	}
+}
+
+func TestRecentMessageCachesNonAnnounce(t *testing.T) {
+	_, backend := newBlockChain(1, true)
+
+	// generate a msg that is not an Announce
+	data := []byte("data1")
 	hash := istanbul.RLPHash(data)
 	msg := makeMsg(istanbulAnnounceMsg, data)
 	addr := common.BytesToAddress([]byte("address"))
@@ -57,23 +71,19 @@ func TestIstanbulMessage(t *testing.T) {
 		t.Fatalf("the cache of messages should be nil")
 	}
 
-	// 2. this message should be in cache after we handle it
+	// 2. this message should NOT be in cache after we handle it
 	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
 	if err != nil {
 		t.Fatalf("handle message failed: %v", err)
 	}
-	// for peers
-	if ms, ok := backend.selfRecentMessages.Get(addr); ms == nil || !ok {
-		t.Fatalf("the cache of messages for this peer cannot be nil")
-	} else if m, ok := ms.(*lru.ARCCache); !ok {
-		t.Fatalf("the cache of messages for this peer cannot be casted")
-	} else if _, ok := m.Get(hash); !ok {
-		t.Fatalf("the cache of messages for this peer cannot be found")
-	}
 
+	// for peers
+	if _, ok := backend.peerRecentMessages.Get(addr); ok {
+		t.Fatalf("the cache of messages for this peer should be nil")
+	}
 	// for self
-	if _, ok := backend.selfRecentMessages.Get(hash); !ok {
-		t.Fatalf("the cache of messages cannot be found")
+	if _, ok := backend.selfRecentMessages.Get(hash); ok {
+		t.Fatalf("the cache of messages must be nil")
 	}
 }
 

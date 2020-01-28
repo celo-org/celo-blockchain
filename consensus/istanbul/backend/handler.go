@@ -125,7 +125,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if msg.Code == istanbulFwdMsg {
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
-		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok {
+		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
 			go announceHandlerFunc(peer, data)
 			return true, nil
 		}
