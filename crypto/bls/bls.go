@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -91,7 +92,12 @@ func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
+func NowAsUnixMilli() int64 {
+	return time.Now().UnixNano() / 1e6
+}
+
 func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+	fmt.Print("===VerifyAggregatedSignature Start=== : ", NowAsUnixMilli())
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
 		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
@@ -101,11 +107,13 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []
 		defer publicKeyObj.Destroy()
 		publicKeyObjs = append(publicKeyObjs, publicKeyObj)
 	}
+	fmt.Print("===VerifyAggregatedSignature Keys Deserialized=== : ", NowAsUnixMilli())
 	apk, err := bls.AggregatePublicKeys(publicKeyObjs)
 	if err != nil {
 		return err
 	}
 	defer apk.Destroy()
+	fmt.Print("===VerifyAggregatedSignature Keys Aggregated PKs=== : ", NowAsUnixMilli())
 
 	signatureObj, err := bls.DeserializeSignature(signature)
 	if err != nil {
@@ -114,6 +122,7 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []
 	defer signatureObj.Destroy()
 
 	err = apk.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
+	fmt.Print("===VerifyAggregatedSignature End=== : ", NowAsUnixMilli())
 	return err
 }
 
