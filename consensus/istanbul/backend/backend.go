@@ -207,6 +207,10 @@ type Backend struct {
 	rewardDistributionTimer metrics.Timer
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
+
+	// Cache for the return values of the method retrieveRegisteredAndElectedValidators
+	cachedRegisteredElectedValSet         map[common.Address]bool
+	cachedRegisteredElectedValSetBlockNum uint64
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -756,10 +760,21 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
-func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]bool, error) {
+func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
 	validatorsSet := make(map[common.Address]bool)
 
-	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(nil, nil)
+	currentBlock := sb.currentBlock()
+
+	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
+	if sb.cachedRegisteredElectedValSet != nil && sb.cachedRegisteredElectedValSetBlockNum == currentBlock.Number().Uint64() {
+		return sb.cachedRegisteredElectedValSet, nil
+	}
+
+	currentState, err := sb.stateAt(currentBlock.Hash())
+	if err != nil {
+		return nil, err
+	}
+	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(currentBlock.Header(), currentState)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -775,11 +790,13 @@ func (sb *Backend) retrieveActiveAndRegisteredValidators() (map[common.Address]b
 	}
 
 	// Add active validators regardless
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	valSet := sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash())
 	for _, val := range valSet.List() {
 		validatorsSet[val.Address()] = true
 	}
+
+	sb.cachedRegisteredElectedValSet = validatorsSet
+	sb.cachedRegisteredElectedValSetBlockNum = currentBlock.Number().Uint64()
 
 	return validatorsSet, nil
 }

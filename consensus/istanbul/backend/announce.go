@@ -54,7 +54,7 @@ const (
 func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 	// Check if this node is in the registered/elected validator set
-	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return false, err
 	}
@@ -78,7 +78,7 @@ func (sb *Backend) announceThread() {
 
 	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
 	// If both conditions are true, then this node should announce.
-	checkIfShouldAnnounceTicker := time.NewTicker(1 * time.Minute)
+	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 
 	// Create a ticker to check peers' announce versions one every 10 minutes
 	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
@@ -336,7 +336,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 	}
 
 	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
-	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +388,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// Check if the sender is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
 
 	// If the announce's valAddress is not within the registered validator set, then ignore it
-	regAndActiveVals, err := sb.retrieveActiveAndRegisteredValidators()
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return err
 	}
