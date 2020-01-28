@@ -19,6 +19,7 @@ RUN apt update && apt install -y curl musl-tools
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH=$PATH:~/.cargo/bin
 RUN $HOME/.cargo/bin/rustup install 1.37.0 && $HOME/.cargo/bin/rustup default 1.37.0 && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl
+ADD ./crypto /go-ethereum/crypto
 RUN cd /go-ethereum/crypto/bls/bls-zexe/bls && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
 
 # Build Geth in a stock Go builder container
