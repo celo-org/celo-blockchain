@@ -611,7 +611,6 @@ loop:
 				ph.sendValEnodeShareMsgs()
 			}
 
-
 		case disconnectedPeer := <-ph.delProxyPeer:
 			// Proxied peer just disconnected.
 			peerID := disconnectedPeer.Node().ID()
