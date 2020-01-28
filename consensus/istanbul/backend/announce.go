@@ -132,6 +132,7 @@ func (sb *Backend) sendAnnounceMsgs() {
 	sb.announceWg.Add(1)
 	defer sb.announceWg.Done()
 
+	// TODO wait until we have peers before sending it.
 	// Send out an announce message when this thread starts
 	go sb.sendIstAnnounce()
 
