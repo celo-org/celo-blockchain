@@ -12,7 +12,7 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 ADD . /go-ethereum
 RUN mkdir -p /go-ethereum/crypto/bls/bls-zexe/bls/target/release
-COPY --from=rustbuilder /go-ethereum/crypto/bls/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_zexe.a /go-ethereum/crypto/bls/bls-zexe/bls/target/release
+COPY --from=rustbuilder /go-ethereum/crypto/bls/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_*.a /go-ethereum/crypto/bls/bls-zexe/bls/target/release/
 RUN cd /go-ethereum && make all
 
 # Pull all binaries into a second stage deploy alpine container
