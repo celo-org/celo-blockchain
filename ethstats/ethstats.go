@@ -674,7 +674,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	pubkeyBytes := crypto.FromECDSAPub(pubkey)
 
-	signature, errSign := wallet.SignData(account, accounts.MimetypeTypedData, msgHash.Bytes())
+	signature, errSign := wallet.SignData(account, accounts.MimetypeTypedData, msg)
 	if errSign != nil {
 		return nil, errSign
 	}
