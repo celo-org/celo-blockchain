@@ -47,6 +47,9 @@ type ledgerParam1 byte
 // specific opcodes. The same parameter values may be reused between opcodes.
 type ledgerParam2 byte
 
+// appType is used to identify which app is being used on the device
+type appType byte
+
 const (
 	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Ethereum address for a given BIP 32 path
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs an Ethereum transaction after having the user validate the parameters
@@ -63,6 +66,9 @@ const (
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
+
+	ledgerTxSigner appType  = 0x02
+	ledgerBLSsigner appType = 0x04
 )
 
 // errLedgerReplyInvalidHeader is the error message returned by a Ledger data exchange
@@ -74,10 +80,15 @@ var errLedgerReplyInvalidHeader = errors.New("ledger: invalid reply header")
 // when a response does arrive, but it does not contain the expected data.
 var errLedgerInvalidVersionReply = errors.New("ledger: invalid version reply")
 
+// errLedgerInvalidAppReply is the error message returned by an operation not implemented
+// for the app type currently detected on the device
+var errLedgerInvalidApp = errors.New("ledger: invalid app")
+
 // ledgerDriver implements the communication with a Ledger hardware wallet.
 type ledgerDriver struct {
 	device  io.ReadWriter // USB device connection to communicate through
 	version [3]byte       // Current version of the Ledger firmware (zero if app is offline)
+	app     appType          // App currently running on the Ledger device
 	browser bool          // Flag whether the Ledger is in browser mode (reply channel mismatch)
 	failure error         // Any failure that would make the device unusable
 	log     log.Logger    // Contextual logger to tag the ledger with its id
@@ -97,12 +108,12 @@ func (w *ledgerDriver) Status() (string, error) {
 		return fmt.Sprintf("Failed: %v", w.failure), w.failure
 	}
 	if w.browser {
-		return "Ethereum app in browser mode", w.failure
+		return "Celo app in browser mode", w.failure
 	}
 	if w.offline() {
-		return "Ethereum app offline", w.failure
+		return "Celo app offline", w.failure
 	}
-	return fmt.Sprintf("Ethereum app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
+	return fmt.Sprintf("Celo app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
 }
 
 // offline returns whether the wallet and the Ethereum app is offline or not.
@@ -118,18 +129,25 @@ func (w *ledgerDriver) offline() bool {
 func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
-	_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
+	// Try to resolve the Celo app's version and app type
+	reply, err := w.ledgerVersion()
 	if err != nil {
-		// Ethereum app is not running or in browser mode, nothing more to do, return
-		if err == errLedgerReplyInvalidHeader {
-			w.browser = true
-		}
 		return nil
 	}
-	// Try to resolve the Ethereum app's version, will fail prior to v1.0.2
-	if w.version, err = w.ledgerVersion(); err != nil {
-		w.version = [3]byte{1, 0, 0} // Assume worst case, can't verify if v1.0.0 or v1.0.1
+	w.app = appType(reply[0])
+
+	if w.app == ledgerTxSigner {
+		_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
+		if err != nil {
+			// Ethereum app is not running or in browser mode, nothing more to do, return
+			if err == errLedgerReplyInvalidHeader {
+				w.browser = true
+			}
+			return nil
+		}
 	}
+	copy(w.version[:], reply[1:])
+
 	return nil
 }
 
@@ -153,6 +171,9 @@ func (w *ledgerDriver) Heartbeat() error {
 // Derive implements usbwallet.driver, sending a derivation request to the Ledger
 // and returning the Ethereum address located on that derivation path.
 func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, error) {
+	if w.app != ledgerTxSigner {
+		return common.Address{}, errLedgerInvalidApp
+	}
 	return w.ledgerDerive(path)
 }
 
@@ -167,6 +188,10 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	if w.offline() {
 		return common.Address{}, nil, accounts.ErrWalletClosed
 	}
+	// Abort if not using the tx signer app
+	if w.app != ledgerTxSigner {
+		return common.Address{}, nil, errLedgerInvalidApp
+	}
 	// Ensure the wallet is capable of signing the given transaction
 	if chainID != nil && w.version[0] <= 1 && w.version[1] <= 0 && w.version[2] <= 2 {
 		return common.Address{}, nil, fmt.Errorf("Ledger v%d.%d.%d doesn't support signing this transaction, please update to v1.0.3 at least", w.version[0], w.version[1], w.version[2])
@@ -176,8 +201,13 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 }
 
 func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
+	// Abort if app not online
 	if w.offline() {
 		return nil, accounts.ErrWalletClosed
+	}
+	// Abort if not using the BLS signer app
+	if w.app != ledgerBLSsigner {
+		return nil, errLedgerInvalidApp
 	}
 	return w.ledgerBLSHashSign(hash)
 }
@@ -196,22 +226,23 @@ func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 //   Description                                        | Length
 //   ---------------------------------------------------+--------
 //   Flags 01: arbitrary data signature enabled by user | 1 byte
+//   App type						| 1 byte
 //   Application major version                          | 1 byte
 //   Application minor version                          | 1 byte
 //   Application patch version                          | 1 byte
-func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
+func (w *ledgerDriver) ledgerVersion() ([4]byte, error) {
 	// Send the request and wait for the response
 	reply, err := w.ledgerExchange(ledgerOpGetConfiguration, 0, 0, nil)
 	if err != nil {
-		return [3]byte{}, err
+		return [4]byte{}, err
 	}
-	if len(reply) != 4 {
-		return [3]byte{}, errLedgerInvalidVersionReply
+	if len(reply) != 5 {
+		return [4]byte{}, errLedgerInvalidVersionReply
 	}
 	// Cache the version for future reference
-	var version [3]byte
-	copy(version[:], reply[1:])
-	return version, nil
+	var result [4]byte
+	copy(result[:], reply[1:])
+	return result, nil
 }
 
 // ledgerDerive retrieves the currently active Ethereum address from a Ledger
