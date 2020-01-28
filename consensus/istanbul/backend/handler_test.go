@@ -37,6 +37,10 @@ func (p *MockPeer) Node() *enode.Node {
 	return nil
 }
 
+func (p *MockPeer) Version() int {
+	return 0
+}
+
 func TestIstanbulMessage(t *testing.T) {
 	_, backend := newBlockChain(1, true)
 

@@ -402,6 +402,11 @@ func (p *peer) String() string {
 	)
 }
 
+// Version return's the peer's version
+func (p *peer) Version() int {
+	return p.version
+}
+
 // peerSet represents the collection of active peers currently participating in
 // the Ethereum sub-protocol.
 type peerSet struct {

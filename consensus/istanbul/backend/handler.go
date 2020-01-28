@@ -53,12 +53,17 @@ func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 
 type announceMsgHandler func(consensus.Peer, []byte) error
 
+const (
+	Istanbul64 = 64
+	Istanbul65 = 65
+)
+
 // Protocol implements consensus.Engine.Protocol
 func (sb *Backend) Protocol() consensus.Protocol {
 	return consensus.Protocol{
 		Name:     "istanbul",
-		Versions: []uint{64},
-		Lengths:  []uint64{25},
+		Versions: []uint{Istanbul64, Istanbul65},
+		Lengths:  []uint64{22, 25},
 		Primary:  true,
 	}
 }
@@ -270,7 +275,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	sb.sendGetAnnounceVersions(peer)
+	if peer.Version() == Istanbul65 {
+		sb.sendGetAnnounceVersions(peer)
+	}
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {

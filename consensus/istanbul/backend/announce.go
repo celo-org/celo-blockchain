@@ -637,6 +637,8 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	peers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
 
 	for _, peer := range peers {
-		sb.sendGetAnnounceVersions(peer)
+		if peer.Version() == Istanbul65 {
+			sb.sendGetAnnounceVersions(peer)
+		}
 	}
 }
