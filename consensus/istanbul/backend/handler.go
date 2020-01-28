@@ -133,7 +133,15 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return nil
 		}
 
-		if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
+		msg := new(istanbul.Message)
+
+		// Verify that this message is coming from a legitimate validator before forwarding.
+		checkValidatorSignature := func(data []byte, sig []byte) (common.Address, error) {
+			block := sb.currentBlock()
+			valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+			return istanbul.CheckValidatorSignature(valSet, data, sig)
+		}
+		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
 			sb.logger.Trace("Got a consensus message from a non validator.  Ignoring it")
 			return nil
 		}
