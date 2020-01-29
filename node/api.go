@@ -294,6 +294,16 @@ func (api *PublicAdminAPI) Peers() ([]*p2p.PeerInfo, error) {
 	return server.PeersInfo(), nil
 }
 
+// ProxiedPeers retrieves all the information we know about proxied peers at the
+// protocol granularity.
+func (api *PublicAdminAPI) ProxiedPeers() ([]*p2p.PeerInfo, error) {
+	server := api.node.ProxyServer()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.PeersInfo(), nil
+}
+
 // NodeInfo retrieves all the information we know about the host node at the
 // protocol granularity.
 func (api *PublicAdminAPI) NodeInfo() (*p2p.NodeInfo, error) {

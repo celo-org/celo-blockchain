@@ -554,6 +554,16 @@ func (n *Node) Server() *p2p.Server {
 	return n.server
 }
 
+// ProxyServer retrieves the currently running proxy P2P network layer. This method is meant
+// only to inspect fields of the currently running server, life cycle management
+// should be left to this Node entity.
+func (n *Node) ProxyServer() *p2p.Server {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	return n.proxyServer
+}
+
 // Service retrieves a currently running service registered of a specific type.
 func (n *Node) Service(service interface{}) error {
 	n.lock.RLock()

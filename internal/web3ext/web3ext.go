@@ -215,6 +215,10 @@ web3._extend({
 			getter: 'admin_peers'
 		}),
 		new web3._extend.Property({
+			name: 'proxiedPeers',
+			getter: 'admin_proxiedPeers'
+		}),
+		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
 		}),

@@ -484,8 +484,11 @@ func newProxyHandler(sb *Backend) *proxyHandler {
 
 	ph.getValidatorProxyPeers = make(chan *validatorProxyPeersRequest)
 	ph.getValidatorProxies = make(chan *validatorProxiesRequest)
-	ph.getProxyInfo = make(chan chan []ProxyInfo)
 	ph.getProxyPeer = make(chan *proxyPeerRequest)
+
+	ph.getProxyInfo = make(chan chan []ProxyInfo)
+
+	ph.newBlockchainEpoch = make(chan struct{})
 
 	ph.proxyHandlerEpochLength = time.Minute
 
