@@ -1128,5 +1128,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 }
 
 func (w *worker) isIstanbulEngine() bool {
-	return w.engine.Protocol().Name == "istanbul"
+	// TODO find a better way to do this
+	_, isIstanbul := w.engine.(consensus.Istanbul)
+	return isIstanbul
 }

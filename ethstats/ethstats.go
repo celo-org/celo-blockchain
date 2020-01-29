@@ -356,14 +356,13 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		protocol  string
 		err       error
 	)
-	p := s.engine.Protocol()
-	if info := infos.Protocols[p.Name]; info != nil {
+	if info := infos.Protocols[eth.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
 			return errors.New("Could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", p.Name, p.Versions[0])
+		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {

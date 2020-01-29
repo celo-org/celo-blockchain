@@ -743,11 +743,6 @@ func (c *Clique) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
-// Protocol implements consensus.Engine.Protocol
-func (c *Clique) Protocol() consensus.Protocol {
-	return consensus.EthProtocol
-}
-
 // SealHash returns the hash of a block prior to it being sealed.
 func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()

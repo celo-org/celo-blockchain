@@ -31,24 +31,20 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	eth63 = 63
-	eth64 = 64
+	celo64 = 64
+	celo65 = 65
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
-const protocolName = "eth"
+const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the eth protocol (first is primary).
-// var ProtocolVersions = []uint{eth64, eth63}
-var ProtocolVersions = []uint{eth64}
+var ProtocolVersions = []uint{celo65, celo64}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-// var protocolLengths = map[uint]uint64{eth64: 17, eth63: 17}
-var protocolLengths = map[uint]uint64{eth64: 22, eth63: 17}
+var protocolLengths = map[uint]uint64{celo64: 22, celo65: 22}
 
 const protocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message
-
-const protocolPrimary = true
 
 // eth protocol message codes
 const (

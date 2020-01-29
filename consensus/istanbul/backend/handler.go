@@ -43,16 +43,6 @@ var (
 	errDecodeFailed = errors.New("fail to decode istanbul message")
 )
 
-// Protocol implements consensus.Engine.Protocol
-func (sb *Backend) Protocol() consensus.Protocol {
-	return consensus.Protocol{
-		Name:     "istanbul",
-		Versions: []uint{64},
-		Lengths:  []uint64{22},
-		Primary:  true,
-	}
-}
-
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) || (msg.Code == istanbulDelegateSign)
 }
