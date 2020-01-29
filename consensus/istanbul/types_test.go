@@ -268,8 +268,9 @@ func TestSubjectRLPEncoding(t *testing.T) {
 func TestCommittedSubjectRLPEncoding(t *testing.T) {
 	var result, original *CommittedSubject
 	original = &CommittedSubject{
-		Subject:       dummySubject(),
-		CommittedSeal: []byte{12, 13, 23},
+		Subject:               dummySubject(),
+		CommittedSeal:         []byte{12, 13, 23},
+		EpochValidatorSetSeal: []byte{1, 5, 50},
 	}
 
 	rawVal, err := rlp.EncodeToBytes(original)
