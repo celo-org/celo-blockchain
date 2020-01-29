@@ -113,7 +113,10 @@ func (w *ledgerDriver) Status() (string, error) {
 	if w.offline() {
 		return "Celo app offline", w.failure
 	}
-	return fmt.Sprintf("Celo app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
+	if w.app == ledgerBLSsigner {
+		return fmt.Sprintf("Celo BLS app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
+	}
+	return fmt.Sprintf("Celo tx signer app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
 }
 
 // offline returns whether the wallet and the Ethereum app is offline or not.
