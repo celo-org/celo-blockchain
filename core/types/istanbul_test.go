@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"reflect"
 	"testing"
@@ -55,18 +56,17 @@ func TestExtractToIstanbul(t *testing.T) {
 		{
 			// normal case
 			bytes.Repeat([]byte{0x00}, IstanbulExtraVanity),
-			hexutil.MustDecode("0xf7ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c00c80c3808080c380808080"),
+			hexutil.MustDecode("0xf6ea9444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212c00c80c3808080c3808080"),
 			&IstanbulExtra{
 				AddedValidators: []common.Address{
 					common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
 					common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
 				},
-				AddedValidatorsPublicKeys: [][]byte{},
+				AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 				RemovedValidators:         big.NewInt(12), //1100
 				Seal:                      []byte{},
 				AggregatedSeal:            IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
 				ParentAggregatedSeal:      IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-				EpochData:                 []byte{},
 			},
 			nil,
 		},
