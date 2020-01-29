@@ -21,6 +21,7 @@ if [ -n "$npm_token" ]; then
   echo "//registry.npmjs.org/:_authToken=$npm_token" > ~/.npmrc
 fi
 
+# TODO: Create an appropriate README for NPM
 rm README.md
 
 npm -f --no-git-tag-version version "$new_version"
