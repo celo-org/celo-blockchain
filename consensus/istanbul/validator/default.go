@@ -94,9 +94,30 @@ func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	}
 }
 
-func (val *defaultSet) Serialize() ([]byte, error)        { return rlp.EncodeToBytes(val) }
-func (valSet *defaultSet) F() int                         { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
-func (valSet *defaultSet) MinQuorumSize() int             { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+// We include the optimization described at https://arxiv.org/pdf/1901.07160.pdf as “PM-6” and
+// discussed in Lemma 22. For values of N=3F for integer F=1,2,3,.. we can tolerate a quorum
+// size one smaller than anticipated by Q = N - F. The intersection of any two sets of Q
+// nodes of N=3F must contain an honest validator.
+//
+// For example, with N=9, F=2, Q=6. Any two sets of Q=6 from N=9 nodes must overlap
+// by >9-6=3 nodes. At least 3-F=3-2=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9
+// x x x x x x
+//       y y y y y y
+//       F F H
+//
+// For N=10, F=3, Q=7. Any two sets of Q=7 nodes from N=10 must overlap by >4 nodes.
+// At least 4-F=4-3=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9 10
+// x x x x x x x
+//       y y y y y y y
+//       F F F H
+
+func (valSet *defaultSet) F() int             { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
+func (valSet *defaultSet) MinQuorumSize() int { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+
 func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
 func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
 
@@ -233,6 +254,8 @@ func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
 	val.SetRandomness(data.Randomness)
 	return nil
 }
+
+func (val *defaultSet) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
 // Utility Functions
 

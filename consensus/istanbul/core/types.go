@@ -25,11 +25,15 @@ import (
 type Engine interface {
 	Start() error
 	Stop() error
+	// CurrentView returns the current view or nil if none
 	CurrentView() *istanbul.View
+	// CurrentRoundState returns the current roundState or nil if none
 	CurrentRoundState() RoundState
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
 	ParentCommits() MessageSet
+	// ForceRoundChange will force round change to the current desiredRound + 1
+	ForceRoundChange()
 }
 
 // State represents the IBFT state

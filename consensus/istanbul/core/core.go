@@ -104,6 +104,14 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		}, c.checkMessage)
 	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
+	c.logger = istanbul.NewIstLogger(
+		func() *big.Int {
+			if c != nil && c.current != nil {
+				return c.current.Round()
+			}
+			return common.Big0
+		},
+	)
 	return c
 }
 
@@ -128,6 +136,12 @@ func (c *core) ParentCommits() MessageSet {
 		return nil
 	}
 	return c.current.ParentCommits()
+}
+
+func (c *core) ForceRoundChange() {
+	// timeout current DesiredView
+	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 }
 
 // PrepareCommittedSeal returns a committed seal for the given hash and round number.
