@@ -456,6 +456,12 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		return errOldAnnounceMessage
 	}
 
+	// Do some validation checks on the announcePayload
+	if isValid, err := sb.validateAnnounce(&announcePayload); !isValid || err != nil {
+		logger.Warn("validation of announce message failed", "isValid", isValid, "err", err)
+		return err
+	}
+
 	// If this is a registered or elected validator, then process the announce message
 	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 	if err != nil {
@@ -491,6 +497,42 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	sb.regossipAnnounce(msg, payload)
 
 	return nil
+}
+
+// validateAnnounce will do some validation to check the contents of the announce
+// message. This is to force all validators that send an announce message to
+// create as succint message as possible, and prevent any possible network DOS attacks
+// via extremely large announce message.
+func (sb *Backend) validateAnnounce(announcePayload *validatorEncryptedEnodes) (bool, error) {
+	logger := sb.logger.New("func", "validateAnnounce")
+
+	// Check if there are any duplicates in the announce message
+	var encounteredAddresses = make(map[common.Address]bool)
+	for _, encryptedEnode := range announcePayload.EncryptedEnodes {
+		if encounteredAddresses[encryptedEnode.DecrypterAddress] {
+			logger.Info("announce message has duplicate entries", "address", encryptedEnode.DecrypterAddress)
+			return false, nil
+		}
+
+		encounteredAddresses[encryptedEnode.DecrypterAddress] = true
+	}
+
+	// Check if the number of rows in the announcePayload is at most 2 times the size of the current registered/elected validator set.
+	// Note that this is a heuristic of the actual size of registered/elected at the time the validator constructed the announce message.
+	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
+	// then verify that all of the registered/elected validators of that block number is included in the announce message
+	// Check if the sender is within the registered/elected valset
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		return false, err
+	}
+
+	if len(announcePayload.EncryptedEnodes) > 2*len(regAndActiveVals) {
+		logger.Info("number of announce message encrypted enodes is more than two times the size of the current reg/elected validator set", "num announce enodes", len(announcePayload.EncryptedEnodes), "reg/elected val set size", len(regAndActiveVals))
+		return false, err
+	}
+
+	return true, nil
 }
 
 // regossipAnnounce will regossip a received announce message.
