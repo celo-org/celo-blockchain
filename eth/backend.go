@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -197,7 +198,12 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
-		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+		istanbul.SetChain(
+			eth.blockchain, eth.blockchain.CurrentBlock,
+			func(parentHash common.Hash) (*state.StateDB, error) {
+				parentStateRoot := eth.blockchain.GetHeaderByHash(parentHash).Root
+				return eth.blockchain.StateAt(parentStateRoot)
+			})
 
 		chainHeadCh := make(chan core.ChainHeadEvent)
 		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)

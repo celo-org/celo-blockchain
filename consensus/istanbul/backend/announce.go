@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	mrand "math/rand"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -50,17 +49,6 @@ const (
 	// In this state, send out an announce message every 10 minutes
 	LowFreqState
 )
-
-func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
-
-	// Check if this node is in the registered/elected validator set
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
-	if err != nil {
-		return false, err
-	}
-
-	return sb.coreStarted && regAndActiveVals[sb.Address()], nil
-}
 
 // The announceThread thread function
 // It will generate and gossip it's announce message periodically.
@@ -128,6 +116,11 @@ func (sb *Backend) announceThread() {
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
+			// Use this timer to also prune all announce related data structures.
+			if err := sb.pruneAnnounceDataStructures(); err != nil {
+				logger.Warn("Error is pruning announce data structures", "err", err)
+			}
+
 		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
 			logger.Trace("Going to gossip an announce message", "announceGossipFrequencyState", announceGossipFrequencyState, "numGossipedMsgsInHighFreqAfterFirstPeerState", numGossipedMsgsInHighFreqAfterFirstPeerState)
 			switch announceGossipFrequencyState {
@@ -166,6 +159,54 @@ func (sb *Backend) announceThread() {
 			return
 		}
 	}
+}
+
+func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
+
+	// Check if this node is in the registered/elected validator set
+	regAndElectedVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		return false, err
+	}
+
+	return sb.coreStarted && regAndElectedVals[sb.Address()], nil
+}
+
+// pruneAnnounceDataStructures will remove entries that are not in the registered/elected validator set from all announce related data structures.
+// The data structures that it prunes are:
+// 1)  cachedAnnounceMsgs
+// 2)  lastAnnounceGossiped
+// 3)  valEnodeTable
+func (sb *Backend) pruneAnnounceDataStructures() error {
+	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
+
+	// retrieve the registered/elected validator set
+	regAndElectedVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		return err
+	}
+
+	// Prune the announce cache for entries that are not in the current registered/elected validator set
+	for cachedValAddress := range sb.cachedAnnounceMsgs {
+		if !regAndElectedVals[cachedValAddress] {
+			logger.Trace("Deleting entry from cachedAnnounceMsgs", "cachedValAddress", cachedValAddress, "cachedAnnounceVersion", sb.cachedAnnounceMsgs[cachedValAddress].MsgVersion)
+			delete(sb.cachedAnnounceMsgs, cachedValAddress)
+		}
+	}
+
+	for remoteAddress := range sb.lastAnnounceGossiped {
+		if !regAndElectedVals[remoteAddress] {
+			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
+			delete(sb.lastAnnounceGossiped, remoteAddress)
+		}
+	}
+
+	if err := sb.valEnodeTable.PruneEntries(regAndElectedVals); err != nil {
+		logger.Trace("Error in pruning valEnodeTable", "err", err)
+		return err
+	}
+
+	return nil
 }
 
 // ===============================================================
@@ -416,8 +457,6 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 
 	// If this is a registered or elected validator, then process the announce message
-	var destAddresses = make([]string, 0, len(announcePayload.EncryptedEnodes))
-	var msgHasDupsOrIrrelevantEntries bool = false
 	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process announce", err)
@@ -425,98 +464,60 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 
 	if shouldProcessAnnounce {
-		var node *enode.Node
-		var processedAddresses = make(map[common.Address]bool)
 		for _, encryptedEnode := range announcePayload.EncryptedEnodes {
-			// Don't process duplicate entries or entries that are not in the regAndActive valset
-			if !regAndActiveVals[encryptedEnode.DecrypterAddress] || processedAddresses[encryptedEnode.DecrypterAddress] {
-				msgHasDupsOrIrrelevantEntries = true
-				continue
-			}
-
 			if encryptedEnode.DecrypterAddress == sb.Address() {
 				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
 				enodeUrl := string(encryptedEnode.EncryptedEnodeURL)
-				node, err = enode.ParseV4(enodeUrl)
+				node, err := enode.ParseV4(enodeUrl)
 				if err != nil {
 					logger.Error("Error in parsing enodeURL", "enodeUrl", enodeUrl)
 					return err
 				}
-			}
-			destAddresses = append(destAddresses, encryptedEnode.DecrypterAddress.String())
-			processedAddresses[encryptedEnode.DecrypterAddress] = true
-		}
 
-		// Save in the valEnodeTable
-		if node != nil {
-			if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announcePayload.Version}}); err != nil {
-				logger.Warn("Error in upserting a valenode entry", "AnnouncePayload", announcePayload.String(), "error", err)
-				return err
+				if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announcePayload.Version}}); err != nil {
+					logger.Warn("Error in upserting a valenode entry", "AnnouncePayload", announcePayload.String(), "error", err)
+					return err
+				}
+
+				break
 			}
 		}
 	}
 
-	if !msgHasDupsOrIrrelevantEntries {
-		// Cache this announce message
-		sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announcePayload.Version,
-			MsgPayload: payload}
+	// Cache this announce message
+	sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announcePayload.Version, MsgPayload: payload}
 
-		// Prune the announce cache for entries that are not in the current registered/elected validator set
-		for cachedValAddress := range sb.cachedAnnounceMsgs {
-			if !regAndActiveVals[cachedValAddress] {
-				delete(sb.cachedAnnounceMsgs, cachedValAddress)
-			}
-		}
-
-		if err = sb.regossipAnnounce(msg, payload, announcePayload, regAndActiveVals, destAddresses); err != nil {
-			return err
-		}
-	}
+	// Regossip this announce message
+	sb.regossipAnnounce(msg, payload)
 
 	return nil
 }
 
-// This function will regossip a newly received announce message
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte, announcePayload validatorEncryptedEnodes, regAndActiveVals map[common.Address]bool, destAddresses []string) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "msgAddress", msg.Address, "msg_timestamp", announcePayload.Version)
-	// If we gossiped an announce from this address within the last 5 minutes, then don't regossip.
-	// This is to prevent a malicious registered/elected validator from DOS the network with very frequent announce messages.
-	// Note that even if the registered/elected validator is not malicious, but changing their enode very frequently, the
-	// other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
-	// for updated announce messages.
+// regossipAnnounce will regossip a received announce message.
+// If this node regossiped an announce from the same source address within the last 5 minutes, then it wouldn't regossip.
+// This is to prevent a malicious registered/elected validator from DOS'ing the network with very frequent announce messages.
+// Note that even if the registered/elected validator is not malicious, but changing their enode very frequently, the
+// other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
+// for updated announce messages.
+func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) {
+	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address)
 
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 		if time.Since(lastGossipTs) < 5*time.Minute {
-			logger.Trace("Already regossiped the msg within the last 5 minutes, so not regossiping.", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
+			logger.Trace("Already regossiped msg from this source address within the last 5 minutes, so not regossiping.")
 			sb.lastAnnounceGossipedMu.RUnlock()
-			return nil
+			return
 		}
 	}
 	sb.lastAnnounceGossipedMu.RUnlock()
 
-	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String(), "AnnouncePayload", announcePayload.String())
+	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String())
 	sb.Multicast(nil, payload, istanbulAnnounceMsg)
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
 	sb.lastAnnounceGossiped[msg.Address] = time.Now()
-
-	// prune non registered validator entries in the valEnodeTable, reverseValEnodeTable, and lastAnnounceGossiped tables about 5% of the times that an announce msg is handled
-	if (mrand.Int() % 100) <= 5 {
-		for remoteAddress := range sb.lastAnnounceGossiped {
-			if !regAndActiveVals[remoteAddress] {
-				logger.Trace("Deleting entry from the lastAnnounceGossiped table", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
-				delete(sb.lastAnnounceGossiped, remoteAddress)
-			}
-		}
-
-		if err := sb.valEnodeTable.PruneEntries(regAndActiveVals); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // ===============================================================

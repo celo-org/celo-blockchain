@@ -581,14 +581,15 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
-func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {
+func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error)) {
 	sb.chain = chain
 	sb.currentBlock = currentBlock
+	sb.stateAt = stateAt
 }
 
 // StartValidating implements consensus.Istanbul.StartValidating
 func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
-	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
@@ -604,7 +605,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	sb.commitCh = make(chan *types.Block, 1)
 
 	sb.hasBadBlock = hasBadBlock
-	sb.stateAt = stateAt
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 

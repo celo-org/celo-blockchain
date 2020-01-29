@@ -168,11 +168,12 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	SetChain(chain ChainReader, currentBlock func() *types.Block)
+	// SetChain injects the blockchain and related functions to the istanbul consensus engine
+	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
 	// StartValidating starts the validating engine
 	StartValidating(hasBadBlock func(common.Hash) bool,
-		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
 	// StopValidating stops the validating engine
