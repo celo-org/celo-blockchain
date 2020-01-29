@@ -1007,7 +1007,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		etherBase, _ = s.eth.Etherbase()
 		block := s.eth.BlockChain().CurrentBlock()
 
-        proxy = s.backend.IsProxy()
+		proxy = s.backend.IsProxy()
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
 
