@@ -118,10 +118,9 @@ func NowAsUnixMilli() string {
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
 func (sb *Backend) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
-	logger := sb.logger.New("func", "Backend.VerifyHeader()")
-	logger.Debug("===VerifyHeader Start=== : " + NowAsUnixMilli())
+	sb.logger.Info("===VerifyHeader Start=== : " + NowAsUnixMilli())
 	rtn := sb.verifyHeader(chain, header, nil)
-	logger.Debug("===VerifyHeader End=== : " + NowAsUnixMilli())
+	sb.logger.Info("===VerifyHeader End=== : " + NowAsUnixMilli())
 	return rtn
 }
 
@@ -130,7 +129,7 @@ func (sb *Backend) VerifyHeader(chain consensus.ChainReader, header *types.Heade
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
 func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
-	sb.logger.Debug("===VerifyHeader Inner Start=== : " + NowAsUnixMilli())
+	sb.logger.Info("===VerifyHeader Inner Start=== : " + NowAsUnixMilli())
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -171,7 +170,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	}
 
 	rtn := sb.verifyCascadingFields(chain, header, parents)
-	sb.logger.Debug("===VerifyHeader Inner End=== : " + NowAsUnixMilli())
+	sb.logger.Info("===VerifyHeader Inner End=== : " + NowAsUnixMilli())
 	return rtn
 }
 
@@ -214,8 +213,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 // a results channel to retrieve the async verifications (the order is that of
 // the input slice).
 func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
-	logger := sb.logger.New("func", "Backend.VerifyHeaders()")
-	logger.Debug("===VerifyHeaders Mult Start=== : " + NowAsUnixMilli())
+	sb.logger.Info("===Called VerifyHeaders: " + NowAsUnixMilli())
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 	go func() {
@@ -229,7 +227,6 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 			}
 		}
 	}()
-	logger.Debug("===VerifyHeaders Mult End=== : " + NowAsUnixMilli())
 	return abort, results
 }
 

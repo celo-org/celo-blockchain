@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"math/big"
 	"time"
+	"strconv"
 
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -92,12 +94,13 @@ func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
-func NowAsUnixMilli() int64 {
-	return time.Now().UnixNano() / 1e6
+func NowAsUnixMilli() string {
+	return strconv.FormatInt(time.Now().UnixNano() / 1e6, 10)
 }
 
 func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
-	fmt.Print("===VerifyAggregatedSignature Start=== : ", NowAsUnixMilli())
+	logger := log.New("VerifyAggregatedSignature", "VerifyAggregatedSignature" + NowAsUnixMilli())
+	logger.Info("===VerifyAggregatedSignature Start=== : " + NowAsUnixMilli())
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
 		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
@@ -107,13 +110,13 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []
 		defer publicKeyObj.Destroy()
 		publicKeyObjs = append(publicKeyObjs, publicKeyObj)
 	}
-	fmt.Print("===VerifyAggregatedSignature Keys Deserialized=== : ", NowAsUnixMilli())
+	logger.Info("===VerifyAggregatedSignature Keys Deserialized=== : " + NowAsUnixMilli())
 	apk, err := bls.AggregatePublicKeys(publicKeyObjs)
 	if err != nil {
 		return err
 	}
 	defer apk.Destroy()
-	fmt.Print("===VerifyAggregatedSignature Keys Aggregated PKs=== : ", NowAsUnixMilli())
+	logger.Info("===VerifyAggregatedSignature Keys Aggregated PKs=== : " + NowAsUnixMilli())
 
 	signatureObj, err := bls.DeserializeSignature(signature)
 	if err != nil {
@@ -122,7 +125,7 @@ func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []
 	defer signatureObj.Destroy()
 
 	err = apk.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
-	fmt.Print("===VerifyAggregatedSignature End=== : ", NowAsUnixMilli())
+	logger.Info("===VerifyAggregatedSignature End=== : " + NowAsUnixMilli())
 	return err
 }
 
