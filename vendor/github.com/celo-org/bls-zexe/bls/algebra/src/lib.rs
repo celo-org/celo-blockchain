@@ -194,10 +194,19 @@ pub extern "C" fn hash_direct(
     in_message_len: c_int,
     out_hash: *mut *mut u8,
     out_len: *mut c_int,
+    use_pop: bool,
 ) -> bool {
     convert_result_to_bool::<_, Box<dyn Error>, _>(|| {
         let message = unsafe { slice::from_raw_parts(in_message, in_message_len as usize) };
-        let hash = DIRECT_HASH_TO_G2.hash::<Bls12_377Parameters>(SIG_DOMAIN, message, &[])?;
+     /*   let hash =  if use_pop {
+            DIRECT_HASH_TO_G2.hash::<Bls12_377Parameters>(POP_DOMAIN, message, &[])?;
+        } else {
+            DIRECT_HASH_TO_G2.hash::<Bls12_377Parameters>(SIG_DOMAIN, message, &[])?;
+        };*/
+        let hash = match use_pop {
+            true => DIRECT_HASH_TO_G2.hash::<Bls12_377Parameters>(POP_DOMAIN, message, &[])?, 
+            _ => DIRECT_HASH_TO_G2.hash::<Bls12_377Parameters>(SIG_DOMAIN, message, &[])?, 
+        };
         let mut obj_bytes = vec![];
         hash.write(&mut obj_bytes)?;
         obj_bytes.shrink_to_fit();

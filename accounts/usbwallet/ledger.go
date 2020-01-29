@@ -212,6 +212,18 @@ func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	return w.ledgerBLSHashSign(hash)
 }
 
+func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
+	// Abort if app not online
+	if w.offline() {
+		return nil, accounts.ErrWalletClosed
+	}
+	// Abort if not using the BLS signer app
+	if w.app != ledgerBLSsigner {
+		return nil, errLedgerInvalidApp
+	}
+	return w.ledgerGetPubKeyBLS()
+}
+
 // ledgerVersion retrieves the current version of the Ethereum wallet app running
 // on the Ledger wallet.
 //
@@ -409,6 +421,27 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	}
 	return sender, signed, nil
 }
+
+// TODO: Describe protocol
+func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
+	var (
+		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
+		pubKey []byte
+		err error
+	)
+		// Send the chunk over, ensuring it's processed correctly
+		pubKey, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
+		if err != nil {
+			return nil, err
+		}
+	// Extract the Ethereum signature and do a sanity validation
+//	if len(reply) != 65 {
+//		return common.Address{}, nil, errors.New("reply lacks signature")
+//	}
+
+	return pubKey, nil
+}
+
 
 // TODO: Describe protocol
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {

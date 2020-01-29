@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/karalabe/hid"
+	"github.com/celo-org/bls-zexe/go"
 )
 
 // Maximum time between wallet health checks to detect USB unplugs.
@@ -70,6 +71,9 @@ type driver interface {
 
 	// SignHashBLS sends the hash of a message to the USB device and automatically signs and returns its signature
 	SignHashBLS(hash []byte) ([]byte, error)
+
+	// GetPublicKeyBLS sends a request to the USB device to return its associated BLS public key
+	GetPublicKeyBLS() ([]byte, error)
 }
 
 // wallet represents the common functionality shared by all USB hardware
@@ -520,6 +524,45 @@ func (w *wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
 
 func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
 	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	hashedHash, err := bls.HashDirect(hash, false)
+	if err != nil {
+		return nil, err
+	}
+	defer w.stateLock.RUnlock()
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return nil, accounts.ErrWalletClosed
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the hash
+	signed, err := w.driver.SignHashBLS(hashedHash)
+	if err != nil {
+		return nil, err
+	}
+	return signed, nil
+}
+
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+	hash, err := bls.HashComposite(msg, extraData)
+	if err != nil {
+		return nil, err
+	}
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
 	defer w.stateLock.RUnlock()
 
 	// If the wallet is closed, abort
@@ -549,16 +592,45 @@ func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, err
 	return signed, nil
 }
 
-func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
-}
-
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
 	return nil, nil, accounts.ErrNotSupported
 }
 
 func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	return nil, nil, accounts.ErrNotSupported
+	hashPoP, err := bls.HashDirect(address.Bytes(), true)
+	if err != nil {
+		return nil, nil, err
+	}
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	defer w.stateLock.RUnlock()
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return nil, nil, accounts.ErrWalletClosed
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the hash
+	signatureBytes, err := w.driver.SignHashBLS(hashPoP)
+	if err != nil {
+		return nil, nil, err
+	}
+	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
+
+	return pubKeyBytes, signatureBytes, accounts.ErrNotSupported
 }
 
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger

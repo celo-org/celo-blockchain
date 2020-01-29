@@ -163,6 +163,10 @@ func (w *trezorDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	return nil, accounts.ErrNotSupported
 }
 
+func (w *trezorDriver) GetPublicKeyBLS() ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 // trezorDerive sends a derivation request to the Trezor device and returns the
 // Ethereum address located on that path.
 func (w *trezorDriver) trezorDerive(derivationPath []uint32) (common.Address, error) {
