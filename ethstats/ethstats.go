@@ -989,6 +989,7 @@ type nodeStats struct {
 	Active   bool `json:"active"`
 	Syncing  bool `json:"syncing"`
 	Mining   bool `json:"mining"`
+	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
 	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
@@ -1003,6 +1004,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	var (
 		etherBase common.Address
 		mining    bool
+		proxy     bool
 		elected   bool
 		hashrate  int
 		syncing   bool
@@ -1012,11 +1014,13 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		etherBase, _ = s.eth.Etherbase()
 		block := s.eth.BlockChain().CurrentBlock()
 
+		proxy = s.backend.IsProxy()
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
 
 		elected = false
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
+
 		for i := range valsElected {
 			if valsElected[i].Address() == etherBase {
 				elected = true
@@ -1042,6 +1046,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 			Active:   true,
 			Mining:   mining,
 			Elected:  elected,
+			Proxy:    proxy,
 			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,
