@@ -232,24 +232,38 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	}
 
 	stack, _ := makeConfigNode(ctx)
-	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	am := stack.AccountManager()
+	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	for _, wallet := range am.Wallets() {
+		wallet.Open("")
+	}
 
 	signer := common.HexToAddress(ctx.Args()[0])
 	message := common.HexToAddress(ctx.Args()[1])
-	account, _ := unlockAccount(ctx, ks, signer.String(), 0, utils.MakePasswordList(ctx))
+	account := accounts.Account{Address: signer}
+	var err error
+	wallet, err := stack.AccountManager().Find(account)
+	if err != nil {
+		return err
+	}
+	log.Warn("Passed wallet finding")
+//	account, _ := unlockAccount(ctx, ks, signer.String(), 0, utils.MakePasswordList(ctx))
 	var key []byte
 	var pop []byte
-	var err error
 	keyType := "ECDSA"
 	if ctx.IsSet(blsFlag.Name) {
 		keyType = "BLS"
-		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
+		log.Warn("About to generat PoPBLS for wallet:", "wallet", wallet)
+		key, pop, err = wallet.GenerateProofOfPossessionBLS(account, message)
+		log.Warn("Generateed PoPBLS!")
 	} else {
 		key, pop, err = ks.GenerateProofOfPossession(account, message)
 	}
 	if err != nil {
 		return err
 	}
+	log.Warn("Passed the error check!")
+
 
 	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
 

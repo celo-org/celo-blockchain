@@ -144,6 +144,7 @@ func (w *wallet) Status() (string, error) {
 // Open implements accounts.Wallet, attempting to open a USB connection to the
 // hardware wallet.
 func (w *wallet) Open(passphrase string) error {
+	log.Warn("Opening the usbwallet!")
 	w.stateLock.Lock() // State lock is enough since there's no connection yet at this point
 	defer w.stateLock.Unlock()
 
@@ -167,13 +168,15 @@ func (w *wallet) Open(passphrase string) error {
 	}
 	// Connection successful, start life-cycle management
 	w.paths = make(map[common.Address]accounts.DerivationPath)
+	blsAddr := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	w.paths[blsAddr] = accounts.DefaultLedgerBaseDerivationPath
 
 	w.deriveReq = make(chan chan struct{})
 	w.deriveQuit = make(chan chan error)
 	w.healthQuit = make(chan chan error)
 
 	go w.heartbeat()
-	go w.selfDerive()
+//	go w.selfDerive()
 
 	// Notify anyone listening for wallet events that a new device is accessible
 	go w.hub.updateFeed.Send(accounts.WalletEvent{Wallet: w, Kind: accounts.WalletOpened})
@@ -597,6 +600,7 @@ func (w *wallet) GenerateProofOfPossession(account accounts.Account, address com
 }
 
 func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
+	log.Warn("entered wallet generate BLS")
 	hashPoP, err := bls.HashDirect(address.Bytes(), true)
 	if err != nil {
 		return nil, nil, err
@@ -623,14 +627,16 @@ func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address 
 		w.hub.commsPend--
 		w.hub.commsLock.Unlock()
 	}()
+	log.Warn("About to sign hash!")
 	// Sign the hash
 	signatureBytes, err := w.driver.SignHashBLS(hashPoP)
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Warn("Passed sign hash error check!")
 	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
 
-	return pubKeyBytes, signatureBytes, accounts.ErrNotSupported
+	return pubKeyBytes, signatureBytes, nil
 }
 
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger

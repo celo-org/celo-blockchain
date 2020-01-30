@@ -174,6 +174,9 @@ func (w *ledgerDriver) Heartbeat() error {
 // Derive implements usbwallet.driver, sending a derivation request to the Ledger
 // and returning the Ethereum address located on that derivation path.
 func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, error) {
+	if w.app == ledgerBLSsigner {
+		return common.HexToAddress("0x0000000000000000000000000000000000000001"), nil
+	}
 	if w.app != ledgerTxSigner {
 		return common.Address{}, errLedgerInvalidApp
 	}
