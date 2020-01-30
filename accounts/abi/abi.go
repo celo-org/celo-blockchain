@@ -35,7 +35,7 @@ type ABI struct {
 	Events      map[string]Event
 }
 
-var ErrEmptyOutput = errors.New("abi: unmarshalling empty output")
+var ErrEmptyArguments = errors.New("abi: attempting to unmarshall an empty string while arguments are expected")
 
 // JSON returns a parsed ABI interface and error if it failed.
 func JSON(reader io.Reader) (ABI, error) {
