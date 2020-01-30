@@ -170,7 +170,7 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (sb *Backend) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)
