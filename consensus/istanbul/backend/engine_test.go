@@ -122,9 +122,9 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b.SetChain(blockchain, blockchain.CurrentBlock,
-		func(parentHash common.Hash) (*state.StateDB, error) {
-			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
-			return blockchain.StateAt(parentStateRoot)
+		func(hash common.Hash) (*state.StateDB, error) {
+			stateRoot := blockchain.GetHeaderByHash(hash).Root
+			return blockchain.StateAt(stateRoot)
 		})
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer())

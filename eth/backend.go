@@ -201,8 +201,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		istanbul.SetChain(
 			eth.blockchain, eth.blockchain.CurrentBlock,
 			func(hash common.Hash) (*state.StateDB, error) {
-				parentStateRoot := eth.blockchain.GetHeaderByHash(parentHash).Root
-				return eth.blockchain.StateAt(parentStateRoot)
+				stateRoot := eth.blockchain.GetHeaderByHash(hash).Root
+				return eth.blockchain.StateAt(stateRoot)
 			})
 
 		chainHeadCh := make(chan core.ChainHeadEvent)
@@ -217,6 +217,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 					istanbul.NewChainHead(chainHeadEvent.Block)
 				case err := <-chainHeadSub.Err():
 					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+					return
 				}
 			}
 		}()
