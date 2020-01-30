@@ -45,7 +45,7 @@ var DefaultConfig = Config{
 	},
 	NetworkId:          1,
 	LightPeers:         99,
-	LightServ:          50,
+	LightServ:          0,
 	UltraLightFraction: 75,
 	DatabaseCache:      768,
 	TrieCleanCache:     256,
