@@ -152,6 +152,7 @@ func (sb *Backend) announceThread() {
 			go sb.checkPeersAnnounceVersions()
 
 		case <-sb.announceThreadQuit:
+		        checkIfShouldAnnounceTicker.Stop()
 			announceVersionsCheckTicker.Stop()
 			if announceGossipTicker != nil {
 				announceGossipTicker.Stop()
@@ -520,8 +521,7 @@ func (sb *Backend) validateAnnounce(announcePayload *validatorEncryptedEnodes) (
 	// Check if the number of rows in the announcePayload is at most 2 times the size of the current registered/elected validator set.
 	// Note that this is a heuristic of the actual size of registered/elected at the time the validator constructed the announce message.
 	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
-	// then verify that all of the registered/elected validators of that block number is included in the announce message
-	// Check if the sender is within the registered/elected valset
+	// then verify that all of the registered/elected validators of that block number is included in the announce message.
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return false, err
