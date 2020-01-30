@@ -200,7 +200,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(
 			eth.blockchain, eth.blockchain.CurrentBlock,
-			func(parentHash common.Hash) (*state.StateDB, error) {
+			func(hash common.Hash) (*state.StateDB, error) {
 				parentStateRoot := eth.blockchain.GetHeaderByHash(parentHash).Root
 				return eth.blockchain.StateAt(parentStateRoot)
 			})
