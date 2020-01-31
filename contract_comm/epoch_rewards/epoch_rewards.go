@@ -56,7 +56,7 @@ const epochRewardsABIString string = `[
       "stateMutability": "nonpayable",
       "type": "function"
     },
-	{
+    {
       "constant": true,
       "inputs": [],
       "name": "frozen",
