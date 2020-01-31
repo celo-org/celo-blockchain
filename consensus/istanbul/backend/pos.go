@@ -41,6 +41,15 @@ import (
 func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
 	start := time.Now()
 	defer sb.rewardDistributionTimer.UpdateSince(start)
+	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
+
+	// Check if reward distribution has been frozen and return early without error if it is.
+	if frozen, err := epoch_rewards.EpochRewardsIsFrozen(header, state); err != nil {
+		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
+	} else if frozen {
+		logger.Debug("Epoch rewards are frozen, skipping distribution")
+		return nil
+	}
 
 	err := epoch_rewards.UpdateTargetVotingYield(header, state)
 	if err != nil {
@@ -50,14 +59,14 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
-	log.Debug("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
+	logger.Debug("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
 
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
 	if len(valSet) == 0 {
 		err := errors.New("Unable to fetch validator set to update scores and distribute payments and rewards")
-		sb.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return err
 	}
 

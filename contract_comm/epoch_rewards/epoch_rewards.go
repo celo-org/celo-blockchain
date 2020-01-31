@@ -55,6 +55,20 @@ const epochRewardsABIString string = `[
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+	{
+      "constant": true,
+      "inputs": [],
+      "name": "frozen",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]
 `
@@ -74,4 +88,13 @@ func CalculateTargetEpochPaymentAndRewards(header *types.Header, state vm.StateD
 		return nil, nil, err
 	}
 	return validatorEpochPayment, totalVoterRewards, nil
+}
+
+func EpochRewardsIsFrozen(header *types.Header, state vm.StateDB) (bool, error) {
+	var frozen bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForEpochRewardsFrozen, header, state)
+	if err != nil {
+		return false, err
+	}
+	return frozen, nil
 }

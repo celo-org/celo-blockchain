@@ -154,30 +154,31 @@ const (
 	IntrinsicGasForAlternativeFeeCurrency uint64 = 50000
 
 	// Contract communication gas limits
-	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
-	MaxGasForCommitments                           uint64 = 2000000
-	MaxGasForComputeCommitment                     uint64 = 2000000
-	MaxGasForCreditToTransactions                  uint64 = 100000
-	MaxGasForDebitFromTransactions                 uint64 = 100000
+	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2 * 1000000
+	MaxGasForCommitments                           uint64 = 2 * 1000000
+	MaxGasForComputeCommitment                     uint64 = 2 * 1000000
+	MaxGasForCreditToTransactions                  uint64 = 100 * 1000
+	MaxGasForDebitFromTransactions                 uint64 = 100 * 1000
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForEpochRewardsFrozen                    uint64 = 20 * 1000
 	MaxGasForGetAddressFor                         uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
-	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
+	MaxGasForGetGasPriceMinimum                    uint64 = 2 * 1000000
 	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
 	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
-	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
-	MaxGasForGetRegisteredValidators               uint64 = 2000000
+	MaxGasForGetOrComputeTobinTax                  uint64 = 1 * 1000000
+	MaxGasForGetRegisteredValidators               uint64 = 2 * 1000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
-	MaxGasForGetWhiteList                          uint64 = 20000
+	MaxGasForGetWhiteList                          uint64 = 20 * 1000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
-	MaxGasForMedianRate                            uint64 = 20000
-	MaxGasForReadBlockchainParameter               uint64 = 20000
-	MaxGasForRevealAndCommit                       uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
-	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
+	MaxGasForMedianRate                            uint64 = 20 * 1000
+	MaxGasForReadBlockchainParameter               uint64 = 20 * 1000
+	MaxGasForRevealAndCommit                       uint64 = 2 * 1000000
+	MaxGasForUpdateGasPriceMinimum                 uint64 = 2 * 1000000
+	MaxGasForUpdateTargetVotingYield               uint64 = 2 * 1000000
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
-	MaxGasToReadErc20Balance                       uint64 = 100000
+	MaxGasToReadErc20Balance                       uint64 = 100 * 1000
 )
