@@ -214,7 +214,7 @@ jobs:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth governance with a standalone node
+          name: End-to-end test of slashing
           no_output_timeout: "1200s"
           command: |
             export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
@@ -233,7 +233,7 @@ jobs:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth governance with a standalone node
+          name: End-to-end test of random validator order
           no_output_timeout: "1200s"
           command: |
             export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
