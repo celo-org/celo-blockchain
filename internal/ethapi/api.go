@@ -824,7 +824,11 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
 		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
-		gasPrice, _ = b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
+		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		if err != nil {
+			log.Error("Error suggesting gas price", "block", blockNrOrHash, "err", err)
+			return nil, 0, false, err
+		}
 	}
 
 	value := new(big.Int)
@@ -1421,7 +1425,11 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
+		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+		if err != nil {
+			return err
+		}
+		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
 			return err
 		}

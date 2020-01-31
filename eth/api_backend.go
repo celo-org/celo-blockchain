@@ -270,8 +270,8 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return gpm.GetGasPriceSuggestion(nil, nil, nil)
 }
 
-func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(currencyAddress, nil, nil)
+func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
+	return gpm.GetGasPriceSuggestion(currencyAddress, header, state)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
