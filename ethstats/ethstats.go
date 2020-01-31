@@ -216,7 +216,6 @@ func (s *Service) loop() {
 
 	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
 	headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
-	defer headSub.Unsubscribe()
 
 	txEventCh := make(chan core.NewTxsEvent, txChanSize)
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
@@ -236,6 +235,7 @@ func (s *Service) loop() {
 	)
 	go func() {
 		var lastTx mclock.AbsTime
+		defer headSub.Unsubscribe()
 
 	HandleLoop:
 		for {
@@ -277,7 +277,11 @@ func (s *Service) loop() {
 					// proxied validator should sign
 					channel = signCh
 				}
-				channel <- &statsPayload
+				select {
+				case channel <- &statsPayload:
+				default:
+				}
+
 			}
 		}
 		close(quitCh)
