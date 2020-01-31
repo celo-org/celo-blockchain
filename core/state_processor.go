@@ -72,6 +72,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			return nil, nil, 0, err
 		}
+		statedb.IntermediateRoot(p.config.IsEIP158(header.Number))
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
