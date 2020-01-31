@@ -220,8 +220,9 @@ type Backend struct {
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
 	// Cache for the return values of the method retrieveRegisteredAndElectedValidators
-	cachedRegisteredElectedValSet         map[common.Address]bool
-	cachedRegisteredElectedValSetBlockNum uint64
+	cachedRegisteredElectedValSet          map[common.Address]bool
+	cachedRegisteredElectedValSetTimestamp time.Time
+	cachedRegisteredElectedValSetMu        sync.Mutex
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -820,15 +821,19 @@ func (sb *Backend) ConnectToVals() {
 }
 
 func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	validatorsSet := make(map[common.Address]bool)
-
-	currentBlock := sb.currentBlock()
+	sb.cachedRegisteredElectedValSetMu.Lock()
+	defer sb.cachedRegisteredElectedValSetMu.Unlock()
 
 	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
-	if sb.cachedRegisteredElectedValSet != nil && sb.cachedRegisteredElectedValSetBlockNum == currentBlock.Number().Uint64() {
+	if sb.cachedRegisteredElectedValSet != nil && time.Since(sb.cachedRegisteredElectedValSetTimestamp) <= 1*time.Minute {
 		return sb.cachedRegisteredElectedValSet, nil
 	}
 
+	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+
+	validatorsSet := make(map[common.Address]bool)
+
+	currentBlock := sb.currentBlock()
 	currentState, err := sb.stateAt(currentBlock.Hash())
 	if err != nil {
 		return nil, err
@@ -855,7 +860,7 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 	}
 
 	sb.cachedRegisteredElectedValSet = validatorsSet
-	sb.cachedRegisteredElectedValSetBlockNum = currentBlock.Number().Uint64()
+	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
 
 	return validatorsSet, nil
 }

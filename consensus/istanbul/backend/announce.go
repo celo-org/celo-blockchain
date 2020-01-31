@@ -90,8 +90,16 @@ func (sb *Backend) announceThread() {
 			}
 
 			if shouldAnnounce && announceGossipTickerCh == nil {
-				// Immediately gossip an announce
-				go sb.generateAndGossipAnnounce()
+				// Gossip the announce after a minute.
+				// The delay allows for all receivers of the announce message to
+				// have a more up-to-date cached registered/elected valset, and
+				// hence more likely that they will be aware that this node is
+				// within that set.
+				time.AfterFunc(1*time.Minute, func() {
+					if err := sb.generateAndGossipAnnounce(); err != nil {
+						logger.Error("Error in gossiping announce", "err", err)
+					}
+				})
 
 				if sb.config.AnnounceAggressiveGossipOnEnablement {
 					announceGossipFrequencyState = HighFreqBeforeFirstPeerState
