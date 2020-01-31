@@ -19,7 +19,6 @@ package vm
 import (
 	"errors"
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"testing"
 
@@ -57,7 +56,7 @@ func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Val
 	hash := sha3.Sum256(preimage)
 	var validators []istanbul.Validator
 	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
-		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), blscrypto.SerializedPublicKey{}))
+		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), nil))
 	}
 	return validators
 }

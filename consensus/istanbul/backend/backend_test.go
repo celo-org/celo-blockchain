@@ -156,7 +156,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Signature: nil}); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -248,56 +248,56 @@ func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
 	return crypto.Sign(data, key)
 }
 
-func signerBLSHashFn(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
+func signerBLSHashFn(_ accounts.Account, data []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 	defer privateKey.Destroy()
 
 	signature, err := privateKey.SignMessage(data, []byte{}, false)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return signatureBytes, nil
 }
 
-func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 	defer privateKey.Destroy()
 
 	signature, err := privateKey.SignMessage(data, extraData, true)
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return blscrypto.SerializedSignature{}, err
+		return nil, err
 	}
 
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return signatureBytes, nil
 }
 
 func newBackend() (b *Backend) {

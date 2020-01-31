@@ -197,54 +197,54 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return crypto.Sign(data, testBankKey)
 	}
 
-	signHashBLSFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
+	signHashBLSFn := func(_ accounts.Account, data []byte) ([]byte, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(data, []byte{}, false)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 
-		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+		return signatureBytes, nil
 	}
 
-	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(msg, extraData, true)
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return blscrypto.SerializedSignature{}, err
+			return nil, err
 		}
 
-		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+		return signatureBytes, nil
 	}
 
 	config := istanbul.DefaultConfig

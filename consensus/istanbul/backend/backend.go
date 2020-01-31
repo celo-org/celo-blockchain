@@ -18,8 +18,6 @@ package backend
 
 import (
 	"errors"
-	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"sync"
 	"time"
@@ -153,7 +151,7 @@ type Backend struct {
 
 	address          common.Address           // Ethereum address of the signing key
 	signFn           istanbul.SignerFn        // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.BLSSignerFn     // Signer function to authorize hashes using BLS with
+	signHashBLSFn    istanbul.SignerFn        // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.MessageSignerFn // Signer function to authorize messages using BLS with
 	signFnMu         sync.RWMutex             // Protects the signer fields
 
@@ -256,7 +254,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.SignerFn, signMessageBLSFn istanbul.MessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -286,38 +284,6 @@ func (sb *Backend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet 
 // ParentBlockValidators implements istanbul.Backend.ParentBlockValidators
 func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return sb.getOrderedValidators(proposal.Number().Uint64()-1, proposal.ParentHash())
-}
-
-func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
-	istExtra, err := types.ExtractIstanbulExtra(proposal.Header())
-	if err != nil {
-		return nil, err
-	}
-
-	// There was no change
-	if len(istExtra.AddedValidators) == 0 && istExtra.RemovedValidators.BitLen() == 0 {
-		return sb.ParentBlockValidators(proposal), nil
-	}
-
-	snap, err := sb.snapshot(sb.chain, proposal.Number().Uint64()-1, common.Hash{}, nil)
-	if err != nil {
-		return nil, err
-	}
-	snap = snap.copy()
-
-	addedValidators, err := istanbul.CombineIstanbulExtraToValidatorData(istExtra.AddedValidators, istExtra.AddedValidatorsPublicKeys)
-	if err != nil {
-		return nil, err
-	}
-
-	if !snap.ValSet.RemoveValidators(istExtra.RemovedValidators) {
-		return nil, fmt.Errorf("could not obtain next block validators: failed at remove validators")
-	}
-	if !snap.ValSet.AddValidators(addedValidators) {
-		return nil, fmt.Errorf("could not obtain next block validators: failed at add validators")
-	}
-
-	return snap.ValSet, nil
 }
 
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
@@ -439,7 +405,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
@@ -456,9 +422,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	}
 	// update block's header
 	block = block.WithSeal(h)
-	block = block.WithEpochSnarkData(&types.EpochSnarkData{
-		Signature: aggregatedEpochValidatorSetSeal.Signature,
-	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
@@ -521,7 +484,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
-	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
+	// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
 			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
@@ -603,7 +566,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 		addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
 		addedValidatorsAddresses := make([]common.Address, 0, len(addedValidators))
-		addedValidatorsPublicKeys := make([]blscrypto.SerializedPublicKey, 0, len(addedValidators))
+		addedValidatorsPublicKeys := make([][]byte, 0, len(addedValidators))
 		for _, val := range addedValidators {
 			addedValidatorsAddresses = append(addedValidatorsAddresses, val.Address)
 			addedValidatorsPublicKeys = append(addedValidatorsPublicKeys, val.BLSPublicKey)
@@ -629,26 +592,13 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	return sb.signFn(accounts.Account{Address: sb.address}, hashData)
 }
 
-func (sb *Backend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
+func (sb *Backend) SignBlockHeader(data []byte) ([]byte, error) {
 	if sb.signHashBLSFn == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
+		return nil, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
-}
-
-func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
-	if sb.signMessageBLSFn == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	// Currently, ExtraData is unused. In the future, it could include data that could be used to introduce
-	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need,
-	// such as the block number, which can be used by a hardware wallet to see that the block number
-	// is incrementing, without having to perform the two-level hashing, just one-level fast hashing.
-	return sb.signMessageBLSFn(accounts.Account{Address: sb.address}, data, []byte{})
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

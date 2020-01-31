@@ -25,13 +25,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
 	address      common.Address
-	blsPublicKey blscrypto.SerializedPublicKey
+	blsPublicKey []byte
 }
 
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
@@ -48,9 +47,9 @@ func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	}
 }
 
-func (val *defaultValidator) Address() common.Address                     { return val.address }
-func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { return val.blsPublicKey }
-func (val *defaultValidator) String() string                              { return val.Address().String() }
+func (val *defaultValidator) Address() common.Address { return val.address }
+func (val *defaultValidator) BLSPublicKey() []byte    { return val.blsPublicKey }
+func (val *defaultValidator) String() string          { return val.Address().String() }
 
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 

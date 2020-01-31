@@ -9,19 +9,11 @@ use std::{
 #[derive(Debug)]
 pub enum HashToCurveError {
     CannotFindPoint,
-    SmallOrderPoint,
 }
 
 impl Display for HashToCurveError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            HashToCurveError::CannotFindPoint => {
-                write!(f, "cannot find point")
-            }
-            HashToCurveError::SmallOrderPoint => {
-                write!(f, "got small order point")
-            }
-        }
+        write!(f, "cannot find point")
     }
 }
 

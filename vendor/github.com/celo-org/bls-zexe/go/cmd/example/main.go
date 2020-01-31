@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/celo-org/bls-zexe/go"
+	"github.com/celo-org/bls-zexe"
 )
 
 func main() {

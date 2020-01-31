@@ -23,7 +23,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var testAddresses = []string{
@@ -40,10 +39,10 @@ func TestStickyProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
+		validators = append(validators, New(addr, nil))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -97,10 +96,10 @@ func TestRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
+		validators = append(validators, New(addr, nil))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -154,10 +153,10 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
+		validators = append(validators, New(addr, nil))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}

@@ -304,14 +304,7 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(c.current.Commits())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
+		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
@@ -319,28 +312,6 @@ func (c *core) commit() error {
 		}
 	}
 	return nil
-}
-
-// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature
-func GetAggregatedEpochValidatorSetSeal(seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
-	epochSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
-		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
-	}
-
-	asig, err := blscrypto.AggregateSignatures(epochSeals)
-	if err != nil {
-		return types.IstanbulEpochValidatorSetSeal{}, err
-	}
-	return types.IstanbulEpochValidatorSetSeal{Signature: asig}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate

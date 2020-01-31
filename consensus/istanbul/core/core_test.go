@@ -50,7 +50,6 @@ func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
-	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 	return block.WithSeal(header)
 }
 

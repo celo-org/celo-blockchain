@@ -8,13 +8,17 @@ use crate::{
 use byteorder::WriteBytesExt;
 use hex;
 
-use algebra::{curves::{
-    models::{
-        bls12::{Bls12Parameters, G1Affine, G2Affine, G1Projective, G2Projective},
-        ModelParameters, SWModelParameters,
+use algebra::{
+    curves::{
+        models::{
+            bls12::{Bls12Parameters, G1Affine, G2Affine, G1Projective, G2Projective},
+            ModelParameters, SWModelParameters,
+        },
+        AffineCurve,
     },
-    AffineCurve,
-}, fields::{Field, Fp2, FpParameters, PrimeField, SquareRootField}, bytes::FromBytes, Group};
+    fields::{Field, Fp2, FpParameters, PrimeField, SquareRootField},
+    bytes::FromBytes,
+};
 use std::error::Error;
 
 #[allow(dead_code)]
@@ -130,13 +134,9 @@ impl<'a, H: XOF> HashToG1 for TryAndIncrement<'a, H> {
                         c
                     );
                     end_timer!(hash_loop_time);
-                    let scaled = cofactor::scale_by_cofactor_g1::<P>(
+                    return Ok(cofactor::scale_by_cofactor_g1::<P>(
                         &x.into_projective(),
-                    );
-                    if scaled.is_zero() {
-                        return Err(HashToCurveError::SmallOrderPoint)?;
-                    }
-                    return Ok(scaled);
+                    ));
                 }
             }
         }
@@ -191,13 +191,9 @@ impl<'a, H: XOF> HashToG2 for TryAndIncrement<'a, H> {
                         c
                     );
                     end_timer!(hash_loop_time);
-                    let scaled = cofactor::scale_by_cofactor_fuentes::<P>(
+                    return Ok(cofactor::scale_by_cofactor_fuentes::<P>(
                         &x.into_projective(),
-                    );
-                    if scaled.is_zero() {
-                        return Err(HashToCurveError::SmallOrderPoint)?;
-                    }
-                    return Ok(scaled);
+                    ));
                 }
             }
         }

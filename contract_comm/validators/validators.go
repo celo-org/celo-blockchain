@@ -237,17 +237,13 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 		if err != nil {
 			return nil, err
 		}
-
 		if len(blsKey) != blscrypto.PUBLICKEYBYTES {
-			return nil, fmt.Errorf("length of bls public key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
+			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
 		}
-		blsKeyFixedSize := blscrypto.SerializedPublicKey{}
-		copy(blsKeyFixedSize[:], blsKey)
-		validator := istanbul.ValidatorData{
+		validatorData = append(validatorData, istanbul.ValidatorData{
 			addr,
-			blsKeyFixedSize,
-		}
-		validatorData = append(validatorData, validator)
+			blsKey,
+		})
 	}
 	return validatorData, nil
 }

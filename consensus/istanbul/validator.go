@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,7 +31,7 @@ var (
 
 type ValidatorData struct {
 	Address      common.Address
-	BLSPublicKey blscrypto.SerializedPublicKey
+	BLSPublicKey []byte
 }
 
 type Validator interface {
@@ -41,7 +40,7 @@ type Validator interface {
 	// Address returns address
 	Address() common.Address
 
-	BLSPublicKey() blscrypto.SerializedPublicKey
+	BLSPublicKey() []byte
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -123,7 +122,7 @@ type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.A
 
 // ----------------------------------------------------------------------------
 
-func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys []blscrypto.SerializedPublicKey) ([]ValidatorData, error) {
+func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
 	if len(addrs) != len(blsPublicKeys) {
 		return nil, errInvalidValidatorSetDiffSize
 	}
@@ -138,9 +137,9 @@ func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [
 	return validators, nil
 }
 
-func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, []blscrypto.SerializedPublicKey) {
+func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
 	addrs := []common.Address{}
-	pubKeys := []blscrypto.SerializedPublicKey{}
+	pubKeys := [][]byte{}
 	for i := range validators {
 		addrs = append(addrs, validators[i].Address)
 		pubKeys = append(pubKeys, validators[i].BLSPublicKey)
