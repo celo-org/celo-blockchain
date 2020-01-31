@@ -205,7 +205,7 @@ jobs:
             cd ${CELO_MONOREPO_DIR}/packages/celotool
             ./ci_test_blockchain_parameters.sh local ~/repos/geth
 
-  end-to-end-geth-governance-test:
+  end-to-end-slashing-test:
     <<: *end-to-end-defaults
     # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
     resource_class: medium+
@@ -214,7 +214,45 @@ jobs:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth goverenance with a standalone node
+          name: Geth governance with a standalone node
+          no_output_timeout: "1200s"
+          command: |
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_slashing.sh local ~/repos/geth
+
+  end-to-end-validator-order-test:
+    <<: *end-to-end-defaults
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
+    working_directory: ~/repos
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: Geth governance with a standalone node
+          no_output_timeout: "1200s"
+          command: |
+            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
+            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
+            ${GO_LANG_DIR}/go/bin/go version
+            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
+            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            ./ci_test_validator_order.sh local ~/repos/geth
+
+  end-to-end-governance-test:
+    <<: *end-to-end-defaults
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
+    working_directory: ~/repos
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: Geth governance with a standalone node
           no_output_timeout: "1200s"
           command: |
             export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
@@ -240,10 +278,12 @@ workflows:
             # Though these are not using the mobile built binaries
             # they should be a good indicator
             - unit-tests
-            - end-to-end-transfer-test
-            - end-to-end-sync-test
             - end-to-end-blockchain-parameters-test
-            - end-to-end-geth-governance-test
+            - end-to-end-governance-test
+            - end-to-end-slashing-test
+            - end-to-end-sync-test
+            - end-to-end-transfer-test
+            - end-to-end-validator-order-test
           filters:
             branches:
               only: master
@@ -254,7 +294,15 @@ workflows:
       - coverage:
           requires:
             - bls-zexe
-      - end-to-end-transfer-test:
+      - end-to-end-blockchain-parameters-test:
+          requires:
+            - end-to-end-monorepo-checkout
+            - bls-zexe
+      - end-to-end-governance-test:
+          requires:
+            - end-to-end-monorepo-checkout
+            - bls-zexe
+      - end-to-end-slashing-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
@@ -262,11 +310,11 @@ workflows:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
-      - end-to-end-blockchain-parameters-test:
+      - end-to-end-transfer-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
-      - end-to-end-geth-governance-test:
+      - end-to-end-validator-order-test:
           requires:
             - end-to-end-monorepo-checkout
             - bls-zexe
