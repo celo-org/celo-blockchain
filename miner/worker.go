@@ -1023,6 +1023,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
 		}
+		// always true (EIP158)
+		w.current.state.IntermediateRoot(true)
 
 		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
 	} else {
