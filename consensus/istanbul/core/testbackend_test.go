@@ -108,7 +108,7 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	return nil
 }
 
-func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
+func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64) error {
 	return nil
 }
 

@@ -35,6 +35,7 @@ import (
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -152,7 +153,10 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 
 	// If istanbul engine used, set the objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetChain(chain, chain.CurrentBlock)
+		istanbul.SetChain(chain, chain.CurrentBlock, func(parentHash common.Hash) (*state.StateDB, error) {
+			parentStateRoot := chain.GetHeaderByHash(parentHash).Root
+			return chain.StateAt(parentStateRoot)
+		})
 	}
 
 	// Generate a small n-block chain and an uncle block for it

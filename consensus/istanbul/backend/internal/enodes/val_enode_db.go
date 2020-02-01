@@ -48,7 +48,7 @@ const (
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 2
+	dbVersion = 3
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -76,23 +76,23 @@ func nodeIDKey(nodeID enode.ID) []byte {
 
 // AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
-	Node      *enode.Node
-	Timestamp uint
+	Node    *enode.Node
+	Version uint64
 }
 
 func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{enodeURL: %v, timestamp: %v}", ve.Node.String(), ve.Timestamp)
+	return fmt.Sprintf("{enodeURL: %v, version: %v}", ve.Node.String(), ve.Version)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
-	EnodeURL  string
-	Timestamp uint
+	EnodeURL string
+	Version  uint64
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ve *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Timestamp})
+	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Version})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -107,7 +107,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	*ve = AddressEntry{Node: node, Timestamp: entry.Timestamp}
+	*ve = AddressEntry{Node: node, Version: entry.Version}
 	return nil
 }
 
@@ -228,15 +228,15 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 	return entry.Node, nil
 }
 
-// GetTimestampFromAddress will return the timestamp for an address if it's known
-func (vet *ValidatorEnodeDB) GetTimestampFromAddress(address common.Address) (uint, error) {
+// GetVersionFromAddress will return the version for an address if it's known
+func (vet *ValidatorEnodeDB) GetVersionFromAddress(address common.Address) (uint64, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
 		return 0, err
 	}
-	return entry.Timestamp, nil
+	return entry.Version, nil
 }
 
 // GetAddressFromNodeID will return the address for an nodeID if it's known
@@ -271,7 +271,7 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 }
 
 // Upsert will update or insert a validator enode entry; given that the existing entry
-// is older (determined by timestamp parameter) than the new one
+// is older (determined by version parameter) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
@@ -299,8 +299,8 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressE
 		}
 
 		// If it's an old message, ignore it
-		if !isNew && addressEntry.Timestamp < currentEntry.Timestamp {
-			vet.logger.Trace("Ignoring the entry because its timestamp is older than what is stored in the val enode db",
+		if !isNew && addressEntry.Version < currentEntry.Version {
+			vet.logger.Trace("Ignoring the entry because its version is older than what is stored in the val enode db",
 				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
 			continue
 		}
@@ -438,8 +438,8 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 }
 
 type ValEnodeEntryInfo struct {
-	Enode     string `json:"enode"`
-	Timestamp uint   `json:"timestamp"`
+	Enode   string `json:"enode"`
+	Version uint64 `json:"version"`
 }
 
 func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
@@ -449,7 +449,7 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
 			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{Enode: valEnodeEntry.Node.String(),
-				Timestamp: valEnodeEntry.Timestamp}
+				Version: valEnodeEntry.Version}
 		}
 	}
 

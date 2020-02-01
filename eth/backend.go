@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -229,7 +230,12 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
-		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+		istanbul.SetChain(
+			eth.blockchain, eth.blockchain.CurrentBlock,
+			func(hash common.Hash) (*state.StateDB, error) {
+				stateRoot := eth.blockchain.GetHeaderByHash(hash).Root
+				return eth.blockchain.StateAt(stateRoot)
+			})
 
 		chainHeadCh := make(chan core.ChainHeadEvent)
 		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
@@ -241,7 +247,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				select {
 				case chainHeadEvent := <-chainHeadCh:
 					istanbul.NewChainHead(chainHeadEvent.Block)
-				case <-chainHeadSub.Err():
+				case err := <-chainHeadSub.Err():
 					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
 					return
 				}
@@ -571,6 +577,22 @@ func (s *Ethereum) StopMining() {
 	s.miner.Stop()
 }
 
+func (s *Ethereum) startAnnounce() error {
+	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
+		return istanbul.StartAnnouncing()
+	}
+
+	return nil
+}
+
+func (s *Ethereum) stopAnnounce() error {
+	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
+		return istanbul.StopAnnouncing()
+	}
+
+	return nil
+}
+
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
@@ -628,6 +650,11 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 	if s.lesServer != nil {
 		s.lesServer.Start(srvr)
 	}
+
+	if err := s.startAnnounce(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -641,6 +668,7 @@ func (s *Ethereum) Stop() error {
 	if s.lesServer != nil {
 		s.lesServer.Stop()
 	}
+	s.stopAnnounce()
 	s.txPool.Stop()
 	s.miner.Stop()
 	s.eventMux.Stop()

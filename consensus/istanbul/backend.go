@@ -52,8 +52,10 @@ type Backend interface {
 	// BroadcastConsensusMsg sends a message to all validators (include self)
 	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
 
-	// Gossip sends a message to all validators (exclude self)
-	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
+	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
+	// is associated with those node's signing key)
+	// If that parameter is nil, then it will send the message to all it's connected peers.
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.

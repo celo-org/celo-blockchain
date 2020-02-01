@@ -180,8 +180,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// If the engine is istanbul, then inject the blockchain
 	if istanbul, isIstanbul := leth.engine.(*istanbulBackend.Backend); isIstanbul {
-		istanbul.SetChain(leth.chainreader, nil)
-	}	
+		istanbul.SetChain(leth.chainreader, nil, nil)
+	}
+
 	return leth, nil
 }
 

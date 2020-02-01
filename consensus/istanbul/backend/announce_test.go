@@ -28,10 +28,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.Authorize(val1Addr, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	// Generate an ist announce message using val1
-	istMsg, err := b.generateIstAnnounce()
-	if err != nil {
-		t.Errorf("error %v", err)
-	}
+	istMsg, _, _, err := b.generateAnnounce()
 	istMsg.Sign(b.Sign)
 	payload, _ := istMsg.Payload()
 
@@ -39,7 +36,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = valSet.GetByIndex(2).Address()
 
 	// Handle val1's announce message
-	if err = b.handleIstAnnounce(payload); err != nil {
+	if err = b.handleAnnounceMsg(nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

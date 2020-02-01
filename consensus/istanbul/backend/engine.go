@@ -595,14 +595,15 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
-func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {
+func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error)) {
 	sb.chain = chain
 	sb.currentBlock = currentBlock
+	sb.stateAt = stateAt
 }
 
-// Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
-	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
@@ -617,24 +618,16 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	}
 	sb.commitCh = make(chan *types.Block, 1)
 
-	if sb.newEpochCh != nil {
-		close(sb.newEpochCh)
-	}
-	sb.newEpochCh = make(chan struct{})
-
 	sb.hasBadBlock = hasBadBlock
-	sb.stateAt = stateAt
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
-	sb.logger.Info("Starting istanbul.Engine")
+	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
 
 	sb.coreStarted = true
-
-	go sb.sendAnnounceMsgs()
 
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
@@ -653,21 +646,18 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	return nil
 }
 
-// Stop implements consensus.Istanbul.Stop
-func (sb *Backend) Stop() error {
+// StopValidating implements consensus.Istanbul.StopValidating
+func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	sb.logger.Info("Stopping istanbul.Engine")
+	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
 	sb.coreStarted = false
-
-	sb.announceQuit <- struct{}{}
-	sb.announceWg.Wait()
 
 	if sb.config.Proxied {
 		sb.valEnodesShareQuit <- struct{}{}
@@ -677,6 +667,36 @@ func (sb *Backend) Stop() error {
 			sb.removeProxy(sb.proxyNode.node)
 		}
 	}
+	return nil
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+	if sb.announceRunning {
+		return istanbul.ErrStartedAnnounce
+	}
+
+	go sb.announceThread()
+
+	sb.announceRunning = true
+	return nil
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+
+	if !sb.announceRunning {
+		return istanbul.ErrStoppedAnnounce
+	}
+
+	sb.announceThreadQuit <- struct{}{}
+	sb.announceThreadWg.Wait()
+
+	sb.announceRunning = false
 	return nil
 }
 

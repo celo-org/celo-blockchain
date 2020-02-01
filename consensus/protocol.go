@@ -49,6 +49,8 @@ type P2PServer interface {
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint64, data interface{}) error
-	// Returns the peer's enode
+	// Node returns the peer's enode
 	Node() *enode.Node
+	// Version returns the peer's version
+	Version() int
 }

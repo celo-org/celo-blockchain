@@ -175,15 +175,22 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	SetChain(chain ChainReader, currentBlock func() *types.Block)
+	// SetChain injects the blockchain and related functions to the istanbul consensus engine
+	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
-	// Start starts the engine
-	Start(hasBadBlock func(common.Hash) bool,
-		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	// StartValidating starts the validating engine
+	StartValidating(hasBadBlock func(common.Hash) bool,
+		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
-	// Stop stops the engine
-	Stop() error
+	// StopValidating stops the validating engine
+	StopValidating() error
+
+	// StartAnnouncing starts the announcing
+	StartAnnouncing() error
+
+	// StopAnnouncing stops the announcing
+	StopAnnouncing() error
 
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.

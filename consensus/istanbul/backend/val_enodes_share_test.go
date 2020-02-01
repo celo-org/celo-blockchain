@@ -36,7 +36,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	// Set the backend's proxied validator address to itself
 	b.config.ProxiedValidatorAddress = senderAddress
 
-	if err = b.handleValEnodesShareMsg(payload); err != nil {
+	if err = b.handleValEnodesShareMsg(nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 
@@ -54,8 +54,8 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	// Test that a validator enode share message will result in the enode
 	// being inserted into the valEnodeTable
 	b.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{testAddress: {
-		Node:      testNode,
-		Timestamp: 0,
+		Node:    testNode,
+		Version: 0,
 	}})
 	senderAddress = b.Address()
 	newMsg, err := b.generateValEnodesShareMsg()
@@ -74,7 +74,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	b.valEnodeTable.RemoveEntry(testAddress)
 
 	b.config.ProxiedValidatorAddress = senderAddress
-	if err = b.handleValEnodesShareMsg(newPayload); err != nil {
+	if err = b.handleValEnodesShareMsg(nil, newPayload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

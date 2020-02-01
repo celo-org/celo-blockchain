@@ -284,11 +284,7 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Start(w.chain.HasBadBlock,
-			func(parentHash common.Hash) (*state.StateDB, error) {
-				parentStateRoot := w.chain.GetHeaderByHash(parentHash).Root
-				return w.chain.StateAt(parentStateRoot)
-			},
+		istanbul.StartValidating(w.chain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
@@ -303,7 +299,7 @@ func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.Stop()
+		istanbul.StopValidating()
 	}
 }
 

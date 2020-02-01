@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,9 +36,9 @@ import (
 // define the validator enode share message
 
 type sharedValidatorEnode struct {
-	Address   common.Address
-	EnodeURL  string
-	Timestamp uint
+	Address  common.Address
+	EnodeURL string
+	Version  uint64
 }
 
 type valEnodesShareData struct {
@@ -45,7 +46,7 @@ type valEnodesShareData struct {
 }
 
 func (sve *sharedValidatorEnode) String() string {
-	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Timestamp: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Timestamp)
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Version: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Version)
 }
 
 func (sd *valEnodesShareData) String() string {
@@ -111,9 +112,9 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
 		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
-			Address:   address,
-			EnodeURL:  vetEntry.Node.String(),
-			Timestamp: vetEntry.Timestamp,
+			Address:  address,
+			EnodeURL: vetEntry.Node.String(),
+			Version:  vetEntry.Version,
 		})
 	}
 
@@ -169,7 +170,7 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
+func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)
@@ -201,7 +202,7 @@ func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
 			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Timestamp: sharedValidatorEnode.Timestamp}
+			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Version: sharedValidatorEnode.Version}
 		}
 	}
 
