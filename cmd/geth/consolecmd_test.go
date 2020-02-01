@@ -42,7 +42,7 @@ func TestConsoleWelcome(t *testing.T) {
 
 	// Start a geth console, make sure it's cleaned up and terminate the console
 	geth := runGeth(t,
-		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--lightpeers", "0",
+		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
 		"--etherbase", coinbase, "--shh",
 		"console")
 
@@ -84,7 +84,7 @@ func TestIPCAttachWelcome(t *testing.T) {
 	// Note: we need --shh because testAttachWelcome checks for default
 	// list of ipc modules and shh is included there.
 	geth := runGeth(t,
-		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--lightpeers", "0",
+		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
 		"--etherbase", coinbase, "--shh", "--ipcpath", ipc)
 
 	waitForEndpoint(t, ipc, 3*time.Second)
@@ -98,7 +98,7 @@ func TestHTTPAttachWelcome(t *testing.T) {
 	coinbase := "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182"
 	port := strconv.Itoa(trulyRandInt(1024, 65536)) // Yeah, sometimes this will fail, sorry :P
 	geth := runGeth(t,
-		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--lightpeers", "0",
+		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
 		"--etherbase", coinbase, "--rpc", "--rpcport", port)
 
 	endpoint := "http://127.0.0.1:" + port
@@ -114,7 +114,7 @@ func TestWSAttachWelcome(t *testing.T) {
 	port := strconv.Itoa(trulyRandInt(1024, 65536)) // Yeah, sometimes this will fail, sorry :P
 
 	geth := runGeth(t,
-		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--lightpeers", "0",
+		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
 		"--etherbase", coinbase, "--ws", "--wsport", port)
 
 	endpoint := "ws://127.0.0.1:" + port
