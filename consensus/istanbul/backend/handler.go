@@ -260,7 +260,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	if peer.Version() == 65 {
+	if peer.Version() >= 65 {
 		sb.sendGetAnnounceVersions(peer)
 	}
 }

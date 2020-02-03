@@ -152,7 +152,7 @@ func (sb *Backend) announceThread() {
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
-				logger.Warn("Error is pruning announce data structures", "err", err)
+				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
 		case <-announceVersionsCheckTicker.C:
@@ -196,19 +196,23 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	}
 
 	// Prune the announce cache for entries that are not in the current registered/elected validator set
+	sb.cachedAnnounceMsgsMu.Lock()
 	for cachedValAddress := range sb.cachedAnnounceMsgs {
 		if !regAndElectedVals[cachedValAddress] {
 			logger.Trace("Deleting entry from cachedAnnounceMsgs", "cachedValAddress", cachedValAddress, "cachedAnnounceVersion", sb.cachedAnnounceMsgs[cachedValAddress].MsgVersion)
 			delete(sb.cachedAnnounceMsgs, cachedValAddress)
 		}
 	}
+	defer sb.cachedAnnounceMsgsMu.Unlock()
 
+	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
 		if !regAndElectedVals[remoteAddress] {
 			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 			delete(sb.lastAnnounceGossiped, remoteAddress)
 		}
 	}
+	defer sb.lastAnnounceGossipedMu.Unlock()
 
 	if err := sb.valEnodeTable.PruneEntries(regAndElectedVals); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
@@ -222,7 +226,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 //
 // define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
-// EnodeURL ciphertext encrypted with the public key associated with the DecryptorAddress field
+// EnodeURL ciphertext encrypted with the public key associated with the DecrypterAddress field
 type encryptedEnode struct {
 	DecrypterAddress  common.Address
 	EncryptedEnodeURL []byte
@@ -354,6 +358,8 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	}
 
 	// Add the generated announce message to this node's cache
+	sb.cachedAnnounceMsgsMu.Lock()
+	defer sb.cachedAnnounceMsgsMu.Unlock()
 	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: announceVersion, MsgPayload: payload}
 
 	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
@@ -434,6 +440,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	// Check if the sender is within the registered/elected valset
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
+	        logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return err
 	}
 
@@ -453,11 +460,12 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 	// Ignore the message if it's older than the one that this node currently has persisted and return from this function
 	sb.cachedAnnounceMsgsMu.Lock()
-	defer sb.cachedAnnounceMsgsMu.Unlock()
 	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgVersion >= announcePayload.Version {
+	        sb.cachedAnnounceMsgsMu.Unlock()
 		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgVersion)
 		return errOldAnnounceMessage
 	}
+	sb.cachedAnnounceMsgsMu.Unlock()
 
 	// Do some validation checks on the announcePayload
 	if isValid, err := sb.validateAnnounce(&announcePayload); !isValid || err != nil {
@@ -493,8 +501,9 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		}
 	}
 
-	// Cache this announce message
+	sb.cachedAnnounceMsgsMu.Lock()
 	sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announcePayload.Version, MsgPayload: payload}
+	sb.cachedAnnounceMsgsMu.Unlock()
 
 	// Regossip this announce message
 	return sb.regossipAnnounce(msg, payload)
@@ -660,9 +669,11 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 			continue
 		}
 
+		sb.cachedAnnounceMsgsMu.RLock()
 		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgVersion < announceVersion.AnnounceMsgVersion {
 			announcesToRequest = append(announcesToRequest, announceVersion.ValAddress)
 		}
+		defer sb.cachedAnnounceMsgsMu.RUnlock()
 	}
 
 	if len(announcesToRequest) > 0 {
@@ -684,7 +695,7 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	peers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
 
 	for _, peer := range peers {
-		if peer.Version() == 65 {
+		if peer.Version() >= 65 {
 			sb.sendGetAnnounceVersions(peer)
 		}
 	}

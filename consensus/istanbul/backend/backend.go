@@ -366,8 +366,12 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 // If the destAddresses param is set to nil, then this function will send the message to all connected
 // peers.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
+        logger := sb.logger.New("func", "Multicast")
+
 	// Get peers to send.
 	peers := sb.getPeersForMessage(destAddresses)
+
+	logger.Trace("Going to multicast a message", "peers", peers, "ethMsgCode", ethMsgCode)
 
 	// Only cache for the announceMsg, as that is the only message that is gossiped.
 	var hash common.Hash
@@ -387,6 +391,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 					m, _ = ms.(*lru.ARCCache)
 					if _, k := m.Get(hash); k {
 						// This peer had this event, skip it
+						logger.Trace("Message already cached for peer.  Not sending it to peer", "peer", p)
 						continue
 					}
 				} else {
@@ -396,7 +401,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 				m.Add(hash, true)
 				sb.peerRecentMessages.Add(nodeAddr, m)
 			}
-			sb.logger.Trace("Sending istanbul message to peer", "msg_code", ethMsgCode, "peer", p)
+			logger.Trace("Sending istanbul message to peer", "peer", p)
 
 			go p.Send(ethMsgCode, payload)
 		}
