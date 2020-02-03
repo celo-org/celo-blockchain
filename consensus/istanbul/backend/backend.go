@@ -648,15 +648,12 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
-	if header == nil {
-		return common.Hash{}, errNoBlockHeader
-	}
+	header := sb.chain.CurrentHeader()
 	state, err := sb.stateAt(header.Hash())
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.Random(header, state)
+	return random.HistoricalRandom(header, state, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {

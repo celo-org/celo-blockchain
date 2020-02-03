@@ -1,6 +1,7 @@
 package random
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -101,6 +102,28 @@ const (
       "type": "function"
     }
 ]`
+
+	historicRandomAbi = `[
+    {
+      "constant": true,
+      "inputs": [
+		{
+			"name": "blockNumber",
+			"type": "uint256"
+		}
+	  ],
+      "name": "getBlockRandomness",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+]`
 )
 
 var (
@@ -108,6 +131,7 @@ var (
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
 	randomFuncABI, _            = abi.JSON(strings.NewReader(randomAbi))
+	historicRandomFuncABI, _    = abi.JSON(strings.NewReader(historicRandomAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("db-randomness-prefix")
 )
@@ -197,5 +221,11 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
 	randomness := common.Hash{}
 	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForComputeCommitment, header, state)
+	return randomness, err
+}
+
+func HistoricalRandom(header *types.Header, state vm.StateDB, blockNumber uint64) (common.Hash, error) {
+	randomness := common.Hash{}
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, historicRandomFuncABI, "getBlockRandomness", []interface{}{big.NewInt(int64(blockNumber))}, &randomness, params.MaxGasForComputeCommitment, header, state)
 	return randomness, err
 }
