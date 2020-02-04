@@ -38,7 +38,7 @@ import (
 type sharedValidatorEnode struct {
 	Address  common.Address
 	EnodeURL string
-	Version  uint64
+	Version  uint
 }
 
 type valEnodesShareData struct {
