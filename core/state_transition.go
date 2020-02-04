@@ -148,6 +148,30 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, boo
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
+// NewStateTransitionGasEstimator returns a special state transition for estimating gas consumption.
+// Estimation runs the given message as if gas were free, which allows binary search under the
+// assumption that the execution is not dependent on gas limit or gas price, with the exception of
+// "out of gas" errors.
+func NewStateTransitionGasEstimator(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransition {
+	return &StateTransition{
+		gp:              gp,
+		evm:             evm,
+		msg:             msg,
+		gasPrice:        common.Big0,
+		value:           msg.Value(),
+		data:            msg.Data(),
+		state:           evm.StateDB,
+		gasPriceMinimum: common.Big0,
+	}
+}
+
+// ApplyEstimatorMessage applies the given message in a way that allows for estimation of gas consumption.
+// Returns the gas used (which does not include gas refunds) and an error if it failed.
+func ApplyEstimatorMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
+	log.Trace("Estimating gas for message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
+	return NewStateTransitionGasEstimator(evm, msg, gp).TransitionDb()
+}
+
 // to returns the recipient of the message.
 func (st *StateTransition) to() common.Address {
 	if st.msg == nil || st.msg.To() == nil /* contract creation */ {

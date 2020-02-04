@@ -683,7 +683,7 @@ type CallArgs struct {
 	Data                hexutil.Bytes   `json:"data"`
 }
 
-func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration) ([]byte, uint64, bool, error) {
+func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber, timeout time.Duration, estimate bool) (res []byte, gas uint64, failed bool, err error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	state, header, err := s.b.StateAndHeaderByNumber(ctx, blockNr)
@@ -708,7 +708,11 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
+		gasPrice, err = s.b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		if err != nil {
+			log.Error("Error suggesting gas price", "block", blockNr, "err", err)
+			return nil, 0, false, err
+		}
 	}
 
 	// Create new call message
@@ -738,10 +742,13 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 		evm.Cancel()
 	}()
 
-	// Setup the gas pool (also for unmetered requests)
-	// and apply the message.
+	// Setup the gas pool (also for unmetered requests) and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	res, gas, failed, err := core.ApplyMessage(evm, msg, gp)
+	if estimate {
+		res, gas, failed, err = core.ApplyEstimatorMessage(evm, msg, gp)
+	} else {
+		res, gas, failed, err = core.ApplyMessage(evm, msg, gp)
+	}
 
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
@@ -752,7 +759,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 // Call executes the given transaction on the state for the given block number.
 // It doesn't make and changes in the state/blockchain and is useful to execute and retrieve values.
 func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNr rpc.BlockNumber) (hexutil.Bytes, error) {
-	result, _, _, err := s.doCall(ctx, args, blockNr, 5*time.Second)
+	result, _, _, err := s.doCall(ctx, args, blockNr, 5*time.Second, false)
 	return (hexutil.Bytes)(result), err
 }
 
@@ -781,7 +788,7 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 	executable := func(gas uint64) bool {
 		args.Gas = hexutil.Uint64(gas)
 
-		_, _, failed, err := s.doCall(ctx, args, rpc.PendingBlockNumber, 0)
+		_, _, failed, err := s.doCall(ctx, args, rpc.PendingBlockNumber, 0, true)
 		if err != nil || failed {
 			return false
 		}
@@ -1243,7 +1250,11 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency)
+		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+		if err != nil {
+			return err
+		}
+		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
 			return err
 		}

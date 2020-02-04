@@ -214,10 +214,6 @@ func (s *Service) loop() {
 		txpool = s.les.TxPool()
 	}
 
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
-	defer headSub.Unsubscribe()
-
 	txEventCh := make(chan core.NewTxsEvent, txChanSize)
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
@@ -236,6 +232,10 @@ func (s *Service) loop() {
 	)
 	go func() {
 		var lastTx mclock.AbsTime
+
+		chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
+		headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
+		defer headSub.Unsubscribe()
 
 	HandleLoop:
 		for {
@@ -277,7 +277,13 @@ func (s *Service) loop() {
 					// proxied validator should sign
 					channel = signCh
 				}
-				channel <- &statsPayload
+				// TODO: This is a hacky measure to avoid blocking here if the
+				// channel is not consuming
+				select {
+				case channel <- &statsPayload:
+				default:
+				}
+
 			}
 		}
 		close(quitCh)
@@ -982,6 +988,7 @@ type nodeStats struct {
 	Active   bool `json:"active"`
 	Syncing  bool `json:"syncing"`
 	Mining   bool `json:"mining"`
+	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
 	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
@@ -996,6 +1003,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	var (
 		etherBase common.Address
 		mining    bool
+		proxy     bool
 		elected   bool
 		hashrate  int
 		syncing   bool
@@ -1005,11 +1013,13 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		etherBase, _ = s.eth.Etherbase()
 		block := s.eth.BlockChain().CurrentBlock()
 
+		proxy = s.backend.IsProxy()
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
 
 		elected = false
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
+
 		for i := range valsElected {
 			if valsElected[i].Address() == etherBase {
 				elected = true
@@ -1035,6 +1045,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 			Active:   true,
 			Mining:   mining,
 			Elected:  elected,
+			Proxy:    proxy,
 			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,

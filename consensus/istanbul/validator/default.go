@@ -25,12 +25,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
 	address      common.Address
-	blsPublicKey []byte
+	blsPublicKey blscrypto.SerializedPublicKey
 }
 
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
@@ -47,9 +48,9 @@ func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	}
 }
 
-func (val *defaultValidator) Address() common.Address { return val.address }
-func (val *defaultValidator) BLSPublicKey() []byte    { return val.blsPublicKey }
-func (val *defaultValidator) String() string          { return val.Address().String() }
+func (val *defaultValidator) Address() common.Address                     { return val.address }
+func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { return val.blsPublicKey }
+func (val *defaultValidator) String() string                              { return val.Address().String() }
 
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
@@ -94,9 +95,30 @@ func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	}
 }
 
-func (val *defaultSet) Serialize() ([]byte, error)        { return rlp.EncodeToBytes(val) }
-func (valSet *defaultSet) F() int                         { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
-func (valSet *defaultSet) MinQuorumSize() int             { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+// We include the optimization described at https://arxiv.org/pdf/1901.07160.pdf as “PM-6” and
+// discussed in Lemma 22. For values of N=3F for integer F=1,2,3,.. we can tolerate a quorum
+// size one smaller than anticipated by Q = N - F. The intersection of any two sets of Q
+// nodes of N=3F must contain an honest validator.
+//
+// For example, with N=9, F=2, Q=6. Any two sets of Q=6 from N=9 nodes must overlap
+// by >9-6=3 nodes. At least 3-F=3-2=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9
+// x x x x x x
+//       y y y y y y
+//       F F H
+//
+// For N=10, F=3, Q=7. Any two sets of Q=7 nodes from N=10 must overlap by >4 nodes.
+// At least 4-F=4-3=1 must be honest.
+//
+// 1 2 3 4 5 6 7 8 9 10
+// x x x x x x x
+//       y y y y y y y
+//       F F F H
+
+func (valSet *defaultSet) F() int             { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
+func (valSet *defaultSet) MinQuorumSize() int { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
+
 func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
 func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
 
@@ -233,6 +255,8 @@ func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
 	val.SetRandomness(data.Randomness)
 	return nil
 }
+
+func (val *defaultSet) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
 // Utility Functions
 

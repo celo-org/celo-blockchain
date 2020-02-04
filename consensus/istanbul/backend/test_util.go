@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -17,10 +18,10 @@ func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul
 	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
 
 	addrs := []common.Address{}
-	publicKeys := [][]byte{}
+	publicKeys := []blscrypto.SerializedPublicKey{}
 
 	for i := range validators {
-		if validators[i].BLSPublicKey == nil {
+		if (validators[i].BLSPublicKey == blscrypto.SerializedPublicKey{}) {
 			panic("BLSPublicKey is nil")
 		}
 		addrs = append(addrs, validators[i].Address)

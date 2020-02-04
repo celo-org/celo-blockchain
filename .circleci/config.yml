@@ -62,6 +62,68 @@ jobs:
           paths:
             - geth
 
+  android:
+    docker:
+      - image: celohq/android-client
+        user: circleci
+    working_directory: ~/repos/geth
+    steps:
+      - checkout
+      - run:
+          name: Compile android client
+          command: |
+            set -euo pipefail
+            # TODO(jeanregisser): Fix docker image so build works directly with circleci user
+            sudo chown -R circleci:circleci $HOME/.rustup $HOME/.cargo
+            export PATH=$PATH:$HOME/.cargo/bin
+            export NDK_VERSION=android-ndk-r19c
+            export ANDROID_NDK=/opt/android/${NDK_VERSION}
+            export ANDROID_HOME=/opt/android/sdk
+            make android
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - geth/build/bin/geth.aar
+
+  ios:
+    macos:
+      xcode: "11.3.1"
+    working_directory: ~/repos/geth
+    steps:
+      - checkout
+      - run:
+          name: Setup Go language
+          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install go@1.11
+      - run:
+          name: Setup Rust language
+          command: |
+            set -euo pipefail
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            export PATH=$PATH:$HOME/.cargo/bin
+            rustup install 1.37.0
+            rustup default 1.37.0
+      - run:
+          name: Compile ios client
+          command: |
+            set -euo pipefail
+            export PATH="/usr/local/opt/go@1.11/bin:$HOME/.cargo/bin:$PATH"
+            make ios
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - geth/build/bin/Geth.framework.tgz
+            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a
+            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_snark.a
+
+  publish-mobile-client:
+    docker:
+      - image: circleci/node:10
+    working_directory: ~/repos/geth
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
+
   end-to-end-monorepo-checkout:
     <<: *end-to-end-defaults
     working_directory: ~/repos/celo-monorepo
@@ -168,6 +230,23 @@ workflows:
     jobs:
       - bls-zexe
       - lint
+      - android
+      - ios
+      - publish-mobile-client:
+          requires:
+            - android
+            - ios
+            # Makes sure tests are all green before publishing
+            # Though these are not using the mobile built binaries
+            # they should be a good indicator
+            - unit-tests
+            - end-to-end-transfer-test
+            - end-to-end-sync-test
+            - end-to-end-blockchain-parameters-test
+            - end-to-end-geth-governance-test
+          filters:
+            branches:
+              only: master
       - end-to-end-monorepo-checkout
       - unit-tests:
           requires:
