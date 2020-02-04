@@ -433,20 +433,20 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 	var (
 		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
-		pubKey []byte
+		reply []byte
 		err error
 	)
 		// Send the chunk over, ensuring it's processed correctly
-		pubKey, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
+		reply, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
 		if err != nil {
 			return nil, err
 		}
-	// Extract the Ethereum signature and do a sanity validation
-//	if len(reply) != 65 {
-//		return common.Address{}, nil, errors.New("reply lacks signature")
-//	}
+	// Check length of public key returned
+	if len(reply) != 192 {
+		return nil, errors.New("public key reply invalid")
+	}
 
-	return pubKey, nil
+	return reply, nil
 }
 
 
