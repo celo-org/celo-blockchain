@@ -215,6 +215,7 @@ func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	if w.app != ledgerBLSsigner {
 		return nil, errLedgerInvalidApp
 	}
+	log.Warn("About to enter ledgerSignBLS!")
 	return w.ledgerBLSHashSign(hash)
 }
 
@@ -452,31 +453,25 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 // TODO: Describe protocol
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 	var (
-		hashrlp []byte
 		err error
 	)
-	hashrlp, err = rlp.EncodeToBytes(hash)
-	if err != nil {
-		return nil, err
-	}
-	payload := append(hashrlp)
 
 	// Send the request and wait for the response
 	var (
 		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
-		signed []byte
+		reply []byte
 	)
 		// Send the chunk over, ensuring it's processed correctly
-		signed, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, payload)
+		reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
 		if err != nil {
 			return nil, err
 		}
-	// Extract the Ethereum signature and do a sanity validation
-//	if len(reply) != 65 {
-//		return common.Address{}, nil, errors.New("reply lacks signature")
-//	}
+	// Make sure reply is the correct length
+	if len(reply) != 96 {
+		return nil, errors.New("invalid signature reply")
+	}
 
-	return signed, nil
+	return reply, nil
 }
 
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a

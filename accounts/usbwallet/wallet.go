@@ -600,7 +600,6 @@ func (w *wallet) GenerateProofOfPossession(account accounts.Account, address com
 }
 
 func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	log.Warn("entered wallet generate BLS")
 	hashPoP, err := bls.HashDirect(address.Bytes(), true)
 	if err != nil {
 		return nil, nil, err
@@ -627,13 +626,11 @@ func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address 
 		w.hub.commsPend--
 		w.hub.commsLock.Unlock()
 	}()
-	log.Warn("About to sign hash!")
 	// Sign the hash
 	signatureBytes, err := w.driver.SignHashBLS(hashPoP)
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Warn("Passed sign hash error check!")
 	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
 
 	return pubKeyBytes, signatureBytes, nil
