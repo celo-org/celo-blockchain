@@ -53,4 +53,6 @@ type Peer interface {
 	Node() *enode.Node
 	// Version returns the peer's version
 	Version() int
+	// Dangerously reading
+	ReadMsg() (p2p.Msg, error)
 }

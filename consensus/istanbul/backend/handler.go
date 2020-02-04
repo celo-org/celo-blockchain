@@ -19,6 +19,7 @@ package backend
 import (
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -45,6 +46,7 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
+	istanbulValidatorProofMsg      = 0x19
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
@@ -273,4 +275,52 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 			sb.proxyNode.peer = nil
 		}
 	}
+}
+
+type validatorProof struct {
+	Proof []byte
+}
+
+func (sb *Backend) Handshake(peer consensus.Peer) error {
+	// peer.Send()
+	sb.logger.Warn("woo in sb handshake!")
+
+	// Send out own handshake in a new thread
+	errc := make(chan error, 2)
+	// var status statusData // safe to read after two values have been received from errc
+
+	go func() {
+		errc <- peer.Send(istanbulValidatorProofMsg, &validatorProof{
+			proof: []byte("wassup dude"),
+		})
+	}()
+	go func() {
+		var valProof validatorProof
+		msg, err := peer.ReadMsg()
+		sb.logger.Warn("Read message", "msg", msg, "err", err)
+		if err != nil {
+			errc <- err
+			return
+		}
+		// Decode the handshake and make sure everything matches
+		if err := msg.Decode(&valProof); err != nil {
+			sb.logger.Error("Error :(", "err", err)
+			errc <- err
+			return
+		}
+		sb.logger.Warn("valProof decoded", "valProof", valProof, "proof", string(valProof.Proof))
+	}()
+	timeout := time.NewTimer(time.Minute / 10.0)
+	defer timeout.Stop()
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errc:
+			if err != nil {
+				return err
+			}
+		case <-timeout.C:
+			return p2p.DiscReadTimeout
+		}
+	}
+	return nil
 }

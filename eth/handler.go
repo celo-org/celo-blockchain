@@ -338,6 +338,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Ethereum handshake failed", "err", err)
 		return err
 	}
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		handler.Handshake(p)
+	}
+	// if err :=
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
 	}

@@ -481,6 +481,10 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	return nil
 }
 
+func (p *peer) ReadMsg() (p2p.Msg, error) {
+	return p.rw.ReadMsg()
+}
+
 // String implements fmt.Stringer.
 func (p *peer) String() string {
 	return fmt.Sprintf("Peer %s [%s]", p.id,

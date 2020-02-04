@@ -161,6 +161,9 @@ type Handler interface {
 
 	// ConnectToVals
 	ConnectToVals()
+
+	// Handshake
+	Handshake(peer Peer) error
 }
 
 // PoW is a consensus engine based on proof-of-work.
