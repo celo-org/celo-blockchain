@@ -77,7 +77,7 @@ func nodeIDKey(nodeID enode.ID) []byte {
 // AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
 	Node    *enode.Node
-	Version uint64
+	Version uint
 }
 
 func (ve *AddressEntry) String() string {
@@ -87,7 +87,7 @@ func (ve *AddressEntry) String() string {
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
 	EnodeURL string
-	Version  uint64
+	Version  uint
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
@@ -229,7 +229,7 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 }
 
 // GetVersionFromAddress will return the version for an address if it's known
-func (vet *ValidatorEnodeDB) GetVersionFromAddress(address common.Address) (uint64, error) {
+func (vet *ValidatorEnodeDB) GetVersionFromAddress(address common.Address) (uint, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
@@ -439,7 +439,7 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 
 type ValEnodeEntryInfo struct {
 	Enode   string `json:"enode"`
-	Version uint64 `json:"version"`
+	Version uint   `json:"version"`
 }
 
 func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
