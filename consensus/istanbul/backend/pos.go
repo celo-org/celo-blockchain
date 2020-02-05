@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	"github.com/ethereum/go-ethereum/contract_comm/epoch_rewards"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
+	"github.com/ethereum/go-ethereum/contract_comm/reserve"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -166,8 +167,8 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 	if err != nil {
 		return totalCommunityRewards, err
 	}
-	// TODO: replace 'false' with 'isReserveLow'
-	if false && reserveAddress != nil {
+	lowReserve, err := reserve.IsReserveLow(header, state)
+	if lowReserve && reserveAddress != nil {
 		state.AddBalance(*reserveAddress, communityReward)
 		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
 	} else if governanceAddress != nil {
