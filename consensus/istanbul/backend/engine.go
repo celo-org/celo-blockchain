@@ -448,6 +448,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
+	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
+	logger.Trace("Finalizing")
+
 	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
 	if err != nil {
@@ -461,8 +464,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
-	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
-	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
+	if lastBlockOfEpoch {
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
@@ -481,7 +484,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, randomness), nil
+	block := types.NewBlock(header, txs, nil, receipts, randomness)
+	logger.Debug("Finalized", "duration", start.Sub(now()), "lastInEpoch", lastBlockOfEpoch)
+	return block, nil
 }
 
 // Seal generates a new block for the given input block with the local miner's
@@ -819,7 +824,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Header) error {
 	number := header.Number.Uint64()
-	logger := sb.logger.New("func", "Backend.addParentSeal()", "number", number)
+	logger := sb.logger.New("func", "addParentSeal", "number", number)
 
 	// only do this for blocks which start with block 1 as a parent
 	if number <= 1 {

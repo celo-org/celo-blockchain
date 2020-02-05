@@ -18,7 +18,6 @@ package core
 
 import (
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"reflect"
 	"testing"
@@ -27,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	elog "github.com/ethereum/go-ethereum/log"
 )
@@ -199,7 +199,7 @@ func TestCheckMessage(t *testing.T) {
 		c.current.(*roundStateImpl).state = StateWaitingForNewRound
 		for _, testCode := range testCodes {
 			err := c.checkMessage(testCode, v)
-			if testCode == istanbul.MsgRoundChange {
+			if testCode == istanbul.MsgRoundChange || testCode == istanbul.MsgPreprepare {
 				if err != nil {
 					t.Errorf("error mismatch: have %v, want nil", err)
 				}
@@ -217,6 +217,7 @@ func TestStoreBacklog(t *testing.T) {
 		func(msg *istanbul.Message) {},
 		func(msgCode uint64, msgView *istanbul.View) error { return nil },
 	).(*msgBacklogImpl)
+	defer backlog.clearBacklogForSeq(12)
 
 	v10 := &istanbul.View{
 		Round:    big.NewInt(10),
@@ -315,10 +316,6 @@ func TestStoreBacklog(t *testing.T) {
 	if !reflect.DeepEqual(msg, mPreprepare2) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
 	}
-
-	backlog.msgCount = 0
-	delete(backlog.msgCountBySrc, p1.Address())
-	delete(backlog.msgCountBySrc, p2.Address())
 }
 
 func TestProcessFutureBacklog(t *testing.T) {
@@ -328,6 +325,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		func(msg *istanbul.Message) {},
 		func(msgCode uint64, msgView *istanbul.View) error { return nil },
 	).(*msgBacklogImpl)
+	defer backlog.clearBacklogForSeq(12)
 
 	// push a future msg
 	v := &istanbul.View{
@@ -461,6 +459,7 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 		registerCall,
 		func(msgCode uint64, msgView *istanbul.View) error { return nil },
 	).(*msgBacklogImpl)
+	defer backlog.clearBacklogForSeq(12)
 
 	v := &istanbul.View{
 		Round:    big.NewInt(0),
