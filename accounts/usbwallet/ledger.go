@@ -215,7 +215,6 @@ func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	if w.app != ledgerBLSsigner {
 		return nil, errLedgerInvalidApp
 	}
-	log.Warn("About to enter ledgerSignBLS!")
 	return w.ledgerBLSHashSign(hash)
 }
 

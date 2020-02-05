@@ -144,7 +144,6 @@ func (w *wallet) Status() (string, error) {
 // Open implements accounts.Wallet, attempting to open a USB connection to the
 // hardware wallet.
 func (w *wallet) Open(passphrase string) error {
-	log.Warn("Opening the usbwallet!")
 	w.stateLock.Lock() // State lock is enough since there's no connection yet at this point
 	defer w.stateLock.Unlock()
 
@@ -168,16 +167,21 @@ func (w *wallet) Open(passphrase string) error {
 	}
 	// Connection successful, start life-cycle management
 	w.paths = make(map[common.Address]accounts.DerivationPath)
-	blsAddr := common.HexToAddress("0x0000000000000000000000000000000000000001")
-	w.paths[blsAddr] = accounts.DefaultLedgerBaseDerivationPath
-
+	_, err := w.driver.GetPublicKeyBLS()
+	// Set up default address if BLS app running
+	if err == nil {
+		blsAddr := common.HexToAddress("0x0000000000000000000000000000000000000001")
+		w.paths[blsAddr] = accounts.DefaultLedgerBaseDerivationPath
+	}
 	w.deriveReq = make(chan chan struct{})
 	w.deriveQuit = make(chan chan error)
 	w.healthQuit = make(chan chan error)
 
 	go w.heartbeat()
-//	go w.selfDerive()
-
+	// Derive accounts if tx signer app running
+	if err != nil {
+		go w.selfDerive()
+	}
 	// Notify anyone listening for wallet events that a new device is accessible
 	go w.hub.updateFeed.Send(accounts.WalletEvent{Wallet: w, Kind: accounts.WalletOpened})
 
