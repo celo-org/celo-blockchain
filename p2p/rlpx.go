@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/bitutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/golang/snappy"
@@ -156,6 +157,7 @@ func readProtocolHandshake(rw MsgReader) (*protoHandshake, error) {
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
+		log.Warn("readProtocolHandshake", "reason", reason)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {

@@ -24,9 +24,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -278,49 +280,88 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 }
 
 type validatorProof struct {
-	Proof []byte
+	Address common.Address
+	Node string
+	Version uint
+	Signature []byte
 }
 
-func (sb *Backend) Handshake(peer consensus.Peer) error {
+func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	// peer.Send()
 	sb.logger.Warn("woo in sb handshake!")
 
-	// Send out own handshake in a new thread
 	errc := make(chan error, 2)
-	// var status statusData // safe to read after two values have been received from errc
+	isValidatorCh := make(chan bool, 1)
 
 	go func() {
-		errc <- peer.Send(istanbulValidatorProofMsg, &validatorProof{
-			proof: []byte("wassup dude"),
-		})
+		var valProof validatorProof
+		if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
+			// if there is not an error, the peer is in our enode table so we will
+			// send our information
+			valProof = validatorProof{
+				Address: sb.Address(),
+				Node: sb.p2pserver.Self().URLv4(),
+				Version: uint(time.Now().Unix()),
+				Signature: []byte("wassup dude"),
+			}
+		}
+		sb.logger.Warn("our valProof to send", "valProof", valProof, "addy", valProof.Address.String(), "node", valProof.Node, "sig", valProof.Signature, "version", valProof.Version)
+		errc <- peer.Send(istanbulValidatorProofMsg, &valProof)
 	}()
 	go func() {
-		var valProof validatorProof
-		msg, err := peer.ReadMsg()
-		sb.logger.Warn("Read message", "msg", msg, "err", err)
-		if err != nil {
-			errc <- err
-			return
-		}
-		// Decode the handshake and make sure everything matches
-		if err := msg.Decode(&valProof); err != nil {
-			sb.logger.Error("Error :(", "err", err)
-			errc <- err
-			return
-		}
-		sb.logger.Warn("valProof decoded", "valProof", valProof, "proof", string(valProof.Proof))
+		isValidator, err := sb.readValidatorProofMsg(peer)
+		errc <- err
+		isValidatorCh <- isValidator
 	}()
+
 	timeout := time.NewTimer(time.Minute / 10.0)
 	defer timeout.Stop()
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errc:
 			if err != nil {
-				return err
+				return false, err
 			}
 		case <-timeout.C:
-			return p2p.DiscReadTimeout
+			return false, p2p.DiscReadTimeout
 		}
 	}
-	return nil
+	return <-isValidatorCh, nil
+}
+
+func (sb *Backend) readValidatorProofMsg(peer consensus.Peer) (bool, error) {
+	var valProof validatorProof
+	msg, err := peer.ReadMsg()
+	if err != nil {
+		return false, err
+	}
+	if err := msg.Decode(&valProof); err != nil {
+		return false, err
+	}
+	sb.logger.Warn("valProof decoded", "valProof", valProof, "address", valProof.Address.String(), "signature", string(valProof.Signature), "node", valProof.Node)
+	// do validator proof check
+
+	// Check if the sender is within the registered/elected valset
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		sb.logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		return false, err
+	}
+
+	if !regAndActiveVals[valProof.Address] {
+		// not a validator
+		return false, nil
+	}
+
+	node, err := enode.ParseV4(valProof.Node)
+	if err != nil {
+		return false, err
+	}
+
+	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{valProof.Address: {Node: node, Version: valProof.Version}})
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

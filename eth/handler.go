@@ -320,10 +320,6 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
-	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer {
-		return p2p.DiscTooManyPeers
-	}
 	p.Log().Info("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
@@ -338,9 +334,19 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Ethereum handshake failed", "err", err)
 		return err
 	}
+	forcePeer := false
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.Handshake(p)
+		isValidator, err := handler.Handshake(p)
+		if err != nil {
+			return err
+		}
+		forcePeer = isValidator
 	}
+	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer && !forcePeer {
+		return p2p.DiscTooManyPeers
+	}
+	p.Log().Warn("Don't be doing that dont do it")
 	// if err :=
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
