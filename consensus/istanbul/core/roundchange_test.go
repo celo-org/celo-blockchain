@@ -633,7 +633,7 @@ loop2:
 			for i, b := range sys.backends {
 				committed, _ := b.GetCurrentHeadBlockAndAuthor()
 				// We expect to commit the block proposed by proposer 6 mod 4 = 2.
-				expectedCommitted := makeBlockWithDifficulty(1, 2)
+				expectedCommitted := makeBlockWithDifficulty(1, 2+int64(roundTimeouts))
 				if committed.Number().Cmp(common.Big1) != 0 {
 					t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
 				}
