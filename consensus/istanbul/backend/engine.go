@@ -464,7 +464,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
-		err = sb.distributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
 			sb.logger.Error("Failed to distribute epoch rewards", "blockNumber", header.Number, "err", err)
 			state.RevertToSnapshot(snapshot)
