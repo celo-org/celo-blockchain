@@ -322,7 +322,6 @@ func (st *StateTransition) preCheck() error {
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
 	// Check that the transaction nonce is correct
 	if err = st.preCheck(); err != nil {
-		log.Error("Transaction failed precheck", "err", err)
 		return
 	}
 	msg := st.msg
