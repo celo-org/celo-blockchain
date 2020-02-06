@@ -614,10 +614,14 @@ loop:
 	istMsgDistribution[istanbul.MsgCommit] = gossip
 	istMsgDistribution[istanbul.MsgRoundChange] = gossip
 
-	// Make sure we finalize block in next round.
+	// Make sure we finalize block in next two rounds.
+	roundTimeouts := 0
 	select {
 	case <-timeoutMoveToNextRound.Chan():
-		t.Error("Did not finalize a block.")
+		roundTimeouts++
+		if roundTimeouts > 1 {
+			t.Error("Did not finalize a block.")
+		}
 	case _, ok := <-newBlocks.Chan():
 		if !ok {
 			t.Error("Error reading block")
