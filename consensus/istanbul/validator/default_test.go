@@ -117,8 +117,8 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(3))),
-				[]byte{},
+				Address:      common.BytesToAddress([]byte(string(3))),
+				BLSPublicKey: []byte{},
 			},
 		},
 	) {
@@ -127,8 +127,8 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(3))),
-				[]byte{},
+				Address:      common.BytesToAddress([]byte(string(3))),
+				BLSPublicKey: []byte{},
 			},
 		},
 	) {
@@ -137,12 +137,12 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(2))),
-				[]byte{},
+				Address:      common.BytesToAddress([]byte(string(2))),
+				BLSPublicKey: []byte{},
 			},
 			{
-				common.BytesToAddress([]byte(string(1))),
-				[]byte{},
+				Address:      common.BytesToAddress([]byte(string(1))),
+				BLSPublicKey: []byte{},
 			},
 		},
 	)

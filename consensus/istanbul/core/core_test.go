@@ -35,7 +35,7 @@ func makeBlock(number int64) *types.Block {
 		Number:     big.NewInt(number),
 		GasLimit:   0,
 		GasUsed:    0,
-		Time:       big.NewInt(0),
+		Time:       uint64(0),
 	}
 	return types.NewBlock(header, nil, nil, nil, nil)
 }
@@ -46,7 +46,7 @@ func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
 		Number:     big.NewInt(number),
 		GasLimit:   0,
 		GasUsed:    0,
-		Time:       big.NewInt(0),
+		Time:       uint64(0),
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)

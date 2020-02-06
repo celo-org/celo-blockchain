@@ -19,7 +19,7 @@ RUN curl --silent --show-error --location --fail --retry 3 --output /tmp/${ndk_v
 ENV ANDROID_NDK_HOME ${android_ndk_home}
 ENV ANDROID_NDK ${android_ndk_home}
 
-RUN curl https://dl.google.com/go/go1.11.linux-amd64.tar.gz | tar -xz
+RUN curl https://dl.google.com/go/go1.13.5.linux-amd64.tar.gz | tar -xz
 ENV PATH=/go/bin:$PATH
 ENV GOROOT=/go
 ENV GOPATH=$HOME/go

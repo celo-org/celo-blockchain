@@ -213,7 +213,7 @@ func EmptyPreparedCertificate() PreparedCertificate {
 		Number:     big.NewInt(0),
 		GasLimit:   0,
 		GasUsed:    0,
-		Time:       big.NewInt(0),
+		Time:       0,
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)

@@ -241,8 +241,8 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 			return nil, fmt.Errorf("length of BLS key incorrect. Expected %d, got %d", blscrypto.PUBLICKEYBYTES, len(blsKey))
 		}
 		validatorData = append(validatorData, istanbul.ValidatorData{
-			addr,
-			blsKey,
+			Address:      addr,
+			BLSPublicKey: blsKey,
 		})
 	}
 	return validatorData, nil
