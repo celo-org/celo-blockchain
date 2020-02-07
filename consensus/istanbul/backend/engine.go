@@ -485,7 +485,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	// Assemble and return the final block for sealing
 	block := types.NewBlock(header, txs, nil, receipts, randomness)
-	logger.Debug("Finalized", "duration", start.Sub(now()), "lastInEpoch", lastBlockOfEpoch)
+	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 	return block, nil
 }
 
