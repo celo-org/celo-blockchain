@@ -41,6 +41,9 @@ const (
 var (
 	// errDecodeFailed is returned when decode message fails
 	errDecodeFailed = errors.New("fail to decode istanbul message")
+	// errNonValidatorMessage is returned when `handleConsensusMsg` receives
+	// a message with a signature from a non validator
+	errNonValidatorMessage = errors.New("proxy received consensus message of a non validator")
 )
 
 // Protocol implements consensus.Engine.Protocol
@@ -131,6 +134,19 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		if reflect.DeepEqual(peer, sb.proxiedPeer) {
 			sb.logger.Warn("Got a consensus message from the proxied validator.  Ignoring it")
 			return nil
+		}
+
+		msg := new(istanbul.Message)
+
+		// Verify that this message is created by a legitimate validator before forwarding.
+		checkValidatorSignature := func(data []byte, sig []byte) (common.Address, error) {
+			block := sb.currentBlock()
+			valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+			return istanbul.CheckValidatorSignature(valSet, data, sig)
+		}
+		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
+			sb.logger.Error("Got a consensus message signed by a non validator.")
+			return errNonValidatorMessage
 		}
 
 		// Need to forward the message to the proxied validator
