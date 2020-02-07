@@ -617,26 +617,34 @@ loop:
 	istMsgDistribution[istanbul.MsgCommit] = gossip
 	istMsgDistribution[istanbul.MsgRoundChange] = gossip
 
-	// Make sure we finalize block in next round.
-	select {
-	case <-timeoutMoveToNextRound.Chan():
-		t.Error("Did not finalize a block.")
-	case _, ok := <-newBlocks.Chan():
-		if !ok {
-			t.Error("Error reading block")
-		}
-		// Wait for all backends to finalize the block.
-		<-time.After(2 * time.Second)
-		for i, b := range sys.backends {
-			committed, _ := b.GetCurrentHeadBlockAndAuthor()
-			// We expect to commit the block proposed by proposer 6 mod 4 = 2.
-			expectedCommitted := makeBlockWithDifficulty(1, 2)
-			if committed.Number().Cmp(common.Big1) != 0 {
-				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+	// Make sure we finalize block in next two rounds.
+	roundTimeouts := 0
+loop2:
+	for {
+		select {
+		case <-timeoutMoveToNextRound.Chan():
+			roundTimeouts++
+			if roundTimeouts > 1 {
+				t.Error("Did not finalize a block.")
 			}
-			if expectedCommitted.Hash() != committed.Hash() {
-				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+		case _, ok := <-newBlocks.Chan():
+			if !ok {
+				t.Error("Error reading block")
 			}
+			// Wait for all backends to finalize the block.
+			<-time.After(2 * time.Second)
+			for i, b := range sys.backends {
+				committed, _ := b.GetCurrentHeadBlockAndAuthor()
+				// We expect to commit the block proposed by proposer 6 mod 4 = 2.
+				expectedCommitted := makeBlockWithDifficulty(1, 2+int64(roundTimeouts))
+				if committed.Number().Cmp(common.Big1) != 0 {
+					t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+				}
+				if expectedCommitted.Hash() != committed.Hash() {
+					t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+				}
+			}
+			break loop2
 		}
 	}
 
