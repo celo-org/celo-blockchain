@@ -342,8 +342,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		forcePeer = isValidator
 	}
+	p.Log().Warn("In eth after istanbul Handshake", "forcePeer", forcePeer, "pm.peers.Len()",  pm.peers.Len(), "pm.maxPeers", pm.maxPeers, "trusted or static", (p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static), "servercompare", p.Peer.Server != pm.proxyServer)
 	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer && !forcePeer {
+		p.Log().Warn("DiscTooManyPeers is returned")
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Warn("Don't be doing that dont do it")

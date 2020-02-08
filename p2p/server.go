@@ -917,8 +917,7 @@ running:
 				c.flags |= trustedConn
 			}
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
-			// c.cont <- srv.postHandshakeChecks(peers, inboundCount, c)
-			c.cont <- nil
+			c.cont <- srv.postHandshakeChecks(peers, inboundCount, c)
 		case c := <-srv.checkpointAddPeer:
 			srv.log.Warn("<-srv.checkpointAddPeer")
 			// At this point the connection is past the protocol handshake.
@@ -989,10 +988,10 @@ running:
 func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
 	srv.log.Warn("postHandshakeChecks")
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
-		return DiscTooManyPeers
-	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
-		return DiscTooManyPeers
+	// case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	// 	return DiscTooManyPeers
+	// case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
+	// 	return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected
 	case c.node.ID() == srv.localnode.ID():
