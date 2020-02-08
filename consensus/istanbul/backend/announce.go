@@ -480,6 +480,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 
 	if shouldProcessAnnounce {
+		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
 			if announceRecord.DestAddress == sb.Address() {
 				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
@@ -497,6 +498,8 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 				break
 			}
+
+			logger.Debug("The announce message did not contain an entry for this node")
 		}
 	}
 
