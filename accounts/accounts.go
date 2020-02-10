@@ -118,6 +118,14 @@ type Wallet interface {
 	// the account in a keystore).
 	SignData(account Account, mimeType string, data []byte) ([]byte, error)
 
+	// SignHash is like SignData but doesn't hash the given data
+	//
+	// NOTE: DEPRACATED, use SignData for future releases.
+	// This is needed for backwards compatibility on a network where validators
+	// started on celo-blockchain 1.8. 1.9 removed the SignHash function,
+	// replacing it with SignData, which always hashes the input before signing.
+	SignHash(account Account, hash []byte) ([]byte, error)
+
 	// SignDataWithPassphrase is identical to SignData, but also takes a password
 	// NOTE: there's an chance that an erroneous call might mistake the two strings, and
 	// supply password in the mimetype field, or vice versa. Thus, an implementation

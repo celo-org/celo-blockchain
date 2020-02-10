@@ -700,6 +700,16 @@ func (w *Wallet) SignData(account accounts.Account, mimeType string, data []byte
 	return w.signHash(account, crypto.Keccak256(data))
 }
 
+// SignHash implements accounts.Wallet, attempting to sign the given hash with
+// the given account. If the wallet does not wrap this particular account, an
+// error is returned to avoid account leakage (even though in theory we may be
+// able to sign via our shared keystore backend).
+//
+// DEPRECATED, use SignData in future releases.
+func (w *Wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return w.signHash(account, hash)
+}
+
 func (w *Wallet) signHash(account accounts.Account, hash []byte) ([]byte, error) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
