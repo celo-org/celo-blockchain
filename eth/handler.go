@@ -338,6 +338,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if handler, ok := pm.engine.(consensus.Handler); ok {
 		isValidator, err := handler.Handshake(p)
 		if err != nil {
+			p.Log().Warn("Istanbul handshake failed", "err", err)
 			return err
 		}
 		forcePeer = isValidator
