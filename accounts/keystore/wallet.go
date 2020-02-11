@@ -166,6 +166,16 @@ func (w *keystoreWallet) SignData(account accounts.Account, mimeType string, dat
 	return w.signHash(account, crypto.Keccak256(data))
 }
 
+// SignHash implements accounts.Wallet, attempting to sign the given hash with
+// the given account. If the wallet does not wrap this particular account, an
+// error is returned to avoid account leakage (even though in theory we may be
+// able to sign via our shared keystore backend).
+//
+// DEPRECATED, use SignData in future releases.
+func (w *keystoreWallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return w.signHash(account, hash)
+}
+
 // SignDataWithPassphrase signs keccak256(data). The mimetype parameter describes the type of data being signed
 func (w *keystoreWallet) SignDataWithPassphrase(account accounts.Account, passphrase, mimeType string, data []byte) ([]byte, error) {
 	// Make sure the requested account is contained within

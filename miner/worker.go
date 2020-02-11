@@ -994,7 +994,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			account := accounts.Account{Address: w.coinbase}
 			wallet, err := w.eth.AccountManager().Find(account)
 			if err == nil {
-				randomSeed, err = wallet.SignData(account, accounts.MimetypeTextPlain, randomSeedString)
+				// TODO: Use SignData instead
+				randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
 			}
 			if err != nil {
 				log.Error("Unable to create random seed", "err", err)

@@ -169,6 +169,13 @@ func (api *ExternalSigner) SignData(account accounts.Account, mimeType string, d
 	return res, nil
 }
 
+// SignHash is not implemented for the external signer
+//
+// DEPRECATED, use SignData in future releases.
+func (api *ExternalSigner) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	panic("SignHash not implemented for the external signer")
+}
+
 func (api *ExternalSigner) SignText(account accounts.Account, text []byte) ([]byte, error) {
 	var res hexutil.Bytes
 	var signAddress = common.NewMixedcaseAddress(account.Address)
