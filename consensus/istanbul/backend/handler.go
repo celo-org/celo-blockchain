@@ -18,7 +18,6 @@ package backend
 
 import (
 	"errors"
-	"io"
 	"reflect"
 	"time"
 
@@ -52,6 +51,8 @@ const (
 	istanbulAnnounceVersionsMsg    = 0x18
 	istanbulDirectAnnounceMsg      = 0x19
 	istanbulValidatorProofMsg      = 0x1a
+
+	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
@@ -279,45 +280,81 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	}
 }
 
-type directAnnounce struct {
-	Node string
-	Version uint
-}
+// Handshake allows this node to identify itself to the peer as a validator and vice versa
+func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
+	errCh := make(chan error, 4)
+	isValidatorCh := make(chan bool, 1)
 
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
+	go func() {
+		validatorProofMessage, err := sb.generateValidatorProofMessage(peer)
+		errCh <- err
+		if err != nil {
+			return
+		}
+		// Even if we decide not to identify ourselves in the handshake,
+		// send an empty message to complete the handshake
+		if validatorProofMessage == nil {
+			validatorProofMessage = &istanbul.Message{}
+		}
+		msgBytes, err := validatorProofMessage.Payload()
+		errCh <- err
+		if err != nil {
+			return
+		}
+		errCh <- peer.Send(istanbulValidatorProofMsg, msgBytes)
+	}()
+	go func() {
+		isValidator, err := sb.readValidatorProofMessage(peer)
+		errCh <- err
+		isValidatorCh <- isValidator
+	}()
 
-// EncodeRLP serializes ar into the Ethereum RLP format.
-func (da *directAnnounce) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{da.Node, da.Version})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Node string
-		Version uint
+	timeout := time.NewTimer(handshakeTimeout)
+	defer timeout.Stop()
+	// We write to errCh four times unless if the timeout is triggered
+	for i := 0; i < 4; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				return false, err
+			}
+		case <-timeout.C:
+			return false, p2p.DiscReadTimeout
+		}
 	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	da.Node, da.Version = msg.Node, msg.Version
-	return nil
+	return <-isValidatorCh, nil
 }
 
-func (sb *Backend) getValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
+// generateValidatorProofMessage will create a directAnnounce message that serves
+// as a proof to the peer during the handshake that this node is a validator.
+// If this node is not a validator or this node does not believe the peer
+// is a validator, no proof is generated to hide the address of this node.
+// If this node is a proxy, it will use the most recent directAnnounce this
+// node has received from the proxied validator.
+func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
+	var validatorAddress common.Address
+	if sb.config.Proxy {
+		validatorAddress = sb.config.ProxiedValidatorAddress
+	} else {
+		validatorAddress = sb.Address()
+	}
+	// Check to see if this validator is in the current set
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		return nil, err
+	}
+	if regAndActiveVals[validatorAddress] {
+		return nil, nil
+	}
 	// If the peer is not a known validator, we do not want to give up extra
-	// information about the current node. If there is an error retrieving the
-	// peer from the val enode table, we do not know the peer to be another validator.
+	// information about the current node
 	if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
 		return nil, nil
 	}
 
 	if sb.config.Proxy {
 		// if this proxy has been disconnected from its validator for any reason,
-		// don't send a proof message
+		// don't send a proof message, but do not intentionally fail the handshake.
 		if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
 			// Make a copy of the proxyDirectAnnounceMsg for thread safety
 			sb.proxyDirectAnnounceMsgMu.RLock()
@@ -330,56 +367,60 @@ func (sb *Backend) getValidatorProofMessage(peer consensus.Peer) (*istanbul.Mess
 	return nil, nil
 }
 
-// Handshake allows this node to identify itself to the peer as a validator and vice versa
-func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
-	sb.logger.Warn("woo in sb handshake!")
-
-	errCh := make(chan error, 4)
-	isValidatorCh := make(chan bool, 1)
-
-	go func() {
-		validatorProofMessage, err := sb.getValidatorProofMessage(peer)
-		errCh <- err
-		if err != nil {
-			return
-		}
-		// An empty validator proof message will not result in a special case when peering
-		if validatorProofMessage == nil {
-			validatorProofMessage = &istanbul.Message{}
-		}
-		sb.logger.Warn("our val proof", "Address", validatorProofMessage.Address, "Signature", validatorProofMessage.Signature)
-		msgBytes, err := validatorProofMessage.Payload()
-		errCh <- err
-		if err != nil {
-			return
-		}
-		sb.logger.Warn("sending istanbulValidatorProofMsg", "msgBytes", msgBytes)
-		errCh <- peer.Send(istanbulValidatorProofMsg, msgBytes)
-	}()
-	go func() {
-		isValidator, err := sb.readValidatorProofMessage(peer)
-		errCh <- err
-		isValidatorCh <- isValidator
-	}()
-
-	timeout := time.NewTimer(time.Minute / 10.0)
-	defer timeout.Stop()
-	// We write to errCh four times unless if the timeout is triggered
-	for i := 0; i < 4; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil {
-				sb.logger.Warn("Err :(", "err", err)
-				return false, err
-			}
-		case <-timeout.C:
-			sb.logger.Warn("In istanbul handshake DiscReadTimeout")
-			return false, p2p.DiscReadTimeout
-		}
+// readValidatorProofMessage reads a validator proof message as a part of the
+// istanbul handshake. Returns if the peer is a validator or if an error occurred.
+func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
+	peerMsg, err := peer.ReadMsg()
+	if err != nil {
+		return false, err
 	}
-	return <-isValidatorCh, nil
+
+	var payload []byte
+	if err := peerMsg.Decode(&payload); err != nil {
+		return false, err
+	}
+
+	var msg istanbul.Message
+	err = msg.FromPayload(payload, sb.verifyValidatorProofMessage)
+	if err != nil {
+		return false, err
+	}
+	// If the Msg is empty, the peer has decided not to reveal its info
+	if len(msg.Msg) == 0 {
+		return false, nil
+	}
+
+	var directAnnounce directAnnounce
+	err = rlp.DecodeBytes(msg.Msg, &directAnnounce)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if the peer is within the registered/elected valset
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		sb.logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		return false, err
+	}
+	if !regAndActiveVals[msg.Address] {
+		return false, nil
+	}
+
+	// By this point, we know the peer is a validator and we update our val enode table accordingly
+	node, err := enode.ParseV4(directAnnounce.Node)
+	if err != nil {
+		return false, err
+	}
+	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: directAnnounce.Version}})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
+// verifyValidatorProofMessage allows messages that are not signed to still be
+// decoded in case the peer has decided not to identify itself with the validator proof
+// message
 func (sb *Backend) verifyValidatorProofMessage(data []byte, sig []byte) (common.Address, error) {
 	// If the message was not signed, allow it to still be decoded.
 	// A later check will verify if the address is in the validator set, which
@@ -387,63 +428,5 @@ func (sb *Backend) verifyValidatorProofMessage(data []byte, sig []byte) (common.
 	if len(sig) == 0 {
 		return common.ZeroAddress, nil
 	}
-	sb.logger.Warn("verifyValidatorProofMessage", "data", data, "sig", sig)
 	return istanbul.GetSignatureAddress(data, sig)
-}
-
-// readValidatorProofMessage reads a validator proof message as a part of the
-// istanbul handshake. Returns if the peer is a validator.
-func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
-	msg, err := peer.ReadMsg()
-	if err != nil {
-		return false, err
-	}
-	sb.logger.Warn("After ReadMsg()", "msg", msg)
-	var payload []byte
-	if err := msg.Decode(&payload); err != nil {
-		return false, err
-	}
-	sb.logger.Warn("After decode", "payload", payload)
-	var validatorProofMessage istanbul.Message
-	err = validatorProofMessage.FromPayload(payload, sb.verifyValidatorProofMessage)
-	if err != nil {
-		return false, err
-	}
-	sb.logger.Warn("Before validatorProofMessage.Msg len check", "len(validatorProofMessage.Msg)", len(validatorProofMessage.Msg))
-	if len(validatorProofMessage.Msg) == 0 {
-		return false, nil
-	}
-	sb.logger.Warn("After FromPayload", "validatorProofMessage", validatorProofMessage)
-	var directAnnounce directAnnounce
-	err = rlp.DecodeBytes(validatorProofMessage.Msg, &directAnnounce)
-	if err != nil {
-		return false, err
-	}
-
-	sb.logger.Warn("validatorProofMessage decoded", "address", validatorProofMessage.Address.String(), "signature", string(validatorProofMessage.Signature), "node", directAnnounce.Node, "version", directAnnounce.Version)
-	// do validator proof check
-
-	// Check if the sender is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
-	if err != nil {
-		sb.logger.Trace("Error in retrieving registered/elected valset", "err", err)
-		return false, err
-	}
-
-	if !regAndActiveVals[validatorProofMessage.Address] {
-		// not a validator
-		return false, nil
-	}
-
-	node, err := enode.ParseV4(directAnnounce.Node)
-	if err != nil {
-		return false, err
-	}
-
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{validatorProofMessage.Address: {Node: node, Version: directAnnounce.Version}})
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
 }

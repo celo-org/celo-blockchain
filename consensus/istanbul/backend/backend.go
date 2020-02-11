@@ -63,6 +63,12 @@ var (
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
+	// errNoProxiedValidatorConnection is returned when a proxy is not connected to a proxied validator
+	errNoProxiedValidatorConnection = errors.New("proxy is not connected to a proxied validator")
+
+	// errNotProxy is returned when the current node is expect to be a proxy
+	errNotProxy = errors.New("this node is not a proxy")
+
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
