@@ -31,7 +31,7 @@ type Broadcaster interface {
 	FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]Peer
 }
 
-// Server defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
+// P2PServer defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
 type P2PServer interface {
 	// Gets this node's enode
 	Self() *enode.Node
@@ -53,6 +53,7 @@ type Peer interface {
 	Node() *enode.Node
 	// Version returns the peer's version
 	Version() int
-	// Dangerously reading
+	// Blocks until a message is read directly from the peer.
+	// This should only be used during a handshake.
 	ReadMsg() (p2p.Msg, error)
 }

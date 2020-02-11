@@ -63,9 +63,6 @@ var (
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
-	// errNoProxiedValidatorConnection is returned when a proxy is not connected to a proxied validator
-	errNoProxiedValidatorConnection = errors.New("proxy is not connected to a proxied validator")
-
 	// errNotProxy is returned when the current node is expect to be a proxy
 	errNotProxy = errors.New("this node is not a proxy")
 
@@ -207,7 +204,7 @@ type Backend struct {
 	cachedAnnounceMsgsMu sync.RWMutex
 
 	// The direct announce message most recently received by a proxy from its
-	// proxied validator for proving itself as a validator during p2p handshakes.
+	// proxied validator for proving itself as a validator in the handshake.
 	// The entire istanbul.Message is saved to keep the signature
 	proxyDirectAnnounceMsg   *istanbul.Message
 	proxyDirectAnnounceMsgMu sync.RWMutex
