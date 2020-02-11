@@ -36,7 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"	
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -138,6 +138,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulDirectAnnounceMsg] = backend.handleDirectAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 
 	return backend
@@ -198,6 +199,12 @@ type Backend struct {
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
+
+	// The direct announce message most recently received by a proxy from its
+	// proxied validator for proving itself as a validator during p2p handshakes.
+	// The entire istanbul.Message is saved to keep the signature
+	proxyDirectAnnounceMsg   *istanbul.Message
+	proxyDirectAnnounceMsgMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

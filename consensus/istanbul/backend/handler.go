@@ -50,11 +50,12 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulValidatorProofMsg      = 0x19
+	istanbulDirectAnnounceMsg      = 0x19
+	istanbulValidatorProofMsg      = 0x1a
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulAnnounceVersionsMsg
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorProofMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -257,6 +258,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
+			go sb.sendDirectAnnounce(peer)
 		} else {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
 		}
@@ -305,49 +307,27 @@ func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (sb *Backend) getValidatorProofMessage(peer consensus.Peer) (istanbul.Message, error) {
+func (sb *Backend) getValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
 	// If the peer is not a known validator, we do not want to give up extra
 	// information about the current node. If there is an error retrieving the
 	// peer from the val enode table, we do not know the peer to be another validator.
 	if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
-		return istanbul.Message{}, nil
+		return nil, nil
 	}
 
-	if sb.config.Proxied {
-		if sb.proxyNode != nil && sb.proxyNode.peer != nil {
-			// delegate sign here
-			// return &Message{
-			// 	Address: sb.Address(),
-			// 	Msg: rlp.EncodeToBytes(directAnnounce),
-			// 	Signature: []byte("wassup dude"),
-			// }
-			// return nil, nil
+	if sb.config.Proxy {
+		// if this proxy has been disconnected from its validator for any reason,
+		// don't send a proof message
+		if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
+			// Make a copy of the proxyDirectAnnounceMsg for thread safety
+			sb.proxyDirectAnnounceMsgMu.RLock()
+			defer sb.proxyDirectAnnounceMsgMu.RUnlock()
+			return sb.proxyDirectAnnounceMsg.Copy(), nil
 		}
 	} else {
-		directAnnounce := &directAnnounce{
-			Node: sb.p2pserver.Self().URLv4(),
-			Version: uint(time.Now().Unix()),
-		}
-		sb.logger.Warn("our direct announce", "Node", directAnnounce.Node, "version", directAnnounce.Version)
-		directAnnounceBytes, err := rlp.EncodeToBytes(directAnnounce)
-		if err != nil {
-			return istanbul.Message{}, err
-		}
-		sb.logger.Warn("directAnnounceBytes", "directAnnounceBytes", directAnnounceBytes)
-		msg := istanbul.Message{
-			Address: sb.Address(),
-			Msg: directAnnounceBytes,
-			Signature: []byte(""),
-		}
-		sb.logger.Warn("generated msg", "msg", msg)
-		// Sign the announce message
-		if err := msg.Sign(sb.Sign); err != nil {
-			return istanbul.Message{}, err
-		}
-		sb.logger.Warn("signed msg", "msg", msg)
-		return msg, nil
+		return sb.generateDirectAnnounce()
 	}
-	return istanbul.Message{}, nil
+	return nil, nil
 }
 
 // Handshake allows this node to identify itself to the peer as a validator and vice versa
@@ -358,12 +338,14 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	isValidatorCh := make(chan bool, 1)
 
 	go func() {
-		var validatorProofMessage istanbul.Message
-		// we need to send a message regardless of what content is decided
 		validatorProofMessage, err := sb.getValidatorProofMessage(peer)
 		errCh <- err
 		if err != nil {
 			return
+		}
+		// An empty validator proof message will not result in a special case when peering
+		if validatorProofMessage == nil {
+			validatorProofMessage = &istanbul.Message{}
 		}
 		sb.logger.Warn("our val proof", "Address", validatorProofMessage.Address, "Signature", validatorProofMessage.Signature)
 		msgBytes, err := validatorProofMessage.Payload()
@@ -382,7 +364,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 
 	timeout := time.NewTimer(time.Minute / 10.0)
 	defer timeout.Stop()
-	// We write to errCh three times unless if the timeout is triggered
+	// We write to errCh four times unless if the timeout is triggered
 	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:

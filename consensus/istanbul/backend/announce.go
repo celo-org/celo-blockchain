@@ -18,6 +18,7 @@ package backend
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -356,6 +357,14 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return err
 	}
 
+	logger.Warn("in generateAndGossipAnnounce")
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		err := sb.sendDirectAnnounce(sb.proxyNode.peer)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Add the generated announce message to this node's cache
 	sb.cachedAnnounceMsgsMu.Lock()
 	defer sb.cachedAnnounceMsgsMu.Unlock()
@@ -420,6 +429,49 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
 	return msg, announceData.Version, msg.Address, nil
+}
+
+// generateDirectAnnounce generates a direct announce message with the enode
+// this node is publicly accessible at. If this node is proxied, the proxy's
+// public enode is used.
+func (sb *Backend) generateDirectAnnounce() (*istanbul.Message, error) {
+	var enodeURL string
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			enodeURL = sb.proxyNode.externalNode.URLv4()
+		} else {
+			err := errors.New("Proxied node is not connected to a proxy")
+			sb.logger.Error("Proxied node is not connected to a proxy")
+			return nil, err
+		}
+	} else {
+		enodeURL = sb.p2pserver.Self().URLv4()
+	}
+
+	directAnnounce := &directAnnounce{
+		Node: enodeURL,
+		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+		Version: uint(time.Now().Unix()),
+	}
+	sb.logger.Warn("our direct announce", "Node", directAnnounce.Node, "version", directAnnounce.Version)
+	directAnnounceBytes, err := rlp.EncodeToBytes(directAnnounce)
+	if err != nil {
+		return nil, err
+	}
+	sb.logger.Warn("directAnnounceBytes", "directAnnounceBytes", directAnnounceBytes)
+	msg := &istanbul.Message{
+		Code: istanbulDirectAnnounceMsg,
+		Address: sb.Address(),
+		Msg: directAnnounceBytes,
+		Signature: []byte(""),
+	}
+	sb.logger.Warn("generated msg", "msg", msg)
+	// Sign the announce message
+	if err := msg.Sign(sb.Sign); err != nil {
+		return nil, err
+	}
+	sb.logger.Warn("signed msg", "msg", msg)
+	return msg, nil
 }
 
 // This function will handle an announce message.
@@ -698,4 +750,72 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 			sb.sendGetAnnounceVersions(peer)
 		}
 	}
+}
+
+func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleDirectAnnounceMsg")
+
+	// TODO remove this check once direct announce messages are not limited to
+	// proxied validator -> proxy communication
+	if !sb.config.Proxy {
+		err := errors.New("Received Istanbul Direct Announce message when not a proxy")
+		logger.Error("Direct announce messages can only be received by proxies", "err", err)
+		return err
+	}
+
+	var msg istanbul.Message
+
+	// Decode message
+	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
+	if err != nil {
+		logger.Error("Error in decoding received Istanbul Direct Announce message", "err", err, "payload", hex.EncodeToString(payload))
+		return err
+	}
+	logger.Warn("Handling an Istanbul Direct Announce message", "from", msg.Address)
+
+	if msg.Address != sb.config.ProxiedValidatorAddress {
+		err = errors.New("Received Istanbul Direct Announce message from an address that is not the proxied validator")
+		logger.Error("Direct announce messages can only be received by proxies", "err", err)
+		return err
+	}
+
+	var directAnnounce directAnnounce
+	err = rlp.DecodeBytes(msg.Msg, &directAnnounce)
+	if err != nil {
+		logger.Warn("Error in decoding received Istanbul Direct Announce message content", "err", err, "IstanbulMsg", msg.String())
+		return err
+	}
+
+	logger.Warn("Got a direct announce", "directAnnounce", directAnnounce)
+
+	if directAnnounce.Node != sb.p2pserver.Self().URLv4() {
+		err := fmt.Errorf("Received Istanbul Direct Announce message with an unexpect node (%s != %s)", directAnnounce.Node,  sb.p2pserver.Self().URLv4())
+		logger.Warn("Incorrect node", "err", err)
+		return err
+	}
+
+	logger.Warn("Got a direct announce after node check", "directAnnounce", directAnnounce)
+
+	sb.proxyDirectAnnounceMsgMu.Lock()
+	sb.proxyDirectAnnounceMsg = &msg
+	sb.proxyDirectAnnounceMsgMu.Unlock()
+
+	return nil
+}
+
+func (sb *Backend) sendDirectAnnounce(peer consensus.Peer) error {
+	sb.logger.Warn("sendDirectAnnounce")
+	directAnnounce, err := sb.generateDirectAnnounce()
+	if err != nil {
+		return err
+	}
+	sb.logger.Warn("sendDirectAnnounce generated direct announce", "directAnnounce", directAnnounce)
+	if directAnnounce != nil {
+		directAnnPayload, err := directAnnounce.Payload()
+		if err != nil {
+			return err
+		}
+		peer.Send(istanbulDirectAnnounceMsg, directAnnPayload)
+	}
+	return nil
 }
