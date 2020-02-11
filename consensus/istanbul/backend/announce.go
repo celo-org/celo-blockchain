@@ -498,8 +498,6 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 				break
 			}
-
-			logger.Debug("The announce message did not contain an entry for this node")
 		}
 	}
 
