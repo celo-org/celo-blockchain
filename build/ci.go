@@ -176,6 +176,8 @@ func main() {
 		doInstall(os.Args[2:])
 	case "test":
 		doTest(os.Args[2:])
+	case "ensure-linter":
+		doEnsureLinter(os.Args[2:])
 	case "lint":
 		doLint(os.Args[2:])
 	case "archive":
@@ -355,6 +357,16 @@ func doTest(cmdline []string) {
 
 	gotest.Args = append(gotest.Args, packages...)
 	build.MustRun(gotest)
+}
+
+// doEnsureLinter ensure golangci-lint is properly installed
+func doEnsureLinter(cmdline []string) {
+	var (
+		cachedir = flag.String("cachedir", "./build/cache", "directory for caching golangci-lint binary.")
+	)
+	flag.CommandLine.Parse(cmdline)
+	linter := downloadLinter(*cachedir)
+	fmt.Printf("LinterPath=%s", linter)
 }
 
 // doLint runs golangci-lint on requested packages.
