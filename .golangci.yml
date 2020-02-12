@@ -21,7 +21,7 @@ linters:
 
     - goconst
     - goimports
-    # - gosec
+    - gosec
     - misspell
     # - prealloc
     - unconvert
