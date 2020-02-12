@@ -29,6 +29,9 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Generate an ist announce message using val1
 	istMsg, _, _, err := b.generateAnnounce()
+	if err != nil {
+		t.Fatalf("Error on generateAnnounce: %s", err)
+	}
 	istMsg.Sign(b.Sign)
 	payload, _ := istMsg.Payload()
 

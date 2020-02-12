@@ -97,7 +97,7 @@ func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
 func TestRSDBKeyEncodingOrder(t *testing.T) {
 	iterations := 1000
 
-	t.Run("ViewKey enconding should decode the same view", func(t *testing.T) {
+	t.Run("ViewKey encoding should decode the same view", func(t *testing.T) {
 		for i := 0; i < iterations; i++ {
 			view := newView(rand.Uint64(), rand.Uint64())
 			key := view2Key(view)
@@ -108,7 +108,7 @@ func TestRSDBKeyEncodingOrder(t *testing.T) {
 		}
 	})
 
-	t.Run("ViewKey enconding should maintain sort order", func(t *testing.T) {
+	t.Run("ViewKey encoding should maintain sort order", func(t *testing.T) {
 		for i := 0; i < iterations; i++ {
 			viewA := newView(rand.Uint64(), rand.Uint64())
 			keyA := view2Key(viewA)
