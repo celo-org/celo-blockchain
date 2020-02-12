@@ -195,7 +195,6 @@ type Config struct {
 
 	staticNodesWarning     bool
 	trustedNodesWarning    bool
-	proxiedNodesWarning    bool
 	oldGethResourceWarning bool
 }
 
