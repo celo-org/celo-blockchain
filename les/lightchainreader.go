@@ -31,5 +31,4 @@ func (lcr *LightChainReader) GetHeader(hash common.Hash, number uint64) *types.H
 }
 func (lcr *LightChainReader) GetBlock(hash common.Hash, number uint64) *types.Block {
 	panic("GetBlock cannot be called on LightChainReader")
-	return nil
 }

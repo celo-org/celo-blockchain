@@ -36,7 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"	
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -366,7 +366,7 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 // If the destAddresses param is set to nil, then this function will send the message to all connected
 // peers.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
-        logger := sb.logger.New("func", "Multicast")
+	logger := sb.logger.New("func", "Multicast")
 
 	// Get peers to send.
 	peers := sb.getPeersForMessage(destAddresses)
