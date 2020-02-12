@@ -16,7 +16,7 @@ linters:
     - govet
     - ineffassign
     # - staticcheck
-    # - unused
+    - unused
     - varcheck
 
     - goconst

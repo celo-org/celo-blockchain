@@ -278,7 +278,7 @@ func expandNode(hash hashNode, n node) node {
 //
 // Since trie keys are already hashes, we can just use the key directly to
 // map shard id.
-type trienodeHasher struct{}
+type trienodeHasher struct{} //nolint:unused
 
 // Sum64 implements the bigcache.Hasher interface.
 func (t trienodeHasher) Sum64(key string) uint64 {
