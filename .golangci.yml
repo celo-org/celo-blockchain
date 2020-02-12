@@ -15,7 +15,7 @@ linters:
     - gosimple
     - govet
     - ineffassign
-    # - staticcheck
+    - staticcheck
     - unused
     - varcheck
 
@@ -37,10 +37,15 @@ linters-settings:
 
 issues:
   exclude-rules:
-    # Exclude some linters from running on tests files.
+    # ignore deprecation warnings for now
+    - linters:
+        - staticcheck
+      text: "SA1019:"
+    # genesis has a really long string
     - path: core/genesis_alloc.go
       linters:
         - misspell
+    # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
         - errcheck

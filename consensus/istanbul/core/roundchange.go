@@ -367,11 +367,6 @@ func (rcs *roundChangeSet) String() string {
 		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
 	}
 
-	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
-	for addr, r := range rcs.latestRoundForVal {
-		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
-	}
-
 	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=%v %v",
 		len(rcs.latestRoundForVal),
 		modeRound,

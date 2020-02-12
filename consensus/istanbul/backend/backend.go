@@ -412,7 +412,6 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 // Commit implements istanbul.Backend.Commit
 func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
@@ -455,7 +454,6 @@ func (sb *Backend) EventMux() *event.TypeMux {
 // Verify implements istanbul.Backend.Verify
 func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
