@@ -635,9 +635,22 @@ func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address 
 	if err != nil {
 		return nil, nil, err
 	}
-	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
+	signatureBytesCompressed, err := bls.CompressSignature(signatureBytes)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return pubKeyBytes, signatureBytes, nil
+	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pubKeyBytesCompressed, err := bls.CompressPublickey(pubKeyBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pubKeyBytesCompressed, signatureBytesCompressed, nil
 }
 
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger
