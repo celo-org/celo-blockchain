@@ -202,7 +202,8 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 	if msg.Code != istanbul.MsgRoundChange && c.alwaysRoundChange() {
 		logger.Info("Send faulty round change", "round", c.current.Round().Uint64())
-		c.sendNextRoundChange()
+		nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+		c.waitForDesiredRound(nextRound)
 		return nil
 	}
 	switch msg.Code {

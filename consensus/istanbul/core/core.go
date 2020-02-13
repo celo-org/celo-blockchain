@@ -143,13 +143,14 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 		str := "fake"
 		copy(msg.Signature[:len(str)], []byte(str)[:])
 	}
+
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
 		return nil, err
 	}
 
-        return payload, nil
+	return payload, nil
 }
 
 func (c *core) CurrentRoundState() RoundState { return c.current }
@@ -266,25 +267,17 @@ func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
-	// Add sender address
-	msg.Address = c.address
-
-	if err := msg.Sign(c.backend.Sign); err != nil {
-		return nil, err
-	}
-
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
+func (c *core) broadcast(msg *istanbul.Message) {
+	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
 }
 
-func (c *core) broadcast(msg *istanbul.Message) {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
+// Send message to a specific address
+func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
+	c.sendMsgTo(msg, []common.Address{addr})
+}
+
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+	logger := c.newLogger("state", c.current.State(), "cur_round", c.current.Round(), "cur_seq", c.current.Sequence())
 
 	if c.notBroadcast() {
 		logger.Info("Not broadcast message", "message", msg)
@@ -299,37 +292,6 @@ func (c *core) broadcast(msg *istanbul.Message) {
 
 	payload, err := c.finalizeMessage(msg)
 	if err != nil {
-		logger.Error("Failed to finalize message", "msg", msg, "err", err)
-		return
-	}
-
-	// Broadcast payload
-	if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
-		logger.Error("Failed to broadcast message", "msg", msg, "err", err)
-		return
-	}
-
-	if c.sendExtraMessages() {
-		extraMsgCount := 20
-		logger.Info("Broadcasting extra copies of the given message", "message", msg, "count", extraMsgCount)
-		for i := 0; i < extraMsgCount; i++ {
-			if err := c.backend.BroadcastConsensusMsg(istanbul.GetAddressesFromValidatorList(c.valSet.List()), payload); err != nil {
-				return
-			}
-		}
-	}
-}
-
-// Send message to a specific address
-func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
-	c.sendMsgTo(msg, []common.Address{addr})
-}
-
-func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
-	logger := c.newLogger("func", "sendMsgTo")
-
-	payload, err := c.finalizeMessage(msg)
-	if err != nil {
 		logger.Error("Failed to finalize message", "m", msg, "err", err)
 		return
 	}
@@ -338,6 +300,16 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
 		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
+	}
+
+	if c.sendExtraMessages() {
+		extraMsgCount := 20
+		logger.Info("Broadcasting extra copies of the given message", "message", msg, "count", extraMsgCount)
+		for i := 0; i < extraMsgCount; i++ {
+			if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+				return
+			}
+		}
 	}
 }
 
