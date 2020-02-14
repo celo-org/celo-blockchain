@@ -356,9 +356,9 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return err
 	}
 
-	// Send a new direct announce to the peer
+	// Send a new direct announce to the peer with the same version that was just gossiped out
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendDirectAnnounce(sb.proxyNode.peer)
+		err := sb.sendDirectAnnounce(sb.proxyNode.peer, announceVersion)
 		if err != nil {
 			return err
 		}
@@ -402,8 +402,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Version: uint(time.Now().Unix()),
+		Version:         getCurrentAnnounceVersion(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -739,7 +738,7 @@ func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 // generateDirectAnnounce generates a direct announce message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
-func (sb *Backend) generateDirectAnnounce() (*istanbul.Message, error) {
+func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateDirectAnnounce")
 
 	var enodeURL string
@@ -756,7 +755,7 @@ func (sb *Backend) generateDirectAnnounce() (*istanbul.Message, error) {
 	directAnnounce := &directAnnounce{
 		Node: enodeURL,
 		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Version: uint(time.Now().Unix()),
+		Version: version,
 	}
 	directAnnounceBytes, err := rlp.EncodeToBytes(directAnnounce)
 	if err != nil {
@@ -834,8 +833,8 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 	return nil
 }
 
-func (sb *Backend) sendDirectAnnounce(peer consensus.Peer) error {
-	directAnnounce, err := sb.generateDirectAnnounce()
+func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
+	directAnnounce, err := sb.generateDirectAnnounce(version)
 	if err != nil {
 		return err
 	}
@@ -847,4 +846,9 @@ func (sb *Backend) sendDirectAnnounce(peer consensus.Peer) error {
 		return err
 	}
 	return peer.Send(istanbulDirectAnnounceMsg, payload)
+}
+
+func getCurrentAnnounceVersion() uint {
+	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+	return uint(time.Now().Unix())
 }

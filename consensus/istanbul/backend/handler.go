@@ -259,7 +259,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			go sb.sendDirectAnnounce(peer)
+			go sb.sendDirectAnnounce(peer, getCurrentAnnounceVersion())
 		} else {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
 		}
@@ -332,6 +332,29 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 // If this node is a proxy, it will use the most recent directAnnounce this
 // node has received from the proxied validator.
 func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
+	if shouldSend, err := sb.shouldSendValidatorProof(peer); !shouldSend || err != nil {
+		return nil, err
+	}
+
+	if sb.config.Proxy {
+		// if this proxy has been disconnected from its validator for any reason,
+		// don't send a proof message, but do not fail the handshake.
+		if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
+			// Make a copy of the proxyDirectAnnounceMsg for thread safety
+			sb.proxyDirectAnnounceMsgMu.RLock()
+			defer sb.proxyDirectAnnounceMsgMu.RUnlock()
+			return sb.proxyDirectAnnounceMsg.Copy(), nil
+		}
+	} else {
+		return sb.generateDirectAnnounce(getCurrentAnnounceVersion())
+	}
+
+	return nil, nil
+}
+
+// shouldSendValidatorProof determines if this node should send a
+// validator proof revealing its address to a peer
+func (sb *Backend) shouldSendValidatorProof(peer consensus.Peer) (bool, error) {
 	var validatorAddress common.Address
 	if sb.config.Proxy {
 		validatorAddress = sb.config.ProxiedValidatorAddress
@@ -341,30 +364,18 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 	// Check to see if this node is a validator
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	if !regAndActiveVals[validatorAddress] {
-		return nil, nil
+		return false, nil
 	}
 	// If the peer is not a known validator, we do not want to give up extra
-	// information about the current node
+	// information about ourselves
 	if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
-		return nil, nil
+		return false, nil
 	}
 
-	if sb.config.Proxy {
-		// if this proxy has been disconnected from its validator for any reason,
-		// don't send a proof message, but do not intentionally fail the handshake.
-		if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
-			// Make a copy of the proxyDirectAnnounceMsg for thread safety
-			sb.proxyDirectAnnounceMsgMu.RLock()
-			defer sb.proxyDirectAnnounceMsgMu.RUnlock()
-			return sb.proxyDirectAnnounceMsg.Copy(), nil
-		}
-	} else {
-		return sb.generateDirectAnnounce()
-	}
-	return nil, nil
+	return true, nil
 }
 
 // readValidatorProofMessage reads a validator proof message as a part of the
