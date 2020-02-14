@@ -498,6 +498,9 @@ func (s *Ethereum) StartMining(threads int) error {
 		clique, isClique := s.engine.(*clique.Clique)
 		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
 		if isIstanbul || isClique {
+			for _, wallet := range s.accountManager.Wallets() {
+				wallet.Open("")
+			}
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)

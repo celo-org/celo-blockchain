@@ -989,9 +989,9 @@ func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 		}
 		cfg.BLSbase = account.Address
 	}
-//	if ctx.GlobalIsSet(BLSwalletFlag.Name) {
-//		cfg.BLSbase = common.HexToAddress("0x0000000000000000000000000000000000000001")
-//	}
+	if ctx.GlobalIsSet(BLSwalletFlag.Name) {
+		cfg.BLSbase = common.HexToAddress("0x0000000000000000000000000000000000000001")
+	}
 }
 
 // MakePasswordList reads password lines from the file specified by the global --password flag.
