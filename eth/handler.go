@@ -334,6 +334,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Ethereum handshake failed", "err", err)
 		return err
 	}
+	// TODO add protocol version check
 	forcePeer := false
 	if handler, ok := pm.engine.(consensus.Handler); ok {
 		isValidator, err := handler.Handshake(p)

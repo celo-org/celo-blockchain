@@ -809,9 +809,17 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 		return err
 	}
 
+	parsedNode, err := enode.ParseV4(directAnnounce.Node)
+	if err != nil {
+		logger.Warn("Malformed v4 node in received Istanbul Direct Announce message", "directAnnounce", directAnnounce, "err", err)
+	}
+
 	// TODO remove this check when a directAnnounce can be received from a node
 	// apart from the proxied validator
-	if directAnnounce.Node != sb.p2pserver.Self().URLv4() {
+	// There may be a difference in the URLv4 string because of `discport`,
+	// so instead compare the ID, IP, and port
+	selfNode := sb.p2pserver.Self()
+	if parsedNode.ID() != selfNode.ID() || !parsedNode.IP().Equal(selfNode.IP()) || parsedNode.TCP() != selfNode.TCP() {
 		err := fmt.Errorf("Unexpected node (%s != %s)", directAnnounce.Node,  sb.p2pserver.Self().URLv4())
 		logger.Warn("Received Istanbul Direct Announce message with an incorrect node", "err", err)
 		return err

@@ -338,12 +338,12 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 	} else {
 		validatorAddress = sb.Address()
 	}
-	// Check to see if this validator is in the current set
+	// Check to see if this node is a validator
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		return nil, err
 	}
-	if regAndActiveVals[validatorAddress] {
+	if !regAndActiveVals[validatorAddress] {
 		return nil, nil
 	}
 	// If the peer is not a known validator, we do not want to give up extra
