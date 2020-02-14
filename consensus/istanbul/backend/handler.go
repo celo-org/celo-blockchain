@@ -417,11 +417,19 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
+	// If the directAnnounce message is too old, we don't count this proof as valid
+	// An error is given if the entry doesn't exist, so we ignore the error.
+	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
+	if err == nil && directAnnounce.Version < knownVersion {
+		return false, nil
+	}
+
 	// By this point, we know the peer is a validator and we update our val enode table accordingly
 	node, err := enode.ParseV4(directAnnounce.Node)
 	if err != nil {
 		return false, err
 	}
+	// Upsert will only use this entry if the version is new
 	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: directAnnounce.Version}})
 	if err != nil {
 		return false, err
