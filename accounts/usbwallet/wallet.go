@@ -561,7 +561,11 @@ func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	return signed, nil
+	signedCompressed, err := bls.CompressSignature(signed)
+	if err != nil {
+		return nil, err
+	}
+	return signedCompressed, nil
 }
 
 func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
@@ -596,7 +600,11 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 	if err != nil {
 		return nil, err
 	}
-	return signed, nil
+	signedCompressed, err := bls.CompressSignature(signed)
+	if err != nil {
+		return nil, err
+	}
+	return signedCompressed, nil
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
