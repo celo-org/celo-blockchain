@@ -76,3 +76,6 @@ require (
 )
 
 replace github.com/celo-org/bls-zexe/go => ./crypto/bls/bls-zexe/go
+
+// Use our fork which contains the fix to build on iOS
+replace github.com/elastic/gosigar => github.com/celo-org/gosigar v0.10.5-celo1
