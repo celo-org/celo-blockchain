@@ -157,7 +157,6 @@ func (am *Manager) Find(account Account) (Wallet, error) {
 	defer am.lock.RUnlock()
 
 	for _, wallet := range am.wallets {
-		log.Warn("Found wallet: ", "wallet", wallet)
 		if wallet.Contains(account) {
 			return wallet, nil
 		}
