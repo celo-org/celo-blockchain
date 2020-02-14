@@ -498,6 +498,8 @@ func (s *Ethereum) StartMining(threads int) error {
 		clique, isClique := s.engine.(*clique.Clique)
 		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
 		if isIstanbul || isClique {
+			// Need to open hardware wallet if used for BLS signing; otherwise a race condition
+			// appears between registering the wallet's address and looking up blsbase
 			for _, wallet := range s.accountManager.Wallets() {
 				wallet.Open("")
 			}
