@@ -213,6 +213,10 @@ var (
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
+	BLSwalletFlag = cli.BoolFlag{
+		Name: "blswallet",
+		Usage: "Use hardware wallet for BLS signing. Overrides blsbase",
+	}
 	// Dashboard settings
 	DashboardEnabledFlag = cli.BoolFlag{
 		Name:  metrics.DashboardEnabledFlag,
@@ -985,6 +989,9 @@ func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 		}
 		cfg.BLSbase = account.Address
 	}
+//	if ctx.GlobalIsSet(BLSwalletFlag.Name) {
+//		cfg.BLSbase = common.HexToAddress("0x0000000000000000000000000000000000000001")
+//	}
 }
 
 // MakePasswordList reads password lines from the file specified by the global --password flag.

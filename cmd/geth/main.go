@@ -91,6 +91,7 @@ var (
 		utils.WhitelistFlag,
 		utils.EtherbaseFlag,
 		utils.BLSbaseFlag,
+		utils.BLSwalletFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
 		utils.CacheTrieFlag,
