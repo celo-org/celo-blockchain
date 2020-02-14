@@ -133,7 +133,13 @@ jobs:
       - checkout
       - run:
           name: Setup Go language
-          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+            # Check that homebrew installed the expected go version
+            if [[ "$(go version)" != "go version go1.13"* ]]; then 
+              echo "go1.13 is required"
+              exit 1
+            fi
       - run:
           name: Setup Rust language
           command: |
