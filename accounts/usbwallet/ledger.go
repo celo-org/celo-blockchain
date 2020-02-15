@@ -462,7 +462,6 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 }
 
 
-// TODO: Describe protocol
 // ledgerBLSHashSign sends a hashed message to the Ledger wallet representing
 // an elliptic curve point in G1. It then receives the BLS signature computed
 // on this hash.
@@ -471,27 +470,19 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 //
 //   CLA | INS | P1 | P2 | Lc  | Le
 //   ----+-----+----+----+-----+---
-//    E0 | 02  | 80: final hash data block
+//    E0 | 02  | 80: final hash data block (less than 255 bytes)
 //
 // Where the input is:
 //
 //   Description                                      | Length
 //   -------------------------------------------------+----------
-//   Serialized G1 point                              | 
-//
-// And the input for subsequent transaction blocks (first 255 bytes) are:
-//
-//   Description           | Length
-//   ----------------------+----------
-//   RLP transaction chunk | arbitrary
+//   Hash of message as serialized G1 point           | 96 bytes 
 //
 // And the output data is:
 //
 //   Description | Length
 //   ------------+---------
-//   signature V | 1 byte
-//   signature R | 32 bytes
-//   signature S | 32 bytes
+//   signature S | 96 bytes
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 	var (
 		err error
