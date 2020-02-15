@@ -428,7 +428,20 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	return sender, signed, nil
 }
 
-// TODO: Describe protocol
+// ledgerGetPubKeyBLS sends a request to the Ledger wallet, and waits for the 
+// response containing the BLS public key
+//
+// The transaction signing protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc  | Le
+//   ----+-----+----+----+-----+---
+//    E0 | 04  | 80: final request data block (no payload)
+//
+// The output data is:
+//
+//   Description   | Length
+//   ------------+---------
+//   public key pk | 192 bytes
 func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 	var (
 		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
@@ -450,6 +463,35 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 
 
 // TODO: Describe protocol
+// ledgerBLSHashSign sends a hashed message to the Ledger wallet representing
+// an elliptic curve point in G1. It then receives the BLS signature computed
+// on this hash.
+//
+// The transaction signing protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc  | Le
+//   ----+-----+----+----+-----+---
+//    E0 | 02  | 80: final hash data block
+//
+// Where the input is:
+//
+//   Description                                      | Length
+//   -------------------------------------------------+----------
+//   Serialized G1 point                              | 
+//
+// And the input for subsequent transaction blocks (first 255 bytes) are:
+//
+//   Description           | Length
+//   ----------------------+----------
+//   RLP transaction chunk | arbitrary
+//
+// And the output data is:
+//
+//   Description | Length
+//   ------------+---------
+//   signature V | 1 byte
+//   signature R | 32 bytes
+//   signature S | 32 bytes
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 	var (
 		err error
