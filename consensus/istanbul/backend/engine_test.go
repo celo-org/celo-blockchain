@@ -736,8 +736,8 @@ func TestWriteSeal(t *testing.T) {
 		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
 		Seal:                      []byte{},
-		AggregatedSeal:            types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
 	if err != nil {

@@ -20,10 +20,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"reflect"
 	"testing"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

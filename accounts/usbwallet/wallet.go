@@ -21,11 +21,12 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"io"
 	"math/big"
 	"sync"
 	"time"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"

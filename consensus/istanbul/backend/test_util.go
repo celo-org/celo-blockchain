@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"

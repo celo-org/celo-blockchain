@@ -3,9 +3,10 @@ package core
 import (
 	"bytes"
 	"encoding/hex"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/rand"
 	"testing"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"

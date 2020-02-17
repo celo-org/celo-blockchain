@@ -20,8 +20,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 )
