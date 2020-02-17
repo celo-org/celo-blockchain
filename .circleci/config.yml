@@ -12,7 +12,7 @@ end-to-end-defaults: &end-to-end-defaults
   docker:
     - image: celohq/node10-gcloud
   environment:
-    CELO_MONOREPO_BRANCH_TO_TEST: mc/geth1.9
+    CELO_MONOREPO_BRANCH_TO_TEST: mc/geth1.9-final
 
 jobs:
   unit-tests:
