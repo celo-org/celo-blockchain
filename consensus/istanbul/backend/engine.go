@@ -531,12 +531,15 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		sb.sealMu.Unlock()
 	}
 
-	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
-
 	go func() {
+		// post block into Istanbul engine
+		err := sb.EventMux().Post(istanbul.RequestEvent{
+			Proposal: block,
+		})
+		if err != nil {
+			sb.logger.Error("Failed to enqueue new Block to seal", "err", err)
+		}
+
 		defer clear()
 		for {
 			select {
@@ -925,7 +928,12 @@ func sigHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 
 	// Clean seal is required for calculating proposer seal.
-	rlp.Encode(hasher, types.IstanbulFilteredHeader(header, false))
+	err := rlp.Encode(hasher, types.IstanbulFilteredHeader(header, false))
+	if err != nil {
+		log.Crit("Failed to encode Header", "fun", "sigHash", "err", err)
+		return hash
+	}
+
 	hasher.Sum(hash[:0])
 	return hash
 }

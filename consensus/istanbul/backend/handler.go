@@ -198,7 +198,9 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	}
 
 	sb.logger.Debug("Forwarding a consensus message")
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
+	if err = sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg); err != nil {
+		return err
+	}
 	return nil
 }
 

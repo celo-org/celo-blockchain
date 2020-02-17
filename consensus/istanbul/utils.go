@@ -33,7 +33,9 @@ import (
 
 func RLPHash(v interface{}) (h common.Hash) {
 	hw := sha3.NewLegacyKeccak256()
-	rlp.Encode(hw, v)
+	if err := rlp.Encode(hw, v); err != nil {
+		log.Crit("Bug. Failed to encode common.Hash", "err", err)
+	}
 	hw.Sum(h[:0])
 	return h
 }
