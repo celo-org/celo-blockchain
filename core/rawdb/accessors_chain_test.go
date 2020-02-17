@@ -72,7 +72,7 @@ func TestBodyStorage(t *testing.T) {
 	db := NewMemoryDatabase()
 
 	// Create a test body to move around the database and make sure it's really new
-	body := &types.Body{Uncles: []*types.Header{{Extra: []byte("test header")}}, Randomness: &types.Randomness{}}
+	body := &types.Body{Uncles: []*types.Header{{Extra: []byte("test header")}}, Randomness: &types.Randomness{}, EpochSnarkData: &types.EpochSnarkData{}}
 
 	hasher := sha3.NewLegacyKeccak256()
 	rlp.Encode(hasher, body)
@@ -318,7 +318,7 @@ func TestBlockReceiptStorage(t *testing.T) {
 	tx1 := types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil, nil, nil, nil)
 	tx2 := types.NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil, nil, nil, nil)
 
-	body := &types.Body{Transactions: types.Transactions{tx1, tx2}, Randomness: &types.Randomness{}}
+	body := &types.Body{Transactions: types.Transactions{tx1, tx2}, Randomness: &types.Randomness{}, EpochSnarkData: &types.EpochSnarkData{}}
 
 	// Create the two receipts to manage afterwards
 	receipt1 := &types.Receipt{

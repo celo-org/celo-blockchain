@@ -134,6 +134,41 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 }
 
+func TestProxyConsensusForwarding(t *testing.T) {
+	_, backend := newBlockChain(1, true)
+	backend.config.Proxy = true
+
+	// generate one msg
+	data := []byte("data1")
+	bytes, err := rlp.EncodeToBytes(data)
+	if err != nil {
+		t.Fatalf("Error encoding consensus message bytes: %v", err)
+	}
+
+	msg := &istanbul.Message{
+		Code:      istanbulConsensusMsg,
+		Msg:       bytes,
+		Address:   backend.Address(),
+		Signature: []byte{},
+	}
+
+	// Test sending a message with no validator signature.
+	// Should fail because proxy expects consensus messages from validators.
+	payloadNoSig, _ := msg.Payload()
+	err = backend.handleConsensusMsg(&MockPeer{}, payloadNoSig)
+	if err != errNonValidatorMessage {
+		t.Errorf("Expected error sending message from non validator")
+	}
+
+	// Test sending a message with a legitimate validator signature.
+	// Should succeed now.
+	msg.Sign(backend.Sign)
+	payloadWithSig, _ := msg.Payload()
+	if err = backend.handleConsensusMsg(&MockPeer{}, payloadWithSig); err != nil {
+		t.Errorf("error %v", err)
+	}
+}
+
 func makeMsg(msgcode uint64, data interface{}) p2p.Msg {
 	size, r, _ := rlp.EncodeToReader(data)
 	return p2p.Msg{Code: msgcode, Size: uint32(size), Payload: r}

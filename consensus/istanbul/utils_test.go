@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"testing"
 
@@ -112,14 +113,14 @@ func TestValSetDiff(t *testing.T) {
 		for _, addr := range tt.inputOldValset {
 			convertedInputOldValSet = append(convertedInputOldValSet, ValidatorData{
 				addr,
-				[]byte{},
+				blscrypto.SerializedPublicKey{},
 			})
 		}
 		convertedInputNewValSet := []ValidatorData{}
 		for _, addr := range tt.inputNewValset {
 			convertedInputNewValSet = append(convertedInputNewValSet, ValidatorData{
 				addr,
-				[]byte{},
+				blscrypto.SerializedPublicKey{},
 			})
 		}
 		addedVals, removedVals := ValidatorSetDiff(convertedInputOldValSet, convertedInputNewValSet)

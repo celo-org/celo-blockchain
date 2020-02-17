@@ -99,6 +99,16 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 				return nil, err
 			}
 
+			newValSet, err := c.backend.NextBlockValidators(preparedCertificate.Proposal)
+			if err != nil {
+				return nil, err
+			}
+			err = c.verifyEpochValidatorSetSeal(committedSubject, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
+			if err != nil {
+				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
+				return nil, err
+			}
+
 			subject = committedSubject.Subject
 		} else {
 			if err := message.Decode(&subject); err != nil {

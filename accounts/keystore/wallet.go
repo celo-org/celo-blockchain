@@ -20,6 +20,8 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -121,21 +123,21 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 	return w.keystore.GetPublicKey(account)
 }
 
-func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
+func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
-		return nil, accounts.ErrUnknownAccount
+		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignHashBLS(account, hash)
 }
 
-func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
-		return nil, accounts.ErrUnknownAccount
+		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignMessageBLS(account, msg, extraData)
