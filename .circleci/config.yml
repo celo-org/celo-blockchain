@@ -105,21 +105,13 @@ jobs:
 
   android:
     docker:
-      - image: celohq/android-client
-        user: circleci
+      - image: celohq/circleci:android-v1
     working_directory: ~/repos/geth
     steps:
       - checkout
       - run:
           name: Compile android client
-          command: |
-            # TODO(jeanregisser): Fix docker image so build works directly with circleci user
-            sudo chown -R circleci:circleci $HOME/.rustup $HOME/.cargo
-            export PATH=$PATH:$HOME/.cargo/bin
-            export NDK_VERSION=android-ndk-r19c
-            export ANDROID_NDK=/opt/android/${NDK_VERSION}
-            export ANDROID_HOME=/opt/android/sdk
-            make android
+          command: make android
       - persist_to_workspace:
           root: ~/repos
           paths:
@@ -133,19 +125,19 @@ jobs:
       - checkout
       - run:
           name: Setup Go language
-          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+            # Check that homebrew installed the expected go version
+            if [[ "$(go version)" != "go version go1.13"* ]]; then 
+              echo "go1.13 is required"
+              exit 1
+            fi
       - run:
           name: Setup Rust language
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            export PATH=$PATH:$HOME/.cargo/bin
-            rustup install 1.37.0
-            rustup default 1.37.0
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.37.0
       - run:
           name: Compile ios client
-          command: |
-            # export PATH="/usr/local/opt/go@1.11/bin:$HOME/.cargo/bin:$PATH"
-            make ios
+          command: make ios
       - persist_to_workspace:
           root: ~/repos
           paths:
@@ -256,13 +248,9 @@ workflows:
             - build-geth
       - coverage:
           requires:
-            - build-geth            
-      - android:
-          requires:
-            - build-geth                  
-      - ios:
-          requires:
-            - build-geth                  
+            - build-geth
+      - android
+      - ios
       - publish-mobile-client:
           requires:
             - android
