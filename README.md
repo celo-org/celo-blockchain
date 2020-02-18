@@ -9,11 +9,15 @@ You can install them using your favourite package manager. You may also consult 
 
 Once the dependencies are installed, run
 
-    make geth
+```shell
+make geth
+```
 
 or, to build the full suite of utilities:
 
-    make all
+```shell
+make all
+```
 
 ## Executables
 
@@ -21,7 +25,7 @@ Celo project comes with several wrappers/executables found in the `cmd` director
 
 | Command    | Description |
 |:----------:|-------------|
-| **`geth`** | The main Celo Blockchain client. It is the entry point into the Celo network (alfajores or private net), capable of running as a full node (default), archive node (retaining all historical state), light node (retrieving data live), or ultralight node. It can be used by other processes as a gateway into the Celo network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [Ethereum CLI Wiki page](https://github.com/ethereum/go-ethereum/wiki/Command-Line-Options) for command line options. |
+| **`geth`** | The main Celo Blockchain client. It is the entry point into the Celo network (alfajores or private net), capable of running as a full node (default), archive node (retaining all historical state), light node (retrieving data live), or lightest node. It can be used by other processes as a gateway into the Celo network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [Ethereum CLI Wiki page](https://github.com/ethereum/go-ethereum/wiki/Command-Line-Options) for command line options. |
 | `abigen` | Source code generator to convert Celo contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI) with expanded functionality if the contract bytecode is also available. However it also accepts Solidity source files, making development much more streamlined. Please see [Ethereum's Native DApps](https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
 | `bootnode` | Stripped down version of the Celo client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks. |
 | `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug`). |
@@ -37,13 +41,14 @@ Please see the [docs page](https://docs.celo.org) for more instructions on how t
 
 As an alternative to passing the numerous flags to the `Celo` binary, you can also pass a configuration file via:
 
-```
+```shell
 $ geth --config /path/to/your_config.toml
 ```
 
-To get an idea how the file should look like you can use the `dumpconfig` subcommand to export your existing configuration:
+To get an idea how the file should look like you can use the `dumpconfig` subcommand to
+export your existing configuration:
 
-```
+```shell
 $ geth --your-favourite-flags dumpconfig
 ```
 
@@ -51,8 +56,8 @@ $ geth --your-favourite-flags dumpconfig
 
 ## Contribution
 
-Thank you for considering to help out with the source code! We welcome contributions from
-anyone on the internet, and are grateful for even the smallest of fixes!
+Thank you for considering to help out with the source code! We welcome contributions
+from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to celo-blockchain, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit more
@@ -63,8 +68,10 @@ procedures quick and simple.
 
 Please make sure your contributions adhere to our coding guidelines:
 
- * Code must adhere to the official Go [formatting](https://golang.org/doc/effective_go.html#formatting) guidelines (i.e. uses [gofmt](https://golang.org/cmd/gofmt/)).
- * Code must be documented adhering to the official Go [commentary](https://golang.org/doc/effective_go.html#commentary) guidelines.
+ * Code must adhere to the official Go [formatting](https://golang.org/doc/effective_go.html#formatting)
+   guidelines (i.e. uses [gofmt](https://golang.org/cmd/gofmt/)).
+ * Code must be documented adhering to the official Go [commentary](https://golang.org/doc/effective_go.html#commentary)
+   guidelines.
  * Pull requests need to be based on and opened against the `master` branch.
  * Commit messages should be prefixed with the package(s) they modify.
    * E.g. "eth, rpc: make trace configs optional"

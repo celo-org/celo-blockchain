@@ -17,7 +17,6 @@
 package backend
 
 import (
-	//"bytes"
 	"crypto/ecdsa"
 	"math/big"
 	"strings"
@@ -42,7 +41,7 @@ func TestSign(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 	//Check signature recover
-	hashData := crypto.Keccak256([]byte(data))
+	hashData := crypto.Keccak256(data)
 	pubkey, _ := crypto.Ecrecover(hashData, sig)
 	var signer common.Address
 	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
@@ -54,7 +53,7 @@ func TestSign(t *testing.T) {
 func TestCheckSignature(t *testing.T) {
 	key, _ := generatePrivateKey()
 	data := []byte("Here is a string....")
-	hashData := crypto.Keccak256([]byte(data))
+	hashData := crypto.Keccak256(data)
 	sig, _ := crypto.Sign(hashData, key)
 	b := newBackend()
 	a := getAddress()
@@ -70,11 +69,12 @@ func TestCheckSignature(t *testing.T) {
 }
 
 func TestCheckValidatorSignature(t *testing.T) {
+
 	vset, keys := newTestValidatorSet(5)
 
 	// 1. Positive test: sign with validator's key should succeed
 	data := []byte("dummy data")
-	hashData := crypto.Keccak256([]byte(data))
+	hashData := crypto.Keccak256(data)
 	for i, k := range keys {
 		// Sign
 		sig, err := crypto.Sign(hashData, k)
@@ -206,11 +206,6 @@ func generatePrivateKey() (*ecdsa.PrivateKey, error) {
 	return crypto.HexToECDSA(key)
 }
 
-func generateInvalidPrivateKey() (*ecdsa.PrivateKey, error) {
-	key := "1049c0e0b99eeea3465a1e83a52900dc27c652f39abb3aed3b868dee68ff1d2c"
-	return crypto.HexToECDSA(key)
-}
-
 func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 	// generate validators
 	keys := make(Keys, n)
@@ -221,8 +216,8 @@ func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		keys[i] = privateKey
 		validators[i] = istanbul.ValidatorData{
-			crypto.PubkeyToAddress(privateKey.PublicKey),
-			blsPublicKey,
+			Address:      crypto.PubkeyToAddress(privateKey.PublicKey),
+			BLSPublicKey: blsPublicKey,
 		}
 	}
 	vset := validator.NewSet(validators)
@@ -243,9 +238,9 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func signerFn(_ accounts.Account, data []byte) ([]byte, error) {
+func signerFn(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
-	return crypto.Sign(data, key)
+	return crypto.Sign(crypto.Keccak256(data), key)
 }
 
 func signerBLSHashFn(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
@@ -306,9 +301,4 @@ func newBackend() (b *Backend) {
 	key, _ := generatePrivateKey()
 	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn, signerBLSHashFn, signerBLSMessageFn)
 	return
-}
-
-func signerFnInvalid(_ accounts.Account, data []byte) ([]byte, error) {
-	key, _ := generateInvalidPrivateKey()
-	return crypto.Sign(data, key)
 }

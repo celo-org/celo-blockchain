@@ -23,7 +23,6 @@ import (
 	mrand "math/rand"
 	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -73,7 +72,6 @@ var keys = []string{
 }
 
 type TestData struct {
-	started int64
 	counter [NumNodes]int
 	mutex   sync.RWMutex
 }
@@ -211,12 +209,9 @@ func initialize(t *testing.T) {
 			},
 		}
 
-		go startServer(t, node.server)
-
+		startServer(t, node.server)
 		nodes[i] = &node
 	}
-
-	waitForServersToStart(t)
 
 	for i := 0; i < NumNodes; i++ {
 		for j := 0; j < i; j++ {
@@ -233,8 +228,6 @@ func startServer(t *testing.T, s *p2p.Server) {
 	if err != nil {
 		t.Fatalf("failed to start the first server. err: %v", err)
 	}
-
-	atomic.AddInt64(&result.started, 1)
 }
 
 func stopServers() {
@@ -491,19 +484,6 @@ func checkBloomFilterExchange(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-}
-
-func waitForServersToStart(t *testing.T) {
-	const iterations = 200
-	var started int64
-	for j := 0; j < iterations; j++ {
-		time.Sleep(50 * time.Millisecond)
-		started = atomic.LoadInt64(&result.started)
-		if started == NumNodes {
-			return
-		}
-	}
-	t.Fatalf("Failed to start all the servers, running: %d", started)
 }
 
 //two generic whisper node handshake

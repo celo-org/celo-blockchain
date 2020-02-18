@@ -97,6 +97,5 @@ func GetProposerSelector(pp istanbul.ProposerPolicy) istanbul.ProposerSelector {
 	default:
 		// Programming error.
 		panic(fmt.Sprintf("unknown proposer selection policy: %v", pp))
-		return nil
 	}
 }
