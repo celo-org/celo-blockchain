@@ -105,21 +105,13 @@ jobs:
 
   android:
     docker:
-      - image: celohq/android-client
-        user: circleci
+      - image: celohq/circleci:android-v1
     working_directory: ~/repos/geth
     steps:
       - checkout
       - run:
           name: Compile android client
-          command: |
-            # TODO(jeanregisser): Fix docker image so build works directly with circleci user
-            sudo chown -R circleci:circleci $HOME/.rustup $HOME/.cargo
-            export PATH=$PATH:$HOME/.cargo/bin
-            export NDK_VERSION=android-ndk-r19c
-            export ANDROID_NDK=/opt/android/${NDK_VERSION}
-            export ANDROID_HOME=/opt/android/sdk
-            make android
+          command: make android
       - persist_to_workspace:
           root: ~/repos
           paths:
