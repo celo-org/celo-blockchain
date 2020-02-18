@@ -12,7 +12,7 @@ executors:
       GO_VERSION: "1.13.7"
       CELO_MONOREPO_BRANCH_TO_TEST: mc/geth1.9-final
 jobs:
-  build-rust:
+  build-bls-zexe:
     docker:
       - image: circleci/rust:1.37.0
     working_directory: ~/repos/geth
@@ -243,11 +243,11 @@ workflows:
   version: 2
   build:
     jobs:
-      - build-rust
+      - build-bls-zexe
       - checkout-monorepo      
       - build-geth:
           requires:
-            - build-rust
+            - build-bls-zexe
       - lint:
           requires:
             - build-geth
