@@ -24,8 +24,8 @@ use std::{
     error::Error,
 };
 
-static SIG_DOMAIN: &'static [u8] = b"ULforxof";
-static POP_DOMAIN: &'static [u8] = b"ULforpop";
+pub static SIG_DOMAIN: &'static [u8] = b"ULforxof";
+pub static POP_DOMAIN: &'static [u8] = b"ULforpop";
 
 /// Implements BLS signatures as specified in https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html.
 use std::{
