@@ -94,7 +94,7 @@ func dummyBlock(number int64) *types.Block {
 		Number:     big.NewInt(number),
 		GasLimit:   1002121,
 		GasUsed:    123213,
-		Time:       big.NewInt(100),
+		Time:       100,
 		Extra:      []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")

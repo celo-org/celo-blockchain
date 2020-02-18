@@ -19,8 +19,9 @@ package istanbul
 import (
 	"encoding/hex"
 	"errors"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
