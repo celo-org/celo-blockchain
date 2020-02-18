@@ -60,11 +60,13 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 		return errFutureMessage
 	}
 
-	// Same sequence. Msgs for a round < desiredRound are always old.
 	// We will never do consensus on any round less than desiredRound.
 	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
 		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
-	} else if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
+	}
+
+	// Same sequence. Msgs for a round < desiredRound are always old.
+	if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
 		return errOldMessage
 	}
 

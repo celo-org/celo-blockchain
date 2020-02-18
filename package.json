@@ -17,8 +17,5 @@
   ],
   "scripts": {
     "postinstall": "rm -rf build/bin/Geth.framework && tar -xvf build/bin/Geth.framework.tgz -C build/bin && touch Empty.m && ln -sf build/bin/Geth.framework/Versions/A/Geth libGeth.a"
-  },
-  "devDependencies": {
-    "husky": "^4.2.1"
   }
 }
