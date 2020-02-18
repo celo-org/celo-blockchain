@@ -87,16 +87,23 @@ jobs:
 
   lint:
     executor: golang
+    environment:
+      GOLANGCI: ./build/cache/golangci-lint-1.23.6-linux-amd64/golangci-lint
     steps:
       - attach_workspace:
           at: ~/repos                  
-      - run: go get github.com/jstemmer/go-junit-report        
       - run: 
-          name: Run Linter
+          name: Setup Linter
           command: |
             mkdir -p /tmp/test-results
+            go get github.com/jstemmer/go-junit-report        
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.23.6-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+      - run: 
+          name: Run Linter
+          command: $GOLANGCI run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+      - run:
+          name: Run errcheck on our pkgs only
+          command: $GOLANGCI run --no-config --disable-all --enable errcheck --skip-files '.*_test.go' --out-format junit-xml ./consensus/istanbul/... contract_comm/... | tee /tmp/test-results/go-lint-errcheck-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output

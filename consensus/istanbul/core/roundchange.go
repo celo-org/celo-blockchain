@@ -159,7 +159,10 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		decodedMessages[i] = *roundChange
 		// TODO(joshua): startNewRound needs these round change messages to generate a
 		// round change certificate even if this node is not the next proposer
-		c.roundChangeSet.Add(roundChange.View.Round, &message)
+		err = c.roundChangeSet.Add(roundChange.View.Round, &message)
+		if err != nil {
+			return err
+		}
 	}
 
 	if maxRound.Cmp(big.NewInt(-1)) > 0 && proposal.Digest != preferredDigest {

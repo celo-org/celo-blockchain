@@ -90,9 +90,14 @@ func (sb *Backend) sendValEnodesShareMsgs() {
 	for {
 		select {
 		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
-			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
-			go sb.sendValEnodesShareMsg()
+			go func() {
+				// output the valEnodeTable for debugging purposes
+				log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
+				if err := sb.sendValEnodesShareMsg(); err != nil {
+					log.Error("sendValEnodesShareMsg failed", "err", err)
+				}
+
+			}()
 
 		case <-sb.valEnodesShareQuit:
 			ticker.Stop()
@@ -165,7 +170,11 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	}
 
 	sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
-	go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
+	err = sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
+	if err != nil {
+		sb.logger.Error("Error sending Istanbul ValEnodesShare Message to peer", "err", err)
+		return err
+	}
 
 	return nil
 }

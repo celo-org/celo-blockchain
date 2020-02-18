@@ -390,10 +390,9 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 	}
 
 	// Send to self.  Note that it will never be a wrapped version of the consensus message.
-	msg := istanbul.MessageEvent{
+	go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 		Payload: payload,
-	}
-	go sb.istanbulEventMux.Post(msg)
+	})
 	return nil
 }
 
@@ -440,7 +439,11 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 			}
 			logger.Trace("Sending istanbul message to peer", "peer", p)
 
-			go p.Send(ethMsgCode, payload)
+			go func(p consensus.Peer) {
+				if err := p.Send(ethMsgCode, payload); err != nil {
+					logger.Error("Error on multicast to peer", "peer_id", p.Node().ID, "err", err)
+				}
+			}(p)
 		}
 	}
 	return nil

@@ -159,7 +159,9 @@ func (c *core) handleEvents() {
 
 // sendEvent sends events to mux
 func (c *core) sendEvent(ev interface{}) {
-	c.backend.EventMux().Post(ev)
+	if err := c.backend.EventMux().Post(ev); err != nil {
+		c.logger.Crit("Bug? Failed to Post in EventMux", "err", err)
+	}
 }
 
 func (c *core) handleMsg(payload []byte) error {

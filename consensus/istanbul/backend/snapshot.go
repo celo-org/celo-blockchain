@@ -145,7 +145,10 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 		snap.Epoch = s.Epoch
 		snap.Number += s.Epoch
 		snap.Hash = header.Hash()
-		snap.store(db)
+		if err = snap.store(db); err != nil {
+			log.Error("Unable store snapshot", "err", err, "number", snap.Number, "hash", snap.Hash)
+			return nil, err
+		}
 		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
 

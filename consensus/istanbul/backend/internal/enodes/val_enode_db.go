@@ -427,10 +427,12 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 	for iter.Next() {
 		var entry AddressEntry
 		address := common.BytesToAddress(iter.Key()[len(dbAddressPrefix):])
-		rlp.DecodeBytes(iter.Value(), &entry)
 
-		err := onEntry(address, &entry)
-		if err != nil {
+		if err := rlp.DecodeBytes(iter.Value(), &entry); err != nil {
+			return err
+		}
+
+		if err := onEntry(address, &entry); err != nil {
 			return err
 		}
 	}

@@ -148,7 +148,11 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			go sb.generateAndGossipAnnounce()
+			go func() {
+				if err := sb.generateAndGossipAnnounce(); err != nil {
+					logger.Error("Failed to generateAndGossipAnnounce", "err", err)
+				}
+			}()
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -314,7 +318,11 @@ func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) er
 	for _, valAddress := range valAddresses {
 		if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[valAddress]; ok {
 			logger.Trace("Sending announce msg", "peer", peer, "valAddress", valAddress)
-			go peer.Send(istanbulAnnounceMsg, cachedAnnounceMsgEntry.MsgPayload)
+			go func() {
+				if err := peer.Send(istanbulAnnounceMsg, cachedAnnounceMsgEntry.MsgPayload); err != nil {
+					logger.Error("Failed to send announce message", "err", err)
+				}
+			}()
 		}
 	}
 
@@ -598,7 +606,11 @@ func (av *announceVersion) String() string {
 // sendGetAnnounceVersions will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
 func (sb *Backend) sendGetAnnounceVersions(peer consensus.Peer) {
 	sb.logger.Trace("Sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
-	go peer.Send(istanbulGetAnnounceVersionsMsg, []byte{})
+	go func() {
+		if err := peer.Send(istanbulGetAnnounceVersionsMsg, []byte{}); err != nil {
+			sb.logger.Error("Failed to send announce message", "err", err)
+		}
+	}()
 }
 
 // handleGetAnnounceVersionsMsg will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
@@ -624,7 +636,11 @@ func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []b
 	}
 
 	logger.Trace("Sending an AnnounceVersions message", "announceVersions", announceVersions, "peer", peer)
-	go peer.Send(istanbulAnnounceVersionsMsg, announceVersionsBytes)
+	go func() {
+		if err := peer.Send(istanbulAnnounceVersionsMsg, announceVersionsBytes); err != nil {
+			logger.Error("Failed to send announce message", "err", err)
+		}
+	}()
 
 	return nil
 }
@@ -672,7 +688,12 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 
 		logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "peer", peer)
 
-		go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
+		go func() {
+			if err := peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes); err != nil {
+				logger.Error("Failed to send announce message", "err", err)
+			}
+		}()
+
 	}
 
 	return nil
