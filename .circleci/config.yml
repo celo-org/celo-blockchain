@@ -248,13 +248,9 @@ workflows:
             - build-geth
       - coverage:
           requires:
-            - build-geth            
-      - android:
-          requires:
-            - build-geth                  
-      - ios:
-          requires:
-            - build-geth                  
+            - build-geth
+      - android
+      - ios
       - publish-mobile-client:
           requires:
             - android
