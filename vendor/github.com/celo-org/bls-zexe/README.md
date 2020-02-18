@@ -1,12 +1,14 @@
 # BLS-ZEXE
 
-Implements BLS signatures as described in [BDN18].
+Implements SNARK-friendly BLS signatures.
 
 ## Using the code
 
-The BLS library code resides in the `bls` directory. The following commands assumed this is your current directory.
+The BLS library code resides in the `bls/algebra` directory. The SNARK-related code resides in `bls/snark`.
 
 A Go package consuming the library exists in the `go` directory.
+
+The following commands assume this is your current directory.
 
 ### Quick start
 
@@ -36,15 +38,17 @@ Most of the modules have tests.
 
 ## Construction
 
-We work over the $E_{CP}$ curve from [BCGMMW18].
+We work over the BLS12-377 curve from [BCGMMW18].
 
 Secret keys are elements of the scalar field *Fr*.
 
-We would like to minimize the public key size, since we expect many of them to be communicated. Therefore, public keys are in *G1* and signatures are in *G2*.
+We would like to minimize the computation required for signing, since we would also like to achieve hardware wallet compatibility. Therefore, public keys are in *G2* and signatures are in *G1*.
 
-To hash a message to *G2*, we currently use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Pedersen hash over $E_{Ed/CP}$ from [BCGMMW18] and Blake2s. First, the Pedersen hash is applied to the message, and then the try-and-increment methods attempts incrementing counters over the hashed message using Blake2s.
+For most signatures - to hash a message to *G1*, we use the try-and-increment method coupled with Blake2Xs. 
 
-We implement fast cofactor multiplication, as the *G2* cofactor is large.
+For signatures that we would like to verify in SNARKs - to hash a message to *G1*, we use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Bowe-Hopwood hash over $E_{Ed/CP}$ from [BCGMMW18] and Blake2s.
+
+We perform cofactor muliplication in *G1* directly.
 
 ## License
 
