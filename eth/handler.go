@@ -76,7 +76,8 @@ type ProtocolManager struct {
 
 	txpool     txPool
 	blockchain *core.BlockChain
-	maxPeers   int
+
+	maxPeers        int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
@@ -345,10 +346,21 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		forcePeer = isValidator
 		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
-	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
-	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer && !forcePeer {
-		return p2p.DiscTooManyPeers
+	// Ignore max peer and max inbound peer check if:
+	//	- this is a trusted or statically dialed peer
+	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	//  - forcePeer is true
+	isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
+	tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
+	tooManyInbound := p.Peer.Server.InboundCount() >= p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
+	if !forcePeer {
+		if tooManyPeers {
+			return p2p.DiscTooManyPeers
+		} else if tooManyInbound {
+			return p2p.DiscTooManyInboundPeers
+		}
 	}
+
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
 	}
