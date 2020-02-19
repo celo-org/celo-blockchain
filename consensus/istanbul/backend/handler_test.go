@@ -33,8 +33,14 @@ func (p *MockPeer) Send(msgcode uint64, data interface{}) error {
 	return nil
 }
 
-func (p *MockPeer) Node() *enode.Node {
-	return nil
+func (p *MockPeer) Node() *MockNode {
+	return &MockNode{}
+}
+
+type MockNode struct{}
+
+func (n *MockNode) ID() string {
+	return ""
 }
 
 func TestIstanbulMessage(t *testing.T) {
