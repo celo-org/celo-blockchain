@@ -28,4 +28,8 @@ var (
 	ErrStoppedEngine = errors.New("stopped engine")
 	// ErrStartedEngine is returned if the engine is already started
 	ErrStartedEngine = errors.New("started engine")
+	// ErrStoppedAnnounce is returned if announce is stopped
+	ErrStoppedAnnounce = errors.New("stopped announce")
+	// ErrStartedAnnounce is returned if announce is already started
+	ErrStartedAnnounce = errors.New("started announce")
 )

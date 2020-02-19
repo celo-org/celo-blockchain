@@ -2,12 +2,13 @@ package core
 
 import (
 	"encoding/json"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"

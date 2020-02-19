@@ -84,7 +84,11 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if err != nil {
 		return err
 	}
+
 	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
+	if err != nil {
+		return err
+	}
 
 	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {

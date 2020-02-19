@@ -29,15 +29,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-// If you want to add a code, you need to increment the Lengths Array size!
-const (
-	istanbulConsensusMsg      = 0x11
-	istanbulAnnounceMsg       = 0x12
-	istanbulValEnodesShareMsg = 0x13
-	istanbulFwdMsg            = 0x14
-	istanbulDelegateSign      = 0x15
-)
-
 var (
 	// errDecodeFailed is returned when decode message fails
 	errDecodeFailed = errors.New("fail to decode istanbul message")
@@ -46,19 +37,24 @@ var (
 	errNonValidatorMessage = errors.New("proxy received consensus message of a non validator")
 )
 
-// Protocol implements consensus.Engine.Protocol
-func (sb *Backend) Protocol() consensus.Protocol {
-	return consensus.Protocol{
-		Name:     "istanbul",
-		Versions: []uint{64},
-		Lengths:  []uint64{22},
-		Primary:  true,
-	}
-}
+// If you want to add a code, you need to increment the Lengths Array size!
+const (
+	istanbulConsensusMsg = 0x11
+	// TODO:  Support sending multiple announce messages withone one message
+	istanbulAnnounceMsg            = 0x12
+	istanbulValEnodesShareMsg      = 0x13
+	istanbulFwdMsg                 = 0x14
+	istanbulDelegateSign           = 0x15
+	istanbulGetAnnouncesMsg        = 0x16
+	istanbulGetAnnounceVersionsMsg = 0x17
+	istanbulAnnounceVersionsMsg    = 0x18
+)
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return (msg.Code == istanbulConsensusMsg) || (msg.Code == istanbulAnnounceMsg) || (msg.Code == istanbulValEnodesShareMsg) || (msg.Code == istanbulFwdMsg) || (msg.Code == istanbulDelegateSign)
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulAnnounceVersionsMsg
 }
+
+type announceMsgHandler func(consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
@@ -89,24 +85,28 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		hash := istanbul.RLPHash(data)
+		// Only use the recent messages and known messages cache for the
+		// Announce message.  That is the only message that is gossiped.
+		if msg.Code == istanbulAnnounceMsg {
+			hash := istanbul.RLPHash(data)
 
-		// Mark peer's message
-		ms, ok := sb.recentMessages.Get(addr)
-		var m *lru.ARCCache
-		if ok {
-			m, _ = ms.(*lru.ARCCache)
-		} else {
-			m, _ = lru.NewARC(inmemoryMessages)
-			sb.recentMessages.Add(addr, m)
-		}
-		m.Add(hash, true)
+			// Mark peer's message
+			ms, ok := sb.peerRecentMessages.Get(addr)
+			var m *lru.ARCCache
+			if ok {
+				m, _ = ms.(*lru.ARCCache)
+			} else {
+				m, _ = lru.NewARC(inmemoryMessages)
+				sb.peerRecentMessages.Add(addr, m)
+			}
+			m.Add(hash, true)
 
-		// Mark self known message
-		if _, ok := sb.knownMessages.Get(hash); ok {
-			return true, nil
+			// Mark self known message
+			if _, ok := sb.selfRecentMessages.Get(hash); ok {
+				return true, nil
+			}
+			sb.selfRecentMessages.Add(hash, true)
 		}
-		sb.knownMessages.Add(hash, true)
 
 		if msg.Code == istanbulConsensusMsg {
 			err := sb.handleConsensusMsg(peer, data)
@@ -114,13 +114,15 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if msg.Code == istanbulFwdMsg {
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
-		} else if msg.Code == istanbulAnnounceMsg {
-			go sb.handleIstAnnounce(data)
-		} else if msg.Code == istanbulValEnodesShareMsg {
-			go sb.handleValEnodesShareMsg(data)
+		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
+			go announceHandlerFunc(peer, data)
+			return true, nil
 		}
 
-		return true, nil
+		// If we got here, then that means that there is an istanbul message type that we
+		// don't handle, and hence a bug in the code.
+		logger.Crit("Unhandled istanbul message type")
+		return false, nil
 	}
 	return false, nil
 }
@@ -192,7 +194,7 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	}
 
 	sb.logger.Trace("Forwarding a consensus message")
-	go sb.Gossip(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg, false)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
 	return nil
 }
 
@@ -243,8 +245,6 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		if sb.coreStarted {
 			_, val := valset.GetByAddress(sb.ValidatorAddress())
 			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
-
-			sb.newEpochCh <- struct{}{}
 		}
 
 		// If this is a proxy or a non proxied validator and a
@@ -258,6 +258,10 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
 	//        registered with the proxy, and verify that all newly connected proxied peer has
 	//        the correct node key
+
+	sb.logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
+
+	// Check to see if this connecting peer if a proxied validator
 	if sb.config.Proxy && isProxiedPeer {
 		sb.proxiedPeer = peer
 	} else if sb.config.Proxied {
@@ -266,6 +270,10 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		} else {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
 		}
+	}
+
+	if peer.Version() >= 65 {
+		sb.sendGetAnnounceVersions(peer)
 	}
 }
 

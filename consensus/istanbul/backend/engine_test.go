@@ -34,12 +34,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -49,14 +49,14 @@ import (
 // other fake events to process Istanbul.
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
-	memDB := ethdb.NewMemDatabase()
+	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
 	config.RoundStateDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
-	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
-		return crypto.Sign(data, nodeKeys[0])
+	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), nodeKeys[0])
 	}
 
 	signerBLSHashFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
@@ -121,21 +121,21 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	b.SetChain(blockchain, blockchain.CurrentBlock)
+	b.SetChain(blockchain, blockchain.CurrentBlock,
+		func(hash common.Hash) (*state.StateDB, error) {
+			stateRoot := blockchain.GetHeaderByHash(hash).Root
+			return blockchain.StateAt(stateRoot)
+		})
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer())
-
-	b.Start(blockchain.HasBadBlock,
-		func(parentHash common.Hash) (*state.StateDB, error) {
-			parentStateRoot := blockchain.GetHeaderByHash(parentHash).Root
-			return blockchain.StateAt(parentStateRoot)
-		},
+	b.StartValidating(blockchain.HasBadBlock,
 		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 		},
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-			return blockchain.Validator().ValidateState(block, nil, state, receipts, usedGas)
+			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 		})
+	b.StartAnnouncing()
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
@@ -150,7 +150,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	for _, key := range nodeKeys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		if addr.String() == proposerAddr.String() {
-			signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+			signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
 			signerBLSHashFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
@@ -229,8 +229,8 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(nodeKeys[i])
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		validators[i] = istanbul.ValidatorData{
-			addr,
-			blsPublicKey,
+			Address:      addr,
+			BLSPublicKey: blsPublicKey,
 		}
 
 	}
@@ -262,7 +262,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 		GasLimit:   core.CalcGasLimit(parent, nil),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
-		Time:       new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(config.BlockPeriod)),
+		Time:       parent.Time() + config.BlockPeriod,
 		Difficulty: defaultDifficulty,
 	}
 	return header
@@ -283,7 +283,8 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
-	block, err := engine.Finalize(chain, header, state, nil, nil, nil, nil)
+	engine.Finalize(chain, header, state, nil, nil)
+	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
@@ -457,7 +458,7 @@ func TestVerifyHeader(t *testing.T) {
 	// invalid timestamp
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(chain.Genesis().Time(), new(big.Int).SetUint64(engine.config.BlockPeriod-1))
+	header.Time = chain.Genesis().Time() + engine.config.BlockPeriod - 1
 	err = engine.VerifyHeader(chain, header, false)
 	if err != errInvalidTimestamp {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidTimestamp)
@@ -466,7 +467,7 @@ func TestVerifyHeader(t *testing.T) {
 	// future block
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(10))
+	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
@@ -557,7 +558,7 @@ func TestVerifyHeaders(t *testing.T) {
 		headers = append(headers, blocks[i].Header())
 	}
 	now = func() time.Time {
-		return time.Unix(headers[size-1].Time.Int64(), 0)
+		return time.Unix(int64(headers[size-1].Time), 0)
 	}
 	_, results := engine.VerifyHeaders(chain, headers, nil)
 	const timeoutDura = 2 * time.Second
@@ -609,7 +610,7 @@ OUT2:
 	}
 	// error header cases
 	headers[2].Number = big.NewInt(100)
-	abort, results = engine.VerifyHeaders(chain, headers, nil)
+	_, results = engine.VerifyHeaders(chain, headers, nil)
 	timeout = time.NewTimer(timeoutDura)
 	index = 0
 	errors := 0
@@ -642,7 +643,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	// allow future block without full chain available
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header := block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(3))
+	header.Time = uint64(now().Unix() + 3)
 	err := engine.VerifyHeader(chain, header, false)
 	if err != errEmptyAggregatedSeal {
 		t.Errorf("error mismatch: have %v, want %v", err, errEmptyAggregatedSeal)
@@ -651,7 +652,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	// reject future block without full chain available
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
-	header.Time = new(big.Int).Add(big.NewInt(now().Unix()), new(big.Int).SetUint64(10))
+	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
@@ -661,22 +662,22 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 func TestPrepareExtra(t *testing.T) {
 	oldValidators := make([]istanbul.ValidatorData, 2)
 	oldValidators[0] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-		blscrypto.SerializedPublicKey{},
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 	oldValidators[1] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
-		blscrypto.SerializedPublicKey{},
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 
 	newValidators := make([]istanbul.ValidatorData, 2)
 	newValidators[0] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-		blscrypto.SerializedPublicKey{},
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 	newValidators[1] = istanbul.ValidatorData{
-		common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
-		blscrypto.SerializedPublicKey{},
+		Address:      common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 
 	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
@@ -687,6 +688,9 @@ func TestPrepareExtra(t *testing.T) {
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 	})
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 	h := &types.Header{
 		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
@@ -732,10 +736,13 @@ func TestWriteSeal(t *testing.T) {
 		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
 		Seal:                      []byte{},
-		AggregatedSeal:            types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
-		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{big.NewInt(0), []byte{}, big.NewInt(0)},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 
 	expectedSeal := hexutil.MustDecode("0x29fe2612266a3965321c23a2e0382cd819e992f293d9a0032439728e41201d2c387cc9de5914a734873d79addb76c59ce73c1085a98b968384811b4ad050dddc56")
 	if len(expectedSeal) != types.IstanbulExtraSeal {
@@ -787,6 +794,9 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
 
 	aggregatedSeal := types.IstanbulAggregatedSeal{
 		Round:     big.NewInt(2),

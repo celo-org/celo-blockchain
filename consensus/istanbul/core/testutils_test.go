@@ -34,11 +34,6 @@ func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) 
 	return current
 }
 
-func checkError(t *testing.T, err error) {
-	if err != nil {
-		t.Errorf("Error %v", err)
-	}
-}
 func finishOnError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("Error %v", err)

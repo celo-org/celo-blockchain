@@ -244,8 +244,8 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 		blsKeyFixedSize := blscrypto.SerializedPublicKey{}
 		copy(blsKeyFixedSize[:], blsKey)
 		validator := istanbul.ValidatorData{
-			addr,
-			blsKeyFixedSize,
+			Address:      addr,
+			BLSPublicKey: blsKeyFixedSize,
 		}
 		validatorData = append(validatorData, validator)
 	}
