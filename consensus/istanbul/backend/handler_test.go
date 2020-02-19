@@ -41,6 +41,10 @@ func (p *MockPeer) Version() int {
 	return 0
 }
 
+func (p *MockPeer) ReadMsg() (p2p.Msg, error) {
+	return p2p.Msg{}, nil
+}
+
 func TestIstanbulMessage(t *testing.T) {
 	_, backend := newBlockChain(1, true)
 
