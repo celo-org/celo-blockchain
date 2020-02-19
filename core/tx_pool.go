@@ -160,7 +160,7 @@ type TxPoolConfig struct {
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
 
-	CurrencyAddresses *[]common.Address // The addresses of all the currencies that are accepted by the node
+	CurrencyAddresses *[]common.Address `toml:",omitempty"` // The addresses of all the currencies that are accepted by the node
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
