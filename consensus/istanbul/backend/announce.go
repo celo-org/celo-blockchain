@@ -360,6 +360,7 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
 		err := sb.sendDirectAnnounce(sb.proxyNode.peer, announceVersion)
 		if err != nil {
+			logger.Error("Error in sending direct announce to proxy", "err", err)
 			return err
 		}
 	}
@@ -717,12 +718,12 @@ type directAnnounce struct {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes ar into the Ethereum RLP format.
+// EncodeRLP serializes da into the Ethereum RLP format.
 func (da *directAnnounce) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{da.Node, da.Version})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the da fields from a RLP stream.
 func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Node    string
@@ -754,8 +755,7 @@ func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, erro
 	}
 
 	directAnnounce := &directAnnounce{
-		Node: enodeURL,
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+		Node:    enodeURL,
 		Version: version,
 	}
 	directAnnounceBytes, err := rlp.EncodeToBytes(directAnnounce)
@@ -776,6 +776,9 @@ func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, erro
 	return msg, nil
 }
 
+// handleDirectAnnounceMsg handles a direct announce message.
+// At the moment, this message is only supported if it sent from a proxied
+// validator to its proxy.
 func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleDirectAnnounceMsg")
 
@@ -803,8 +806,7 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 	}
 
 	var directAnnounce directAnnounce
-	err = rlp.DecodeBytes(msg.Msg, &directAnnounce)
-	if err != nil {
+	if err := rlp.DecodeBytes(msg.Msg, &directAnnounce); err != nil {
 		logger.Warn("Error in decoding received Istanbul Direct Announce message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
@@ -835,8 +837,10 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 }
 
 func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
+	logger := sb.logger.New("func", "sendDirectAnnounce")
 	directAnnounce, err := sb.generateDirectAnnounce(version)
 	if err != nil {
+		logger.Error("Error sending direct announce message", "err", err)
 		return err
 	}
 	if directAnnounce == nil {
@@ -844,6 +848,7 @@ func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
 	}
 	payload, err := directAnnounce.Payload()
 	if err != nil {
+		logger.Error("Error getting payload of direct announce message", "err", err)
 		return err
 	}
 	return peer.Send(istanbulDirectAnnounceMsg, payload)

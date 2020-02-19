@@ -125,6 +125,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
 			go announceHandlerFunc(peer, data)
 			return true, nil
+		} else if msg.Code == istanbulValidatorProofMsg {
+			logger.Error("Validator Proof Messages are only intended during the handshake")
+			return true, nil
 		}
 
 		// If we got here, then that means that there is an istanbul message type that we
@@ -307,11 +310,6 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		if err != nil {
 			return
 		}
-		// Even if we decide not to identify ourselves in the handshake,
-		// send an empty message to complete the handshake
-		if validatorProofMessage == nil {
-			validatorProofMessage = &istanbul.Message{}
-		}
 		msgBytes, err := validatorProofMessage.Payload()
 		errCh <- err
 		if err != nil {
@@ -327,7 +325,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	// We write to errCh four times unless if the timeout is triggered
+	// We write to errCh four times unless if the timeout is triggered or an error isn't nil
 	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
@@ -348,24 +346,27 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 // If this node is a proxy, it will use the most recent directAnnounce this
 // node has received from the proxied validator.
 func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
-	if shouldSend, err := sb.shouldSendValidatorProof(peer); !shouldSend || err != nil {
+	shouldSend, err := sb.shouldSendValidatorProof(peer)
+	if err != nil {
 		return nil, err
 	}
-
-	if sb.config.Proxy {
-		// if this proxy has been disconnected from its validator for any reason,
-		// don't send a proof message, but do not fail the handshake.
-		if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
-			// Make a copy of the proxyDirectAnnounceMsg for thread safety
-			sb.proxyDirectAnnounceMsgMu.RLock()
-			defer sb.proxyDirectAnnounceMsgMu.RUnlock()
-			return sb.proxyDirectAnnounceMsg.Copy(), nil
+	if shouldSend {
+		if sb.config.Proxy {
+			// if this proxy has been disconnected from its validator for any reason,
+			// don't send a proof message, but do not fail the handshake.
+			if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
+				// Make a copy of the proxyDirectAnnounceMsg for thread safety
+				sb.proxyDirectAnnounceMsgMu.RLock()
+				defer sb.proxyDirectAnnounceMsgMu.RUnlock()
+				return sb.proxyDirectAnnounceMsg.Copy(), nil
+			}
+		} else {
+			return sb.generateDirectAnnounce(getCurrentAnnounceVersion())
 		}
-	} else {
-		return sb.generateDirectAnnounce(getCurrentAnnounceVersion())
 	}
-
-	return nil, nil
+	// Even if we decide not to identify ourselves,
+	// send an empty message to complete the handshake
+	return &istanbul.Message{}, nil
 }
 
 // shouldSendValidatorProof determines if this node should send a

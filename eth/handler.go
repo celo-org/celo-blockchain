@@ -335,7 +335,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Ethereum handshake failed", "err", err)
 		return err
 	}
-	// TODO add protocol version check
 	forcePeer := false
 	if handler, ok := pm.engine.(consensus.Handler); ok {
 		isValidator, err := handler.Handshake(p)
@@ -347,13 +346,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
-	//	- this is a trusted or statically dialed peer
+	//  - this is a trusted or statically dialed peer
 	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
-	isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
-	tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-	tooManyInbound := p.Peer.Server.InboundCount() >= p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
 	if !forcePeer {
+		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
+		tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
+		tooManyInbound := p.Peer.Server.InboundCount() >= p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
 		if tooManyPeers {
 			return p2p.DiscTooManyPeers
 		} else if tooManyInbound {
