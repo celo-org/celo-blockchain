@@ -477,6 +477,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 }
 
 // FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
@@ -499,7 +500,6 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 
 	// Assemble and return the final block for sealing
 	block := types.NewBlock(header, txs, nil, receipts, randomness)
-	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 	return block, nil
 }
 

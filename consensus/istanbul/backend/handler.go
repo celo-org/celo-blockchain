@@ -121,7 +121,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		// If we got here, then that means that there is an istanbul message type that we
 		// don't handle, and hence a bug in the code.
-		logger.Crit("Unhandled istanbul message type")
+		sb.logger.Crit("Unhandled istanbul message type")
 		return false, nil
 	}
 	return false, nil
