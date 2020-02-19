@@ -203,7 +203,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 			delete(sb.cachedAnnounceMsgs, cachedValAddress)
 		}
 	}
-	defer sb.cachedAnnounceMsgsMu.Unlock()
+	sb.cachedAnnounceMsgsMu.Unlock()
 
 	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
@@ -212,7 +212,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 			delete(sb.lastAnnounceGossiped, remoteAddress)
 		}
 	}
-	defer sb.lastAnnounceGossipedMu.Unlock()
+	sb.lastAnnounceGossipedMu.Unlock()
 
 	if err := sb.valEnodeTable.PruneEntries(regAndElectedVals); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
@@ -487,6 +487,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 
 	if shouldProcessAnnounce {
+		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
 			if announceRecord.DestAddress == sb.Address() {
 				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
@@ -679,7 +680,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgVersion < announceVersion.AnnounceMsgVersion {
 			announcesToRequest = append(announcesToRequest, announceVersion.ValAddress)
 		}
-		defer sb.cachedAnnounceMsgsMu.RUnlock()
+		sb.cachedAnnounceMsgsMu.RUnlock()
 	}
 
 	if len(announcesToRequest) > 0 {

@@ -40,9 +40,9 @@ pub fn bits_to_bytes(bits: &Vec<bool>) -> Vec<u8> {
     };
     for chunk in reversed_bits.chunks(8) {
         let mut byte = 0;
-        let mut twoi = 1;
+        let mut twoi: u64 = 1;
         for i in 0..chunk.len() {
-            byte += twoi*(if chunk[i] { 1 } else { 0 });
+            byte += (twoi*(if chunk[i] { 1 } else { 0 })) as u8;
             twoi *= 2;
         }
         bytes.push(byte);
@@ -139,12 +139,14 @@ mod test {
             bytes.write_u64::<LittleEndian>(n).unwrap();
 
             let bits = bytes_to_bits(&bytes, FqParameters::MODULUS_BITS as usize);
-            let mut twoi = 1;
+            let mut twoi: u64 = 1;
             let mut result: u64 = 0;
             let bits_len = bits.len();
             for i in 0..bits_len {
                 result += twoi * (if bits[bits_len - 1 - i] { 1 } else { 0 });
-                twoi *= 2;
+                if i < bits_len - 1 {
+                    twoi *= 2;
+                }
             }
 
             assert_eq!(result, n)

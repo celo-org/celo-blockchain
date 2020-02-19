@@ -20,6 +20,8 @@ import (
 	"math/big"
 	"testing"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -112,14 +114,14 @@ func TestValSetDiff(t *testing.T) {
 		for _, addr := range tt.inputOldValset {
 			convertedInputOldValSet = append(convertedInputOldValSet, ValidatorData{
 				addr,
-				[]byte{},
+				blscrypto.SerializedPublicKey{},
 			})
 		}
 		convertedInputNewValSet := []ValidatorData{}
 		for _, addr := range tt.inputNewValset {
 			convertedInputNewValSet = append(convertedInputNewValSet, ValidatorData{
 				addr,
-				[]byte{},
+				blscrypto.SerializedPublicKey{},
 			})
 		}
 		addedVals, removedVals := ValidatorSetDiff(convertedInputOldValSet, convertedInputNewValSet)

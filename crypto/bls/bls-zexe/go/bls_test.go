@@ -120,3 +120,100 @@ func TestEncoding(t *testing.T) {
 	}
   t.Logf("encoding: %s\n", hex.EncodeToString(bytes))
 }
+
+func TestAggregatePublicKeysErrors(t *testing.T) {
+    InitBLSCrypto()
+    privateKey, _ := GeneratePrivateKey()
+    defer privateKey.Destroy()
+    publicKey, _ := privateKey.ToPublic()
+
+    _, err := AggregatePublicKeys([]*PublicKey{publicKey, nil})
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+    _, err = AggregatePublicKeys([]*PublicKey{})
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+    _, err = AggregatePublicKeys(nil)
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+}
+
+func TestAggregateSignaturesErrors(t *testing.T) {
+    InitBLSCrypto()
+    privateKey, _ := GeneratePrivateKey()
+    defer privateKey.Destroy()
+    message := []byte("test")
+    extraData := []byte("extra")
+    signature, _ := privateKey.SignMessage(message, extraData, true)
+
+    _, err := AggregateSignatures([]*Signature{signature, nil})
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+    _, err = AggregateSignatures([]*Signature{})
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+    _, err = AggregateSignatures(nil)
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+}
+
+func TestEncodeErrors(t *testing.T) {
+    InitBLSCrypto()
+    privateKey, _ := GeneratePrivateKey()
+    defer privateKey.Destroy()
+    publicKey, _ := privateKey.ToPublic()
+
+    privateKey2, _ := GeneratePrivateKey()
+    defer privateKey2.Destroy()
+    publicKey2, _ := privateKey2.ToPublic()
+
+    _, err := EncodeEpochToBytes(0, 0, nil, []*PublicKey{publicKey, publicKey2})
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+    _, err = EncodeEpochToBytes(0, 0, publicKey, []*PublicKey{})
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+    _, err = EncodeEpochToBytes(0, 0, publicKey, nil)
+    if err != EmptySliceError {
+      t.Fatalf("should have been an empty slice")
+    }
+}
+
+func TestVerifyPoPErrors(t *testing.T) {
+    InitBLSCrypto()
+    privateKey, _ := GeneratePrivateKey()
+    defer privateKey.Destroy()
+    publicKey, _ := privateKey.ToPublic()
+    message := []byte("test")
+    err := publicKey.VerifyPoP(message, nil)
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+}
+
+func TestVerifySignatureErrors(t *testing.T) {
+    InitBLSCrypto()
+    privateKey, _ := GeneratePrivateKey()
+    defer privateKey.Destroy()
+    publicKey, _ := privateKey.ToPublic()
+    message := []byte("test")
+    extraData := []byte("extra")
+    err := publicKey.VerifySignature(message, extraData, nil, false)
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+
+    err = publicKey.VerifySignature(message, extraData, nil, true)
+    if err != NilPointerError {
+      t.Fatalf("should have been a nil pointer")
+    }
+
+}
