@@ -709,7 +709,7 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 }
 
 type directAnnounce struct {
-	Node string
+	Node    string
 	Version uint
 }
 
@@ -725,7 +725,7 @@ func (da *directAnnounce) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
 func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Node string
+		Node    string
 		Version uint
 	}
 
@@ -763,9 +763,9 @@ func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, erro
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code: istanbulDirectAnnounceMsg,
-		Address: sb.Address(),
-		Msg: directAnnounceBytes,
+		Code:      istanbulDirectAnnounceMsg,
+		Address:   sb.Address(),
+		Msg:       directAnnounceBytes,
 		Signature: []byte{},
 	}
 	// Sign the announce message
@@ -820,7 +820,7 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 	// so instead compare the ID, IP, and port
 	selfNode := sb.p2pserver.Self()
 	if parsedNode.ID() != selfNode.ID() || !parsedNode.IP().Equal(selfNode.IP()) || parsedNode.TCP() != selfNode.TCP() {
-		err := fmt.Errorf("Unexpected node (%s != %s)", directAnnounce.Node,  sb.p2pserver.Self().URLv4())
+		err := fmt.Errorf("Unexpected node (%s != %s)", directAnnounce.Node, sb.p2pserver.Self().URLv4())
 		logger.Warn("Received Istanbul Direct Announce message with an incorrect node", "err", err)
 		return err
 	}

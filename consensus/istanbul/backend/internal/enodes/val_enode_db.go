@@ -452,9 +452,9 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
 			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{
-				Enode: valEnodeEntry.Node.String(),
+				Enode:   valEnodeEntry.Node.String(),
 				Version: valEnodeEntry.Version,
-				ID: valEnodeEntry.Node.ID(),
+				ID:      valEnodeEntry.Node.ID(),
 			}
 		}
 	}

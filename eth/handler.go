@@ -77,7 +77,7 @@ type ProtocolManager struct {
 	txpool     txPool
 	blockchain *core.BlockChain
 
-	maxPeers        int
+	maxPeers int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher

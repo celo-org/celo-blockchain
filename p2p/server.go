@@ -565,7 +565,7 @@ func (srv *Server) Start() (err error) {
 	srv.removetrusted = make(chan *nodeArgs)
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
-	srv.getInboundCount = make(chan func (int))
+	srv.getInboundCount = make(chan func(int))
 	srv.getInboundCountDone = make(chan struct{})
 
 	if err := srv.setupLocalNode(); err != nil {
@@ -917,7 +917,7 @@ running:
 			// This channel is used by Peers and PeerCount and ValPeers.
 			op(peers)
 			srv.peerOpDone <- struct{}{}
-		case cb := <- srv.getInboundCount:
+		case cb := <-srv.getInboundCount:
 			cb(inboundCount)
 			srv.getInboundCountDone <- struct{}{}
 		case t := <-taskdone:

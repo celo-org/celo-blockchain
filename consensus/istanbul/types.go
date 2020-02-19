@@ -404,9 +404,9 @@ func (m *Message) String() string {
 
 func (m *Message) Copy() *Message {
 	return &Message{
-		Code: m.Code,
-		Msg: append(m.Msg[:0:0], m.Msg...),
-		Address: m.Address,
+		Code:      m.Code,
+		Msg:       append(m.Msg[:0:0], m.Msg...),
+		Address:   m.Address,
 		Signature: append(m.Signature[:0:0], m.Signature...),
 	}
 }
