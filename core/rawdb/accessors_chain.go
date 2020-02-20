@@ -175,13 +175,21 @@ func WriteFastTrieProgress(db ethdb.KeyValueWriter, count uint64) {
 
 // ReadHeaderRLP retrieves a block header in its raw RLP database encoding.
 func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
-	// First try to look up the data in ancient database. Extra hash
-	// comparison is necessary since ancient database only maintains
-	// the canonical data.
+	// First try to look up the data in ancient database.
 	data, _ := db.Ancient(freezerHeaderTable, number)
-	if len(data) > 0 && crypto.Keccak256Hash(data) == hash {
-		return data
+	if len(data) > 0 {
+		// Extra hash comparison is necessary since ancient database only maintains
+		// the canonical data.
+		header := new(types.Header)
+		if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
+			log.Error("Invalid block header RLP", "hash", hash, "err", err)
+			return nil
+		}
+		if header.Hash() == hash {
+			return data
+		}
 	}
+
 	// Then try to look up the data in leveldb.
 	data, _ = db.Get(headerKey(number, hash))
 	if len(data) > 0 {
