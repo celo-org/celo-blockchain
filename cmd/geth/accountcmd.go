@@ -36,6 +36,10 @@ var (
 		Name:  "bls",
 		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
 	}
+	blsWalletFlag = cli.BoolFlag{
+		Name: "blswallet",
+		Usage: "Set to specify generation of proof-of-possession using a hardware wallet",
+	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
@@ -118,6 +122,7 @@ Print a short summary of all accounts`,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
 					blsFlag,
+					blsWalletFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -227,8 +232,11 @@ func accountList(ctx *cli.Context) error {
 }
 
 func accountProofOfPossession(ctx *cli.Context) error {
-	if len(ctx.Args()) != 2 {
+	if !ctx.IsSet(blsWalletFlag.Name) && len(ctx.Args()) != 2 {
 		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
+	}
+	if ctx.IsSet(blsWalletFlag.Name) && len(ctx.Args()) != 1 {
+		utils.Fatalf("Please specify the address to sign as proof-of-possession.")
 	}
 
 	stack, _ := makeConfigNode(ctx)
@@ -238,9 +246,19 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		wallet.Open("")
 	}
 
-	signer := common.HexToAddress(ctx.Args()[0])
-	message := common.HexToAddress(ctx.Args()[1])
-	account := accounts.Account{Address: signer}
+	var(
+		signer common.Address
+		message common.Address
+		account accounts.Account
+	)
+	if ctx.IsSet(blsWalletFlag.Name) {
+		message = common.HexToAddress(ctx.Args()[0])
+		account = accounts.Account{Address: common.HexToAddress("0x0000000000000000000000000000000000000001")}
+	} else {
+		signer = common.HexToAddress(ctx.Args()[0])
+		message = common.HexToAddress(ctx.Args()[1])
+		account = accounts.Account{Address: signer}
+	}
 	var err error
 	wallet, err := stack.AccountManager().Find(account)
 	if err != nil {
@@ -252,7 +270,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	var key []byte
 	var pop []byte
 	keyType := "ECDSA"
-	if ctx.IsSet(blsFlag.Name) {
+	if ctx.IsSet(blsFlag.Name) || ctx.IsSet(blsWalletFlag.Name) {
 		keyType = "BLS"
 		key, pop, err = wallet.GenerateProofOfPossessionBLS(account, message)
 	} else {
