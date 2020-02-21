@@ -19,17 +19,17 @@ RUN apt update && apt install -y curl musl-tools
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH=$PATH:~/.cargo/bin
 RUN $HOME/.cargo/bin/rustup install 1.37.0 && $HOME/.cargo/bin/rustup default 1.37.0 && $HOME/.cargo/bin/rustup target add x86_64-unknown-linux-musl
-ADD ./vendor /go-ethereum/vendor
-RUN cd /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
+ADD ./crypto /go-ethereum/crypto
+RUN cd /go-ethereum/crypto/bls/bls-zexe/bls && $HOME/.cargo/bin/cargo build --target x86_64-unknown-linux-musl --release
 
 # Build Geth in a stock Go builder container
-FROM golang:1.11-alpine as builder
+FROM golang:1.13-alpine as builder
 
-RUN apk add --no-cache make gcc musl-dev linux-headers
+RUN apk add --no-cache make gcc musl-dev linux-headers git
+
 ADD . /go-ethereum
-RUN mkdir -p /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
-COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_zexe.a /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
-COPY --from=rustbuilder /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_snark.a /go-ethereum/vendor/github.com/celo-org/bls-zexe/bls/target/release
+RUN mkdir -p /go-ethereum/crypto/bls/bls-zexe/bls/target/release
+COPY --from=rustbuilder /go-ethereum/crypto/bls/bls-zexe/bls/target/x86_64-unknown-linux-musl/release/libbls_*.a /go-ethereum/crypto/bls/bls-zexe/bls/target/release/
 RUN cd /go-ethereum && make geth
 
 # Pull Geth into a second stage deploy alpine container

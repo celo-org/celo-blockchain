@@ -17,9 +17,10 @@
 package istanbul
 
 import (
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"math/big"
 	"testing"
+
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
 )
