@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -198,8 +197,13 @@ func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValu
 	// but when we reach into leveldb, the data was already moved. That would
 	// result in a not found error.
 	data, _ = db.Ancient(freezerHeaderTable, number)
-	if len(data) > 0 && crypto.Keccak256Hash(data) == hash {
-		return data
+	if len(data) > 0 {
+		header := new(types.Header)
+		if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
+			log.Error("Invalid block header RLP", "hash", hash, "err", err)
+		} else if header.Hash() == hash {
+			return data
+		}
 	}
 	return nil // Can't find the data anywhere.
 }
