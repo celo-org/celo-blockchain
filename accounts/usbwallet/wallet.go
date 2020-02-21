@@ -170,8 +170,7 @@ func (w *wallet) Open(passphrase string) error {
 	_, err := w.driver.GetPublicKeyBLS()
 	// Set up default address if BLS app running
 	if err == nil {
-		blsAddr := common.HexToAddress("0x0000000000000000000000000000000000000001")
-		w.paths[blsAddr] = accounts.DefaultLedgerBaseDerivationPath
+		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultLedgerBaseDerivationPath
 	}
 	w.deriveReq = make(chan chan struct{})
 	w.deriveQuit = make(chan chan error)

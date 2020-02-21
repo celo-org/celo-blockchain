@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
+var BLSHardwareWalletAddress = common.HexToAddress("0x0000000000000000000000000000000000000001")
+
 // Account represents an Ethereum account located at a specific location defined
 // by the optional URL field.
 type Account struct {

@@ -245,7 +245,6 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	for _, wallet := range am.Wallets() {
 		wallet.Open("")
 	}
-
 	var(
 		signer common.Address
 		message common.Address
@@ -253,7 +252,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	)
 	if ctx.IsSet(blsWalletFlag.Name) {
 		message = common.HexToAddress(ctx.Args()[0])
-		account = accounts.Account{Address: common.HexToAddress("0x0000000000000000000000000000000000000001")}
+		account = accounts.Account{Address: accounts.BLSHardwareWalletAddress }
 	} else {
 		signer = common.HexToAddress(ctx.Args()[0])
 		message = common.HexToAddress(ctx.Args()[1])

@@ -51,8 +51,8 @@ type ledgerParam2 byte
 type appType byte
 
 const (
-	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Ethereum address for a given BIP 32 path
-	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs an Ethereum transaction after having the user validate the parameters
+	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Celo address for a given BIP 32 path
+	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
 
 	ledgerOpSignHashBLS ledgerOpcode = 0x02 // Signs hash for BLS validator app
@@ -119,7 +119,7 @@ func (w *ledgerDriver) Status() (string, error) {
 	return fmt.Sprintf("Celo tx signer app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
 }
 
-// offline returns whether the wallet and the Ethereum app is offline or not.
+// offline returns whether the wallet and the Celo app is offline or not.
 //
 // The method assumes that the state lock is held!
 func (w *ledgerDriver) offline() bool {
@@ -142,7 +142,7 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	if w.app == ledgerTxSigner {
 		_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
 		if err != nil {
-			// Ethereum app is not running or in browser mode, nothing more to do, return
+			// Celo app is not running or in browser mode, nothing more to do, return
 			if err == errLedgerReplyInvalidHeader {
 				w.browser = true
 			}
@@ -172,10 +172,10 @@ func (w *ledgerDriver) Heartbeat() error {
 }
 
 // Derive implements usbwallet.driver, sending a derivation request to the Ledger
-// and returning the Ethereum address located on that derivation path.
+// and returning the Celo address located on that derivation path.
 func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, error) {
 	if w.app == ledgerBLSsigner {
-		return common.HexToAddress("0x0000000000000000000000000000000000000001"), nil
+		return accounts.BLSHardwareWalletAddress, nil
 	}
 	if w.app != ledgerTxSigner {
 		return common.Address{}, errLedgerInvalidApp
@@ -186,11 +186,11 @@ func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, err
 // SignTx implements usbwallet.driver, sending the transaction to the Ledger and
 // waiting for the user to confirm or deny the transaction.
 //
-// Note, if the version of the Ethereum application running on the Ledger wallet is
+// Note, if the version of the Celo application running on the Ledger wallet is
 // too old to sign EIP-155 transactions, but such is requested nonetheless, an error
 // will be returned opposed to silently signing in Homestead mode.
 func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transaction, chainID *big.Int) (common.Address, *types.Transaction, error) {
-	// If the Ethereum app doesn't run, abort
+	// If the Celo app doesn't run, abort
 	if w.offline() {
 		return common.Address{}, nil, accounts.ErrWalletClosed
 	}
@@ -230,7 +230,7 @@ func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
 	return w.ledgerGetPubKeyBLS()
 }
 
-// ledgerVersion retrieves the current version of the Ethereum wallet app running
+// ledgerVersion retrieves the current version of the Celo wallet app running
 // on the Ledger wallet.
 //
 // The version retrieval protocol is defined as follows:
@@ -263,7 +263,7 @@ func (w *ledgerDriver) ledgerVersion() ([4]byte, error) {
 	return result, nil
 }
 
-// ledgerDerive retrieves the currently active Ethereum address from a Ledger
+// ledgerDerive retrieves the currently active Celo address from a Ledger
 // wallet at the specified derivation path.
 //
 // The address derivation protocol is defined as follows:
@@ -291,8 +291,8 @@ func (w *ledgerDriver) ledgerVersion() ([4]byte, error) {
 //   ------------------------+-------------------
 //   Public Key length       | 1 byte
 //   Uncompressed Public Key | arbitrary
-//   Ethereum address length | 1 byte
-//   Ethereum address        | 40 bytes hex ascii
+//   Celo address length     | 1 byte
+//   Celo address            | 40 bytes hex ascii
 //   Chain code if requested | 32 bytes
 func (w *ledgerDriver) ledgerDerive(derivationPath []uint32) (common.Address, error) {
 	// Flatten the derivation path into the Ledger request
@@ -312,13 +312,13 @@ func (w *ledgerDriver) ledgerDerive(derivationPath []uint32) (common.Address, er
 	}
 	reply = reply[1+int(reply[0]):]
 
-	// Extract the Ethereum hex address string
+	// Extract the Celo hex address string
 	if len(reply) < 1 || len(reply) < 1+int(reply[0]) {
 		return common.Address{}, errors.New("reply lacks address entry")
 	}
 	hexstr := reply[1 : 1+int(reply[0])]
 
-	// Decode the hex sting into an Ethereum address and return
+	// Decode the hex sting into an Celo address and return
 	var address common.Address
 	if _, err = hex.Decode(address[:], hexstr); err != nil {
 		return common.Address{}, err
@@ -403,7 +403,7 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		payload = payload[chunk:]
 		op = ledgerP1ContTransactionData
 	}
-	// Extract the Ethereum signature and do a sanity validation
+	// Extract the Celo signature and do a sanity validation
 	if len(reply) != 65 {
 		return common.Address{}, nil, errors.New("reply lacks signature")
 	}
