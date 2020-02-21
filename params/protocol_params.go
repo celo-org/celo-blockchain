@@ -224,5 +224,5 @@ const (
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
 	MaxGasToReadErc20Balance                       uint64 = 100000
-	MaxGasForIsReserveLow                          uint64 = 20000
+	MaxGasForIsReserveLow                          uint64 = 1000000
 )

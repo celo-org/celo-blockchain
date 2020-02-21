@@ -172,6 +172,9 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 		return totalCommunityRewards, err
 	}
 	lowReserve, err := reserve.IsReserveLow(header, state)
+	if err != nil {
+		return totalCommunityRewards, err
+	}
 	if lowReserve && reserveAddress != nil {
 		state.AddBalance(*reserveAddress, communityReward)
 		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
