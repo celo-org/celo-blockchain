@@ -41,17 +41,17 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: 
+      - run:
           name: Build Geth
           command: go run build/ci.go install
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
-            - "/go/pkg/mod"          
+            - "/go/pkg/mod"
       - persist_to_workspace:
           root: ~/repos
           paths:
-            - geth          
+            - geth
   unit-tests:
     executor: golang
     steps:
@@ -313,6 +313,7 @@ workflows:
             - checkout-monorepo
             - build-geth
       - end-to-end-slashing-test:
+          requires:
             - checkout-monorepo
             - build-geth
       - end-to-end-sync-test:
