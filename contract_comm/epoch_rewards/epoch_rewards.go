@@ -32,8 +32,12 @@ const epochRewardsABIString string = `[
     {
       "constant": true,
       "inputs": [],
-      "name": "calculateTargetEpochPaymentAndRewards",
+      "name": "calculateTargetEpochRewards",
       "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        },
         {
           "name": "",
           "type": "uint256"
@@ -66,12 +70,15 @@ func UpdateTargetVotingYield(header *types.Header, state vm.StateDB) error {
 	return err
 }
 
-func CalculateTargetEpochPaymentAndRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, error) {
-	var validatorEpochPayment *big.Int
+// Returns the per validator epoch reward, the total voter reward, and the total community reward
+// for the epoch.
+func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, *big.Int, error) {
+	var validatorEpochReward *big.Int
 	var totalVoterRewards *big.Int
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochPaymentAndRewards", []interface{}{}, &[]interface{}{&validatorEpochPayment, &totalVoterRewards}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
+	var totalCommunityReward *big.Int
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards, &totalCommunityReward}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return validatorEpochPayment, totalVoterRewards, nil
+	return validatorEpochReward, totalVoterRewards, totalCommunityReward, nil
 }

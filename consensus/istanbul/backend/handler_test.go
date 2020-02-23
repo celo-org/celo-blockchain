@@ -37,43 +37,135 @@ func (p *MockPeer) Node() *enode.Node {
 	return nil
 }
 
+func (p *MockPeer) Version() int {
+	return 0
+}
+
 func TestIstanbulMessage(t *testing.T) {
 	_, backend := newBlockChain(1, true)
 
 	// generate one msg
 	data := []byte("data1")
-	hash := istanbul.RLPHash(data)
-	msg := makeMsg(istanbulConsensusMsg, data)
+	msg := makeMsg(istanbulAnnounceMsg, data)
 	addr := common.BytesToAddress([]byte("address"))
 
-	// 1. this message should not be in cache
-	// for peers
-	if _, ok := backend.recentMessages.Get(addr); ok {
-		t.Fatalf("the cache of messages for this peer should be nil")
-	}
-
-	// for self
-	if _, ok := backend.knownMessages.Get(hash); ok {
-		t.Fatalf("the cache of messages should be nil")
-	}
-
-	// 2. this message should be in cache after we handle it
 	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
 	if err != nil {
 		t.Fatalf("handle message failed: %v", err)
 	}
-	// for peers
-	if ms, ok := backend.recentMessages.Get(addr); ms == nil || !ok {
-		t.Fatalf("the cache of messages for this peer cannot be nil")
-	} else if m, ok := ms.(*lru.ARCCache); !ok {
-		t.Fatalf("the cache of messages for this peer cannot be casted")
-	} else if _, ok := m.Get(hash); !ok {
-		t.Fatalf("the cache of messages for this peer cannot be found")
+}
+
+func TestRecentMessageCaches(t *testing.T) {
+	// Define the various voting scenarios to test
+	tests := []struct {
+		ethMsgCode  uint64
+		shouldCache bool
+	}{
+		{
+			ethMsgCode:  istanbulConsensusMsg,
+			shouldCache: false,
+		},
+		{
+			ethMsgCode:  istanbulAnnounceMsg,
+			shouldCache: true,
+		},
+		{
+			ethMsgCode:  istanbulValEnodesShareMsg,
+			shouldCache: false,
+		},
+		{
+			ethMsgCode:  istanbulFwdMsg,
+			shouldCache: false,
+		},
+		{
+			ethMsgCode:  istanbulGetAnnouncesMsg,
+			shouldCache: false,
+		},
+		{
+			ethMsgCode:  istanbulGetAnnounceVersionsMsg,
+			shouldCache: false,
+		},
+		{
+			ethMsgCode:  istanbulAnnounceVersionsMsg,
+			shouldCache: false,
+		},
 	}
 
-	// for self
-	if _, ok := backend.knownMessages.Get(hash); !ok {
-		t.Fatalf("the cache of messages cannot be found")
+	for _, tt := range tests {
+		_, backend := newBlockChain(1, true)
+
+		// generate a msg that is not an Announce
+		data := []byte("data1")
+		hash := istanbul.RLPHash(data)
+		msg := makeMsg(tt.ethMsgCode, data)
+		addr := common.BytesToAddress([]byte("address"))
+
+		// 1. this message should not be in cache
+		// for peers
+		if _, ok := backend.peerRecentMessages.Get(addr); ok {
+			t.Fatalf("the cache of messages for this peer should be nil")
+		}
+
+		// for self
+		if _, ok := backend.selfRecentMessages.Get(hash); ok {
+			t.Fatalf("the cache of messages should be nil")
+		}
+
+		// 2. this message should be in cache only when ethMsgCode == istanbulAnnounceMsg
+		_, err := backend.HandleMsg(addr, msg, &MockPeer{})
+		if err != nil {
+			t.Fatalf("handle message failed: %v", err)
+		}
+
+		// for peers
+		if ms, ok := backend.peerRecentMessages.Get(addr); tt.shouldCache != ok {
+			t.Fatalf("the cache of messages for this peer should be nil")
+		} else if tt.shouldCache {
+			if m, ok := ms.(*lru.ARCCache); !ok {
+				t.Fatalf("the cache of messages for this peer cannot be casted")
+			} else if _, ok := m.Get(hash); !ok {
+				t.Fatalf("the cache of messages for this peer cannot be found")
+			}
+		}
+		// for self
+		if _, ok := backend.selfRecentMessages.Get(hash); tt.shouldCache != ok {
+			t.Fatalf("the cache of messages must be nil")
+		}
+	}
+}
+
+func TestProxyConsensusForwarding(t *testing.T) {
+	_, backend := newBlockChain(1, true)
+	backend.config.Proxy = true
+
+	// generate one msg
+	data := []byte("data1")
+	bytes, err := rlp.EncodeToBytes(data)
+	if err != nil {
+		t.Fatalf("Error encoding consensus message bytes: %v", err)
+	}
+
+	msg := &istanbul.Message{
+		Code:      istanbulConsensusMsg,
+		Msg:       bytes,
+		Address:   backend.Address(),
+		Signature: []byte{},
+	}
+
+	// Test sending a message with no validator signature.
+	// Should fail because proxy expects consensus messages from validators.
+	payloadNoSig, _ := msg.Payload()
+	err = backend.handleConsensusMsg(&MockPeer{}, payloadNoSig)
+	if err != errNonValidatorMessage {
+		t.Errorf("Expected error sending message from non validator")
+	}
+
+	// Test sending a message with a legitimate validator signature.
+	// Should succeed now.
+	msg.Sign(backend.Sign)
+	payloadWithSig, _ := msg.Payload()
+	if err = backend.handleConsensusMsg(&MockPeer{}, payloadWithSig); err != nil {
+		t.Errorf("error %v", err)
 	}
 }
 

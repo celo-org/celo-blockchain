@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state *state.StateDB) error {
+func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
 	start := time.Now()
 	defer sb.rewardDistributionTimer.UpdateSince(start)
 
@@ -46,17 +46,17 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
-	validatorEpochPayment, totalVoterRewards, err := epoch_rewards.CalculateTargetEpochPaymentAndRewards(header, state)
+	validatorReward, totalVoterRewards, communityReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
 	}
-	log.Debug("Calculated target epoch payment and rewards", "validatorEpochPayment", validatorEpochPayment, "totalVoterRewards", totalVoterRewards)
+	log.Debug("Calculated target rewards", "validatorReward", validatorReward, "totalVoterRewards", totalVoterRewards, "communityReward", communityReward)
 
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
 	if len(valSet) == 0 {
-		err := errors.New("Unable to fetch validator set to update scores and distribute payments and rewards")
+		err := errors.New("Unable to fetch validator set to update scores and distribute rewards")
 		sb.logger.Error(err.Error())
 		return err
 	}
@@ -66,12 +66,16 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 		return err
 	}
 
-	totalEpochPayments, err := sb.distributeEpochPayments(header, state, valSet, validatorEpochPayment)
+	totalValidatorRewards, err := sb.distributeValidatorRewards(header, state, valSet, validatorReward)
+	if err != nil {
+		return err
+	}
+	totalCommunityRewards, err := sb.distributeCommunityRewards(header, state, communityReward)
 	if err != nil {
 		return err
 	}
 
-	totalEpochRewards, err := sb.distributeEpochRewards(header, state, valSet, totalVoterRewards, uptimes)
+	totalDistributedVoterRewards, err := sb.distributeVoterRewards(header, state, valSet, totalVoterRewards, uptimes)
 	if err != nil {
 		return err
 	}
@@ -80,19 +84,25 @@ func (sb *Backend) distributeEpochPaymentsAndRewards(header *types.Header, state
 	if err != nil {
 		return err
 	}
-	totalEpochPaymentsConvertedToGold, err := currency.Convert(totalEpochPayments, stableTokenAddress, nil)
+
+	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
+	if err != nil {
+		return err
+	}
 
 	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {
 		return err
 	}
 	if reserveAddress != nil {
-		state.AddBalance(*reserveAddress, totalEpochPaymentsConvertedToGold)
+		state.AddBalance(*reserveAddress, totalValidatorRewardsConvertedToGold)
 	} else {
 		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
 	}
 
-	return sb.increaseGoldTokenTotalSupply(header, state, big.NewInt(0).Add(totalEpochRewards, totalEpochPaymentsConvertedToGold))
+	mintedGold := big.NewInt(0).Add(totalDistributedVoterRewards, totalValidatorRewardsConvertedToGold)
+	mintedGold.Add(mintedGold, totalCommunityRewards)
+	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
@@ -137,34 +147,44 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	return uptimes, nil
 }
 
-func (sb *Backend) distributeEpochPayments(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxPayment *big.Int) (*big.Int, error) {
-	totalEpochPayments := big.NewInt(0)
+func (sb *Backend) distributeValidatorRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxReward *big.Int) (*big.Int, error) {
+	totalValidatorRewards := big.NewInt(0)
 	for _, val := range valSet {
-		sb.logger.Debug("Distributing epoch payment for address", "address", val.Address())
-		epochPayment, err := validators.DistributeEpochPayment(header, state, val.Address(), maxPayment)
+		sb.logger.Debug("Distributing epoch reward for validator", "address", val.Address())
+		validatorReward, err := validators.DistributeEpochReward(header, state, val.Address(), maxReward)
 		if err != nil {
-			return totalEpochPayments, nil
+			return totalValidatorRewards, nil
 		}
-		totalEpochPayments.Add(totalEpochPayments, epochPayment)
+		totalValidatorRewards.Add(totalValidatorRewards, validatorReward)
 	}
-	return totalEpochPayments, nil
+	return totalValidatorRewards, nil
 }
 
-func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
-	totalEpochRewards := big.NewInt(0)
-
-	// Fixed epoch reward to the community fund.
-	// TODO(asa): This should be a fraction of the overall reward to stakers.
-	communityEpochReward := big.NewInt(params.Ether)
+func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state.StateDB, communityReward *big.Int) (*big.Int, error) {
+	totalCommunityRewards := big.NewInt(0)
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
-		return totalEpochRewards, err
+		return totalCommunityRewards, err
+	}
+	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
+	if err != nil {
+		return totalCommunityRewards, err
+	}
+	// TODO: replace 'false' with 'isReserveLow'
+	if false && reserveAddress != nil {
+		state.AddBalance(*reserveAddress, communityReward)
+		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
+	} else if governanceAddress != nil {
+		// TODO: How to split eco fund here
+		state.AddBalance(*governanceAddress, communityReward)
+		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
 	}
 
-	if governanceAddress != nil {
-		state.AddBalance(*governanceAddress, communityEpochReward)
-		totalEpochRewards.Add(totalEpochRewards, communityEpochReward)
-	}
+	return totalCommunityRewards, err
+}
+
+func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
+	totalVoterRewards := big.NewInt(0)
 
 	// Select groups that elected at least one validator aggregate their uptimes.
 	var groups []common.Address
@@ -173,7 +193,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	for i, val := range valSet {
 		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
 		if err != nil {
-			return totalEpochRewards, err
+			return totalVoterRewards, err
 		}
 		if _, ok := groupElectedValidator[group]; !ok {
 			groups = append(groups, group)
@@ -185,19 +205,19 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 
 	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards, groupUptimes)
 	if err != nil {
-		return totalEpochRewards, err
+		return totalVoterRewards, err
 	}
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {
-		return totalEpochRewards, err
+		return totalVoterRewards, err
 	}
 	if lockedGoldAddress != nil {
 		state.AddBalance(*lockedGoldAddress, electionRewards)
-		totalEpochRewards.Add(totalEpochRewards, electionRewards)
+		totalVoterRewards.Add(totalVoterRewards, electionRewards)
 	} else {
-		return totalEpochRewards, errors.New("Unable to fetch locked gold address for epoch rewards distribution")
+		return totalVoterRewards, errors.New("Unable to fetch locked gold address for epoch rewards distribution")
 	}
-	return totalEpochRewards, err
+	return totalVoterRewards, err
 }
 
 func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(header *types.Header, state *state.StateDB) error {

@@ -117,8 +117,8 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(3))),
-				blscrypto.SerializedPublicKey{},
+				Address:      common.BytesToAddress([]byte(string(3))),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
 	) {
@@ -127,8 +127,8 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(3))),
-				blscrypto.SerializedPublicKey{},
+				Address:      common.BytesToAddress([]byte(string(3))),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
 	) {
@@ -137,12 +137,12 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte(string(2))),
-				blscrypto.SerializedPublicKey{},
+				Address:      common.BytesToAddress([]byte(string(2))),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 			{
-				common.BytesToAddress([]byte(string(1))),
-				blscrypto.SerializedPublicKey{},
+				Address:      common.BytesToAddress([]byte(string(1))),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
 	)
