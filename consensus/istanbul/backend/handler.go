@@ -398,6 +398,7 @@ func (sb *Backend) shouldSendValidatorProof(peer consensus.Peer) (bool, error) {
 // readValidatorProofMessage reads a validator proof message as a part of the
 // istanbul handshake. Returns if the peer is a validator or if an error occurred.
 func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
+	logger := sb.logger.New("func", "readValidatorProofMessage")
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
 		return false, err
@@ -424,10 +425,21 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, err
 	}
 
+	node, err := enode.ParseV4(directAnnounce.Node)
+	if err != nil {
+		return false, err
+	}
+
+	// Ensure the node in the directAnnounce matches the peer node
+	if node.ID() != peer.Node().ID() {
+		logger.Warn("Peer provided incorrect node in directAnnounce", "directAnnounce node", directAnnounce.Node, "peer node", peer.Node().URLv4())
+		return false, errors.New("Incorrect node in directAnnounce")
+	}
+
 	// Check if the peer is within the registered/elected valset
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
-		sb.logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return false, err
 	}
 	if !regAndActiveVals[msg.Address] {
@@ -442,10 +454,6 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	// By this point, we know the peer is a validator and we update our val enode table accordingly
-	node, err := enode.ParseV4(directAnnounce.Node)
-	if err != nil {
-		return false, err
-	}
 	// Upsert will only use this entry if the version is new
 	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: directAnnounce.Version}})
 	if err != nil {

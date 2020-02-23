@@ -819,9 +819,9 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 	// TODO remove this check when a directAnnounce can be received from a node
 	// apart from the proxied validator
 	// There may be a difference in the URLv4 string because of `discport`,
-	// so instead compare the ID, IP, and port
+	// so instead compare the ID
 	selfNode := sb.p2pserver.Self()
-	if parsedNode.ID() != selfNode.ID() || !parsedNode.IP().Equal(selfNode.IP()) || parsedNode.TCP() != selfNode.TCP() {
+	if parsedNode.ID() != selfNode.ID() {
 		err := fmt.Errorf("Unexpected node (%s != %s)", directAnnounce.Node, sb.p2pserver.Self().URLv4())
 		logger.Warn("Received Istanbul Direct Announce message with an incorrect node", "err", err)
 		return err
