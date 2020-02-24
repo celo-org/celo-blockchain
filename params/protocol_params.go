@@ -203,6 +203,9 @@ const (
 	MaxGasForComputeCommitment                     uint64 = 2000000
 	MaxGasForCreditToTransactions                  uint64 = 100000
 	MaxGasForDebitFromTransactions                 uint64 = 100000
+	MaxGasForReserveGasTransactions                uint64 = 100000
+	MaxGasForCreditGasTransactions                 uint64 = 100000
+	MaxGasForRefundGasTransactions                 uint64 = 100000
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
