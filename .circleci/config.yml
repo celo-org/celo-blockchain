@@ -185,6 +185,8 @@ jobs:
 
   end-to-end-blockchain-parameters-test:
     executor: e2e
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -210,6 +212,8 @@ jobs:
 
   end-to-end-sync-test:
     executor: e2e
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -236,6 +240,8 @@ jobs:
 
   end-to-end-transfer-test:
     executor: e2e
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
