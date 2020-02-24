@@ -176,15 +176,22 @@ func WriteFastTrieProgress(db ethdb.KeyValueWriter, count uint64) {
 func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
 	// First try to look up the data in ancient database.
 	data, _ := db.Ancient(freezerHeaderTable, number)
-	if len(data) > 0 {
-		// Extra hash comparison is necessary since ancient database only maintains
-		// the canonical data.
+
+	// Extra hash comparison is necessary since ancient database only maintains
+	// the canonical data.
+	headerHashCheck := func(data []byte, hash common.Hash) bool {
 		header := new(types.Header)
 		if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
-			log.Error("Invalid block header RLP", "hash", hash, "err", err)
-		} else if header.Hash() == hash {
-			return data
+			log.Error("Error decoding stored block header", "number", number, "err", err)
 		}
+
+		return header.Hash() == hash
+	}
+
+	if len(data) > 0 && headerHashCheck(data, hash) {
+		// Extra hash comparison is necessary since ancient database only maintains
+		// the canonical data.
+		return data
 	}
 
 	// Then try to look up the data in leveldb.
@@ -197,13 +204,8 @@ func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValu
 	// but when we reach into leveldb, the data was already moved. That would
 	// result in a not found error.
 	data, _ = db.Ancient(freezerHeaderTable, number)
-	if len(data) > 0 {
-		header := new(types.Header)
-		if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
-			log.Error("Invalid block header RLP", "hash", hash, "err", err)
-		} else if header.Hash() == hash {
-			return data
-		}
+	if len(data) > 0 && headerHashCheck(data, hash) {
+		return data
 	}
 	return nil // Can't find the data anywhere.
 }
