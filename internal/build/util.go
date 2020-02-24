@@ -129,7 +129,7 @@ func render(tpl *template.Template, outputFile string, outputPerm os.FileMode, x
 // because runtime.Version checks on the host should match the tools that are run.
 func GoTool(tool string, args ...string) *exec.Cmd {
 	args = append([]string{tool}, args...)
-	// #nosec (Internal tool. nothing to worry about)
+	// #nosec (Ignoring sanitization warning. Build tool is intended to take arbitrary arguments.)
 	return exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), args...)
 }
 
