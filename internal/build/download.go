@@ -82,7 +82,7 @@ func (db *ChecksumDB) DownloadFile(url, dstPath string) error {
 	fmt.Printf("%s is stale\n", dstPath)
 	fmt.Printf("downloading from %s\n", url)
 
-	// #nosec (internal tool nothing to worry about)
+	// #nosec (Ignoring sanitization warning. Intended to be an arbitrary url.)
 	resp, err := http.Get(url)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download error: code %d, err %v", resp.StatusCode, err)
