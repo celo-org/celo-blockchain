@@ -183,17 +183,30 @@ jobs:
             - celo-monorepo
             - golang
 
-  end-to-end-transfer-test:
+  end-to-end-blockchain-parameters-test:
     executor: e2e
     steps:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth transfer test
+          name: End-to-end test of governable blockchain parameters
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_blockchain_parameters.sh local ~/repos/geth
+
+  end-to-end-governance-test:
+    executor: e2e
+    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
+    resource_class: medium+
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of proof-of-stake
           no_output_timeout: 15m
           command: |
             export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_transfers.sh local ~/repos/geth
+            ./ci_test_governance.sh local ~/repos/geth
 
   end-to-end-sync-test:
     executor: e2e
@@ -201,21 +214,11 @@ jobs:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth sync with a standalone node test
+          name: End-to-end test of syncing
+          no_output_timeout: 15m
           command: |
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_sync.sh local ~/repos/geth
-
-  end-to-end-blockchain-parameters-test:
-    executor: e2e
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run:
-          name: Geth sync with a standalone nod~e test
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_blockchain_parameters.sh local ~/repos/geth
 
   end-to-end-slashing-test:
     executor: e2e
@@ -226,14 +229,22 @@ jobs:
           at: ~/repos
       - run:
           name: End-to-end test of slashing
-          no_output_timeout: "1200s"
+          no_output_timeout: 15m
           command: |
-            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
-            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
-            ${GO_LANG_DIR}/go/bin/go version
-            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            cd ${CELO_MONOREPO_DIR}/packages/celotool
+            export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_slashing.sh local ~/repos/geth
+
+  end-to-end-transfer-test:
+    executor: e2e
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of transfers
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_transfers.sh local ~/repos/geth
 
   end-to-end-validator-order-test:
     executor: e2e
@@ -244,28 +255,10 @@ jobs:
           at: ~/repos
       - run:
           name: End-to-end test of random validator order
-          no_output_timeout: "1200s"
-          command: |
-            export CELO_MONOREPO_DIR="$HOME/repos/celo-monorepo"
-            export GO_LANG_DIR="$CELO_MONOREPO_DIR/golang"
-            ${GO_LANG_DIR}/go/bin/go version
-            export PATH=${PATH}:${GO_LANG_DIR}/go/bin
-            cd ${CELO_MONOREPO_DIR}/packages/celotool
-            ./ci_test_validator_order.sh local ~/repos/geth
-
-  end-to-end-governance-test:
-    executor: e2e
-    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
-    resource_class: medium+
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run:
-          name: Geth governance with a standalone node
-          no_output_timeout: "1200s"
+          no_output_timeout: 15m
           command: |
             export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_governance.sh local ~/repos/geth
+            ./ci_test_validator_order.sh local ~/repos/geth
 
 workflows:
   version: 2
