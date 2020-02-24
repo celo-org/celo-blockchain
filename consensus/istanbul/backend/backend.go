@@ -66,8 +66,11 @@ var (
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
-	// errNotProxy is returned when the current node is expect to be a proxy
+	// errNotProxy is returned when the current node is expected to be a proxy
 	errNotProxy = errors.New("this node is not a proxy")
+
+	// errIsProxy is returned when the current node is expected to not be a proxy
+	errIsProxy = errors.New("this node is a proxy")
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
@@ -209,8 +212,8 @@ type Backend struct {
 	// The direct announce message most recently received by a proxy from its
 	// proxied validator for proving itself as a validator in the handshake.
 	// The entire istanbul.Message is saved to keep the signature
-	proxyDirectAnnounceMsg   *istanbul.Message
-	proxyDirectAnnounceMsgMu sync.RWMutex
+	selfDirectAnnounceMsg   *istanbul.Message
+	selfDirectAnnounceMsgMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

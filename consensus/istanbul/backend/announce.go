@@ -349,20 +349,29 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return nil
 	}
 
-	// Convert to payload
-	payload, err := istMsg.Payload()
-	if err != nil {
-		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
+	// Generate a new directAnnounce with the updated version
+	directAnnounce, err := sb.generateDirectAnnounce(announceVersion)
+	if err != nil && err != errIsProxy {
 		return err
 	}
+	sb.selfDirectAnnounceMsgMu.Lock()
+	sb.selfDirectAnnounceMsg = directAnnounce
+	sb.selfDirectAnnounceMsgMu.Unlock()
 
-	// Send a new direct announce to the peer with the same version that was just gossiped out
+	// Send a new direct announce to the proxy peer with the same version that was just gossiped out
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
 		err := sb.sendDirectAnnounce(sb.proxyNode.peer, announceVersion)
 		if err != nil {
 			logger.Error("Error in sending direct announce to proxy", "err", err)
 			return err
 		}
+	}
+
+	// Convert to payload
+	payload, err := istMsg.Payload()
+	if err != nil {
+		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
+		return err
 	}
 
 	// Add the generated announce message to this node's cache
@@ -737,6 +746,29 @@ func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+// getSelfDirectAnnounce gets the most recent direct announce message to send
+// and generates a new one with `version` if one does not exist.
+// New direct announce messages are not always generated to ensure the version
+// of a direct announce message is not greater than a recently gossiped announce
+// version
+func (sb *Backend) getSelfDirectAnnounce(version uint) (*istanbul.Message, error) {
+	sb.selfDirectAnnounceMsgMu.Lock()
+	defer sb.selfDirectAnnounceMsgMu.Unlock()
+	if sb.selfDirectAnnounceMsg == nil {
+		// Proxies cannot generate a direct announce message because are not
+		// able to sign on behalf of the proxied validator
+		if sb.config.Proxy {
+			return nil, nil
+		}
+		directAnnounce, err := sb.generateDirectAnnounce(version)
+		if err != nil {
+			return nil, err
+		}
+		sb.selfDirectAnnounceMsg = directAnnounce
+	}
+	return sb.selfDirectAnnounceMsg.Copy(), nil
+}
+
 // generateDirectAnnounce generates a direct announce message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
@@ -829,23 +861,22 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 
 	logger.Trace("Received Istanbul Direct Announce", "directAnnounce", directAnnounce)
 
-	sb.proxyDirectAnnounceMsgMu.Lock()
-	sb.proxyDirectAnnounceMsg = &msg
-	sb.proxyDirectAnnounceMsgMu.Unlock()
+	sb.selfDirectAnnounceMsgMu.Lock()
+	sb.selfDirectAnnounceMsg = &msg
+	sb.selfDirectAnnounceMsgMu.Unlock()
 
 	return nil
 }
 
 func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
 	logger := sb.logger.New("func", "sendDirectAnnounce")
-	directAnnounce, err := sb.generateDirectAnnounce(version)
+
+	directAnnounce, err := sb.getSelfDirectAnnounce(version)
 	if err != nil {
-		logger.Error("Error sending direct announce message", "err", err)
+		logger.Warn("Error getting self direct announce", "err", err)
 		return err
 	}
-	if directAnnounce == nil {
-		return nil
-	}
+
 	payload, err := directAnnounce.Payload()
 	if err != nil {
 		logger.Error("Error getting payload of direct announce message", "err", err)

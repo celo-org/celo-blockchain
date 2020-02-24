@@ -351,17 +351,12 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 		return nil, err
 	}
 	if shouldSend {
-		if sb.config.Proxy {
-			// if this proxy has been disconnected from its validator for any reason,
-			// don't send a proof message, but do not fail the handshake.
-			if sb.proxyDirectAnnounceMsg != nil && sb.proxiedPeer != nil {
-				// Make a copy of the proxyDirectAnnounceMsg for thread safety
-				sb.proxyDirectAnnounceMsgMu.RLock()
-				defer sb.proxyDirectAnnounceMsgMu.RUnlock()
-				return sb.proxyDirectAnnounceMsg.Copy(), nil
-			}
-		} else {
-			return sb.generateDirectAnnounce(getCurrentAnnounceVersion())
+		msg, err := sb.getSelfDirectAnnounce(getCurrentAnnounceVersion())
+		if err != nil {
+			return nil, err
+		}
+		if msg != nil {
+			return msg, nil
 		}
 	}
 	// Even if we decide not to identify ourselves,
