@@ -299,7 +299,7 @@ func (st *StateTransition) reserveGas(address common.Address, amount *big.Int, f
 func (st *StateTransition) callRefundGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	evm := st.evm
 	// Function is "refundGas(address from, uint256 amount)"
-	functionSelector := hexutil.MustDecode("0xeb563455")
+	functionSelector := hexutil.MustDecode("0x270d7c07")
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
