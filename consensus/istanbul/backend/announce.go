@@ -349,20 +349,22 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return nil
 	}
 
-	// Generate a new directAnnounce with the updated version
-	directAnnounce, err := sb.generateDirectAnnounce(announceVersion)
+	// Generate a new versioned enode message with the updated version
+	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(announceVersion)
 	if err != nil {
 		return err
 	}
-	sb.selfDirectAnnounceMsgMu.Lock()
-	sb.selfDirectAnnounceMsg = directAnnounce
-	sb.selfDirectAnnounceMsgMu.Unlock()
+	if versionedEnodeMsg != nil {
+		sb.selfVersionedEnodeMsgMu.Lock()
+		sb.selfVersionedEnodeMsg = versionedEnodeMsg
+		sb.selfVersionedEnodeMsgMu.Unlock()
+	}
 
-	// Send a new direct announce to the proxy peer with the same version that was just gossiped out
+	// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendDirectAnnounce(sb.proxyNode.peer, announceVersion)
+		err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, announceVersion)
 		if err != nil {
-			logger.Error("Error in sending direct announce to proxy", "err", err)
+			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
 			return err
 		}
 	}
@@ -718,7 +720,7 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	}
 }
 
-type directAnnounce struct {
+type versionedEnode struct {
 	Node    string
 	Version uint
 }
@@ -727,13 +729,13 @@ type directAnnounce struct {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes da into the Ethereum RLP format.
-func (da *directAnnounce) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{da.Node, da.Version})
+// EncodeRLP serializes ve into the Ethereum RLP format.
+func (ve *versionedEnode) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ve.Node, ve.Version})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the da fields from a RLP stream.
-func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the ve fields from a RLP stream.
+func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Node    string
 		Version uint
@@ -742,38 +744,38 @@ func (da *directAnnounce) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	da.Node, da.Version = msg.Node, msg.Version
+	ve.Node, ve.Version = msg.Node, msg.Version
 	return nil
 }
 
-// getSelfDirectAnnounce gets the most recent direct announce message to send
+// getSelfVersionedEnodeMsg gets the most recent self versioned enode message to send
 // and generates a new one with `version` if one does not exist.
-// New direct announce messages are not always generated to ensure the version
-// of a direct announce message is not greater than a recently gossiped announce
+// New versioned enode messages are not always generated to ensure the version
+// of a versioned enode message is not greater than a recently gossiped announce
 // version
-func (sb *Backend) getSelfDirectAnnounce(version uint) (*istanbul.Message, error) {
-	sb.selfDirectAnnounceMsgMu.Lock()
-	defer sb.selfDirectAnnounceMsgMu.Unlock()
-	if sb.selfDirectAnnounceMsg == nil {
-		// Proxies cannot generate a direct announce message because are not
-		// able to sign on behalf of the proxied validator
+func (sb *Backend) getSelfVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
+	sb.selfVersionedEnodeMsgMu.Lock()
+	defer sb.selfVersionedEnodeMsgMu.Unlock()
+	if sb.selfVersionedEnodeMsg == nil {
+		// Proxies cannot generate a versioned enode message because are not
+		// able to sign on behalf of the proxied validator.
 		if sb.config.Proxy {
 			return nil, nil
 		}
-		directAnnounce, err := sb.generateDirectAnnounce(version)
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
 		if err != nil {
 			return nil, err
 		}
-		sb.selfDirectAnnounceMsg = directAnnounce
+		sb.selfVersionedEnodeMsg = versionedEnodeMsg
 	}
-	return sb.selfDirectAnnounceMsg.Copy(), nil
+	return sb.selfVersionedEnodeMsg.Copy(), nil
 }
 
-// generateDirectAnnounce generates a direct announce message with the enode
+// generateVersionedEnodeMsg generates a versioned enode message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
-func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateDirectAnnounce")
+func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
+	logger := sb.logger.New("func", "generateVersionedEnodeMsg")
 
 	var enodeURL string
 	if sb.config.Proxied {
@@ -786,35 +788,35 @@ func (sb *Backend) generateDirectAnnounce(version uint) (*istanbul.Message, erro
 		enodeURL = sb.p2pserver.Self().URLv4()
 	}
 
-	directAnnounce := &directAnnounce{
+	versionedEnode := &versionedEnode{
 		Node:    enodeURL,
 		Version: version,
 	}
-	directAnnounceBytes, err := rlp.EncodeToBytes(directAnnounce)
+	versionedEnodeBytes, err := rlp.EncodeToBytes(versionedEnode)
 	if err != nil {
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code:      istanbulDirectAnnounceMsg,
+		Code:      istanbulVersionedEnodeMsg,
 		Address:   sb.Address(),
-		Msg:       directAnnounceBytes,
+		Msg:       versionedEnodeBytes,
 		Signature: []byte{},
 	}
-	// Sign the announce message
+	// Sign the message
 	if err := msg.Sign(sb.Sign); err != nil {
 		return nil, err
 	}
-	logger.Trace("Generated Istanbul Direct Announce message", "directAnnounce", directAnnounce, "address", msg.Address)
+	logger.Trace("Generated Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "address", msg.Address)
 	return msg, nil
 }
 
-// handleDirectAnnounceMsg handles a direct announce message.
+// handleVersionedEnodeMsg handles a versioned enode message.
 // At the moment, this message is only supported if it sent from a proxied
 // validator to its proxy.
-func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleDirectAnnounceMsg")
+func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
 
-	// TODO remove this check once direct announce messages are not limited to
+	// TODO remove this check once versioned enode messages are not limited to
 	// proxied validator -> proxy communication
 	if !sb.config.Proxy {
 		return errNotProxy
@@ -824,68 +826,68 @@ func (sb *Backend) handleDirectAnnounceMsg(peer consensus.Peer, payload []byte) 
 	// Decode payload into msg
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
-		logger.Error("Error in decoding received Istanbul Direct Announce message", "err", err, "payload", hex.EncodeToString(payload))
+		logger.Error("Error in decoding received Istanbul Versioned Enode message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
-	logger.Trace("Handling an Istanbul Direct Announce message", "from", msg.Address)
+	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
 
-	// TODO remove this check when a directAnnounce can be received from a node
+	// TODO remove this check when a versionedEnode message can be received from a node
 	// apart from the proxied validator
 	if msg.Address != sb.config.ProxiedValidatorAddress {
 		err = fmt.Errorf("Origin address is not the proxied validator (%s != %s)", msg.Address.String(), sb.config.ProxiedValidatorAddress.String())
-		logger.Error("Error in the origin of a received Istanbul Direct Announce message", "err", err)
+		logger.Error("Error in the origin of a received Istanbul Versioned Enode message", "err", err)
 		return err
 	}
 
-	var directAnnounce directAnnounce
-	if err := rlp.DecodeBytes(msg.Msg, &directAnnounce); err != nil {
-		logger.Warn("Error in decoding received Istanbul Direct Announce message content", "err", err, "IstanbulMsg", msg.String())
+	var versionedEnode versionedEnode
+	if err := rlp.DecodeBytes(msg.Msg, &versionedEnode); err != nil {
+		logger.Warn("Error in decoding received Istanbul Versioned Enode message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
-	parsedNode, err := enode.ParseV4(directAnnounce.Node)
+	parsedNode, err := enode.ParseV4(versionedEnode.Node)
 	if err != nil {
-		logger.Warn("Malformed v4 node in received Istanbul Direct Announce message", "directAnnounce", directAnnounce, "err", err)
+		logger.Warn("Malformed v4 node in received Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "err", err)
 	}
 
-	// TODO remove this check when a directAnnounce can be received from a node
+	// TODO remove this check when a versioned enode msg can be received from a node
 	// apart from the proxied validator
 	// There may be a difference in the URLv4 string because of `discport`,
 	// so instead compare the ID
 	selfNode := sb.p2pserver.Self()
 	if parsedNode.ID() != selfNode.ID() {
-		err := fmt.Errorf("Unexpected node (%s != %s)", directAnnounce.Node, sb.p2pserver.Self().URLv4())
-		logger.Warn("Received Istanbul Direct Announce message with an incorrect node", "err", err)
+		err := fmt.Errorf("Unexpected node (%s != %s)", versionedEnode.Node, sb.p2pserver.Self().URLv4())
+		logger.Warn("Received Istanbul Versioned Enode message with an incorrect node", "err", err)
 		return err
 	}
 
-	logger.Trace("Received Istanbul Direct Announce", "directAnnounce", directAnnounce)
+	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
 
-	sb.selfDirectAnnounceMsgMu.Lock()
-	sb.selfDirectAnnounceMsg = &msg
-	sb.selfDirectAnnounceMsgMu.Unlock()
+	sb.selfVersionedEnodeMsgMu.Lock()
+	sb.selfVersionedEnodeMsg = &msg
+	sb.selfVersionedEnodeMsgMu.Unlock()
 
 	return nil
 }
 
-func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
-	logger := sb.logger.New("func", "sendDirectAnnounce")
+func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, version uint) error {
+	logger := sb.logger.New("func", "sendVersionedEnodeMsg")
 
-	directAnnounce, err := sb.getSelfDirectAnnounce(version)
+	versionedEnodeMsg, err := sb.getSelfVersionedEnodeMsg(version)
 	if err != nil {
-		logger.Warn("Error getting self direct announce", "err", err)
+		logger.Warn("Error getting self versioned enode message", "err", err)
 		return err
 	}
-	if directAnnounce == nil {
+	if versionedEnodeMsg == nil {
 		return nil
 	}
 
-	payload, err := directAnnounce.Payload()
+	payload, err := versionedEnodeMsg.Payload()
 	if err != nil {
-		logger.Error("Error getting payload of direct announce message", "err", err)
+		logger.Error("Error getting payload of versioned enode message", "err", err)
 		return err
 	}
-	return peer.Send(istanbulDirectAnnounceMsg, payload)
+	return peer.Send(istanbulVersionedEnodeMsg, payload)
 }
 
 func getCurrentAnnounceVersion() uint {

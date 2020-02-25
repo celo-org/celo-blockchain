@@ -144,7 +144,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulDirectAnnounceMsg] = backend.handleDirectAnnounceMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulVersionedEnodeMsg] = backend.handleVersionedEnodeMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 
 	return backend
@@ -206,11 +206,11 @@ type Backend struct {
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
 
-	// The direct announce message most recently received by a proxy from its
+	// The versioned enode message most recently received by a proxy from its
 	// proxied validator for proving itself as a validator in the handshake.
 	// The entire istanbul.Message is saved to keep the signature
-	selfDirectAnnounceMsg   *istanbul.Message
-	selfDirectAnnounceMsgMu sync.RWMutex
+	selfVersionedEnodeMsg    *istanbul.Message
+	selfVersionedEnodeMsgMu  sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

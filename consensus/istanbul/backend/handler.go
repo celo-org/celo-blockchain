@@ -52,7 +52,7 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulDirectAnnounceMsg      = 0x19
+	istanbulVersionedEnodeMsg      = 0x19
 	istanbulValidatorProofMsg      = 0x1a
 
 	handshakeTimeout = 5 * time.Second
@@ -278,7 +278,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			go sb.sendDirectAnnounce(peer, getCurrentAnnounceVersion())
+			go sb.sendVersionedEnodeMsg(peer, getCurrentAnnounceVersion())
 		} else {
 			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
 		}
@@ -339,11 +339,13 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	return <-isValidatorCh, nil
 }
 
-// generateValidatorProofMessage will create a directAnnounce message that serves
-// as a proof to the peer during the handshake that this node is a validator.
+// generateValidatorProofMessage will create a message that contains a proof
+// to the peer during the handshake that this node is a validator, which is just
+// a versioned enode message.
 // If this node is not a validator or this node does not believe the peer
-// is a validator, no proof is generated to hide the address of this node.
-// If this node is a proxy, it will use the most recent directAnnounce this
+// is a validator, no proof is generated to hide the address of this node
+// and an empty message is created.
+// If this node is a proxy, it will use the most recent versioned enode message this
 // node has received from the proxied validator.
 func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
 	shouldSend, err := sb.shouldSendValidatorProof(peer)
@@ -351,7 +353,7 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 		return nil, err
 	}
 	if shouldSend {
-		msg, err := sb.getSelfDirectAnnounce(getCurrentAnnounceVersion())
+		msg, err := sb.getSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
 		if err != nil {
 			return nil, err
 		}
@@ -414,21 +416,21 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
-	var directAnnounce directAnnounce
-	err = rlp.DecodeBytes(msg.Msg, &directAnnounce)
+	var versionedEnode versionedEnode
+	err = rlp.DecodeBytes(msg.Msg, &versionedEnode)
 	if err != nil {
 		return false, err
 	}
 
-	node, err := enode.ParseV4(directAnnounce.Node)
+	node, err := enode.ParseV4(versionedEnode.Node)
 	if err != nil {
 		return false, err
 	}
 
-	// Ensure the node in the directAnnounce matches the peer node
+	// Ensure the node in the versionedEnode matches the peer node
 	if node.ID() != peer.Node().ID() {
-		logger.Warn("Peer provided incorrect node in directAnnounce", "directAnnounce node", directAnnounce.Node, "peer node", peer.Node().URLv4())
-		return false, errors.New("Incorrect node in directAnnounce")
+		logger.Warn("Peer provided incorrect node in versionedEnode", "versionedEnode node", versionedEnode.Node, "peer node", peer.Node().URLv4())
+		return false, errors.New("Incorrect node in versionedEnode")
 	}
 
 	// Check if the peer is within the registered/elected valset
@@ -441,16 +443,16 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
-	// If the directAnnounce message is too old, we don't count this proof as valid
+	// If the versionedEnode message is too old, we don't count this proof as valid
 	// An error is given if the entry doesn't exist, so we ignore the error.
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
-	if err == nil && directAnnounce.Version < knownVersion {
+	if err == nil && versionedEnode.Version < knownVersion {
 		return false, nil
 	}
 
 	// By this point, we know the peer is a validator and we update our val enode table accordingly
 	// Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: directAnnounce.Version}})
+	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: versionedEnode.Version}})
 	if err != nil {
 		return false, err
 	}
