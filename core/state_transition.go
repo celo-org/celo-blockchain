@@ -296,11 +296,11 @@ func (st *StateTransition) reserveGas(address common.Address, amount *big.Int, f
 	return err
 }
 
-func (st *StateTransition) callRefundGas(address common.Address, feeCurrency *common.Address) error {
+func (st *StateTransition) callRefundGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	evm := st.evm
-	// Function is "refundGas(address from)"
-	functionSelector := hexutil.MustDecode("0x9574ee25")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address)})
+	// Function is "refundGas(address from, uint256 amount)"
+	functionSelector := hexutil.MustDecode("0xeb563455")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
@@ -357,7 +357,7 @@ func (st *StateTransition) refundFee(to common.Address, amount *big.Int, feeCurr
 		st.state.AddBalance(to, amount)
 		return nil
 	} else {
-		return st.callRefundGas(to, feeCurrency)
+		return st.callRefundGas(to, amount, feeCurrency)
 	}
 }
 
