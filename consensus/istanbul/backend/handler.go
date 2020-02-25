@@ -440,6 +440,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, err
 	}
 	if !regAndActiveVals[msg.Address] {
+		logger.Debug("Received a validator proof message from peer with address that is not a registered or active validator", "msg.Address", msg.Address)
 		return false, nil
 	}
 
