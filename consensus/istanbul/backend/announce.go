@@ -351,7 +351,7 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 
 	// Generate a new directAnnounce with the updated version
 	directAnnounce, err := sb.generateDirectAnnounce(announceVersion)
-	if err != nil && err != errIsProxy {
+	if err != nil {
 		return err
 	}
 	sb.selfDirectAnnounceMsgMu.Lock()
@@ -875,6 +875,9 @@ func (sb *Backend) sendDirectAnnounce(peer consensus.Peer, version uint) error {
 	if err != nil {
 		logger.Warn("Error getting self direct announce", "err", err)
 		return err
+	}
+	if directAnnounce == nil {
+		return nil
 	}
 
 	payload, err := directAnnounce.Payload()

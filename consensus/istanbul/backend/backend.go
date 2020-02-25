@@ -69,9 +69,6 @@ var (
 	// errNotProxy is returned when the current node is expected to be a proxy
 	errNotProxy = errors.New("this node is not a proxy")
 
-	// errIsProxy is returned when the current node is expected to not be a proxy
-	errIsProxy = errors.New("this node is a proxy")
-
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
