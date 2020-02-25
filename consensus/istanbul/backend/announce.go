@@ -752,7 +752,9 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 // and generates a new one with `version` if one does not exist.
 // New versioned enode messages are not always generated to ensure the version
 // of a versioned enode message is not greater than a recently gossiped announce
-// version
+// version.
+// May be nil if this is a proxy that does not have a versioned enode message
+// from its proxy.
 func (sb *Backend) getSelfVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
 	sb.selfVersionedEnodeMsgMu.Lock()
 	defer sb.selfVersionedEnodeMsgMu.Unlock()
