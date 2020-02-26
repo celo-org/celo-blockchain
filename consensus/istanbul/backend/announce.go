@@ -802,7 +802,6 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 		Code:      istanbulVersionedEnodeMsg,
 		Address:   sb.Address(),
 		Msg:       versionedEnodeBytes,
-		Signature: []byte{},
 	}
 	// Sign the message
 	if err := msg.Sign(sb.Sign); err != nil {
