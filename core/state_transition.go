@@ -234,27 +234,6 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	return balanceOf.Cmp(fee) > 0
 }
 
-func (st *StateTransition) reserveGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	evm := st.evm
-	// Function is "reserveGas(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "reserveGas(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("reserveGas(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0xeb563455")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForReserveGasTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForReserveGasTransactions - leftoverGas
-	log.Debug("reserveGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
@@ -262,6 +241,9 @@ func (st *StateTransition) debitGas(address common.Address, amount *big.Int, fee
 	evm := st.evm
 	// Function is "debitGasFees(address from, uint256 value)"
 	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
+	// Source:
+	// pip3 install pyethereum
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitGasFees(address,uint256)")[0:4].hex())'
 	functionSelector := hexutil.MustDecode("0x58cf9672")
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
@@ -270,20 +252,6 @@ func (st *StateTransition) debitGas(address common.Address, amount *big.Int, fee
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForReserveGasTransactions, big.NewInt(0))
 	gasUsed := params.MaxGasForReserveGasTransactions - leftoverGas
 	log.Debug("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
-func (st *StateTransition) callRefundGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	evm := st.evm
-	// Function is "refundGas(address from, uint256 amount)"
-	functionSelector := hexutil.MustDecode("0x270d7c07")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForRefundGasTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForRefundGasTransactions - leftoverGas
-	log.Debug("refundGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -310,23 +278,6 @@ func (st *StateTransition) creditGasFees(
 	return err
 }
 
-func (st *StateTransition) creditGas(from common.Address, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	evm := st.evm
-	// Function is "creditGas(address from, address to, uint256 value)"
-	functionSelector := hexutil.MustDecode("0x173f61e4")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForCreditGasTransactions - leftoverGas
-	log.Debug("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
 func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
 	log.Trace("Debiting fee", "from", from, "amount", amount, "feeCurrency", feeCurrency)
 	// native currency
@@ -335,29 +286,6 @@ func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCur
 		return nil
 	} else {
 		return st.debitGas(from, amount, feeCurrency)
-	}
-}
-
-func (st *StateTransition) creditFee(from common.Address, to common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	// native currency
-	if feeCurrency == nil {
-		st.state.AddBalance(to, amount)
-		return nil
-	} else {
-		return st.creditGas(from, to, amount, feeCurrency)
-	}
-}
-
-func (st *StateTransition) refundFee(to common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	// native currency
-	if feeCurrency == nil {
-		st.state.AddBalance(to, amount)
-		return nil
-	} else {
-		return st.callRefundGas(to, amount, feeCurrency)
 	}
 }
 
@@ -495,18 +423,6 @@ func (st *StateTransition) distributeTxFees() error {
 
 	} else {
 
-		/*
-		   creditGasFees(
-		   	from common.Address,
-		   	feeRecipient common.Address,
-		   	gatewayFeeRecipient common.Address,
-		   	communityFund common.Address,
-		   	refund *big.Int,
-		   	tipTxFee *big.Int,
-		   	gatewayFee *big.Int,
-		   	baseTxFee *big.Int,
-		   	feeCurrency *common.Address)
-		*/
 		// Pay gateway fee to the specified recipient.
 
 		nilAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
