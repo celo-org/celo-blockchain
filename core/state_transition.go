@@ -249,9 +249,9 @@ func (st *StateTransition) debitGas(address common.Address, amount *big.Int, fee
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForReserveGasTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForReserveGasTransactions - leftoverGas
-	log.Debug("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitGasFeesTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForDebitGasFeesTransactions - leftoverGas
+	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -272,9 +272,9 @@ func (st *StateTransition) creditGasFees(
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForCreditGasTransactions - leftoverGas
-	log.Debug("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasFeesTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForCreditGasFeesTransactions - leftoverGas
+	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
