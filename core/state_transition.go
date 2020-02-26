@@ -395,59 +395,36 @@ func (st *StateTransition) distributeTxFees() error {
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 	feeCurrency := st.msg.FeeCurrency()
 
+	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
+	if gatewayFeeRecipient == nil {
+		gatewayFeeRecipient = &common.ZeroAddress
+	}
+
+	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+		return err
+	} else if err != nil {
+		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+		governanceAddress = &common.ZeroAddress
+	}
+
+	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
+		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
+		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
+		"comunityFundRecipient", *governanceAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
-		// Pay gateway fee to the specified recipient.
-		if st.msg.GatewayFeeRecipient() != nil {
-			st.state.AddBalance(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee())
-			log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
+		if gatewayFeeRecipient != &common.ZeroAddress {
+			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-
-		log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
 		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
-
-		// Send the base of the transaction fee to the community fund.
-		governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
-		if err != nil {
-			if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-				return err
-			}
-			log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-			refund.Add(refund, baseTxFee)
-		} else {
-			log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
+		if governanceAddress != &common.ZeroAddress {
 			st.state.AddBalance(*governanceAddress, baseTxFee)
+			st.state.AddBalance(from, refund)
+		} else {
+			refund.Add(refund, baseTxFee)
+			st.state.AddBalance(from, refund)
 		}
-
-		log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
-		st.state.AddBalance(from, refund)
-
 	} else {
-
-		// Pay gateway fee to the specified recipient.
-
-		nilAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
-
-		gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
-
-		if st.msg.GatewayFeeRecipient() == nil {
-			gatewayFeeRecipient = &nilAddress
-		} else {
-			log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
-		}
-
-		governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
-		if err != nil {
-			if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-				return err
-			}
-			log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-			governanceAddress = &nilAddress
-		} else {
-			log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
-		}
-
-		log.Trace("Crediting gas fee", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
-		log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
 		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
 			return err
