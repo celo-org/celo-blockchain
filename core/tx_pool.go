@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/contract_comm/freezer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -547,6 +548,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
+	}
+
+	//TODO: Add check here
+	if tx.Value() > 0 && freezer.IsFrozen() {
+		//recipient := tx.To()
+
 	}
 
 	// Ensure the fee currency is native or whitelisted.
