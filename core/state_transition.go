@@ -234,47 +234,6 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	return balanceOf.Cmp(fee) > 0
 }
 
-func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	evm := st.evm
-	// Function is "debitFrom(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x362a5f80")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForDebitFromTransactions - leftoverGas
-	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
-func (st *StateTransition) creditTo(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	evm := st.evm
-	// Function is "creditTo(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x9951b90c")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForCreditToTransactions - leftoverGas
-	log.Debug("creditTo called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
 func (st *StateTransition) reserveGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
