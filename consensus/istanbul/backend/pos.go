@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	"github.com/ethereum/go-ethereum/contract_comm/epoch_rewards"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
-	"github.com/ethereum/go-ethereum/contract_comm/reserve"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -171,7 +170,7 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 	if err != nil {
 		return totalCommunityRewards, err
 	}
-	lowReserve, err := reserve.IsReserveLow(header, state)
+	lowReserve, err := epoch_rewards.IsReserveLow(header, state)
 	if err != nil {
 		return totalCommunityRewards, err
 	}
