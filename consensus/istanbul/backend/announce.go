@@ -748,14 +748,14 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// getSelfVersionedEnodeMsg gets the most recent self versioned enode message to send
-// and generates a new one with `version` if one does not exist.
+// retrieveSelfVersionedEnodeMsg gets the most recent self versioned enode message to send
+// and generates a new one with `fallbackVersion` if one does not exist.
 // New versioned enode messages are not always generated to ensure the version
 // of a versioned enode message is not greater than a recently gossiped announce
-// version.
+// version (if that has occurred)
 // May be nil if this is a proxy that does not have a versioned enode message
 // from its proxy.
-func (sb *Backend) getSelfVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
+func (sb *Backend) retrieveSelfVersionedEnodeMsg(fallbackVersion uint) (*istanbul.Message, error) {
 	sb.selfVersionedEnodeMsgMu.Lock()
 	defer sb.selfVersionedEnodeMsgMu.Unlock()
 	if sb.selfVersionedEnodeMsg == nil {
@@ -764,7 +764,7 @@ func (sb *Backend) getSelfVersionedEnodeMsg(version uint) (*istanbul.Message, er
 		if sb.config.Proxy {
 			return nil, nil
 		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(fallbackVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -799,10 +799,9 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code:      istanbulVersionedEnodeMsg,
-		Address:   sb.Address(),
-		Msg:       versionedEnodeBytes,
-		Signature: []byte{},
+		Code:    istanbulVersionedEnodeMsg,
+		Address: sb.Address(),
+		Msg:     versionedEnodeBytes,
 	}
 	// Sign the message
 	if err := msg.Sign(sb.Sign); err != nil {
@@ -818,8 +817,9 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
 
-	// TODO remove this check once versioned enode messages are not limited to
-	// proxied validator -> proxy communication
+	// TODO remove proxy checks in this function once versioned enode messages are
+	// not limited proxied validator -> proxy communication
+	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
 	if !sb.config.Proxy {
 		return errNotProxy
 	}
@@ -833,12 +833,9 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	}
 	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
 
-	// TODO remove this check when a versionedEnode message can be received from a node
-	// apart from the proxied validator
 	if msg.Address != sb.config.ProxiedValidatorAddress {
-		err = fmt.Errorf("Origin address is not the proxied validator (%s != %s)", msg.Address.String(), sb.config.ProxiedValidatorAddress.String())
-		logger.Error("Error in the origin of a received Istanbul Versioned Enode message", "err", err)
-		return err
+		logger.Error("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
+		return fmt.Errorf("Origin address is not the proxied validator (%s != %s)", msg.Address.String(), sb.config.ProxiedValidatorAddress.String())
 	}
 
 	var versionedEnode versionedEnode
@@ -852,8 +849,6 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		logger.Warn("Malformed v4 node in received Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "err", err)
 	}
 
-	// TODO remove this check when a versioned enode msg can be received from a node
-	// apart from the proxied validator
 	// There may be a difference in the URLv4 string because of `discport`,
 	// so instead compare the ID
 	selfNode := sb.p2pserver.Self()
@@ -875,7 +870,7 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, version uint) error {
 	logger := sb.logger.New("func", "sendVersionedEnodeMsg")
 
-	versionedEnodeMsg, err := sb.getSelfVersionedEnodeMsg(version)
+	versionedEnodeMsg, err := sb.retrieveSelfVersionedEnodeMsg(version)
 	if err != nil {
 		logger.Warn("Error getting self versioned enode message", "err", err)
 		return err

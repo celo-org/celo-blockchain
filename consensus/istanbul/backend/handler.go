@@ -55,7 +55,7 @@ const (
 	istanbulVersionedEnodeMsg      = 0x19
 	istanbulValidatorProofMsg      = 0x1a
 
-	handshakeTimeout = 5 * time.Second
+	handshakeTimeout = 10 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
@@ -126,7 +126,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go announceHandlerFunc(peer, data)
 			return true, nil
 		} else if msg.Code == istanbulValidatorProofMsg {
-			logger.Error("Validator Proof Messages are only intended during the handshake")
+			logger.Warn("Received unexpected Istanbul validator proof message")
 			return true, nil
 		}
 
@@ -301,42 +301,47 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 
 // Handshake allows this node to identify itself to the peer as a validator and vice versa
 func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
-	errCh := make(chan error, 4)
+	// Only written to if there was a non-nil error when sending or receiving
+	errCh := make(chan error, 2)
 	isValidatorCh := make(chan bool, 1)
 
 	go func() {
 		validatorProofMessage, err := sb.generateValidatorProofMessage(peer)
-		errCh <- err
 		if err != nil {
+			errCh <- err
 			return
 		}
 		msgBytes, err := validatorProofMessage.Payload()
-		errCh <- err
 		if err != nil {
+			errCh <- err
 			return
 		}
-		errCh <- peer.Send(istanbulValidatorProofMsg, msgBytes)
+		err = peer.Send(istanbulValidatorProofMsg, msgBytes)
+		if err != nil {
+			errCh <- err
+		}
 	}()
 	go func() {
 		isValidator, err := sb.readValidatorProofMessage(peer)
-		errCh <- err
+		if err != nil {
+			errCh <- err
+			return
+		}
 		isValidatorCh <- isValidator
 	}()
 
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	// We write to errCh four times unless if the timeout is triggered or an error isn't nil
-	for i := 0; i < 4; i++ {
+	for {
 		select {
 		case err := <-errCh:
-			if err != nil {
-				return false, err
-			}
+			return false, err
 		case <-timeout.C:
 			return false, p2p.DiscReadTimeout
+		case isValidator := <-isValidatorCh:
+			return isValidator, nil
 		}
 	}
-	return <-isValidatorCh, nil
 }
 
 // generateValidatorProofMessage will create a message that contains a proof
@@ -346,14 +351,14 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 // is a validator, no proof is generated to hide the address of this node
 // and an empty message is created.
 // If this node is a proxy, it will use the most recent versioned enode message this
-// node has received from the proxied validator.
+// node has received from the proxied validator if one exists.
 func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
 	shouldSend, err := sb.shouldSendValidatorProof(peer)
 	if err != nil {
 		return nil, err
 	}
 	if shouldSend {
-		msg, err := sb.getSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
+		msg, err := sb.retrieveSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
 		if err != nil {
 			return nil, err
 		}
@@ -411,8 +416,8 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	// If the Msg is empty, the peer has decided not to reveal its info
-	if len(msg.Msg) == 0 {
+	// If the Signature is empty, the peer has decided not to reveal its info
+	if len(msg.Signature) == 0 {
 		return false, nil
 	}
 
@@ -465,8 +470,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 // message
 func (sb *Backend) verifyValidatorProofMessage(data []byte, sig []byte) (common.Address, error) {
 	// If the message was not signed, allow it to still be decoded.
-	// A later check will verify if the address is in the validator set, which
-	// will fail.
+	// A later check will verify if the signature was empty or not.
 	if len(sig) == 0 {
 		return common.ZeroAddress, nil
 	}

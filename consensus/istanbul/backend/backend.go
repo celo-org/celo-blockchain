@@ -209,8 +209,8 @@ type Backend struct {
 	// The versioned enode message most recently received by a proxy from its
 	// proxied validator for proving itself as a validator in the handshake.
 	// The entire istanbul.Message is saved to keep the signature
-	selfVersionedEnodeMsg    *istanbul.Message
-	selfVersionedEnodeMsgMu  sync.RWMutex
+	selfVersionedEnodeMsg   *istanbul.Message
+	selfVersionedEnodeMsgMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
