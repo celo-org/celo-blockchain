@@ -255,6 +255,24 @@ func (st *StateTransition) reserveGas(address common.Address, amount *big.Int, f
 	return err
 }
 
+func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
+	if amount.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+	evm := st.evm
+	// Function is "debitGasFees(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
+	functionSelector := hexutil.MustDecode("0x58cf9672")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForReserveGasTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForReserveGasTransactions - leftoverGas
+	log.Debug("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	return err
+}
+
 func (st *StateTransition) callRefundGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	evm := st.evm
 	// Function is "refundGas(address from, uint256 amount)"
@@ -266,6 +284,29 @@ func (st *StateTransition) callRefundGas(address common.Address, amount *big.Int
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForRefundGasTransactions, big.NewInt(0))
 	gasUsed := params.MaxGasForRefundGasTransactions - leftoverGas
 	log.Debug("refundGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	return err
+}
+
+func (st *StateTransition) creditGasFees(
+	from common.Address,
+	feeRecipient common.Address,
+	gatewayFeeRecipient *common.Address,
+	communityFund *common.Address,
+	refund *big.Int,
+	tipTxFee *big.Int,
+	gatewayFee *big.Int,
+	baseTxFee *big.Int,
+	feeCurrency *common.Address) error {
+	evm := st.evm
+	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
+	functionSelector := hexutil.MustDecode("0x6a30b253")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(*communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+
+	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
+	// The caller was already charged for the cost of this operation via IntrinsicGas.
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForCreditGasTransactions - leftoverGas
+	log.Debug("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -293,7 +334,7 @@ func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCur
 		st.state.SubBalance(from, amount)
 		return nil
 	} else {
-		return st.reserveGas(from, amount, feeCurrency)
+		return st.debitGas(from, amount, feeCurrency)
 	}
 }
 
@@ -424,20 +465,17 @@ func (st *StateTransition) distributeTxFees() error {
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
+	feeCurrency := st.msg.FeeCurrency()
 
+	if feeCurrency == nil {
 	// Pay gateway fee to the specified recipient.
 	if st.msg.GatewayFeeRecipient() != nil {
+		st.state.AddBalance(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee())
 		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
-		if err := st.creditFee(from, *st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency()); err != nil {
-			log.Error("Failed to credit gateway fee", "err", err)
-			return err
-		}
 	}
 
 	log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
-	if err := st.creditFee(from, st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
-		return err
-	}
+	st.state.AddBalance(st.evm.Coinbase, tipTxFee)
 
 	// Send the base of the transaction fee to the community fund.
 	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
@@ -449,16 +487,55 @@ func (st *StateTransition) distributeTxFees() error {
 		refund.Add(refund, baseTxFee)
 	} else {
 		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
-		if err = st.creditFee(from, *governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
-			return err
-		}
+		st.state.AddBalance(*governanceAddress, baseTxFee)
 	}
 
 	log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
-	err = st.refundFee(from, refund, st.msg.FeeCurrency())
+	st.state.AddBalance(from, refund)
+
+	} else {
+
+/*
+creditGasFees(
+	from common.Address,
+	feeRecipient common.Address,
+	gatewayFeeRecipient common.Address,
+	communityFund common.Address,
+	refund *big.Int,
+	tipTxFee *big.Int,
+	gatewayFee *big.Int,
+	baseTxFee *big.Int,
+	feeCurrency *common.Address)
+*/
+	// Pay gateway fee to the specified recipient.
+
+	nilAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
+
+	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
+
+	if st.msg.GatewayFeeRecipient() == nil {
+		gatewayFeeRecipient = &nilAddress
+	} else {
+		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
+	}
+
+	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
 	if err != nil {
-		log.Error("Failed to refund gas", "err", err)
+		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+			return err
+		}
+		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+		governanceAddress = &nilAddress
+	} else {
+		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
+	}
+
+	log.Trace("Crediting gas fee", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
+	log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
+	if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 		return err
+	}
+
 	}
 	return nil
 }
