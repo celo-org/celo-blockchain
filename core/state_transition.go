@@ -468,73 +468,73 @@ func (st *StateTransition) distributeTxFees() error {
 	feeCurrency := st.msg.FeeCurrency()
 
 	if feeCurrency == nil {
-	// Pay gateway fee to the specified recipient.
-	if st.msg.GatewayFeeRecipient() != nil {
-		st.state.AddBalance(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee())
-		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
-	}
+		// Pay gateway fee to the specified recipient.
+		if st.msg.GatewayFeeRecipient() != nil {
+			st.state.AddBalance(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee())
+			log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
+		}
 
-	log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
-	st.state.AddBalance(st.evm.Coinbase, tipTxFee)
+		log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
+		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
 
-	// Send the base of the transaction fee to the community fund.
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
-	if err != nil {
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+		// Send the base of the transaction fee to the community fund.
+		governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+		if err != nil {
+			if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+				return err
+			}
+			log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+			refund.Add(refund, baseTxFee)
+		} else {
+			log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
+			st.state.AddBalance(*governanceAddress, baseTxFee)
+		}
+
+		log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
+		st.state.AddBalance(from, refund)
+
+	} else {
+
+		/*
+		   creditGasFees(
+		   	from common.Address,
+		   	feeRecipient common.Address,
+		   	gatewayFeeRecipient common.Address,
+		   	communityFund common.Address,
+		   	refund *big.Int,
+		   	tipTxFee *big.Int,
+		   	gatewayFee *big.Int,
+		   	baseTxFee *big.Int,
+		   	feeCurrency *common.Address)
+		*/
+		// Pay gateway fee to the specified recipient.
+
+		nilAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
+
+		gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
+
+		if st.msg.GatewayFeeRecipient() == nil {
+			gatewayFeeRecipient = &nilAddress
+		} else {
+			log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
+		}
+
+		governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+		if err != nil {
+			if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+				return err
+			}
+			log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+			governanceAddress = &nilAddress
+		} else {
+			log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
+		}
+
+		log.Trace("Crediting gas fee", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
+		log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
+		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			return err
 		}
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		refund.Add(refund, baseTxFee)
-	} else {
-		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
-		st.state.AddBalance(*governanceAddress, baseTxFee)
-	}
-
-	log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
-	st.state.AddBalance(from, refund)
-
-	} else {
-
-/*
-creditGasFees(
-	from common.Address,
-	feeRecipient common.Address,
-	gatewayFeeRecipient common.Address,
-	communityFund common.Address,
-	refund *big.Int,
-	tipTxFee *big.Int,
-	gatewayFee *big.Int,
-	baseTxFee *big.Int,
-	feeCurrency *common.Address)
-*/
-	// Pay gateway fee to the specified recipient.
-
-	nilAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
-
-	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
-
-	if st.msg.GatewayFeeRecipient() == nil {
-		gatewayFeeRecipient = &nilAddress
-	} else {
-		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
-	}
-
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
-	if err != nil {
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-			return err
-		}
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = &nilAddress
-	} else {
-		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
-	}
-
-	log.Trace("Crediting gas fee", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
-	log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
-	if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-		return err
-	}
 
 	}
 	return nil
