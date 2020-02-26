@@ -533,6 +533,7 @@ func (st *StateTransition) distributeTxFees() error {
 		log.Trace("Crediting gas fee", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
 		log.Trace("Crediting refund", "recipient", from, "amount", refund, "feeCurrency", st.msg.FeeCurrency())
 		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
 			return err
 		}
 
