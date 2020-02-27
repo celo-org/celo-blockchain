@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func New(addr common.Address, blsPublicKey []byte) istanbul.Validator {
+func New(addr common.Address, blsPublicKey blscrypto.SerializedPublicKey) istanbul.Validator {
 	return &defaultValidator{
 		address:      addr,
 		blsPublicKey: blsPublicKey,

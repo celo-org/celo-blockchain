@@ -29,11 +29,13 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+
 	elog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -62,15 +64,16 @@ type testSystemBackend struct {
 }
 
 type testCommittedMsgs struct {
-	commitProposal istanbul.Proposal
-	aggregatedSeal types.IstanbulAggregatedSeal
+	commitProposal                  istanbul.Proposal
+	aggregatedSeal                  types.IstanbulAggregatedSeal
+	aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal
 }
 
 // ==============================================
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.SignerFn, _ istanbul.MessageSignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ istanbul.SignerFn, _ istanbul.BLSSignerFn, _ istanbul.BLSMessageSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -82,6 +85,11 @@ func (self *testSystemBackend) Address() common.Address {
 // Peers returns all connected peers
 func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
+}
+
+func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
+	//This doesn't really return the next block validators
+	return self.peers, nil
 }
 
 func (self *testSystemBackend) EventMux() *event.TypeMux {
@@ -106,11 +114,11 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	return nil
 }
 
-func (self *testSystemBackend) Gossip(validators []common.Address, message []byte, msgCode uint64, ignoreCache bool) error {
+func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64) error {
 	return nil
 }
 
-func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
@@ -118,14 +126,26 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-	return signatureBytes, nil
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
+func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
+	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
+	defer privateKey.Destroy()
+
+	signature, _ := privateKey.SignMessage(data, []byte{}, true)
+	defer signature.Destroy()
+	signatureBytes, _ := signature.Serialize()
+
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+}
+
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
-		commitProposal: proposal,
-		aggregatedSeal: aggregatedSeal,
+		commitProposal:                  proposal,
+		aggregatedSeal:                  aggregatedSeal,
+		aggregatedEpochValidatorSetSeal: aggregatedEpochValidatorSetSeal,
 	})
 
 	// fake new head events
@@ -255,7 +275,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: committedSeal,
+		CommittedSeal: committedSeal[:],
 	}
 
 	payload, err := Encode(committedSubject)
@@ -346,8 +366,8 @@ func generateValidators(n int) ([]istanbul.ValidatorData, [][]byte, []*ecdsa.Pri
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		vals = append(vals, istanbul.ValidatorData{
-			crypto.PubkeyToAddress(privateKey.PublicKey),
-			blsPublicKey,
+			Address:      crypto.PubkeyToAddress(privateKey.PublicKey),
+			BLSPublicKey: blsPublicKey,
 		})
 		keys = append(keys, privateKey)
 		blsKeys = append(blsKeys, blsPrivateKey)
@@ -443,12 +463,11 @@ func (t *testSystem) stop(core bool) {
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
 	// assume always success
-	ethDB := ethdb.NewMemDatabase()
 	backend := &testSystemBackend{
 		id:     id,
 		sys:    t,
 		events: new(event.TypeMux),
-		db:     ethDB,
+		db:     rawdb.NewMemoryDatabase(),
 	}
 
 	t.backends[id] = backend

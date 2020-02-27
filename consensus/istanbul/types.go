@@ -213,10 +213,11 @@ func EmptyPreparedCertificate() PreparedCertificate {
 		Number:     big.NewInt(0),
 		GasLimit:   0,
 		GasUsed:    0,
-		Time:       big.NewInt(0),
+		Time:       0,
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
+	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
 		Proposal:                block.WithSeal(emptyHeader),
@@ -314,8 +315,9 @@ func (s *Subject) String() string {
 // ## CommittedSubject #################################################################
 
 type CommittedSubject struct {
-	Subject       *Subject
-	CommittedSeal []byte
+	Subject               *Subject
+	CommittedSeal         []byte
+	EpochValidatorSetSeal []byte
 }
 
 // ## ForwardMessage #################################################################

@@ -127,13 +127,13 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew
-	var allowedFutureBlockTime = big.NewInt(now().Unix())
+	allowedFutureBlockTime := uint64(now().Unix())
 	if !chain.Config().FullHeaderChainAvailable {
-		allowedFutureBlockTime = new(big.Int).Add(allowedFutureBlockTime, new(big.Int).SetUint64(mobileAllowedClockSkew))
+		allowedFutureBlockTime = allowedFutureBlockTime + mobileAllowedClockSkew
 	}
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(allowedFutureBlockTime) > 0 {
+	if header.Time > allowedFutureBlockTime {
 		return consensus.ErrFutureBlock
 	}
 
@@ -185,7 +185,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor
 		}
-		if parent.Time.Uint64()+sb.config.BlockPeriod > header.Time.Uint64() {
+		if parent.Time+sb.config.BlockPeriod > header.Time {
 			return errInvalidTimestamp
 		}
 		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
@@ -325,7 +325,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 
 	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
-	publicKeys := [][]byte{}
+	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
@@ -387,9 +387,10 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	header.Difficulty = defaultDifficulty
 
 	// set header's timestamp
-	header.Time = new(big.Int).Add(parent.Time, new(big.Int).SetUint64(sb.config.BlockPeriod))
-	if header.Time.Int64() < time.Now().Unix() {
-		header.Time = big.NewInt(time.Now().Unix())
+	header.Time = parent.Time + sb.config.BlockPeriod
+	nowTime := uint64(now().Unix())
+	if header.Time < nowTime {
+		header.Time = nowTime
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
@@ -397,7 +398,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	}
 
 	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(header.Time.Int64(), 0).Sub(now())
+	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
 
 	return sb.addParentSeal(chain, header)
@@ -440,11 +441,12 @@ func (sb *Backend) LookbackWindow() uint64 {
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
-// and assembles the final block.
+// but does not assemble the block.
 //
-// Note, the block header and state database might be updated to reflect any
+// Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header) {
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
@@ -464,15 +466,27 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
-		err = sb.distributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
 		}
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = nilUncleHash
+	header.UncleHash = types.CalcUncleHash(nil)
+}
 
+// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
+// rewards) and assembles the final block.
+//
+// Note: The block header and state database might be updated to reflect any
+// consensus rules that happen at finalization (e.g. block rewards).
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+
+	sb.Finalize(chain, header, state, txs, uncles)
+
+	// Add extra receipt for Block's Internal Transaction Logs
 	if len(state.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
 		receipt.Logs = state.GetLogs(common.Hash{})
@@ -581,14 +595,15 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
-func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block) {
+func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error)) {
 	sb.chain = chain
 	sb.currentBlock = currentBlock
+	sb.stateAt = stateAt
 }
 
-// Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
-	stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
@@ -603,24 +618,16 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	}
 	sb.commitCh = make(chan *types.Block, 1)
 
-	if sb.newEpochCh != nil {
-		close(sb.newEpochCh)
-	}
-	sb.newEpochCh = make(chan struct{})
-
 	sb.hasBadBlock = hasBadBlock
-	sb.stateAt = stateAt
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
-	sb.logger.Info("Starting istanbul.Engine")
+	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
 
 	sb.coreStarted = true
-
-	go sb.sendAnnounceMsgs()
 
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
@@ -639,21 +646,18 @@ func (sb *Backend) Start(hasBadBlock func(common.Hash) bool,
 	return nil
 }
 
-// Stop implements consensus.Istanbul.Stop
-func (sb *Backend) Stop() error {
+// StopValidating implements consensus.Istanbul.StopValidating
+func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	sb.logger.Info("Stopping istanbul.Engine")
+	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
 	sb.coreStarted = false
-
-	sb.announceQuit <- struct{}{}
-	sb.announceWg.Wait()
 
 	if sb.config.Proxied {
 		sb.valEnodesShareQuit <- struct{}{}
@@ -663,6 +667,36 @@ func (sb *Backend) Stop() error {
 			sb.removeProxy(sb.proxyNode.node)
 		}
 	}
+	return nil
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+	if sb.announceRunning {
+		return istanbul.ErrStartedAnnounce
+	}
+
+	go sb.announceThread()
+
+	sb.announceRunning = true
+	return nil
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
+
+	if !sb.announceRunning {
+		return istanbul.ErrStoppedAnnounce
+	}
+
+	sb.announceThreadQuit <- struct{}{}
+	sb.announceThreadWg.Wait()
+
+	sb.announceRunning = false
 	return nil
 }
 
@@ -920,12 +954,11 @@ func ecrecover(header *types.Header) (common.Address, error) {
 func writeEmptyIstanbulExtra(header *types.Header) error {
 	extra := types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(0),
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	payload, err := rlp.EncodeToBytes(&extra)
 	if err != nil {

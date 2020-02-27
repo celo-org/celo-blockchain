@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net"
+	"net/http"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -48,7 +48,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -169,32 +169,6 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-func (s *Service) getConnection() (*websocket.Conn, error) {
-	// Resolve the URL, defaulting to TLS, but falling back to none too
-	path := fmt.Sprintf("%s/api", s.host)
-	urls := []string{path}
-
-	if !strings.Contains(path, "://") { // url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-		urls = []string{"wss://" + path, "ws://" + path}
-	}
-	// Establish a websocket connection to the server on any supported URL
-	var (
-		conf *websocket.Config
-		conn *websocket.Conn
-		err  error
-	)
-	for _, url := range urls {
-		if conf, err = websocket.NewConfig(url, "http://localhost/"); err != nil {
-			continue
-		}
-		conf.Dialer = &net.Dialer{Timeout: 5 * time.Second}
-		if conn, err = websocket.DialConfig(conf); err == nil {
-			break
-		}
-	}
-	return conn, err
-}
-
 type StatsPayload struct {
 	Action string      `json:"action"`
 	Stats  interface{} `json:"stats"`
@@ -214,10 +188,6 @@ func (s *Service) loop() {
 		txpool = s.les.TxPool()
 	}
 
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
-	defer headSub.Unsubscribe()
-
 	txEventCh := make(chan core.NewTxsEvent, txChanSize)
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
@@ -236,6 +206,10 @@ func (s *Service) loop() {
 	)
 	go func() {
 		var lastTx mclock.AbsTime
+
+		chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
+		headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
+		defer headSub.Unsubscribe()
 
 	HandleLoop:
 		for {
@@ -277,7 +251,13 @@ func (s *Service) loop() {
 					// proxied validator should sign
 					channel = signCh
 				}
-				channel <- &statsPayload
+				// TODO: This is a hacky measure to avoid blocking here if the
+				// channel is not consuming
+				select {
+				case channel <- &statsPayload:
+				default:
+				}
+
 			}
 		}
 		close(quitCh)
@@ -291,7 +271,29 @@ func (s *Service) loop() {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
-			conn, err := s.getConnection()
+			// Resolve the URL, defaulting to TLS, but falling back to none too
+			path := fmt.Sprintf("%s/api", s.host)
+			urls := []string{path}
+
+			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+			if !strings.Contains(path, "://") {
+				urls = []string{"wss://" + path, "ws://" + path}
+			}
+			// Establish a websocket connection to the server on any supported URL
+			var (
+				conn *websocket.Conn
+				err  error
+			)
+			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+			header := make(http.Header)
+			header.Set("origin", "http://localhost")
+			for _, url := range urls {
+				conn, _, err = dialer.Dial(url, header)
+				if err == nil {
+					break
+				}
+			}
+
 			if err != nil {
 				log.Warn("Stats server unreachable", "err", err)
 				time.Sleep(connectionTimeout * time.Second)
@@ -349,28 +351,6 @@ func (s *Service) loop() {
 	}
 }
 
-// nodeInfo is the collection of metainformation about a node that is displayed
-// on the monitoring page.
-type nodeInfo struct {
-	Name     string `json:"name"`
-	Node     string `json:"node"`
-	Port     int    `json:"port"`
-	Network  string `json:"net"`
-	Protocol string `json:"protocol"`
-	API      string `json:"api"`
-	Os       string `json:"os"`
-	OsVer    string `json:"os_v"`
-	Client   string `json:"client"`
-	History  bool   `json:"canUpdateHistory"`
-}
-
-// authMsg is the authentication infos needed to login to a monitoring server.
-type authMsg struct {
-	ID      string         `json:"id"`
-	Address common.Address `json:"address"`
-	Info    nodeInfo       `json:"info"`
-}
-
 // login tries to authorize the client at the remote server.
 func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Construct and send the login authentication
@@ -382,14 +362,13 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		protocol  string
 		err       error
 	)
-	p := s.engine.Protocol()
-	if info := infos.Protocols[p.Name]; info != nil {
+	if info := infos.Protocols[eth.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
 			return errors.New("Could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", p.Name, p.Versions[0])
+		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
@@ -444,7 +423,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
-	if err := websocket.JSON.Receive(conn, &ack); err != nil {
+	if err := conn.ReadJSON(&ack); err != nil {
 		return errors.New("unauthorized, try registering your validator to get whitelisted")
 	}
 	emit, ok := ack["emit"]
@@ -478,7 +457,7 @@ func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsP
 	report := map[string][]interface{}{
 		"emit": {signedMessage.Action, signedMessage.Stats},
 	}
-	return websocket.JSON.Send(conn, report)
+	return conn.WriteJSON(report)
 }
 
 // readLoop loops as long as the connection is alive and retrieves data packets
@@ -492,7 +471,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 	for {
 		// Retrieve the next generic network packet and bail out on error
 		var msg interface{}
-		if err := websocket.JSON.Receive(conn, &msg); err != nil {
+		if err := conn.ReadJSON(&msg); err != nil {
 			log.Warn("Failed to decode stats server message", "err", err)
 			return
 		}
@@ -559,9 +538,31 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Info("Ping from websocket server", "msg", msg)
 			// Primus server might want to have a pong or it closes the connection
 			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
-			websocket.JSON.Send(conn, serverTime)
+			conn.WriteJSON(serverTime)
 		}
 	}
+}
+
+// nodeInfo is the collection of metainformation about a node that is displayed
+// on the monitoring page.
+type nodeInfo struct {
+	Name     string `json:"name"`
+	Node     string `json:"node"`
+	Port     int    `json:"port"`
+	Network  string `json:"net"`
+	Protocol string `json:"protocol"`
+	API      string `json:"api"`
+	Os       string `json:"os"`
+	OsVer    string `json:"os_v"`
+	Client   string `json:"client"`
+	History  bool   `json:"canUpdateHistory"`
+}
+
+// authMsg is the authentication infos needed to login to a monitoring server.
+type authMsg struct {
+	ID      string         `json:"id"`
+	Address common.Address `json:"address"`
+	Info    nodeInfo       `json:"info"`
 }
 
 // report collects all possible data to report and send it to the stats server.
@@ -678,7 +679,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	pubkeyBytes := crypto.FromECDSAPub(pubkey)
 
-	signature, errSign := wallet.SignHash(account, msgHash.Bytes())
+	signature, errSign := wallet.SignData(account, accounts.MimetypeTypedData, msg)
 	if errSign != nil {
 		return nil, errSign
 	}
@@ -742,8 +743,7 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 	report := map[string][]interface{}{
 		"emit": {action, signedStats},
 	}
-
-	return websocket.JSON.Send(conn, report)
+	return conn.WriteJSON(report)
 }
 
 // reportBlock retrieves the current chain head and reports it to the stats server.
@@ -758,7 +758,6 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 		"id":    s.node,
 		"block": details,
 	}
-
 	return s.sendStats(conn, actionBlock, stats)
 }
 
@@ -815,7 +814,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Number:      header.Number,
 		Hash:        header.Hash(),
 		ParentHash:  header.ParentHash,
-		Timestamp:   header.Time,
+		Timestamp:   new(big.Int).SetUint64(header.Time),
 		Miner:       author,
 		GasUsed:     header.GasUsed,
 		GasLimit:    header.GasLimit,
@@ -945,7 +944,6 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		"id":      s.node,
 		"history": history,
 	}
-
 	return s.sendStats(conn, actionHistory, stats)
 }
 
@@ -973,7 +971,6 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 			Pending: pending,
 		},
 	}
-
 	return s.sendStats(conn, actionPending, stats)
 }
 
@@ -982,6 +979,7 @@ type nodeStats struct {
 	Active   bool `json:"active"`
 	Syncing  bool `json:"syncing"`
 	Mining   bool `json:"mining"`
+	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
 	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
@@ -996,6 +994,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	var (
 		etherBase common.Address
 		mining    bool
+		proxy     bool
 		elected   bool
 		hashrate  int
 		syncing   bool
@@ -1005,11 +1004,13 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		etherBase, _ = s.eth.Etherbase()
 		block := s.eth.BlockChain().CurrentBlock()
 
+		proxy = s.backend.IsProxy()
 		mining = s.eth.Miner().Mining()
 		hashrate = int(s.eth.Miner().HashRate())
 
 		elected = false
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
+
 		for i := range valsElected {
 			if valsElected[i].Address() == etherBase {
 				elected = true
@@ -1035,6 +1036,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 			Active:   true,
 			Mining:   mining,
 			Elected:  elected,
+			Proxy:    proxy,
 			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,

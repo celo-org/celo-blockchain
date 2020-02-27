@@ -94,7 +94,7 @@ func dummyBlock(number int64) *types.Block {
 		Number:     big.NewInt(number),
 		GasLimit:   1002121,
 		GasUsed:    123213,
-		Time:       big.NewInt(100),
+		Time:       100,
 		Extra:      []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")
@@ -268,8 +268,9 @@ func TestSubjectRLPEncoding(t *testing.T) {
 func TestCommittedSubjectRLPEncoding(t *testing.T) {
 	var result, original *CommittedSubject
 	original = &CommittedSubject{
-		Subject:       dummySubject(),
-		CommittedSeal: []byte{12, 13, 23},
+		Subject:               dummySubject(),
+		CommittedSeal:         []byte{12, 13, 23},
+		EpochValidatorSetSeal: []byte{1, 5, 50},
 	}
 
 	rawVal, err := rlp.EncodeToBytes(original)

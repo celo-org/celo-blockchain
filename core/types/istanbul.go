@@ -50,6 +50,13 @@ type IstanbulAggregatedSeal struct {
 	Round *big.Int
 }
 
+type IstanbulEpochValidatorSetSeal struct {
+	// We don't add a bitmap here since it's assumed the same signers for the block have signed this
+
+	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
+	Signature []byte
+}
+
 // EncodeRLP serializes ist into the Ethereum RLP format.
 func (ist *IstanbulAggregatedSeal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
@@ -81,7 +88,7 @@ type IstanbulExtra struct {
 	// AddedValidators are the validators that have been added in the block
 	AddedValidators []common.Address
 	// AddedValidatorsPublicKeys are the BLS public keys for the validators added in the block
-	AddedValidatorsPublicKeys [][]byte
+	AddedValidatorsPublicKeys []blscrypto.SerializedPublicKey
 	// RemovedValidators is a bitmap having an active bit for each removed validator in the block
 	RemovedValidators *big.Int
 	// Seal is an ECDSA signature by the proposer
@@ -90,8 +97,6 @@ type IstanbulExtra struct {
 	AggregatedSeal IstanbulAggregatedSeal
 	// ParentAggregatedSeal contains and aggregated BLS signature for the previous block.
 	ParentAggregatedSeal IstanbulAggregatedSeal
-	// EpochData is a SNARK-friendly encoding of the validator set diff (WIP)
-	EpochData []byte
 }
 
 // EncodeRLP serializes ist into the Ethereum RLP format.
@@ -103,7 +108,6 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 		ist.Seal,
 		&ist.AggregatedSeal,
 		&ist.ParentAggregatedSeal,
-		ist.EpochData,
 	})
 }
 
@@ -111,17 +115,16 @@ func (ist *IstanbulExtra) EncodeRLP(w io.Writer) error {
 func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 	var istanbulExtra struct {
 		AddedValidators           []common.Address
-		AddedValidatorsPublicKeys [][]byte
+		AddedValidatorsPublicKeys []blscrypto.SerializedPublicKey
 		RemovedValidators         *big.Int
 		Seal                      []byte
 		AggregatedSeal            IstanbulAggregatedSeal
 		ParentAggregatedSeal      IstanbulAggregatedSeal
-		EpochData                 []byte
 	}
 	if err := s.Decode(&istanbulExtra); err != nil {
 		return err
 	}
-	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.AggregatedSeal, ist.ParentAggregatedSeal, ist.EpochData = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.AggregatedSeal, istanbulExtra.ParentAggregatedSeal, istanbulExtra.EpochData
+	ist.AddedValidators, ist.AddedValidatorsPublicKeys, ist.RemovedValidators, ist.Seal, ist.AggregatedSeal, ist.ParentAggregatedSeal = istanbulExtra.AddedValidators, istanbulExtra.AddedValidatorsPublicKeys, istanbulExtra.RemovedValidators, istanbulExtra.Seal, istanbulExtra.AggregatedSeal, istanbulExtra.ParentAggregatedSeal
 	return nil
 }
 

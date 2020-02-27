@@ -24,9 +24,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -34,7 +34,7 @@ import (
 var (
 	testKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	testAddress = crypto.PubkeyToAddress(testKey.PublicKey)
-	testDB      = ethdb.NewMemDatabase()
+	testDB      = rawdb.NewMemoryDatabase()
 	testGenesis = core.GenesisBlockForTesting(testDB, testAddress, big.NewInt(1000000000))
 )
 
@@ -45,7 +45,7 @@ var testChainBase = newTestChain(blockCacheItems+200, testGenesis)
 var testChainForkLightA, testChainForkLightB, testChainForkHeavy *testChain
 
 func init() {
-	var forkLen = int(MaxForkAncestry + 50)
+	var forkLen = int(maxForkAncestry + 50)
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() { testChainForkLightA = testChainBase.makeFork(forkLen, false, 1); wg.Done() }()
@@ -199,18 +199,20 @@ func (tc *testChain) receipts(hashes []common.Hash) [][]*types.Receipt {
 }
 
 // bodies returns the block bodies of the given block hashes.
-func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, [][]*types.Header, []*types.Randomness) {
+func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, [][]*types.Header, []*types.Randomness, []*types.EpochSnarkData) {
 	transactions := make([][]*types.Transaction, 0, len(hashes))
 	uncles := make([][]*types.Header, 0, len(hashes))
 	randomness := make([]*types.Randomness, 0, len(hashes))
+	epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))
 	for _, hash := range hashes {
 		if block, ok := tc.blockm[hash]; ok {
 			transactions = append(transactions, block.Transactions())
 			uncles = append(uncles, block.Uncles())
 			randomness = append(randomness, block.Randomness())
+			epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 		}
 	}
-	return transactions, uncles, randomness
+	return transactions, uncles, randomness, epochSnarkData
 }
 
 func (tc *testChain) hashToNumber(target common.Hash) (uint64, bool) {

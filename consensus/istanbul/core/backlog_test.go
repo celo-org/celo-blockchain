@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -226,8 +228,8 @@ func TestStoreBacklog(t *testing.T) {
 		Round:    big.NewInt(12),
 		Sequence: big.NewInt(11),
 	}
-	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), []byte{})
-	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), []byte{})
+	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
+	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), blscrypto.SerializedPublicKey{})
 
 	// push messages
 	preprepare := &istanbul.Preprepare{
@@ -333,6 +335,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 		Round:    big.NewInt(10),
 		Sequence: big.NewInt(10),
 	}
+
 	committedSubject := &istanbul.CommittedSubject{
 		Subject: &istanbul.Subject{
 			View:   v,

@@ -20,19 +20,25 @@ import (
 	"math/big"
 	"time"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 )
 
-// SignerFn is a signer callback function to request a hash to be signed by a
+// SignerFn is a signer callback function to request a header to be signed by a
 // backing account.
-type SignerFn func(accounts.Account, []byte) ([]byte, error)
+type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
+
+// BLSSignerFn is a signer callback function to request a hash to be signed by a
+// backing account using BLS.
+type BLSSignerFn func(accounts.Account, []byte) (blscrypto.SerializedSignature, error)
 
 // MessageSignerFn is a signer callback function to request a raw message to
 // be signed by a backing account.
-type MessageSignerFn func(accounts.Account, []byte, []byte) ([]byte, error)
+type BLSMessageSignerFn func(accounts.Account, []byte, []byte) (blscrypto.SerializedSignature, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -41,6 +47,7 @@ type Backend interface {
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
+	NextBlockValidators(proposal Proposal) (ValidatorSet, error)
 
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
@@ -48,12 +55,14 @@ type Backend interface {
 	// BroadcastConsensusMsg sends a message to all validators (include self)
 	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
 
-	// Gossip sends a message to all validators (exclude self)
-	Gossip(validators []common.Address, payload []byte, ethMsgCode uint64, ignoreCache bool) error
+	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
+	// is associated with those node's signing key)
+	// If that parameter is nil, then it will send the message to all it's connected peers.
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error
+	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -61,7 +70,8 @@ type Backend interface {
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
-	SignBlockHeader([]byte) ([]byte, error)
+	SignBlockHeader([]byte) (blscrypto.SerializedSignature, error)
+	SignBLSWithCompositeHash([]byte) (blscrypto.SerializedSignature, error)
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator
@@ -89,5 +99,5 @@ type Backend interface {
 	RefreshValPeers(valset ValidatorSet)
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn, signHashBLSFn SignerFn, signMessageBLSFn MessageSignerFn)
+	Authorize(address common.Address, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
 }

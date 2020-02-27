@@ -170,7 +170,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{})
+					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
@@ -279,8 +279,8 @@ func TestVerifyCommit(t *testing.T) {
 	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
 	valSet := validator.NewSet([]istanbul.ValidatorData{
 		{
-			peer.Address(),
-			blsPublicKey,
+			Address:      peer.Address(),
+			BLSPublicKey: blsPublicKey,
 		},
 	})
 	// }, istanbul.RoundRobin)
