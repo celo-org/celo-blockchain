@@ -17,18 +17,12 @@
 package enodes
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
-	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"

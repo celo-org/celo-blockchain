@@ -701,6 +701,7 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	}
 }
 
+// signedAnnounceVersion todo give comment
 type signedAnnounceVersion struct {
 	Address   common.Address
 	Version   uint
@@ -727,7 +728,7 @@ func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (sb *Backend) generateSignedAnnounceVersion(version int) (*signedAnnounceVersion, error) {
+func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
 	sav := &signedAnnounceVersion{
 		Address: sb.Address(),
 		Version: version,
@@ -744,6 +745,6 @@ func (sb *Backend) generateSignedAnnounceVersion(version int) (*signedAnnounceVe
 }
 
 func (sb *Backend) gossipSignedAnnounceVersionTable(version int) error {
-
-	sb.Multicast(nil, payload, ethMsgCode)
+	return nil
+	// return sb.Multicast(nil, payload, ethMsgCode)
 }
