@@ -223,6 +223,20 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 		return err
 	}
 
+	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
+	for remoteAddress := range sb.lastSignedAnnounceVersionsGossiped {
+		if !regAndElectedVals[remoteAddress] {
+			logger.Trace("Deleting entry from lastSignedAnnounceVersionsGossiped", "address", remoteAddress, "gossip timestamp", sb.lastSignedAnnounceVersionsGossiped[remoteAddress])
+			delete(sb.lastSignedAnnounceVersionsGossiped, remoteAddress)
+		}
+	}
+	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
+
+	if err := sb.signedAnnounceVersionTable.PruneEntries(regAndElectedVals); err != nil {
+		logger.Trace("Error in pruning signedAnnounceVersionTable", "err", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -730,7 +744,6 @@ func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnou
 
 func (sb *Backend) gossipSignedAnnounceVersionsMsg() error {
 	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
-	logger.Warn("in here!")
 	// TODO remove this dummy test
 	entry, err := sb.generateSignedAnnounceVersion(12345)
 	if err != nil {
@@ -767,14 +780,29 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		return err
 	}
 
-	// TODO verify signatures
+	// Verify all entries are valid
+	for _, entry := range entries {
+		err := entry.ValidateSignature()
+		if err != nil {
+			logger.Warn("Found invalid entry, ignoring entire message", "err", err)
+			return err
+		}
+	}
 
-	sb.signedAnnounceVersionTable.Upsert(entries)
+	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
+	if err != nil {
+		logger.Warn("Error in upserting entries", "err", err)
+	}
 
 	info, err := sb.signedAnnounceVersionTable.Info()
 	bytes, marshallErr := json.Marshal(info)
-	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr)
+	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr, "new entries", newEntries)
 
+	if newEntries {
+		go sb.gossipSignedAnnounceVersionsMsg()
+	}
+
+	// lastSignedAnnounceVersionsGossiped[]
 	//
 	// // Check if the sender is within the registered/elected valset
 	// regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()

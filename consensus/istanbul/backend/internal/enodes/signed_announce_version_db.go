@@ -17,14 +17,17 @@
 package enodes
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -48,8 +51,9 @@ const (
 // SignedAnnounceVersionDB represents a Map that can be accessed either
 // by address or enode
 type SignedAnnounceVersionDB struct {
-	db      *leveldb.DB //the actual DB
-	logger  log.Logger
+	db           *leveldb.DB //the actual DB
+	logger       log.Logger
+	writeOptions *opt.WriteOptions
 }
 
 // SignedAnnounceVersionEntry is an entry
@@ -79,6 +83,24 @@ func (sve *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+func (sve *SignedAnnounceVersionEntry) ValidateSignature() error {
+	entryNoSignature := &SignedAnnounceVersionEntry{
+		Address: sve.Address,
+		Version: sve.Version,
+	}
+	bytesNoSignature, err := rlp.EncodeToBytes(entryNoSignature)
+	if err != nil {
+		return err
+	}
+	address, err := istanbul.GetSignatureAddress(bytesNoSignature, sve.Signature)
+	if err != nil {
+		return err
+	}
+	if address != sve.Address {
+		return errors.New("Signature does not match address")
+	}
+	return nil
+}
 
 func (sve *SignedAnnounceVersionEntry) String() string {
 	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sve.Address, sve.Version, len(sve.Signature))
@@ -104,6 +126,7 @@ func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) 
 	return &SignedAnnounceVersionDB{
 		db:      db,
 		logger:  logger,
+		writeOptions: &opt.WriteOptions{NoWriteMerge: true},
 	}, nil
 }
 
@@ -137,16 +160,19 @@ func (svdb *SignedAnnounceVersionDB) GetVersionFromAddress(address common.Addres
 	return entry.Version, nil
 }
 
-// Upsert TODO give comment
-func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnnounceVersionEntry) error {
+// Upsert inserts any new entries or entries with a Version higher than the
+// existing version. Returns if there were any new or updated entries
+func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnnounceVersionEntry) (bool, error) {
     logger := svdb.logger.New("func", "Upsert")
 	batch := new(leveldb.Batch)
+
+	newEntries := false
 
     for _, signedAnnVersion := range signedAnnounceVersions {
         currentEntry, err := svdb.getEntry(signedAnnVersion.Address)
         isNew := err == leveldb.ErrNotFound
 		if !isNew && err != nil {
-			return err
+			return false, err
 		}
         if !isNew && signedAnnVersion.Version <= currentEntry.Version {
             logger.Trace("Not inserting, version is not greater than the existing entry",
@@ -156,20 +182,21 @@ func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnno
         }
         newEntry, err := rlp.EncodeToBytes(signedAnnVersion)
         if err != nil {
-            return err
+            return false, err
         }
         batch.Put(addressKey(signedAnnVersion.Address), newEntry)
+		newEntries = true
         logger.Trace("Updating with new entry", "isNew", isNew,
             "address", signedAnnVersion.Address, "new version", signedAnnVersion.Version)
     }
 
     if batch.Len() > 0 {
-        err := svdb.db.Write(batch, nil)
+        err := svdb.db.Write(batch, svdb.writeOptions)
         if err != nil {
-            return err
+            return false, err
         }
     }
-    return nil
+    return newEntries, nil
 }
 
 // GetAllEntries gets all entries in the db
@@ -186,7 +213,7 @@ func (svdb *SignedAnnounceVersionDB) GetAllEntries() ([]*SignedAnnounceVersionEn
 func (svdb *SignedAnnounceVersionDB) RemoveEntry(address common.Address) error {
 	batch := new(leveldb.Batch)
 	batch.Delete(addressKey(address))
-	return svdb.db.Write(batch, nil)
+	return svdb.db.Write(batch, svdb.writeOptions)
 }
 
 // PruneEntries will remove entries for all address not present in addressesToKeep
@@ -202,7 +229,7 @@ func (svdb *SignedAnnounceVersionDB) PruneEntries(addressesToKeep map[common.Add
 	if err != nil {
 		return err
 	}
-	return svdb.db.Write(batch, nil)
+	return svdb.db.Write(batch, svdb.writeOptions)
 }
 
 func (svdb *SignedAnnounceVersionDB) getEntry(address common.Address) (*SignedAnnounceVersionEntry, error) {

@@ -112,6 +112,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
 		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
+		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:        new(sync.WaitGroup),
 		valEnodesShareQuit:      make(chan struct{}),
 		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
@@ -201,7 +202,9 @@ type Backend struct {
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	signedAnnounceVersionTable *enodes.SignedAnnounceVersionDB
+	signedAnnounceVersionTable           *enodes.SignedAnnounceVersionDB
+	lastSignedAnnounceVersionsGossiped   map[common.Address]time.Time
+	lastSignedAnnounceVersionsGossipedMu sync.RWMutex
 
 	announceRunning    bool
 	announceMu         sync.RWMutex
