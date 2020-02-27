@@ -66,13 +66,13 @@ func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 	return whitelist, err
 }
 
-func IsWhitelisted(address common.Address, header *types.Header, state vm.StateDB) bool {
+func IsWhitelisted(to common.Address, from common.Address, header *types.Header, state vm.StateDB) bool {
 	whitelist, err := retrieveWhitelist(header, state)
 	if err != nil {
 		log.Warn("Failed to get transfer whitelist", "err", err)
 		return true
 	}
-	return containsCurrency(currencyAddress, whitelist)
+	return containsAddress(to, whitelist) || containsAddress(from, whitelist)
 }
 
 func containsAddress(target common.Address, whitelist []common.Address) bool {

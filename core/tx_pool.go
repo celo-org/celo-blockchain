@@ -25,13 +25,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/contract_comm/freezer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	ccerrors "github.com/ethereum/go-ethereum/contract_comm/errors"
+	"github.com/ethereum/go-ethereum/contract_comm/freezer"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -550,10 +551,13 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	//TODO: Add check here
+	// Ensure gold transfers are whitelisted if transfers are frozen.
 	if tx.Value() > 0 && freezer.IsFrozen() {
-		//recipient := tx.To()
-
+		if !transfer_whitelist.IsWhitelisted(tx.To(), from, nil, nil) {
+			log.Debug("Attempt to transfer gold between non-whitelisted addresses while frozen", "hash", tx.Hash(), "to", tx.To(), "from", from)
+			return ErrGoldTransfersFrozen
+		}
+		log.Info("Whitelisted transfer of gold", "hash", tx.Hash(), "to", tx.To(), "from", from)
 	}
 
 	// Ensure the fee currency is native or whitelisted.
