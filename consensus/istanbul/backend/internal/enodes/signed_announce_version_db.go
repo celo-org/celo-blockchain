@@ -18,6 +18,7 @@ package enodes
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -58,8 +59,29 @@ type SignedAnnounceVersionEntry struct {
 	Signature []byte
 }
 
-func (e *SignedAnnounceVersionEntry) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", e.Address, e.Version, len(e.Signature))
+// EncodeRLP serializes announceVersion into the Ethereum RLP format.
+func (sve *SignedAnnounceVersionEntry) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sve.Address, sve.Version, sve.Signature})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
+func (sve *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		Address   common.Address
+		Version   uint
+		Signature []byte
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	sve.Address, sve.Version, sve.Signature = msg.Address, msg.Version, msg.Signature
+	return nil
+}
+
+
+func (sve *SignedAnnounceVersionEntry) String() string {
+	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sve.Address, sve.Version, len(sve.Signature))
 }
 
 // OpenSignedAnnounceVersionDB opens a signed announce version database for storing
@@ -150,6 +172,16 @@ func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnno
     return nil
 }
 
+// GetAllEntries gets all entries in the db
+func (svdb *SignedAnnounceVersionDB) GetAllEntries() ([]*SignedAnnounceVersionEntry, error) {
+	var entries []*SignedAnnounceVersionEntry
+	err := svdb.iterateOverAddressEntries(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
+		entries = append(entries, entry)
+		return nil
+	})
+	return entries, err
+}
+
 // RemoveEntry will remove an entry from the table
 func (svdb *SignedAnnounceVersionDB) RemoveEntry(address common.Address) error {
 	batch := new(leveldb.Batch)
@@ -209,8 +241,8 @@ type SignedAnnounceVersionEntryInfo struct {
 	Version uint   `json:"version"`
 }
 
-// SignedAnnounceVersionInfo todo comment
-func (svdb *SignedAnnounceVersionDB) SignedAnnounceVersionInfo() (map[string]*SignedAnnounceVersionEntryInfo, error) {
+// Info todo comment
+func (svdb *SignedAnnounceVersionDB) Info() (map[string]*SignedAnnounceVersionEntryInfo, error) {
 	dbInfo := make(map[string]*SignedAnnounceVersionEntryInfo)
 	err := svdb.iterateOverAddressEntries(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
 		dbInfo[address.Hex()] = &SignedAnnounceVersionEntryInfo{

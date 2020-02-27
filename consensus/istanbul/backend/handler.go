@@ -48,10 +48,11 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
+	istanbulSignedAnnounceVersionsMsg = 0x19
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulAnnounceVersionsMsg
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulSignedAnnounceVersionsMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error

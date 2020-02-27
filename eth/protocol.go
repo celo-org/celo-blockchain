@@ -42,7 +42,7 @@ const ProtocolName = "istanbul"
 var ProtocolVersions = []uint{celo65, celo64}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var protocolLengths = map[uint]uint64{celo64: 22, celo65: 25}
+var protocolLengths = map[uint]uint64{celo64: 22, celo65: 26}
 
 const protocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message
 

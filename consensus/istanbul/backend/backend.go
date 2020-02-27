@@ -112,7 +112,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
 		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
-		cachedSignedAnnounceVersionMsgs: make(map[common.Address]*signedAnnounceVersion),
 		valEnodesShareWg:        new(sync.WaitGroup),
 		valEnodesShareQuit:      make(chan struct{}),
 		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
@@ -130,11 +129,18 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	)
 
 	vph := &validatorPeerHandler{sb: backend}
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
-	backend.valEnodeTable = table
+	backend.valEnodeTable = valEnodeTable
+
+	// TODO use a path
+	signedAnnounceVersionTable, err := enodes.OpenSignedAnnounceVersionDB("")
+	if err != nil {
+		logger.Crit("Can't open ignedAnnounceVersionDB", "err", err)
+	}
+	backend.signedAnnounceVersionTable = signedAnnounceVersionTable
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
@@ -143,6 +149,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulSignedAnnounceVersionsMsg] = backend.handleSignedAnnounceVersionsMsg
 
 	return backend
 }
@@ -194,6 +201,8 @@ type Backend struct {
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
+	signedAnnounceVersionTable *enodes.SignedAnnounceVersionDB
+
 	announceRunning    bool
 	announceMu         sync.RWMutex
 	announceThreadWg   *sync.WaitGroup
@@ -202,9 +211,6 @@ type Backend struct {
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
-
-	cachedSignedAnnounceVersionMsgs   map[common.Address]*signedAnnounceVersion
-	cachedSignedAnnounceVersionMsgsMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

@@ -18,6 +18,7 @@ package backend
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -69,7 +70,7 @@ func (sb *Backend) announceThread() {
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 
 	// Create a ticker to check peers' announce versions one every 10 minutes
-	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
+	announceVersionsCheckTicker := time.NewTicker(time.Minute / 10)
 
 	// Create all the variables needed for the periodic gossip
 	var announceGossipTicker *time.Ticker
@@ -158,6 +159,9 @@ func (sb *Backend) announceThread() {
 		case <-announceVersionsCheckTicker.C:
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
+
+			logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
+			go sb.gossipSignedAnnounceVersionsMsg()
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -701,35 +705,15 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	}
 }
 
-// signedAnnounceVersion todo give comment
-type signedAnnounceVersion struct {
-	Address   common.Address
-	Version   uint
-	Signature []byte
-}
+// // signedAnnounceVersion todo give comment
+// type signedAnnounceVersion struct {
+// 	Address   common.Address
+// 	Version   uint
+// 	Signature []byte
+// }
 
-// EncodeRLP serializes announceVersion into the Ethereum RLP format.
-func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
-func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Address   common.Address
-		Version   uint
-		Signature []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
-	return nil
-}
-
-func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
-	sav := &signedAnnounceVersion{
+func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnounceVersionEntry, error) {
+	sav := &vet.SignedAnnounceVersionEntry{
 		Address: sb.Address(),
 		Version: version,
 	}
@@ -744,7 +728,71 @@ func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceV
 	return sav, nil
 }
 
-func (sb *Backend) gossipSignedAnnounceVersionTable(version int) error {
+func (sb *Backend) gossipSignedAnnounceVersionsMsg() error {
+	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
+	logger.Warn("in here!")
+	// TODO remove this dummy test
+	entry, err := sb.generateSignedAnnounceVersion(12345)
+	if err != nil {
+		logger.Warn("Error generating signed announce version", "err", err)
+		return err
+	}
+	sb.signedAnnounceVersionTable.Upsert([]*vet.SignedAnnounceVersionEntry{entry})
+
+	allEntries, err := sb.signedAnnounceVersionTable.GetAllEntries()
+	if err != nil {
+		logger.Warn("Error getting all entries from signed announce version table", "err", err)
+		return err
+	}
+
+	payload, err := rlp.EncodeToBytes(allEntries)
+	if err != nil {
+		logger.Warn("Error encoding entries", "err", err)
+		return err
+	}
+
+	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
+}
+
+func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleSignedAnnounceVersionsMsg")
+
+	logger.Warn("in handleSignedAnnounceVersionsMsg!!!")
+
+	var entries []*vet.SignedAnnounceVersionEntry
+
+	err := rlp.DecodeBytes(payload, &entries)
+	if err != nil {
+		logger.Warn("Error in decoding received Signed Announce Versions msg", "err", err)
+		return err
+	}
+
+	// TODO verify signatures
+
+	sb.signedAnnounceVersionTable.Upsert(entries)
+
+	info, err := sb.signedAnnounceVersionTable.Info()
+	bytes, marshallErr := json.Marshal(info)
+	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr)
+
+	//
+	// // Check if the sender is within the registered/elected valset
+	// regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	// if err != nil {
+	// 	logger.Trace("Error in retrieving registered/elected valset", "err", err)
+	// 	return err
+	// }
+	//
+	// if !regAndActiveVals[msg.Address] {
+	// 	logger.Debug("Received a message from a non registered/elected validator. Ignoring it.", "sender", msg.Address)
+	// 	return errUnauthorizedAnnounceMessage
+	// }
+	//
+	// var announceData announceData
+	// err = rlp.DecodeBytes(msg.Msg, &announceData)
+	// if err != nil {
+	// 	logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+	// 	return err
+	// }
 	return nil
-	// return sb.Multicast(nil, payload, ethMsgCode)
 }
