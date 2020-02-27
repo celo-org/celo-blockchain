@@ -531,16 +531,6 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without blsbase", "err", err)
 			return fmt.Errorf("blsbase missing: %v", err)
 		}
-<<<<<<< HEAD
-		clique, isClique := s.engine.(*clique.Clique)
-		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
-		if isIstanbul || isClique {
-			// Need to open hardware wallet if used for BLS signing; otherwise a race condition
-			// appears between registering the wallet's address and looking up blsbase
-			for _, wallet := range s.accountManager.Wallets() {
-				wallet.Open("")
-			}
-=======
 		if clique, isClique := s.engine.(*clique.Clique); isClique {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
@@ -551,11 +541,15 @@ func (s *Ethereum) StartMining(threads int) error {
 		}
 
 		if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
->>>>>>> master
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
+			}
+			// Need to open hardware wallet if used for BLS signing; otherwise a race condition
+			// appears between registering the wallet's address and looking up blsbase
+			for _, wallet := range s.accountManager.Wallets() {
+				wallet.Open("")
 			}
 			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
 			if blswallet == nil || err != nil {
