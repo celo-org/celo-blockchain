@@ -6,16 +6,20 @@ import (
 	"math/rand"
 	"testing"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 )
 
 func TestRSDBRoundStateDB(t *testing.T) {
+	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
+	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	dummyRoundState := func() RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
-			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
-			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
+			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
 		})
 		return newRoundState(newView(2, 1), valSet, valSet.GetByIndex(0))
 	}
@@ -52,10 +56,12 @@ func TestRSDBRoundStateDB(t *testing.T) {
 }
 
 func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
+	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
+	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	createRoundState := func(view *istanbul.View) RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
-			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
-			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
+			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
 		})
 		return newRoundState(view, valSet, valSet.GetByIndex(0))
 	}
@@ -92,7 +98,7 @@ func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
 func TestRSDBKeyEncodingOrder(t *testing.T) {
 	iterations := 1000
 
-	t.Run("ViewKey enconding should decode the same view", func(t *testing.T) {
+	t.Run("ViewKey encoding should decode the same view", func(t *testing.T) {
 		for i := 0; i < iterations; i++ {
 			view := newView(rand.Uint64(), rand.Uint64())
 			key := view2Key(view)
@@ -103,7 +109,7 @@ func TestRSDBKeyEncodingOrder(t *testing.T) {
 		}
 	})
 
-	t.Run("ViewKey enconding should maintain sort order", func(t *testing.T) {
+	t.Run("ViewKey encoding should maintain sort order", func(t *testing.T) {
 		for i := 0; i < iterations; i++ {
 			viewA := newView(rand.Uint64(), rand.Uint64())
 			keyA := view2Key(viewA)
@@ -125,9 +131,11 @@ func TestRSDBKeyEncodingOrder(t *testing.T) {
 }
 
 func TestRSDBGetOldestValidView(t *testing.T) {
+	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
+	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	valSet := validator.NewSet([]istanbul.ValidatorData{
-		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: []byte{1, 2, 3}},
-		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: []byte{3, 1, 4}},
+		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
+		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
 	})
 	sequencesToSave := uint64(100)
 	runTestCase := func(name string, viewToStore, expectedView *istanbul.View) {

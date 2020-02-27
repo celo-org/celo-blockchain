@@ -325,7 +325,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 
 	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
-	publicKeys := [][]byte{}
+	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
@@ -466,7 +466,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
 		snapshot = state.Snapshot()
-		err = sb.distributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
 		}
@@ -954,12 +954,11 @@ func ecrecover(header *types.Header) (common.Address, error) {
 func writeEmptyIstanbulExtra(header *types.Header) error {
 	extra := types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(0),
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	payload, err := rlp.EncodeToBytes(&extra)
 	if err != nil {

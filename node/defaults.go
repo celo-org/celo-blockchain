@@ -50,7 +50,7 @@ var DefaultConfig = Config{
 	Proxy:               false,
 	P2P: p2p.Config{
 		ListenAddr: ":30303",
-		MaxPeers:   50,
+		MaxPeers:   175,
 		NAT:        nat.Any(),
 		NetworkId:  1,
 	},

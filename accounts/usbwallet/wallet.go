@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -527,12 +529,12 @@ func (w *wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
@@ -546,6 +548,16 @@ func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address 
 // SignData signs keccak256(data). The mimetype parameter describes the type of data being signed
 func (w *wallet) SignData(account accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	return w.signHash(account, crypto.Keccak256(data))
+}
+
+// SignHash implements accounts.Wallet, attempting to sign the given hash with
+// the given account. If the wallet does not wrap this particular account, an
+// error is returned to avoid account leakage (even though in theory we may be
+// able to sign via our shared keystore backend).
+//
+// DEPRECATED, use SignData in future releases.
+func (w *wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return w.signHash(account, hash)
 }
 
 // SignDataWithPassphrase implements accounts.Wallet, attempting to sign the given

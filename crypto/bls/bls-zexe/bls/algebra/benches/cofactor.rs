@@ -3,7 +3,6 @@ extern crate criterion;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
-
 use algebra::curves::{
     ProjectiveCurve,
     bls12_377::{
@@ -11,12 +10,15 @@ use algebra::curves::{
         G2Projective
     }
 };
-use rand::{Rng, SeedableRng, XorShiftRng};
 
 use bls_zexe::curve::cofactor::{scale_by_cofactor_scott, scale_by_cofactor_fuentes};
 
+use rand::{Rng, SeedableRng};
+use rand_xorshift::{XorShiftRng};
+
 fn bench_scale_by_cofactor(c: &mut Criterion) {
-    let mut rng = XorShiftRng::from_seed([0x5dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+
+    let mut rng = XorShiftRng::from_seed([0x5d, 0xbe, 0x62, 0x59, 0x8d, 0x31, 0x3d, 0x76, 0x32, 0x37, 0xdb, 0x17, 0xe5, 0xbc, 0x06, 0x54]);
     let mut points: Vec<G2Projective> = vec![];
     const SAMPLES: usize =  3;
     for _i in 0..SAMPLES {

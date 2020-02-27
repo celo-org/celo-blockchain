@@ -290,72 +290,72 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
 }
 
-func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error) {
+func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return blscrypto.SerializedSignature{}, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer privateKey.Destroy()
 
 	signature, err := privateKey.SignMessage(hash, []byte{}, false)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
-	return signatureBytes, nil
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
-func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return blscrypto.SerializedSignature{}, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer privateKey.Destroy()
 
 	signature, err := privateKey.SignMessage(msg, extraData, true)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
-	return signatureBytes, nil
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {

@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	pcsc "github.com/gballet/go-libpcsclite"
 	"github.com/status-im/keycard-go/derivationpath"
@@ -607,12 +608,12 @@ func (w *Wallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, er
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *Wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *Wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
-func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
 func (w *Wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
@@ -698,6 +699,16 @@ func (w *Wallet) SelfDerive(bases []accounts.DerivationPath, chain ethereum.Chai
 // the account in a keystore).
 func (w *Wallet) SignData(account accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	return w.signHash(account, crypto.Keccak256(data))
+}
+
+// SignHash implements accounts.Wallet, attempting to sign the given hash with
+// the given account. If the wallet does not wrap this particular account, an
+// error is returned to avoid account leakage (even though in theory we may be
+// able to sign via our shared keystore backend).
+//
+// DEPRECATED, use SignData in future releases.
+func (w *Wallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return w.signHash(account, hash)
 }
 
 func (w *Wallet) signHash(account accounts.Account, hash []byte) ([]byte, error) {

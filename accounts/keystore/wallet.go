@@ -20,6 +20,8 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -121,21 +123,21 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 	return w.keystore.GetPublicKey(account)
 }
 
-func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
+func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
-		return nil, accounts.ErrUnknownAccount
+		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignHashBLS(account, hash)
 }
 
-func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
-		return nil, accounts.ErrUnknownAccount
+		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignMessageBLS(account, msg, extraData)
@@ -164,6 +166,16 @@ func (w *keystoreWallet) GenerateProofOfPossessionBLS(account accounts.Account, 
 // SignData signs keccak256(data). The mimetype parameter describes the type of data being signed
 func (w *keystoreWallet) SignData(account accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	return w.signHash(account, crypto.Keccak256(data))
+}
+
+// SignHash implements accounts.Wallet, attempting to sign the given hash with
+// the given account. If the wallet does not wrap this particular account, an
+// error is returned to avoid account leakage (even though in theory we may be
+// able to sign via our shared keystore backend).
+//
+// DEPRECATED, use SignData in future releases.
+func (w *keystoreWallet) SignHash(account accounts.Account, hash []byte) ([]byte, error) {
+	return w.signHash(account, hash)
 }
 
 // SignDataWithPassphrase signs keccak256(data). The mimetype parameter describes the type of data being signed
