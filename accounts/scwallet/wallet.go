@@ -616,6 +616,10 @@ func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
+func (w *Wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 func (w *Wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
 	return nil, nil, accounts.ErrNotSupported
 }

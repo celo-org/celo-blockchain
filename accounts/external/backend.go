@@ -235,6 +235,10 @@ func (api *ExternalSigner) SignMessageBLS(account accounts.Account, msg []byte, 
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
+func (api *ExternalSigner) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 func (api *ExternalSigner) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
 	return nil, nil, accounts.ErrNotSupported
 }

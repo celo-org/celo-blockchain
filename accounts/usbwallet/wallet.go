@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/karalabe/hid"
 	"github.com/celo-org/bls-zexe/go"
 	"github.com/karalabe/usb"
 )
@@ -174,7 +173,7 @@ func (w *wallet) Open(passphrase string) error {
 	_, err := w.driver.GetPublicKeyBLS()
 	// Set up default address if BLS app running
 	if err == nil {
-		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultLedgerBaseDerivationPath
+		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultBaseDerivationPath
 	}
 	w.deriveReq = make(chan chan struct{})
 	w.deriveQuit = make(chan chan error)
@@ -547,17 +546,17 @@ func (w *wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
+func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
 	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
 	hashedHash, err := bls.HashDirect(hash, false)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer w.stateLock.RUnlock()
 
 	// If the wallet is closed, abort
 	if w.device == nil {
-		return nil, accounts.ErrWalletClosed
+		return blscrypto.SerializedSignature{}, accounts.ErrWalletClosed
 	}
 	// All infos gathered and metadata checks out, request signing
 	<-w.commsLock
@@ -577,26 +576,30 @@ func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) ([]byte, err
 	// Sign the hash
 	signed, err := w.driver.SignHashBLS(hashedHash)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	signedCompressed, err := bls.CompressSignature(signed)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
-	return signedCompressed, nil
+	signatureResult, err := blscrypto.SerializedSignatureFromBytes(signedCompressed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	return signatureResult, nil
 }
 
-func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 	hash, err := bls.HashComposite(msg, extraData)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
 	defer w.stateLock.RUnlock()
 
 	// If the wallet is closed, abort
 	if w.device == nil {
-		return nil, accounts.ErrWalletClosed
+		return blscrypto.SerializedSignature{}, accounts.ErrWalletClosed
 	}
 	// All infos gathered and metadata checks out, request signing
 	<-w.commsLock
@@ -616,13 +619,14 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 	// Sign the hash
 	signed, err := w.driver.SignHashBLS(hash)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	signedCompressed, err := bls.CompressSignature(signed)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
-	return signedCompressed, nil
+	signatureResult, err := blscrypto.SerializedSignatureFromBytes(signedCompressed)
+	return signatureResult, nil
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
