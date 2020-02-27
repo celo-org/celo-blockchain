@@ -60,10 +60,11 @@ func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 		} else {
 			log.Error("getWhitelist invocation on TransferWhitelist failed", "err", err)
 		}
+		return nil, err
 	}
 
 	log.Trace("getWhitelist invocation on TransferWhitelist succeeded")
-	return whitelist, err
+	return whitelist, nil
 }
 
 func IsWhitelisted(to common.Address, from common.Address, header *types.Header, state vm.StateDB) bool {

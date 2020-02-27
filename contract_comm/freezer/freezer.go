@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -54,10 +53,13 @@ var (
 	isFrozenFuncABI, _ = abi.JSON(strings.NewReader(isFrozenABI))
 )
 
-func IsFrozen(header *types.Header, state vm.StateDB, contractAddress *common.Address) (bool, error) {
+func IsFrozen(registryId [32]byte, header *types.Header, state vm.StateDB) (bool, error) {
+	address, err := contract_comm.GetRegisteredAddress(registryId, header, state)
+	if err != nil {
+		return false, err
+	}
 	var isFrozen bool
-
-	if _, err := contract_comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{contractAddress}, &isFrozen, params.MaxGasForIsFrozen, header, state); err != nil {
+	if _, err := contract_comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{address}, &isFrozen, params.MaxGasForIsFrozen, header, state); err != nil {
 		return false, err
 	}
 
