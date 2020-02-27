@@ -299,14 +299,14 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	}
 }
 
-// Handshake allows this node to identify itself to the peer as a validator and vice versa
-func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
+// Handshake allows the initiating peer to identify itself as a validator
+func (sb *Backend) Handshake(peer consensus.Peer, peerIsInbound bool) (bool, error) {
 	// Only written to if there was a non-nil error when sending or receiving
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 1)
 	isValidatorCh := make(chan bool, 1)
 
-	go func() {
-		validatorProofMessage, err := sb.generateValidatorProofMessage(peer)
+	sendHandshake := func() {
+		validatorProofMessage, containsProof, err := sb.generateValidatorProofMessage(peer)
 		if err != nil {
 			errCh <- err
 			return
@@ -320,15 +320,23 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		if err != nil {
 			errCh <- err
 		}
-	}()
-	go func() {
+		isValidatorCh <- containsProof
+	}
+	readHandshake := func() {
 		isValidator, err := sb.readValidatorProofMessage(peer)
 		if err != nil {
 			errCh <- err
 			return
 		}
 		isValidatorCh <- isValidator
-	}()
+	}
+
+	// Only the initating peer sends the message
+	if peerIsInbound {
+		go readHandshake()
+	} else {
+		go sendHandshake()
+	}
 
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
@@ -352,32 +360,30 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 // and an empty message is created.
 // If this node is a proxy, it will use the most recent versioned enode message this
 // node has received from the proxied validator if one exists.
-func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, error) {
+// Returns the message to send, if it contains a proof this node is a validator,
+// and if an error occurred.
+func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, bool, error) {
 	shouldSend, err := sb.shouldSendValidatorProof(peer)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if shouldSend {
 		msg, err := sb.retrieveSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if msg != nil {
-			return msg, nil
+			return msg, true, nil
 		}
 	}
 	// Even if we decide not to identify ourselves,
 	// send an empty message to complete the handshake
-	return &istanbul.Message{}, nil
+	return &istanbul.Message{}, false, nil
 }
 
 // shouldSendValidatorProof determines if this node should send a
 // validator proof revealing its address to a peer
 func (sb *Backend) shouldSendValidatorProof(peer consensus.Peer) (bool, error) {
-	// Only the initiating peer should send a validator proof
-	if peer.Peer.Inbound() {
-		return false, nil
-	}
 	var validatorAddress common.Address
 	if sb.config.Proxy {
 		validatorAddress = sb.config.ProxiedValidatorAddress

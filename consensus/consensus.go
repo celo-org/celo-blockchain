@@ -164,7 +164,7 @@ type Handler interface {
 
 	// Handshake will begin a handshake with a new peer. It returns if the peer
 	// has identified itself as a validator.
-	Handshake(peer Peer) (bool, error)
+	Handshake(peer Peer, peerIsInbound bool) (bool, error)
 }
 
 // PoW is a consensus engine based on proof-of-work.
