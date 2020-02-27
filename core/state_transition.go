@@ -196,16 +196,16 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
+	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
+		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
+		return errNonWhitelistedFeeCurrency
+	}
+
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
 		feeVal.Add(feeVal, st.msg.GatewayFee())
-	}
-
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
-		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
-		return errNonWhitelistedFeeCurrency
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
@@ -225,6 +225,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	if feeCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
+
 	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
 	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
@@ -234,44 +235,47 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	return balanceOf.Cmp(fee) > 0
 }
 
-func (st *StateTransition) debitFrom(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
+func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
 	}
 	evm := st.evm
-	// Function is "debitFrom(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitFrom(address,uint256)"
+	// Function is "debitGasFees(address from, uint256 value)"
+	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
 	// Source:
 	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitFrom(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x362a5f80")
+	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitGasFees(address,uint256)")[0:4].hex())'
+	functionSelector := hexutil.MustDecode("0x58cf9672")
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitFromTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForDebitFromTransactions - leftoverGas
-	log.Debug("debitFrom called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitGasFeesTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForDebitGasFeesTransactions - leftoverGas
+	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
-func (st *StateTransition) creditTo(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
+func (st *StateTransition) creditGasFees(
+	from common.Address,
+	feeRecipient common.Address,
+	gatewayFeeRecipient *common.Address,
+	communityFund *common.Address,
+	refund *big.Int,
+	tipTxFee *big.Int,
+	gatewayFee *big.Int,
+	baseTxFee *big.Int,
+	feeCurrency *common.Address) error {
 	evm := st.evm
-	// Function is "creditTo(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "creditTo(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("creditTo(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x9951b90c")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
+	functionSelector := hexutil.MustDecode("0x6a30b253")
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(*communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditToTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForCreditToTransactions - leftoverGas
-	log.Debug("creditTo called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasFeesTransactions, big.NewInt(0))
+	gasUsed := params.MaxGasForCreditGasFeesTransactions - leftoverGas
+	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -282,17 +286,7 @@ func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCur
 		st.state.SubBalance(from, amount)
 		return nil
 	} else {
-		return st.debitFrom(from, amount, feeCurrency)
-	}
-}
-
-func (st *StateTransition) creditFee(to common.Address, amount *big.Int, feeCurrency *common.Address) (err error) {
-	// native currency
-	if feeCurrency == nil {
-		st.state.AddBalance(to, amount)
-		return nil
-	} else {
-		return st.creditTo(to, amount, feeCurrency)
+		return st.debitGas(from, amount, feeCurrency)
 	}
 }
 
@@ -395,45 +389,47 @@ func (st *StateTransition) distributeTxFees() error {
 	refund := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	gasUsed := new(big.Int).SetUint64(st.gasUsed())
 	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
+	from := st.msg.From()
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
+	feeCurrency := st.msg.FeeCurrency()
 
-	// Pay gateway fee to the specified recipient.
-	if st.msg.GatewayFeeRecipient() != nil {
-		log.Trace("Crediting gateway fee", "recipient", *st.msg.GatewayFeeRecipient(), "amount", st.msg.GatewayFee(), "feeCurrency", st.msg.FeeCurrency())
-		if err := st.creditFee(*st.msg.GatewayFeeRecipient(), st.msg.GatewayFee(), st.msg.FeeCurrency()); err != nil {
-			log.Error("Failed to credit gateway fee", "err", err)
-			return err
-		}
+	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
+	if gatewayFeeRecipient == nil {
+		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	log.Trace("Crediting gas fee tip", "recipient", st.evm.Coinbase, "amount", tipTxFee, "feeCurrency", st.msg.FeeCurrency())
-	if err := st.creditFee(st.evm.Coinbase, tipTxFee, st.msg.FeeCurrency()); err != nil {
-		return err
-	}
-
-	// Send the base of the transaction fee to the community fund.
 	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
-	if err != nil {
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-			return err
-		}
+	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+		return err
+	} else if err != nil {
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
+		governanceAddress = &common.ZeroAddress
 		refund.Add(refund, baseTxFee)
-	} else {
-		log.Trace("Crediting gas fee tip", "recipient", *governanceAddress, "amount", baseTxFee, "feeCurrency", st.msg.FeeCurrency())
-		if err = st.creditFee(*governanceAddress, baseTxFee, st.msg.FeeCurrency()); err != nil {
-			return err
-		}
+		baseTxFee = new(big.Int)
 	}
 
-	log.Trace("Crediting refund", "recipient", st.msg.From(), "amount", refund, "feeCurrency", st.msg.FeeCurrency())
-	err = st.creditFee(st.msg.From(), refund, st.msg.FeeCurrency())
-	if err != nil {
-		log.Error("Failed to refund gas", "err", err)
-		return err
+	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
+		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
+		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
+		"comunityFundRecipient", *governanceAddress, "communityFundFee", baseTxFee)
+	if feeCurrency == nil {
+		if gatewayFeeRecipient != &common.ZeroAddress {
+			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
+		}
+		if governanceAddress != &common.ZeroAddress {
+			st.state.AddBalance(*governanceAddress, baseTxFee)
+		}
+		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
+		st.state.AddBalance(from, refund)
+	} else {
+		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+			return err
+		}
+
 	}
 	return nil
 }
