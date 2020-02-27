@@ -250,7 +250,7 @@ func TestInvalidTransactions(t *testing.T) {
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
 
-	// Should observe insufficient funds error whne the balance doesn't cover transaction costs.
+	// Should observe insufficient funds error when the balance doesn't cover transaction costs.
 	pool.currentState.AddBalance(from, big.NewInt(1))
 	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
 		t.Error("expected", ErrInsufficientFunds)
@@ -289,6 +289,24 @@ func TestInvalidTransactions(t *testing.T) {
 	if err := pool.AddLocal(tx); err != nil {
 		t.Error("expected", nil, "got", err)
 	}
+}
+
+func TestTransferFreezing(t *testing.T) {
+	t.Parallel()
+
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	tx := transaction(0, 10, key)
+	from, _ := deriveSender(tx)
+
+	// Should return error for transactions that transfer value between non-whitelisted addresses.
+	pool.currentState.AddBalance(from, big.NewInt(100))
+	if err := pool.AddRemote(tx); err != ErrTransfersFrozen {
+		t.Error("expected", ErrTransfersFrozen)
+	}
+
+	//TODO(Alec): add more tests
 }
 
 func TestTransactionQueue(t *testing.T) {

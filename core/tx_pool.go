@@ -86,6 +86,10 @@ var (
 
 	// ErrNonWhitelistedFeeCurrency is returned if the txn fee currency is not white listed
 	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency")
+
+	// ErrTransfersFrozen is returned if a transaction attempts to transfer between
+	// non-whitelisted addresses while transfers are frozen.
+	ErrTransfersFrozen = errors.New("transfers are currently frozen")
 )
 
 var (
@@ -553,11 +557,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// Ensure gold transfers are whitelisted if transfers are frozen.
 	if tx.Value() > 0 && freezer.IsFrozen() {
+		log.Info("Transfers are frozen")
 		if !transfer_whitelist.IsWhitelisted(tx.To(), from, nil, nil) {
-			log.Debug("Attempt to transfer gold between non-whitelisted addresses while frozen", "hash", tx.Hash(), "to", tx.To(), "from", from)
-			return ErrGoldTransfersFrozen
+			log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", tx.To(), "from", from)
+			return ErrTransfersFrozen
 		}
-		log.Info("Whitelisted transfer of gold", "hash", tx.Hash(), "to", tx.To(), "from", from)
+		log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", tx.To(), "from", from)
 	}
 
 	// Ensure the fee currency is native or whitelisted.
