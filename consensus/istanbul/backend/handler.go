@@ -374,6 +374,10 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 // shouldSendValidatorProof determines if this node should send a
 // validator proof revealing its address to a peer
 func (sb *Backend) shouldSendValidatorProof(peer consensus.Peer) (bool, error) {
+	// Only the initiating peer should send a validator proof
+	if peer.Peer.Inbound() {
+		return false, nil
+	}
 	var validatorAddress common.Address
 	if sb.config.Proxy {
 		validatorAddress = sb.config.ProxiedValidatorAddress
