@@ -406,6 +406,8 @@ func (st *StateTransition) distributeTxFees() error {
 	} else if err != nil {
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		governanceAddress = &common.ZeroAddress
+		refund.Add(refund, baseTxFee)
+		baseTxFee = new(big.Int)
 	}
 
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
@@ -416,14 +418,11 @@ func (st *StateTransition) distributeTxFees() error {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
 		if governanceAddress != &common.ZeroAddress {
 			st.state.AddBalance(*governanceAddress, baseTxFee)
-			st.state.AddBalance(from, refund)
-		} else {
-			refund.Add(refund, baseTxFee)
-			st.state.AddBalance(from, refund)
 		}
+		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
+		st.state.AddBalance(from, refund)
 	} else {
 		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
