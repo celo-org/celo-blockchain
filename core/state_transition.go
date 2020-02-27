@@ -196,16 +196,16 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
+	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
+		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
+		return errNonWhitelistedFeeCurrency
+	}
+
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
 		feeVal.Add(feeVal, st.msg.GatewayFee())
-	}
-
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
-		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
-		return errNonWhitelistedFeeCurrency
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
@@ -225,6 +225,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	if feeCurrency == nil {
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
+
 	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.GetHeader(), st.evm.GetStateDB())
 	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
