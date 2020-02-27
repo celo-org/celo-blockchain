@@ -112,6 +112,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
 		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
+		cachedSignedAnnounceVersionMsgs: make(map[common.Address]*signedAnnounceVersion),
 		valEnodesShareWg:        new(sync.WaitGroup),
 		valEnodesShareQuit:      make(chan struct{}),
 		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
@@ -201,6 +202,9 @@ type Backend struct {
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
+
+	cachedSignedAnnounceVersionMsgs   map[common.Address]*signedAnnounceVersion
+	cachedSignedAnnounceVersionMsgsMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

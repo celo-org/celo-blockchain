@@ -605,7 +605,7 @@ func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
 
 // String returns the string representation of announceVersion.
 func (av *announceVersion) String() string {
-	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgTimstamp: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
+	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgVersion: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
 }
 
 // sendGetAnnounceVersions will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
@@ -699,4 +699,51 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 			sb.sendGetAnnounceVersions(peer)
 		}
 	}
+}
+
+type signedAnnounceVersion struct {
+	Address   common.Address
+	Version   uint
+	Signature []byte
+}
+
+// EncodeRLP serializes announceVersion into the Ethereum RLP format.
+func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
+func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		Address   common.Address
+		Version   uint
+		Signature []byte
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
+	return nil
+}
+
+func (sb *Backend) generateSignedAnnounceVersion(version int) (*signedAnnounceVersion, error) {
+	sav := &signedAnnounceVersion{
+		Address: sb.Address(),
+		Version: version,
+	}
+	payloadNoSig, err := rlp.EncodeToBytes(sav)
+	if err != nil {
+		return nil, err
+	}
+	sav.Signature, err = sb.Sign(payloadNoSig)
+	if err != nil {
+		return nil, err
+	}
+	return sav, nil
+}
+
+func (sb *Backend) gossipSignedAnnounceVersionTable(version int) error {
+
+	sb.Multicast(nil, payload, ethMsgCode)
 }

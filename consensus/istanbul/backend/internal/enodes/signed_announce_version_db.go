@@ -38,95 +38,36 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// Keys in the node database.
-const (
-	dbVersionKey    = "version"  // Version of the database to flush if changes
-	dbAddressPrefix = "address:" // Identifier to prefix node entries with
-	dbNodeIDPrefix  = "nodeid:"
-)
+// // Keys in the node database.
+// const (
+// 	dbVersionKey    = "version"  // Version of the database to flush if changes
+// 	dbAddressPrefix = "address:" // Identifier to prefix address keys with
+// )
 
 const (
 	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 3
+	dbVersionSignedAnnounceVersion = 0
 )
 
-// ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
-type ValidatorEnodeHandler interface {
-	// AddValidatorPeer adds a validator peer
-	AddValidatorPeer(node *enode.Node, address common.Address)
-
-	// RemoveValidatorPeer removes a validator peer
-	RemoveValidatorPeer(node *enode.Node)
-
-	// ReplaceValidatorPeers replace all validator peers for new list of enodeURLs
-	ReplaceValidatorPeers(newNodes []*enode.Node)
-
-	// Clear all validator peers
-	ClearValidatorPeers()
-}
-
-func addressKey(address common.Address) []byte {
-	return append([]byte(dbAddressPrefix), address.Bytes()...)
-}
-
-func nodeIDKey(nodeID enode.ID) []byte {
-	return append([]byte(dbNodeIDPrefix), nodeID.Bytes()...)
-}
-
-// AddressEntry is an entry for the valEnodeTable
-type AddressEntry struct {
-	Node    *enode.Node
-	Version uint
-}
-
-func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{enodeURL: %v, version: %v}", ve.Node.String(), ve.Version)
-}
-
-// Implement RLP Encode/Decode interface
-type rlpEntry struct {
-	EnodeURL string
-	Version  uint
-}
-
-// EncodeRLP serializes AddressEntry into the Ethereum RLP format.
-func (ve *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ve.Node.String(), ve.Version})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
-func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
-	var entry rlpEntry
-	if err := s.Decode(&entry); err != nil {
-		return err
-	}
-
-	node, err := enode.ParseV4(entry.EnodeURL)
-	if err != nil {
-		return err
-	}
-
-	*ve = AddressEntry{Node: node, Version: entry.Version}
-	return nil
-}
+// func addressKey(address common.Address) []byte {
+// 	return append([]byte(dbAddressPrefix), address.Bytes()...)
+// }
 
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
-type ValidatorEnodeDB struct {
+type SignedAnnounceVersionDB struct {
 	db      *leveldb.DB //the actual DB
-	lock    sync.RWMutex
-	handler ValidatorEnodeHandler
 	logger  log.Logger
 }
 
-// OpenValidatorEnodeDB opens a validator enode database for storing and retrieving infos about validator
-// enodes. If no path is given an in-memory, temporary database is constructed.
-func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
+// OpenSignedAnnounceVersionDB opens a signed announce version database for storing
+// signedAnnounceVersions. If no path is given an in-memory, temporary database is constructed.
+func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) {
 	var db *leveldb.DB
 	var err error
 
-	logger := log.New("db", "ValidatorEnodeDB")
+	logger := log.New("db", "SignedAnnounceVersionDB")
 
 	if path == "" {
 		db, err = newMemoryDB()
@@ -137,19 +78,18 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorEnodeDB{
+	return &SignedAnnounceVersionDB{
 		db:      db,
-		handler: handler,
 		logger:  logger,
 	}, nil
 }
 
 // Close flushes and closes the database files.
-func (vet *ValidatorEnodeDB) Close() error {
+func (svdb *SignedAnnounceVersionDB) Close() error {
 	return vet.db.Close()
 }
 
-func (vet *ValidatorEnodeDB) String() string {
+func (svdb *SignedAnnounceVersionDB) String() string {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var b strings.Builder
@@ -168,7 +108,7 @@ func (vet *ValidatorEnodeDB) String() string {
 }
 
 // GetEnodeURLFromAddress will return the enodeURL for an address if it's known
-func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
+func (svdb *SignedAnnounceVersionDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
@@ -179,7 +119,7 @@ func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.
 }
 
 // GetVersionFromAddress will return the version for an address if it's known
-func (vet *ValidatorEnodeDB) GetVersionFromAddress(address common.Address) (uint, error) {
+func (svdb *SignedAnnounceVersionDB) GetVersionFromAddress(address common.Address) (uint, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
@@ -190,7 +130,7 @@ func (vet *ValidatorEnodeDB) GetVersionFromAddress(address common.Address) (uint
 }
 
 // GetAddressFromNodeID will return the address for an nodeID if it's known
-func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Address, error) {
+func (svdb *SignedAnnounceVersionDB) GetAddressFromNodeID(nodeID enode.ID) (common.Address, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 
@@ -202,7 +142,7 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 }
 
 // GetAllValEnodes will return all entries in the valEnodeDB
-func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
+func (svdb *SignedAnnounceVersionDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var entries = make(map[common.Address]*AddressEntry)
@@ -220,76 +160,43 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 	return entries, nil
 }
 
-// Upsert will update or insert a validator enode entry; given that the existing entry
-// is older (determined by version parameter) than the new one
-// TODO - In addition to modifying the val_enode_db, this function also will disconnect
-//        and/or connect the corresponding validator connenctions.  The validator connections
-//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
-func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressEntry) error {
-	vet.lock.Lock()
-	defer vet.lock.Unlock()
-
+// Upsert TODO give comment
+func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*signedAnnounceVersion) error {
+    logger := svdb.logger.New("func", "Upsert")
 	batch := new(leveldb.Batch)
-	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
-	peersToAdd := make(map[common.Address]*enode.Node)
 
-	for remoteAddress, addressEntry := range valEnodeEntries {
-		currentEntry, err := vet.getAddressEntry(remoteAddress)
-		isNew := err == leveldb.ErrNotFound
-
-		// Check errors
+    for _, signedAnnVersion := range signedAnnounceVersions {
+        currentEntry, err := svdb.getAddressEntry(signedAnnVersion.Address)
+        isNew := err == leveldb.ErrNotFound
 		if !isNew && err != nil {
 			return err
 		}
+        if !isNew && signedAnnVersion.Version <= currentEntry.Version {
+            logger.Trace("Not inserting, version is not greater than the existing entry",
+                "address", signedAnnVersion.Address, "existing version", currentEntry.Version,
+                "new entry version", signedAnnVersion.Version)
+            continue
+        }
+        newEntry, err := rlp.EncodeToBytes(signedAnnVersion)
+        if err != nil {
+            return err
+        }
+        batch.Put(addressKey(signedAnnVersion.Address), newEntry)
+        logger.Trace("Updating with new entry", "isNew", isNew,
+            "address", signedAnnVersion.Address, "new version", signedAnnVersion.Version)
+    }
 
-		// new entry
-		rawEntry, err := rlp.EncodeToBytes(addressEntry)
-		if err != nil {
-			return err
-		}
-
-		// If it's an old message, ignore it
-		if !isNew && addressEntry.Version < currentEntry.Version {
-			vet.logger.Trace("Ignoring the entry because its version is older than what is stored in the val enode db",
-				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
-			continue
-		}
-
-		hasOldValueChanged := !isNew && currentEntry.Node.String() != addressEntry.Node.String()
-
-		if hasOldValueChanged {
-			batch.Delete(nodeIDKey(currentEntry.Node.ID()))
-			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-			peersToRemove = append(peersToRemove, currentEntry.Node)
-		} else if isNew {
-			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-		}
-		batch.Put(addressKey(remoteAddress), rawEntry)
-		peersToAdd[remoteAddress] = addressEntry.Node
-
-		vet.logger.Trace("Going to upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", addressEntry.Node.String())
-	}
-
-	if batch.Len() > 0 {
-		err := vet.db.Write(batch, nil)
-		if err != nil {
-			return err
-		} else {
-			for _, node := range peersToRemove {
-				vet.handler.RemoveValidatorPeer(node)
-			}
-
-			for address, node := range peersToAdd {
-				vet.handler.AddValidatorPeer(node, address)
-			}
-		}
-	}
-
-	return nil
+    if batch.Len() > 0 {
+        err := svdb.db.Write(batch, nil)
+        if err != nil {
+            return err
+        }
+    }
+    return nil
 }
 
 // RemoveEntry will remove an entry from the table
-func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
+func (svdb *SignedAnnounceVersionDB) RemoveEntry(address common.Address) error {
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
 	batch := new(leveldb.Batch)
@@ -301,7 +208,7 @@ func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
 }
 
 // PruneEntries will remove entries for all address not present in addressesToKeep
-func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]bool) error {
+func (svdb *SignedAnnounceVersionDB) PruneEntries(addressesToKeep map[common.Address]bool) error {
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
 	batch := new(leveldb.Batch)
@@ -319,7 +226,7 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	return vet.db.Write(batch, nil)
 }
 
-func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAddress common.Address) {
+func (svdb *SignedAnnounceVersionDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAddress common.Address) {
 	// We use a R lock since we don't modify levelDB table
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
@@ -343,7 +250,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAd
 	}
 }
 
-func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address common.Address) error {
+func (svdb *SignedAnnounceVersionDB) addDeleteToBatch(batch *leveldb.Batch, address common.Address) error {
 	entry, err := vet.getAddressEntry(address)
 	if err != nil {
 		return err
@@ -357,8 +264,8 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 	return nil
 }
 
-func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEntry, error) {
-	var entry AddressEntry
+func (svdb *SignedAnnounceVersionDB) getEntry(address common.Address) (*signedAnnounceVersion, error) {
+	var entry signedAnnounceVersion
 	rawEntry, err := vet.db.Get(addressKey(address), nil)
 	if err != nil {
 		return nil, err
@@ -370,12 +277,12 @@ func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEn
 	return &entry, nil
 }
 
-func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Address, *AddressEntry) error) error {
+func (svdb *SignedAnnounceVersionDB) iterateOverAddressEntries(onEntry func(common.Address, *signedAnnounceVersion) error) error {
 	iter := vet.db.NewIterator(util.BytesPrefix([]byte(dbAddressPrefix)), nil)
 	defer iter.Release()
 
 	for iter.Next() {
-		var entry AddressEntry
+		var entry signedAnnounceVersion
 		address := common.BytesToAddress(iter.Key()[len(dbAddressPrefix):])
 		rlp.DecodeBytes(iter.Value(), &entry)
 
@@ -392,7 +299,7 @@ type ValEnodeEntryInfo struct {
 	Version uint   `json:"version"`
 }
 
-func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
+func (svdb *SignedAnnounceVersionDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
 	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
 
 	valEnodeTable, err := vet.GetAllValEnodes()
