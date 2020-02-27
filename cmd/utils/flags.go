@@ -245,10 +245,6 @@ var (
 		Name: "blswallet",
 		Usage: "Use hardware wallet for BLS signing. Overrides blsbase",
 	}
-	// Dashboard settings
-	DashboardEnabledFlag = cli.BoolFlag{
-		Name:  metrics.DashboardEnabledFlag,
-		Usage: "Enable the dashboard",
 	// Light server and client settings
 	LightServeFlag = cli.IntFlag{
 		Name:  "light.serve",

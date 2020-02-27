@@ -264,7 +264,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		return err
 	}
 	if wallet.URL().Scheme == "keystore" {
-		account, _ = unlockAccount(ctx, ks, signer.String(), 0, utils.MakePasswordList(ctx))
+		account, _ = unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
 	}
 	var key []byte
 	var pop []byte
