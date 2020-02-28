@@ -726,8 +726,8 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 // 	Signature []byte
 // }
 
-func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnounceVersionEntry, error) {
-	sav := &vet.SignedAnnounceVersionEntry{
+func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnounceVersion, error) {
+	sav := &vet.SignedAnnounceVersion{
 		Address: sb.Address(),
 		Version: version,
 	}
@@ -750,15 +750,15 @@ func (sb *Backend) gossipSignedAnnounceVersionsMsg() error {
 		logger.Warn("Error generating signed announce version", "err", err)
 		return err
 	}
-	sb.signedAnnounceVersionTable.Upsert([]*vet.SignedAnnounceVersionEntry{entry})
+	sb.signedAnnounceVersionTable.Upsert([]*vet.SignedAnnounceVersion{entry})
 
-	allEntries, err := sb.signedAnnounceVersionTable.GetAllEntries()
+	allSignedAnnounceVersions, err := sb.signedAnnounceVersionTable.GetAllSignedAnnounceVersions()
 	if err != nil {
 		logger.Warn("Error getting all entries from signed announce version table", "err", err)
 		return err
 	}
 
-	payload, err := rlp.EncodeToBytes(allEntries)
+	payload, err := rlp.EncodeToBytes(allSignedAnnounceVersions)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
@@ -772,24 +772,24 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 
 	logger.Warn("in handleSignedAnnounceVersionsMsg!!!")
 
-	var entries []*vet.SignedAnnounceVersionEntry
+	var signedAnnVersions []*vet.SignedAnnounceVersion
 
-	err := rlp.DecodeBytes(payload, &entries)
+	err := rlp.DecodeBytes(payload, &signedAnnVersions)
 	if err != nil {
 		logger.Warn("Error in decoding received Signed Announce Versions msg", "err", err)
 		return err
 	}
 
 	// Verify all entries are valid
-	for _, entry := range entries {
-		err := entry.ValidateSignature()
+	for _, signedAnnVersion := range signedAnnVersions {
+		err := signedAnnVersion.ValidateSignature()
 		if err != nil {
 			logger.Warn("Found invalid entry, ignoring entire message", "err", err)
 			return err
 		}
 	}
 
-	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
+	newEntries, err := sb.signedAnnounceVersionTable.Upsert(signedAnnVersions)
 	if err != nil {
 		logger.Warn("Error in upserting entries", "err", err)
 	}
