@@ -160,8 +160,14 @@ func (sb *Backend) announceThread() {
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
 
+			entry, err := sb.generateSignedAnnounceVersion(12345)
+			if err != nil {
+				logger.Warn("Error generating signed announce version", "err", err)
+				// return err
+			}
+
 			logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
-			go sb.gossipSignedAnnounceVersionsMsg()
+			go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -232,7 +238,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	}
 	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
 
-	if err := sb.signedAnnounceVersionTable.PruneEntries(regAndElectedVals); err != nil {
+	if err := sb.signedAnnounceVersionTable.Prune(regAndElectedVals); err != nil {
 		logger.Trace("Error in pruning signedAnnounceVersionTable", "err", err)
 		return err
 	}
@@ -719,13 +725,6 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	}
 }
 
-// // signedAnnounceVersion todo give comment
-// type signedAnnounceVersion struct {
-// 	Address   common.Address
-// 	Version   uint
-// 	Signature []byte
-// }
-
 func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnounceVersion, error) {
 	sav := &vet.SignedAnnounceVersion{
 		Address: sb.Address(),
@@ -742,28 +741,14 @@ func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnou
 	return sav, nil
 }
 
-func (sb *Backend) gossipSignedAnnounceVersionsMsg() error {
+func (sb *Backend) gossipSignedAnnounceVersionsMsg(contents []*vet.SignedAnnounceVersion) error {
 	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
-	// TODO remove this dummy test
-	entry, err := sb.generateSignedAnnounceVersion(12345)
-	if err != nil {
-		logger.Warn("Error generating signed announce version", "err", err)
-		return err
-	}
-	sb.signedAnnounceVersionTable.Upsert([]*vet.SignedAnnounceVersion{entry})
 
-	allSignedAnnounceVersions, err := sb.signedAnnounceVersionTable.GetAllSignedAnnounceVersions()
-	if err != nil {
-		logger.Warn("Error getting all entries from signed announce version table", "err", err)
-		return err
-	}
-
-	payload, err := rlp.EncodeToBytes(allSignedAnnounceVersions)
+	payload, err := rlp.EncodeToBytes(contents)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
 	}
-
 	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
 }
 
@@ -780,13 +765,31 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		return err
 	}
 
-	// Verify all entries are valid
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		return err
+	}
+
+	var validEntries []*vet.SignedAnnounceVersion
+	validAddresses := make(map[common.Address]bool)
+	// Verify all entries are valid and remove duplicates
 	for _, signedAnnVersion := range signedAnnVersions {
 		err := signedAnnVersion.ValidateSignature()
 		if err != nil {
-			logger.Warn("Found invalid entry, ignoring entire message", "err", err)
-			return err
+			logger.Debug("Error validating signature in signed announce version", "address", signedAnnVersion.Address, "err", err)
+			continue
 		}
+		if !regAndActiveVals[signedAnnVersion.Address] {
+			logger.Debug("Found signed announce version from a non registered or active validator", "address", signedAnnVersion.Address)
+			continue
+		}
+		if _, ok := validAddresses[signedAnnVersion.Address]; ok {
+			logger.Debug("Found duplicate signed announce version in message", "address", signedAnnVersion.Address)
+			continue
+		}
+		validAddresses[signedAnnVersion.Address] = true
+		validEntries = append(validEntries, signedAnnVersion)
 	}
 
 	newEntries, err := sb.signedAnnounceVersionTable.Upsert(signedAnnVersions)
@@ -794,33 +797,23 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error in upserting entries", "err", err)
 	}
 
+	var signedAnnVersionsToRegossip []*vet.SignedAnnounceVersion
+	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
+	defer sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
+	for _, entry := range newEntries {
+		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
+		if !ok || time.Since(lastGossipTime) >= 5*time.Minute {
+			signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, entry)
+			sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
+		}
+	}
+
 	info, err := sb.signedAnnounceVersionTable.Info()
 	bytes, marshallErr := json.Marshal(info)
 	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr, "new entries", newEntries)
 
-	if newEntries {
-		go sb.gossipSignedAnnounceVersionsMsg()
+	if len(signedAnnVersionsToRegossip) > 0 {
+		go sb.gossipSignedAnnounceVersionsMsg(signedAnnVersionsToRegossip)
 	}
-
-	// lastSignedAnnounceVersionsGossiped[]
-	//
-	// // Check if the sender is within the registered/elected valset
-	// regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
-	// if err != nil {
-	// 	logger.Trace("Error in retrieving registered/elected valset", "err", err)
-	// 	return err
-	// }
-	//
-	// if !regAndActiveVals[msg.Address] {
-	// 	logger.Debug("Received a message from a non registered/elected validator. Ignoring it.", "sender", msg.Address)
-	// 	return errUnauthorizedAnnounceMessage
-	// }
-	//
-	// var announceData announceData
-	// err = rlp.DecodeBytes(msg.Msg, &announceData)
-	// if err != nil {
-	// 	logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
-	// 	return err
-	// }
 	return nil
 }
