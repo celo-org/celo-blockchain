@@ -118,6 +118,7 @@ func TestHandlePreprepare(t *testing.T) {
 						getRoundState(c).state = StatePreprepared
 						getRoundState(c).sequence = big.NewInt(10)
 						getRoundState(c).round = big.NewInt(10)
+						getRoundState(c).desiredRound = getRoundState(c).round
 					}
 				}
 				return sys
@@ -140,6 +141,7 @@ func TestHandlePreprepare(t *testing.T) {
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).sequence = big.NewInt(10)
 					getRoundState(c).round = big.NewInt(10)
+					getRoundState(c).desiredRound = getRoundState(c).round
 				}
 				return sys
 			},
@@ -161,6 +163,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 				}
 				return sys
 			},
@@ -181,6 +184,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 				}
 				return sys
 			},
@@ -204,6 +208,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 					getRoundState(c).sequence = big.NewInt(1)
 					c.current.TransitionToPreprepared(&istanbul.Preprepare{
 						View: &istanbul.View{
@@ -241,6 +246,7 @@ func TestHandlePreprepare(t *testing.T) {
 					c := backend.engine.(*core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 					c.current.TransitionToPreprepared(&istanbul.Preprepare{
 						View: &istanbul.View{
 							Round:    big.NewInt(int64(N)),
@@ -271,6 +277,7 @@ func TestHandlePreprepare(t *testing.T) {
 					backend.engine.(*core).Start()
 					c := backend.engine.(*core)
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
 						getRoundState(c).state = StateAcceptRequest
 					}
@@ -296,6 +303,7 @@ func TestHandlePreprepare(t *testing.T) {
 					backend.engine.(*core).Start()
 					c := backend.engine.(*core)
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
 						getRoundState(c).state = StateAcceptRequest
 					}
@@ -320,6 +328,7 @@ func TestHandlePreprepare(t *testing.T) {
 					backend.engine.(*core).Start()
 					c := backend.engine.(*core)
 					getRoundState(c).round = big.NewInt(int64(N))
+					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
 						getRoundState(c).state = StateAcceptRequest
 					}
@@ -344,7 +353,10 @@ func TestHandlePreprepare(t *testing.T) {
 
 			t.Log("Running", "test", test.name)
 			sys := test.system()
-			closer := sys.Run(false)
+
+			// Even those we pass core=false here, cores do get started and need stopping.
+			sys.Run(false)
+			defer sys.Stop(true)
 
 			v0 := sys.backends[0]
 			r0 := v0.engine.(*core)
@@ -444,8 +456,6 @@ func TestHandlePreprepare(t *testing.T) {
 					}
 				}
 			}
-
-			closer()
 		})
 	}
 }

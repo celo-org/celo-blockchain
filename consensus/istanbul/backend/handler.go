@@ -69,10 +69,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	logger := sb.logger.New("func", "HandleMsg", "m", msg, "peer", peer)
-
-	logger.Trace("Handling a message")
-
 	if sb.isIstanbulMsg(msg) {
 		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
@@ -80,7 +76,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		var data []byte
 		if err := msg.Decode(&data); err != nil {
-			logger.Error("Failed to decode message payload", "err", err)
+			logger.Error("Failed to decode message payload", "err", err, "from", addr)
 			return true, errDecodeFailed
 		}
 
@@ -132,7 +128,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		// If we got here, then that means that there is an istanbul message type that we
 		// don't handle, and hence a bug in the code.
-		logger.Crit("Unhandled istanbul message type")
+		sb.logger.Crit("Unhandled istanbul message type")
 		return false, nil
 	}
 	return false, nil
@@ -143,7 +139,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 	if sb.config.Proxy {
 		// Verify that this message is not from the proxied peer
 		if reflect.DeepEqual(peer, sb.proxiedPeer) {
-			sb.logger.Warn("Got a consensus message from the proxied validator.  Ignoring it")
+			sb.logger.Warn("Got a consensus message from the proxied validator. Ignoring it", "from", peer.Node().ID())
 			return nil
 		}
 
@@ -161,7 +157,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		}
 
 		// Need to forward the message to the proxied validator
-		sb.logger.Trace("Forwarding consensus message to proxied validator")
+		sb.logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
 		if sb.proxiedPeer != nil {
 			go sb.proxiedPeer.Send(istanbulConsensusMsg, payload)
 		}
@@ -178,13 +174,13 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	// Ignore the message if this node it not a proxy
 	if !sb.config.Proxy {
-		sb.logger.Warn("Got a forward consensus message and this node is not a proxy.  Ignoring it")
+		sb.logger.Warn("Got a forward consensus message and this node is not a proxy. Ignoring it", "from", peer.Node().ID())
 		return nil
 	}
 
 	// Verify that it's coming from the proxied peer
 	if !reflect.DeepEqual(peer, sb.proxiedPeer) {
-		sb.logger.Warn("Got a forward consensus message from a non proxied valiator.  Ignoring it")
+		sb.logger.Warn("Got a forward consensus message from a non proxied validator. Ignoring it", "from", peer.Node().ID())
 		return nil
 	}
 
@@ -193,18 +189,18 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
 	// the wrapped message is already signed by the proxied validator.
 	if err := istMsg.FromPayload(payload, nil); err != nil {
-		sb.logger.Error("Failed to decode message from payload", "err", err)
+		sb.logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
 		return err
 	}
 
 	var fwdMsg *istanbul.ForwardMessage
 	err := istMsg.Decode(&fwdMsg)
 	if err != nil {
-		sb.logger.Error("Failed to decode a ForwardMessage", "err", err)
+		sb.logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
 		return err
 	}
 
-	sb.logger.Debug("Forwarding a consensus message")
+	sb.logger.Trace("Forwarding a consensus message")
 	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
 	return nil
 }
@@ -260,7 +256,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 		// If this is a proxy or a non proxied validator and a
 		// new epoch just started, then refresh the validator enode table
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new block number", newBlock.Number().Uint64())
+		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
 		sb.RefreshValPeers(valset)
 	}
 }
@@ -280,7 +276,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 			sb.proxyNode.peer = peer
 			go sb.sendVersionedEnodeMsg(peer, getCurrentAnnounceVersion())
 		} else {
-			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer node", peer.Node().String())
+			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
 		}
 	}
 
