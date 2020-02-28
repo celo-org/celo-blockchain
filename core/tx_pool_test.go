@@ -323,7 +323,7 @@ func TestTransferFreezing(t *testing.T) {
 
 	if len(whitelist) > 0 {
 		// send transfer to whitelisted address
-		tx, _ := types.SignTx(types.NewTransaction(1, whitelist[0], big.NewInt(1), 100, big.NewInt(1), nil, nil, nil, nil), signer, key)
+		tx, _ := types.SignTx(types.NewTransaction(1, whitelist[0], big.NewInt(1), 100, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		if err := pool.AddRemote(tx); err != nil {
 			t.Error("expected", nil, "got", err)
 		}
@@ -923,8 +923,10 @@ func testTransactionQueueGlobalLimiting(t *testing.T, nolocals bool) {
 //
 // This logic should not hold for local transactions, unless the local tracking
 // mechanism is disabled.
-func TestTransactionQueueTimeLimiting(t *testing.T)         { testTransactionQueueTimeLimiting(t, false) }
-func TestTransactionQueueTimeLimitingNoLocals(t *testing.T) { testTransactionQueueTimeLimiting(t, true) }
+func TestTransactionQueueTimeLimiting(t *testing.T) { testTransactionQueueTimeLimiting(t, false) }
+func TestTransactionQueueTimeLimitingNoLocals(t *testing.T) {
+	testTransactionQueueTimeLimiting(t, true)
+}
 
 func testTransactionQueueTimeLimiting(t *testing.T, nolocals bool) {
 	// Reduce the eviction interval to a testable amount
