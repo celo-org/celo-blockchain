@@ -29,6 +29,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const (
+	dbVersionKey = "version"  // Version of the database to flush if changes
+)
+
 // newMemoryDB creates a new in-memory node database without a persistent backend.
 func newMemoryDB() (*leveldb.DB, error) {
 	db, err := leveldb.Open(storage.NewMemStorage(), nil)
@@ -38,9 +42,9 @@ func newMemoryDB() (*leveldb.DB, error) {
 	return db, nil
 }
 
-// newPersistentNodeDB creates/opens a leveldb backed persistent node database,
+// newPersistentNodeDB creates/opens a leveldb backed persistent database,
 // also flushing its contents in case of a version mismatch.
-func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
+func newPersistentDB(dbVersion int64, path string, logger log.Logger) (*leveldb.DB, error) {
 	opts := &opt.Options{OpenFilesCacheCapacity: 5}
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
@@ -49,10 +53,8 @@ func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The nodes contained in the cache correspond to a certain protocol version.
-	// Flush all nodes if the version doesn't match.
 	currentVer := make([]byte, binary.MaxVarintLen64)
-	currentVer = currentVer[:binary.PutVarint(currentVer, int64(dbVersion))]
+	currentVer = currentVer[:binary.PutVarint(currentVer, dbVersion)]
 
 	blob, err := db.Get([]byte(dbVersionKey), nil)
 	switch err {
@@ -73,7 +75,7 @@ func newPersistentDB(path string, logger log.Logger) (*leveldb.DB, error) {
 			if err = os.RemoveAll(path); err != nil {
 				return nil, err
 			}
-			return newPersistentDB(path, logger)
+			return newPersistentDB(dbVersion, path, logger)
 		}
 	}
 	return db, nil

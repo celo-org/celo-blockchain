@@ -34,15 +34,8 @@ import (
 
 // Keys in the node database.
 const (
-	dbVersionKey    = "version"  // Version of the database to flush if changes
 	dbAddressPrefix = "address:" // Identifier to prefix node entries with
 	dbNodeIDPrefix  = "nodeid:"
-)
-
-const (
-	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
-	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersion = 3
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -121,11 +114,12 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	var err error
 
 	logger := log.New("db", "ValidatorEnodeDB")
+	dbVersion := 3
 
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(path, logger)
+		db, err = newPersistentDB(int64(dbVersion), path, logger)
 	}
 
 	if err != nil {

@@ -32,39 +32,28 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// // Keys in the node database.
-// const (
-// 	dbVersionKey    = "version"  // Version of the database to flush if changes
-// 	dbAddressPrefix = "address:" // Identifier to prefix address keys with
-// )
-
-const (
-	// dbNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
-	// dbCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	dbVersionSignedAnnounceVersion = 0
-)
-
-// SignedAnnounceVersionDB represents a Map that can be accessed either
-// by address or enode
+// SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
 	db           *leveldb.DB //the actual DB
 	logger       log.Logger
 	writeOptions *opt.WriteOptions
 }
 
-// SignedAnnounceVersion is an entry
+// SignedAnnounceVersion is an entry in the SignedAnnounceVersionDB.
+// It's a signed message from a registered or active validator indicating
+// the most recent version of its enode.
 type SignedAnnounceVersion struct {
 	Address   common.Address
 	Version   uint
 	Signature []byte
 }
 
-// EncodeRLP serializes announceVersion into the Ethereum RLP format.
+// EncodeRLP serializes SignedAnnounceVersion into the Ethereum RLP format.
 func (sav *SignedAnnounceVersion) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the SignedAnnounceVersion fields from a RLP stream.
 func (sav *SignedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Address   common.Address
@@ -79,10 +68,13 @@ func (sav *SignedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+// String gives a string representation of SignedAnnounceVersion
 func (sav *SignedAnnounceVersion) String() string {
 	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sav.Address, sav.Version, len(sav.Signature))
 }
 
+// ValidateSignature will return an error if a SignedAnnounceVersion's signature
+// is invalid.
 func (sav *SignedAnnounceVersion) ValidateSignature() error {
 	signedAnnounceVersionNoSig := &SignedAnnounceVersion{
 		Address: sav.Address,
@@ -103,17 +95,18 @@ func (sav *SignedAnnounceVersion) ValidateSignature() error {
 }
 
 // OpenSignedAnnounceVersionDB opens a signed announce version database for storing
-// signedAnnounceVersions. If no path is given an in-memory, temporary database is constructed.
+// SignedAnnounceVersions. If no path is given an in-memory, temporary database is constructed.
 func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) {
 	var db *leveldb.DB
 	var err error
 
 	logger := log.New("db", "SignedAnnounceVersionDB")
+	dbVersion := 0
 
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(path, logger)
+		db, err = newPersistentDB(int64(dbVersion), path, logger)
 	}
 
 	if err != nil {
@@ -131,6 +124,7 @@ func (svdb *SignedAnnounceVersionDB) Close() error {
 	return svdb.db.Close()
 }
 
+// String gives a string representation of the entire db
 func (svdb *SignedAnnounceVersionDB) String() string {
 	var b strings.Builder
 	b.WriteString("SignedAnnounceVersionDB:")
@@ -186,7 +180,8 @@ func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnno
     return newEntries, nil
 }
 
-// Get gets the SignedAnnounceVersion entry with address `address`
+// Get gets the SignedAnnounceVersion entry with address `address`.
+// Returns an error if no entry exists.
 func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersion, error) {
 	var entry SignedAnnounceVersion
 	rawEntry, err := svdb.db.Get(addressKey(address), nil)
@@ -217,7 +212,7 @@ func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
 	return svdb.db.Write(batch, svdb.writeOptions)
 }
 
-// Prune will remove entries for all address not present in addressesToKeep
+// Prune will remove entries for all addresses not present in addressesToKeep
 func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bool) error {
 	batch := new(leveldb.Batch)
 	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {
@@ -233,7 +228,7 @@ func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bo
 	return svdb.db.Write(batch, svdb.writeOptions)
 }
 
-
+// iterate will call `onEntry` for each entry in the db
 func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *SignedAnnounceVersion) error) error {
 	iter := svdb.db.NewIterator(util.BytesPrefix([]byte(dbAddressPrefix)), nil)
 	defer iter.Release()
@@ -251,13 +246,14 @@ func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *Signe
 	return iter.Error()
 }
 
-// SignedAnnounceVersionEntryInfo todo comment
+// SignedAnnounceVersionEntryInfo gives basic information for an entry in the DB
 type SignedAnnounceVersionEntryInfo struct {
 	Address string `json:"address"`
 	Version uint   `json:"version"`
 }
 
-// Info todo comment`
+// Info gives a map SignedAnnounceVersionEntryInfo where each key is the address.
+// Intended for RPC use
 func (svdb *SignedAnnounceVersionDB) Info() (map[string]*SignedAnnounceVersionEntryInfo, error) {
 	dbInfo := make(map[string]*SignedAnnounceVersionEntryInfo)
 	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {

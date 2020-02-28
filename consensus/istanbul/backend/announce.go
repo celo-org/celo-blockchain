@@ -100,6 +100,13 @@ func (sb *Backend) announceThread() {
 					if err := sb.generateAndGossipAnnounce(); err != nil {
 						logger.Error("Error in gossiping announce", "err", err)
 					}
+					entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+					if err != nil {
+						logger.Warn("Error generating signed announce version", "err", err)
+					} else {
+						logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
+						go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
+					}
 				})
 
 				if sb.config.AnnounceAggressiveGossipOnEnablement {
@@ -150,6 +157,13 @@ func (sb *Backend) announceThread() {
 			}
 
 			go sb.generateAndGossipAnnounce()
+			entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+			if err != nil {
+				logger.Warn("Error generating signed announce version", "err", err)
+			} else {
+				logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
+				go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
+			}
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -159,15 +173,6 @@ func (sb *Backend) announceThread() {
 		case <-announceVersionsCheckTicker.C:
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
-
-			entry, err := sb.generateSignedAnnounceVersion(12345)
-			if err != nil {
-				logger.Warn("Error generating signed announce version", "err", err)
-				// return err
-			}
-
-			logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
-			go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -741,10 +746,10 @@ func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnou
 	return sav, nil
 }
 
-func (sb *Backend) gossipSignedAnnounceVersionsMsg(contents []*vet.SignedAnnounceVersion) error {
+func (sb *Backend) gossipSignedAnnounceVersionsMsg(entries []*vet.SignedAnnounceVersion) error {
 	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
 
-	payload, err := rlp.EncodeToBytes(contents)
+	payload, err := rlp.EncodeToBytes(entries)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
@@ -754,8 +759,6 @@ func (sb *Backend) gossipSignedAnnounceVersionsMsg(contents []*vet.SignedAnnounc
 
 func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleSignedAnnounceVersionsMsg")
-
-	logger.Warn("in handleSignedAnnounceVersionsMsg!!!")
 
 	var signedAnnVersions []*vet.SignedAnnounceVersion
 
@@ -797,13 +800,13 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error in upserting entries", "err", err)
 	}
 
-	var signedAnnVersionsToRegossip []*vet.SignedAnnounceVersion
+	var entriesToRegossip []*vet.SignedAnnounceVersion
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	defer sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
 	for _, entry := range newEntries {
 		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
 		if !ok || time.Since(lastGossipTime) >= 5*time.Minute {
-			signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, entry)
+			entriesToRegossip = append(entriesToRegossip, entry)
 			sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
 		}
 	}
@@ -812,8 +815,8 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 	bytes, marshallErr := json.Marshal(info)
 	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr, "new entries", newEntries)
 
-	if len(signedAnnVersionsToRegossip) > 0 {
-		go sb.gossipSignedAnnounceVersionsMsg(signedAnnVersionsToRegossip)
+	if len(entriesToRegossip) > 0 {
+		go sb.gossipSignedAnnounceVersionsMsg(entriesToRegossip)
 	}
 	return nil
 }
