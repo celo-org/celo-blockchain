@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"sort"
 	"sync"
@@ -52,40 +53,41 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 		return errInvalidMessage
 	}
 
-	if msgView.Cmp(c.current.View()) < 0 {
+	// First compare sequences. Prior seqs are always old. Future seqs are always future.
+	if msgView.Sequence.Cmp(c.current.Sequence()) < 0 {
 		return errOldMessage
 	} else if msgView.Sequence.Cmp(c.current.Sequence()) > 0 {
-		// sequence is bigger, definitely future message
 		return errFutureMessage
-	} else {
-		// same sequence && msgRound >= currentRound
+	}
 
-		// Accept all RoundChange (also future rounds)
-		// but check again desired round
-		if msgCode == istanbul.MsgRoundChange {
-			if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
-				return errOldMessage
-			}
-			return nil
-		}
+	// We will never do consensus on any round less than desiredRound.
+	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
+		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
+	}
 
-		// TODO we should check directly against the desired round
-		// there's no sense in accepting (or storing) messages on the range [currentRound, desiredRound]
+	// Same sequence. Msgs for a round < desiredRound are always old.
+	if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
+		return errOldMessage
+	}
 
-		if msgView.Round.Cmp(c.current.View().Round) > 0 || c.current.State() == StateWaitingForNewRound {
-			return errFutureMessage
-		}
+	// Msg is now correct sequence and >= desiredRound.
 
-		// StateAcceptRequest only accepts istanbul.MsgPreprepare
-		// other messages are future messages
-		if c.current.State() == StateAcceptRequest && msgCode != istanbul.MsgPreprepare {
-			return errFutureMessage
-		}
-
-		// For states(StatePreprepared, StatePrepared, StateCommitted),
-		// can accept all message types if processing with same view
+	// RoundChange messages are accepted in all states and for current or future rounds.
+	if msgCode == istanbul.MsgRoundChange {
 		return nil
 	}
+
+	// WaitingForNewRound and StateAcceptRequest: accepts Preprepare (including for rounds >= desiredRound), other messages are future.
+	if (c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest) && msgCode != istanbul.MsgPreprepare {
+		return errFutureMessage
+	}
+
+	// For states(StatePreprepared, StatePrepared, StateCommitted): can accept all message types on same round.
+	if msgView.Round.Cmp(c.current.DesiredRound()) > 0 {
+		return errFutureMessage
+	}
+
+	return nil
 }
 
 // MsgBacklog represent a backlog of future messages
@@ -140,7 +142,7 @@ func newMsgBacklog(msgProcessor func(*istanbul.Message), checkMessage func(msgCo
 }
 
 func (c *msgBacklogImpl) store(msg *istanbul.Message) {
-	logger := c.logger.New("func", "store", "from", msg.Address)
+	logger := c.logger.New("func", "store", "from", msg.Address, "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
 
 	view, err := extractMessageView(msg)
 
@@ -168,7 +170,7 @@ func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 		return
 	}
 
-	logger.Trace("Store future message", "m", msg)
+	logger.Trace("Store future message", "m", msg, "m_seq", view.Sequence, "m_round", view.Round)
 	c.msgCountBySrc[msg.Address]++
 	c.msgCount++
 
