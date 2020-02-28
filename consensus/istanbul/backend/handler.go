@@ -66,6 +66,7 @@ type announceMsgHandler func(consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
+	logger := sb.logger.New("func", "HandleMsg")
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
@@ -128,7 +129,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		// If we got here, then that means that there is an istanbul message type that we
 		// don't handle, and hence a bug in the code.
-		sb.logger.Crit("Unhandled istanbul message type")
+		logger.Crit("Unhandled istanbul message type")
 		return false, nil
 	}
 	return false, nil

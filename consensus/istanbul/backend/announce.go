@@ -355,9 +355,7 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return err
 	}
 	if versionedEnodeMsg != nil {
-		sb.selfVersionedEnodeMsgMu.Lock()
-		sb.selfVersionedEnodeMsg = versionedEnodeMsg
-		sb.selfVersionedEnodeMsgMu.Unlock()
+		sb.setSelfVersionedEnodeMsg(versionedEnodeMsg)
 	}
 
 	// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
@@ -860,9 +858,7 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
 
-	sb.selfVersionedEnodeMsgMu.Lock()
-	sb.selfVersionedEnodeMsg = &msg
-	sb.selfVersionedEnodeMsgMu.Unlock()
+	sb.setSelfVersionedEnodeMsg(&msg)
 
 	return nil
 }
@@ -885,6 +881,12 @@ func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, version uint) erro
 		return err
 	}
 	return peer.Send(istanbulVersionedEnodeMsg, payload)
+}
+
+func (sb *Backend) setSelfVersionedEnodeMsg(msg *istanbul.Message) {
+	sb.selfVersionedEnodeMsgMu.Lock()
+	sb.selfVersionedEnodeMsg = msg
+	sb.selfVersionedEnodeMsgMu.Unlock()
 }
 
 func getCurrentAnnounceVersion() uint {
