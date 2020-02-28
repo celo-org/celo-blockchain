@@ -239,7 +239,10 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 					t.Errorf("view mismatch for test case %v: have %v, want %v", i, c.current.View(), view)
 				}
 			}
-
+			for _, backend := range sys.backends {
+				backend.engine.Stop()
+			}
+			close(sys.quit)
 		})
 	}
 }
@@ -317,6 +320,8 @@ func TestHandleRoundChange(t *testing.T) {
 			sys := NewTestSystemWithBackend(N, F)
 
 			closer := sys.Run(false)
+			defer closer()
+
 			for _, v := range sys.backends {
 				v.engine.(*core).Start()
 			}
@@ -357,8 +362,6 @@ func TestHandleRoundChange(t *testing.T) {
 				}
 				return
 			}
-
-			closer()
 		})
 	}
 }
@@ -379,7 +382,7 @@ func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDis
 				if targets[index] || msg.Address == b.address {
 					go b.EventMux().Post(event)
 				} else {
-					testLogger.Info("ignoring message with code", "code", msg.Code)
+					testLogger.Info("not sending msg", "index", index, "from", msg.Address, "to", b.address, "code", msg.Code)
 				}
 			}
 		}
@@ -437,7 +440,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 		b.NewRequest(block)
 	}
 
-	newBlocks := sys.backends[3].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	newBlocks := sys.backends[0].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
 	defer newBlocks.Unsubscribe()
 
 	timeout := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
@@ -456,23 +459,23 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
-	// Turn PREPAREs back on for round 1.
-	<-time.After(1 * time.Second)
-	istMsgDistribution[istanbul.MsgPrepare] = gossip
-
-	// Wait for round 1 to start.
 	<-timeout.Chan()
+
+	// Turn PREPAREs back on for round 1.
+	testLogger.Info("Turn PREPAREs back on for round 1")
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
 
 	// Eventually we should get a block again
 	select {
-	case <-timeout.Chan():
-		t.Error("Did not finalize a block in round 1")
+	case <-time.After(2 * time.Second):
+		t.Error("Did not finalize a block within 2 secs")
 	case _, ok := <-newBlocks.Chan():
 		if !ok {
 			t.Error("Error reading block")
 		}
 		// Wait for all backends to finalize the block.
 		<-time.After(1 * time.Second)
+		testLogger.Info("Expected all backends to finalize")
 		expectedCommitted, _ := sys.backends[0].GetCurrentHeadBlockAndAuthor()
 		for i, b := range sys.backends {
 			committed, _ := b.GetCurrentHeadBlockAndAuthor()
