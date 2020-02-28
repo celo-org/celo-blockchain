@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -250,7 +251,7 @@ func TestInvalidTransactions(t *testing.T) {
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
 
-	// Should observe insufficient funds error whne the balance doesn't cover transaction costs.
+	// Should observe insufficient funds error when the balance doesn't cover transaction costs.
 	pool.currentState.AddBalance(from, big.NewInt(1))
 	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
 		t.Error("expected", ErrInsufficientFunds)
@@ -289,6 +290,46 @@ func TestInvalidTransactions(t *testing.T) {
 	if err := pool.AddLocal(tx); err != nil {
 		t.Error("expected", nil, "got", err)
 	}
+}
+
+// func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
+// 	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data)
+// }
+
+// func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
+// 	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil, nil, nil), types.HomesteadSigner{}, key)
+// 	return tx
+// }
+
+func TestTransferFreezing(t *testing.T) {
+	t.Parallel()
+
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	tx := transaction(0, 100, key)
+	from, _ := deriveSender(tx)
+
+	// Should return error for transactions that transfer value between non-whitelisted addresses.
+	pool.currentState.AddBalance(from, big.NewInt(1000))
+	if err := pool.AddRemote(tx); err != ErrTransfersFrozen {
+		t.Error("expected", ErrTransfersFrozen)
+	}
+
+	whitelist, err := transfer_whitelist.GetWhitelist(nil, nil)
+	if err != nil {
+		t.Error("expected", nil, "got", err)
+	}
+
+	if len(whitelist) > 0 {
+		// send transfer to whitelisted address
+		tx, _ := types.SignTx(types.NewTransaction(1, whitelist[0], big.NewInt(1), 100, big.NewInt(1), nil, nil, nil, nil), signer, key)
+		if err := pool.AddRemote(tx); err != nil {
+			t.Error("expected", nil, "got", err)
+		}
+	}
+
+	//TODO(Alec): add more tests
 }
 
 func TestTransactionQueue(t *testing.T) {
