@@ -746,7 +746,7 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 }
 
 // retrieveSelfVersionedEnodeMsg gets the most recent self versioned enode message to send
-// and generates a new one with `fallbackVersion` if one does not exist.
+// and generates a new one with the current announce version if one does not exist.
 // New versioned enode messages are not always generated to ensure the version
 // of a versioned enode message is not greater than a recently gossiped announce
 // version (if that has occurred)
