@@ -201,6 +201,7 @@ const (
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
 	MaxGasForCommitments                           uint64 = 2000000
 	MaxGasForComputeCommitment                     uint64 = 2000000
+	MaxGasForBlockRandomness                       uint64 = 2000000
 	MaxGasForDebitGasFeesTransactions              uint64 = 1000000
 	MaxGasForCreditGasFeesTransactions             uint64 = 1000000
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
