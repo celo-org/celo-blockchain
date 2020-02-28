@@ -276,7 +276,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			versionedEnodeMsg, err := sb.retrieveSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
+			versionedEnodeMsg, err := sb.retrieveSelfVersionedEnodeMsg()
 			if err != nil {
 				logger.Warn("Error getting self versioned enode message", "err", err)
 			} else if versionedEnodeMsg != nil {
@@ -371,7 +371,7 @@ func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul
 		return nil, false, err
 	}
 	if shouldSend {
-		msg, err := sb.retrieveSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
+		msg, err := sb.retrieveSelfVersionedEnodeMsg()
 		if err != nil {
 			return nil, false, err
 		}

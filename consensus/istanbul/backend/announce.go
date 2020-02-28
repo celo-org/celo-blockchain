@@ -752,7 +752,7 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 // version (if that has occurred)
 // May be nil if this is a proxy that does not have a versioned enode message
 // from its proxy.
-func (sb *Backend) retrieveSelfVersionedEnodeMsg(fallbackVersion uint) (*istanbul.Message, error) {
+func (sb *Backend) retrieveSelfVersionedEnodeMsg() (*istanbul.Message, error) {
 	sb.selfVersionedEnodeMsgMu.Lock()
 	defer sb.selfVersionedEnodeMsgMu.Unlock()
 	if sb.selfVersionedEnodeMsg == nil {
@@ -761,7 +761,7 @@ func (sb *Backend) retrieveSelfVersionedEnodeMsg(fallbackVersion uint) (*istanbu
 		if sb.config.Proxy {
 			return nil, nil
 		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(fallbackVersion)
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(getCurrentAnnounceVersion())
 		if err != nil {
 			return nil, err
 		}
