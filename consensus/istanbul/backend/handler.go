@@ -266,8 +266,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
 	//        registered with the proxy, and verify that all newly connected proxied peer has
 	//        the correct node key
+	logger := sb.logger.New("func", "RegisterPeer")
 
-	sb.logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
+	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
 
 	// Check to see if this connecting peer if a proxied validator
 	if sb.config.Proxy && isProxiedPeer {
@@ -275,9 +276,14 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			go sb.sendVersionedEnodeMsg(peer, getCurrentAnnounceVersion())
+			versionedEnodeMsg, err := sb.retrieveSelfVersionedEnodeMsg(getCurrentAnnounceVersion())
+			if err != nil {
+				logger.Warn("Error getting self versioned enode message", "err", err)
+			} else if versionedEnodeMsg != nil {
+				go sb.sendVersionedEnodeMsg(peer, versionedEnodeMsg)
+			}
 		} else {
-			sb.logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
+			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
 		}
 	}
 

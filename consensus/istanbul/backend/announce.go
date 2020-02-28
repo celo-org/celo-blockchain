@@ -356,14 +356,13 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	}
 	if versionedEnodeMsg != nil {
 		sb.setSelfVersionedEnodeMsg(versionedEnodeMsg)
-	}
-
-	// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
-	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, announceVersion)
-		if err != nil {
-			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
-			return err
+		// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
+		if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+			err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
+			if err != nil {
+				logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+				return err
+			}
 		}
 	}
 
@@ -863,19 +862,9 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	return nil
 }
 
-func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, version uint) error {
+func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, msg *istanbul.Message) error {
 	logger := sb.logger.New("func", "sendVersionedEnodeMsg")
-
-	versionedEnodeMsg, err := sb.retrieveSelfVersionedEnodeMsg(version)
-	if err != nil {
-		logger.Warn("Error getting self versioned enode message", "err", err)
-		return err
-	}
-	if versionedEnodeMsg == nil {
-		return nil
-	}
-
-	payload, err := versionedEnodeMsg.Payload()
+	payload, err := msg.Payload()
 	if err != nil {
 		logger.Error("Error getting payload of versioned enode message", "err", err)
 		return err
