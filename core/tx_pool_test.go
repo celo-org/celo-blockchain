@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -301,36 +300,36 @@ func TestInvalidTransactions(t *testing.T) {
 // 	return tx
 // }
 
-func TestTransferFreezing(t *testing.T) {
-	t.Parallel()
+// func TestTransferFreezing(t *testing.T) {
+// 	t.Parallel()
 
-	pool, key := setupTxPool()
-	defer pool.Stop()
+// 	pool, key := setupTxPool()
+// 	defer pool.Stop()
 
-	tx := transaction(0, 100, key)
-	from, _ := deriveSender(tx)
+// 	tx := transaction(0, 100, key)
+// 	from, _ := deriveSender(tx)
 
-	// Should return error for transactions that transfer value between non-whitelisted addresses.
-	pool.currentState.AddBalance(from, big.NewInt(1000))
-	if err := pool.AddRemote(tx); err != ErrTransfersFrozen {
-		t.Error("expected", ErrTransfersFrozen)
-	}
+// 	// Should return error for transactions that transfer value between non-whitelisted addresses.
+// 	pool.currentState.AddBalance(from, big.NewInt(1000))
+// 	if err := pool.AddRemote(tx); err != ErrTransfersFrozen {
+// 		t.Error("expected", ErrTransfersFrozen)
+// 	}
 
-	whitelist, err := transfer_whitelist.GetWhitelist(nil, nil)
-	if err != nil {
-		t.Error("expected", nil, "got", err)
-	}
+// 	whitelist, err := transfer_whitelist.GetWhitelist(nil, nil)
+// 	if err != nil {
+// 		t.Error("expected", nil, "got", err)
+// 	}
 
-	if len(whitelist) > 0 {
-		// send transfer to whitelisted address
-		tx, _ := types.SignTx(types.NewTransaction(1, whitelist[0], big.NewInt(1), 100, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
-		if err := pool.AddRemote(tx); err != nil {
-			t.Error("expected", nil, "got", err)
-		}
-	}
+// 	if len(whitelist) > 0 {
+// 		// send transfer to whitelisted address
+// 		tx, _ := types.SignTx(types.NewTransaction(1, whitelist[0], big.NewInt(1), 100, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
+// 		if err := pool.AddRemote(tx); err != nil {
+// 			t.Error("expected", nil, "got", err)
+// 		}
+// 	}
 
-	//TODO(Alec): add more tests
-}
+// 	//TODO(Alec): add more tests
+// }
 
 func TestTransactionQueue(t *testing.T) {
 	t.Parallel()
