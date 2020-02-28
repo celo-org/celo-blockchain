@@ -56,4 +56,6 @@ type Peer interface {
 	// Blocks until a message is read directly from the peer.
 	// This should only be used during a handshake.
 	ReadMsg() (p2p.Msg, error)
+	// Inbound returns if the peer connection is inbound
+	Inbound() bool
 }
