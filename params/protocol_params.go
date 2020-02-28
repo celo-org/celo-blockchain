@@ -207,7 +207,9 @@ const (
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
+	MaxGasForElectNValidatorSigners                uint64 = 50 * 1000000
 	MaxGasForGetAddressFor                         uint64 = 1 * 100000
+	MaxGasForGetElectableValidators                uint64 = 1 * 100000
 	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
 	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
 	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
