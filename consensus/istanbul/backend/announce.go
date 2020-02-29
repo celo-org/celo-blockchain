@@ -173,12 +173,12 @@ func (sb *Backend) announceThread() {
 func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 	// Check if this node is in the registered/elected validator set
-	regAndElectedVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
 
-	return sb.coreStarted && regAndElectedVals[sb.Address()], nil
+	return sb.coreStarted && validatorConnSet[sb.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the registered/elected validator set from all announce related data structures.
@@ -190,7 +190,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
 	// retrieve the registered/elected validator set
-	regAndElectedVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	// Prune the announce cache for entries that are not in the current registered/elected validator set
 	sb.cachedAnnounceMsgsMu.Lock()
 	for cachedValAddress := range sb.cachedAnnounceMsgs {
-		if !regAndElectedVals[cachedValAddress] {
+		if !validatorConnSet[cachedValAddress] {
 			logger.Trace("Deleting entry from cachedAnnounceMsgs", "cachedValAddress", cachedValAddress, "cachedAnnounceVersion", sb.cachedAnnounceMsgs[cachedValAddress].MsgVersion)
 			delete(sb.cachedAnnounceMsgs, cachedValAddress)
 		}
@@ -207,14 +207,14 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 
 	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
-		if !regAndElectedVals[remoteAddress] {
+		if !validatorConnSet[remoteAddress] {
 			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 			delete(sb.lastAnnounceGossiped, remoteAddress)
 		}
 	}
 	sb.lastAnnounceGossipedMu.Unlock()
 
-	if err := sb.valEnodeTable.PruneEntries(regAndElectedVals); err != nil {
+	if err := sb.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
 		return err
 	}
@@ -380,13 +380,13 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	}
 
 	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return nil, 0, common.Address{}, err
 	}
 
-	announceRecords := make([]*announceRecord, 0, len(regAndActiveVals))
-	for addr := range regAndActiveVals {
+	announceRecords := make([]*announceRecord, 0, len(validatorConnSet))
+	for addr := range validatorConnSet {
 		// TODO - Need to encrypt using the remote validator's validator key
 		announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
 	}
@@ -437,13 +437,13 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// Check if the sender is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return err
 	}
 
-	if !regAndActiveVals[msg.Address] {
+	if !validatorConnSet[msg.Address] {
 		logger.Debug("Received a message from a non registered/elected validator. Ignoring it.", "sender", msg.Address)
 		return errUnauthorizedAnnounceMessage
 	}
@@ -531,13 +531,13 @@ func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
 	// Note that this is a heuristic of the actual size of registered/elected at the time the validator constructed the announce message.
 	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
 	// then verify that all of the registered/elected validators of that block number is included in the announce message.
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
 
-	if len(announceData.AnnounceRecords) > 2*len(regAndActiveVals) {
-		logger.Info("Number of announce message encrypted enodes is more than two times the size of the current reg/elected validator set", "num announce enodes", len(announceData.AnnounceRecords), "reg/elected val set size", len(regAndActiveVals))
+	if len(announceData.AnnounceRecords) > 2*len(validatorConnSet) {
+		logger.Info("Number of announce message encrypted enodes is more than two times the size of the current reg/elected validator set", "num announce enodes", len(announceData.AnnounceRecords), "reg/elected val set size", len(validatorConnSet))
 		return false, err
 	}
 
@@ -656,7 +656,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
 
 	// If the announce's valAddress is not within the registered validator set, then ignore it
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 	announcesToRequest := make([]common.Address, 0)
 	for _, announceVersion := range announceVersions {
 		// Ignore this announceVersion entry if it's val address is not in the current registered or elected valset.
-		if !regAndActiveVals[announceVersion.ValAddress] {
+		if !validatorConnSet[announceVersion.ValAddress] {
 			logger.Trace("Ignoring announceVersion since it's not in active/elected valset", "valAddress", announceVersion.ValAddress)
 			continue
 		}
