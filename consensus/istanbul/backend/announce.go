@@ -356,7 +356,7 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return err
 	}
 	if versionedEnodeMsg != nil {
-		sb.setSelfVersionedEnodeMsg(versionedEnodeMsg)
+		sb.setVersionedEnodeMsg(versionedEnodeMsg)
 		// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
 		if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
 			err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
@@ -746,17 +746,17 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// retrieveSelfVersionedEnodeMsg gets the most recent self versioned enode message to send
+// retrieveVersionedEnodeMsg gets the most recent versioned enode message to send
 // and generates a new one with the current announce version if one does not exist.
 // New versioned enode messages are not always generated to ensure the version
 // of a versioned enode message is not greater than a recently gossiped announce
 // version (if that has occurred)
 // May be nil if this is a proxy that does not have a versioned enode message
 // from its proxy.
-func (sb *Backend) retrieveSelfVersionedEnodeMsg() (*istanbul.Message, error) {
-	sb.selfVersionedEnodeMsgMu.Lock()
-	defer sb.selfVersionedEnodeMsgMu.Unlock()
-	if sb.selfVersionedEnodeMsg == nil {
+func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
+	sb.versionedEnodeMsgMu.Lock()
+	defer sb.versionedEnodeMsgMu.Unlock()
+	if sb.versionedEnodeMsg == nil {
 		// Proxies cannot generate a versioned enode message because are not
 		// able to sign on behalf of the proxied validator.
 		if sb.config.Proxy {
@@ -766,9 +766,9 @@ func (sb *Backend) retrieveSelfVersionedEnodeMsg() (*istanbul.Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		sb.selfVersionedEnodeMsg = versionedEnodeMsg
+		sb.versionedEnodeMsg = versionedEnodeMsg
 	}
-	return sb.selfVersionedEnodeMsg.Copy(), nil
+	return sb.versionedEnodeMsg.Copy(), nil
 }
 
 // generateVersionedEnodeMsg generates a versioned enode message with the enode
@@ -858,7 +858,7 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
 
-	sb.setSelfVersionedEnodeMsg(&msg)
+	sb.setVersionedEnodeMsg(&msg)
 
 	return nil
 }
@@ -873,10 +873,10 @@ func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, msg *istanbul.Mess
 	return peer.Send(istanbulVersionedEnodeMsg, payload)
 }
 
-func (sb *Backend) setSelfVersionedEnodeMsg(msg *istanbul.Message) {
-	sb.selfVersionedEnodeMsgMu.Lock()
-	sb.selfVersionedEnodeMsg = msg
-	sb.selfVersionedEnodeMsgMu.Unlock()
+func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
+	sb.versionedEnodeMsgMu.Lock()
+	sb.versionedEnodeMsg = msg
+	sb.versionedEnodeMsgMu.Unlock()
 }
 
 func getCurrentAnnounceVersion() uint {

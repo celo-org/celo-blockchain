@@ -206,11 +206,12 @@ type Backend struct {
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
 
-	// The versioned enode message most recently received by a proxy from its
-	// proxied validator for proving itself as a validator in the handshake.
-	// The entire istanbul.Message is saved to keep the signature
-	selfVersionedEnodeMsg   *istanbul.Message
-	selfVersionedEnodeMsgMu sync.RWMutex
+	// The versioned enode message most recently generated if this is a validator
+	// or received by a proxied validator if this is a proxy.
+	// Used for proving itself as a validator in the handshake. The entire
+	// istanbul.Message is saved to keep the signature.
+	versionedEnodeMsg   *istanbul.Message
+	versionedEnodeMsgMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
