@@ -849,7 +849,7 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed {
+	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
 		sb.logger.Trace("Can't elect N validators.  Only allowing the initial validator set to send announce messages", "err", err)
 	} else if err != nil {
 		sb.logger.Error("Error in electing N validators", "err", err)
