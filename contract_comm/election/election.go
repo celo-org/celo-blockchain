@@ -155,7 +155,7 @@ const electionABIString string = `[
       "payable": false,
       "stateMutability": "view",
       "type": "function"
-    },    
+    }
 ]`
 
 var electionABI, _ = abi.JSON(strings.NewReader(electionABIString))

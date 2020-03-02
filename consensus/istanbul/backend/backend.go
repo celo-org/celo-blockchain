@@ -828,6 +828,8 @@ func (sb *Backend) ConnectToVals() {
 }
 
 func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
+	logger := sb.logger.New("func", "retrieveValidatorConnSet")
+
 	sb.cachedValidatorConnSetMu.Lock()
 	defer sb.cachedValidatorConnSetMu.Unlock()
 
@@ -850,10 +852,9 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
 	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
-		sb.logger.Trace("Can't elect N validators.  Only allowing the initial validator set to send announce messages", "err", err)
+		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
-		sb.logger.Error("Error in electing N validators", "err", err)
-		return validatorsSet, err
+		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)
 	}
 
 	for _, address := range electNValidators {
@@ -868,6 +869,8 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 	sb.cachedValidatorConnSet = validatorsSet
 	sb.cachedValidatorConnSetTimestamp = time.Now()
+
+	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
 
 	return validatorsSet, nil
 }
