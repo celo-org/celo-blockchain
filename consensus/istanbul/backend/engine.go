@@ -630,6 +630,15 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 
 	sb.coreStarted = true
 
+	// Insert our own signed announce version into the table
+	selfSignedAnnounceVersion, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+	if err != nil {
+		return err
+	}
+	sb.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersion{
+		selfSignedAnnounceVersion,
+	})
+
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
 			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
@@ -678,15 +687,6 @@ func (sb *Backend) StartAnnouncing() error {
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
-
-	// Insert our own signed announce version into the table
-	selfSignedAnnounceVersion, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
-	if err != nil {
-		return err
-	}
-	sb.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersion{
-		selfSignedAnnounceVersion,
-	})
 
 	go sb.announceThread()
 

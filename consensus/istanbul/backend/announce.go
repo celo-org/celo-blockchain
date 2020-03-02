@@ -150,13 +150,6 @@ func (sb *Backend) announceThread() {
 			}
 
 			go sb.generateAndGossipAnnounce()
-			// entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
-			// if err != nil {
-			// 	logger.Warn("Error generating signed announce version", "err", err)
-			// } else {
-			// 	logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
-			// 	go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
-			// }
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
