@@ -100,13 +100,6 @@ func (sb *Backend) announceThread() {
 					if err := sb.generateAndGossipAnnounce(); err != nil {
 						logger.Error("Error in gossiping announce", "err", err)
 					}
-					entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
-					if err != nil {
-						logger.Warn("Error generating signed announce version", "err", err)
-					} else {
-						logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
-						go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
-					}
 				})
 
 				if sb.config.AnnounceAggressiveGossipOnEnablement {
@@ -157,13 +150,13 @@ func (sb *Backend) announceThread() {
 			}
 
 			go sb.generateAndGossipAnnounce()
-			entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
-			if err != nil {
-				logger.Warn("Error generating signed announce version", "err", err)
-			} else {
-				logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
-				go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
-			}
+			// entry, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+			// if err != nil {
+			// 	logger.Warn("Error generating signed announce version", "err", err)
+			// } else {
+			// 	logger.Warn("about to go sb.gossipSignedAnnounceVersionsMsg()!!!")
+			// 	go sb.gossipSignedAnnounceVersionsMsg([]*vet.SignedAnnounceVersion{entry})
+			// }
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -755,6 +748,23 @@ func (sb *Backend) gossipSignedAnnounceVersionsMsg(entries []*vet.SignedAnnounce
 		return err
 	}
 	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
+}
+
+// sendAllSignedAnnounceVersions sends all SignedAnnounceVersions this node
+// has to a peer
+func (sb *Backend) sendAllSignedAnnounceVersions(peer consensus.Peer) error {
+	logger := sb.logger.New("func", "sendSignedAnnounceVersionsMsg")
+	allEntries, err := sb.signedAnnounceVersionTable.GetAll()
+	if err != nil {
+		logger.Warn("Error getting all entries of signed announce version table", "err", err)
+		return err
+	}
+	payload, err := rlp.EncodeToBytes(allEntries)
+	if err != nil {
+		logger.Warn("Error encoding entries", "err", err)
+		return err
+	}
+	return peer.Send(istanbulSignedAnnounceVersionsMsg, payload)
 }
 
 func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {

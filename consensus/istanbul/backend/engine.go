@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -677,6 +678,15 @@ func (sb *Backend) StartAnnouncing() error {
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
+
+	// Insert our own signed announce version into the table
+	selfSignedAnnounceVersion, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+	if err != nil {
+		return err
+	}
+	sb.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersion{
+		selfSignedAnnounceVersion,
+	})
 
 	go sb.announceThread()
 
