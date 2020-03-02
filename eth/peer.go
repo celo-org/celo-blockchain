@@ -485,6 +485,10 @@ func (p *peer) ReadMsg() (p2p.Msg, error) {
 	return p.rw.ReadMsg()
 }
 
+func (p *peer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return p.StaticNodePurposes.IsSet(purpose) || p.TrustedNodePurposes.IsSet(purpose)
+}
+
 // String implements fmt.Stringer.
 func (p *peer) String() string {
 	return fmt.Sprintf("Peer %s [%s]", p.id,

@@ -925,7 +925,7 @@ func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.Purp
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			if purpose == p2p.AnyPurpose || p.Peer.StaticNodePurposes.IsSet(purpose) || p.Peer.TrustedNodePurposes.IsSet(purpose) {
+			if purpose == p2p.AnyPurpose || p.PurposeIsSet(purpose) {
 				m[id] = p
 			}
 		}

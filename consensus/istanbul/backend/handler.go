@@ -366,11 +366,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 // Returns the message to send, if it contains a proof this node is a validator,
 // and if an error occurred.
 func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, bool, error) {
-	shouldSend, err := sb.shouldSendValidatorProof(peer)
-	if err != nil {
-		return nil, false, err
-	}
-	if shouldSend {
+	if peer.PurposeIsSet(p2p.ValidatorPurpose) {
 		msg, err := sb.retrieveSelfVersionedEnodeMsg()
 		if err != nil {
 			return nil, false, err
@@ -440,14 +436,14 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, err
 	}
 
-	node, err := enode.ParseV4(versionedEnode.Node)
+	node, err := enode.ParseV4(versionedEnode.EnodeURL)
 	if err != nil {
 		return false, err
 	}
 
 	// Ensure the node in the versionedEnode matches the peer node
 	if node.ID() != peer.Node().ID() {
-		logger.Warn("Peer provided incorrect node in versionedEnode", "versionedEnode node", versionedEnode.Node, "peer node", peer.Node().URLv4())
+		logger.Warn("Peer provided incorrect node ID in versionedEnode", "versionedEnode enode url", versionedEnode.EnodeURL, "peer enode url", peer.Node().URLv4())
 		return false, errors.New("Incorrect node in versionedEnode")
 	}
 

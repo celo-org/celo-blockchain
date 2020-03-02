@@ -18,6 +18,7 @@ package backend
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -718,8 +719,8 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 }
 
 type versionedEnode struct {
-	Node    string
-	Version uint
+	EnodeURL string
+	Version  uint
 }
 
 // ==============================================
@@ -728,20 +729,20 @@ type versionedEnode struct {
 
 // EncodeRLP serializes ve into the Ethereum RLP format.
 func (ve *versionedEnode) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ve.Node, ve.Version})
+	return rlp.Encode(w, []interface{}{ve.EnodeURL, ve.Version})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ve fields from a RLP stream.
 func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Node    string
-		Version uint
+		EnodeURL string
+		Version  uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ve.Node, ve.Version = msg.Node, msg.Version
+	ve.EnodeURL, ve.Version = msg.EnodeURL, msg.Version
 	return nil
 }
 
@@ -788,8 +789,8 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 	}
 
 	versionedEnode := &versionedEnode{
-		Node:    enodeURL,
-		Version: version,
+		EnodeURL: enodeURL,
+		Version:  version,
 	}
 	versionedEnodeBytes, err := rlp.EncodeToBytes(versionedEnode)
 	if err != nil {
@@ -831,8 +832,8 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
 
 	if msg.Address != sb.config.ProxiedValidatorAddress {
-		logger.Error("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
-		return fmt.Errorf("Origin address is not the proxied validator (%s != %s)", msg.Address.String(), sb.config.ProxiedValidatorAddress.String())
+		logger.Warn("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
+		return errors.New("Incorrect address")
 	}
 
 	var versionedEnode versionedEnode
@@ -841,18 +842,18 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		return err
 	}
 
-	parsedNode, err := enode.ParseV4(versionedEnode.Node)
+	parsedNode, err := enode.ParseV4(versionedEnode.EnodeURL)
 	if err != nil {
 		logger.Warn("Malformed v4 node in received Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "err", err)
+		return err
 	}
 
 	// There may be a difference in the URLv4 string because of `discport`,
 	// so instead compare the ID
 	selfNode := sb.p2pserver.Self()
 	if parsedNode.ID() != selfNode.ID() {
-		err := fmt.Errorf("Unexpected node (%s != %s)", versionedEnode.Node, sb.p2pserver.Self().URLv4())
-		logger.Warn("Received Istanbul Versioned Enode message with an incorrect node", "err", err)
-		return err
+		logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+		return errors.New("Incorrect enode url")
 	}
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)

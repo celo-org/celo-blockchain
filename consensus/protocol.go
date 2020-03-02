@@ -58,4 +58,6 @@ type Peer interface {
 	ReadMsg() (p2p.Msg, error)
 	// Inbound returns if the peer connection is inbound
 	Inbound() bool
+	// PurposeIsSet returns if the peer has a purpose set
+	PurposeIsSet(purpose p2p.PurposeFlag) bool
 }
