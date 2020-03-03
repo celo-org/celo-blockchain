@@ -354,7 +354,7 @@ type tailUint struct {
 type tailPrivateFields struct {
 	A    uint
 	Tail []uint `rlp:"tail"`
-	x, y bool   //lint:ignore U1000 unused fields required for testing purposes.
+	x, y bool   //nolint:unused // fields required for testing purposes
 }
 
 type nilListUint struct {
