@@ -635,7 +635,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	if err != nil {
 		return err
 	}
-	sb.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersion{
+	sb.upsertSignedAnnounceVersions([]*enodes.SignedAnnounceVersion{
 		selfSignedAnnounceVersion,
 	})
 

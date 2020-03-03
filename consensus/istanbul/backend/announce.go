@@ -328,10 +328,14 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 		enodeUrl = sb.p2pserver.Self().URLv4()
 	}
 
-	announceRecords, err := sb.getAnnounceRecords(enodeUrl)
+	announceRecords, err := sb.generateAnnounceRecords(enodeUrl)
 	if err != nil {
 		logger.Warn("Error getting announce records", "err", err)
 		return nil, 0, common.Address{}, err
+	}
+	if len(announceRecords) == 0 {
+		logger.Trace("No announce records were generated, will not generate announce")
+		return nil, 0, common.Address{}, nil
 	}
 
 	announceData := &announceData{
@@ -367,7 +371,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 
 // Returns the announce records intended for validators whose entries in the
 // val enode table do not exist or are outdated.
-func (sb *Backend) getAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
+func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
 	allSignedAnnounceVersions, err := sb.signedAnnounceVersionTable.GetAll()
 	if err != nil {
 		return nil, err
@@ -379,9 +383,12 @@ func (sb *Backend) getAnnounceRecords(enodeURL string) ([]*announceRecord, error
 	var announceRecords []*announceRecord
 	for _, signedAnnounceVersion := range allSignedAnnounceVersions {
 		valEnode := allValEnodes[signedAnnounceVersion.Address]
+		sb.logger.Warn("in generateAnnounceRecords", "valEnode", valEnode, "signedAnnounceVersion", signedAnnounceVersion)
 		// If the version in the val enode table is up to date with the version
-		// we are aware of, do nothing
-		if valEnode != nil && valEnode.Version == signedAnnounceVersion.Version {
+		// we are aware of (or is newer in the case the remote validator sent us
+		// a direct announce but the signed version is only now being received),
+		// don't send them an announce message
+		if valEnode != nil && valEnode.Version >= signedAnnounceVersion.Version {
 			continue
 		}
 
@@ -399,6 +406,7 @@ func (sb *Backend) getAnnounceRecords(enodeURL string) ([]*announceRecord, error
 			EncryptedEnodeURL: encryptedEnodeURL,
 		})
 	}
+	sb.logger.Warn("end of generateAnnounceRecords", "announceRecords", announceRecords)
 	return announceRecords, nil
 }
 
@@ -467,6 +475,10 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 				if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announceData.Version}}); err != nil {
 					logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
 					return err
+				}
+				// If the announce was only intended for this node, do not regossip
+				if len(announceData.AnnounceRecords) == 1 {
+					return nil
 				}
 				break
 			}
@@ -585,7 +597,7 @@ func (sb *Backend) sendAllSignedAnnounceVersions(peer consensus.Peer) error {
 
 func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleSignedAnnounceVersionsMsg")
-
+	logger.Warn("Handling signed announce version msg")
 	var signedAnnVersions []*vet.SignedAnnounceVersion
 
 	err := rlp.DecodeBytes(payload, &signedAnnVersions)
@@ -593,7 +605,7 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error in decoding received Signed Announce Versions msg", "err", err)
 		return err
 	}
-
+	logger.Warn("Handling signed announce version msg and decoded", "signedAnnVersions", signedAnnVersions)
 	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
 		logger.Trace("Error in retrieving registered/elected valset", "err", err)
@@ -604,6 +616,7 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, signedAnnVersion := range signedAnnVersions {
+		logger.Warn("In signed announce version loop", "signedAnnVersion.Address", signedAnnVersion.Address)
 		err := signedAnnVersion.ValidateSignature()
 		if err != nil {
 			logger.Debug("Error validating signature in signed announce version", "address", signedAnnVersion.Address, "err", err)
@@ -620,10 +633,18 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		validAddresses[signedAnnVersion.Address] = true
 		validEntries = append(validEntries, signedAnnVersion)
 	}
+	return sb.upsertSignedAnnounceVersions(signedAnnVersions)
+}
 
+func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedAnnounceVersion) error {
+	logger := sb.logger.New("func", "upsertSignedAnnounceVersions")
 	newEntries, err := sb.signedAnnounceVersionTable.Upsert(signedAnnVersions)
 	if err != nil {
 		logger.Warn("Error in upserting entries", "err", err)
+	}
+
+	if err := sb.generateAndGossipAnnounce(); err != nil {
+		logger.Warn("Error in generating and gossiping announce", "err", err)
 	}
 
 	// Only regossip entries that are new to this node and do not originate
