@@ -41,13 +41,13 @@ var (
 const (
 	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg            = 0x12
-	istanbulValEnodesShareMsg      = 0x13
-	istanbulFwdMsg                 = 0x14
-	istanbulDelegateSign           = 0x15
-	istanbulGetAnnouncesMsg        = 0x16
-	istanbulGetAnnounceVersionsMsg = 0x17
-	istanbulAnnounceVersionsMsg    = 0x18
+	istanbulAnnounceMsg               = 0x12
+	istanbulValEnodesShareMsg         = 0x13
+	istanbulFwdMsg                    = 0x14
+	istanbulDelegateSign              = 0x15
+	istanbulGetAnnouncesMsg           = 0x16
+	istanbulGetAnnounceVersionsMsg    = 0x17
+	istanbulAnnounceVersionsMsg       = 0x18
 	istanbulSignedAnnounceVersionsMsg = 0x19
 )
 

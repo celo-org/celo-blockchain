@@ -17,16 +17,18 @@
 package backend
 
 import (
+	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -70,7 +72,7 @@ func (sb *Backend) announceThread() {
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 
 	// Create a ticker to check peers' announce versions one every 10 minutes
-	announceVersionsCheckTicker := time.NewTicker(time.Minute / 10)
+	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
 
 	// Create all the variables needed for the periodic gossip
 	var announceGossipTicker *time.Ticker
@@ -96,7 +98,7 @@ func (sb *Backend) announceThread() {
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
-				time.AfterFunc(1*time.Minute, func() {
+				time.AfterFunc(time.Minute/2, func() {
 					if err := sb.generateAndGossipAnnounce(); err != nil {
 						logger.Error("Error in gossiping announce", "err", err)
 					}
@@ -394,16 +396,10 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 		enodeUrl = sb.p2pserver.Self().URLv4()
 	}
 
-	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	announceRecords, err := sb.getAnnounceRecords(enodeUrl)
 	if err != nil {
+		logger.Warn("Error getting announce records", "err", err)
 		return nil, 0, common.Address{}, err
-	}
-
-	announceRecords := make([]*announceRecord, 0, len(regAndActiveVals))
-	for addr := range regAndActiveVals {
-		// TODO - Need to encrypt using the remote validator's validator key
-		announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
 	}
 
 	announceData := &announceData{
@@ -435,6 +431,43 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
 	return msg, announceData.Version, msg.Address, nil
+}
+
+// Returns the announce records intended for validators whose entries in the
+// val enode table do not exist or are outdated.
+func (sb *Backend) getAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
+	allSignedAnnounceVersions, err := sb.signedAnnounceVersionTable.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	allValEnodes, err := sb.valEnodeTable.GetAllValEnodes()
+	if err != nil {
+		return nil, err
+	}
+	var announceRecords []*announceRecord
+	for _, signedAnnounceVersion := range allSignedAnnounceVersions {
+		valEnode := allValEnodes[signedAnnounceVersion.Address]
+		// If the version in the val enode table is up to date with the version
+		// we are aware of, do nothing
+		if valEnode != nil && valEnode.Version == signedAnnounceVersion.Version {
+			continue
+		}
+
+		ecdsaPubKey, err := signedAnnounceVersion.ECDSAPublicKey()
+		if err != nil {
+			return nil, err
+		}
+		publicKey := ecies.ImportECDSAPublic(ecdsaPubKey)
+		encryptedEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		announceRecords = append(announceRecords, &announceRecord{
+			DestAddress: signedAnnounceVersion.Address,
+			EncryptedEnodeURL: encryptedEnodeURL,
+		})
+	}
+	return announceRecords, nil
 }
 
 // This function will handle an announce message.
@@ -498,19 +531,20 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
 			if announceRecord.DestAddress == sb.Address() {
-				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
-				enodeUrl := string(announceRecord.EncryptedEnodeURL)
-				node, err := enode.ParseV4(enodeUrl)
+				enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.address}, announceRecord.EncryptedEnodeURL, nil, nil)
 				if err != nil {
-					logger.Error("Error in parsing enodeURL", "enodeUrl", enodeUrl)
+					sb.logger.Warn("Error in decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
+				}
+				enodeURL := string(enodeBytes)
+				node, err := enode.ParseV4(enodeURL)
+				if err != nil {
+					logger.Error("Error in parsing enodeURL", "enodeUrl", enodeURL)
 					return err
 				}
-
 				if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announceData.Version}}); err != nil {
 					logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
 					return err
 				}
-
 				break
 			}
 		}
@@ -721,11 +755,7 @@ func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnou
 		Address: sb.Address(),
 		Version: version,
 	}
-	payloadNoSig, err := rlp.EncodeToBytes(sav)
-	if err != nil {
-		return nil, err
-	}
-	sav.Signature, err = sb.Sign(payloadNoSig)
+	err := sav.Sign(sb.Sign)
 	if err != nil {
 		return nil, err
 	}
@@ -803,6 +833,9 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error in upserting entries", "err", err)
 	}
 
+	// Only regossip entries that are new to this node and do not originate
+	// from an address that we have gossiped a signed announce version for
+	// within the last 5 minutes
 	var entriesToRegossip []*vet.SignedAnnounceVersion
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	defer sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
@@ -813,13 +846,8 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 			sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
 		}
 	}
-
-	info, err := sb.signedAnnounceVersionTable.Info()
-	bytes, marshallErr := json.Marshal(info)
-	logger.Warn("sb.signedAnnounceVersionTable info dump", "info", string(bytes), "err", err, "marshallErr", marshallErr, "new entries", newEntries)
-
 	if len(entriesToRegossip) > 0 {
-		go sb.gossipSignedAnnounceVersionsMsg(entriesToRegossip)
+		return sb.gossipSignedAnnounceVersionsMsg(entriesToRegossip)
 	}
 	return nil
 }

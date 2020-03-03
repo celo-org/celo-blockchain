@@ -17,6 +17,7 @@
 package enodes
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -46,6 +48,43 @@ type SignedAnnounceVersion struct {
 	Address   common.Address
 	Version   uint
 	Signature []byte
+}
+
+func (sav *SignedAnnounceVersion) PayloadNoSig() ([]byte, error) {
+	savNoSig := &SignedAnnounceVersion{
+		Address: sav.Address,
+		Version: sav.Version,
+	}
+	payloadNoSig, err := rlp.EncodeToBytes(savNoSig)
+	if err != nil {
+		return nil, err
+	}
+	return payloadNoSig, nil
+}
+
+func (sav *SignedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	payloadNoSig, err := sav.PayloadNoSig()
+	if err != nil {
+		return err
+	}
+	sav.Signature, err = signingFn(payloadNoSig)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sav *SignedAnnounceVersion) ECDSAPublicKey() (*ecdsa.PublicKey, error) {
+	payloadNoSig, err := sav.PayloadNoSig()
+	if err != nil {
+		return nil, err
+	}
+	payloadHash := crypto.Keccak256(payloadNoSig)
+	pubkey, err := crypto.SigToPub(payloadHash, sav.Signature)
+	if err != nil {
+		return nil, err
+	}
+	return pubkey, nil
 }
 
 // EncodeRLP serializes SignedAnnounceVersion into the Ethereum RLP format.
@@ -202,7 +241,10 @@ func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersion, error) 
 		signedAnnounceVersions = append(signedAnnounceVersions, entry)
 		return nil
 	})
-	return signedAnnounceVersions, err
+	if err != nil {
+		return nil, err
+	}
+	return signedAnnounceVersions, nil
 }
 
 // Remove will remove an entry from the table
