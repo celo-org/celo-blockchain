@@ -77,13 +77,15 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var shouldAnnounce bool
+	var err error
 
 	for {
 		select {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
+			shouldAnnounce, err = sb.shouldGenerateAndProcessAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
@@ -96,9 +98,10 @@ func (sb *Backend) announceThread() {
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(time.Minute/2, func() {
-					if err := sb.generateAndGossipAnnounce(); err != nil {
-						logger.Error("Error in gossiping announce", "err", err)
-					}
+					sb.generateAndGossipAnnounceCh <- struct{}{}
+					// if err := sb.generateAndGossipAnnounce(); err != nil {
+					// 	logger.Error("Error in gossiping announce", "err", err)
+					// }
 				})
 
 				if sb.config.AnnounceAggressiveGossipOnEnablement {
@@ -148,13 +151,18 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			go sb.generateAndGossipAnnounce()
+			sb.generateAndGossipAnnounceCh <- struct{}{}
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
+		case <-sb.generateAndGossipAnnounceCh:
+			if shouldAnnounce {
+				err := sb.generateAndGossipAnnounce()
+				logger.Warn("Error in generating and gossiping announce", "err", err)
+			}
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
@@ -237,12 +245,11 @@ func (ar *announceRecord) String() string {
 
 type announceData struct {
 	AnnounceRecords []*announceRecord
-	EnodeURLHash    common.Hash
 	Version         uint
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{Version: %v, EnodeURLHash: %v, AnnounceRecords: %v}", ad.Version, ad.EnodeURLHash.Hex(), ad.AnnounceRecords)
+	return fmt.Sprintf("{Version: %v, AnnounceRecords: %v}", ad.Version, ad.AnnounceRecords)
 }
 
 // ==============================================
@@ -270,21 +277,20 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
 func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.Version})
+	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.Version})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
 func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
-		EnodeURLHash    common.Hash
 		Version         uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.EnodeURLHash, ad.Version = msg.AnnounceRecords, msg.EnodeURLHash, msg.Version
+	ad.AnnounceRecords, ad.Version = msg.AnnounceRecords, msg.Version
 	return nil
 }
 
@@ -316,21 +322,21 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 // This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
 func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
-	var enodeUrl string
+	var enodeURL string
 	if sb.config.Proxied {
 		if sb.proxyNode != nil {
-			enodeUrl = sb.proxyNode.externalNode.URLv4()
+			enodeURL = sb.proxyNode.externalNode.URLv4()
 		} else {
 			logger.Error("Proxied node is not connected to a proxy")
 			return nil, 0, common.Address{}, errNoProxyConnection
 		}
 	} else {
-		enodeUrl = sb.p2pserver.Self().URLv4()
+		enodeURL = sb.p2pserver.Self().URLv4()
 	}
 
-	announceRecords, err := sb.generateAnnounceRecords(enodeUrl)
+	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
 	if err != nil {
-		logger.Warn("Error getting announce records", "err", err)
+		logger.Warn("Error generating announce records", "err", err)
 		return nil, 0, common.Address{}, err
 	}
 	if len(announceRecords) == 0 {
@@ -340,7 +346,6 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
 		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 		Version: uint(time.Now().Unix()),
 	}
@@ -462,9 +467,10 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
 			if announceRecord.DestAddress == sb.Address() {
-				enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.address}, announceRecord.EncryptedEnodeURL, nil, nil)
+				enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, announceRecord.EncryptedEnodeURL, nil, nil)
 				if err != nil {
 					sb.logger.Warn("Error in decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
+					return err
 				}
 				enodeURL := string(enodeBytes)
 				node, err := enode.ParseV4(enodeURL)
@@ -643,9 +649,15 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 		logger.Warn("Error in upserting entries", "err", err)
 	}
 
-	if err := sb.generateAndGossipAnnounce(); err != nil {
-		logger.Warn("Error in generating and gossiping announce", "err", err)
-	}
+	// TODO implement:
+	// When a validator updates its announce version as a result of an enode
+	// change, it will first send a direct announce to all other ValidatorPurpose
+	// peers with the new enode and version. After, it gossips a signed announce
+	// version. If this node is a validator and it receives a signed announce
+	// version from a remote validator that is newer than the remote validator's
+	// version in the val enode table, this node did not receive a direct announce
+	// and needs to announce its own enode to the remote validator.
+	sb.generateAndGossipAnnounceCh <- struct{}{}
 
 	// Only regossip entries that are new to this node and do not originate
 	// from an address that we have gossiped a signed announce version for

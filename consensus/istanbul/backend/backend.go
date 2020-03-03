@@ -110,6 +110,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		selfRecentMessages:      selfRecentMessages,
 		announceThreadWg:        new(sync.WaitGroup),
 		announceThreadQuit:      make(chan struct{}),
+		generateAndGossipAnnounceCh:        make(chan struct{}, 10),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:        new(sync.WaitGroup),
@@ -207,6 +208,7 @@ type Backend struct {
 	announceMu         sync.RWMutex
 	announceThreadWg   *sync.WaitGroup
 	announceThreadQuit chan struct{}
+	generateAndGossipAnnounceCh   chan struct{}
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
