@@ -218,7 +218,7 @@ const (
 	MaxGasForGetRegisteredValidators               uint64 = 2000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
 	MaxGasForGetWhiteList                          uint64 = 20000
-	MaxGasForGetTransferWhitelist                  uint64 = 20000
+	MaxGasForGetTransferWhitelist                  uint64 = 1000000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForIsFrozen                              uint64 = 20000
 	MaxGasForMedianRate                            uint64 = 20000
