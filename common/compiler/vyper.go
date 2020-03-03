@@ -83,6 +83,7 @@ func CompileVyper(vyper string, sourcefiles ...string) (map[string]*Contract, er
 		return nil, err
 	}
 	args := s.makeArgs()
+	// #nosec (only used in abigen locally)
 	cmd := exec.Command(s.Path, append(args, sourcefiles...)...)
 	return s.run(cmd, source)
 }
