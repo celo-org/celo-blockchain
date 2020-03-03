@@ -55,7 +55,7 @@ const (
 	istanbulVersionedEnodeMsg      = 0x19
 	istanbulValidatorProofMsg      = 0x1a
 
-	handshakeTimeout = 10 * time.Second
+	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
