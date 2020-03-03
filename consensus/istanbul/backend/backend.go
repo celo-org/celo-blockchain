@@ -838,6 +838,9 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
+// retrieveRegisteredAndElectedValidators returns the cached set of registered
+// and elected validators if the cache is younger than 1 minute. In the event
+// of a cache miss, this may block for a couple seconds while retrieving the uncached set.
 func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
 	sb.cachedRegisteredElectedValSetMu.Lock()
 	defer sb.cachedRegisteredElectedValSetMu.Unlock()
@@ -848,7 +851,66 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 	}
 
 	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+	validatorsSet, err := sb.retrieveUncachedRegisteredAndElectedValidators()
+	if err != nil {
+		return nil, err
+	}
 
+	sb.cachedRegisteredElectedValSet = validatorsSet
+	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
+
+	return validatorsSet, nil
+}
+
+// retrieveMaybeStaleRegisteredAndElectedValidators returns the most recently
+// cached set of registered and elected validators and asynchronously updates
+// the cache if it is older than 1 minute. If no set has ever been cached, this
+// function may block for a couple seconds while retrieving the uncached set.
+func (sb *Backend) retrieveMaybeStaleRegisteredAndElectedValidators() (map[common.Address]bool, error) {
+	sb.cachedRegisteredElectedValSetMu.Lock()
+
+	if sb.cachedRegisteredElectedValSet != nil {
+		regAndElectedSet := sb.cachedRegisteredElectedValSet
+		sb.cachedRegisteredElectedValSetMu.Unlock()
+		// If the cached value is older than a minute, asynchronously update it
+		if time.Since(sb.cachedRegisteredElectedValSetTimestamp) > 1*time.Minute {
+			go func() {
+				sb.cachedRegisteredElectedValSetMu.Lock()
+				defer sb.cachedRegisteredElectedValSetMu.Unlock()
+				err := sb.updateCachedRegisteredAndElectedValidators()
+				if err != nil {
+					sb.logger.Debug("Unable to update registered and elected validator cache", "err", err)
+				}
+			}()
+		}
+		return regAndElectedSet, nil
+	}
+	defer sb.cachedRegisteredElectedValSetMu.Unlock()
+	err := sb.updateCachedRegisteredAndElectedValidators()
+	if err != nil {
+		return nil, err
+	}
+	return sb.cachedRegisteredElectedValSet, nil
+}
+
+// updateCachedRegisteredAndElectedValidators updates the cached registered
+// and elected validator set. This function is NOT thread safe and must be
+// called while cachedRegisteredElectedValSetMu is locked.
+func (sb *Backend) updateCachedRegisteredAndElectedValidators() error {
+	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+	validatorsSet, err := sb.retrieveUncachedRegisteredAndElectedValidators()
+	if err != nil {
+		return err
+	}
+
+	sb.cachedRegisteredElectedValSet = validatorsSet
+	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
+
+	return nil
+}
+
+func (sb *Backend) retrieveUncachedRegisteredAndElectedValidators() (map[common.Address]bool, error) {
+	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
 	validatorsSet := make(map[common.Address]bool)
 
 	currentBlock := sb.currentBlock()
@@ -876,9 +938,6 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 	for _, val := range valSet.List() {
 		validatorsSet[val.Address()] = true
 	}
-
-	sb.cachedRegisteredElectedValSet = validatorsSet
-	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
 
 	return validatorsSet, nil
 }

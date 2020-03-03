@@ -309,12 +309,25 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	isValidatorCh := make(chan bool, 1)
 
 	sendHandshake := func() {
-		validatorProofMessage, containsProof, err := sb.generateValidatorProofMessage(peer)
-		if err != nil {
-			errCh <- err
-			return
+		var validatorProofMsg *istanbul.Message
+		var err error
+		containsProof := false
+		if peer.PurposeIsSet(p2p.ValidatorPurpose) {
+			// validatorProofMsg may be nil
+			validatorProofMsg, err = sb.retrieveVersionedEnodeMsg()
+			if err != nil {
+				errCh <- err
+				return
+			}
 		}
-		msgBytes, err := validatorProofMessage.Payload()
+		// Even if we decide not to identify ourselves,
+		// send an empty message to complete the handshake
+		if validatorProofMsg == nil {
+			validatorProofMsg = &istanbul.Message{}
+		} else {
+			containsProof = true
+		}
+		msgBytes, err := validatorProofMsg.Payload()
 		if err != nil {
 			errCh <- err
 			return
@@ -353,31 +366,6 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			return isValidator, nil
 		}
 	}
-}
-
-// generateValidatorProofMessage will create a message that contains a proof
-// to the peer during the handshake that this node is a validator, which is just
-// a versioned enode message.
-// If this node is not a validator or this node does not believe the peer
-// is a validator, no proof is generated to hide the address of this node
-// and an empty message is created.
-// If this node is a proxy, it will use the most recent versioned enode message this
-// node has received from the proxied validator if one exists.
-// Returns the message to send, if it contains a proof this node is a validator,
-// and if an error occurred.
-func (sb *Backend) generateValidatorProofMessage(peer consensus.Peer) (*istanbul.Message, bool, error) {
-	if peer.PurposeIsSet(p2p.ValidatorPurpose) {
-		msg, err := sb.retrieveVersionedEnodeMsg()
-		if err != nil {
-			return nil, false, err
-		}
-		if msg != nil {
-			return msg, true, nil
-		}
-	}
-	// Even if we decide not to identify ourselves,
-	// send an empty message to complete the handshake
-	return &istanbul.Message{}, false, nil
 }
 
 // shouldSendValidatorProof determines if this node should send a
@@ -448,7 +436,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	// Check if the peer is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	regAndActiveVals, err := sb.retrieveMaybeStaleRegisteredAndElectedValidators()
 	if err != nil {
 		logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return false, err
