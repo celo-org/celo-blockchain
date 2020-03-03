@@ -201,8 +201,9 @@ const (
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
 	MaxGasForCommitments                           uint64 = 2000000
 	MaxGasForComputeCommitment                     uint64 = 2000000
-	MaxGasForCreditToTransactions                  uint64 = 100000
-	MaxGasForDebitFromTransactions                 uint64 = 100000
+	MaxGasForBlockRandomness                       uint64 = 2000000
+	MaxGasForDebitGasFeesTransactions              uint64 = 1000000
+	MaxGasForCreditGasFeesTransactions             uint64 = 1000000
 	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
 	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
 	MaxGasForElectValidators                       uint64 = 50 * 1000000
@@ -224,4 +225,5 @@ const (
 	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
 	MaxGasToReadErc20Balance                       uint64 = 100000
+	MaxGasForIsReserveLow                          uint64 = 1000000
 )
