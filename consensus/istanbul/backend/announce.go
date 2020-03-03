@@ -71,9 +71,6 @@ func (sb *Backend) announceThread() {
 	// If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 
-	// Create a ticker to check peers' announce versions one every 10 minutes
-	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
-
 	// Create all the variables needed for the periodic gossip
 	var announceGossipTicker *time.Ticker
 	var announceGossipTickerCh <-chan time.Time
@@ -158,13 +155,8 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-announceVersionsCheckTicker.C:
-			logger.Trace("Going to check peers' announce version set")
-			go sb.checkPeersAnnounceVersions()
-
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
-			announceVersionsCheckTicker.Stop()
 			if announceGossipTicker != nil {
 				announceGossipTicker.Stop()
 			}
@@ -186,9 +178,10 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 // pruneAnnounceDataStructures will remove entries that are not in the registered/elected validator set from all announce related data structures.
 // The data structures that it prunes are:
-// 1)  cachedAnnounceMsgs
-// 2)  lastAnnounceGossiped
-// 3)  valEnodeTable
+// 1)  lastAnnounceGossiped
+// 2)  valEnodeTable
+// 3)  lastSignedAnnounceVersionsGossiped
+// 4)  signedAnnounceVersionTable
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
@@ -197,16 +190,6 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	if err != nil {
 		return err
 	}
-
-	// Prune the announce cache for entries that are not in the current registered/elected validator set
-	sb.cachedAnnounceMsgsMu.Lock()
-	for cachedValAddress := range sb.cachedAnnounceMsgs {
-		if !regAndElectedVals[cachedValAddress] {
-			logger.Trace("Deleting entry from cachedAnnounceMsgs", "cachedValAddress", cachedValAddress, "cachedAnnounceVersion", sb.cachedAnnounceMsgs[cachedValAddress].MsgVersion)
-			delete(sb.cachedAnnounceMsgs, cachedValAddress)
-		}
-	}
-	sb.cachedAnnounceMsgsMu.Unlock()
 
 	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
@@ -305,59 +288,13 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// Define the announce msg cache entry.
-// The latest version (dictated by the announce's version field) will always be cached
-// by this node.  Note that it will only cache the announce msgs from registered or elected
-// validators.
-type announceMsgCachedEntry struct {
-	MsgVersion uint
-	MsgPayload []byte
-}
-
-// This function will request announce messages from a set of validator addresses from a peer
-func (sb *Backend) sendGetAnnounces(peer consensus.Peer, valAddresses []common.Address) error {
-	logger := sb.logger.New("func", "sendGetAnnounces")
-	valAddressesBytes, err := rlp.EncodeToBytes(valAddresses)
-	if err != nil {
-		logger.Error("Error encoding valAddresses", "valAddresses", common.ConvertToStringSlice(valAddresses), "err", err)
-		return err
-	}
-
-	go peer.Send(istanbulGetAnnouncesMsg, valAddressesBytes)
-	return nil
-}
-
-// This function will reply from a GetAnnounce message.  It will retrieve the requested announce messages
-// from it's announceMsgCache.
-func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleGetAnnouncesMsg")
-	var valAddresses []common.Address
-
-	if err := rlp.DecodeBytes(payload, &valAddresses); err != nil {
-		logger.Error("Error in decoding valAddresses", "err", err)
-		return err
-	}
-
-	sb.cachedAnnounceMsgsMu.RLock()
-	defer sb.cachedAnnounceMsgsMu.RUnlock()
-	// TODO:  Add support for the AnnounceMsg to contain multiple announce messages within it's payload
-	for _, valAddress := range valAddresses {
-		if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[valAddress]; ok {
-			logger.Trace("Sending announce msg", "peer", peer, "valAddress", valAddress)
-			go peer.Send(istanbulAnnounceMsg, cachedAnnounceMsgEntry.MsgPayload)
-		}
-	}
-
-	return nil
-}
-
 // generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
 // which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
 // validator's previous announce msgs.
 func (sb *Backend) generateAndGossipAnnounce() error {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, announceVersion, announceAddress, err := sb.generateAnnounce()
+	istMsg, _, _, err := sb.generateAnnounce()
 	if err != nil {
 		return err
 	}
@@ -372,11 +309,6 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
 		return err
 	}
-
-	// Add the generated announce message to this node's cache
-	sb.cachedAnnounceMsgsMu.Lock()
-	defer sb.cachedAnnounceMsgsMu.Unlock()
-	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: announceVersion, MsgPayload: payload}
 
 	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
 }
@@ -505,15 +437,6 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", announceData.Version)
 
-	// Ignore the message if it's older than the one that this node currently has persisted and return from this function
-	sb.cachedAnnounceMsgsMu.Lock()
-	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgVersion >= announceData.Version {
-		sb.cachedAnnounceMsgsMu.Unlock()
-		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgVersion)
-		return errOldAnnounceMessage
-	}
-	sb.cachedAnnounceMsgsMu.Unlock()
-
 	// Do some validation checks on the announceData
 	if isValid, err := sb.validateAnnounce(&announceData); !isValid || err != nil {
 		logger.Warn("Validation of announce message failed", "isValid", isValid, "err", err)
@@ -549,10 +472,6 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 			}
 		}
 	}
-
-	sb.cachedAnnounceMsgsMu.Lock()
-	sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announceData.Version, MsgPayload: payload}
-	sb.cachedAnnounceMsgsMu.Unlock()
 
 	// Regossip this announce message
 	return sb.regossipAnnounce(msg, payload)
@@ -622,132 +541,6 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error
 	sb.lastAnnounceGossiped[msg.Address] = time.Now()
 
 	return nil
-}
-
-// ===============================================================
-//
-// define the AnnounceVersion messge format, the getAnnounceVersions send and handle function, and the announceVersions handle function
-
-type announceVersion struct {
-	ValAddress         common.Address
-	AnnounceMsgVersion uint
-}
-
-// EncodeRLP serializes announceVersion into the Ethereum RLP format.
-func (av *announceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{av.ValAddress, av.AnnounceMsgVersion})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
-func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		ValAddress         common.Address
-		AnnounceMsgVersion uint
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	av.ValAddress, av.AnnounceMsgVersion = msg.ValAddress, msg.AnnounceMsgVersion
-	return nil
-}
-
-// String returns the string representation of announceVersion.
-func (av *announceVersion) String() string {
-	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgVersion: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
-}
-
-// sendGetAnnounceVersions will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
-func (sb *Backend) sendGetAnnounceVersions(peer consensus.Peer) {
-	sb.logger.Trace("Sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
-	go peer.Send(istanbulGetAnnounceVersionsMsg, []byte{})
-}
-
-// handleGetAnnounceVersionsMsg will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
-// all of this node's cached announce msgs' version.
-func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleGetAnnounceVersionsMsg", "peer", peer)
-
-	logger.Trace("Handling a GetAnnounceVersions message")
-
-	sb.cachedAnnounceMsgsMu.RLock()
-	defer sb.cachedAnnounceMsgsMu.RUnlock()
-
-	announceVersions := make([]*announceVersion, 0, len(sb.cachedAnnounceMsgs))
-
-	for valAddress, cachedAnnounceEntry := range sb.cachedAnnounceMsgs {
-		announceVersions = append(announceVersions, &announceVersion{ValAddress: valAddress, AnnounceMsgVersion: cachedAnnounceEntry.MsgVersion})
-	}
-
-	announceVersionsBytes, err := rlp.EncodeToBytes(announceVersions)
-	if err != nil {
-		logger.Error("Error encoding announce versions array", "AnnounceVersions", announceVersions, "err", err)
-		return err
-	}
-
-	logger.Trace("Sending an AnnounceVersions message", "announceVersions", announceVersions, "peer", peer)
-	go peer.Send(istanbulAnnounceVersionsMsg, announceVersionsBytes)
-
-	return nil
-}
-
-// handleAnnounceVersionsMsg will handle a received AnnounceVersions message.
-// Specifically, this node will compare the received version set with it's own,
-// and request announce messages that have a higher version that it's own.
-func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleAnnounceVersionsMsg", "peer", peer)
-	var announceVersions []announceVersion
-
-	if err := rlp.DecodeBytes(payload, &announceVersions); err != nil {
-		logger.Error("Error in decoding announce versions array", "err", err)
-	}
-
-	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
-
-	// If the announce's valAddress is not within the registered validator set, then ignore it
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
-	if err != nil {
-		return err
-	}
-
-	announcesToRequest := make([]common.Address, 0)
-	for _, announceVersion := range announceVersions {
-		// Ignore this announceVersion entry if it's val address is not in the current registered or elected valset.
-		if !regAndActiveVals[announceVersion.ValAddress] {
-			logger.Trace("Ignoring announceVersion since it's not in active/elected valset", "valAddress", announceVersion.ValAddress)
-			continue
-		}
-
-		sb.cachedAnnounceMsgsMu.RLock()
-		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgVersion < announceVersion.AnnounceMsgVersion {
-			announcesToRequest = append(announcesToRequest, announceVersion.ValAddress)
-		}
-		sb.cachedAnnounceMsgsMu.RUnlock()
-	}
-
-	if len(announcesToRequest) > 0 {
-		announcesToRequestBytes, err := rlp.EncodeToBytes(announcesToRequest)
-		if err != nil {
-			logger.Error("Error encoding announce to request array", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "err", err)
-			return err
-		}
-
-		logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "peer", peer)
-
-		go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
-	}
-
-	return nil
-}
-
-func (sb *Backend) checkPeersAnnounceVersions() {
-	peers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
-
-	for _, peer := range peers {
-		if peer.Version() >= 65 {
-			sb.sendGetAnnounceVersions(peer)
-		}
-	}
 }
 
 func (sb *Backend) generateSignedAnnounceVersion(version uint) (*vet.SignedAnnounceVersion, error) {

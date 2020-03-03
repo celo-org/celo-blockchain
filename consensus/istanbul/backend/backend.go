@@ -111,7 +111,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadWg:        new(sync.WaitGroup),
 		announceThreadQuit:      make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
-		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:        new(sync.WaitGroup),
 		valEnodesShareQuit:      make(chan struct{}),
@@ -145,10 +144,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnouncesMsg] = backend.handleGetAnnouncesMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulSignedAnnounceVersionsMsg] = backend.handleSignedAnnounceVersionsMsg
 
@@ -211,10 +207,6 @@ type Backend struct {
 	announceMu         sync.RWMutex
 	announceThreadWg   *sync.WaitGroup
 	announceThreadQuit chan struct{}
-
-	// Map of the received announce message where key is originating address and value is the msg byte array
-	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
-	cachedAnnounceMsgsMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

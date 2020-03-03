@@ -45,10 +45,7 @@ const (
 	istanbulValEnodesShareMsg         = 0x13
 	istanbulFwdMsg                    = 0x14
 	istanbulDelegateSign              = 0x15
-	istanbulGetAnnouncesMsg           = 0x16
-	istanbulGetAnnounceVersionsMsg    = 0x17
-	istanbulAnnounceVersionsMsg       = 0x18
-	istanbulSignedAnnounceVersionsMsg = 0x19
+	istanbulSignedAnnounceVersionsMsg = 0x16
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
@@ -278,10 +275,6 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	}
 
 	go sb.sendAllSignedAnnounceVersions(peer)
-
-	if peer.Version() >= 65 {
-		sb.sendGetAnnounceVersions(peer)
-	}
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
