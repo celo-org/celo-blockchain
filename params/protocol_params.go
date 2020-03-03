@@ -162,6 +162,7 @@ var (
 	ElectionRegistryId             = makeRegistryId("Election")
 	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
 	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
+	FreezerRegistryId              = makeRegistryId("Freezer")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
 	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
@@ -170,6 +171,7 @@ var (
 	ReserveRegistryId              = makeRegistryId("Reserve")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	StableTokenRegistryId          = makeRegistryId("StableToken")
+	TransferWhitelistRegistryId    = makeRegistryId("TransferWhitelist")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
 
 	// Function is "getOrComputeTobinTax()"
@@ -219,6 +221,7 @@ const (
 	MaxGasForGetWhiteList                          uint64 = 200000
 	MaxGasForGetTransferWhitelist                  uint64 = 2000000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
+	MaxGasForIsFrozen                              uint64 = 20000
 	MaxGasForMedianRate                            uint64 = 100000
 	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
