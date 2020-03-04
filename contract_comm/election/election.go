@@ -182,7 +182,8 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 	log.Info("getElectableValidators called", "minElectableValidators", minElectableValidators, "maxElectableValidators", maxElectableValidators)
 
 	var electedValidators []common.Address
-	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroups
+	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroup
+	log.Info("calling electNValidatorSigners", "minElectableValidators", minElectableValidators.Int64(), "maxElectableValidator", maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable)).Int64())
 	_, err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners, header, state)
 	if err != nil {
 		return nil, err
