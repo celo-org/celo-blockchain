@@ -102,7 +102,8 @@ func (h *clientHandler) handle(p *peer) error {
 	if !p.Peer.Info().Network.Trusted {
 		if h.backend.peers.Len() >= h.backend.config.LightPeers {
 			return p2p.DiscTooManyPeers
-		} else if p.Peer.Server.InboundCount() >= p.Peer.Server.MaxInboundConns() {
+		} else if p.Peer.Server.InboundCount() > p.Peer.Server.MaxInboundConns() {
+			// This peer is already included in the inbound count
 			return p2p.DiscTooManyInboundPeers
 		}
 	}
