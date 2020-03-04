@@ -441,7 +441,6 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 type ValEnodeEntryInfo struct {
 	Enode   string   `json:"enode"`
 	Version uint     `json:"version"`
-	ID      enode.ID `json:"id"`
 }
 
 // ValEnodeTableInfo gives basic information for each entry of the table
@@ -454,7 +453,6 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{
 				Enode:   valEnodeEntry.Node.String(),
 				Version: valEnodeEntry.Version,
-				ID:      valEnodeEntry.Node.ID(),
 			}
 		}
 	}

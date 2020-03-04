@@ -311,8 +311,8 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	sendHandshake := func() {
 		var validatorProofMsg *istanbul.Message
 		var err error
-		containsProof := false
-		if peer.PurposeIsSet(p2p.ValidatorPurpose) {
+		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
+		if peerIsValidator {
 			// validatorProofMsg may be nil
 			validatorProofMsg, err = sb.retrieveVersionedEnodeMsg()
 			if err != nil {
@@ -324,8 +324,6 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		// send an empty message to complete the handshake
 		if validatorProofMsg == nil {
 			validatorProofMsg = &istanbul.Message{}
-		} else {
-			containsProof = true
 		}
 		msgBytes, err := validatorProofMsg.Payload()
 		if err != nil {
@@ -336,7 +334,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		if err != nil {
 			errCh <- err
 		}
-		isValidatorCh <- containsProof
+		isValidatorCh <- peerIsValidator
 	}
 	readHandshake := func() {
 		isValidator, err := sb.readValidatorProofMessage(peer)
@@ -368,32 +366,6 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	}
 }
 
-// shouldSendValidatorProof determines if this node should send a
-// validator proof revealing its address to a peer
-func (sb *Backend) shouldSendValidatorProof(peer consensus.Peer) (bool, error) {
-	var validatorAddress common.Address
-	if sb.config.Proxy {
-		validatorAddress = sb.config.ProxiedValidatorAddress
-	} else {
-		validatorAddress = sb.Address()
-	}
-	// Check to see if this node is a validator
-	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
-	if err != nil {
-		return false, err
-	}
-	if !regAndActiveVals[validatorAddress] {
-		return false, nil
-	}
-	// If the peer is not a known validator, we do not want to give up extra
-	// information about ourselves
-	if _, err := sb.valEnodeTable.GetAddressFromNodeID(peer.Node().ID()); err != nil {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // readValidatorProofMessage reads a validator proof message as a part of the
 // istanbul handshake. Returns if the peer is a validator or if an error occurred.
 func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
@@ -401,6 +373,10 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
 		return false, err
+	}
+	if peerMsg.Code != istanbulValidatorProofMsg {
+		logger.Warn("Read incorrect message code", "code", peerMsg.Code)
+		return false, errors.New("Incorrect message code")
 	}
 
 	var payload []byte
@@ -436,7 +412,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	// Check if the peer is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveMaybeStaleRegisteredAndElectedValidators()
+	regAndActiveVals, err := sb.retrieveCachedRegisteredAndElectedValidators()
 	if err != nil {
 		logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return false, err
@@ -450,6 +426,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	// An error is given if the entry doesn't exist, so we ignore the error.
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
 	if err == nil && versionedEnode.Version < knownVersion {
+		logger.Debug("Received a validator proof message with an old version", "received version", versionedEnode.Version, "known version", knownVersion)
 		return false, nil
 	}
 
