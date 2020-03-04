@@ -352,7 +352,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if !forcePeer {
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
 		tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-		tooManyInbound := p.Peer.Server.InboundCount() >= p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
+		// This peer is already included in the inbound count
+		tooManyInbound := p.Peer.Server.InboundCount() > p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
 		if tooManyPeers {
 			return p2p.DiscTooManyPeers
 		} else if tooManyInbound {

@@ -955,11 +955,11 @@ running:
 				}
 				name := truncateName(c.name)
 				p.log.Debug("Adding p2p peer", "addr", p.RemoteAddr(), "peers", len(peers)+1, "name", name)
-				go srv.runPeer(p)
 				peers[c.node.ID()] = p
 				if p.Inbound() {
 					inboundCount++
 				}
+				go srv.runPeer(p)
 				if conn, ok := c.fd.(*meteredConn); ok {
 					conn.handshakeDone(p)
 				}
