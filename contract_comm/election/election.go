@@ -179,6 +179,7 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 	if err != nil {
 		return nil, err
 	}
+	log.Info("getElectableValidators called", "minElectableValidators", minElectableValidators, "maxElectableValidators", maxElectableValidators)
 
 	var electedValidators []common.Address
 	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroups
@@ -186,6 +187,7 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 	if err != nil {
 		return nil, err
 	}
+	log.Info("electNValidatorSigners called", "electedValidators length", len(electedValidators))
 
 	return electedValidators, nil
 
