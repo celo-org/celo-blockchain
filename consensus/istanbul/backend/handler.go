@@ -305,8 +305,8 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 // Handshake allows the initiating peer to identify itself as a validator
 func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	// Only written to if there was a non-nil error when sending or receiving
-	errCh := make(chan error, 1)
-	isValidatorCh := make(chan bool, 1)
+	errCh := make(chan error)
+	isValidatorCh := make(chan bool)
 
 	sendHandshake := func() {
 		var validatorProofMsg *istanbul.Message
