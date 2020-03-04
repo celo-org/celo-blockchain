@@ -472,7 +472,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		return err
 	}
 
-	// If this is a registered or elected validator, then process the announce message
+	// If this is an elected or nearly elected validator, then process the announce message
 	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process announce", err)
