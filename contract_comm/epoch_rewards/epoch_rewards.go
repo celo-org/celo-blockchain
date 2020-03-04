@@ -59,6 +59,20 @@ const epochRewardsABIString string = `[
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "isReserveLow",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]
 `
@@ -81,4 +95,14 @@ func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.I
 		return nil, nil, nil, err
 	}
 	return validatorEpochReward, totalVoterRewards, totalCommunityReward, nil
+}
+
+// Determines if the reserve is below it's critical threshold
+func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
+	var isLow bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "isReserveLow", []interface{}{}, &isLow, params.MaxGasForIsReserveLow, header, state)
+	if err != nil {
+		return false, err
+	}
+	return isLow, nil
 }

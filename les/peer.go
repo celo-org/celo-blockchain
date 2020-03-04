@@ -311,11 +311,6 @@ func (p *peer) updateCapacity(cap uint64) {
 	p.queueSend(func() { p.SendAnnounce(announceData{Update: kvList}) })
 }
 
-func (p *peer) responseID() uint64 {
-	p.responseCount += 1
-	return p.responseCount
-}
-
 func sendRequest(w p2p.MsgWriter, msgcode, reqID, cost uint64, data interface{}) error {
 	type req struct {
 		ReqID uint64
