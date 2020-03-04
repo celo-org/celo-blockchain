@@ -505,7 +505,6 @@ func (api *RetestethAPI) mineBlock() error {
 	txCount := 0
 	var txs []*types.Transaction
 	var receipts []*types.Receipt
-	var coalescedLogs []*types.Log
 	var blockFull = gasPool.Gas() < params.TxGas
 	for address := range api.txSenders {
 		if blockFull {
@@ -533,7 +532,6 @@ func (api *RetestethAPI) mineBlock() error {
 				}
 				txs = append(txs, tx)
 				receipts = append(receipts, receipt)
-				coalescedLogs = append(coalescedLogs, receipt.Logs...)
 				delete(m, nonce)
 				if len(m) == 0 {
 					// Last tx for the sender
@@ -694,7 +692,7 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 		if preimage := accountTrie.GetKey(it.Key); preimage != nil {
 			result.AddressMap[common.BytesToHash(it.Key)] = common.BytesToAddress(preimage)
 			//fmt.Printf("%x: %x\n", it.Key, preimage)
-		} else {
+			// } else {
 			//fmt.Printf("could not find preimage for %x\n", it.Key)
 		}
 	}
@@ -820,7 +818,7 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 				Value: string(vs),
 			}
 			//fmt.Printf("Key: %s, Value: %s\n", ks, vs)
-		} else {
+			// } else {
 			//fmt.Printf("Did not find preimage for %x\n", it.Key)
 		}
 	}
@@ -900,7 +898,8 @@ func retesteth(ctx *cli.Context) error {
 		log.Info("HTTP endpoint closed", "url", httpEndpoint)
 	}()
 
-	abortChan := make(chan os.Signal)
+	// the channel used with signal.Notify should be buffered
+	abortChan := make(chan os.Signal, 5)
 	signal.Notify(abortChan, os.Interrupt)
 
 	sig := <-abortChan

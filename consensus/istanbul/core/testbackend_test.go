@@ -108,9 +108,12 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
-	self.sys.queuedMessage <- istanbul.MessageEvent{
-		Payload: message,
+	send := func() {
+		self.sys.queuedMessage <- istanbul.MessageEvent{
+			Payload: message,
+		}
 	}
+	go send()
 	return nil
 }
 
@@ -443,11 +446,11 @@ func (t *testSystem) Run(core bool) func() {
 	}
 
 	go t.listen()
-	closer := func() { t.stop(core) }
+	closer := func() { t.Stop(core) }
 	return closer
 }
 
-func (t *testSystem) stop(core bool) {
+func (t *testSystem) Stop(core bool) {
 	close(t.quit)
 
 	for _, b := range t.backends {

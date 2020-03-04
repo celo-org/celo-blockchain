@@ -84,4 +84,6 @@ var (
 	// errInvalidValidatorAddress is returned when the COMMIT message address doesn't
 	// correspond to a validator in the current set.
 	errInvalidValidatorAddress = errors.New("failed to find an existing validator by address")
+	// Invalid round state
+	errInvalidState = errors.New("invalid round state")
 )

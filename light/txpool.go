@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contract_comm/freezer"
+	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -363,6 +365,21 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	currentState := pool.currentState(ctx)
 	if n := currentState.GetNonce(from); n > tx.Nonce() {
 		return core.ErrNonceTooLow
+	}
+
+	// Ensure gold transfers are whitelisted if transfers are frozen.
+	if tx.Value().Sign() > 0 {
+		to := *tx.To()
+		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
+			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
+		} else if isFrozen {
+			log.Info("Transfers are frozen")
+			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
+				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
+				return core.ErrTransfersFrozen
+			}
+			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
+		}
 	}
 
 	// Check the transaction doesn't exceed the current
