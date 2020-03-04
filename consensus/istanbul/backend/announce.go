@@ -98,10 +98,7 @@ func (sb *Backend) announceThread() {
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(time.Minute/2, func() {
-					sb.generateAndGossipAnnounceCh <- struct{}{}
-					// if err := sb.generateAndGossipAnnounce(); err != nil {
-					// 	logger.Error("Error in gossiping announce", "err", err)
-					// }
+					sb.startGossipAnnounceTask()
 				})
 
 				if sb.config.AnnounceAggressiveGossipOnEnablement {
@@ -151,7 +148,7 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			sb.generateAndGossipAnnounceCh <- struct{}{}
+			sb.startGossipAnnounceTask()
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -159,9 +156,12 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.generateAndGossipAnnounceCh:
+			logger.Warn("in <-sb.generateAndGossipAnnounceCh", "shouldAnnounce", shouldAnnounce)
 			if shouldAnnounce {
 				err := sb.generateAndGossipAnnounce()
-				logger.Warn("Error in generating and gossiping announce", "err", err)
+				if err != nil {
+					logger.Warn("Error in generating and gossiping announce", "err", err)
+				}
 			}
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -294,6 +294,13 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+func (sb *Backend) startGossipAnnounceTask() {
+    select {
+    case sb.generateAndGossipAnnounceCh <- struct{}{}:
+    default:
+    }
+}
+
 // generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
 // which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
 // validator's previous announce msgs.
@@ -322,18 +329,12 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 // This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
 func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
-	var enodeURL string
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			enodeURL = sb.proxyNode.externalNode.URLv4()
-		} else {
-			logger.Error("Proxied node is not connected to a proxy")
-			return nil, 0, common.Address{}, errNoProxyConnection
-		}
-	} else {
-		enodeURL = sb.p2pserver.Self().URLv4()
-	}
 
+	enodeURL, err := sb.getEnodeURL()
+	if err != nil {
+		logger.Error("Error when getting enode URL", "err", err)
+		return nil, 0, common.Address{}, err
+	}
 	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
 	if err != nil {
 		logger.Warn("Error generating announce records", "err", err)
@@ -387,6 +388,11 @@ func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, 
 	}
 	var announceRecords []*announceRecord
 	for _, signedAnnounceVersion := range allSignedAnnounceVersions {
+		// Don't generate an announce record for ourselves
+		if signedAnnounceVersion.Address == sb.Address() {
+			continue
+		}
+
 		valEnode := allValEnodes[signedAnnounceVersion.Address]
 		sb.logger.Warn("in generateAnnounceRecords", "valEnode", valEnode, "signedAnnounceVersion", signedAnnounceVersion)
 		// If the version in the val enode table is up to date with the version
@@ -651,13 +657,15 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 
 	// TODO implement:
 	// When a validator updates its announce version as a result of an enode
-	// change, it will first send a direct announce to all other ValidatorPurpose
+	// change, it will first send a direct announce to all other registered / active
 	// peers with the new enode and version. After, it gossips a signed announce
-	// version. If this node is a validator and it receives a signed announce
+	// version.
+	//
+	// If this node is a validator and it receives a signed announce
 	// version from a remote validator that is newer than the remote validator's
 	// version in the val enode table, this node did not receive a direct announce
 	// and needs to announce its own enode to the remote validator.
-	sb.generateAndGossipAnnounceCh <- struct{}{}
+	sb.startGossipAnnounceTask()
 
 	// Only regossip entries that are new to this node and do not originate
 	// from an address that we have gossiped a signed announce version for
@@ -676,4 +684,30 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 		return sb.gossipSignedAnnounceVersionsMsg(entriesToRegossip)
 	}
 	return nil
+}
+
+// TODO what happens when this is called twice within the 5 minute gossip window?
+func (sb *Backend) updateAnnounceVersion() error {
+	// TODO send direct announce to all other registered or elected validators here
+
+
+	version := uint(time.Now().Unix())
+	// gossip new signed announce version
+	newSignedAnnVersion, err := sb.generateSignedAnnounceVersion(version)
+	if err != nil {
+		return err
+	}
+	return sb.upsertSignedAnnounceVersions([]*vet.SignedAnnounceVersion{
+		newSignedAnnVersion,
+	})
+}
+
+func (sb *Backend) getEnodeURL() (string, error) {
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			return sb.proxyNode.externalNode.URLv4(), nil
+		}
+		return "", errNoProxyConnection
+	}
+	return sb.p2pserver.Self().URLv4(), nil
 }

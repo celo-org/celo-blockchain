@@ -110,7 +110,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		selfRecentMessages:      selfRecentMessages,
 		announceThreadWg:        new(sync.WaitGroup),
 		announceThreadQuit:      make(chan struct{}),
-		generateAndGossipAnnounceCh:        make(chan struct{}, 10),
+		generateAndGossipAnnounceCh:        make(chan struct{}),
 		lastAnnounceGossiped:    make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:        new(sync.WaitGroup),
@@ -784,6 +784,7 @@ func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 }
 
 func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
+	logger := sb.logger.New("func", "addProxy")
 	if sb.proxyNode != nil {
 		return errProxyAlreadySet
 	}
@@ -791,6 +792,9 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
+	if err := sb.updateAnnounceVersion(); err != nil {
+		logger.Warn("Error updating announce version", "err", err)
+	}
 	return nil
 }
 
