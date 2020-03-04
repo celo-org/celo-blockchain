@@ -161,6 +161,10 @@ type Handler interface {
 
 	// ConnectToVals
 	ConnectToVals()
+
+	// Handshake will begin a handshake with a new peer. It returns if the peer
+	// has identified itself as a validator.
+	Handshake(peer Peer) (bool, error)
 }
 
 // PoW is a consensus engine based on proof-of-work.

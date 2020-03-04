@@ -207,6 +207,8 @@ type Server struct {
 	delpeer                 chan peerDrop
 	checkpointPostHandshake chan *conn
 	checkpointAddPeer       chan *conn
+	getInboundCount         chan func(int)
+	getInboundCountDone     chan struct{}
 
 	// State of run loop and listenLoop.
 	inboundHistory expHeap
@@ -405,6 +407,19 @@ func (srv *Server) PeerCount() int {
 	return count
 }
 
+// InboundCount returns the number of inbound peers.
+func (srv *Server) InboundCount() int {
+	var count int
+	select {
+	case srv.getInboundCount <- func(inboundCount int) {
+		count = inboundCount
+	}:
+		<-srv.getInboundCountDone
+	case <-srv.quit:
+	}
+	return count
+}
+
 // AddPeer connects to the given node and maintains the connection until the
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
@@ -555,6 +570,8 @@ func (srv *Server) Start() (err error) {
 	srv.removetrusted = make(chan *nodeArgs)
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
+	srv.getInboundCount = make(chan func(int))
+	srv.getInboundCountDone = make(chan struct{})
 
 	if err := srv.setupLocalNode(); err != nil {
 		return err
@@ -905,7 +922,9 @@ running:
 			// This channel is used by Peers and PeerCount and ValPeers.
 			op(peers)
 			srv.peerOpDone <- struct{}{}
-
+		case cb := <-srv.getInboundCount:
+			cb(inboundCount)
+			srv.getInboundCountDone <- struct{}{}
 		case t := <-taskdone:
 			// A task got done. Tell dialstate about it so it
 			// can update its state and remove it from the active
@@ -922,15 +941,14 @@ running:
 				c.flags |= trustedConn
 			}
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
-			c.cont <- srv.postHandshakeChecks(peers, inboundCount, c)
+			c.cont <- srv.postHandshakeChecks(peers, c)
 		case c := <-srv.checkpointAddPeer:
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
-			err := srv.addPeerChecks(peers, inboundCount, c)
+			err := srv.addPeerChecks(peers, c)
 			if err == nil {
 				// The handshakes are done and it passed all checks.
 
-				// CELO
 				staticNodePurposes := static[c.node.ID()]
 				trustedNodePurposes := trusted[c.node.ID()]
 
@@ -989,12 +1007,10 @@ running:
 	}
 }
 
-func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
+// postHandshakeChecks performs basic checks on a new peer after a handshake.
+// Max peer checks are left to the protocols.
+func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
-		return DiscTooManyPeers
-	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
-		return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected
 	case c.node.ID() == srv.localnode.ID():
@@ -1004,17 +1020,17 @@ func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, inboundCount in
 	}
 }
 
-func (srv *Server) addPeerChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
+func (srv *Server) addPeerChecks(peers map[enode.ID]*Peer, c *conn) error {
 	// Drop connections with no matching protocols.
 	if len(srv.Protocols) > 0 && countMatchingProtocols(srv.Protocols, c.caps) == 0 {
 		return DiscUselessPeer
 	}
 	// Repeat the post-handshake checks because the
 	// peer set might have changed since those checks were performed.
-	return srv.postHandshakeChecks(peers, inboundCount, c)
+	return srv.postHandshakeChecks(peers, c)
 }
 
-func (srv *Server) maxInboundConns() int {
+func (srv *Server) MaxInboundConns() int {
 	return srv.MaxPeers - srv.maxDialedConns()
 }
 

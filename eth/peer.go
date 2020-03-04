@@ -425,15 +425,12 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 }
 
 func (p *peer) readStatusLegacy(network uint64, status *statusData63, genesis common.Hash) error {
-	msg, err := p.rw.ReadMsg()
+	msg, err := p.ReadMsg()
 	if err != nil {
 		return err
 	}
 	if msg.Code != StatusMsg {
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
-	}
-	if msg.Size > protocolMaxMsgSize {
-		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
@@ -452,15 +449,12 @@ func (p *peer) readStatusLegacy(network uint64, status *statusData63, genesis co
 }
 
 func (p *peer) readStatus(network uint64, status *statusData, genesis common.Hash, forkFilter forkid.Filter) error {
-	msg, err := p.rw.ReadMsg()
+	msg, err := p.ReadMsg()
 	if err != nil {
 		return err
 	}
 	if msg.Code != StatusMsg {
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
-	}
-	if msg.Size > protocolMaxMsgSize {
-		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
@@ -479,6 +473,21 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 		return errResp(ErrForkIDRejected, "%v", err)
 	}
 	return nil
+}
+
+func (p *peer) ReadMsg() (p2p.Msg, error) {
+	msg, err := p.rw.ReadMsg()
+	if err != nil {
+		return msg, err
+	}
+	if msg.Size > protocolMaxMsgSize {
+		return msg, errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
+	}
+	return msg, nil
+}
+
+func (p *peer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return p.StaticNodePurposes.IsSet(purpose) || p.TrustedNodePurposes.IsSet(purpose)
 }
 
 // String implements fmt.Stringer.

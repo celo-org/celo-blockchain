@@ -66,6 +66,9 @@ var (
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
+	// errNotProxy is returned when the current node is expected to be a proxy
+	errNotProxy = errors.New("this node is not a proxy")
+
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
@@ -148,6 +151,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulSignedAnnounceVersionsMsg] = backend.handleSignedAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulVersionedEnodeMsg] = backend.handleVersionedEnodeMsg
 
 	return backend
 }
@@ -210,6 +214,13 @@ type Backend struct {
 	announceThreadQuit chan struct{}
 	generateAndGossipAnnounceCh   chan struct{}
 
+	// The versioned enode message most recently generated if this is a validator
+	// or received by a proxied validator if this is a proxy.
+	// Used for proving itself as a validator in the handshake. The entire
+	// istanbul.Message is saved to keep the signature.
+	versionedEnodeMsg   *istanbul.Message
+	versionedEnodeMsgMu sync.RWMutex
+
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
 
@@ -233,7 +244,7 @@ type Backend struct {
 	// Cache for the return values of the method retrieveRegisteredAndElectedValidators
 	cachedRegisteredElectedValSet          map[common.Address]bool
 	cachedRegisteredElectedValSetTimestamp time.Time
-	cachedRegisteredElectedValSetMu        sync.Mutex
+	cachedRegisteredElectedValSetMu        sync.RWMutex
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -710,7 +721,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
+	header := sb.chain.CurrentHeader()
 	if header == nil {
 		return common.Hash{}, errNoBlockHeader
 	}
@@ -718,7 +729,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.Random(header, state)
+	return random.BlockRandomness(header, state, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
@@ -840,17 +851,78 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
+// retrieveRegisteredAndElectedValidators returns the cached set of registered
+// and elected validators if the cache is younger than 1 minute. In the event
+// of a cache miss, this may block for a couple seconds while retrieving the uncached set.
 func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	sb.cachedRegisteredElectedValSetMu.Lock()
-	defer sb.cachedRegisteredElectedValSetMu.Unlock()
+	sb.cachedRegisteredElectedValSetMu.RLock()
 
 	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
 	if sb.cachedRegisteredElectedValSet != nil && time.Since(sb.cachedRegisteredElectedValSetTimestamp) <= 1*time.Minute {
+		defer sb.cachedRegisteredElectedValSetMu.RUnlock()
 		return sb.cachedRegisteredElectedValSet, nil
 	}
+	sb.cachedRegisteredElectedValSetMu.RUnlock()
 
+	err := sb.updateCachedRegisteredAndElectedValidators()
+	if err != nil {
+		return nil, err
+	}
+
+	sb.cachedRegisteredElectedValSetMu.RLock()
+	defer sb.cachedRegisteredElectedValSetMu.RUnlock()
+	return sb.cachedRegisteredElectedValSet, nil
+}
+
+// retrieveCachedRegisteredAndElectedValidators returns the most recently
+// cached set of registered and elected validators and asynchronously updates
+// the cache if it is older than 1 minute. If no set has ever been cached, this
+// function may block for a couple seconds while retrieving the uncached set.
+func (sb *Backend) retrieveCachedRegisteredAndElectedValidators() (map[common.Address]bool, error) {
+	sb.cachedRegisteredElectedValSetMu.RLock()
+
+	if sb.cachedRegisteredElectedValSet != nil {
+		// If the cached value is older than a minute, asynchronously update it
+		if time.Since(sb.cachedRegisteredElectedValSetTimestamp) > 1*time.Minute {
+			go func() {
+				err := sb.updateCachedRegisteredAndElectedValidators()
+				if err != nil {
+					sb.logger.Debug("Unable to update registered and elected validator cache", "err", err)
+				}
+			}()
+		}
+		defer sb.cachedRegisteredElectedValSetMu.RUnlock()
+		return sb.cachedRegisteredElectedValSet, nil
+	}
+	sb.cachedRegisteredElectedValSetMu.RUnlock()
+
+	err := sb.updateCachedRegisteredAndElectedValidators()
+	if err != nil {
+		return nil, err
+	}
+
+	sb.cachedRegisteredElectedValSetMu.RLock()
+	defer sb.cachedRegisteredElectedValSetMu.RUnlock()
+	return sb.cachedRegisteredElectedValSet, nil
+}
+
+// updateCachedRegisteredAndElectedValidators updates the cached registered
+// and elected validator set.
+func (sb *Backend) updateCachedRegisteredAndElectedValidators() error {
 	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+	validatorsSet, err := sb.retrieveUncachedRegisteredAndElectedValidators()
+	if err != nil {
+		return err
+	}
+	sb.cachedRegisteredElectedValSetMu.Lock()
+	sb.cachedRegisteredElectedValSet = validatorsSet
+	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
+	sb.cachedRegisteredElectedValSetMu.Unlock()
+	return nil
+}
 
+func (sb *Backend) retrieveUncachedRegisteredAndElectedValidators() (map[common.Address]bool, error) {
+	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
 	validatorsSet := make(map[common.Address]bool)
 
 	currentBlock := sb.currentBlock()
@@ -878,9 +950,6 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 	for _, val := range valSet.List() {
 		validatorsSet[val.Address()] = true
 	}
-
-	sb.cachedRegisteredElectedValSet = validatorsSet
-	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
 
 	return validatorsSet, nil
 }

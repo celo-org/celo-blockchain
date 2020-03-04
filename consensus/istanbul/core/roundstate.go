@@ -23,11 +23,10 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -309,11 +308,14 @@ func (rs *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepar
 	return nil
 }
 
-func (rs *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
+func (rs *roundStateImpl) TransitionToWaitingForNewRound(desiredRound *big.Int, nextProposer istanbul.Validator) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	rs.desiredRound = new(big.Int).Set(r)
+	if rs.round.Cmp(desiredRound) > 0 {
+		return errInvalidState
+	}
+	rs.desiredRound = new(big.Int).Set(desiredRound)
 	rs.proposer = nextProposer
 	rs.state = StateWaitingForNewRound
 	return nil

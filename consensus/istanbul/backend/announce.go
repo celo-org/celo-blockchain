@@ -19,6 +19,7 @@ package backend
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -316,6 +317,23 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return nil
 	}
 
+	// Generate a new versioned enode message with the updated version
+	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(announceVersion)
+	if err != nil {
+		return err
+	}
+	if versionedEnodeMsg != nil {
+		sb.setVersionedEnodeMsg(versionedEnodeMsg)
+		// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
+		if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+			err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
+			if err != nil {
+				logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+				return err
+			}
+		}
+	}
+
 	// Convert to payload
 	payload, err := istMsg.Payload()
 	if err != nil {
@@ -347,8 +365,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Version: uint(time.Now().Unix()),
+		Version:         getCurrentAnnounceVersion(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -710,4 +727,170 @@ func (sb *Backend) getEnodeURL() (string, error) {
 		return "", errNoProxyConnection
 	}
 	return sb.p2pserver.Self().URLv4(), nil
+}
+
+type versionedEnode struct {
+	EnodeURL string
+	Version  uint
+}
+
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
+
+// EncodeRLP serializes ve into the Ethereum RLP format.
+func (ve *versionedEnode) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ve.EnodeURL, ve.Version})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ve fields from a RLP stream.
+func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EnodeURL string
+		Version  uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ve.EnodeURL, ve.Version = msg.EnodeURL, msg.Version
+	return nil
+}
+
+// retrieveVersionedEnodeMsg gets the most recent versioned enode message to send
+// and generates a new one with the current announce version if one does not exist.
+// New versioned enode messages are not always generated to ensure the version
+// of a versioned enode message is not greater than a recently gossiped announce
+// version (if that has occurred)
+// May be nil if this is a proxy that does not have a versioned enode message
+// from its proxy.
+func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
+	sb.versionedEnodeMsgMu.Lock()
+	defer sb.versionedEnodeMsgMu.Unlock()
+	if sb.versionedEnodeMsg == nil {
+		// Proxies cannot generate a versioned enode message because are not
+		// able to sign on behalf of the proxied validator.
+		if sb.config.Proxy {
+			return nil, nil
+		}
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(getCurrentAnnounceVersion())
+		if err != nil {
+			return nil, err
+		}
+		sb.versionedEnodeMsg = versionedEnodeMsg
+	}
+	return sb.versionedEnodeMsg.Copy(), nil
+}
+
+// generateVersionedEnodeMsg generates a versioned enode message with the enode
+// this node is publicly accessible at. If this node is proxied, the proxy's
+// public enode is used.
+func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
+	logger := sb.logger.New("func", "generateVersionedEnodeMsg")
+
+	var enodeURL string
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			enodeURL = sb.proxyNode.externalNode.URLv4()
+		} else {
+			return nil, errNoProxyConnection
+		}
+	} else {
+		enodeURL = sb.p2pserver.Self().URLv4()
+	}
+
+	versionedEnode := &versionedEnode{
+		EnodeURL: enodeURL,
+		Version:  version,
+	}
+	versionedEnodeBytes, err := rlp.EncodeToBytes(versionedEnode)
+	if err != nil {
+		return nil, err
+	}
+	msg := &istanbul.Message{
+		Code:    istanbulVersionedEnodeMsg,
+		Address: sb.Address(),
+		Msg:     versionedEnodeBytes,
+	}
+	// Sign the message
+	if err := msg.Sign(sb.Sign); err != nil {
+		return nil, err
+	}
+	logger.Trace("Generated Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "address", msg.Address)
+	return msg, nil
+}
+
+// handleVersionedEnodeMsg handles a versioned enode message.
+// At the moment, this message is only supported if it sent from a proxied
+// validator to its proxy.
+func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
+
+	// TODO remove proxy checks in this function once versioned enode messages are
+	// not limited proxied validator -> proxy communication
+	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
+	if !sb.config.Proxy {
+		return errNotProxy
+	}
+
+	var msg istanbul.Message
+	// Decode payload into msg
+	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
+	if err != nil {
+		logger.Error("Error in decoding received Istanbul Versioned Enode message", "err", err, "payload", hex.EncodeToString(payload))
+		return err
+	}
+	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
+
+	if msg.Address != sb.config.ProxiedValidatorAddress {
+		logger.Warn("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
+		return errors.New("Incorrect address")
+	}
+
+	var versionedEnode versionedEnode
+	if err := rlp.DecodeBytes(msg.Msg, &versionedEnode); err != nil {
+		logger.Warn("Error in decoding received Istanbul Versioned Enode message content", "err", err, "IstanbulMsg", msg.String())
+		return err
+	}
+
+	parsedNode, err := enode.ParseV4(versionedEnode.EnodeURL)
+	if err != nil {
+		logger.Warn("Malformed v4 node in received Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "err", err)
+		return err
+	}
+
+	// There may be a difference in the URLv4 string because of `discport`,
+	// so instead compare the ID
+	selfNode := sb.p2pserver.Self()
+	if parsedNode.ID() != selfNode.ID() {
+		logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+		return errors.New("Incorrect enode url")
+	}
+
+	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
+
+	sb.setVersionedEnodeMsg(&msg)
+
+	return nil
+}
+
+func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, msg *istanbul.Message) error {
+	logger := sb.logger.New("func", "sendVersionedEnodeMsg")
+	payload, err := msg.Payload()
+	if err != nil {
+		logger.Error("Error getting payload of versioned enode message", "err", err)
+		return err
+	}
+	return peer.Send(istanbulVersionedEnodeMsg, payload)
+}
+
+func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
+	sb.versionedEnodeMsgMu.Lock()
+	sb.versionedEnodeMsg = msg
+	sb.versionedEnodeMsgMu.Unlock()
+}
+
+func getCurrentAnnounceVersion() uint {
+	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+	return uint(time.Now().Unix())
 }

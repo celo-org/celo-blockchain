@@ -34,11 +34,15 @@ func (p *MockPeer) Send(msgcode uint64, data interface{}) error {
 }
 
 func (p *MockPeer) Node() *enode.Node {
-	return nil
+	return enode.MustParse("enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@127.0.0.1:52150")
 }
 
 func (p *MockPeer) Version() int {
 	return 0
+}
+
+func (p *MockPeer) ReadMsg() (p2p.Msg, error) {
+	return p2p.Msg{}, nil
 }
 
 func TestIstanbulMessage(t *testing.T) {
