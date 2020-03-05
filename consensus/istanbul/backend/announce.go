@@ -685,6 +685,7 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 }
 
 func (sb *Backend) updateAnnounceVersion() error {
+	logger := sb.logger.New("func", "updateAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
 	regAndActiveSet, err := sb.retrieveRegisteredAndElectedValidators()
 	if err != nil {
@@ -692,7 +693,7 @@ func (sb *Backend) updateAnnounceVersion() error {
 	}
 	// Don't send any messages if this node is not registered or elected
 	if !regAndActiveSet[sb.Address()] {
-		sb.logger.Trace("Not registered or elected, not updating announce version")
+		logger.Trace("Not registered or elected, not updating announce version")
 		return nil
 	}
 	destAddresses := make([]common.Address, len(regAndActiveSet))
