@@ -308,7 +308,7 @@ func (sb *Backend) startGossipAnnounceTask() {
 func (sb *Backend) generateAndGossipAnnounce() error {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, _, _, err := sb.generateAnnounce()
+	istMsg, announceVersion, err := sb.generateAnnounce()
 	if err != nil {
 		return err
 	}
@@ -345,33 +345,33 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 }
 
 // This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
-func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, error) {
+func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
 
 	enodeURL, err := sb.getEnodeURL()
 	if err != nil {
 		logger.Error("Error when getting enode URL", "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, 0, err
 	}
 	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
 	if err != nil {
 		logger.Warn("Error generating announce records", "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, 0, err
 	}
 	if len(announceRecords) == 0 {
 		logger.Trace("No announce records were generated, will not generate announce")
-		return nil, 0, common.Address{}, nil
+		return nil, 0, nil
 	}
 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		Version:         getCurrentAnnounceVersion(),
+		Version:         newAnnounceVersion(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
 		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, 0, err
 	}
 
 	msg := &istanbul.Message{
@@ -389,7 +389,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
-	return msg, announceData.Version, msg.Address, nil
+	return msg, announceData.Version, nil
 }
 
 // Returns the announce records intended for validators whose entries in the
@@ -705,11 +705,32 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 
 // TODO what happens when this is called twice within the 5 minute gossip window?
 func (sb *Backend) updateAnnounceVersion() error {
-	// TODO send direct announce to all other registered or elected validators here
+	// Send new versioned enode msg to all other registered or elected validators
+	regAndActiveSet, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		return err
+	}
+	destAddresses := make([]common.Address, len(regAndActiveSet))
+	i := 0
+	for address := range regAndActiveSet {
+		destAddresses[i] = address
+		i++
+	}
+	version := newAnnounceVersion()
+	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
+	if err != nil {
+		return err
+	}
+	payload, err := versionedEnodeMsg.Payload()
+	if err != nil {
+		return err
+	}
+	err = sb.Multicast(destAddresses, payload, istanbulVersionedEnodeMsg)
+	if err != nil {
+		return err
+	}
 
-
-	version := uint(time.Now().Unix())
-	// gossip new signed announce version
+	// Generate and gossip a new signed announce version
 	newSignedAnnVersion, err := sb.generateSignedAnnounceVersion(version)
 	if err != nil {
 		return err
@@ -773,7 +794,7 @@ func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
 		if sb.config.Proxy {
 			return nil, nil
 		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(getCurrentAnnounceVersion())
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(newAnnounceVersion())
 		if err != nil {
 			return nil, err
 		}
@@ -788,17 +809,10 @@ func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
 func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateVersionedEnodeMsg")
 
-	var enodeURL string
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			enodeURL = sb.proxyNode.externalNode.URLv4()
-		} else {
-			return nil, errNoProxyConnection
-		}
-	} else {
-		enodeURL = sb.p2pserver.Self().URLv4()
+	enodeURL, err := sb.getEnodeURL()
+	if err != nil {
+		return nil, err
 	}
-
 	versionedEnode := &versionedEnode{
 		EnodeURL: enodeURL,
 		Version:  version,
@@ -826,13 +840,6 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
 
-	// TODO remove proxy checks in this function once versioned enode messages are
-	// not limited proxied validator -> proxy communication
-	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if !sb.config.Proxy {
-		return errNotProxy
-	}
-
 	var msg istanbul.Message
 	// Decode payload into msg
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -840,12 +847,8 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		logger.Error("Error in decoding received Istanbul Versioned Enode message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
-	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
-
-	if msg.Address != sb.config.ProxiedValidatorAddress {
-		logger.Warn("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
-		return errors.New("Incorrect address")
-	}
+	logger = logger.New("msg address", msg.Address)
+	logger.Trace("Handling an Istanbul Versioned Enode message")
 
 	var versionedEnode versionedEnode
 	if err := rlp.DecodeBytes(msg.Msg, &versionedEnode); err != nil {
@@ -859,18 +862,40 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		return err
 	}
 
-	// There may be a difference in the URLv4 string because of `discport`,
-	// so instead compare the ID
-	selfNode := sb.p2pserver.Self()
-	if parsedNode.ID() != selfNode.ID() {
-		logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-		return errors.New("Incorrect enode url")
+	// Handle the special case where this node is a proxy and the proxied validator
+	// sent a versioned enode for the proxy to use in handshakes
+	if sb.config.Proxy &&  msg.Address == sb.config.ProxiedValidatorAddress {
+		// There may be a difference in the URLv4 string because of `discport`,
+		// so instead compare the ID
+		selfNode := sb.p2pserver.Self()
+		if parsedNode.ID() != selfNode.ID() {
+			logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+			return errors.New("Incorrect enode url")
+		}
+		sb.setVersionedEnodeMsg(&msg)
+		return nil
+	}
+
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		logger.Debug("Error in retrieving registered/elected valset", "err", err)
+		return err
+	}
+
+	if !regAndActiveVals[msg.Address] {
+		logger.Debug("Received Istanbul Versioned Enode message from a non registered or active validator")
+		return errUnauthorizedAnnounceMessage
 	}
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
 
-	sb.setVersionedEnodeMsg(&msg)
+	// TODO: right now the only connections that are considered "ValidatorPurpose" are
+	// elected validators. Change that
 
+	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: versionedEnode.Version}}); err != nil {
+		logger.Warn("Error in upserting a val enode table entry", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -890,7 +915,7 @@ func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
 	sb.versionedEnodeMsgMu.Unlock()
 }
 
-func getCurrentAnnounceVersion() uint {
+func newAnnounceVersion() uint {
 	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 	return uint(time.Now().Unix())
 }

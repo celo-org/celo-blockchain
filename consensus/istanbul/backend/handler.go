@@ -50,8 +50,8 @@ const (
 	istanbulFwdMsg                    = 0x14
 	istanbulDelegateSign              = 0x15
 	istanbulSignedAnnounceVersionsMsg = 0x16
-	istanbulVersionedEnodeMsg         = 0x19
-	istanbulValidatorProofMsg         = 0x1a
+	istanbulVersionedEnodeMsg         = 0x17
+	istanbulValidatorProofMsg         = 0x18
 
 	handshakeTimeout = 5 * time.Second
 )
@@ -285,7 +285,8 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	go sb.sendAllSignedAnnounceVersions(peer)
+	err := sb.sendAllSignedAnnounceVersions(peer)
+	logger.Error("error in sendAllSignedAnnounceVersions", "err", err)
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
