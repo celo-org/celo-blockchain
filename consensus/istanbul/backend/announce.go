@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 	"io"
 	"time"
 
