@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"io"
 	"time"
 
@@ -350,21 +351,9 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return nil
 	}
 
-	// Generate a new versioned enode message with the updated version
-	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(announceVersion)
-	if err != nil {
+	if err := sb.updateAnnounceVersion(announceVersion); err != nil {
+		logger.Warn("Error updating announce version", "err", err)
 		return err
-	}
-	if versionedEnodeMsg != nil {
-		sb.setVersionedEnodeMsg(versionedEnodeMsg)
-		// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
-		if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-			err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
-			if err != nil {
-				logger.Error("Error in sending versioned enode msg to proxy", "err", err)
-				return err
-			}
-		}
 	}
 
 	// Convert to payload
@@ -746,27 +735,14 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// retrieveVersionedEnodeMsg gets the most recent versioned enode message to send
-// and generates a new one with the current announce version if one does not exist.
-// New versioned enode messages are not always generated to ensure the version
-// of a versioned enode message is not greater than a recently gossiped announce
-// version (if that has occurred)
-// May be nil if this is a proxy that does not have a versioned enode message
-// from its proxy.
+// retrieveVersionedEnodeMsg gets the most recent versioned enode message.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
 func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
 	sb.versionedEnodeMsgMu.Lock()
 	defer sb.versionedEnodeMsgMu.Unlock()
 	if sb.versionedEnodeMsg == nil {
-		// Proxies cannot generate a versioned enode message because are not
-		// able to sign on behalf of the proxied validator.
-		if sb.config.Proxy {
-			return nil, nil
-		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(newAnnounceVersion())
-		if err != nil {
-			return nil, err
-		}
-		sb.versionedEnodeMsg = versionedEnodeMsg
+		return nil, nil
 	}
 	return sb.versionedEnodeMsg.Copy(), nil
 }
@@ -811,16 +787,9 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 
 // handleVersionedEnodeMsg handles a versioned enode message.
 // At the moment, this message is only supported if it's sent from a proxied
-// validator to its proxy.
+// validator to its proxy or vice versa.
 func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
-
-	// TODO remove proxy checks in this function once versioned enode messages are
-	// not limited proxied validator -> proxy communication
-	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if !sb.config.Proxy {
-		return errNotProxy
-	}
 
 	var msg istanbul.Message
 	// Decode payload into msg
@@ -829,12 +798,8 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		logger.Error("Error in decoding received Istanbul Versioned Enode message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
-	logger.Trace("Handling an Istanbul Versioned Enode message", "from", msg.Address)
-
-	if msg.Address != sb.config.ProxiedValidatorAddress {
-		logger.Warn("Error in the origin of a received Istanbul Versioned Enode message", "msg address", msg.Address.String(), "proxied validator address", sb.config.ProxiedValidatorAddress.String())
-		return errors.New("Incorrect address")
-	}
+	logger = logger.New("msg address", msg.Address)
+	logger.Trace("Handling an Istanbul Versioned Enode message")
 
 	var versionedEnode versionedEnode
 	if err := rlp.DecodeBytes(msg.Msg, &versionedEnode); err != nil {
@@ -848,18 +813,43 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 		return err
 	}
 
-	// There may be a difference in the URLv4 string because of `discport`,
-	// so instead compare the ID
-	selfNode := sb.p2pserver.Self()
-	if parsedNode.ID() != selfNode.ID() {
-		logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-		return errors.New("Incorrect enode url")
+	// Handle the special case where this node is a proxy and the proxied validator
+	// sent a versioned enode for the proxy to use in handshakes
+	if sb.config.Proxy && msg.Address == sb.config.ProxiedValidatorAddress {
+		// There may be a difference in the URLv4 string because of `discport`,
+		// so instead compare the ID
+		selfNode := sb.p2pserver.Self()
+		if parsedNode.ID() != selfNode.ID() {
+			logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+			return errors.New("Incorrect enode url")
+		}
+		sb.setVersionedEnodeMsg(&msg)
+		return nil
+	}
+	// TODO: remove this check to allow non-proxy peers to send this message
+	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
+	if !reflect.DeepEqual(peer, sb.proxiedPeer) {
+		logger.Warn("Received Istanbul Versioned Enode message from invalid peer")
+		return errUnauthorizedAnnounceMessage
+	}
+
+	regAndActiveVals, err := sb.retrieveRegisteredAndElectedValidators()
+	if err != nil {
+		logger.Debug("Error in retrieving registered/elected valset", "err", err)
+		return err
+	}
+
+	if !regAndActiveVals[msg.Address] {
+		logger.Debug("Received Istanbul Versioned Enode message originating from a non registered or active validator")
+		return errUnauthorizedAnnounceMessage
 	}
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
 
-	sb.setVersionedEnodeMsg(&msg)
-
+	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: versionedEnode.Version}}); err != nil {
+		logger.Warn("Error in upserting a val enode table entry", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -877,6 +867,29 @@ func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
 	sb.versionedEnodeMsgMu.Lock()
 	sb.versionedEnodeMsg = msg
 	sb.versionedEnodeMsgMu.Unlock()
+}
+
+// updateAnnounceVersion generates a new versioned enode message and sends
+// it to this node's proxy (if applicable).
+// TODO: When a generated announce no longer creates a new version, the version
+// parameter can be removed and instead have the version generated in this function.
+// Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
+func (sb *Backend) updateAnnounceVersion(version uint) error {
+	logger := sb.logger.New("func", "updateAnnounceVersion")
+	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
+	if err != nil {
+		return err
+	}
+	sb.setVersionedEnodeMsg(versionedEnodeMsg)
+	// Send the new versioned enode msg to the proxy peer
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
+		if err != nil {
+			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+			return err
+		}
+	}
+	return nil
 }
 
 func newAnnounceVersion() uint {

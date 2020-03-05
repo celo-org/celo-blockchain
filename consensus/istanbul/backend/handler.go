@@ -415,6 +415,10 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		logger.Trace("Error in retrieving registered/elected valset", "err", err)
 		return false, err
 	}
+	if !regAndActiveVals[sb.ValidatorAddress()] {
+		logger.Trace("This validator is not registered or elected")
+		return false, nil
+	}
 	if !regAndActiveVals[msg.Address] {
 		logger.Debug("Received a validator proof message from peer with address that is not a registered or active validator", "msg.Address", msg.Address)
 		return false, nil
@@ -433,6 +437,10 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: versionedEnode.Version}})
 	if err != nil {
 		return false, err
+	}
+	// Forward this message to the proxied validator if this is a proxy
+	if sb.config.Proxy && sb.proxiedPeer != nil {
+		go sb.sendVersionedEnodeMsg(sb.proxiedPeer, &msg)
 	}
 	return true, nil
 }
