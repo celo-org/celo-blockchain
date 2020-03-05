@@ -412,7 +412,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		Version:         getCurrentAnnounceVersion(),
+		Version:         newAnnounceVersion(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -762,7 +762,7 @@ func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
 		if sb.config.Proxy {
 			return nil, nil
 		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(getCurrentAnnounceVersion())
+		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(newAnnounceVersion())
 		if err != nil {
 			return nil, err
 		}
@@ -810,7 +810,7 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 }
 
 // handleVersionedEnodeMsg handles a versioned enode message.
-// At the moment, this message is only supported if it sent from a proxied
+// At the moment, this message is only supported if it's sent from a proxied
 // validator to its proxy.
 func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
@@ -879,7 +879,7 @@ func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
 	sb.versionedEnodeMsgMu.Unlock()
 }
 
-func getCurrentAnnounceVersion() uint {
+func newAnnounceVersion() uint {
 	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 	return uint(time.Now().Unix())
 }

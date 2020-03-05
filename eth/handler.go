@@ -342,7 +342,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			p.Log().Warn("Istanbul handshake failed", "err", err)
 			return err
 		}
-		forcePeer = isValidator
+		forcePeer = (isValidator == true)
 		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:

@@ -354,15 +354,13 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	for {
-		select {
-		case err := <-errCh:
-			return false, err
-		case <-timeout.C:
-			return false, p2p.DiscReadTimeout
-		case isValidator := <-isValidatorCh:
-			return isValidator, nil
-		}
+	select {
+	case err := <-errCh:
+		return false, err
+	case <-timeout.C:
+		return false, p2p.DiscReadTimeout
+	case isValidator := <-isValidatorCh:
+		return isValidator, nil
 	}
 }
 
