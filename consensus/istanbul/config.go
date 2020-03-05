@@ -68,6 +68,6 @@ var DefaultConfig = &Config{
 	RoundStateDBPath:                     "roundstates",
 	Proxy:                                false,
 	Proxied:                              false,
-	AnnounceGossipPeriod:                 600,
+	AnnounceGossipPeriod:                 300, // 5 minutes
 	AnnounceAggressiveGossipOnEnablement: false,
 }

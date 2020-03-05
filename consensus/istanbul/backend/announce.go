@@ -98,7 +98,7 @@ func (sb *Backend) announceThread() {
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
-				time.AfterFunc(time.Minute/2, func() {
+				time.AfterFunc(1*time.Minute, func() {
 					sb.startGossipAnnounceTask()
 				})
 
@@ -149,12 +149,12 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			sb.startGossipAnnounceTask()
-
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
+
+			sb.startGossipAnnounceTask()
 
 		case <-sb.generateAndGossipAnnounceCh:
 			logger.Warn("in <-sb.generateAndGossipAnnounceCh", "shouldAnnounce", shouldAnnounce)
@@ -302,36 +302,20 @@ func (sb *Backend) startGossipAnnounceTask() {
 	}
 }
 
-// generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
-// which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
-// validator's previous announce msgs.
+// generateAndGossipAnnounce will generate the lastest announce msg from this node
+// and then broadcast it to it's peers, which should then gossip the announce msg
+// message throughout the p2p network, since this announce msg's timestamp should be
+// the latest among all of this validator's previous announce msgs.
 func (sb *Backend) generateAndGossipAnnounce() error {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, announceVersion, err := sb.generateAnnounce()
+	istMsg, err := sb.generateAnnounce()
 	if err != nil {
 		return err
 	}
 
 	if istMsg == nil {
 		return nil
-	}
-
-	// Generate a new versioned enode message with the updated version
-	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(announceVersion)
-	if err != nil {
-		return err
-	}
-	if versionedEnodeMsg != nil {
-		sb.setVersionedEnodeMsg(versionedEnodeMsg)
-		// Send a new versioned enode msg to the proxy peer with the same version that was just gossiped out
-		if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-			err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
-			if err != nil {
-				logger.Error("Error in sending versioned enode msg to proxy", "err", err)
-				return err
-			}
-		}
 	}
 
 	// Convert to payload
@@ -344,27 +328,28 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
 }
 
-// This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
-func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
+// This function is a helper function for generateAndGossipAnnounce that will
+// use the version for this node's address in the signed announce version db
+func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
 
 	enodeURL, err := sb.getEnodeURL()
 	if err != nil {
 		logger.Error("Error getting enode URL", "err", err)
-		return nil, 0, err
+		return nil, err
 	}
 	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
 	if err != nil {
 		logger.Warn("Error generating announce records", "err", err)
-		return nil, 0, err
+		return nil, err
 	}
 	if len(announceRecords) == 0 {
 		logger.Trace("No announce records were generated, will not generate announce")
-		return nil, 0, nil
+		return nil, nil
 	}
 	announceVersion, err := sb.signedAnnounceVersionTable.GetVersion(sb.Address())
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	announceData := &announceData{
@@ -375,7 +360,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
 	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
 		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	msg := &istanbul.Message{
@@ -388,12 +373,12 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
-	return msg, announceData.Version, nil
+	return msg, nil
 }
 
 // This is a helper function for generateAnnounce.
@@ -674,7 +659,7 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 		logger.Warn("Error in upserting entries", "err", err)
 	}
 
-	// If this node is a validator and it receives a signed announce
+	// If this node is a validator (checked later as a result of this call) and it receives a signed announce
 	// version from a remote validator that is newer than the remote validator's
 	// version in the val enode table, this node did not receive a direct announce
 	// and needs to announce its own enode to the remote validator.
@@ -699,7 +684,6 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 	return nil
 }
 
-// TODO what happens when this is called twice within the 5 minute gossip window?
 func (sb *Backend) updateAnnounceVersion() error {
 	// Send new versioned enode msg to all other registered or elected validators
 	regAndActiveSet, err := sb.retrieveRegisteredAndElectedValidators()
@@ -721,6 +705,15 @@ func (sb *Backend) updateAnnounceVersion() error {
 	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
 	if err != nil {
 		return err
+	}
+	sb.setVersionedEnodeMsg(versionedEnodeMsg)
+	// Send the new versioned enode msg to the proxy peer
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
+		if err != nil {
+			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+			return err
+		}
 	}
 	payload, err := versionedEnodeMsg.Payload()
 	if err != nil {
@@ -779,27 +772,14 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// retrieveVersionedEnodeMsg gets the most recent versioned enode message to send
-// and generates a new one with the current announce version if one does not exist.
-// New versioned enode messages are not always generated to ensure the version
-// of a versioned enode message is not greater than a recently gossiped announce
-// version (if that has occurred)
-// May be nil if this is a proxy that does not have a versioned enode message
-// from its proxy.
+// retrieveVersionedEnodeMsg gets the most recent versioned enode message.
+// May be nil if no message was generated when the core started or this is a
+// proxy that does not have a versioned enode message from its proxy.
 func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
-	sb.versionedEnodeMsgMu.Lock()
-	defer sb.versionedEnodeMsgMu.Unlock()
+	sb.versionedEnodeMsgMu.RLock()
+	defer sb.versionedEnodeMsgMu.RUnlock()
 	if sb.versionedEnodeMsg == nil {
-		// Proxies cannot generate a versioned enode message because are not
-		// able to sign on behalf of the proxied validator.
-		if sb.config.Proxy {
-			return nil, nil
-		}
-		versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(newAnnounceVersion())
-		if err != nil {
-			return nil, err
-		}
-		sb.versionedEnodeMsg = versionedEnodeMsg
+		return nil, nil
 	}
 	return sb.versionedEnodeMsg.Copy(), nil
 }
