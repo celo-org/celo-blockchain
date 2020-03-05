@@ -52,6 +52,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
+	config.SignedAnnounceVersionDBPath = ""
 	config.RoundStateDBPath = ""
 	// Use the first key as private key
 	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
