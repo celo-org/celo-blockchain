@@ -234,6 +234,16 @@ func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounc
 	return &entry, nil
 }
 
+// GetVersion gets the version for the entry with address `address`
+// Returns an error if no entry exists
+func (svdb *SignedAnnounceVersionDB) GetVersion(address common.Address) (uint, error) {
+	signedAnnVersion, err := svdb.Get(address)
+	if err != nil {
+		return 0, err
+	}
+	return signedAnnVersion.Version, nil
+}
+
 // GetAll gets all SignedAnnounceVersions in the db
 func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersion, error) {
 	var signedAnnounceVersions []*SignedAnnounceVersion

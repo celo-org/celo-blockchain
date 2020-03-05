@@ -362,10 +362,14 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
 		logger.Trace("No announce records were generated, will not generate announce")
 		return nil, 0, nil
 	}
+	announceVersion, err := sb.signedAnnounceVersionTable.GetVersion(sb.Address())
+	if err != nil {
+		return nil, 0, err
+	}
 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		Version:         newAnnounceVersion(),
+		Version:         announceVersion,
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
