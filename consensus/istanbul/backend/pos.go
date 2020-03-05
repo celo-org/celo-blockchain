@@ -181,8 +181,11 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 	if err != nil {
 		return totalCommunityRewards, err
 	}
-	// TODO: replace 'false' with 'isReserveLow'
-	if false && reserveAddress != nil {
+	lowReserve, err := epoch_rewards.IsReserveLow(header, state)
+	if err != nil {
+		return totalCommunityRewards, err
+	}
+	if lowReserve && reserveAddress != nil {
 		state.AddBalance(*reserveAddress, communityReward)
 		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
 	} else if governanceAddress != nil {

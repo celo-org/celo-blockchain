@@ -450,6 +450,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
+	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
+	logger.Trace("Finalizing")
+
 	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
 	if err != nil {
@@ -463,8 +466,8 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
-	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
-	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
+	if lastBlockOfEpoch {
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
@@ -475,6 +478,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 }
 
 // FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
@@ -496,7 +500,8 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, randomness), nil
+	block := types.NewBlock(header, txs, nil, receipts, randomness)
+	return block, nil
 }
 
 // Seal generates a new block for the given input block with the local miner's
@@ -854,7 +859,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Header) error {
 	number := header.Number.Uint64()
-	logger := sb.logger.New("func", "Backend.addParentSeal()", "number", number)
+	logger := sb.logger.New("func", "addParentSeal", "number", number)
 
 	// only do this for blocks which start with block 1 as a parent
 	if number <= 1 {

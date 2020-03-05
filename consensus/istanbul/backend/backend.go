@@ -449,7 +449,6 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 // Commit implements istanbul.Backend.Commit
 func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
@@ -495,7 +494,6 @@ func (sb *Backend) EventMux() *event.TypeMux {
 // Verify implements istanbul.Backend.Verify
 func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
@@ -701,7 +699,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.GetHeaderByNumber(lastBlockInPreviousEpoch)
+	header := sb.chain.CurrentHeader()
 	if header == nil {
 		return common.Hash{}, errNoBlockHeader
 	}
@@ -709,7 +707,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.Random(header, state)
+	return random.BlockRandomness(header, state, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {

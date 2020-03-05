@@ -115,6 +115,7 @@ func memoryMapAndGenerate(path string, size uint64, generator func(buffer []uint
 		return nil, nil, nil, err
 	}
 	// Create a huge temporary empty file to fill with data
+	// #nosec (we don't use this)
 	temp := path + "." + strconv.Itoa(rand.Int())
 
 	dump, err := os.Create(temp)

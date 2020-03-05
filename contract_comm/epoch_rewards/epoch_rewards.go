@@ -63,6 +63,20 @@ const epochRewardsABIString string = `[
     {
       "constant": true,
       "inputs": [],
+      "name": "isReserveLow",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
       "name": "frozen",
       "outputs": [
         {
@@ -97,9 +111,19 @@ func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.I
 	return validatorEpochReward, totalVoterRewards, totalCommunityReward, nil
 }
 
+// Determines if the reserve is below it's critical threshold
+func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
+	var isLow bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "isReserveLow", []interface{}{}, &isLow, params.MaxGasForIsReserveLow, header, state)
+	if err != nil {
+		return false, err
+	}
+	return isLow, nil
+}
+
 func EpochRewardsIsFrozen(header *types.Header, state vm.StateDB) (bool, error) {
 	var frozen bool
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForEpochRewardsFrozen, header, state)
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForIsFrozen, header, state)
 	if err != nil {
 		return false, err
 	}
