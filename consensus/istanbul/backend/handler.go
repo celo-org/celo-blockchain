@@ -285,8 +285,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	err := sb.sendAllSignedAnnounceVersions(peer)
-	logger.Error("error in sendAllSignedAnnounceVersions", "err", err)
+	if err := sb.sendAllSignedAnnounceVersions(peer); err != nil {
+		logger.Error("Error sending all signed announce versions", "err", err)
+	}
 }
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {

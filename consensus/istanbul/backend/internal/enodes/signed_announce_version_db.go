@@ -115,15 +115,11 @@ func (sav *SignedAnnounceVersion) String() string {
 // ValidateSignature will return an error if a SignedAnnounceVersion's signature
 // is invalid.
 func (sav *SignedAnnounceVersion) ValidateSignature() error {
-	signedAnnounceVersionNoSig := &SignedAnnounceVersion{
-		Address: sav.Address,
-		Version: sav.Version,
-	}
-	bytesNoSignature, err := rlp.EncodeToBytes(signedAnnounceVersionNoSig)
+	payloadNoSig, err := sav.PayloadNoSig()
 	if err != nil {
 		return err
 	}
-	address, err := istanbul.GetSignatureAddress(bytesNoSignature, sav.Signature)
+	address, err := istanbul.GetSignatureAddress(payloadNoSig, sav.Signature)
 	if err != nil {
 		return err
 	}
@@ -227,7 +223,6 @@ func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounc
 	if err != nil {
 		return nil, err
 	}
-
 	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
 		return nil, err
 	}

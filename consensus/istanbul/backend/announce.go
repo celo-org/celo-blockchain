@@ -706,6 +706,11 @@ func (sb *Backend) updateAnnounceVersion() error {
 	if err != nil {
 		return err
 	}
+	// Don't send any messages if this node is not registered or elected
+	if !regAndActiveSet[sb.Address()] {
+		sb.logger.Trace("Not registered or elected, not updating announce version")
+		return nil
+	}
 	destAddresses := make([]common.Address, len(regAndActiveSet))
 	i := 0
 	for address := range regAndActiveSet {
