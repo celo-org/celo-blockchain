@@ -611,6 +611,7 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
+	sb.logger.Error("StartValidating!!!!!")
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -636,7 +637,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	sb.coreStarted = true
 
 	// Insert our own signed announce version into the table
-	selfSignedAnnounceVersion, err := sb.generateSignedAnnounceVersion(uint(time.Now().Unix()))
+	selfSignedAnnounceVersion, err := sb.generateSignedAnnounceVersion(newAnnounceVersion())
 	if err != nil {
 		return err
 	}
@@ -691,6 +692,7 @@ func (sb *Backend) StopValidating() error {
 
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
+	sb.logger.Error("StartAnnouncing!!!!!")
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
 	if sb.announceRunning {

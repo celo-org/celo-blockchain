@@ -152,8 +152,8 @@ func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) 
 		return nil, err
 	}
 	return &SignedAnnounceVersionDB{
-		db:      db,
-		logger:  logger,
+		db:           db,
+		logger:       logger,
 		writeOptions: &opt.WriteOptions{NoWriteMerge: true},
 	}, nil
 }
@@ -183,40 +183,40 @@ func (svdb *SignedAnnounceVersionDB) String() string {
 // Upsert inserts any new entries or entries with a Version higher than the
 // existing version. Returns any new or updated entries
 func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnnounceVersion) ([]*SignedAnnounceVersion, error) {
-    logger := svdb.logger.New("func", "Upsert")
+	logger := svdb.logger.New("func", "Upsert")
 	batch := new(leveldb.Batch)
 
 	var newEntries []*SignedAnnounceVersion
 
-    for _, signedAnnVersion := range signedAnnounceVersions {
-        currentEntry, err := svdb.Get(signedAnnVersion.Address)
-        isNew := err == leveldb.ErrNotFound
+	for _, signedAnnVersion := range signedAnnounceVersions {
+		currentEntry, err := svdb.Get(signedAnnVersion.Address)
+		isNew := err == leveldb.ErrNotFound
 		if !isNew && err != nil {
 			return nil, err
 		}
-        if !isNew && signedAnnVersion.Version <= currentEntry.Version {
-            logger.Trace("Not inserting, version is not greater than the existing entry",
-                "address", signedAnnVersion.Address, "existing version", currentEntry.Version,
-                "new entry version", signedAnnVersion.Version)
-            continue
-        }
-        entryBytes, err := rlp.EncodeToBytes(signedAnnVersion)
-        if err != nil {
-            return nil, err
-        }
-        batch.Put(addressKey(signedAnnVersion.Address), entryBytes)
+		if !isNew && signedAnnVersion.Version <= currentEntry.Version {
+			logger.Trace("Not inserting, version is not greater than the existing entry",
+				"address", signedAnnVersion.Address, "existing version", currentEntry.Version,
+				"new entry version", signedAnnVersion.Version)
+			continue
+		}
+		entryBytes, err := rlp.EncodeToBytes(signedAnnVersion)
+		if err != nil {
+			return nil, err
+		}
+		batch.Put(addressKey(signedAnnVersion.Address), entryBytes)
 		newEntries = append(newEntries, signedAnnVersion)
-        logger.Trace("Updating with new entry", "isNew", isNew,
-            "address", signedAnnVersion.Address, "new version", signedAnnVersion.Version)
-    }
+		logger.Trace("Updating with new entry", "isNew", isNew,
+			"address", signedAnnVersion.Address, "new version", signedAnnVersion.Version)
+	}
 
-    if batch.Len() > 0 {
-        err := svdb.db.Write(batch, svdb.writeOptions)
-        if err != nil {
-            return nil, err
-        }
-    }
-    return newEntries, nil
+	if batch.Len() > 0 {
+		err := svdb.db.Write(batch, svdb.writeOptions)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return newEntries, nil
 }
 
 // Get gets the SignedAnnounceVersion entry with address `address`.

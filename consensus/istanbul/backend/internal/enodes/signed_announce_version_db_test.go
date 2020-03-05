@@ -1,8 +1,8 @@
 package enodes
 
 import (
-    "bytes"
-    "reflect"
+	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,18 +17,18 @@ func TestUpsert(t *testing.T) {
 	}
 
 	entryA := &SignedAnnounceVersion{
-        Address: addressA,
-        Version: 1,
-        Signature: []byte("foo"),
-    }
-    entriesToUpsert := []*SignedAnnounceVersion{entryA}
+		Address:   addressA,
+		Version:   1,
+		Signature: []byte("foo"),
+	}
+	entriesToUpsert := []*SignedAnnounceVersion{entryA}
 	newEntries, err := table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
 	}
-    if !reflect.DeepEqual(newEntries, entriesToUpsert) {
-        t.Errorf("Upsert did not return the expected new entries %v != %v", newEntries, entriesToUpsert)
-    }
+	if !reflect.DeepEqual(newEntries, entriesToUpsert) {
+		t.Errorf("Upsert did not return the expected new entries %v != %v", newEntries, entriesToUpsert)
+	}
 
 	entry, err := table.Get(entryA.Address)
 	if err != nil {
@@ -38,21 +38,21 @@ func TestUpsert(t *testing.T) {
 		t.Error("The upserted entry is not deep equal to the original")
 	}
 
-    entryAOld := &SignedAnnounceVersion{
-        Address: addressA,
-        Version: 0,
-        Signature: []byte("foo"),
-    }
-    entriesToUpsert = []*SignedAnnounceVersion{entryAOld}
-    newEntries, err = table.Upsert(entriesToUpsert)
+	entryAOld := &SignedAnnounceVersion{
+		Address:   addressA,
+		Version:   0,
+		Signature: []byte("foo"),
+	}
+	entriesToUpsert = []*SignedAnnounceVersion{entryAOld}
+	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
 	}
-    if len(newEntries) != 0 {
-        t.Errorf("Expected no new entries to be returned by Upsert with old version, got %v", newEntries)
-    }
+	if len(newEntries) != 0 {
+		t.Errorf("Expected no new entries to be returned by Upsert with old version, got %v", newEntries)
+	}
 
-    entry, err = table.Get(entryA.Address)
+	entry, err = table.Get(entryA.Address)
 	if err != nil {
 		t.Errorf("got %v", err)
 	}
@@ -60,21 +60,21 @@ func TestUpsert(t *testing.T) {
 		t.Error("Upserting an old version gave a new entry")
 	}
 
-    entryANew := &SignedAnnounceVersion{
-        Address: addressA,
-        Version: 2,
-        Signature: []byte("foo"),
-    }
-    entriesToUpsert = []*SignedAnnounceVersion{entryANew}
-    newEntries, err = table.Upsert(entriesToUpsert)
+	entryANew := &SignedAnnounceVersion{
+		Address:   addressA,
+		Version:   2,
+		Signature: []byte("foo"),
+	}
+	entriesToUpsert = []*SignedAnnounceVersion{entryANew}
+	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
 	}
-    if !reflect.DeepEqual(newEntries, entriesToUpsert) {
-        t.Errorf("Expected new entries to be returned by Upsert with new version, got %v", newEntries)
-    }
+	if !reflect.DeepEqual(newEntries, entriesToUpsert) {
+		t.Errorf("Expected new entries to be returned by Upsert with new version, got %v", newEntries)
+	}
 
-    entry, err = table.Get(entryA.Address)
+	entry, err = table.Get(entryA.Address)
 	if err != nil {
 		t.Errorf("got %v", err)
 	}
@@ -84,17 +84,17 @@ func TestUpsert(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-    table, err := OpenSignedAnnounceVersionDB("")
+	table, err := OpenSignedAnnounceVersionDB("")
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
 	entryA := &SignedAnnounceVersion{
-        Address: addressA,
-        Version: 1,
-        Signature: []byte("foo"),
-    }
-    entriesToUpsert := []*SignedAnnounceVersion{entryA}
+		Address:   addressA,
+		Version:   1,
+		Signature: []byte("foo"),
+	}
+	entriesToUpsert := []*SignedAnnounceVersion{entryA}
 	_, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
@@ -115,28 +115,28 @@ func TestRemove(t *testing.T) {
 }
 
 func TestPrune(t *testing.T) {
-    table, err := OpenSignedAnnounceVersionDB("")
+	table, err := OpenSignedAnnounceVersionDB("")
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
 	batch := []*SignedAnnounceVersion{
-        &SignedAnnounceVersion{
-            Address: addressA,
-            Version: 1,
-            Signature: []byte("foo"),
-        },
-    	&SignedAnnounceVersion{
-            Address: addressB,
-            Version: 1,
-            Signature: []byte("bar"),
-        },
-    }
+		&SignedAnnounceVersion{
+			Address:   addressA,
+			Version:   1,
+			Signature: []byte("foo"),
+		},
+		&SignedAnnounceVersion{
+			Address:   addressB,
+			Version:   1,
+			Signature: []byte("bar"),
+		},
+	}
 
 	_, err = table.Upsert(batch)
-    if err != nil {
-        t.Fatal("Failed to upsert entry")
-    }
+	if err != nil {
+		t.Fatal("Failed to upsert entry")
+	}
 
 	addressesToKeep := make(map[common.Address]bool)
 	addressesToKeep[addressB] = true
@@ -156,10 +156,10 @@ func TestPrune(t *testing.T) {
 
 func TestRLP(t *testing.T) {
 	original := &SignedAnnounceVersion{
-        Address: addressA,
-        Version: 1,
-        Signature: []byte("foo"),
-    }
+		Address:   addressA,
+		Version:   1,
+		Signature: []byte("foo"),
+	}
 
 	rawEntry, err := rlp.EncodeToBytes(original)
 	if err != nil {
@@ -177,7 +177,7 @@ func TestRLP(t *testing.T) {
 	if result.Version != original.Version {
 		t.Errorf("version doesn't match: got: %v expected: %v", result.Version, original.Version)
 	}
-    if !bytes.Equal(result.Signature, original.Signature) {
+	if !bytes.Equal(result.Signature, original.Signature) {
 		t.Errorf("version doesn't match: got: %v expected: %v", result.Signature, original.Signature)
 	}
 }

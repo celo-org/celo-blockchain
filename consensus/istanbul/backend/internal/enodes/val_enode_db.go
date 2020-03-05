@@ -377,8 +377,8 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 
 // ValEnodeEntryInfo contains information for an entry of the val enode table
 type ValEnodeEntryInfo struct {
-	Enode   string   `json:"enode"`
-	Version uint     `json:"version"`
+	Enode   string `json:"enode"`
+	Version uint   `json:"version"`
 }
 
 // ValEnodeTableInfo gives basic information for each entry of the table

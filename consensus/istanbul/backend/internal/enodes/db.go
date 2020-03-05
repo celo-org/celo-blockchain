@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	dbVersionKey = "version"  // Version of the database to flush if changes
+	dbVersionKey = "version" // Version of the database to flush if changes
 )
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.

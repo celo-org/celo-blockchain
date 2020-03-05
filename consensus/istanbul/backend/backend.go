@@ -101,25 +101,25 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                  config,
-		istanbulEventMux:        new(event.TypeMux),
-		logger:                  logger,
-		db:                      db,
-		commitCh:                make(chan *types.Block, 1),
-		recentSnapshots:         recentSnapshots,
-		coreStarted:             false,
-		announceRunning:         false,
-		peerRecentMessages:      peerRecentMessages,
-		selfRecentMessages:      selfRecentMessages,
-		announceThreadWg:        new(sync.WaitGroup),
-		announceThreadQuit:      make(chan struct{}),
+		config:                             config,
+		istanbulEventMux:                   new(event.TypeMux),
+		logger:                             logger,
+		db:                                 db,
+		commitCh:                           make(chan *types.Block, 1),
+		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
+		announceRunning:                    false,
+		peerRecentMessages:                 peerRecentMessages,
+		selfRecentMessages:                 selfRecentMessages,
+		announceThreadWg:                   new(sync.WaitGroup),
+		announceThreadQuit:                 make(chan struct{}),
 		generateAndGossipAnnounceCh:        make(chan struct{}),
-		lastAnnounceGossiped:    make(map[common.Address]time.Time),
+		lastAnnounceGossiped:               make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
-		valEnodesShareWg:        new(sync.WaitGroup),
-		valEnodesShareQuit:      make(chan struct{}),
-		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
-		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		valEnodesShareWg:                   new(sync.WaitGroup),
+		valEnodesShareQuit:                 make(chan struct{}),
+		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -208,11 +208,11 @@ type Backend struct {
 	lastSignedAnnounceVersionsGossiped   map[common.Address]time.Time
 	lastSignedAnnounceVersionsGossipedMu sync.RWMutex
 
-	announceRunning    bool
-	announceMu         sync.RWMutex
-	announceThreadWg   *sync.WaitGroup
-	announceThreadQuit chan struct{}
-	generateAndGossipAnnounceCh   chan struct{}
+	announceRunning             bool
+	announceMu                  sync.RWMutex
+	announceThreadWg            *sync.WaitGroup
+	announceThreadQuit          chan struct{}
+	generateAndGossipAnnounceCh chan struct{}
 
 	// The versioned enode message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
