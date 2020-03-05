@@ -157,7 +157,6 @@ func (sb *Backend) announceThread() {
 			sb.startGossipAnnounceTask()
 
 		case <-sb.generateAndGossipAnnounceCh:
-			logger.Warn("in <-sb.generateAndGossipAnnounceCh", "shouldAnnounce", shouldAnnounce)
 			if shouldAnnounce {
 				err := sb.generateAndGossipAnnounce()
 				if err != nil {

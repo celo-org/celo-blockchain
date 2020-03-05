@@ -139,7 +139,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = valEnodeTable
 
-	// TODO use a path
 	signedAnnounceVersionTable, err := enodes.OpenSignedAnnounceVersionDB(config.SignedAnnounceVersionDBPath)
 	if err != nil {
 		logger.Crit("Can't open SignedAnnounceVersionDB", "err", err, "dbpath", config.SignedAnnounceVersionDBPath)
