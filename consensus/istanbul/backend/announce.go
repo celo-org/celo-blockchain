@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"io"
 	"time"
 
@@ -774,8 +775,8 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 }
 
 // retrieveVersionedEnodeMsg gets the most recent versioned enode message.
-// May be nil if no message was generated when the core started or this is a
-// proxy that does not have a versioned enode message from its proxy.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
 func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
 	sb.versionedEnodeMsgMu.RLock()
 	defer sb.versionedEnodeMsgMu.RUnlock()
@@ -817,8 +818,8 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 }
 
 // handleVersionedEnodeMsg handles a versioned enode message.
-// At the moment, this message is only supported if it sent from a proxied
-// validator to its proxy.
+// At the moment, this message is only supported if it's sent from a proxied
+// validator to its proxy or vice versa.
 func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
 
@@ -865,14 +866,11 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	}
 
 	if !regAndActiveVals[msg.Address] {
-		logger.Debug("Received Istanbul Versioned Enode message from a non registered or active validator")
+		logger.Debug("Received Istanbul Versioned Enode message originating from a non registered or active validator")
 		return errUnauthorizedAnnounceMessage
 	}
 
 	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
-
-	// TODO: right now the only connections that are considered "ValidatorPurpose" are
-	// elected validators. Change that
 
 	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: versionedEnode.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
