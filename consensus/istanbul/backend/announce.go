@@ -384,7 +384,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, error) {
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, 0, err
 	}
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
