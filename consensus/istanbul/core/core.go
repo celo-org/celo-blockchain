@@ -451,8 +451,6 @@ func (c *core) startNewRound(round *big.Int) error {
 		c.roundChangeSet = newRoundChangeSet(valSet)
 	}
 
-	logger = logger.New("old_proposer", c.current.Proposer())
-
 	// Calculate new proposer
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
 	err := c.resetRoundState(newView, valSet, nextProposer, roundChange)
@@ -471,7 +469,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition")
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer())
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
