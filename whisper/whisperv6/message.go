@@ -218,6 +218,7 @@ func generateSecureRandomData(length int) ([]byte, error) {
 	} else if !validateDataIntegrity(x, length) {
 		return nil, errors.New("crypto/rand failed to generate secure random data")
 	}
+	// #nosec (we don't use this)
 	_, err = mrand.Read(y)
 	if err != nil {
 		return nil, err

@@ -43,7 +43,6 @@ func TestValidatorSet(t *testing.T) {
 }
 
 func testNewValidatorSet(t *testing.T) {
-	var validators []istanbul.Validator
 	const ValCnt = 100
 
 	// Create 100 validators with random addresses
@@ -54,7 +53,6 @@ func testNewValidatorSet(t *testing.T) {
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		val := New(addr, blsPublicKey)
-		validators = append(validators, val)
 		b = append(b, val.Address().Bytes()...)
 		b = append(b, blsPublicKey[:]...)
 	}

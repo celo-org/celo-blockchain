@@ -95,6 +95,7 @@ func CompileSolidityString(solc, source string) (map[string]*Contract, error) {
 		return nil, err
 	}
 	args := append(s.makeArgs(), "--")
+	// #nosec (only used in testing)
 	cmd := exec.Command(s.Path, append(args, "-")...)
 	cmd.Stdin = strings.NewReader(source)
 	return s.run(cmd, source)
@@ -114,6 +115,7 @@ func CompileSolidity(solc string, sourcefiles ...string) (map[string]*Contract, 
 		return nil, err
 	}
 	args := append(s.makeArgs(), "--")
+	// #nosec (used for abigen)
 	cmd := exec.Command(s.Path, append(args, sourcefiles...)...)
 	return s.run(cmd, source)
 }

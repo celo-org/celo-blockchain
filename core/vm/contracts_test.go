@@ -133,7 +133,6 @@ var mockEVM = &EVM{
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
-	gas             uint64
 	name            string
 	noBenchmark     bool // Benchmark primarily the worst-cases
 	errorExpected   bool
