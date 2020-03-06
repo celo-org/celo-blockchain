@@ -129,7 +129,7 @@ func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
 // Returns the address of the carbon offsetting partner
 func GetCarbonOffsettingPartnerAddress(header *types.Header, state vm.StateDB) (common.Address, error) {
 	var carbonOffsettingPartner common.Address
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "carbonOffsettingPartner", []interface{}{}, &carbonOffsettingPartner, params.MaxGasForIsReserveLow, header, state)
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "carbonOffsettingPartner", []interface{}{}, &carbonOffsettingPartner, params.MaxGasForGetCarbonOffsettingPartner, header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}

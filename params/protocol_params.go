@@ -230,4 +230,5 @@ const (
 	MaxGasForTotalSupply                           uint64 = 50 * 1000
 	MaxGasToReadErc20Balance                       uint64 = 100000
 	MaxGasForIsReserveLow                          uint64 = 1000000
+	MaxGasForGetCarbonOffsettingPartner            uint64 = 20000
 )
