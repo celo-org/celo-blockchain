@@ -114,6 +114,47 @@ const electionABIString string = `[
       "payable": false,
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "minElectableValidators",
+          "type": "uint256"
+        },
+        {
+          "name": "maxElectableValidators",
+          "type": "uint256"
+        }
+      ],
+      "name": "electNValidatorSigners",
+      "outputs": [
+        {
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "getElectableValidators",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]`
 
@@ -127,6 +168,27 @@ func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Addr
 		return nil, err
 	}
 	return newValSet, nil
+}
+
+func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAboveMaxElectable int64) ([]common.Address, error) {
+	var minElectableValidators *big.Int
+	var maxElectableValidators *big.Int
+
+	// Get the electable min and max
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getElectableValidators", []interface{}{}, &[]interface{}{&minElectableValidators, &maxElectableValidators}, params.MaxGasForGetElectableValidators, header, state)
+	if err != nil {
+		return nil, err
+	}
+
+	var electedValidators []common.Address
+	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroup
+	_, err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners, header, state)
+	if err != nil {
+		return nil, err
+	}
+
+	return electedValidators, nil
+
 }
 
 type voteTotal struct {
