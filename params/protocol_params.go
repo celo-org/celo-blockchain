@@ -146,7 +146,6 @@ const (
 	HashHeaderGas               uint64 = 20000 // Cost of hashing a block header.
 	GetParentSealBitmapGas      uint64 = 500   // Cost of reading the parent seal bitmap from the chain.
 	GetVerifiedSealBitmapGas    uint64 = 55000 // Cost of verifying the seal on a given RLP encoded header.
-	CallValueTransferGas        uint64 = 10000 // Cost of Gold token transfer
 )
 
 var (
