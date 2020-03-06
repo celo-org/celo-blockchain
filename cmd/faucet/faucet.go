@@ -687,6 +687,7 @@ func authTwitter(url string) (string, string, common.Address, error) {
 	// Twitter's API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
 	// scrape it for the Ethereum address and profile URL.
+	// #nosec (we don't use faucet)
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err
@@ -728,6 +729,7 @@ func authFacebook(url string) (string, string, common.Address, error) {
 	// Facebook's Graph API isn't really friendly with direct links. Still, we don't
 	// want to do ask read permissions from users, so just load the public posts and
 	// scrape it for the Ethereum address and profile URL.
+	// #nosec (we don't use this)
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err

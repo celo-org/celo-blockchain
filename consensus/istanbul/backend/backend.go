@@ -222,10 +222,10 @@ type Backend struct {
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
-	// Cache for the return values of the method retrieveRegisteredAndElectedValidators
-	cachedRegisteredElectedValSet          map[common.Address]bool
-	cachedRegisteredElectedValSetTimestamp time.Time
-	cachedRegisteredElectedValSetMu        sync.Mutex
+	// Cache for the return values of the method retrieveValidatorConnSet
+	cachedValidatorConnSet          map[common.Address]bool
+	cachedValidatorConnSetTimestamp time.Time
+	cachedValidatorConnSetMu        sync.Mutex
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -449,7 +449,6 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 // Commit implements istanbul.Backend.Commit
 func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
@@ -495,7 +494,6 @@ func (sb *Backend) EventMux() *event.TypeMux {
 // Verify implements istanbul.Backend.Verify
 func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
-	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
@@ -827,13 +825,15 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
-func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	sb.cachedRegisteredElectedValSetMu.Lock()
-	defer sb.cachedRegisteredElectedValSetMu.Unlock()
+func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
+	logger := sb.logger.New("func", "retrieveValidatorConnSet")
+
+	sb.cachedValidatorConnSetMu.Lock()
+	defer sb.cachedValidatorConnSetMu.Unlock()
 
 	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
-	if sb.cachedRegisteredElectedValSet != nil && time.Since(sb.cachedRegisteredElectedValSetTimestamp) <= 1*time.Minute {
-		return sb.cachedRegisteredElectedValSet, nil
+	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= 1*time.Minute {
+		return sb.cachedValidatorConnSet, nil
 	}
 
 	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
@@ -845,18 +845,17 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 	if err != nil {
 		return nil, err
 	}
-	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(currentBlock.Header(), currentState)
+	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
+	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
+		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
-		return validatorsSet, err
+		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)
 	}
 
-	for _, address := range registeredValidators {
+	for _, address := range electNValidators {
 		validatorsSet[address] = true
 	}
 
@@ -866,8 +865,10 @@ func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]
 		validatorsSet[val.Address()] = true
 	}
 
-	sb.cachedRegisteredElectedValSet = validatorsSet
-	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
+	sb.cachedValidatorConnSet = validatorsSet
+	sb.cachedValidatorConnSetTimestamp = time.Now()
+
+	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
 
 	return validatorsSet, nil
 }
