@@ -667,7 +667,6 @@ const (
 // poolEntry represents a server node and stores its current state and statistics.
 type poolEntry struct {
 	peer                  *peer
-	pubkey                [64]byte // secp256k1 key of the node
 	addr                  map[string]*poolEntryAddress
 	node                  *enode.Node
 	lastConnected, dialed *poolEntryAddress

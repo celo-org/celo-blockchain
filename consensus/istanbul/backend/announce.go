@@ -299,19 +299,6 @@ type announceMsgCachedEntry struct {
 	MsgPayload []byte
 }
 
-// This function will request announce messages from a set of validator addresses from a peer
-func (sb *Backend) sendGetAnnounces(peer consensus.Peer, valAddresses []common.Address) error {
-	logger := sb.logger.New("func", "sendGetAnnounces")
-	valAddressesBytes, err := rlp.EncodeToBytes(valAddresses)
-	if err != nil {
-		logger.Error("Error encoding valAddresses", "valAddresses", common.ConvertToStringSlice(valAddresses), "err", err)
-		return err
-	}
-
-	go peer.Send(istanbulGetAnnouncesMsg, valAddressesBytes)
-	return nil
-}
-
 // This function will reply from a GetAnnounce message.  It will retrieve the requested announce messages
 // from it's announceMsgCache.
 func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) error {
