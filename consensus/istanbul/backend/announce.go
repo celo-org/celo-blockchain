@@ -172,7 +172,7 @@ func (sb *Backend) announceThread() {
 
 func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
-	// Check if this node is in the registered/elected validator set
+	// Check if this node is in the validator connection set
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
@@ -181,7 +181,7 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 	return sb.coreStarted && validatorConnSet[sb.Address()], nil
 }
 
-// pruneAnnounceDataStructures will remove entries that are not in the registered/elected validator set from all announce related data structures.
+// pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
 // The data structures that it prunes are:
 // 1)  cachedAnnounceMsgs
 // 2)  lastAnnounceGossiped
@@ -189,13 +189,13 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
-	// retrieve the registered/elected validator set
+	// retrieve the validator connection set
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
 
-	// Prune the announce cache for entries that are not in the current registered/elected validator set
+	// Prune the announce cache for entries that are not in the current validator connection set
 	sb.cachedAnnounceMsgsMu.Lock()
 	for cachedValAddress := range sb.cachedAnnounceMsgs {
 		if !validatorConnSet[cachedValAddress] {
@@ -290,8 +290,8 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 
 // Define the announce msg cache entry.
 // The latest version (dictated by the announce's version field) will always be cached
-// by this node.  Note that it will only cache the announce msgs from registered or elected
-// validators.
+// by this node.  Note that it will only cache the announce msgs from the validators within
+// the validator connection set.
 type announceMsgCachedEntry struct {
 	MsgVersion uint
 	MsgPayload []byte
@@ -423,15 +423,15 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
-	// Check if the sender is within the registered/elected valset
+	// Check if the sender is within the validator connection set
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
-		logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		logger.Trace("Error in retrieving validator connection set", "err", err)
 		return err
 	}
 
 	if !validatorConnSet[msg.Address] {
-		logger.Debug("Received a message from a non registered/elected validator. Ignoring it.", "sender", msg.Address)
+		logger.Debug("Received a message from a validator not within the validator connection set. Ignoring it.", "sender", msg.Address)
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -514,17 +514,17 @@ func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
 		encounteredAddresses[announceRecord.DestAddress] = true
 	}
 
-	// Check if the number of rows in the announcePayload is at most 2 times the size of the current registered/elected validator set.
-	// Note that this is a heuristic of the actual size of registered/elected at the time the validator constructed the announce message.
+	// Check if the number of rows in the announcePayload is at most 2 times the size of the current validator connection set.
+	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
 	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
-	// then verify that all of the registered/elected validators of that block number is included in the announce message.
+	// then verify that all of the validator connection set entries of that block number is included in the announce message.
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
 
 	if len(announceData.AnnounceRecords) > 2*len(validatorConnSet) {
-		logger.Info("Number of announce message encrypted enodes is more than two times the size of the current reg/elected validator set", "num announce enodes", len(announceData.AnnounceRecords), "reg/elected val set size", len(validatorConnSet))
+		logger.Info("Number of announce message encrypted enodes is more than two times the size of the current validator connection set", "num announce enodes", len(announceData.AnnounceRecords), "reg/elected val set size", len(validatorConnSet))
 		return false, err
 	}
 
@@ -533,8 +533,8 @@ func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
 
 // regossipAnnounce will regossip a received announce message.
 // If this node regossiped an announce from the same source address within the last 5 minutes, then it wouldn't regossip.
-// This is to prevent a malicious registered/elected validator from DOS'ing the network with very frequent announce messages.
-// Note that even if the registered/elected validator is not malicious, but changing their enode very frequently, the
+// This is to prevent a malicious validator from DOS'ing the network with very frequent announce messages.
+// Note that even if the validator is not malicious, but changing their enode very frequently, the
 // other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
 // for updated announce messages.
 func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error {
@@ -642,7 +642,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 
 	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
 
-	// If the announce's valAddress is not within the registered validator set, then ignore it
+	// If the announce's valAddress is not within the validator connection set, then ignore it
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return err
@@ -650,7 +650,7 @@ func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte
 
 	announcesToRequest := make([]common.Address, 0)
 	for _, announceVersion := range announceVersions {
-		// Ignore this announceVersion entry if it's val address is not in the current registered or elected valset.
+		// Ignore this announceVersion entry if it's val address is not in the current validator connection set.
 		if !validatorConnSet[announceVersion.ValAddress] {
 			logger.Trace("Ignoring announceVersion since it's not in active/elected valset", "valAddress", announceVersion.ValAddress)
 			continue
