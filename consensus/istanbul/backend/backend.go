@@ -239,8 +239,11 @@ type Backend struct {
 	cachedValidatorConnSetTimestamp time.Time
 	cachedValidatorConnSetMu        sync.RWMutex
 
+	// Used for ensuring that only one goroutine is doing the work of updating
+	// the validator conn set cache at a time.
 	updatingCachedValidatorConnSet     bool
-	updatingCachedValidatorConnSetCond sync.Cond
+	updatingCachedValidatorConnSetErr  error
+	updatingCachedValidatorConnSetCond *sync.Cond
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -868,32 +871,22 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 // retrieveCachedValidatorConnSet returns the most recently cached validator conn
 // set and asynchronously updates the cache if it is older than 1 minute.
-// If no set has ever been cached, this function may block for a couple seconds
-// while retrieving the uncached set.
+// If no set has ever been cached, nil is returned.
 func (sb *Backend) retrieveCachedValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
-	if sb.cachedValidatorConnSet != nil {
-		// If the cached value is older than a minute, asynchronously update it
-		if time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
-			go func() {
-				err := sb.updateCachedValidatorConnSet()
-				if err != nil {
-					sb.logger.Debug("Unable to update cached validator conn set", "err", err)
-				}
-			}()
-		}
-		defer sb.cachedValidatorConnSetMu.RUnlock()
-		return sb.cachedValidatorConnSet, nil
+	if sb.cachedValidatorConnSet == nil {
+		return nil, nil
 	}
-	sb.cachedValidatorConnSetMu.RUnlock()
-
-	err := sb.updateCachedValidatorConnSet()
-	if err != nil {
-		return nil, err
+	// If the cached value is older than a minute, asynchronously update it
+	if time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
+		go func() {
+			err := sb.updateCachedValidatorConnSet()
+			if err != nil {
+				sb.logger.Debug("Unable to update cached validator conn set", "err", err)
+			}
+		}()
 	}
-
-	sb.cachedValidatorConnSetMu.RLock()
 	defer sb.cachedValidatorConnSetMu.RUnlock()
 	return sb.cachedValidatorConnSet, nil
 }
@@ -902,19 +895,35 @@ func (sb *Backend) retrieveCachedValidatorConnSet() (map[common.Address]bool, er
 // goroutine is simultaneously updating the cached set, this goroutine will wait
 // for the update to be finished to prevent the update work from occurring
 // simultaneously.
-func (sb *Backend) updateCachedValidatorConnSet() error {
+func (sb *Backend) updateCachedValidatorConnSet() (err error) {
+	logger := sb.logger.New("func", "updateCachedValidatorConnSet")
+	var waited bool
 	sb.updatingCachedValidatorConnSetCond.L.Lock()
-	// Reading in a for loop as recommended by the golang docs
+	// Checking the condition in a for loop as recommended to prevent a race
 	for sb.updatingCachedValidatorConnSet {
+		waited = true
+		logger.Trace("Waiting for another goroutine to update the set")
 		// If another goroutine is updating, wait for it to finish
 		sb.updatingCachedValidatorConnSetCond.Wait()
-		sb.updatingCachedValidatorConnSetCond.L.Unlock()
-		return nil
 	}
+	if waited {
+		defer sb.updatingCachedValidatorConnSetCond.L.Unlock()
+		return sb.updatingCachedValidatorConnSetErr
+	}
+	// If we didn't wait, we show that we will start updating the cache
 	sb.updatingCachedValidatorConnSet = true
 	sb.updatingCachedValidatorConnSetCond.L.Unlock()
 
-	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+	defer func() {
+		sb.updatingCachedValidatorConnSetCond.L.Lock()
+		sb.updatingCachedValidatorConnSet = false
+		// Share the error with other goroutines that are waiting on this one
+		sb.updatingCachedValidatorConnSetErr = err
+		// Broadcast to any waiting goroutines that the update is complete
+		sb.updatingCachedValidatorConnSetCond.Broadcast()
+		sb.updatingCachedValidatorConnSetCond.L.Unlock()
+	}()
+
 	validatorConnSet, err := sb.retrieveUncachedValidatorConnSet()
 	if err != nil {
 		return err
@@ -923,12 +932,6 @@ func (sb *Backend) updateCachedValidatorConnSet() error {
 	sb.cachedValidatorConnSet = validatorConnSet
 	sb.cachedValidatorConnSetTimestamp = time.Now()
 	sb.cachedValidatorConnSetMu.Unlock()
-
-	sb.updatingCachedValidatorConnSetCond.L.Lock()
-	sb.updatingCachedValidatorConnSet = false
-	// Broadcast to any waiting goroutines that the update is complete
-	sb.updatingCachedValidatorConnSetCond.Broadcast()
-	sb.updatingCachedValidatorConnSetCond.L.Unlock()
 	return nil
 }
 

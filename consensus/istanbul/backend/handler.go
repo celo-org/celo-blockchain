@@ -409,11 +409,25 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, errors.New("Incorrect node in versionedEnode")
 	}
 
-	// Check if the peer is within the registered/elected valset
+	// Check if the peer is within the validator conn set.
 	validatorConnSet, err := sb.retrieveCachedValidatorConnSet()
 	if err != nil {
-		logger.Trace("Error in retrieving validator conn set", "err", err)
+		logger.Trace("Error retrieving cached validator conn set", "err", err)
 		return false, err
+	}
+	// If no set has ever been cached, update it and try again. This is an expensive
+	// operation and risks the handshake timing out, but will happen at most once
+	// and is unlikely to occur.
+	if validatorConnSet == nil {
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			logger.Trace("Error updating cached validator conn set")
+			return false, err
+		}
+		validatorConnSet, err = sb.retrieveCachedValidatorConnSet()
+		if err != nil {
+			logger.Trace("Error retrieving cached validator conn set", "err", err)
+			return false, err
+		}
 	}
 	if !validatorConnSet[sb.ValidatorAddress()] {
 		logger.Trace("This validator is not in the validator conn set")
