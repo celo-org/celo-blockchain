@@ -367,21 +367,6 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return core.ErrNonceTooLow
 	}
 
-	// Ensure gold transfers are whitelisted if transfers are frozen.
-	if tx.Value().Sign() > 0 {
-		to := *tx.To()
-		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
-			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
-		} else if isFrozen {
-			log.Info("Transfers are frozen")
-			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-				return core.ErrTransfersFrozen
-			}
-			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
-		}
-	}
-
 	// Check the transaction doesn't exceed the current
 	// block limit gas.
 	header := pool.chain.GetHeaderByHash(pool.head)
@@ -409,6 +394,21 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
+	}
+
+	// Ensure gold transfers are whitelisted if transfers are frozen.
+	if tx.Value().Sign() > 0 {
+		to := *tx.To()
+		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
+			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
+		} else if isFrozen {
+			log.Info("Transfers are frozen")
+			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
+				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
+				return core.ErrTransfersFrozen
+			}
+			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
+		}
 	}
 
 	// Should have a peer that will accept and broadcast our transaction
