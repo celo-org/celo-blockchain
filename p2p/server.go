@@ -408,7 +408,7 @@ func (srv *Server) PeerCount() int {
 }
 
 // InboundCount returns the number of inbound peers.
-func (srv *Server) InboundCount() int {
+func (srv *Server) inboundCount() int {
 	var count int
 	select {
 	case srv.getInboundCount <- func(inboundCount int) {
@@ -1025,7 +1025,22 @@ func (srv *Server) addPeerChecks(peers map[enode.ID]*Peer, c *conn) error {
 	return srv.postHandshakeChecks(peers, c)
 }
 
-func (srv *Server) MaxInboundConns() int {
+// CheckPeerCounts performs some checks for a peer that has already been included
+// in the peer counts
+func (srv *Server) CheckPeerCounts(peer *Peer) error {
+	switch {
+	case peer.Info().Network.Trusted || peer.Info().Network.Static:
+		return nil
+	case srv.PeerCount() > srv.MaxPeers:
+		return DiscTooManyPeers
+	case srv.inboundCount() > srv.maxInboundConns():
+		return DiscTooManyInboundPeers
+	default:
+		return nil
+	}
+}
+
+func (srv *Server) maxInboundConns() int {
 	return srv.MaxPeers - srv.maxDialedConns()
 }
 

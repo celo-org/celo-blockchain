@@ -350,14 +350,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
+		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+			return err
+		}
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
-		tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-		// This peer is already included in the inbound count
-		tooManyInbound := p.Peer.Server.InboundCount() > p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-		if tooManyPeers {
+		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && p.Peer.Server != pm.proxyServer {
 			return p2p.DiscTooManyPeers
-		} else if tooManyInbound {
-			return p2p.DiscTooManyInboundPeers
 		}
 	}
 

@@ -99,13 +99,11 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 }
 
 func (h *clientHandler) handle(p *peer) error {
-	if !p.Peer.Info().Network.Trusted {
-		if h.backend.peers.Len() >= h.backend.config.LightPeers {
-			return p2p.DiscTooManyPeers
-		} else if p.Peer.Server.InboundCount() > p.Peer.Server.MaxInboundConns() {
-			// This peer is already included in the inbound count
-			return p2p.DiscTooManyInboundPeers
-		}
+	if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+		return err
+	}
+	if h.backend.peers.Len() >= h.backend.config.LightPeers && !p.Peer.Info().Network.Trusted {
+		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Light Ethereum peer connected", "name", p.Name())
 
