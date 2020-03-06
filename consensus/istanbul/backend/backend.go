@@ -101,24 +101,25 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                  config,
-		istanbulEventMux:        new(event.TypeMux),
-		logger:                  logger,
-		db:                      db,
-		commitCh:                make(chan *types.Block, 1),
-		recentSnapshots:         recentSnapshots,
-		coreStarted:             false,
-		announceRunning:         false,
-		peerRecentMessages:      peerRecentMessages,
-		selfRecentMessages:      selfRecentMessages,
-		announceThreadWg:        new(sync.WaitGroup),
-		announceThreadQuit:      make(chan struct{}),
-		lastAnnounceGossiped:    make(map[common.Address]time.Time),
-		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
-		valEnodesShareWg:        new(sync.WaitGroup),
-		valEnodesShareQuit:      make(chan struct{}),
-		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
-		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		config:                             config,
+		istanbulEventMux:                   new(event.TypeMux),
+		logger:                             logger,
+		db:                                 db,
+		commitCh:                           make(chan *types.Block, 1),
+		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
+		announceRunning:                    false,
+		peerRecentMessages:                 peerRecentMessages,
+		selfRecentMessages:                 selfRecentMessages,
+		announceThreadWg:                   new(sync.WaitGroup),
+		announceThreadQuit:                 make(chan struct{}),
+		lastAnnounceGossiped:               make(map[common.Address]time.Time),
+		cachedAnnounceMsgs:                 make(map[common.Address]*announceMsgCachedEntry),
+		valEnodesShareWg:                   new(sync.WaitGroup),
+		valEnodesShareQuit:                 make(chan struct{}),
+		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
+		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -237,6 +238,9 @@ type Backend struct {
 	cachedValidatorConnSet          map[common.Address]bool
 	cachedValidatorConnSetTimestamp time.Time
 	cachedValidatorConnSetMu        sync.RWMutex
+
+	updatingCachedValidatorConnSet     bool
+	updatingCachedValidatorConnSetCond sync.Cond
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -894,8 +898,22 @@ func (sb *Backend) retrieveCachedValidatorConnSet() (map[common.Address]bool, er
 	return sb.cachedValidatorConnSet, nil
 }
 
-// updateCachedValidatorConnSet updates the cached validator conn set
+// updateCachedValidatorConnSet updates the cached validator conn set. If another
+// goroutine is simultaneously updating the cached set, this goroutine will wait
+// for the update to be finished to prevent the update work from occurring
+// simultaneously.
 func (sb *Backend) updateCachedValidatorConnSet() error {
+	sb.updatingCachedValidatorConnSetCond.L.Lock()
+	// Reading in a for loop as recommended by the golang docs
+	for sb.updatingCachedValidatorConnSet {
+		// If another goroutine is updating, wait for it to finish
+		sb.updatingCachedValidatorConnSetCond.Wait()
+		sb.updatingCachedValidatorConnSetCond.L.Unlock()
+		return nil
+	}
+	sb.updatingCachedValidatorConnSet = true
+	sb.updatingCachedValidatorConnSetCond.L.Unlock()
+
 	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
 	validatorConnSet, err := sb.retrieveUncachedValidatorConnSet()
 	if err != nil {
@@ -905,6 +923,12 @@ func (sb *Backend) updateCachedValidatorConnSet() error {
 	sb.cachedValidatorConnSet = validatorConnSet
 	sb.cachedValidatorConnSetTimestamp = time.Now()
 	sb.cachedValidatorConnSetMu.Unlock()
+
+	sb.updatingCachedValidatorConnSetCond.L.Lock()
+	sb.updatingCachedValidatorConnSet = false
+	// Broadcast to any waiting goroutines that the update is complete
+	sb.updatingCachedValidatorConnSetCond.Broadcast()
+	sb.updatingCachedValidatorConnSetCond.L.Unlock()
 	return nil
 }
 
