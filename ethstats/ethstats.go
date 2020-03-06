@@ -271,82 +271,88 @@ func (s *Service) loop() {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
-			// Resolve the URL, defaulting to TLS, but falling back to none too
-			path := fmt.Sprintf("%s/api", s.host)
-			urls := []string{path}
-
-			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-			if !strings.Contains(path, "://") {
-				urls = []string{"wss://" + path, "ws://" + path}
-			}
-			// Establish a websocket connection to the server on any supported URL
-			var (
-				conn *websocket.Conn
-				err  error
-			)
-			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-			header := make(http.Header)
-			header.Set("origin", "http://localhost")
-			for _, url := range urls {
-				conn, _, err = dialer.Dial(url, header)
-				if err == nil {
-					break
-				}
-			}
-
+			wallet, err := s.eth.AccountManager().Find(accounts.Account{Address: s.etherBase})
 			if err != nil {
-				log.Warn("Stats server unreachable", "err", err)
-				time.Sleep(connectionTimeout * time.Second)
-				continue
-			}
-			// Authenticate the client with the server
-			if err = s.login(conn, sendCh); err != nil {
-				log.Warn("Stats login failed", "err", err)
-				conn.Close()
-				time.Sleep(connectionTimeout * time.Second)
-				continue
-			}
-			go s.readLoop(conn)
+				break
+			}]
 
-			// Send the initial stats so our node looks decent from the get go
-			if err = s.report(conn, sendCh); err != nil {
-				log.Warn("Initial stats report failed", "err", err)
-				conn.Close()
-				continue
-			}
-			// Keep sending status updates until the connection breaks
-			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+			if status, _ := wallet.Status(); status == "Unlocked" {
+				// Resolve the URL, defaulting to TLS, but falling back to none too
+				path := fmt.Sprintf("%s/api", s.host)
+				urls := []string{path}
 
-			for err == nil {
-				select {
-				case <-quitCh:
-					conn.Close()
-					return
-
-				case <-fullReport.C:
-					if err = s.report(conn, sendCh); err != nil {
-						log.Warn("Full stats report failed", "err", err)
-					}
-				case list := <-s.histCh:
-					if err = s.reportHistory(conn, list); err != nil {
-						log.Warn("Requested history report failed", "err", err)
-					}
-				case head := <-headCh:
-					if err = s.reportBlock(conn, head); err != nil {
-						log.Warn("Block stats report failed", "err", err)
-					}
-				case <-txCh:
-					if err = s.reportPending(conn); err != nil {
-						log.Warn("Transaction stats report failed", "err", err)
-					}
-				case signedMessage := <-sendCh:
-					if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-						log.Warn("Delegate send failed", "err", err)
+				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+				if !strings.Contains(path, "://") {
+					urls = []string{"wss://" + path, "ws://" + path}
+				}
+				// Establish a websocket connection to the server on any supported URL
+				var (
+					conn *websocket.Conn
+					err  error
+				)
+				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+				header := make(http.Header)
+				for _, url := range urls {
+					conn, _, err = dialer.Dial(url, header)
+					if err == nil {
+						break
 					}
 				}
+
+				if err != nil {
+					log.Warn("Stats server unreachable", "err", err)
+					time.Sleep(connectionTimeout * time.Second)
+					continue
+				}
+				// Authenticate the client with the server
+				if err = s.login(conn, sendCh); err != nil {
+					log.Warn("Stats login failed", "err", err)
+					conn.Close()
+					time.Sleep(connectionTimeout * time.Second)
+					continue
+				}
+				go s.readLoop(conn)
+
+				// Send the initial stats so our node looks decent from the get go
+				if err = s.report(conn, sendCh); err != nil {
+					log.Warn("Initial stats report failed", "err", err)
+					conn.Close()
+					continue
+				}
+				// Keep sending status updates until the connection breaks
+				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+
+				for err == nil {
+					select {
+					case <-quitCh:
+						conn.Close()
+						return
+
+					case <-fullReport.C:
+						if err = s.report(conn, sendCh); err != nil {
+							log.Warn("Full stats report failed", "err", err)
+						}
+					case list := <-s.histCh:
+						if err = s.reportHistory(conn, list); err != nil {
+							log.Warn("Requested history report failed", "err", err)
+						}
+					case head := <-headCh:
+						if err = s.reportBlock(conn, head); err != nil {
+							log.Warn("Block stats report failed", "err", err)
+						}
+					case <-txCh:
+						if err = s.reportPending(conn); err != nil {
+							log.Warn("Transaction stats report failed", "err", err)
+						}
+					case signedMessage := <-sendCh:
+						if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+							log.Warn("Delegate send failed", "err", err)
+						}
+					}
+				}
+				// Make sure the connection is closed
+				conn.Close()
 			}
-			// Make sure the connection is closed
-			conn.Close()
 		}
 	}
 }
