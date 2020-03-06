@@ -233,10 +233,10 @@ type Backend struct {
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
-	// Cache for the return values of the method retrieveRegisteredAndElectedValidators
-	cachedRegisteredElectedValSet          map[common.Address]bool
-	cachedRegisteredElectedValSetTimestamp time.Time
-	cachedRegisteredElectedValSetMu        sync.RWMutex
+	// Cache for the return values of the method retrieveValidatorConnSet
+	cachedValidatorConnSet          map[common.Address]bool
+	cachedValidatorConnSetTimestamp time.Time
+	cachedValidatorConnSetMu        sync.RWMutex
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -839,78 +839,78 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
-// retrieveRegisteredAndElectedValidators returns the cached set of registered
-// and elected validators if the cache is younger than 1 minute. In the event
-// of a cache miss, this may block for a couple seconds while retrieving the uncached set.
-func (sb *Backend) retrieveRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	sb.cachedRegisteredElectedValSetMu.RLock()
+// retrieveValidatorConnSet returns the cached validator conn set if the cache
+// is younger than 1 minute. In the event of a cache miss, this may block for a
+// couple seconds while retrieving the uncached set.
+func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
+	sb.cachedValidatorConnSetMu.RLock()
 
-	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
-	if sb.cachedRegisteredElectedValSet != nil && time.Since(sb.cachedRegisteredElectedValSetTimestamp) <= 1*time.Minute {
-		defer sb.cachedRegisteredElectedValSetMu.RUnlock()
-		return sb.cachedRegisteredElectedValSet, nil
+	// Check to see if there is a cached validator conn set, and if it's for the current block
+	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= 1*time.Minute {
+		defer sb.cachedValidatorConnSetMu.Unlock()
+		return sb.cachedValidatorConnSet, nil
 	}
-	sb.cachedRegisteredElectedValSetMu.RUnlock()
+	sb.cachedValidatorConnSetMu.RUnlock()
 
-	err := sb.updateCachedRegisteredAndElectedValidators()
+	err := sb.updateCachedValidatorConnSet()
 	if err != nil {
 		return nil, err
 	}
 
-	sb.cachedRegisteredElectedValSetMu.RLock()
-	defer sb.cachedRegisteredElectedValSetMu.RUnlock()
-	return sb.cachedRegisteredElectedValSet, nil
+	sb.cachedValidatorConnSetMu.RLock()
+	defer sb.cachedValidatorConnSetMu.RUnlock()
+	return sb.cachedValidatorConnSet, nil
 }
 
-// retrieveCachedRegisteredAndElectedValidators returns the most recently
-// cached set of registered and elected validators and asynchronously updates
-// the cache if it is older than 1 minute. If no set has ever been cached, this
-// function may block for a couple seconds while retrieving the uncached set.
-func (sb *Backend) retrieveCachedRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	sb.cachedRegisteredElectedValSetMu.RLock()
+// retrieveCachedValidatorConnSet returns the most recently cached validator conn
+// set and asynchronously updates the cache if it is older than 1 minute.
+// If no set has ever been cached, this function may block for a couple seconds
+// while retrieving the uncached set.
+func (sb *Backend) retrieveCachedValidatorConnSet() (map[common.Address]bool, error) {
+	sb.cachedValidatorConnSetMu.RLock()
 
-	if sb.cachedRegisteredElectedValSet != nil {
+	if sb.cachedValidatorConnSet != nil {
 		// If the cached value is older than a minute, asynchronously update it
-		if time.Since(sb.cachedRegisteredElectedValSetTimestamp) > 1*time.Minute {
+		if time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
 			go func() {
-				err := sb.updateCachedRegisteredAndElectedValidators()
+				err := sb.updateCachedValidatorConnSet()
 				if err != nil {
-					sb.logger.Debug("Unable to update registered and elected validator cache", "err", err)
+					sb.logger.Debug("Unable to update cached validator conn set", "err", err)
 				}
 			}()
 		}
-		defer sb.cachedRegisteredElectedValSetMu.RUnlock()
-		return sb.cachedRegisteredElectedValSet, nil
+		defer sb.cachedValidatorConnSetMu.RUnlock()
+		return sb.cachedValidatorConnSet, nil
 	}
-	sb.cachedRegisteredElectedValSetMu.RUnlock()
+	sb.cachedValidatorConnSetMu.RUnlock()
 
-	err := sb.updateCachedRegisteredAndElectedValidators()
+	err := sb.updateCachedValidatorConnSet()
 	if err != nil {
 		return nil, err
 	}
 
-	sb.cachedRegisteredElectedValSetMu.RLock()
-	defer sb.cachedRegisteredElectedValSetMu.RUnlock()
-	return sb.cachedRegisteredElectedValSet, nil
+	sb.cachedValidatorConnSetMu.RLock()
+	defer sb.cachedValidatorConnSetMu.RUnlock()
+	return sb.cachedValidatorConnSet, nil
 }
 
-// updateCachedRegisteredAndElectedValidators updates the cached registered
-// and elected validator set.
-func (sb *Backend) updateCachedRegisteredAndElectedValidators() error {
+// updateCachedValidatorConnSet updates the cached validator conn set
+func (sb *Backend) updateCachedValidatorConnSet() error {
 	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
-	validatorsSet, err := sb.retrieveUncachedRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveUncachedValidatorConnSet()
 	if err != nil {
 		return err
 	}
-	sb.cachedRegisteredElectedValSetMu.Lock()
-	sb.cachedRegisteredElectedValSet = validatorsSet
-	sb.cachedRegisteredElectedValSetTimestamp = time.Now()
-	sb.cachedRegisteredElectedValSetMu.Unlock()
+	sb.cachedValidatorConnSetMu.Lock()
+	sb.cachedValidatorConnSet = validatorConnSet
+	sb.cachedValidatorConnSetTimestamp = time.Now()
+	sb.cachedValidatorConnSetMu.Unlock()
 	return nil
 }
 
-func (sb *Backend) retrieveUncachedRegisteredAndElectedValidators() (map[common.Address]bool, error) {
-	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, error) {
+	logger := sb.logger.New("func", "retrieveUncachedValidatorConnSet")
+	// Retrieve the validator conn set from the election smart contract
 	validatorsSet := make(map[common.Address]bool)
 
 	currentBlock := sb.currentBlock()
@@ -918,18 +918,17 @@ func (sb *Backend) retrieveUncachedRegisteredAndElectedValidators() (map[common.
 	if err != nil {
 		return nil, err
 	}
-	registeredValidators, err := validators.RetrieveRegisteredValidatorSigners(currentBlock.Header(), currentState)
+	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed || len(registeredValidators) == 0 {
-		sb.logger.Trace("Can't retrieve the registered validators.  Only allowing the initial validator set to send announce messages", "err", err, "registeredValidators", registeredValidators)
+	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
+		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
-		sb.logger.Error("Error in retrieving the registered validators", "err", err)
-		return validatorsSet, err
+		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)
 	}
 
-	for _, address := range registeredValidators {
+	for _, address := range electNValidators {
 		validatorsSet[address] = true
 	}
 
@@ -939,5 +938,6 @@ func (sb *Backend) retrieveUncachedRegisteredAndElectedValidators() (map[common.
 		validatorsSet[val.Address()] = true
 	}
 
+	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
 	return validatorsSet, nil
 }

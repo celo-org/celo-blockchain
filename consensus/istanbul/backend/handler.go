@@ -410,17 +410,17 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	// Check if the peer is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveCachedRegisteredAndElectedValidators()
+	validatorConnSet, err := sb.retrieveCachedValidatorConnSet()
 	if err != nil {
-		logger.Trace("Error in retrieving registered/elected valset", "err", err)
+		logger.Trace("Error in retrieving validator conn set", "err", err)
 		return false, err
 	}
-	if !regAndActiveVals[sb.ValidatorAddress()] {
-		logger.Trace("This validator is not registered or elected")
+	if !validatorConnSet[sb.ValidatorAddress()] {
+		logger.Trace("This validator is not in the validator conn set")
 		return false, nil
 	}
-	if !regAndActiveVals[msg.Address] {
-		logger.Debug("Received a validator proof message from peer with address that is not a registered or active validator", "msg.Address", msg.Address)
+	if !validatorConnSet[msg.Address] {
+		logger.Debug("Received a validator proof message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
 
