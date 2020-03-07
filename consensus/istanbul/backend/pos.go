@@ -55,7 +55,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if err != nil {
 		return err
 	}
-	validatorReward, totalVoterRewards, communityReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
+	validatorReward, totalVoterRewards, communityReward, carbonOffsettingPartnerReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
 	}
@@ -111,8 +111,19 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
 	}
 
+	carbonOffsettingPartnerAddress, err := epoch_rewards.GetCarbonOffsettingPartnerAddress(header, state)
+	if err != nil {
+		return err
+	}
+	if carbonOffsettingPartnerAddress != common.ZeroAddress {
+		state.AddBalance(carbonOffsettingPartnerAddress, carbonOffsettingPartnerReward)
+	} else {
+		carbonOffsettingPartnerReward = big.NewInt(0)
+	}
+
 	mintedGold := big.NewInt(0).Add(totalDistributedVoterRewards, totalValidatorRewardsConvertedToGold)
 	mintedGold.Add(mintedGold, totalCommunityRewards)
+	mintedGold.Add(mintedGold, carbonOffsettingPartnerReward)
 	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
 }
 
