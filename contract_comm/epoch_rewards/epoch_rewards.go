@@ -91,6 +91,20 @@ const epochRewardsABIString string = `[
       "payable": false,
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "frozen",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]
 `
@@ -134,4 +148,13 @@ func GetCarbonOffsettingPartnerAddress(header *types.Header, state vm.StateDB) (
 		return common.ZeroAddress, err
 	}
 	return carbonOffsettingPartner, nil
+}
+
+func EpochRewardsIsFrozen(header *types.Header, state vm.StateDB) (bool, error) {
+	var frozen bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForIsFrozen, header, state)
+	if err != nil {
+		return false, err
+	}
+	return frozen, nil
 }
