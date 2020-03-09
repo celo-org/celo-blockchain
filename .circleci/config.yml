@@ -142,8 +142,8 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
-            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_crypto.a
-            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libepoch_snark.a
+            - geth/vendor/github.com/celo-org/bls-zexe/target/universal/release/libbls_crypto.a
+            - geth/vendor/github.com/celo-org/bls-zexe/target/universal/release/libepoch_snark.a
 
   publish-mobile-client:
     docker:
