@@ -1,4 +1,4 @@
-# celohq/circleci:android-v1
+# celohq/circleci:android-v2
 
 FROM circleci/android:api-28-alpha
 
