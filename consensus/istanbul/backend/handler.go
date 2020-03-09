@@ -309,12 +309,12 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	isValidatorCh := make(chan bool)
 
 	sendHandshake := func() {
-		var validatorProofMsg *istanbul.Message
+		var msg *istanbul.Message
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
 		if peerIsValidator {
-			// validatorProofMsg may be nil
-			validatorProofMsg, err = sb.retrieveVersionedEnodeMsg()
+			// msg may be nil
+			msg, err = sb.retrieveVersionedEnodeMsg()
 			if err != nil {
 				errCh <- err
 				return
@@ -322,10 +322,10 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		}
 		// Even if we decide not to identify ourselves,
 		// send an empty message to complete the handshake
-		if validatorProofMsg == nil {
-			validatorProofMsg = &istanbul.Message{}
+		if msg == nil {
+			msg = &istanbul.Message{}
 		}
-		msgBytes, err := validatorProofMsg.Payload()
+		msgBytes, err := msg.Payload()
 		if err != nil {
 			errCh <- err
 			return
@@ -410,11 +410,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	// Check if the peer is within the validator conn set.
-	validatorConnSet, err := sb.retrieveCachedValidatorConnSet()
-	if err != nil {
-		logger.Trace("Error retrieving cached validator conn set", "err", err)
-		return false, err
-	}
+	validatorConnSet := sb.retrieveCachedValidatorConnSet()
 	// If no set has ever been cached, update it and try again. This is an expensive
 	// operation and risks the handshake timing out, but will happen at most once
 	// and is unlikely to occur.
@@ -423,11 +419,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 			logger.Trace("Error updating cached validator conn set")
 			return false, err
 		}
-		validatorConnSet, err = sb.retrieveCachedValidatorConnSet()
-		if err != nil {
-			logger.Trace("Error retrieving cached validator conn set", "err", err)
-			return false, err
-		}
+		validatorConnSet = sb.retrieveCachedValidatorConnSet()
 	}
 	if !validatorConnSet[sb.ValidatorAddress()] {
 		logger.Trace("This validator is not in the validator conn set")

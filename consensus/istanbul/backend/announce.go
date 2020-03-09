@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 	"io"
 	"time"
 
@@ -802,7 +801,7 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 
 	// Handle the special case where this node is a proxy and the proxied validator
 	// sent a versioned enode for the proxy to use in handshakes
-	if sb.config.Proxy && msg.Address == sb.config.ProxiedValidatorAddress {
+	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() && msg.Address == sb.config.ProxiedValidatorAddress {
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
@@ -815,7 +814,7 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	}
 	// TODO: remove this check to allow non-proxy peers to send this message
 	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if !reflect.DeepEqual(peer, sb.proxiedPeer) {
+	if sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
 		logger.Warn("Received Istanbul Versioned Enode message from invalid peer")
 		return errUnauthorizedAnnounceMessage
 	}

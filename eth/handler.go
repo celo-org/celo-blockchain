@@ -353,6 +353,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
 			return err
 		}
+		// The p2p server CheckPeerCounts only checks if the total peer count
+		// (eth and les) exceeds the total max peers. This checks if the number
+		// of eth peers exceeds the eth max peers.
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
 		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && p.Peer.Server != pm.proxyServer {
 			return p2p.DiscTooManyPeers
