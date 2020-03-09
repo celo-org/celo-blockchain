@@ -110,6 +110,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Setup Rust language
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
+      - run:
           name: Compile android client
           command: make android
       - persist_to_workspace:
