@@ -274,7 +274,7 @@ func (s *Service) loop() {
 			wallet, err := s.eth.AccountManager().Find(accounts.Account{Address: s.etherBase})
 			if err != nil {
 				break
-			}]
+			}
 
 			if status, _ := wallet.Status(); status == "Unlocked" {
 				// Resolve the URL, defaulting to TLS, but falling back to none too
