@@ -53,13 +53,13 @@ const (
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
 	istanbulEnodeCertificateMsg      = 0x19
-	istanbulValidatorProofMsg      = 0x1a
+	istanbulValidatorHandshakeMsg      = 0x1a
 
 	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorProofMsg
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -122,7 +122,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
 			go announceHandlerFunc(peer, data)
 			return true, nil
-		} else if msg.Code == istanbulValidatorProofMsg {
+		} else if msg.Code == istanbulValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator proof message")
 			return true, nil
 		}
@@ -330,7 +330,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			errCh <- err
 			return
 		}
-		err = peer.Send(istanbulValidatorProofMsg, msgBytes)
+		err = peer.Send(istanbulValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
 		}
@@ -372,7 +372,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if peerMsg.Code != istanbulValidatorProofMsg {
+	if peerMsg.Code != istanbulValidatorHandshakeMsg {
 		logger.Warn("Read incorrect message code", "code", peerMsg.Code)
 		return false, errors.New("Incorrect message code")
 	}
