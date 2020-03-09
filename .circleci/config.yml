@@ -105,13 +105,10 @@ jobs:
 
   android:
     docker:
-      - image: celohq/circleci:android-v1
+      - image: celohq/circleci:android-v2
     working_directory: ~/repos/geth
     steps:
       - checkout
-      - run:
-          name: Setup Rust language
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
       - run:
           name: Compile android client
           command: make android
