@@ -1,0 +1,73 @@
+version: 2
+
+defaults: &defaults
+  working_directory: ~/app
+
+rust_defaults: &rust_defaults
+  <<: *defaults
+  docker:
+    - image: circleci/rust:latest
+
+go_defaults: &go_defaults
+  <<: *defaults
+  docker:
+    - image: circleci/go:latest
+
+jobs:
+  checkout-repo:
+    <<: *rust_defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/app
+      - persist_to_workspace:
+          root: .
+          paths: .
+
+  bls-tests:
+    <<: *rust_defaults
+    steps:
+      - attach_workspace:
+          at: ~/app
+      - run:
+          name: Install Rust & Tooling
+          command: |
+            rustup install 1.36.0
+            cargo install cargo-audit
+            rustup component add clippy
+      - run: cargo build --release && cargo test --release
+      - run:
+          name: Check Style
+          command: |
+            cargo fmt --all -- --check
+            cargo clippy --all-targets --all-features -- -D warnings
+      - run:
+          name: Audit Dependencies
+          command: cargo audit --ignore RUSTSEC-2019-0019 # remove once https://github.com/scipr-lab/zexe/issues/135 is fixed
+      - persist_to_workspace:
+          root: .
+          paths: target/release
+
+  go-module-tests:
+    <<: *go_defaults
+    working_directory: ~/app
+    docker:
+      - image: circleci/golang:latest
+    steps:
+      - attach_workspace:
+          at: ~/app
+      - run: cd ~/app/go/cmd/example && go run main.go
+      - run: cd ~/app/go && go test
+
+workflows:
+  version: 2
+  run-tests:
+    jobs:
+      - checkout-repo
+      - bls-tests:
+          requires:
+            - checkout-repo
+      - go-module-tests:
+          requires:
+            - checkout-repo
+            - bls-tests
