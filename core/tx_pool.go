@@ -551,21 +551,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	// Ensure gold transfers are whitelisted if transfers are frozen.
-	if tx.Value().Sign() > 0 {
-		to := *tx.To()
-		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
-			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
-		} else if isFrozen {
-			log.Info("Transfers are frozen")
-			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-				return ErrTransfersFrozen
-			}
-			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
-		}
-	}
-
 	// Ensure the fee currency is native or whitelisted.
 	if tx.FeeCurrency() != nil && !currency.IsWhitelisted(*tx.FeeCurrency(), nil, nil) {
 		return ErrNonWhitelistedFeeCurrency
@@ -604,6 +589,21 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 		return ErrGasPriceDoesNotExceedMinimum
+	}
+
+	// Ensure gold transfers are whitelisted if transfers are frozen.
+	if tx.Value().Sign() > 0 {
+		to := *tx.To()
+		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
+			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
+		} else if isFrozen {
+			log.Info("Transfers are frozen")
+			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
+				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
+				return ErrTransfersFrozen
+			}
+			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
+		}
 	}
 
 	return nil
