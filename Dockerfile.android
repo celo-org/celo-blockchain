@@ -19,7 +19,7 @@ ENV ANDROID_NDK ${android_ndk_home}
 
 # Install rust
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.37.0
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
 ENV PATH=$PATH:$HOME/.cargo/bin
 RUN rustup target add aarch64-linux-android
 RUN rustup target add armv7-linux-androideabi
