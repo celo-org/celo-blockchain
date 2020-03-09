@@ -52,8 +52,8 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulEnodeCertificateMsg      = 0x19
-	istanbulValidatorHandshakeMsg      = 0x1a
+	istanbulEnodeCertificateMsg    = 0x19
+	istanbulValidatorHandshakeMsg  = 0x1a
 
 	handshakeTimeout = 5 * time.Second
 )
