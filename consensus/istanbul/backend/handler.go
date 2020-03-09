@@ -52,7 +52,7 @@ const (
 	istanbulGetAnnouncesMsg        = 0x16
 	istanbulGetAnnounceVersionsMsg = 0x17
 	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulVersionedEnodeMsg      = 0x19
+	istanbulEnodeCertificateMsg      = 0x19
 	istanbulValidatorProofMsg      = 0x1a
 
 	handshakeTimeout = 5 * time.Second
@@ -276,11 +276,11 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			versionedEnodeMsg, err := sb.retrieveVersionedEnodeMsg()
+			enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 			if err != nil {
-				logger.Warn("Error getting self versioned enode message", "err", err)
-			} else if versionedEnodeMsg != nil {
-				go sb.sendVersionedEnodeMsg(peer, versionedEnodeMsg)
+				logger.Warn("Error getting enode certificate message", "err", err)
+			} else if enodeCertificateMsg != nil {
+				go sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg)
 			}
 		} else {
 			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
@@ -314,7 +314,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
 		if peerIsValidator {
 			// msg may be nil
-			msg, err = sb.retrieveVersionedEnodeMsg()
+			msg, err = sb.retrieveEnodeCertificateMsg()
 			if err != nil {
 				errCh <- err
 				return
@@ -392,21 +392,21 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
-	var versionedEnode versionedEnode
-	err = rlp.DecodeBytes(msg.Msg, &versionedEnode)
+	var enodeCertificate enodeCertificate
+	err = rlp.DecodeBytes(msg.Msg, &enodeCertificate)
 	if err != nil {
 		return false, err
 	}
 
-	node, err := enode.ParseV4(versionedEnode.EnodeURL)
+	node, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
 		return false, err
 	}
 
-	// Ensure the node in the versionedEnode matches the peer node
+	// Ensure the node in the enodeCertificate matches the peer node
 	if node.ID() != peer.Node().ID() {
-		logger.Warn("Peer provided incorrect node ID in versionedEnode", "versionedEnode enode url", versionedEnode.EnodeURL, "peer enode url", peer.Node().URLv4())
-		return false, errors.New("Incorrect node in versionedEnode")
+		logger.Warn("Peer provided incorrect node ID in enodeCertificate", "enodeCertificate enode url", enodeCertificate.EnodeURL, "peer enode url", peer.Node().URLv4())
+		return false, errors.New("Incorrect node in enodeCertificate")
 	}
 
 	block := sb.currentBlock()
@@ -420,23 +420,23 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
-	// If the versionedEnode message is too old, we don't count this proof as valid
+	// If the enodeCertificate message is too old, we don't count this proof as valid
 	// An error is given if the entry doesn't exist, so we ignore the error.
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
-	if err == nil && versionedEnode.Version < knownVersion {
-		logger.Debug("Received a validator proof message with an old version", "received version", versionedEnode.Version, "known version", knownVersion)
+	if err == nil && enodeCertificate.Version < knownVersion {
+		logger.Debug("Received a validator proof message with an old version", "received version", enodeCertificate.Version, "known version", knownVersion)
 		return false, nil
 	}
 
 	// By this point, we know the peer is a validator and we update our val enode table accordingly
 	// Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: versionedEnode.Version}})
+	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}
 	// Forward this message to the proxied validator if this is a proxy
 	if sb.config.Proxy && sb.proxiedPeer != nil {
-		go sb.sendVersionedEnodeMsg(sb.proxiedPeer, &msg)
+		go sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg)
 	}
 	return true, nil
 }

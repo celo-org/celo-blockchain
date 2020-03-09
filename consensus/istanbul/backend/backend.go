@@ -145,7 +145,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulVersionedEnodeMsg] = backend.handleVersionedEnodeMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 
 	return backend
@@ -207,12 +207,12 @@ type Backend struct {
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
 
-	// The versioned enode message most recently generated if this is a validator
+	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
 	// Used for proving itself as a validator in the handshake. The entire
 	// istanbul.Message is saved to keep the signature.
-	versionedEnodeMsg   *istanbul.Message
-	versionedEnodeMsgMu sync.RWMutex
+	enodeCertificateMsg   *istanbul.Message
+	enodeCertificateMsgMu sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

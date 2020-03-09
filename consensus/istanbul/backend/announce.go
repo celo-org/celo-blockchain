@@ -693,7 +693,7 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 	}
 }
 
-type versionedEnode struct {
+type enodeCertificate struct {
 	EnodeURL string
 	Version  uint
 }
@@ -702,13 +702,13 @@ type versionedEnode struct {
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
-// EncodeRLP serializes ve into the Ethereum RLP format.
-func (ve *versionedEnode) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ve.EnodeURL, ve.Version})
+// EncodeRLP serializes ec into the Ethereum RLP format.
+func (ec *enodeCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ec.EnodeURL, ec.Version})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ve fields from a RLP stream.
-func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the ec fields from a RLP stream.
+func (ec *enodeCertificate) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		EnodeURL string
 		Version  uint
@@ -717,27 +717,27 @@ func (ve *versionedEnode) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ve.EnodeURL, ve.Version = msg.EnodeURL, msg.Version
+	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
 	return nil
 }
 
-// retrieveVersionedEnodeMsg gets the most recent versioned enode message.
+// retrieveEnodeCertificateMsg gets the most recent enode certificate message.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
-func (sb *Backend) retrieveVersionedEnodeMsg() (*istanbul.Message, error) {
-	sb.versionedEnodeMsgMu.Lock()
-	defer sb.versionedEnodeMsgMu.Unlock()
-	if sb.versionedEnodeMsg == nil {
+func (sb *Backend) retrieveEnodeCertificateMsg() (*istanbul.Message, error) {
+	sb.enodeCertificateMsgMu.Lock()
+	defer sb.enodeCertificateMsgMu.Unlock()
+	if sb.enodeCertificateMsg == nil {
 		return nil, nil
 	}
-	return sb.versionedEnodeMsg.Copy(), nil
+	return sb.enodeCertificateMsg.Copy(), nil
 }
 
-// generateVersionedEnodeMsg generates a versioned enode message with the enode
+// generateEnodeCertificateMsg generates an enode certificate message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
-func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateVersionedEnodeMsg")
+func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message, error) {
+	logger := sb.logger.New("func", "generateEnodeCertificateMsg")
 
 	var enodeURL string
 	if sb.config.Proxied {
@@ -750,72 +750,72 @@ func (sb *Backend) generateVersionedEnodeMsg(version uint) (*istanbul.Message, e
 		enodeURL = sb.p2pserver.Self().URLv4()
 	}
 
-	versionedEnode := &versionedEnode{
+	enodeCertificate := &enodeCertificate{
 		EnodeURL: enodeURL,
 		Version:  version,
 	}
-	versionedEnodeBytes, err := rlp.EncodeToBytes(versionedEnode)
+	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
 	if err != nil {
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code:    istanbulVersionedEnodeMsg,
+		Code:    istanbulEnodeCertificateMsg,
 		Address: sb.Address(),
-		Msg:     versionedEnodeBytes,
+		Msg:     enodeCertificateBytes,
 	}
 	// Sign the message
 	if err := msg.Sign(sb.Sign); err != nil {
 		return nil, err
 	}
-	logger.Trace("Generated Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "address", msg.Address)
+	logger.Trace("Generated Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate, "address", msg.Address)
 	return msg, nil
 }
 
-// handleVersionedEnodeMsg handles a versioned enode message.
+// handleEnodeCertificateMsg handles an enode certificate message.
 // At the moment, this message is only supported if it's sent from a proxied
 // validator to its proxy or vice versa.
-func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleVersionedEnodeMsg")
+func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
 	// Decode payload into msg
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
-		logger.Error("Error in decoding received Istanbul Versioned Enode message", "err", err, "payload", hex.EncodeToString(payload))
+		logger.Error("Error in decoding received Istanbul Enode Certificate message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
 	logger = logger.New("msg address", msg.Address)
-	logger.Trace("Handling an Istanbul Versioned Enode message")
+	logger.Trace("Handling an Istanbul Enode Certificate message")
 
-	var versionedEnode versionedEnode
-	if err := rlp.DecodeBytes(msg.Msg, &versionedEnode); err != nil {
-		logger.Warn("Error in decoding received Istanbul Versioned Enode message content", "err", err, "IstanbulMsg", msg.String())
+	var enodeCertificate enodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
-	parsedNode, err := enode.ParseV4(versionedEnode.EnodeURL)
+	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
-		logger.Warn("Malformed v4 node in received Istanbul Versioned Enode message", "versionedEnode", versionedEnode, "err", err)
+		logger.Warn("Malformed v4 node in received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate, "err", err)
 		return err
 	}
 
 	// Handle the special case where this node is a proxy and the proxied validator
-	// sent a versioned enode for the proxy to use in handshakes
+	// sent an enode certificate for the proxy to use in handshakes
 	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() && msg.Address == sb.config.ProxiedValidatorAddress {
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
 		if parsedNode.ID() != selfNode.ID() {
-			logger.Warn("Received Istanbul Versioned Enode message with an incorrect enode url", "message enode url", versionedEnode.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
 			return errors.New("Incorrect enode url")
 		}
-		sb.setVersionedEnodeMsg(&msg)
+		sb.setEnodeCertificateMsg(&msg)
 		return nil
 	}
 	// TODO: remove this check to allow non-proxy peers to send this message
 	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
 	if sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
-		logger.Warn("Received Istanbul Versioned Enode message from invalid peer")
+		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
 		return errUnauthorizedAnnounceMessage
 	}
 
@@ -826,52 +826,52 @@ func (sb *Backend) handleVersionedEnodeMsg(peer consensus.Peer, payload []byte) 
 	}
 
 	if !validatorConnSet[msg.Address] {
-		logger.Debug("Received Istanbul Versioned Enode message originating from a node not in the validator conn set")
+		logger.Debug("Received Istanbul Enode Certificate message originating from a node not in the validator conn set")
 		return errUnauthorizedAnnounceMessage
 	}
 
-	logger.Trace("Received Istanbul Versioned Enode message", "versionedEnode", versionedEnode)
+	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
-	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: versionedEnode.Version}}); err != nil {
+	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
 	return nil
 }
 
-func (sb *Backend) sendVersionedEnodeMsg(peer consensus.Peer, msg *istanbul.Message) error {
-	logger := sb.logger.New("func", "sendVersionedEnodeMsg")
+func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Message) error {
+	logger := sb.logger.New("func", "sendEnodeCertificateMsg")
 	payload, err := msg.Payload()
 	if err != nil {
-		logger.Error("Error getting payload of versioned enode message", "err", err)
+		logger.Error("Error getting payload of enode certificate message", "err", err)
 		return err
 	}
-	return peer.Send(istanbulVersionedEnodeMsg, payload)
+	return peer.Send(istanbulEnodeCertificateMsg, payload)
 }
 
-func (sb *Backend) setVersionedEnodeMsg(msg *istanbul.Message) {
-	sb.versionedEnodeMsgMu.Lock()
-	sb.versionedEnodeMsg = msg
-	sb.versionedEnodeMsgMu.Unlock()
+func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) {
+	sb.enodeCertificateMsgMu.Lock()
+	sb.enodeCertificateMsg = msg
+	sb.enodeCertificateMsgMu.Unlock()
 }
 
-// updateAnnounceVersion generates a new versioned enode message and sends
+// updateAnnounceVersion generates a new enode certificate message and sends
 // it to this node's proxy (if applicable).
 // TODO: When a generated announce no longer creates a new version, the version
 // parameter can be removed and instead have the version generated in this function.
 // Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
 func (sb *Backend) updateAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "updateAnnounceVersion")
-	versionedEnodeMsg, err := sb.generateVersionedEnodeMsg(version)
+	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
 	}
-	sb.setVersionedEnodeMsg(versionedEnodeMsg)
-	// Send the new versioned enode msg to the proxy peer
+	sb.setEnodeCertificateMsg(enodeCertificateMsg)
+	// Send the new enode certificate msg to the proxy peer
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendVersionedEnodeMsg(sb.proxyNode.peer, versionedEnodeMsg)
+		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
 		if err != nil {
-			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+			logger.Error("Error in sending enode certificate msg to proxy", "err", err)
 			return err
 		}
 	}
