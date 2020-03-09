@@ -45,6 +45,14 @@ func (p *MockPeer) ReadMsg() (p2p.Msg, error) {
 	return p2p.Msg{}, nil
 }
 
+func (p *MockPeer) Inbound() bool {
+	return false
+}
+
+func (p *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return false
+}
+
 func TestIstanbulMessage(t *testing.T) {
 	_, backend := newBlockChain(1, true)
 
