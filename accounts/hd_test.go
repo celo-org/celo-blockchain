@@ -62,12 +62,12 @@ func TestHDPathParsing(t *testing.T) {
 		{"	m  /   44			'\n/\n   52752	\n\n\t'   /\n0 ' /\t\t	0", DerivationPath{0x80000000 + 44, 0x80000000 + 52752, 0x80000000 + 0, 0}},
 
 		// Invaid derivation paths
-		{"", nil},              // Empty relative derivation path
-		{"m", nil},             // Empty absolute derivation path
-		{"m/", nil},            // Missing last derivation component
+		{"", nil},                 // Empty relative derivation path
+		{"m", nil},                // Empty absolute derivation path
+		{"m/", nil},               // Missing last derivation component
 		{"/44'/52752'/0'/0", nil}, // Absolute path without m prefix, might be user error
-		{"m/2147483648'", nil}, // Overflows 32 bit integer
-		{"m/-1'", nil},         // Cannot contain negative number
+		{"m/2147483648'", nil},    // Overflows 32 bit integer
+		{"m/-1'", nil},            // Cannot contain negative number
 	}
 	for i, tt := range tests {
 		if path, err := ParseDerivationPath(tt.input); !reflect.DeepEqual(path, tt.output) {
