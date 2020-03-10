@@ -123,7 +123,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go announceHandlerFunc(peer, data)
 			return true, nil
 		} else if msg.Code == istanbulValidatorHandshakeMsg {
-			logger.Warn("Received unexpected Istanbul validator proof message")
+			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		}
 
@@ -337,7 +337,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		isValidatorCh <- peerIsValidator
 	}
 	readHandshake := func() {
-		isValidator, err := sb.readValidatorProofMessage(peer)
+		isValidator, err := sb.readValidatorHandshakeMessage(peer)
 		if err != nil {
 			errCh <- err
 			return
@@ -364,10 +364,10 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	}
 }
 
-// readValidatorProofMessage reads a validator proof message as a part of the
-// istanbul handshake. Returns if the peer is a validator or if an error occurred.
-func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
-	logger := sb.logger.New("func", "readValidatorProofMessage")
+// readValidatorHandshakeMessage reads a validator handshake message.
+// Returns if the peer is a validator or if an error occurred.
+func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, error) {
+	logger := sb.logger.New("func", "readValidatorHandshakeMessage")
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
 		return false, err
@@ -383,7 +383,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	var msg istanbul.Message
-	err = msg.FromPayload(payload, sb.verifyValidatorProofMessage)
+	err = msg.FromPayload(payload, sb.verifyValidatorHandshakeMessage)
 	if err != nil {
 		return false, err
 	}
@@ -416,15 +416,15 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 	if !valSet.ContainsByAddress(msg.Address) {
-		logger.Debug("Received a validator proof message from peer not in the validator conn set", "msg.Address", msg.Address)
+		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
 
-	// If the enodeCertificate message is too old, we don't count this proof as valid
+	// If the enodeCertificate message is too old, we don't count the msg as valid
 	// An error is given if the entry doesn't exist, so we ignore the error.
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
 	if err == nil && enodeCertificate.Version < knownVersion {
-		logger.Debug("Received a validator proof message with an old version", "received version", enodeCertificate.Version, "known version", knownVersion)
+		logger.Debug("Received a validator handshake message with an old version", "received version", enodeCertificate.Version, "known version", knownVersion)
 		return false, nil
 	}
 
@@ -441,10 +441,10 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	return true, nil
 }
 
-// verifyValidatorProofMessage allows messages that are not signed to still be
-// decoded in case the peer has decided not to identify itself with the validator proof
+// verifyValidatorHandshakeMessage allows messages that are not signed to still be
+// decoded in case the peer has decided not to identify itself with the validator handshake
 // message
-func (sb *Backend) verifyValidatorProofMessage(data []byte, sig []byte) (common.Address, error) {
+func (sb *Backend) verifyValidatorHandshakeMessage(data []byte, sig []byte) (common.Address, error) {
 	// If the message was not signed, allow it to still be decoded.
 	// A later check will verify if the signature was empty or not.
 	if len(sig) == 0 {

@@ -76,8 +76,7 @@ type ProtocolManager struct {
 
 	txpool     txPool
 	blockchain *core.BlockChain
-
-	maxPeers int
+	maxPeers   int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
@@ -924,7 +923,7 @@ func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.Purp
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			if purpose == p2p.AnyPurpose || p.PurposeIsSet(purpose) {
+			if p.PurposeIsSet(purpose) {
 				m[id] = p
 			}
 		}
