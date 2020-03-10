@@ -402,6 +402,10 @@ func (c *bn256AddIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256AddIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256Add(input, caller, evm, gas)
 }
 
@@ -415,6 +419,10 @@ func (c *bn256AddByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256AddByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256Add(input, caller, evm, gas)
 }
 
@@ -440,6 +448,10 @@ func (c *bn256ScalarMulIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256ScalarMulIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256ScalarMul(input, caller, evm, gas)
 }
 
@@ -453,6 +465,10 @@ func (c *bn256ScalarMulByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256ScalarMulByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256ScalarMul(input, caller, evm, gas)
 }
 
@@ -502,10 +518,14 @@ func runBn256Pairing(input []byte, caller common.Address, evm *EVM, gas uint64) 
 type transfer struct{}
 
 func (c *transfer) RequiredGas(input []byte) uint64 {
-	return params.TxGas
+	return params.CallValueTransferGas
 }
 
 func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
 	if err != nil {
 		return nil, gas, err
@@ -671,6 +691,10 @@ func (c *bn256PairingIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256PairingIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256Pairing(input, caller, evm, gas)
 }
 
@@ -684,6 +708,10 @@ func (c *bn256PairingByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256PairingByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	return runBn256Pairing(input, caller, evm, gas)
 }
 
@@ -710,6 +738,10 @@ var (
 )
 
 func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
 	// Make sure the input is valid (correct lenth and final flag)
 	if len(input) != blake2FInputLength {
 		return nil, gas, errBlake2FInvalidInputLength
