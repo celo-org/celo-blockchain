@@ -697,6 +697,7 @@ func globalRandRead(b []byte) {
 	val := 0
 	for n := 0; n < len(b); n++ {
 		if pos == 0 {
+			// #nosec TODO?
 			val = rand.Int()
 			pos = 7
 		}

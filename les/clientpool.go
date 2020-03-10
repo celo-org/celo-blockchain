@@ -546,7 +546,7 @@ func (c *clientInfo) updatePriceFactors() {
 }
 
 // getPosBalance retrieves a single positive balance entry from cache or the database
-func (f *clientPool) getPosBalance(id enode.ID) posBalance {
+func (f *clientPool) getPosBalance(id enode.ID) posBalance { //nolint:unused
 	f.lock.Lock()
 	defer f.lock.Unlock()
 

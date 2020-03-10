@@ -116,6 +116,7 @@ func (b *benchmarkProofsOrCode) init(h *serverHandler, count int) error {
 
 func (b *benchmarkProofsOrCode) request(peer *peer, index int) error {
 	key := make([]byte, 32)
+	// #nosec (not important)
 	rand.Read(key)
 	if b.code {
 		return peer.RequestCode(0, 0, []CodeReq{{BHash: b.headHash, AccKey: key}})
@@ -179,6 +180,7 @@ func (b *benchmarkTxSend) init(h *serverHandler, count int) error {
 
 	for i := range b.txs {
 		data := make([]byte, txSizeCostLimit)
+		// #nosec (not important)
 		rand.Read(data)
 		tx, err := types.SignTx(types.NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, nil, nil, data), signer, key)
 		if err != nil {
@@ -203,6 +205,7 @@ func (b *benchmarkTxStatus) init(h *serverHandler, count int) error {
 
 func (b *benchmarkTxStatus) request(peer *peer, index int) error {
 	var hash common.Hash
+	// #nosec (not important)
 	rand.Read(hash[:])
 	return peer.RequestTxStatus(0, 0, []common.Hash{hash})
 }
@@ -281,6 +284,7 @@ func (h *serverHandler) measure(setup *benchmarkSetup, count int) error {
 	clientMeteredPipe := &meteredPipe{rw: clientPipe}
 	serverMeteredPipe := &meteredPipe{rw: serverPipe}
 	var id enode.ID
+	// #nosec (not important)
 	rand.Read(id[:])
 
 	clientPeer := newPeer(lpv2, NetworkId, false, p2p.NewPeer(id, "client", nil), clientMeteredPipe)

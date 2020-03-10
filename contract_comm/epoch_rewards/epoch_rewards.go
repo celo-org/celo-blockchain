@@ -45,6 +45,24 @@ const epochRewardsABIString string = `[
         {
           "name": "",
           "type": "uint256"
+        },
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    { 
+      "constant": true,
+      "inputs": [],
+      "name": "carbonOffsettingPartner",
+      "outputs": [
+        { 
+          "name": "",
+          "type": "address"
         }
       ],
       "payable": false,
@@ -59,6 +77,34 @@ const epochRewardsABIString string = `[
       "payable": false,
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "isReserveLow",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "frozen",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
     }
 ]
 `
@@ -70,15 +116,45 @@ func UpdateTargetVotingYield(header *types.Header, state vm.StateDB) error {
 	return err
 }
 
-// Returns the per validator epoch reward, the total voter reward, and the total community reward
-// for the epoch.
-func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, *big.Int, error) {
+// Returns the per validator epoch reward, the total voter reward, the total community reward, and
+// the total carbon offsetting partner award, for the epoch.
+func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	var validatorEpochReward *big.Int
 	var totalVoterRewards *big.Int
 	var totalCommunityReward *big.Int
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards, &totalCommunityReward}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
+	var totalCarbonOffsettingPartnerReward *big.Int
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards, &totalCommunityReward, &totalCarbonOffsettingPartnerReward}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return validatorEpochReward, totalVoterRewards, totalCommunityReward, nil
+	return validatorEpochReward, totalVoterRewards, totalCommunityReward, totalCarbonOffsettingPartnerReward, nil
+}
+
+// Determines if the reserve is below it's critical threshold
+func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
+	var isLow bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "isReserveLow", []interface{}{}, &isLow, params.MaxGasForIsReserveLow, header, state)
+	if err != nil {
+		return false, err
+	}
+	return isLow, nil
+}
+
+// Returns the address of the carbon offsetting partner
+func GetCarbonOffsettingPartnerAddress(header *types.Header, state vm.StateDB) (common.Address, error) {
+	var carbonOffsettingPartner common.Address
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "carbonOffsettingPartner", []interface{}{}, &carbonOffsettingPartner, params.MaxGasForGetCarbonOffsettingPartner, header, state)
+	if err != nil {
+		return common.ZeroAddress, err
+	}
+	return carbonOffsettingPartner, nil
+}
+
+func EpochRewardsIsFrozen(header *types.Header, state vm.StateDB) (bool, error) {
+	var frozen bool
+	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForIsFrozen, header, state)
+	if err != nil {
+		return false, err
+	}
+	return frozen, nil
 }

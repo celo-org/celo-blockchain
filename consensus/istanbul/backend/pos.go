@@ -41,23 +41,34 @@ import (
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
 	start := time.Now()
 	defer sb.rewardDistributionTimer.UpdateSince(start)
+	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
+
+	// Check if reward distribution has been frozen and return early without error if it is.
+	if frozen, err := epoch_rewards.EpochRewardsIsFrozen(header, state); err != nil {
+		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
+	} else if frozen {
+		logger.Debug("Epoch rewards are frozen, skipping distribution")
+		return nil
+	}
 
 	err := epoch_rewards.UpdateTargetVotingYield(header, state)
 	if err != nil {
 		return err
 	}
-	validatorReward, totalVoterRewards, communityReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
+	validatorReward, totalVoterRewards, communityReward, carbonOffsettingPartnerReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
 	}
-	log.Debug("Calculated target rewards", "validatorReward", validatorReward, "totalVoterRewards", totalVoterRewards, "communityReward", communityReward)
+
+	logger.Debug("Calculated target rewards", "validatorReward", validatorReward, "totalVoterRewards", totalVoterRewards, "communityReward", communityReward)
 
 	// The validator set that signs off on the last block of the epoch is the one that we need to
 	// iterate over.
 	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
 	if len(valSet) == 0 {
+
 		err := errors.New("Unable to fetch validator set to update scores and distribute rewards")
-		sb.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return err
 	}
 
@@ -100,8 +111,19 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
 	}
 
+	carbonOffsettingPartnerAddress, err := epoch_rewards.GetCarbonOffsettingPartnerAddress(header, state)
+	if err != nil {
+		return err
+	}
+	if carbonOffsettingPartnerAddress != common.ZeroAddress {
+		state.AddBalance(carbonOffsettingPartnerAddress, carbonOffsettingPartnerReward)
+	} else {
+		carbonOffsettingPartnerReward = big.NewInt(0)
+	}
+
 	mintedGold := big.NewInt(0).Add(totalDistributedVoterRewards, totalValidatorRewardsConvertedToGold)
 	mintedGold.Add(mintedGold, totalCommunityRewards)
+	mintedGold.Add(mintedGold, carbonOffsettingPartnerReward)
 	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
 }
 
@@ -170,8 +192,11 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 	if err != nil {
 		return totalCommunityRewards, err
 	}
-	// TODO: replace 'false' with 'isReserveLow'
-	if false && reserveAddress != nil {
+	lowReserve, err := epoch_rewards.IsReserveLow(header, state)
+	if err != nil {
+		return totalCommunityRewards, err
+	}
+	if lowReserve && reserveAddress != nil {
 		state.AddBalance(*reserveAddress, communityReward)
 		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
 	} else if governanceAddress != nil {

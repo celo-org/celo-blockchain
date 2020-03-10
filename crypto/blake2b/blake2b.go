@@ -302,7 +302,7 @@ func appendUint64(b []byte, x uint64) []byte {
 	return append(b, a[:]...)
 }
 
-func appendUint32(b []byte, x uint32) []byte {
+func appendUint32(b []byte, x uint32) []byte { //nolint:unused
 	var a [4]byte
 	binary.BigEndian.PutUint32(a[:], x)
 	return append(b, a[:]...)
@@ -313,7 +313,7 @@ func consumeUint64(b []byte) ([]byte, uint64) {
 	return b[8:], x
 }
 
-func consumeUint32(b []byte) ([]byte, uint32) {
+func consumeUint32(b []byte) ([]byte, uint32) { //nolint:unused
 	x := binary.BigEndian.Uint32(b)
 	return b[4:], x
 }
