@@ -28,13 +28,13 @@ import (
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
+	"github.com/celo-org/bls-zexe/go"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/celo-org/bls-zexe/go"
 	"github.com/karalabe/usb"
 )
 
@@ -626,6 +626,9 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 		return blscrypto.SerializedSignature{}, err
 	}
 	signatureResult, err := blscrypto.SerializedSignatureFromBytes(signedCompressed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
 	return signatureResult, nil
 }
 

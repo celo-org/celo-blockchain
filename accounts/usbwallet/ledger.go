@@ -60,15 +60,14 @@ const (
 
 	ledgerOpGetPubkeyBLS ledgerOpcode = 0x04 // Returns public key for BLS validator app
 
-	ledgerP1UnfinishedBLSData ledgerParam1 = 0x00 // BLS message/hash data to be signed, not finished 
-	ledgerP1FinalBLSData ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
+	ledgerP1FinalBLSData      ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
 
-	ledgerTxSigner appType  = 0x02
+	ledgerTxSigner  appType = 0x02
 	ledgerBLSsigner appType = 0x04
 )
 
@@ -89,7 +88,7 @@ var errLedgerInvalidApp = errors.New("ledger: invalid app")
 type ledgerDriver struct {
 	device  io.ReadWriter // USB device connection to communicate through
 	version [3]byte       // Current version of the Ledger firmware (zero if app is offline)
-	app     appType          // App currently running on the Ledger device
+	app     appType       // App currently running on the Ledger device
 	browser bool          // Flag whether the Ledger is in browser mode (reply channel mismatch)
 	failure error         // Any failure that would make the device unusable
 	log     log.Logger    // Contextual logger to tag the ledger with its id
@@ -429,7 +428,7 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	return sender, signed, nil
 }
 
-// ledgerGetPubKeyBLS sends a request to the Ledger wallet, and waits for the 
+// ledgerGetPubKeyBLS sends a request to the Ledger wallet, and waits for the
 // response containing the BLS public key
 //
 // The transaction signing protocol is defined as follows:
@@ -447,13 +446,13 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 	var (
 		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
 		reply []byte
-		err error
+		err   error
 	)
-		// Send the chunk over, ensuring it's processed correctly
-		reply, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
-		if err != nil {
-			return nil, err
-		}
+	// Send the chunk over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
+	if err != nil {
+		return nil, err
+	}
 	// Check length of public key returned
 	if len(reply) != 192 {
 		return nil, errors.New("public key reply invalid")
@@ -461,7 +460,6 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 
 	return reply, nil
 }
-
 
 // ledgerBLSHashSign sends a hashed message to the Ledger wallet representing
 // an elliptic curve point in G1. It then receives the BLS signature computed
@@ -477,7 +475,7 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 //
 //   Description                                      | Length
 //   -------------------------------------------------+----------
-//   Hash of message as serialized G1 point           | 96 bytes 
+//   Hash of message as serialized G1 point           | 96 bytes
 //
 // And the output data is:
 //
@@ -494,11 +492,11 @@ func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
 		reply []byte
 	)
-		// Send the chunk over, ensuring it's processed correctly
-		reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
-		if err != nil {
-			return nil, err
-		}
+	// Send the chunk over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
+	if err != nil {
+		return nil, err
+	}
 	// Make sure reply is the correct length
 	if len(reply) != 96 {
 		return nil, errors.New("invalid signature reply")

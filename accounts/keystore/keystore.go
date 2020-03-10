@@ -468,7 +468,6 @@ func (ks *KeyStore) GetPublicKeyBLS(a accounts.Account) ([]byte, error) {
 	return publicKeyBytes, nil
 }
 
-
 // SignTx signs the given transaction with the requested account.
 func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	// Look up the key to sign with and abort if it cannot be found
