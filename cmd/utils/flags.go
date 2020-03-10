@@ -242,7 +242,7 @@ var (
 		Value: "0",
 	}
 	BLSwalletFlag = cli.BoolFlag{
-		Name: "blswallet",
+		Name:  "blswallet",
 		Usage: "Use hardware wallet for BLS signing. Overrides blsbase",
 	}
 	// Light server and client settings

@@ -37,7 +37,7 @@ var (
 		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
 	}
 	blsWalletFlag = cli.BoolFlag{
-		Name: "blswallet",
+		Name:  "blswallet",
 		Usage: "Set to specify generation of proof-of-possession using a hardware wallet",
 	}
 	walletCommand = cli.Command{
@@ -245,14 +245,14 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	for _, wallet := range am.Wallets() {
 		wallet.Open("")
 	}
-	var(
-		signer common.Address
+	var (
+		signer  common.Address
 		message common.Address
 		account accounts.Account
 	)
 	if ctx.IsSet(blsWalletFlag.Name) {
 		message = common.HexToAddress(ctx.Args()[0])
-		account = accounts.Account{Address: accounts.BLSHardwareWalletAddress }
+		account = accounts.Account{Address: accounts.BLSHardwareWalletAddress}
 	} else {
 		signer = common.HexToAddress(ctx.Args()[0])
 		message = common.HexToAddress(ctx.Args()[1])
@@ -278,7 +278,6 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-
 
 	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
 

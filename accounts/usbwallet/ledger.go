@@ -60,7 +60,7 @@ const (
 
 	ledgerOpGetPubkeyBLS ledgerOpcode = 0x04 // Returns public key for BLS validator app
 
-	ledgerP1FinalBLSData      ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
+	ledgerP1FinalBLSData ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
