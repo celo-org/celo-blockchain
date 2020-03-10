@@ -28,7 +28,7 @@ import (
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
-	"github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
