@@ -66,9 +66,6 @@ var (
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
-	// errNotProxy is returned when the current node is expected to be a proxy
-	errNotProxy = errors.New("this node is not a proxy")
-
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
@@ -867,25 +864,6 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 	defer sb.cachedValidatorConnSetMu.RUnlock()
 	return sb.cachedValidatorConnSet, nil
-}
-
-// retrieveCachedValidatorConnSet returns the most recently cached validator conn
-// set and asynchronously updates the cache if it is older than 1 minute.
-// If no set has ever been cached, nil is returned.
-func (sb *Backend) retrieveCachedValidatorConnSet() map[common.Address]bool {
-	sb.cachedValidatorConnSetMu.RLock()
-	defer func() {
-		if sb.cachedValidatorConnSet == nil || time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
-			go func() {
-				err := sb.updateCachedValidatorConnSet()
-				if err != nil {
-					sb.logger.Debug("Unable to update cached validator conn set", "err", err)
-				}
-			}()
-		}
-		sb.cachedValidatorConnSetMu.RUnlock()
-	}()
-	return sb.cachedValidatorConnSet
 }
 
 // updateCachedValidatorConnSet updates the cached validator conn set. If another
