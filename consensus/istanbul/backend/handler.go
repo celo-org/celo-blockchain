@@ -50,14 +50,14 @@ const (
 	istanbulFwdMsg                    = 0x14
 	istanbulDelegateSign              = 0x15
 	istanbulSignedAnnounceVersionsMsg = 0x16
-	istanbulVersionedEnodeMsg         = 0x17
-	istanbulValidatorProofMsg         = 0x18
+	istanbulEnodeCertificateMsg       = 0x17
+	istanbulValidatorHandshakeMsg     = 0x18
 
 	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorProofMsg
+	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -120,8 +120,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
 			go announceHandlerFunc(peer, data)
 			return true, nil
-		} else if msg.Code == istanbulValidatorProofMsg {
-			logger.Warn("Received unexpected Istanbul validator proof message")
+		} else if msg.Code == istanbulValidatorHandshakeMsg {
+			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		}
 
@@ -274,11 +274,11 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
-			versionedEnodeMsg, err := sb.retrieveVersionedEnodeMsg()
+			enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 			if err != nil {
-				logger.Warn("Error getting self versioned enode message", "err", err)
-			} else if versionedEnodeMsg != nil {
-				go sb.sendVersionedEnodeMsg(peer, versionedEnodeMsg)
+				logger.Warn("Error getting enode certificate message", "err", err)
+			} else if enodeCertificateMsg != nil {
+				go sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg)
 			}
 		} else {
 			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
@@ -307,12 +307,12 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	isValidatorCh := make(chan bool)
 
 	sendHandshake := func() {
-		var validatorProofMsg *istanbul.Message
+		var msg *istanbul.Message
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
 		if peerIsValidator {
-			// validatorProofMsg may be nil
-			validatorProofMsg, err = sb.retrieveVersionedEnodeMsg()
+			// msg may be nil
+			msg, err = sb.retrieveEnodeCertificateMsg()
 			if err != nil {
 				errCh <- err
 				return
@@ -320,22 +320,22 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		}
 		// Even if we decide not to identify ourselves,
 		// send an empty message to complete the handshake
-		if validatorProofMsg == nil {
-			validatorProofMsg = &istanbul.Message{}
+		if msg == nil {
+			msg = &istanbul.Message{}
 		}
-		msgBytes, err := validatorProofMsg.Payload()
+		msgBytes, err := msg.Payload()
 		if err != nil {
 			errCh <- err
 			return
 		}
-		err = peer.Send(istanbulValidatorProofMsg, msgBytes)
+		err = peer.Send(istanbulValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
 		}
 		isValidatorCh <- peerIsValidator
 	}
 	readHandshake := func() {
-		isValidator, err := sb.readValidatorProofMessage(peer)
+		isValidator, err := sb.readValidatorHandshakeMessage(peer)
 		if err != nil {
 			errCh <- err
 			return
@@ -362,15 +362,15 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 	}
 }
 
-// readValidatorProofMessage reads a validator proof message as a part of the
-// istanbul handshake. Returns if the peer is a validator or if an error occurred.
-func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) {
-	logger := sb.logger.New("func", "readValidatorProofMessage")
+// readValidatorHandshakeMessage reads a validator handshake message.
+// Returns if the peer is a validator or if an error occurred.
+func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, error) {
+	logger := sb.logger.New("func", "readValidatorHandshakeMessage")
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
 		return false, err
 	}
-	if peerMsg.Code != istanbulValidatorProofMsg {
+	if peerMsg.Code != istanbulValidatorHandshakeMsg {
 		logger.Warn("Read incorrect message code", "code", peerMsg.Code)
 		return false, errors.New("Incorrect message code")
 	}
@@ -381,7 +381,7 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 	}
 
 	var msg istanbul.Message
-	err = msg.FromPayload(payload, sb.verifyValidatorProofMessage)
+	err = msg.FromPayload(payload, sb.verifyValidatorHandshakeMessage)
 	if err != nil {
 		return false, err
 	}
@@ -390,63 +390,59 @@ func (sb *Backend) readValidatorProofMessage(peer consensus.Peer) (bool, error) 
 		return false, nil
 	}
 
-	var versionedEnode versionedEnode
-	err = rlp.DecodeBytes(msg.Msg, &versionedEnode)
+	var enodeCertificate enodeCertificate
+	err = rlp.DecodeBytes(msg.Msg, &enodeCertificate)
 	if err != nil {
 		return false, err
 	}
 
-	node, err := enode.ParseV4(versionedEnode.EnodeURL)
+	node, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
 		return false, err
 	}
 
-	// Ensure the node in the versionedEnode matches the peer node
+	// Ensure the node in the enodeCertificate matches the peer node
 	if node.ID() != peer.Node().ID() {
-		logger.Warn("Peer provided incorrect node ID in versionedEnode", "versionedEnode enode url", versionedEnode.EnodeURL, "peer enode url", peer.Node().URLv4())
-		return false, errors.New("Incorrect node in versionedEnode")
+		logger.Warn("Peer provided incorrect node ID in enodeCertificate", "enodeCertificate enode url", enodeCertificate.EnodeURL, "peer enode url", peer.Node().URLv4())
+		return false, errors.New("Incorrect node in enodeCertificate")
 	}
 
-	// Check if the peer is within the registered/elected valset
-	regAndActiveVals, err := sb.retrieveCachedRegisteredAndElectedValidators()
-	if err != nil {
-		logger.Trace("Error in retrieving registered/elected valset", "err", err)
-		return false, err
-	}
-	if !regAndActiveVals[sb.ValidatorAddress()] {
-		logger.Trace("This validator is not registered or elected")
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	if !valSet.ContainsByAddress(sb.ValidatorAddress()) {
+		logger.Trace("This validator is not in the validator conn set")
 		return false, nil
 	}
-	if !regAndActiveVals[msg.Address] {
-		logger.Debug("Received a validator proof message from peer with address that is not a registered or active validator", "msg.Address", msg.Address)
+	if !valSet.ContainsByAddress(msg.Address) {
+		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
 
-	// If the versionedEnode message is too old, we don't count this proof as valid
+	// If the enodeCertificate message is too old, we don't count the msg as valid
 	// An error is given if the entry doesn't exist, so we ignore the error.
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
-	if err == nil && versionedEnode.Version < knownVersion {
-		logger.Debug("Received a validator proof message with an old version", "received version", versionedEnode.Version, "known version", knownVersion)
+	if err == nil && enodeCertificate.Version < knownVersion {
+		logger.Debug("Received a validator handshake message with an old version", "received version", enodeCertificate.Version, "known version", knownVersion)
 		return false, nil
 	}
 
 	// By this point, we know the peer is a validator and we update our val enode table accordingly
 	// Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: versionedEnode.Version}})
+	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}
 	// Forward this message to the proxied validator if this is a proxy
 	if sb.config.Proxy && sb.proxiedPeer != nil {
-		go sb.sendVersionedEnodeMsg(sb.proxiedPeer, &msg)
+		go sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg)
 	}
 	return true, nil
 }
 
-// verifyValidatorProofMessage allows messages that are not signed to still be
-// decoded in case the peer has decided not to identify itself with the validator proof
+// verifyValidatorHandshakeMessage allows messages that are not signed to still be
+// decoded in case the peer has decided not to identify itself with the validator handshake
 // message
-func (sb *Backend) verifyValidatorProofMessage(data []byte, sig []byte) (common.Address, error) {
+func (sb *Backend) verifyValidatorHandshakeMessage(data []byte, sig []byte) (common.Address, error) {
 	// If the message was not signed, allow it to still be decoded.
 	// A later check will verify if the signature was empty or not.
 	if len(sig) == 0 {

@@ -76,8 +76,7 @@ type ProtocolManager struct {
 
 	txpool     txPool
 	blockchain *core.BlockChain
-
-	maxPeers int
+	maxPeers   int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
@@ -342,7 +341,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			p.Log().Warn("Istanbul handshake failed", "err", err)
 			return err
 		}
-		forcePeer = (isValidator == true)
+		forcePeer = isValidator
 		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
@@ -350,14 +349,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
+		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+			return err
+		}
+		// The p2p server CheckPeerCounts only checks if the total peer count
+		// (eth and les) exceeds the total max peers. This checks if the number
+		// of eth peers exceeds the eth max peers.
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
-		tooManyPeers := pm.peers.Len() >= pm.maxPeers && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-		// This peer is already included in the inbound count
-		tooManyInbound := p.Peer.Server.InboundCount() > p.Peer.Server.MaxInboundConns() && !isStaticOrTrusted && p.Peer.Server != pm.proxyServer
-		if tooManyPeers {
+		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && p.Peer.Server != pm.proxyServer {
 			return p2p.DiscTooManyPeers
-		} else if tooManyInbound {
-			return p2p.DiscTooManyInboundPeers
 		}
 	}
 
@@ -923,7 +923,7 @@ func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.Purp
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			if purpose == p2p.AnyPurpose || p.PurposeIsSet(purpose) {
+			if p.PurposeIsSet(purpose) {
 				m[id] = p
 			}
 		}
