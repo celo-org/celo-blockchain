@@ -12,7 +12,6 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 ADD . /go-ethereum
 RUN mkdir -p /go-ethereum/crypto/bls/bls-zexe/target/release
-COPY --from=rustbuilder /go-ethereum/crypto/bls/bls-zexe/target/x86_64-unknown-linux-musl/release/libbls_crypto.a /go-ethereum/crypto/bls/bls-zexe/target/release/
 COPY --from=rustbuilder /go-ethereum/crypto/bls/bls-zexe/target/x86_64-unknown-linux-musl/release/libepoch_snark.a /go-ethereum/crypto/bls/bls-zexe/target/release/
 RUN cd /go-ethereum && make all
 

@@ -18,7 +18,7 @@ CARGO_LIPO_exists := $(shell command -v cargo-lipo 2> /dev/null)
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
 ifdef CARGO_exists
-.PHONY: $(BLS_RS_PATH)/target/release/libbls_crypto.a
+.PHONY: $(BLS_RS_PATH)/target/release/libepoch_snark.a
 endif
 
 OS :=
@@ -38,7 +38,7 @@ geth: bls-zexe
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-bls-zexe: $(BLS_RS_PATH)/target/release/libbls_crypto.a
+bls-zexe: $(BLS_RS_PATH)/target/release/libepoch_snark.a
 
 check_android_env:
 	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
@@ -105,9 +105,7 @@ endif
 endif
 
 
-$(BLS_RS_PATH)/target/release/libepoch_snark.a: $(BLS_RS_PATH)/target/release/libbls_crypto.a
-
-$(BLS_RS_PATH)/target/release/libbls_crypto.a:
+$(BLS_RS_PATH)/target/release/libepoch_snark.a:
 ifeq ("$(CARGO_exists)","")
 	$(error "No cargo in PATH, consult https://github.com/celo-org/celo-monorepo/blob/master/SETUP.md")
 else
