@@ -761,7 +761,6 @@ func testExternalUI(api *core.SignerAPI) {
 		time.Sleep(delay)
 		cliqueHeader := types.Header{
 			ParentHash:  common.HexToHash("0000H45H"),
-			UncleHash:   common.HexToHash("0000H45H"),
 			Coinbase:    common.HexToAddress("0000H45H"),
 			Root:        common.HexToHash("0000H00H"),
 			TxHash:      common.HexToHash("0000H45H"),

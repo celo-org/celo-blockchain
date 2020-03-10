@@ -99,7 +99,6 @@ func (h *Header) EncodeJSON() (string, error) {
 }
 
 func (h *Header) GetParentHash() *Hash   { return &Hash{h.header.ParentHash} }
-func (h *Header) GetUncleHash() *Hash    { return &Hash{h.header.UncleHash} }
 func (h *Header) GetCoinbase() *Address  { return &Address{h.header.Coinbase} }
 func (h *Header) GetRoot() *Hash         { return &Hash{h.header.Root} }
 func (h *Header) GetTxHash() *Hash       { return &Hash{h.header.TxHash} }
@@ -170,7 +169,6 @@ func (b *Block) EncodeJSON() (string, error) {
 }
 
 func (b *Block) GetParentHash() *Hash           { return &Hash{b.block.ParentHash()} }
-func (b *Block) GetUncleHash() *Hash            { return &Hash{b.block.UncleHash()} }
 func (b *Block) GetCoinbase() *Address          { return &Address{b.block.Coinbase()} }
 func (b *Block) GetRoot() *Hash                 { return &Hash{b.block.Root()} }
 func (b *Block) GetTxHash() *Hash               { return &Hash{b.block.TxHash()} }
@@ -186,7 +184,6 @@ func (b *Block) GetMixDigest() *Hash            { return &Hash{b.block.MixDigest
 func (b *Block) GetNonce() int64                { return int64(b.block.Nonce()) }
 func (b *Block) GetHash() *Hash                 { return &Hash{b.block.Hash()} }
 func (b *Block) GetHeader() *Header             { return &Header{b.block.Header()} }
-func (b *Block) GetUncles() *Headers            { return &Headers{b.block.Uncles()} }
 func (b *Block) GetTransactions() *Transactions { return &Transactions{b.block.Transactions()} }
 func (b *Block) GetTransaction(hash *Hash) *Transaction {
 	return &Transaction{b.block.Transaction(hash.hash)}

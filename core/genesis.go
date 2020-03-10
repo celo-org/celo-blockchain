@@ -292,7 +292,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
 
-	return types.NewBlock(head, nil, nil, nil, nil)
+	return types.NewBlock(head, nil, nil, nil)
 }
 
 // StoreGenesisSupply computes the total supply of the genesis block and stores

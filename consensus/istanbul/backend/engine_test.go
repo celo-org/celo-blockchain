@@ -437,15 +437,6 @@ func TestVerifyHeader(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMixDigest)
 	}
 
-	// invalid uncles hash
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.UncleHash = common.BytesToHash([]byte("123456789"))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidUncleHash {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidUncleHash)
-	}
-
 	// invalid difficulty
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()

@@ -640,7 +640,6 @@ type blockStats struct {
 	Txs         []txStats      `json:"transactions"`
 	TxHash      common.Hash    `json:"transactionsRoot"`
 	Root        common.Hash    `json:"stateRoot"`
-	Uncles      uncleStats     `json:"uncles"`
 	EpochSize   uint64         `json:"epochSize"`
 	BlockRemain uint64         `json:"blockRemain"`
 	Validators  validatorSet   `json:"validators"`
@@ -650,10 +649,6 @@ type blockStats struct {
 type txStats struct {
 	Hash common.Hash `json:"hash"`
 }
-
-// uncleStats is a custom wrapper around an uncle array to force serializing
-// empty arrays instead of returning null for them.
-type uncleStats []*types.Header
 
 func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	msg, err := json.Marshal(stats)
@@ -770,7 +765,6 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		state  vm.StateDB
 		td     *big.Int
 		txs    []txStats
-		uncles []*types.Header
 		valSet validatorSet
 	)
 	if s.eth != nil {
@@ -786,9 +780,8 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
 		}
-		uncles = block.Uncles()
 	} else {
-		// Light nodes would need on-demand lookups for transactions/uncles, skip
+		// Light nodes would need on-demand lookups for transactions, skip
 		if block != nil {
 			header = block.Header()
 		} else {
@@ -823,7 +816,6 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Txs:         txs,
 		TxHash:      header.TxHash,
 		Root:        header.Root,
-		Uncles:      uncles,
 		EpochSize:   epochSize,
 		BlockRemain: blockRemain,
 		Validators:  valSet,

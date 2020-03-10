@@ -249,7 +249,6 @@ func makeHeaderChainWithDiff(genesis *types.Block, d []int, seed byte) []*types.
 			Coinbase:    common.Address{seed},
 			Number:      big.NewInt(int64(i + 1)),
 			Difficulty:  big.NewInt(int64(difficulty)),
-			UncleHash:   types.EmptyUncleHash,
 			TxHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
 		}

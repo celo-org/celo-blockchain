@@ -70,8 +70,6 @@ var (
 	errInvalidNonce = errors.New("invalid nonce")
 	// errCoinbase is returned if a block's coinbase is invalid
 	errInvalidCoinbase = errors.New("invalid coinbase")
-	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
-	errInvalidUncleHash = errors.New("non empty uncle hash")
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than the previous block's timestamp + the minimum block period.
 	errInvalidTimestamp = errors.New("invalid timestamp")
 	// errInvalidVotingChain is returned if an authorization list is attempted to
@@ -95,7 +93,6 @@ var (
 
 var (
 	defaultDifficulty = big.NewInt(1)
-	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	emptyNonce        = types.BlockNonce{}
 	now               = time.Now
 
@@ -150,10 +147,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
 		return errInvalidMixDigest
-	}
-	// Ensure that the block doesn't contain any uncles which are meaningless in Istanbul
-	if header.UncleHash != nilUncleHash {
-		return errInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if header.Difficulty == nil || header.Difficulty.Cmp(defaultDifficulty) != 0 {
@@ -216,15 +209,6 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 		}
 	}()
 	return abort, results
-}
-
-// VerifyUncles verifies that the given block's uncles conform to the consensus
-// rules of a given engine.
-func (sb *Backend) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
-	if len(block.Uncles()) > 0 {
-		return errInvalidUncleHash
-	}
-	return nil
 }
 
 // verifySigner checks whether the signer is in parent's validator set
@@ -445,8 +429,7 @@ func (sb *Backend) LookbackWindow() uint64 {
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction) {
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
@@ -477,7 +460,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = types.CalcUncleHash(nil)
 	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 }
 
@@ -486,10 +468,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
-	sb.Finalize(chain, header, state, txs, uncles)
+	sb.Finalize(chain, header, state, txs)
 
 	// Add extra receipt for Block's Internal Transaction Logs
 	if len(state.GetLogs(common.Hash{})) > 0 {
@@ -500,7 +481,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	}
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, nil, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness)
 	return block, nil
 }
 

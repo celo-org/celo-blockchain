@@ -176,22 +176,6 @@ const schema string = `
         # TotalDifficulty is the sum of all difficulty values up to and including
         # this block.
         totalDifficulty: BigInt!
-        # OmmerCount is the number of ommers (AKA uncles) associated with this
-        # block. If ommers are unavailable, this field will be null.
-        ommerCount: Int
-        # Ommers is a list of ommer (AKA uncle) blocks associated with this block.
-        # If ommers are unavailable, this field will be null. Depending on your
-        # node, the transactions, transactionAt, transactionCount, ommers,
-        # ommerCount and ommerAt fields may not be available on any ommer blocks.
-        ommers: [Block]
-        # OmmerAt returns the ommer (AKA uncle) at the specified index. If ommers
-        # are unavailable, or the index is out of bounds, this field will be null.
-        ommerAt(index: Int!): Block
-        # OmmerHash is the keccak256 hash of all the ommers (AKA uncles)
-        # associated with this block.
-        ommerHash: Bytes32!
-        # Transactions is a list of transactions associated with this block. If
-        # transactions are unavailable for this block, this field will be null.
         transactions: [Transaction!]
         # TransactionAt returns the transaction at the specified index. If
         # transactions are unavailable for this block, or if the index is out of

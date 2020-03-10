@@ -43,7 +43,7 @@ var (
 
 // makeChain creates a chain of n blocks starting at and including parent.
 // the returned hash chain is ordered head->parent. In addition, every 3rd block
-// contains a transaction and every 5th an uncle to allow testing correct block
+// contains a transaction to test correct block
 // reassembly.
 func makeChain(n int, seed byte, parent *types.Block) ([]common.Hash, map[common.Hash]*types.Block) {
 	blocks, _ := core.GenerateChain(params.TestChainConfig, parent, ethash.NewFaker(), testdb, n, func(i int, block *core.BlockGen) {
@@ -57,10 +57,6 @@ func makeChain(n int, seed byte, parent *types.Block) ([]common.Hash, map[common
 				panic(err)
 			}
 			block.AddTx(tx)
-		}
-		// If the block number is a multiple of 5, add a bonus uncle to the block
-		if i%5 == 0 {
-			block.AddUncle(&types.Header{ParentHash: block.PrevBlock(i - 1).Hash(), Number: big.NewInt(int64(i - 1))})
 		}
 	})
 	hashes := make([]common.Hash, n+1)
@@ -183,20 +179,18 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 	return func(hashes []common.Hash) error {
 		// Gather the block bodies to return
 		transactions := make([][]*types.Transaction, 0, len(hashes))
-		uncles := make([][]*types.Header, 0, len(hashes))
 		randomness := make([]*types.Randomness, 0, len(hashes))
 		epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
 				transactions = append(transactions, block.Transactions())
-				uncles = append(uncles, block.Uncles())
 				randomness = append(randomness, block.Randomness())
 				epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, epochSnarkData, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, transactions, randomness, epochSnarkData, time.Now().Add(drift))
 
 		return nil
 	}

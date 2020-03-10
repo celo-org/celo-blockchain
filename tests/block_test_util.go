@@ -59,9 +59,8 @@ type btJSON struct {
 }
 
 type btBlock struct {
-	BlockHeader  *btHeader
-	Rlp          string
-	UncleHeaders []*btHeader
+	BlockHeader *btHeader
+	Rlp         string
 }
 
 //go:generate gencodec -type btHeader -field-override btHeaderMarshaling -out gen_btheader.go
@@ -77,7 +76,6 @@ type btHeader struct {
 	ReceiptTrie      common.Hash
 	StateRoot        common.Hash
 	TransactionsTrie common.Hash
-	UncleHash        common.Hash
 	ExtraData        []byte
 	Difficulty       *big.Int
 	GasLimit         uint64
@@ -161,7 +159,7 @@ func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 /* See https://github.com/ethereum/tests/wiki/Blockchain-Tests-II
 
    Whether a block is valid or not is a bit subtle, it's defined by presence of
-   blockHeader, transactions and uncleHeaders fields. If they are missing, the block is
+   blockHeader and transactions. If they are missing, the block is
    invalid and we must verify that we do not accept it.
 
    Since some tests mix valid and invalid blocks we need to check this for every block.
@@ -232,9 +230,6 @@ func validateHeader(h *btHeader, h2 *types.Header) error {
 	}
 	if h.StateRoot != h2.Root {
 		return fmt.Errorf("state hash: want: %x have: %x", h.StateRoot, h2.Root)
-	}
-	if h.UncleHash != h2.UncleHash {
-		return fmt.Errorf("uncle hash: want: %x have: %x", h.UncleHash, h2.UncleHash)
 	}
 	if !bytes.Equal(h.ExtraData, h2.Extra) {
 		return fmt.Errorf("extra data: want: %x have: %x", h.ExtraData, h2.Extra)

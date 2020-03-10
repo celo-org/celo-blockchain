@@ -48,11 +48,9 @@ var makeTest = function(tx, rewind) {
   delete genesis.logsBloom;
   delete genesis.parentHash;
   delete genesis.receiptsRoot;
-  delete genesis.sha3Uncles;
   delete genesis.size;
   delete genesis.transactions;
   delete genesis.transactionsRoot;
-  delete genesis.uncles;
 
   genesis.gasLimit  = genesis.gasLimit.toString();
   genesis.number    = genesis.number.toString();
