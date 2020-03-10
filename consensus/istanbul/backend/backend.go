@@ -875,6 +875,23 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	return sb.cachedValidatorConnSet, nil
 }
 
+// retrieveCachedValidatorConnSet returns the most recently cached validator conn
+// set and asynchronously updates the cache if it is older than 1 minute.
+// If no set has ever been cached, nil is returned.
+func (sb *Backend) retrieveCachedValidatorConnSet() map[common.Address]bool {
+	sb.cachedValidatorConnSetMu.RLock()
+	if sb.cachedValidatorConnSet == nil || time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
+		go func() {
+			err := sb.updateCachedValidatorConnSet()
+			if err != nil {
+				sb.logger.Debug("Unable to update cached validator conn set", "err", err)
+			}
+		}()
+	}
+	defer sb.cachedValidatorConnSetMu.RUnlock()
+	return sb.cachedValidatorConnSet
+}
+
 // updateCachedValidatorConnSet updates the cached validator conn set. If another
 // goroutine is simultaneously updating the cached set, this goroutine will wait
 // for the update to be finished to prevent the update work from occurring

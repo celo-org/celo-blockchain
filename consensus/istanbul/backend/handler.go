@@ -407,13 +407,23 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 		return false, errors.New("Incorrect node in enodeCertificate")
 	}
 
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	if !valSet.ContainsByAddress(sb.ValidatorAddress()) {
+	// Check if the peer is within the validator conn set.
+	validatorConnSet := sb.retrieveCachedValidatorConnSet()
+	// If no set has ever been cached, update it and try again. This is an expensive
+	// operation and risks the handshake timing out, but will happen at most once
+	// and is unlikely to occur.
+	if validatorConnSet == nil {
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			logger.Trace("Error updating cached validator conn set")
+			return false, err
+		}
+		validatorConnSet = sb.retrieveCachedValidatorConnSet()
+	}
+	if !validatorConnSet[sb.ValidatorAddress()] {
 		logger.Trace("This validator is not in the validator conn set")
 		return false, nil
 	}
-	if !valSet.ContainsByAddress(msg.Address) {
+	if !validatorConnSet[msg.Address] {
 		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
