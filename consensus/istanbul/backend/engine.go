@@ -471,6 +471,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
+			sb.logger.Error("Failed to distribute epoch rewards", "blockNumber", header.Number, "err", err)
 			state.RevertToSnapshot(snapshot)
 		}
 	}
