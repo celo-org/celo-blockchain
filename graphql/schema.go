@@ -171,8 +171,6 @@ const schema string = `
         logsBloom: Bytes!
         # MixHash is the hash that was used as an input to the PoW process.
         mixHash: Bytes32!
-        # Difficulty is a measure of the difficulty of mining this block.
-        difficulty: BigInt!
         # TotalDifficulty is the sum of all difficulty values up to and including
         # this block.
         totalDifficulty: BigInt!

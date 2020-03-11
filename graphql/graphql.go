@@ -442,14 +442,6 @@ func (b *Block) Parent(ctx context.Context) (*Block, error) {
 	return nil, nil
 }
 
-func (b *Block) Difficulty(ctx context.Context) (hexutil.Big, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return hexutil.Big{}, err
-	}
-	return hexutil.Big(*header.Difficulty), nil
-}
-
 func (b *Block) Timestamp(ctx context.Context) (hexutil.Uint64, error) {
 	header, err := b.resolveHeader(ctx)
 	if err != nil {

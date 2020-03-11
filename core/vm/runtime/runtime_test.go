@@ -33,10 +33,6 @@ func TestDefaults(t *testing.T) {
 	cfg := new(Config)
 	setDefaults(cfg)
 
-	if cfg.Difficulty == nil {
-		t.Error("expected difficulty to be non nil")
-	}
-
 	if cfg.Time == nil {
 		t.Error("expected time to be non nil")
 	}
@@ -65,7 +61,6 @@ func TestEVM(t *testing.T) {
 	}()
 
 	Execute([]byte{
-		byte(vm.DIFFICULTY),
 		byte(vm.TIMESTAMP),
 		byte(vm.GASLIMIT),
 		byte(vm.PUSH1),

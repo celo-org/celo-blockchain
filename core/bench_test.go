@@ -215,7 +215,6 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 			Coinbase:    common.Address{},
 			Number:      big.NewInt(int64(n)),
 			ParentHash:  hash,
-			Difficulty:  big.NewInt(1),
 			TxHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
 		}

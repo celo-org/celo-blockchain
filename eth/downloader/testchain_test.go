@@ -69,7 +69,6 @@ func newTestChain(length int, genesis *types.Block) *testChain {
 	tc.genesis = genesis
 	tc.chain = append(tc.chain, genesis.Hash())
 	tc.headerm[tc.genesis.Hash()] = tc.genesis.Header()
-	tc.tdm[tc.genesis.Hash()] = tc.genesis.Difficulty()
 	tc.blockm[tc.genesis.Hash()] = tc.genesis
 	tc.generate(length-1, 0, genesis, false)
 	return tc
@@ -113,16 +112,12 @@ func (tc *testChain) copy(newlen int) *testChain {
 // generate creates a chain of n blocks starting at and including parent.
 // the returned hash chain is ordered head->parent. In addition, every 22th block
 // contains a transaction to allow testing correct block reassembly.
-func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool) {
+func (tc *testChain) generate(n int, seed byte, parent *types.Block) {
 	// start := time.Now()
 	// defer func() { fmt.Printf("test chain generated in %v\n", time.Since(start)) }()
 
 	blocks, receipts := core.GenerateChain(params.TestChainConfig, parent, ethash.NewFaker(), testDB, n, func(i int, block *core.BlockGen) {
 		block.SetCoinbase(common.Address{seed})
-		// If a heavy chain is requested, delay blocks to raise difficulty
-		if heavy {
-			block.OffsetTime(-1)
-		}
 		// Include transactions to the miner to make blocks more interesting.
 		if parent == tc.genesis && i%22 == 0 {
 			signer := types.MakeSigner(params.TestChainConfig, block.Number())
@@ -137,7 +132,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 	// Convert the block-chain into a hash-chain and header/block maps
 	td := new(big.Int).Set(tc.td(parent.Hash()))
 	for i, b := range blocks {
-		td := td.Add(td, b.Difficulty())
+		td := b.Number()
 		hash := b.Hash()
 		tc.chain = append(tc.chain, hash)
 		tc.blockm[hash] = b

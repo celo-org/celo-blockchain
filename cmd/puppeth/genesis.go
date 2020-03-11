@@ -49,8 +49,6 @@ type alethGenesisSpec struct {
 		MaxGasLimit                hexutil.Uint64         `json:"maxGasLimit"`
 		TieBreakingGas             bool                   `json:"tieBreakingGas"`
 		GasLimitBoundDivisor       math2.HexOrDecimal64   `json:"gasLimitBoundDivisor"`
-		MinimumDifficulty          *hexutil.Big           `json:"minimumDifficulty"`
-		DifficultyBoundDivisor     *math2.HexOrDecimal256 `json:"difficultyBoundDivisor"`
 		DurationLimit              *math2.HexOrDecimal256 `json:"durationLimit"`
 		BlockReward                *hexutil.Big           `json:"blockReward"`
 		NetworkID                  hexutil.Uint64         `json:"networkID"`
@@ -60,7 +58,6 @@ type alethGenesisSpec struct {
 
 	Genesis struct {
 		Nonce      types.BlockNonce `json:"nonce"`
-		Difficulty *hexutil.Big     `json:"difficulty"`
 		MixHash    common.Hash      `json:"mixHash"`
 		Author     common.Address   `json:"author"`
 		Timestamp  hexutil.Uint64   `json:"timestamp"`
@@ -138,14 +135,11 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
 	spec.Params.MaxGasLimit = (hexutil.Uint64)(math.MaxInt64)
-	spec.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
-	spec.Params.DifficultyBoundDivisor = (*math2.HexOrDecimal256)(params.DifficultyBoundDivisor)
 	spec.Params.DurationLimit = (*math2.HexOrDecimal256)(params.DurationLimit)
 	spec.Params.BlockReward = (*hexutil.Big)(ethash.FrontierBlockReward)
 
 	spec.Genesis.Nonce = types.EncodeNonce(genesis.Nonce)
 	spec.Genesis.MixHash = genesis.Mixhash
-	spec.Genesis.Difficulty = (*hexutil.Big)(genesis.Difficulty)
 	spec.Genesis.Author = genesis.Coinbase
 	spec.Genesis.Timestamp = (hexutil.Uint64)(genesis.Timestamp)
 	spec.Genesis.ParentHash = genesis.ParentHash
@@ -229,13 +223,10 @@ type parityChainSpec struct {
 	Engine  struct {
 		Ethash struct {
 			Params struct {
-				MinimumDifficulty      *hexutil.Big      `json:"minimumDifficulty"`
-				DifficultyBoundDivisor *hexutil.Big      `json:"difficultyBoundDivisor"`
-				DurationLimit          *hexutil.Big      `json:"durationLimit"`
-				BlockReward            map[string]string `json:"blockReward"`
-				DifficultyBombDelays   map[string]string `json:"difficultyBombDelays"`
-				HomesteadTransition    hexutil.Uint64    `json:"homesteadTransition"`
-				EIP100bTransition      hexutil.Uint64    `json:"eip100bTransition"`
+				DurationLimit       *hexutil.Big      `json:"durationLimit"`
+				BlockReward         map[string]string `json:"blockReward"`
+				HomesteadTransition hexutil.Uint64    `json:"homesteadTransition"`
+				EIP100bTransition   hexutil.Uint64    `json:"eip100bTransition"`
 			} `json:"params"`
 		} `json:"Ethash"`
 	} `json:"engine"`
@@ -277,7 +268,6 @@ type parityChainSpec struct {
 			} `json:"ethereum"`
 		} `json:"seal"`
 
-		Difficulty *hexutil.Big   `json:"difficulty"`
 		Author     common.Address `json:"author"`
 		Timestamp  hexutil.Uint64 `json:"timestamp"`
 		ParentHash common.Hash    `json:"parentHash"`
@@ -371,10 +361,7 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 		Datadir: strings.ToLower(network),
 	}
 	spec.Engine.Ethash.Params.BlockReward = make(map[string]string)
-	spec.Engine.Ethash.Params.DifficultyBombDelays = make(map[string]string)
 	// Frontier
-	spec.Engine.Ethash.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
-	spec.Engine.Ethash.Params.DifficultyBoundDivisor = (*hexutil.Big)(params.DifficultyBoundDivisor)
 	spec.Engine.Ethash.Params.DurationLimit = (*hexutil.Big)(params.DurationLimit)
 	spec.Engine.Ethash.Params.BlockReward["0x0"] = hexutil.EncodeBig(ethash.FrontierBlockReward)
 
@@ -420,7 +407,6 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 
 	spec.Genesis.Seal.Ethereum.Nonce = types.EncodeNonce(genesis.Nonce)
 	spec.Genesis.Seal.Ethereum.MixHash = (genesis.Mixhash[:])
-	spec.Genesis.Difficulty = (*hexutil.Big)(genesis.Difficulty)
 	spec.Genesis.Author = genesis.Coinbase
 	spec.Genesis.Timestamp = (hexutil.Uint64)(genesis.Timestamp)
 	spec.Genesis.ParentHash = genesis.ParentHash
@@ -554,7 +540,6 @@ func (spec *parityChainSpec) setPrecompile(address byte, data *parityChainSpecBu
 
 func (spec *parityChainSpec) setByzantium(num *big.Int) {
 	spec.Engine.Ethash.Params.BlockReward[hexutil.EncodeBig(num)] = hexutil.EncodeBig(ethash.ByzantiumBlockReward)
-	spec.Engine.Ethash.Params.DifficultyBombDelays[hexutil.EncodeBig(num)] = hexutil.EncodeUint64(3000000)
 	n := hexutil.Uint64(num.Uint64())
 	spec.Engine.Ethash.Params.EIP100bTransition = n
 	spec.Params.EIP140Transition = n
@@ -565,7 +550,6 @@ func (spec *parityChainSpec) setByzantium(num *big.Int) {
 
 func (spec *parityChainSpec) setConstantinople(num *big.Int) {
 	spec.Engine.Ethash.Params.BlockReward[hexutil.EncodeBig(num)] = hexutil.EncodeBig(ethash.ConstantinopleBlockReward)
-	spec.Engine.Ethash.Params.DifficultyBombDelays[hexutil.EncodeBig(num)] = hexutil.EncodeUint64(2000000)
 	n := hexutil.Uint64(num.Uint64())
 	spec.Params.EIP145Transition = n
 	spec.Params.EIP1014Transition = n
@@ -591,7 +575,6 @@ type pyEthereumGenesisSpec struct {
 	Timestamp  hexutil.Uint64    `json:"timestamp"`
 	ExtraData  hexutil.Bytes     `json:"extraData"`
 	GasLimit   hexutil.Uint64    `json:"gasLimit"`
-	Difficulty *hexutil.Big      `json:"difficulty"`
 	Mixhash    common.Hash       `json:"mixhash"`
 	Coinbase   common.Address    `json:"coinbase"`
 	Alloc      core.GenesisAlloc `json:"alloc"`
@@ -610,7 +593,6 @@ func newPyEthereumGenesisSpec(network string, genesis *core.Genesis) (*pyEthereu
 		Timestamp:  (hexutil.Uint64)(genesis.Timestamp),
 		ExtraData:  genesis.ExtraData,
 		GasLimit:   (hexutil.Uint64)(genesis.GasLimit),
-		Difficulty: (*hexutil.Big)(genesis.Difficulty),
 		Mixhash:    genesis.Mixhash,
 		Coinbase:   genesis.Coinbase,
 		Alloc:      genesis.Alloc,

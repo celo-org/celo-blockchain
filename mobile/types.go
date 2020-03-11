@@ -98,21 +98,20 @@ func (h *Header) EncodeJSON() (string, error) {
 	return string(data), err
 }
 
-func (h *Header) GetParentHash() *Hash   { return &Hash{h.header.ParentHash} }
-func (h *Header) GetCoinbase() *Address  { return &Address{h.header.Coinbase} }
-func (h *Header) GetRoot() *Hash         { return &Hash{h.header.Root} }
-func (h *Header) GetTxHash() *Hash       { return &Hash{h.header.TxHash} }
-func (h *Header) GetReceiptHash() *Hash  { return &Hash{h.header.ReceiptHash} }
-func (h *Header) GetBloom() *Bloom       { return &Bloom{h.header.Bloom} }
-func (h *Header) GetDifficulty() *BigInt { return &BigInt{h.header.Difficulty} }
-func (h *Header) GetNumber() int64       { return h.header.Number.Int64() }
-func (h *Header) GetGasLimit() int64     { return int64(h.header.GasLimit) }
-func (h *Header) GetGasUsed() int64      { return int64(h.header.GasUsed) }
-func (h *Header) GetTime() int64         { return int64(h.header.Time) }
-func (h *Header) GetExtra() []byte       { return h.header.Extra }
-func (h *Header) GetMixDigest() *Hash    { return &Hash{h.header.MixDigest} }
-func (h *Header) GetNonce() *Nonce       { return &Nonce{h.header.Nonce} }
-func (h *Header) GetHash() *Hash         { return &Hash{h.header.Hash()} }
+func (h *Header) GetParentHash() *Hash  { return &Hash{h.header.ParentHash} }
+func (h *Header) GetCoinbase() *Address { return &Address{h.header.Coinbase} }
+func (h *Header) GetRoot() *Hash        { return &Hash{h.header.Root} }
+func (h *Header) GetTxHash() *Hash      { return &Hash{h.header.TxHash} }
+func (h *Header) GetReceiptHash() *Hash { return &Hash{h.header.ReceiptHash} }
+func (h *Header) GetBloom() *Bloom      { return &Bloom{h.header.Bloom} }
+func (h *Header) GetNumber() int64      { return h.header.Number.Int64() }
+func (h *Header) GetGasLimit() int64    { return int64(h.header.GasLimit) }
+func (h *Header) GetGasUsed() int64     { return int64(h.header.GasUsed) }
+func (h *Header) GetTime() int64        { return int64(h.header.Time) }
+func (h *Header) GetExtra() []byte      { return h.header.Extra }
+func (h *Header) GetMixDigest() *Hash   { return &Hash{h.header.MixDigest} }
+func (h *Header) GetNonce() *Nonce      { return &Nonce{h.header.Nonce} }
+func (h *Header) GetHash() *Hash        { return &Hash{h.header.Hash()} }
 
 // Headers represents a slice of headers.
 type Headers struct{ headers []*types.Header }

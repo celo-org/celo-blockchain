@@ -35,6 +35,7 @@ import (
 
 var (
 	EmptyRootHash       = DeriveSha(Transactions{})
+	EmptyUncleHash      = rlpHash([]*Header(nil))
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
 )
@@ -76,7 +77,6 @@ type Header struct {
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
 	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
@@ -89,6 +89,7 @@ type Header struct {
 /*
 type Header struct {
 	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	//UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase    common.Address `json:"miner"            gencodec:"required"`
 	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
@@ -106,13 +107,12 @@ type Header struct {
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Difficulty *hexutil.Big
-	Number     *hexutil.Big
-	GasLimit   hexutil.Uint64
-	GasUsed    hexutil.Uint64
-	Time       hexutil.Uint64
-	Extra      hexutil.Bytes
-	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number   *hexutil.Big
+	GasLimit hexutil.Uint64
+	GasUsed  hexutil.Uint64
+	Time     hexutil.Uint64
+	Extra    hexutil.Bytes
+	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -134,7 +134,7 @@ var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (h *Header) Size() common.StorageSize {
-	return headerSize + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen())/8)
+	return headerSize + common.StorageSize(len(h.Extra)+h.Number.BitLen()/8)
 }
 
 // SanityCheck checks a few basic things -- these checks are way beyond what
@@ -144,11 +144,6 @@ func (h *Header) Size() common.StorageSize {
 func (h *Header) SanityCheck() error {
 	if h.Number != nil && !h.Number.IsUint64() {
 		return fmt.Errorf("too large block number: bitlen %d", h.Number.BitLen())
-	}
-	if h.Difficulty != nil {
-		if diffLen := h.Difficulty.BitLen(); diffLen > 80 {
-			return fmt.Errorf("too large block difficulty: bitlen %d", diffLen)
-		}
 	}
 	if eLen := len(h.Extra); eLen > 100*1024 {
 		return fmt.Errorf("too large block extradata: size %d", eLen)
@@ -212,7 +207,7 @@ func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
 }
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
-// a block's data contents (transactions) together.
+// a block's data contents (transactions and uncles) together.
 type Body struct {
 	Transactions   []*Transaction
 	Randomness     *Randomness
@@ -314,9 +309,6 @@ func NewBlockWithHeader(header *Header) *Block {
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {
 	cpy := *h
-	if cpy.Difficulty = new(big.Int); h.Difficulty != nil {
-		cpy.Difficulty.Set(h.Difficulty)
-	}
 	if cpy.Number = new(big.Int); h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
@@ -374,11 +366,10 @@ func (b *Block) Transaction(hash common.Hash) *Transaction {
 	return nil
 }
 
-func (b *Block) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
-func (b *Block) GasLimit() uint64     { return b.header.GasLimit }
-func (b *Block) GasUsed() uint64      { return b.header.GasUsed }
-func (b *Block) Difficulty() *big.Int { return new(big.Int).Set(b.header.Difficulty) }
-func (b *Block) Time() uint64         { return b.header.Time }
+func (b *Block) Number() *big.Int { return new(big.Int).Set(b.header.Number) }
+func (b *Block) GasLimit() uint64 { return b.header.GasLimit }
+func (b *Block) GasUsed() uint64  { return b.header.GasUsed }
+func (b *Block) Time() uint64     { return b.header.Time }
 
 func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
 func (b *Block) MixDigest() common.Hash   { return b.header.MixDigest }

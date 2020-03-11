@@ -70,13 +70,6 @@ func (b *BlockGen) SetNonce(nonce types.BlockNonce) {
 	b.header.Nonce = nonce
 }
 
-// SetDifficulty sets the difficulty field of the generated block. This method is
-// useful for Clique tests where the difficulty does not depend on time. For the
-// ethash tests, please use OffsetTime, which implicitly recalculates the diff.
-func (b *BlockGen) SetDifficulty(diff *big.Int) {
-	b.header.Difficulty = diff
-}
-
 // AddTx adds a transaction to the generated block. If no coinbase has
 // been set, the block's coinbase is set to the zero address.
 //
@@ -153,18 +146,6 @@ func (b *BlockGen) PrevBlock(index int) *types.Block {
 		return b.parent
 	}
 	return b.chain[index]
-}
-
-// OffsetTime modifies the time instance of a block, implicitly changing its
-// associated difficulty. It's useful to test scenarios where forking is not
-// tied to chain length directly.
-func (b *BlockGen) OffsetTime(seconds int64) {
-	b.header.Time += uint64(seconds)
-	if b.header.Time <= b.parent.Header().Time {
-		panic("block time out of range")
-	}
-	chainreader := &fakeChainReader{config: b.config}
-	b.header.Difficulty = b.engine.CalcDifficulty(chainreader, b.header.Time, b.parent.Header())
 }
 
 // GenerateChain creates a chain of n blocks. The first block's
@@ -246,14 +227,9 @@ func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.S
 		Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
-		Difficulty: engine.CalcDifficulty(chain, time, &types.Header{
-			Number:     parent.Number(),
-			Time:       time - 10,
-			Difficulty: parent.Difficulty(),
-		}),
-		GasLimit: CalcGasLimit(parent, state),
-		Number:   new(big.Int).Add(parent.Number(), common.Big1),
-		Time:     time,
+		GasLimit:   CalcGasLimit(parent, state),
+		Number:     new(big.Int).Add(parent.Number(), common.Big1),
+		Time:       time,
 	}
 }
 

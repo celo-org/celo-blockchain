@@ -635,8 +635,6 @@ type blockStats struct {
 	Miner       common.Address `json:"miner"`
 	GasUsed     uint64         `json:"gasUsed"`
 	GasLimit    uint64         `json:"gasLimit"`
-	Diff        string         `json:"difficulty"`
-	TotalDiff   string         `json:"totalDifficulty"`
 	Txs         []txStats      `json:"transactions"`
 	TxHash      common.Hash    `json:"transactionsRoot"`
 	Root        common.Hash    `json:"stateRoot"`
@@ -811,7 +809,6 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Miner:       author,
 		GasUsed:     header.GasUsed,
 		GasLimit:    header.GasLimit,
-		Diff:        header.Difficulty.String(),
 		TotalDiff:   td.String(),
 		Txs:         txs,
 		TxHash:      header.TxHash,

@@ -546,7 +546,7 @@ func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
 	defer bc.chainmu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	if err := bc.hc.WriteTd(genesis.Hash(), genesis.NumberU64(), genesis.Difficulty()); err != nil {
+	if err := bc.hc.WriteTd(genesis.Hash(), genesis.NumberU64(), genesis.Number()); err != nil {
 		log.Crit("Failed to write genesis block TD", "err", err)
 	}
 	rawdb.WriteBlock(bc.db, genesis)
@@ -1374,7 +1374,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Make sure no inconsistent state is leaked during insertion
 	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
-	externTd := new(big.Int).Add(block.Difficulty(), ptd)
+	externTd := ptd
 
 	// Irrelevant of the canonical status, write the block itself to the database
 	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), externTd); err != nil {
@@ -1599,7 +1599,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1) // The first block can't be nil
 		)
 		for block != nil && err == ErrKnownBlock {
-			externTd = new(big.Int).Add(externTd, block.Difficulty())
+			externTd = new(big.Int).Add(externTd, block.Number())
 			if localTd.Cmp(externTd) < 0 {
 				break
 			}
@@ -1786,7 +1786,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 
 		case SideStatTy:
 			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(),
-				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
+				"elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"root", block.Root())
 			events = append(events, ChainSideEvent{block})
@@ -1795,7 +1795,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			// This in theory is impossible, but lets be nice to our future selves and leave
 			// a log, instead of trying to track down blocks imports that don't emit logs.
 			log.Warn("Inserted block with unknown status", "number", block.Number(), "hash", block.Hash(),
-				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
+				"elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"root", block.Root())
 		}
@@ -1876,7 +1876,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 		if externTd == nil {
 			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 		}
-		externTd = new(big.Int).Add(externTd, block.Difficulty())
+		externTd = block.Number()
 
 		if !bc.HasBlock(block.Hash(), block.NumberU64()) {
 			start := time.Now()
@@ -1884,7 +1884,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 				return it.index, nil, nil, err
 			}
 			log.Debug("Injected sidechain block", "number", block.Number(), "hash", block.Hash(),
-				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
+				"elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"root", block.Root())
 		}

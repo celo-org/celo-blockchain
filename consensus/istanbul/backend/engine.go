@@ -60,8 +60,6 @@ var (
 	errUnknownBlock = errors.New("unknown block")
 	// errUnauthorized is returned if a header is signed by a non authorized entity.
 	errUnauthorized = errors.New("not an elected validator")
-	// errInvalidDifficulty is returned if the difficulty of a block is not 1
-	errInvalidDifficulty = errors.New("invalid difficulty")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
 	errInvalidExtraDataFormat = errors.New("invalid extra data format")
 	// errInvalidMixDigest is returned if a block's mix digest is not Istanbul digest.
@@ -92,9 +90,8 @@ var (
 )
 
 var (
-	defaultDifficulty = big.NewInt(1)
-	emptyNonce        = types.BlockNonce{}
-	now               = time.Now
+	emptyNonce = types.BlockNonce{}
+	now        = time.Now
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -147,10 +144,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != types.IstanbulDigest {
 		return errInvalidMixDigest
-	}
-	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
-	if header.Difficulty == nil || header.Difficulty.Cmp(defaultDifficulty) != 0 {
-		return errInvalidDifficulty
 	}
 
 	return sb.verifyCascadingFields(chain, header, parents)
@@ -367,8 +360,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	// use the same difficulty for all blocks
-	header.Difficulty = defaultDifficulty
 
 	// set header's timestamp
 	header.Time = parent.Time + sb.config.BlockPeriod
@@ -541,13 +532,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		}
 	}()
 	return nil
-}
-
-// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-// that a new block should have based on the previous blocks in the chain and the
-// current signer.
-func (sb *Backend) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	return defaultDifficulty
 }
 
 // SealHash returns the hash of a block prior to it being sealed.

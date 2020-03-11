@@ -102,10 +102,6 @@ type Engine interface {
 	// SealHash returns the hash of a block prior to it being sealed.
 	SealHash(header *types.Header) common.Hash
 
-	// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-	// that a new block should have.
-	CalcDifficulty(chain ChainReader, time uint64, parent *types.Header) *big.Int
-
 	// GetValidators returns the list of current validators.
 	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 

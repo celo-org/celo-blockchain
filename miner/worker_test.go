@@ -137,7 +137,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		})
 
 		gspec.Mixhash = types.IstanbulDigest
-		gspec.Difficulty = big.NewInt(1)
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}

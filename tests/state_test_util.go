@@ -76,19 +76,17 @@ type stPostState struct {
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
 
 type stEnv struct {
-	Coinbase   common.Address `json:"currentCoinbase"   gencodec:"required"`
-	Difficulty *big.Int       `json:"currentDifficulty" gencodec:"required"`
-	GasLimit   uint64         `json:"currentGasLimit"   gencodec:"required"`
-	Number     uint64         `json:"currentNumber"     gencodec:"required"`
-	Timestamp  uint64         `json:"currentTimestamp"  gencodec:"required"`
+	Coinbase  common.Address `json:"currentCoinbase"   gencodec:"required"`
+	GasLimit  uint64         `json:"currentGasLimit"   gencodec:"required"`
+	Number    uint64         `json:"currentNumber"     gencodec:"required"`
+	Timestamp uint64         `json:"currentTimestamp"  gencodec:"required"`
 }
 
 type stEnvMarshaling struct {
-	Coinbase   common.UnprefixedAddress
-	Difficulty *math.HexOrDecimal256
-	GasLimit   math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
+	Coinbase  common.UnprefixedAddress
+	GasLimit  math.HexOrDecimal64
+	Number    math.HexOrDecimal64
+	Timestamp math.HexOrDecimal64
 }
 
 //go:generate gencodec -type stTransaction -field-override stTransactionMarshaling -out gen_sttransaction.go
@@ -223,13 +221,12 @@ func MakePreState(db ethdb.Database, accounts core.GenesisAlloc) *state.StateDB 
 
 func (t *StateTest) genesis(config *params.ChainConfig) *core.Genesis {
 	return &core.Genesis{
-		Config:     config,
-		Coinbase:   t.json.Env.Coinbase,
-		Difficulty: t.json.Env.Difficulty,
-		GasLimit:   t.json.Env.GasLimit,
-		Number:     t.json.Env.Number,
-		Timestamp:  t.json.Env.Timestamp,
-		Alloc:      t.json.Pre,
+		Config:    config,
+		Coinbase:  t.json.Env.Coinbase,
+		GasLimit:  t.json.Env.GasLimit,
+		Number:    t.json.Env.Number,
+		Timestamp: t.json.Env.Timestamp,
+		Alloc:     t.json.Pre,
 	}
 }
 

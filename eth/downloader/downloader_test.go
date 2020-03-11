@@ -85,13 +85,13 @@ func newTester() *downloadTester {
 		ownHeaders:  map[common.Hash]*types.Header{testGenesis.Hash(): testGenesis.Header()},
 		ownBlocks:   map[common.Hash]*types.Block{testGenesis.Hash(): testGenesis},
 		ownReceipts: map[common.Hash]types.Receipts{testGenesis.Hash(): nil},
-		ownChainTd:  map[common.Hash]*big.Int{testGenesis.Hash(): testGenesis.Difficulty()},
+		ownChainTd:  map[common.Hash]*big.Int{testGenesis.Hash(): testGenesis.Number()},
 
 		// Initialize ancient store with test genesis block
 		ancientHeaders:  map[common.Hash]*types.Header{testGenesis.Hash(): testGenesis.Header()},
 		ancientBlocks:   map[common.Hash]*types.Block{testGenesis.Hash(): testGenesis},
 		ancientReceipts: map[common.Hash]types.Receipts{testGenesis.Hash(): nil},
-		ancientChainTd:  map[common.Hash]*big.Int{testGenesis.Hash(): testGenesis.Difficulty()},
+		ancientChainTd:  map[common.Hash]*big.Int{testGenesis.Hash(): testGenesis.Number()},
 	}
 	tester.stateDb = rawdb.NewMemoryDatabase()
 	tester.stateDb.Put(testGenesis.Root().Bytes(), []byte{0x00})
@@ -272,7 +272,7 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 		}
 		dl.ownHashes = append(dl.ownHashes, header.Hash())
 		dl.ownHeaders[header.Hash()] = header
-		dl.ownChainTd[header.Hash()] = new(big.Int).Add(dl.ownChainTd[header.ParentHash], header.Difficulty)
+		dl.ownChainTd[header.Hash()] = header.Number
 	}
 	return len(headers), nil
 }
@@ -295,7 +295,7 @@ func (dl *downloadTester) InsertChain(blocks types.Blocks) (i int, err error) {
 		dl.ownBlocks[block.Hash()] = block
 		dl.ownReceipts[block.Hash()] = make(types.Receipts, 0)
 		dl.stateDb.Put(block.Root().Bytes(), []byte{0x00})
-		dl.ownChainTd[block.Hash()] = new(big.Int).Add(dl.ownChainTd[block.ParentHash()], block.Difficulty())
+		dl.ownChainTd[block.Hash()] = block.Number()
 	}
 	return len(blocks), nil
 }
@@ -320,7 +320,7 @@ func (dl *downloadTester) InsertReceiptChain(blocks types.Blocks, receipts []typ
 
 			// Migrate from active db to ancient db
 			dl.ancientHeaders[blocks[i].Hash()] = blocks[i].Header()
-			dl.ancientChainTd[blocks[i].Hash()] = new(big.Int).Add(dl.ancientChainTd[blocks[i].ParentHash()], blocks[i].Difficulty())
+			dl.ancientChainTd[blocks[i].Hash()] = new(big.Int).Add(dl.ancientChainTd[blocks[i].ParentHash()], blocks[i].Number())
 
 			delete(dl.ownHeaders, blocks[i].Hash())
 			delete(dl.ownChainTd, blocks[i].Hash())

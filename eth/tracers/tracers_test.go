@@ -70,7 +70,6 @@ var makeTest = function(tx, rewind) {
     genesis: genesis,
     context: {
       number:     block.number.toString(),
-      difficulty: block.difficulty,
       timestamp:  block.timestamp.toString(),
       gasLimit:   block.gasLimit.toString(),
       miner:      block.miner,
@@ -110,7 +109,6 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
 		Time:        new(big.Int).SetUint64(5),
-		Difficulty:  big.NewInt(0x30000),
 		GasLimit:    uint64(6000000),
 		GasPrice:    big.NewInt(1),
 	}
@@ -202,7 +200,6 @@ func TestCallTracer(t *testing.T) {
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
-				Difficulty:  (*big.Int)(test.Context.Difficulty),
 				GasLimit:    uint64(test.Context.GasLimit),
 				GasPrice:    tx.GasPrice(),
 			}

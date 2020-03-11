@@ -15,8 +15,7 @@
     "maxGasLimit": "0x7fffffffffffffff",
     "tieBreakingGas": false,
     "gasLimitBoundDivisor": "0x400",
-    "minimumDifficulty": "0x20000",
-    "difficultyBoundDivisor": "0x800",
+   
     "durationLimit": "0xd",
     "blockReward": "0x4563918244f40000",
     "networkID": "0x4cb2e",
@@ -25,7 +24,6 @@
   },
   "genesis": {
     "nonce": "0x0000000000000000",
-    "difficulty": "0x20000",
     "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
     "author": "0x0000000000000000000000000000000000000000",
     "timestamp": "0x59a4e76d",

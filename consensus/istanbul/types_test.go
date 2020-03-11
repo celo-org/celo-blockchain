@@ -90,12 +90,11 @@ func dummySubject() *Subject {
 
 func dummyBlock(number int64) *types.Block {
 	header := &types.Header{
-		Difficulty: big.NewInt(5),
-		Number:     big.NewInt(number),
-		GasLimit:   1002121,
-		GasUsed:    123213,
-		Time:       100,
-		Extra:      []byte{01, 02},
+		Number:   big.NewInt(number),
+		GasLimit: 1002121,
+		GasUsed:  123213,
+		Time:     100,
+		Extra:    []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")
 	gatewayFeeRecipientAddr := common.HexToAddress("03")

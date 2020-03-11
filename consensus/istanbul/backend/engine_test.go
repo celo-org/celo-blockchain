@@ -247,7 +247,6 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		LookbackWindow: 2,
 	}
 	genesis.Config.Ethash = nil
-	genesis.Difficulty = defaultDifficulty
 	genesis.Nonce = emptyNonce.Uint64()
 	genesis.Mixhash = types.IstanbulDigest
 
@@ -263,7 +262,6 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       parent.Time() + config.BlockPeriod,
-		Difficulty: defaultDifficulty,
 	}
 	return header
 }

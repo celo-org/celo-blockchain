@@ -62,9 +62,8 @@ const (
 // PeerInfo represents a short summary of the Ethereum sub-protocol metadata known
 // about a connected peer.
 type PeerInfo struct {
-	Version    int      `json:"version"`    // Ethereum protocol version negotiated
-	Difficulty *big.Int `json:"difficulty"` // Total difficulty of the peer's blockchain
-	Head       string   `json:"head"`       // SHA3 hash of the peer's best owned block
+	Version int    `json:"version"` // Ethereum protocol version negotiated
+	Head    string `json:"head"`    // SHA3 hash of the peer's best owned block
 }
 
 // propEvent is a block propagation, waiting for its turn in the broadcast queue.
@@ -146,32 +145,29 @@ func (p *peer) close() {
 
 // Info gathers and returns a collection of metadata known about a peer.
 func (p *peer) Info() *PeerInfo {
-	hash, td := p.Head()
+	hash := p.Head()
 
 	return &PeerInfo{
-		Version:    p.version,
-		Difficulty: td,
-		Head:       hash.Hex(),
+		Version: p.version,
+		Head:    hash.Hex(),
 	}
 }
 
-// Head retrieves a copy of the current head hash and total difficulty of the
-// peer.
-func (p *peer) Head() (hash common.Hash, td *big.Int) {
+// Head retrieves a copy of the current head hash of the peer.
+func (p *peer) Head() (hash common.Hash) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
 	copy(hash[:], p.head[:])
-	return hash, new(big.Int).Set(p.td)
+	return hash
 }
 
-// SetHead updates the head hash and total difficulty of the peer.
-func (p *peer) SetHead(hash common.Hash, td *big.Int) {
+// SetHead updates the head hash of the peer.
+func (p *peer) SetHead(hash common.Hash) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	copy(p.head[:], hash[:])
-	p.td.Set(td)
 }
 
 // MarkBlock marks a block as known for the peer, ensuring that the block will
@@ -599,23 +595,6 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 		}
 	}
 	return list
-}
-
-// BestPeer retrieves the known peer with the currently highest total difficulty.
-func (ps *peerSet) BestPeer() *peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	var (
-		bestPeer *peer
-		bestTd   *big.Int
-	)
-	for _, p := range ps.peers {
-		if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
-			bestPeer, bestTd = p, td
-		}
-	}
-	return bestPeer
 }
 
 // Close disconnects all peers.

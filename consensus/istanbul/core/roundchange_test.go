@@ -436,7 +436,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
-		block := makeBlockWithDifficulty(1, int64(i))
+		block := makeBlock(1)
 		b.NewRequest(block)
 	}
 
@@ -503,7 +503,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 
 	for i, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
-		block := makeBlockWithDifficulty(1, int64(i))
+		block := makeBlock(1)
 		b.NewRequest(block)
 	}
 
@@ -548,7 +548,7 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 		for i, b := range sys.backends {
 			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We expect to commit the block proposed by the first proposer.
-			expectedCommitted := makeBlockWithDifficulty(1, 0)
+			expectedCommitted := makeBlock(1)
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
 			}
@@ -569,9 +569,9 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 func TestPeriodicRoundChanges(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
-	for i, b := range sys.backends {
+	for _, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
-		block := makeBlockWithDifficulty(1, int64(i))
+		block := makeBlock(1)
 		b.NewRequest(block)
 	}
 
@@ -636,7 +636,7 @@ loop2:
 			for i, b := range sys.backends {
 				committed, _ := b.GetCurrentHeadBlockAndAuthor()
 				// We expect to commit the block proposed by proposer 6 mod 4 = 2.
-				expectedCommitted := makeBlockWithDifficulty(1, 2+int64(roundTimeouts))
+				expectedCommitted := makeBlock(1)
 				if committed.Number().Cmp(common.Big1) != 0 {
 					t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
 				}

@@ -636,7 +636,7 @@ func (s *PublicBlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.H
 func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {
-		response, err := s.rpcMarshalBlock(block, true, fullTx)
+		response, err := s.RpcMarshalBlock(block, true, fullTx)
 		if err == nil && number == rpc.PendingBlockNumber {
 			// Pending blocks need to nil out a few fields
 			for _, field := range []string{"hash", "nonce", "miner"} {
@@ -653,7 +653,7 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByHash(ctx, hash)
 	if block != nil {
-		return s.rpcMarshalBlock(block, true, fullTx)
+		return s.RpcMarshalBlock(block, true, fullTx)
 	}
 	return nil, err
 }
@@ -1016,7 +1016,6 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"logsBloom":        head.Bloom,
 		"stateRoot":        head.Root,
 		"miner":            head.Coinbase,
-		"difficulty":       (*hexutil.Big)(head.Difficulty),
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
 		"gasLimit":         hexutil.Uint64(head.GasLimit),

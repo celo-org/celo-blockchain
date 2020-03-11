@@ -1,6 +1,5 @@
 {
   "context": {
-    "difficulty": "117066904",
     "gasLimit": "4712384",
     "miner": "0x1977c248e1014cc103929dd7f154199c916e39ec",
     "number": "25001",
@@ -95,7 +94,6 @@
       "ethash": {},
       "homesteadBlock": 0
     },
-    "difficulty": "117124093",
     "extraData": "0xd5830105008650617269747986312e31322e31826d61",
     "gasLimit": "4707788",
     "hash": "0xad325e4c49145fb7a4058a68ac741cc8607a71114e23fc88083c7e881dd653e7",
@@ -105,7 +103,6 @@
     "number": "25000",
     "stateRoot": "0xc5d6bbcd46236fcdcc80b332ffaaa5476b980b01608f9708408cfef01b58bd5b",
     "timestamp": "1479891517",
-    "totalDifficulty": "1895410389427"
   },
   "input": "0xf88c8206628504a817c8008303d0908094c212e03b9e060e36facad5fd8f4435412ca22e6b80a451a34eb80000000000000000000000000000000000000000000000280faf689c35ac000029a06b2955a07b161cf7dc773dce170e0f18a6563726f6e1487518dd597580b22d57a02dc5c1ecb6d19237d082bb67c2ccffbf10b99227952314c6cdd5230fa08a698a",
   "result": {

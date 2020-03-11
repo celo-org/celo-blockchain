@@ -109,7 +109,6 @@ type Context struct {
 	GasLimit    uint64         // Provides information for GASLIMIT
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	Header *types.Header
 

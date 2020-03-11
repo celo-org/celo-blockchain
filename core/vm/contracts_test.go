@@ -100,7 +100,6 @@ func makeTestHeader(number *big.Int) *types.Header {
 		GasUsed:    params.DefaultGasLimit / 2,
 		Extra:      append(make([]byte, types.IstanbulExtraVanity), extra...),
 		Time:       number.Uint64() * 5,
-		Difficulty: common.Big1,
 	}
 }
 
