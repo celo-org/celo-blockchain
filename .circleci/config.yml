@@ -196,6 +196,7 @@ jobs:
 
   end-to-end-sync-test:
     executor: e2e
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
