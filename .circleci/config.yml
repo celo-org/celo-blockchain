@@ -10,19 +10,19 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"
-      CELO_MONOREPO_BRANCH_TO_TEST: master
+      CELO_MONOREPO_BRANCH_TO_TEST: kobigurk/fix_hash_to_group
 jobs:
   build-bls-zexe:
     docker:
-      - image: circleci/rust:1.37.0
+      - image: circleci/rust:1.41.0
     working_directory: ~/repos/geth
     steps:
       - checkout
       - run:
           name: Setup Rust language
           command: |
-            rustup install 1.37.0
-            rustup default 1.37.0
+            rustup install 1.41.0
+            rustup default 1.41.0
       - run:
           name: Compile bls-zexe
           command: |
@@ -105,7 +105,7 @@ jobs:
 
   android:
     docker:
-      - image: celohq/circleci:android-v1
+      - image: celohq/circleci:android-v2
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -134,7 +134,7 @@ jobs:
             fi
       - run:
           name: Setup Rust language
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.37.0
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
       - run:
           name: Compile ios client
           command: make ios
@@ -142,8 +142,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
-            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_zexe.a
-            - geth/vendor/github.com/celo-org/bls-zexe/bls/target/universal/release/libbls_snark.a
+            - geth/vendor/github.com/celo-org/bls-zexe/target/universal/release/libepoch_snark.a
 
   publish-mobile-client:
     docker:
@@ -197,6 +196,7 @@ jobs:
 
   end-to-end-sync-test:
     executor: e2e
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos

@@ -1,16 +1,20 @@
 # BLS-ZEXE
 
-Implements SNARK-friendly BLS signatures.
+Implements SNARK-friendly BLS signatures over BLS12-377 and SW6.
 
 ## Using the code
 
-The BLS library code resides in the `bls/algebra` directory. The SNARK-related code resides in `bls/snark`.
+### Rust Crates
 
-A Go package consuming the library exists in the `go` directory.
+All Rust crates live under the `crates/` directory. You can import them in your code via git paths, until they get published on `crates.io`.
 
-The following commands assume this is your current directory.
+### Go and FFI
 
-### Quick start
+A Go package consuming the library exists in the `go` directory, using `cgo`.
+
+## Quick start
+
+The following commands assume your current directory is the root of this repository.
 
 The `simple_signature` program shows how to generate keys, sign and aggregate signatures.
 
@@ -20,21 +24,16 @@ To run it with debug logging enabled, execute:
 
 ### Building
 
-To build the project, you should use a recent stable Rust version. We test with 1.37.
+To build the project, you should use a recent stable Rust version. We test with 1.36.
 
-`cargo build`
-
-or
-
-`cargo build --release`
-
-### Running tests
-
-Most of the modules have tests.
-
- You should run tests in release mode, as some of the cryptographic operations are slow in debug mode.
-
-`cargo test`
+```bash
+# Build
+cargo build (--release)
+# Test. 
+# Consider running tests in release mode, as some of 
+# the cryptographic operations are slow in debug mode.
+cargo test (--release)
+```
 
 ## Construction
 
@@ -57,14 +56,6 @@ BLS-ZEXE is licensed under either of the following licenses, at your discretion.
 Apache License Version 2.0 (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
 MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
 Unless you explicitly state otherwise, any contribution submitted for inclusion in BLS-ZEXE by you shall be dual licensed as above (as defined in the Apache v2 License), without any additional terms or conditions.
-
-## Third-party Libraries
-
-BLS-ZEXE distributes the Zexe source code under [zexe](zexe). Zexe's authors are listed in its [AUTHORS](zexe/AUTHORS) file.
-
-## Third-Party Software Licenses
-
-[ZEXE](https://github.com/scipr-lab/zexe) is licensed under either MIT or Apache License Version 2.0. The notices are the same as [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
 
 ## References
 
