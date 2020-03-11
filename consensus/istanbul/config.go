@@ -54,6 +54,7 @@ type Config struct {
 	// Announce Configs
 	AnnounceGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped announce messages
 	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should do aggressive gossip on announce enablement
+	AnnounceAdditionalValidatorsToGossip int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
 }
 
 var DefaultConfig = &Config{
@@ -72,4 +73,5 @@ var DefaultConfig = &Config{
 	Proxied:                              false,
 	AnnounceGossipPeriod:                 300, // 5 minutes
 	AnnounceAggressiveGossipOnEnablement: false,
+	AnnounceAdditionalValidatorsToGossip: 10,
 }
