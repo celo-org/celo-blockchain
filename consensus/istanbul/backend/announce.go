@@ -78,6 +78,7 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceVersion uint
 
 	for {
 		select {
@@ -160,6 +161,16 @@ func (sb *Backend) announceThread() {
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
 
+		case version := <-sb.updateAnnounceVersionCh:
+			if version <= announceVersion {
+				logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
+				break
+			}
+			if err := sb.updateAnnounceVersion(version); err != nil {
+				logger.Warn("Error updating announce version", "err", err)
+				break
+			}
+			announceVersion = version
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			announceVersionsCheckTicker.Stop()
@@ -337,10 +348,7 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 		return nil
 	}
 
-	if err := sb.updateAnnounceVersion(announceVersion); err != nil {
-		logger.Warn("Error updating announce version", "err", err)
-		return err
-	}
+	go sb.queueAnnounceVersionUpdate(announceVersion)
 
 	// Convert to payload
 	payload, err := istMsg.Payload()
@@ -865,6 +873,10 @@ func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) {
 	sb.enodeCertificateMsgMu.Lock()
 	sb.enodeCertificateMsg = msg
 	sb.enodeCertificateMsgMu.Unlock()
+}
+
+func (sb *Backend) queueAnnounceVersionUpdate(version uint) {
+	sb.updateAnnounceVersionCh <- version
 }
 
 // updateAnnounceVersion generates a new enode certificate message and sends
