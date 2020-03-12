@@ -37,10 +37,6 @@ var (
 		Name:  "bls",
 		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
 	}
-	ledgerFlag = cli.BoolFlag{
-		Name:  "ledger",
-		Usage: "Set to use a Ledger to generate a proof-of-possession of an ECDSA key.",
-	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
@@ -123,7 +119,6 @@ Print a short summary of all accounts`,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
 					blsFlag,
-					ledgerFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -249,27 +244,38 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	message := common.HexToAddress(ctx.Args()[1])
 
 	var err error
-	var account accounts.Account
-	var wallet accounts.Wallet
+  var wallet accounts.Wallet
+  account := accounts.Account{ Address: signer }
+  foundAccount := false
 
-	for _, wallet = range am.Wallets() {
-		if wallet.URL().Scheme == usbwallet.LedgerScheme {
-			if err := wallet.Open(""); err != nil && err != accounts.ErrWalletAlreadyOpen {
-				utils.Fatalf("Could not open Ledger wallet: %v", err)
-			} else {
-				defer wallet.Close()
-			}
+  for _, wallet = range am.Wallets() {
+    if wallet.URL().Scheme == keystore.KeyStoreScheme {
+      if wallet.Contains(account) {
+        foundAccount = true
+        break
+      }
+    } else if wallet.URL().Scheme == usbwallet.LedgerScheme {
+      if err := wallet.Open(""); err != nil {
+        if err != accounts.ErrWalletAlreadyOpen {
+          utils.Fatalf("Could not open Ledger wallet: %v", err)
+        }
+      } else {
+        defer wallet.Close()
+      }
 
-			account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
-			if err != nil {
-				utils.Fatalf("Could not derive the Ledger account: %v", err)
-			}
-			if account.Address != signer {
-				utils.Fatalf("Ledger account %x is different than requested signer %x", account.Address, signer)
-			}
-			break
-		}
-	}
+      account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
+      if err != nil {
+        return err
+      }
+      if account.Address == signer {
+        foundAccount = true
+        break
+      }
+    }
+  }
+  if !foundAccount {
+    utils.Fatalf("Could not find signer account %x", signer)
+  }
 
 	if wallet.URL().Scheme == keystore.KeyStoreScheme {
 		account, _ = unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
@@ -281,11 +287,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		keyType = "BLS"
 		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
 	} else {
-		if ctx.IsSet(ledgerFlag.Name) {
-			key, pop, err = wallet.GenerateProofOfPossession(account, message)
-		} else {
-			key, pop, err = ks.GenerateProofOfPossession(account, message)
-		}
+    key, pop, err = wallet.GenerateProofOfPossession(account, message)
 	}
 	if err != nil {
 		return err
