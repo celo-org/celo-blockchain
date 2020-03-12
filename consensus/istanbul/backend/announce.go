@@ -781,7 +781,12 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 
 // handleEnodeCertificateMsg handles an enode certificate message.
 // At the moment, this message is only supported if it's sent from a proxied
-// validator to its proxy or vice versa.
+// validator to its proxy or vice versa. If the message is sent by the proxy
+// to the proxied validator, the proxy is forwarding an enodeCertificate to the
+// proxied validator.
+// If a message is sent by a proxied validator to its proxy, it is either
+// sending its own enodeCertificate that can be used during handshakes, or sending
+// an enodeCertificate to a proxy that was forwarded by a proxy before.
 func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
@@ -793,13 +798,13 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 	logger = logger.New("msg address", msg.Address)
-	logger.Trace("Handling an Istanbul Enode Certificate message")
 
 	var enodeCertificate enodeCertificate
 	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
 		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
+	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
@@ -807,34 +812,26 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	// Handle the special case where this node is a proxy and the proxied validator
-	// sent an enode certificate
-	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() {
-		// If the enode certificate is meant for the proxy to use in handshakes
-		if msg.Address == sb.config.ProxiedValidatorAddress {
-			// There may be a difference in the URLv4 string because of `discport`,
-			// so instead compare the ID
-			selfNode := sb.p2pserver.Self()
-			if parsedNode.ID() != selfNode.ID() {
-				logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-				return errors.New("Incorrect enode url")
-			}
-			sb.setEnodeCertificateMsg(&msg)
-		} else {
-			// Otherwise the proxied validator is sending the proxy an enodeCertificate
-			// to Upsert
-			if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
-				return err
-			}
+	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
+
+	// Handle the special case where this node is a proxy and the proxied validator sent the msg
+	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
+		// There may be a difference in the URLv4 string because of `discport`,
+		// so instead compare the ID
+		selfNode := sb.p2pserver.Self()
+		if parsedNode.ID() != selfNode.ID() {
+			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+			return errors.New("Incorrect enode url")
 		}
+		sb.setEnodeCertificateMsg(&msg)
 		return nil
 	}
+
+	// If this node is not a proxied validator recieving a message from its proxy
+	// peer, or vice versa, return.
 	// TODO: remove this check to allow non-proxy peers to send this message
 	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	//
-	// If this node is not a proxied validator recieving a message from its proxy
-	// peer, return
-	if !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
+	if !isFromProxiedPeer || !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
 		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
 		return errUnauthorizedAnnounceMessage
 	}
@@ -849,8 +846,6 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		logger.Debug("Received Istanbul Enode Certificate message originating from a node not in the validator conn set")
 		return errUnauthorizedAnnounceMessage
 	}
-
-	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)

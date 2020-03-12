@@ -855,8 +855,7 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	}
 	sb.cachedValidatorConnSetMu.RUnlock()
 
-	err := sb.updateCachedValidatorConnSet()
-	if err != nil {
+	if err := sb.updateCachedValidatorConnSet(); err != nil {
 		return nil, err
 	}
 

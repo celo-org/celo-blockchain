@@ -163,7 +163,7 @@ type Handler interface {
 	ConnectToVals()
 
 	// Handshake will begin a handshake with a new peer. It returns if the peer
-	// has identified itself as a validator.
+	// has identified itself as a validator and should bypass any max peer checks.
 	Handshake(peer Peer) (bool, error)
 }
 
