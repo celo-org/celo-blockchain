@@ -436,15 +436,22 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 		return false, nil
 	}
 
-	// By this point, we know the peer is a validator and we update our val enode table accordingly
-	// Upsert will only use this entry if the version is new
+	// Forward this message to the proxied validator if this is a proxy.
+	// We leave the validator to determine if the proxy should add this node
+	// to its val enode table, which occurs if the proxied validator sends back
+	// the enode certificate to this proxy.
+	if sb.config.Proxy {
+		if sb.proxiedPeer != nil {
+			go sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg)
+		}
+		return false, nil
+	}
+
+	// By this point, this node and the peer are both validators and we update
+	// our val enode table accordingly. Upsert will only use this entry if the version is new
 	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
-	}
-	// Forward this message to the proxied validator if this is a proxy
-	if sb.config.Proxy && sb.proxiedPeer != nil {
-		go sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg)
 	}
 	return true, nil
 }

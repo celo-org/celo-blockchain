@@ -111,6 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
 		generateAndGossipAnnounceCh:        make(chan struct{}),
+		updateAnnounceVersionCh:            make(chan uint, 5),
 		lastAnnounceGossiped:               make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
@@ -210,6 +211,8 @@ type Backend struct {
 	announceThreadWg            *sync.WaitGroup
 	announceThreadQuit          chan struct{}
 	generateAndGossipAnnounceCh chan struct{}
+
+	updateAnnounceVersionCh chan uint
 
 	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
@@ -796,17 +799,12 @@ func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 }
 
 func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
-	logger := sb.logger.New("func", "addProxy")
 	if sb.proxyNode != nil {
 		return errProxyAlreadySet
 	}
-
-	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
-
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	if err := sb.updateAnnounceVersion(); err != nil {
-		logger.Warn("Error updating announce version", "err", err)
-	}
+	go sb.queueAnnounceVersionUpdate(newAnnounceVersion())
+	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }
 
@@ -865,8 +863,7 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	}
 	sb.cachedValidatorConnSetMu.RUnlock()
 
-	err := sb.updateCachedValidatorConnSet()
-	if err != nil {
+	if err := sb.updateCachedValidatorConnSet(); err != nil {
 		return nil, err
 	}
 

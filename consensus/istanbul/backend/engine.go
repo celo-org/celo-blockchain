@@ -471,6 +471,7 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		snapshot = state.Snapshot()
 		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
+			sb.logger.Error("Failed to distribute epoch rewards", "blockNumber", header.Number, "err", err)
 			state.RevertToSnapshot(snapshot)
 		}
 	}
@@ -645,9 +646,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.RefreshValPeers(valset)
 		// For a proxied validator, this is called in `sb.addProxy`
-		if err := sb.updateAnnounceVersion(); err != nil {
-			sb.logger.Warn("Error updating announce version", "err", err)
-		}
+		go sb.queueAnnounceVersionUpdate(newAnnounceVersion())
 	}
 
 	sb.coreStarted = true

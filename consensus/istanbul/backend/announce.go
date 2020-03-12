@@ -78,6 +78,7 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceVersion uint
 	var shouldAnnounce bool
 	var err error
 
@@ -163,6 +164,16 @@ func (sb *Backend) announceThread() {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
 				}
 			}
+		case version := <-sb.updateAnnounceVersionCh:
+			if version <= announceVersion {
+				logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
+				break
+			}
+			if err := sb.updateAnnounceVersion(); err != nil {
+				logger.Warn("Error updating announce version", "err", err)
+				break
+			}
+			announceVersion = version
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
@@ -685,6 +696,10 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 	return nil
 }
 
+func (sb *Backend) queueAnnounceVersionUpdate(version uint) {
+	sb.updateAnnounceVersionCh <- version
+}
+
 func (sb *Backend) updateAnnounceVersion() error {
 	logger := sb.logger.New("func", "updateAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
@@ -820,7 +835,12 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 
 // handleEnodeCertificateMsg handles an enode certificate message.
 // At the moment, this message is only supported if it's sent from a proxied
-// validator to its proxy or vice versa.
+// validator to its proxy or vice versa. If the message is sent by the proxy
+// to the proxied validator, the proxy is forwarding an enodeCertificate to the
+// proxied validator.
+// If a message is sent by a proxied validator to its proxy, it is either
+// sending its own enodeCertificate that can be used during handshakes, or sending
+// an enodeCertificate to a proxy that was forwarded by a proxy before.
 func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
@@ -832,13 +852,13 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 	logger = logger.New("msg address", msg.Address)
-	logger.Trace("Handling an Istanbul Enode Certificate message")
 
 	var enodeCertificate enodeCertificate
 	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
 		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
+	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
@@ -846,9 +866,10 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	// Handle the special case where this node is a proxy and the proxied validator
-	// sent an enode certificate for the proxy to use in handshakes
-	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() && msg.Address == sb.config.ProxiedValidatorAddress {
+	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
+
+	// Handle the special case where this node is a proxy and the proxied validator sent the msg
+	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
@@ -870,8 +891,6 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		logger.Debug("Received Istanbul Enode Certificate message originating from a node not in the validator conn set")
 		return errUnauthorizedAnnounceMessage
 	}
-
-	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
