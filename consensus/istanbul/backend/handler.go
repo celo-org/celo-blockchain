@@ -412,11 +412,11 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
 	if !valSet.ContainsByAddress(sb.ValidatorAddress()) {
-		logger.Trace("This validator is not in the validator conn set")
+		logger.Trace("This validator is not in the validator set")
 		return false, nil
 	}
 	if !valSet.ContainsByAddress(msg.Address) {
-		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
+		logger.Debug("Received a validator handshake message from peer not in the validator set", "msg.Address", msg.Address)
 		return false, nil
 	}
 

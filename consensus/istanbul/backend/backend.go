@@ -791,13 +791,11 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 	if sb.proxyNode != nil {
 		return errProxyAlreadySet
 	}
-
-	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
-
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
 	if err := sb.updateAnnounceVersion(newAnnounceVersion()); err != nil {
 		sb.logger.Warn("Error updating announce version", "err", err)
 	}
+	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }
 

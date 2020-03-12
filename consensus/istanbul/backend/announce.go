@@ -814,7 +814,10 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 	}
 	// TODO: remove this check to allow non-proxy peers to send this message
 	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
+	//
+	// If this node is not a proxied validator recieving a message from its proxy
+	// peer, return
+	if !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
 		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
 		return errUnauthorizedAnnounceMessage
 	}
