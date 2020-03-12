@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/accounts/usbwallet"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console"
@@ -35,6 +36,10 @@ var (
 	blsFlag = cli.BoolFlag{
 		Name:  "bls",
 		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
+	}
+	ledgerFlag = cli.BoolFlag{
+		Name:  "ledger",
+		Usage: "Set to use a Ledger to generate a proof-of-possession of an ECDSA key.",
 	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
@@ -118,6 +123,7 @@ Print a short summary of all accounts`,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
 					blsFlag,
+					ledgerFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -226,32 +232,66 @@ func accountList(ctx *cli.Context) error {
 	return nil
 }
 
+func printProofOfPossession(account accounts.Account, pop []byte, keyType string, key []byte) {
+	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
+}
+
 func accountProofOfPossession(ctx *cli.Context) error {
 	if len(ctx.Args()) != 2 {
 		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
 	}
 
 	stack, _ := makeConfigNode(ctx)
-	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	am := stack.AccountManager()
+	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
 	signer := common.HexToAddress(ctx.Args()[0])
 	message := common.HexToAddress(ctx.Args()[1])
-	account, _ := unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
+
+	var err error
+	var account accounts.Account
+	var wallet accounts.Wallet
+
+	for _, wallet = range am.Wallets() {
+		if wallet.URL().Scheme == usbwallet.LedgerScheme {
+			if err := wallet.Open(""); err != nil && err != accounts.ErrWalletAlreadyOpen {
+				utils.Fatalf("Could not open Ledger wallet: %v", err)
+			} else {
+				defer wallet.Close()
+			}
+
+			account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
+			if err != nil {
+				utils.Fatalf("Could not derive the Ledger account: %v", err)
+			}
+			if account.Address != signer {
+				utils.Fatalf("Ledger account %x is different than requested signer %x", account.Address, signer)
+			}
+			break
+		}
+	}
+
+	if wallet.URL().Scheme == keystore.KeyStoreScheme {
+		account, _ = unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
+	}
 	var key []byte
 	var pop []byte
-	var err error
 	keyType := "ECDSA"
 	if ctx.IsSet(blsFlag.Name) {
 		keyType = "BLS"
 		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
 	} else {
-		key, pop, err = ks.GenerateProofOfPossession(account, message)
+		if ctx.IsSet(ledgerFlag.Name) {
+			key, pop, err = wallet.GenerateProofOfPossession(account, message)
+		} else {
+			key, pop, err = ks.GenerateProofOfPossession(account, message)
+		}
 	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Account {%x}:\n  Signature: %s\n  %s Public Key: %s\n", account.Address, hex.EncodeToString(pop), keyType, hex.EncodeToString(key))
+	printProofOfPossession(account, pop, keyType, key)
 
 	return nil
 }
