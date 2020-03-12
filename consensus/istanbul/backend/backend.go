@@ -110,8 +110,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		selfRecentMessages:                 selfRecentMessages,
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
-		generateAndGossipAnnounceCh:        make(chan struct{}),
-		updateAnnounceVersionCh:            make(chan uint, 5),
+		generateAndGossipAnnounceCh:        make(chan struct{}, 1),
+		updateAnnounceVersionCh:            make(chan struct{}, 1),
 		lastAnnounceGossiped:               make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
@@ -211,8 +211,7 @@ type Backend struct {
 	announceThreadWg            *sync.WaitGroup
 	announceThreadQuit          chan struct{}
 	generateAndGossipAnnounceCh chan struct{}
-
-	updateAnnounceVersionCh chan uint
+	updateAnnounceVersionCh     chan struct{}
 
 	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
@@ -304,7 +303,10 @@ func (sb *Backend) Address() common.Address {
 // Close the backend
 func (sb *Backend) Close() error {
 	sb.delegateSignScope.Close()
-	return sb.valEnodeTable.Close()
+	if err := sb.valEnodeTable.Close(); err != nil {
+		return err
+	}
+	return sb.signedAnnounceVersionTable.Close()
 }
 
 // Validators implements istanbul.Backend.Validators
@@ -803,7 +805,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 		return errProxyAlreadySet
 	}
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	go sb.queueAnnounceVersionUpdate(newAnnounceVersion())
+	sb.queueAnnounceVersionUpdate()
 	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }

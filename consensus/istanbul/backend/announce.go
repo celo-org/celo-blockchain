@@ -78,7 +78,6 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
-	var announceVersion uint
 	var shouldAnnounce bool
 	var err error
 
@@ -164,16 +163,10 @@ func (sb *Backend) announceThread() {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
 				}
 			}
-		case version := <-sb.updateAnnounceVersionCh:
-			if version <= announceVersion {
-				logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
-				break
-			}
+		case <-sb.updateAnnounceVersionCh:
 			if err := sb.updateAnnounceVersion(); err != nil {
 				logger.Warn("Error updating announce version", "err", err)
-				break
 			}
-			announceVersion = version
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
@@ -306,6 +299,8 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (sb *Backend) startGossipAnnounceTask() {
+	// sb.generateAndGossipAnnounceCh has a buffer of 1. If there is a value
+	// already sent to the channel that has not been read from, don't block.
 	select {
 	case sb.generateAndGossipAnnounceCh <- struct{}{}:
 	default:
@@ -696,8 +691,16 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 	return nil
 }
 
-func (sb *Backend) queueAnnounceVersionUpdate(version uint) {
-	sb.updateAnnounceVersionCh <- version
+// queueAnnounceVersionUpdate will send to the updateAnnounceVersionCh channel
+// that is read from in the announceThread to trigger an update of the announce
+// version.
+func (sb *Backend) queueAnnounceVersionUpdate() {
+	// sb.updateAnnounceVersionCh has a buffer of 1. If there is a value
+	// already sent to the channel that has not been read from, don't block.
+	select {
+	case sb.updateAnnounceVersionCh <- struct{}{}:
+	default:
+	}
 }
 
 func (sb *Backend) updateAnnounceVersion() error {
@@ -866,10 +869,8 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
-
 	// Handle the special case where this node is a proxy and the proxied validator sent the msg
-	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
+	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() && msg.Address == sb.config.ProxiedValidatorAddress {
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
