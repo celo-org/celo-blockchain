@@ -67,8 +67,8 @@ type txdataMarshaling struct {
 	AccountNonce        hexutil.Uint64
 	Price               *hexutil.Big
 	GasLimit            hexutil.Uint64
-	FeeCurrency         *hexutil.Big
-	GatewayFeeRecipient *hexutil.Big
+	FeeCurrency         *common.Address
+	GatewayFeeRecipient *common.Address
 	GatewayFee          *hexutil.Big
 	Amount              *hexutil.Big
 	Payload             hexutil.Bytes
