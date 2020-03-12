@@ -136,15 +136,16 @@ const (
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
 	// Celo precompiled contracts
-	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
-	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
+	FractionMulExpGas           uint64 = 50   // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
+	FractionMulExpExtraGas      uint64 = 1050   // Cost for extra bits
 	ProofOfPossessionGas        uint64 = 350000 // Cost of verifying a BLS proof of possession.
 	GetValidatorGas             uint64 = 10     // Cost of reading a validator's address.
 	GetEpochSizeGas             uint64 = 10     // Cost of querying the number of blocks in an epoch.
-	GetBlockNumberFromHeaderGas uint64 = 10000  // Cost of decoding a block header.
-	HashHeaderGas               uint64 = 20000  // Cost of hashing a block header.
+	GetBlockNumberFromHeaderGas uint64 = 10     // Cost of decoding a block header.
+	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
 	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
-	GetVerifiedSealBitmapGas    uint64 = 55000  // Cost of verifying the seal on a given RLP encoded header.
+	// May take a bit more time with 100 validators, need to bench that
+	GetVerifiedSealBitmapGas    uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
 )
 
 var (
