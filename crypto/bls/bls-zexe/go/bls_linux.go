@@ -3,6 +3,6 @@
 package bls
 
 /*
-#cgo LDFLAGS: -L../bls/target/release -lbls_zexe -lbls_snark -ldl -lm
+#cgo LDFLAGS: -L../target/release -lepoch_snark -ldl -lm
 */
 import "C"
