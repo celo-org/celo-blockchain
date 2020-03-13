@@ -437,19 +437,23 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 	return iter.Error()
 }
 
+// ValEnodeEntryInfo contains information for an entry of the val enode table
 type ValEnodeEntryInfo struct {
 	Enode   string `json:"enode"`
 	Version uint   `json:"version"`
 }
 
+// ValEnodeTableInfo gives basic information for each entry of the table
 func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
 	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
 
 	valEnodeTable, err := vet.GetAllValEnodes()
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
-			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{Enode: valEnodeEntry.Node.String(),
-				Version: valEnodeEntry.Version}
+			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{
+				Enode:   valEnodeEntry.Node.String(),
+				Version: valEnodeEntry.Version,
+			}
 		}
 	}
 
