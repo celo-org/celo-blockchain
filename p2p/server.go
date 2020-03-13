@@ -1031,7 +1031,8 @@ func (srv *Server) CheckPeerCounts(peer *Peer) error {
 	switch {
 	case peer.Info().Network.Trusted || peer.Info().Network.Static:
 		return nil
-	case srv.PeerCount() > srv.MaxPeers:
+	// KJUE - Remove the peerOp not nil check after restoring peer check in server.go
+	case srv.peerOp != nil && (srv.PeerCount() > srv.MaxPeers):
 		return DiscTooManyPeers
 	case srv.inboundCount() > srv.maxInboundConns():
 		return DiscTooManyInboundPeers

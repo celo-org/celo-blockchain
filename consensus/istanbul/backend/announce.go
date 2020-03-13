@@ -81,6 +81,19 @@ func (sb *Backend) announceThread() {
 	var announceVersion uint
 	var announcing bool
 
+	updateAnnounceVersionFunc := func() {
+		version := newAnnounceVersion()
+		if version <= announceVersion {
+			logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
+			return
+		}
+		if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
+			logger.Warn("Error updating announce version", "err", err)
+			return
+		}
+		announceVersion = version
+	}
+
 	for {
 		select {
 		case <-checkIfShouldAnnounceTicker.C:
@@ -93,6 +106,8 @@ func (sb *Backend) announceThread() {
 			}
 
 			if shouldAnnounce && !announcing {
+				updateAnnounceVersionFunc()
+
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -167,16 +182,7 @@ func (sb *Backend) announceThread() {
 			go sb.checkPeersAnnounceVersions()
 
 		case <-sb.updateAnnounceVersionCh:
-			version := newAnnounceVersion()
-			if version <= announceVersion {
-				logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
-				break
-			}
-			if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
-				logger.Warn("Error updating announce version", "err", err)
-				break
-			}
-			announceVersion = version
+			updateAnnounceVersionFunc()
 			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
 		case <-sb.announceThreadQuit:
