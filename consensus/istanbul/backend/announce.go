@@ -79,6 +79,7 @@ func (sb *Backend) announceThread() {
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
 	var announceVersion uint
+	var announcing bool
 
 	for {
 		select {
@@ -91,7 +92,7 @@ func (sb *Backend) announceThread() {
 				break
 			}
 
-			if shouldAnnounce && announceGossipTickerCh == nil {
+			if shouldAnnounce && !announcing {
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -119,11 +120,15 @@ func (sb *Backend) announceThread() {
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 				announceGossipTickerCh = announceGossipTicker.C
 				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !shouldAnnounce && announceGossipTickerCh != nil {
+
+				announcing = true
+			} else if !shouldAnnounce && announcing {
 				// Disable periodic gossiping by setting announceGossipTickerCh to nil
 				announceGossipTicker.Stop()
 				announceGossipTickerCh = nil
 				logger.Trace("Disabled periodic gossiping of announce message")
+
+				announcing = false
 			}
 
 		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
@@ -161,16 +166,19 @@ func (sb *Backend) announceThread() {
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
 
-		case version := <-sb.updateAnnounceVersionCh:
+		case <-sb.updateAnnounceVersionCh:
+			version := newAnnounceVersion()
 			if version <= announceVersion {
 				logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
 				break
 			}
-			if err := sb.updateAnnounceVersion(version); err != nil {
+			if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
 				logger.Warn("Error updating announce version", "err", err)
 				break
 			}
 			announceVersion = version
+			sb.updateAnnounceVersionCompleteCh <- struct{}{}
+
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			announceVersionsCheckTicker.Stop()
@@ -347,8 +355,6 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	if istMsg == nil {
 		return nil
 	}
-
-	go sb.queueAnnounceVersionUpdate(announceVersion)
 
 	// Convert to payload
 	payload, err := istMsg.Payload()
@@ -827,7 +833,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return nil
 	}
 
-	// If this node is not a proxied validator recieving a message from its proxy
+	// If this node is not a proxied validator receiving a message from its proxy
 	// peer, or vice versa, return.
 	// TODO: remove this check to allow non-proxy peers to send this message
 	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
@@ -870,16 +876,17 @@ func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) {
 	sb.enodeCertificateMsgMu.Unlock()
 }
 
-func (sb *Backend) queueAnnounceVersionUpdate(version uint) {
-	sb.updateAnnounceVersionCh <- version
+func (sb *Backend) updateAnnounceVersion() {
+	sb.updateAnnounceVersionCh <- struct{}{}
+	<-sb.updateAnnounceVersionCompleteCh
 }
 
-// updateAnnounceVersion generates a new enode certificate message and sends
+// setAndShareUpdatedAnnounceVersion generates a new enode certificate message and sends
 // it to this node's proxy (if applicable).
 // TODO: When a generated announce no longer creates a new version, the version
 // parameter can be removed and instead have the version generated in this function.
 // Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
-func (sb *Backend) updateAnnounceVersion(version uint) error {
+func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "updateAnnounceVersion")
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {

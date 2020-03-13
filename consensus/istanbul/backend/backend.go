@@ -110,7 +110,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		selfRecentMessages:                 selfRecentMessages,
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
-		updateAnnounceVersionCh:            make(chan uint, 5),
+		updateAnnounceVersionCh:            make(chan struct{}),
+		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastAnnounceGossiped:               make(map[common.Address]time.Time),
 		cachedAnnounceMsgs:                 make(map[common.Address]*announceMsgCachedEntry),
 		valEnodesShareWg:                   new(sync.WaitGroup),
@@ -201,7 +202,8 @@ type Backend struct {
 	announceThreadWg   *sync.WaitGroup
 	announceThreadQuit chan struct{}
 
-	updateAnnounceVersionCh chan uint
+	updateAnnounceVersionCh         chan struct{}
+	updateAnnounceVersionCompleteCh chan struct{}
 
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
@@ -795,7 +797,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 		return errProxyAlreadySet
 	}
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	go sb.queueAnnounceVersionUpdate(newAnnounceVersion())
+	sb.updateAnnounceVersion()
 	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }

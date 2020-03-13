@@ -28,7 +28,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-type MockPeer struct{
+type MockPeer struct {
 	Messages     chan p2p.Msg
 	NodeOverride *enode.Node
 }
@@ -199,7 +199,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	_, backend := newBlockChain(2, true)
 
 	peer := &MockPeer{
-		Messages: make(chan p2p.Msg, 1),
+		Messages:     make(chan p2p.Msg, 1),
 		NodeOverride: backend.p2pserver.Self(),
 	}
 
