@@ -38,7 +38,6 @@
     "gasLimit": "4712388",
     "hash": "0xe23e8d4562a1045b70cbc99fefb20c101a8f0fc8559a80d65fea8896e2f1d46e",
     "miner": "0x71842f946b98800fe6feb49f0ae4e253259031c9",
-    "mixHash": "0x0aada9d6e93dd4db0d09c0488dc0a048fca2ccdc1f3fc7b83ba2a8d393a3a4ff",
     "nonce": "0x70849d5838dee2e9",
     "number": "25008",
     "stateRoot": "0x1e01d2161794768c5b917069e73d86e8dca80cd7f3168c0597de420ab93a3b7b",

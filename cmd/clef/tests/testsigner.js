@@ -67,7 +67,6 @@ function test(){
     var tests = [
         testTx,
         testSignText,
-        testClique,
     ]
     for( i in tests){
         try{

@@ -18,7 +18,6 @@ package vm
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -42,13 +41,8 @@ type mockEngine struct {
 	consensus.Engine
 }
 
-var magicTestNonce = types.BlockNonce{0x00, 0x00, 0x00, 0x00, 0xde, 0xad, 0xbe, 0xef}
-
 func (e mockEngine) VerifySeal(_ consensus.ChainReader, header *types.Header) error {
-	if header.Nonce == magicTestNonce {
-		return nil
-	}
-	return errors.New("missing magic nonce")
+	return nil
 }
 
 func (e mockEngine) EpochSize() uint64 {
@@ -702,7 +696,6 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 	{
 		input: func() string {
 			header := makeTestHeader(common.Big1)
-			header.Nonce = magicTestNonce
 			encoded, _ := rlp.EncodeToBytes(header)
 			return hexutil.Encode(encoded)[2:]
 		}(),
@@ -712,7 +705,6 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 	{
 		input: func() string {
 			header := makeTestHeader(common.Big1)
-			header.Nonce = magicTestNonce
 			header.Extra = nil
 			encoded, _ := rlp.EncodeToBytes(header)
 			return hexutil.Encode(encoded)[2:]

@@ -50,7 +50,6 @@ var (
 // fork switch-over blocks through the chain configuration.
 type Genesis struct {
 	Config    *params.ChainConfig `json:"config"`
-	Nonce     uint64              `json:"nonce"`
 	Timestamp uint64              `json:"timestamp"`
 	ExtraData []byte              `json:"extraData"`
 	GasLimit  uint64              `json:"gasLimit"   gencodec:"required"`
@@ -90,7 +89,6 @@ type GenesisAccount struct {
 
 // field type overrides for gencodec
 type genesisSpecMarshaling struct {
-	Nonce     math.HexOrDecimal64
 	Timestamp math.HexOrDecimal64
 	ExtraData hexutil.Bytes
 	GasLimit  math.HexOrDecimal64
@@ -269,7 +267,6 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	root := statedb.IntermediateRoot(false)
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),
-		Nonce:      types.EncodeNonce(g.Nonce),
 		Time:       g.Timestamp,
 		ParentHash: g.ParentHash,
 		Extra:      g.ExtraData,
@@ -350,7 +347,6 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 func DefaultGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:    params.MainnetChainConfig,
-		Nonce:     66,
 		ExtraData: hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
 		GasLimit:  5000,
 		Alloc:     decodePrealloc(mainnetAllocData),
@@ -361,7 +357,6 @@ func DefaultGenesisBlock() *Genesis {
 func DefaultTestnetGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:    params.TestnetChainConfig,
-		Nonce:     66,
 		ExtraData: hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
 		GasLimit:  16777216,
 		Alloc:     decodePrealloc(testnetAllocData),

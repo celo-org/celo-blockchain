@@ -246,7 +246,6 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		Epoch:          10,
 		LookbackWindow: 2,
 	}
-	genesis.Nonce = emptyNonce.Uint64()
 
 	AppendValidatorsToGenesisBlock(genesis, validators)
 	return genesis, nodeKeys
@@ -440,16 +439,6 @@ func TestVerifyHeader(t *testing.T) {
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
-	}
-
-	// invalid nonce
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	copy(header.Nonce[:], hexutil.MustDecode("0x111111111111"))
-	header.Number = big.NewInt(int64(engine.config.Epoch))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidNonce {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidNonce)
 	}
 }
 

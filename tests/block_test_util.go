@@ -67,7 +67,6 @@ type btBlock struct {
 type btHeader struct {
 	Bloom            types.Bloom
 	Coinbase         common.Address
-	Nonce            types.BlockNonce
 	Number           *big.Int
 	Hash             common.Hash
 	ParentHash       common.Hash
@@ -134,7 +133,6 @@ func (t *BlockTest) Run() error {
 func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 	return &core.Genesis{
 		Config:     config,
-		Nonce:      t.json.Genesis.Nonce.Uint64(),
 		Timestamp:  t.json.Genesis.Timestamp,
 		ParentHash: t.json.Genesis.ParentHash,
 		ExtraData:  t.json.Genesis.ExtraData,
@@ -198,9 +196,6 @@ func validateHeader(h *btHeader, h2 *types.Header) error {
 	}
 	if h.Coinbase != h2.Coinbase {
 		return fmt.Errorf("coinbase: want: %x have: %x", h.Coinbase, h2.Coinbase)
-	}
-	if h.Nonce != h2.Nonce {
-		return fmt.Errorf("nonce: want: %x have: %x", h.Nonce, h2.Nonce)
 	}
 	if h.Number.Cmp(h2.Number) != 0 {
 		return fmt.Errorf("number: want: %v have: %v", h.Number, h2.Number)

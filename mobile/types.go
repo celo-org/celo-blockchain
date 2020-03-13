@@ -29,22 +29,6 @@ import (
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 )
 
-// A Nonce is a 64-bit hash which proves (combined with the mix-hash) that
-// a sufficient amount of computation has been carried out on a block.
-type Nonce struct {
-	nonce types.BlockNonce
-}
-
-// GetBytes retrieves the byte representation of the block nonce.
-func (n *Nonce) GetBytes() []byte {
-	return n.nonce[:]
-}
-
-// GetHex retrieves the hex string representation of the block nonce.
-func (n *Nonce) GetHex() string {
-	return fmt.Sprintf("0x%x", n.nonce[:])
-}
-
 // Bloom represents a 256 bit bloom filter.
 type Bloom struct {
 	bloom types.Bloom
@@ -109,7 +93,6 @@ func (h *Header) GetGasLimit() int64    { return int64(h.header.GasLimit) }
 func (h *Header) GetGasUsed() int64     { return int64(h.header.GasUsed) }
 func (h *Header) GetTime() int64        { return int64(h.header.Time) }
 func (h *Header) GetExtra() []byte      { return h.header.Extra }
-func (h *Header) GetNonce() *Nonce      { return &Nonce{h.header.Nonce} }
 func (h *Header) GetHash() *Hash        { return &Hash{h.header.Hash()} }
 
 // Headers represents a slice of headers.
@@ -177,7 +160,6 @@ func (b *Block) GetGasLimit() int64             { return int64(b.block.GasLimit(
 func (b *Block) GetGasUsed() int64              { return int64(b.block.GasUsed()) }
 func (b *Block) GetTime() int64                 { return int64(b.block.Time()) }
 func (b *Block) GetExtra() []byte               { return b.block.Extra() }
-func (b *Block) GetNonce() int64                { return int64(b.block.Nonce()) }
 func (b *Block) GetHash() *Hash                 { return &Hash{b.block.Hash()} }
 func (b *Block) GetHeader() *Header             { return &Header{b.block.Header()} }
 func (b *Block) GetTransactions() *Transactions { return &Transactions{b.block.Transactions()} }

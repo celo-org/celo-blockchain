@@ -357,7 +357,6 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 			PetersburgBlock:     petersburgBlock,
 			IstanbulBlock:       istanbulBlock,
 		},
-		Nonce:      uint64(chainParams.Genesis.Nonce),
 		Timestamp:  uint64(chainParams.Genesis.Timestamp),
 		ExtraData:  chainParams.Genesis.ExtraData,
 		GasLimit:   uint64(chainParams.Genesis.GasLimit),

@@ -18,7 +18,6 @@
 package types
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"math/big"
@@ -35,37 +34,9 @@ import (
 
 var (
 	EmptyRootHash       = DeriveSha(Transactions{})
-	EmptyUncleHash      = rlpHash([]*Header(nil))
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
 )
-
-// A BlockNonce is a 64-bit hash which proves (combined with the
-// mix-hash) that a sufficient amount of computation has been carried
-// out on a block.
-type BlockNonce [8]byte
-
-// EncodeNonce converts the given integer to a block nonce.
-func EncodeNonce(i uint64) BlockNonce {
-	var n BlockNonce
-	binary.BigEndian.PutUint64(n[:], i)
-	return n
-}
-
-// Uint64 returns the integer value of a block nonce.
-func (n BlockNonce) Uint64() uint64 {
-	return binary.BigEndian.Uint64(n[:])
-}
-
-// MarshalText encodes n as a hex string with 0x prefix.
-func (n BlockNonce) MarshalText() ([]byte, error) {
-	return hexutil.Bytes(n[:]).MarshalText()
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (n *BlockNonce) UnmarshalText(input []byte) error {
-	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
-}
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
 
@@ -82,7 +53,6 @@ type Header struct {
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
-	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
 /*
@@ -366,7 +336,6 @@ func (b *Block) GasUsed() uint64  { return b.header.GasUsed }
 func (b *Block) Time() uint64     { return b.header.Time }
 
 func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
-func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
 func (b *Block) Bloom() Bloom             { return b.header.Bloom }
 func (b *Block) Coinbase() common.Address { return b.header.Coinbase }
 func (b *Block) Root() common.Hash        { return b.header.Root }

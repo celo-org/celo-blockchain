@@ -43,7 +43,6 @@ func TestBlockEncoding(t *testing.T) {
 	check("Coinbase", block.Coinbase(), common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1"))
 	check("Root", block.Root(), common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217"))
 	check("Hash", block.Hash(), common.HexToHash("f5a450266c77dce47f7698959d8e7019db860ee19a5322b16a853fdf23607100"))
-	check("Nonce", block.Nonce(), uint64(0x0))
 	check("Time", block.Time(), uint64(1548187484))
 	check("Size", block.Size(), common.StorageSize(len(blockEnc)))
 	check("ParentHash", block.ParentHash(), common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7"))

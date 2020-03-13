@@ -62,8 +62,6 @@ var (
 	errUnauthorized = errors.New("not an elected validator")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
 	errInvalidExtraDataFormat = errors.New("invalid extra data format")
-	// errInvalidNonce is returned if a block's nonce is invalid
-	errInvalidNonce = errors.New("invalid nonce")
 	// errCoinbase is returned if a block's coinbase is invalid
 	errInvalidCoinbase = errors.New("invalid coinbase")
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than the previous block's timestamp + the minimum block period.
@@ -88,8 +86,7 @@ var (
 )
 
 var (
-	emptyNonce = types.BlockNonce{}
-	now        = time.Now
+	now = time.Now
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -132,11 +129,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the extra data format is satisfied
 	if _, err := types.ExtractIstanbulExtra(header); err != nil {
 		return errInvalidExtraDataFormat
-	}
-
-	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
-	if header.Nonce != (emptyNonce) {
-		return errInvalidNonce
 	}
 
 	return sb.verifyCascadingFields(chain, header, parents)
@@ -344,7 +336,6 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
-	header.Nonce = emptyNonce
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()

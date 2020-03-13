@@ -450,14 +450,6 @@ func (b *Block) Timestamp(ctx context.Context) (hexutil.Uint64, error) {
 	return hexutil.Uint64(header.Time), nil
 }
 
-func (b *Block) Nonce(ctx context.Context) (hexutil.Bytes, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return hexutil.Bytes{}, err
-	}
-	return hexutil.Bytes(header.Nonce[:]), nil
-}
-
 func (b *Block) TransactionsRoot(ctx context.Context) (common.Hash, error) {
 	header, err := b.resolveHeader(ctx)
 	if err != nil {

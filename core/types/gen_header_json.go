@@ -27,7 +27,6 @@ func (h Header) MarshalJSON() ([]byte, error) {
 		GasUsed     hexutil.Uint64 `json:"gasUsed"          gencodec:"required"`
 		Time        hexutil.Uint64 `json:"timestamp"        gencodec:"required"`
 		Extra       hexutil.Bytes  `json:"extraData"        gencodec:"required"`
-		Nonce       BlockNonce     `json:"nonce"`
 		Hash        common.Hash    `json:"hash"`
 	}
 	var enc Header
@@ -42,7 +41,6 @@ func (h Header) MarshalJSON() ([]byte, error) {
 	enc.GasUsed = hexutil.Uint64(h.GasUsed)
 	enc.Time = hexutil.Uint64(h.Time)
 	enc.Extra = h.Extra
-	enc.Nonce = h.Nonce
 	enc.Hash = h.Hash()
 	return json.Marshal(&enc)
 }
@@ -61,7 +59,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 		GasUsed     *hexutil.Uint64 `json:"gasUsed"          gencodec:"required"`
 		Time        *hexutil.Uint64 `json:"timestamp"        gencodec:"required"`
 		Extra       *hexutil.Bytes  `json:"extraData"        gencodec:"required"`
-		Nonce       *BlockNonce     `json:"nonce"`
 	}
 	var dec Header
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -109,10 +106,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 	h.Time = uint64(*dec.Time)
 	if dec.Extra == nil {
 		return errors.New("missing required field 'extraData' for Header")
-	}
-	h.Extra = *dec.Extra
-	if dec.Nonce != nil {
-		h.Nonce = *dec.Nonce
 	}
 	return nil
 }
