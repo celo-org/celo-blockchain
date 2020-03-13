@@ -644,9 +644,8 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	} else {
 		headBlock := sb.GetCurrentHeadBlock()
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.updateAnnounceVersion()
 		sb.RefreshValPeers(valset)
-		// For a proxied validator, this is called in `sb.addProxy`
-		sb.queueAnnounceVersionUpdate()
 	}
 
 	sb.coreStarted = true

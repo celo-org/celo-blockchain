@@ -78,8 +78,23 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceVersion uint
+	var announcing bool
 	var shouldAnnounce bool
 	var err error
+
+	updateAnnounceVersionFunc := func() {
+		version := newAnnounceVersion()
+		if version <= announceVersion {
+			logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
+			return
+		}
+		if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
+			logger.Warn("Error updating announce version", "err", err)
+			return
+		}
+		announceVersion = version
+	}
 
 	for {
 		select {
@@ -92,7 +107,9 @@ func (sb *Backend) announceThread() {
 				break
 			}
 
-			if shouldAnnounce && announceGossipTickerCh == nil {
+			if shouldAnnounce && !announcing {
+				updateAnnounceVersionFunc()
+
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -118,11 +135,15 @@ func (sb *Backend) announceThread() {
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 				announceGossipTickerCh = announceGossipTicker.C
 				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !shouldAnnounce && announceGossipTickerCh != nil {
+
+				announcing = true
+			} else if !shouldAnnounce && announcing {
 				// Disable periodic gossiping by setting announceGossipTickerCh to nil
 				announceGossipTicker.Stop()
 				announceGossipTickerCh = nil
 				logger.Trace("Disabled periodic gossiping of announce message")
+
+				announcing = false
 			}
 
 		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
@@ -163,10 +184,11 @@ func (sb *Backend) announceThread() {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
 				}
 			}
+
 		case <-sb.updateAnnounceVersionCh:
-			if err := sb.updateAnnounceVersion(); err != nil {
-				logger.Warn("Error updating announce version", "err", err)
-			}
+			updateAnnounceVersionFunc()
+			sb.updateAnnounceVersionCompleteCh <- struct{}{}
+
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
@@ -691,19 +713,17 @@ func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedA
 	return nil
 }
 
-// queueAnnounceVersionUpdate will send to the updateAnnounceVersionCh channel
-// that is read from in the announceThread to trigger an update of the announce
-// version.
-func (sb *Backend) queueAnnounceVersionUpdate() {
-	// sb.updateAnnounceVersionCh has a buffer of 1. If there is a value
-	// already sent to the channel that has not been read from, don't block.
-	select {
-	case sb.updateAnnounceVersionCh <- struct{}{}:
-	default:
-	}
+func (sb *Backend) updateAnnounceVersion() {
+	sb.updateAnnounceVersionCh <- struct{}{}
+	<-sb.updateAnnounceVersionCompleteCh
 }
 
-func (sb *Backend) updateAnnounceVersion() error {
+// setAndShareUpdatedAnnounceVersion generates a new enode certificate message and sends
+// it to this node's proxy (if applicable).
+// TODO: When a generated announce no longer creates a new version, the version
+// parameter can be removed and instead have the version generated in this function.
+// Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
+func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "updateAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -721,7 +741,6 @@ func (sb *Backend) updateAnnounceVersion() error {
 		destAddresses[i] = address
 		i++
 	}
-	version := newAnnounceVersion()
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
@@ -878,7 +897,10 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
 			return errors.New("Incorrect enode url")
 		}
-		sb.setEnodeCertificateMsg(&msg)
+		if err := sb.setEnodeCertificateMsg(&msg); err != nil {
+			logger.Warn("Error setting enode certificate msg", "err", err)
+			return err
+		}
 		return nil
 	}
 
@@ -910,10 +932,22 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 	return peer.Send(istanbulEnodeCertificateMsg, payload)
 }
 
-func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) {
+func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {
 	sb.enodeCertificateMsgMu.Lock()
+	var enodeCertificate enodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+		return err
+	}
 	sb.enodeCertificateMsg = msg
+	sb.enodeCertificateMsgVersion = enodeCertificate.Version
 	sb.enodeCertificateMsgMu.Unlock()
+	return nil
+}
+
+func (sb *Backend) getEnodeCertificateMsgVersion() uint {
+	sb.enodeCertificateMsgMu.RLock()
+	defer sb.enodeCertificateMsgMu.RUnlock()
+	return sb.enodeCertificateMsgVersion
 }
 
 func newAnnounceVersion() uint {

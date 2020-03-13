@@ -99,8 +99,11 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 }
 
 func (h *clientHandler) handle(p *peer) error {
-	if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
-		return err
+	// KJUE - Remove the server not nil check after restoring peer check in server.go
+	if p.Peer.Server != nil {
+		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+			return err
+		}
 	}
 	if h.backend.peers.Len() >= h.backend.config.LightPeers && !p.Peer.Info().Network.Trusted {
 		return p2p.DiscTooManyPeers

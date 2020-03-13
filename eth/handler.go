@@ -349,8 +349,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
-		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
-			return err
+		// KJUE - Remove the server not nil check after restoring peer check in server.go
+		if p.Peer.Server != nil {
+			if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+				return err
+			}
 		}
 		// The p2p server CheckPeerCounts only checks if the total peer count
 		// (eth and les) exceeds the total max peers. This checks if the number

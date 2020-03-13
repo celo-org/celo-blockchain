@@ -129,6 +129,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		})
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer())
+	b.StartAnnouncing()
 	b.StartValidating(blockchain.HasBadBlock,
 		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
@@ -136,7 +137,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 		})
-	b.StartAnnouncing()
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)

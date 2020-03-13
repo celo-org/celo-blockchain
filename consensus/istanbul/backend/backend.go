@@ -111,7 +111,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
 		generateAndGossipAnnounceCh:        make(chan struct{}, 1),
-		updateAnnounceVersionCh:            make(chan struct{}, 1),
+		updateAnnounceVersionCh:            make(chan struct{}),
+		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastAnnounceGossiped:               make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
@@ -211,14 +212,17 @@ type Backend struct {
 	announceThreadWg            *sync.WaitGroup
 	announceThreadQuit          chan struct{}
 	generateAndGossipAnnounceCh chan struct{}
-	updateAnnounceVersionCh     chan struct{}
+
+	updateAnnounceVersionCh         chan struct{}
+	updateAnnounceVersionCompleteCh chan struct{}
 
 	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
 	// Used for proving itself as a validator in the handshake. The entire
 	// istanbul.Message is saved to keep the signature.
-	enodeCertificateMsg   *istanbul.Message
-	enodeCertificateMsgMu sync.RWMutex
+	enodeCertificateMsg        *istanbul.Message
+	enodeCertificateMsgVersion uint
+	enodeCertificateMsgMu      sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
@@ -805,7 +809,7 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 		return errProxyAlreadySet
 	}
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	sb.queueAnnounceVersionUpdate()
+	sb.updateAnnounceVersion()
 	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }

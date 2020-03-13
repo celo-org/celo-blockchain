@@ -28,7 +28,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.Authorize(val1Addr, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	// Generate an ist announce message using val1
-	istMsg, _, _, err := b.generateAnnounce()
+	istMsg, _, err := b.generateAnnounce(newAnnounceVersion())
 	if err != nil {
 		t.Fatalf("Error on generateAnnounce: %s", err)
 	}
