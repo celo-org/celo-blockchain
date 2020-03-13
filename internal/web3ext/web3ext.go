@@ -21,7 +21,6 @@ var Modules = map[string]string{
 	"accounting": AccountingJs,
 	"admin":      AdminJs,
 	"chequebook": ChequebookJs,
-	"clique":     CliqueJs,
 	"debug":      DebugJs,
 	"eth":        EthJs,
 	"istanbul":   Istanbul_JS,
@@ -65,58 +64,6 @@ web3._extend({
 	]
 });
 `
-
-const CliqueJs = `
-web3._extend({
-	property: 'clique',
-	methods: [
-		new web3._extend.Method({
-			name: 'getSnapshot',
-			call: 'clique_getSnapshot',
-			params: 1,
-			inputFormatter: [web3._extend.utils.fromDecimal]
-		}),
-		new web3._extend.Method({
-			name: 'getSnapshotAtHash',
-			call: 'clique_getSnapshotAtHash',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'getSigners',
-			call: 'clique_getSigners',
-			params: 1,
-			inputFormatter: [web3._extend.utils.fromDecimal]
-		}),
-		new web3._extend.Method({
-			name: 'getSignersAtHash',
-			call: 'clique_getSignersAtHash',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'propose',
-			call: 'clique_propose',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'discard',
-			call: 'clique_discard',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'status',
-			call: 'clique_status',
-			params: 0
-		}),
-	],
-	properties: [
-		new web3._extend.Property({
-			name: 'proposals',
-			getter: 'clique_proposals'
-		}),
-	]
-});
-`
-
 
 const AdminJs = `
 web3._extend({
@@ -213,12 +160,6 @@ web3._extend({
 			name: 'getBlockRlp',
 			call: 'debug_getBlockRlp',
 			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'testSignCliqueBlock',
-			call: 'debug_testSignCliqueBlock',
-			params: 2,
-			inputFormatters: [web3._extend.formatters.inputAddressFormatter, null],
 		}),
 		new web3._extend.Method({
 			name: 'setHead',

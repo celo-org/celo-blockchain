@@ -28,11 +28,9 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -59,7 +57,6 @@ const (
 var (
 	// Test chain configurations
 	testTxPoolConfig    core.TxPoolConfig
-	cliqueChainConfig   *params.ChainConfig
 	istanbulChainConfig *params.ChainConfig
 
 	// Test accounts
@@ -84,11 +81,6 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	cliqueChainConfig = params.TestChainConfig
-	cliqueChainConfig.Clique = &params.CliqueConfig{
-		Period: 10,
-		Epoch:  30000,
-	}
 	istanbulChainConfig = params.TestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
@@ -117,14 +109,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 	}
 
-	switch e := engine.(type) {
-	case *clique.Clique:
-		gspec.ExtraData = make([]byte, 52+common.AddressLength+crypto.SignatureLength)
-		copy(gspec.ExtraData[52:52+common.AddressLength], testBankAddress.Bytes())
-		e.Authorize(testBankAddress, func(account accounts.Account, s string, data []byte) ([]byte, error) {
-			return crypto.Sign(crypto.Keccak256(data), testBankKey)
-		})
-	case *istanbulBackend.Backend:
+	if engine.(type) == *istanbulBackend.Backend {
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
 		istanbulBackend.AppendValidatorsToGenesisBlock(&gspec, []istanbul.ValidatorData{
@@ -135,7 +120,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		})
 
 		gspec.Mixhash = types.IstanbulDigest
-	default:
+	} else {
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}
 	genesis := gspec.MustCommit(db)
@@ -205,24 +190,14 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	return w, backend
 }
 
-func TestGenerateBlockAndImportClique(t *testing.T) {
-	testGenerateBlockAndImport(t, true)
-}
-
-func testGenerateBlockAndImport(t *testing.T, isClique bool) {
+func testGenerateBlockAndImport(t *testing.T) {
 	var (
 		engine      consensus.Engine
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	if isClique {
-		chainConfig = params.TestChainConfig
-		chainConfig.Clique = &params.CliqueConfig{Period: 1, Epoch: 30000}
-		engine = clique.New(chainConfig.Clique, db)
-	} else {
-		chainConfig = params.TestChainConfig
-		engine = mockEngine.NewFaker()
-	}
+	chainConfig = params.TestChainConfig
+	engine = mockEngine.NewFaker()
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
 	defer w.close()
@@ -334,12 +309,6 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	return engine
 }
 
-func TestEmptyWorkClique(t *testing.T) {
-	t.Skip("Disabled due to flakyness")
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), true, true)
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), true, false)
-}
-
 func TestEmptyWorkIstanbul(t *testing.T) {
 	// TODO(nambrot): Fix this
 	t.Skip("Disabled due to flakyness")
@@ -405,10 +374,6 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		t.Error("should have not received another task")
 	case <-time.NewTimer(time.Second).C:
 	}
-}
-
-func TestRegenerateMiningBlockClique(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 // For Ethhash and Clique, it is safe and even desired to start another seal process in the presence of new transactions
@@ -514,11 +479,6 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	case <-time.NewTimer(time.Second).C:
 		t.Error("new task timeout")
 	}
-}
-
-
-func TestAdjustIntervalClique(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
 }
 
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {

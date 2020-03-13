@@ -245,8 +245,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		return nil, err
 	}
 	// The first thing the node will do is reconstruct the verification data for
-	// the head block (ethash cache or clique voting snapshot). Might as well do
-	// it in advance.
+	// the head block. Might as well do it in advance.
 	bc.engine.VerifyHeader(bc, bc.CurrentHeader(), true)
 
 	if frozen, err := bc.db.Ancients(); err == nil && frozen > 0 {
@@ -1667,16 +1666,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			bc.reportBlock(block, nil, ErrBlacklistedHash)
 			return it.index, events, coalescedLogs, ErrBlacklistedHash
 		}
-		// If the block is known (in the middle of the chain), it's a special case for
-		// Clique blocks where they can share state among each other, so importing an
-		// older block might complete the state of the subsequent one. In this case,
-		// just skip the block (we already validated it once fully (and crashed), since
-		// its header and body was already in the database).
+		// In this case, just skip the block (we already validated it once fully
+		// (and crashed), since its header and body was already in the database).
 		if err == ErrKnownBlock {
-			logger := log.Debug
-			if bc.chainConfig.Clique == nil {
-				logger = log.Warn
-			}
+			logger := log.Warn
 			logger("Inserted known block", "number", block.Number(), "hash", block.Hash(), "txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"root", block.Root())
 
@@ -1686,7 +1679,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			stats.processed++
 
 			// We can assume that logs are empty here, since the only way for consecutive
-			// Clique blocks to have the same state is if there are no transactions.
+			// blocks to have the same state is if there are no transactions.
 			events = append(events, ChainEvent{block, block.Hash(), nil})
 			lastCanon = block
 

@@ -22,7 +22,6 @@ Additional labels for pre-release and build metadata are available as extensions
 * The external method `account_sign(address, data)` was replaced with `account_signData(contentType, address, data)`.
 The addition of `contentType` makes it possible to use the method for different types of objects, such as:
   * signing data with an intended validator (not yet implemented)
-  * signing clique headers,
   * signing plain personal messages,
 * The external method `account_signTypedData` implements [EIP-712](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-712.md) and makes it possible to sign typed data.
 

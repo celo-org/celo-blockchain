@@ -494,17 +494,11 @@ func (lc *LightChain) Config() *params.ChainConfig { return lc.hc.Config() }
 
 // SyncCheckpoint fetches the checkpoint point block header according to
 // the checkpoint provided by the remote peer.
-//
-// Note if we are running the clique, fetches the last epoch snapshot header
-// which covered by checkpoint.
 func (lc *LightChain) SyncCheckpoint(ctx context.Context, checkpoint *params.TrustedCheckpoint) bool {
 	// Ensure the remote checkpoint head is ahead of us
 	head := lc.CurrentHeader().Number.Uint64()
 
 	latest := (checkpoint.SectionIndex+1)*lc.indexerConfig.ChtSize - 1
-	if clique := lc.hc.Config().Clique; clique != nil {
-		latest -= latest % clique.Epoch // epoch snapshot for clique
-	}
 	if head >= latest {
 		return true
 	}

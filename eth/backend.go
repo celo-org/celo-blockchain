@@ -30,9 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -281,11 +279,6 @@ func makeExtraData(extra []byte) []byte {
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
-	// If proof-of-authority is requested, set it up
-	if chainConfig.Clique != nil {
-		log.Debug("Setting up clique consensus engine")
-		return clique.New(chainConfig.Clique, db)
-	}
 	// If Istanbul is requested, set it up
 	if chainConfig.Istanbul != nil {
 		log.Debug("Setting up Istanbul consensus engine")
@@ -300,6 +293,8 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		return istanbulBackend.New(&config.Istanbul, db)
+	} else {
+		log.Error("Only Istanbul consensus is supported")
 	}
 }
 
@@ -440,25 +435,6 @@ func (s *Ethereum) isLocalBlock(block *types.Block) bool {
 // during the chain reorg depending on whether the author of block
 // is a local account.
 func (s *Ethereum) shouldPreserve(block *types.Block) bool {
-	// The reason we need to disable the self-reorg preserving for clique
-	// is it can be probable to introduce a deadlock.
-	//
-	// e.g. If there are 7 available signers
-	//
-	// r1   A
-	// r2     B
-	// r3       C
-	// r4         D
-	// r5   A      [X] F G
-	// r6    [X]
-	//
-	// In the round5, the inturn signer E is offline, so the worst case
-	// is A, F and G sign the block of round5 and reject the block of opponents
-	// and in the round6, the last available signer B is offline, the whole
-	// network is stuck.
-	if _, ok := s.engine.(*clique.Clique); ok {
-		return false
-	}
 	return s.isLocalBlock(block)
 }
 
@@ -504,14 +480,6 @@ func (s *Ethereum) StartMining(threads int) error {
 		if err != nil {
 			log.Error("Cannot start mining without blsbase", "err", err)
 			return fmt.Errorf("blsbase missing: %v", err)
-		}
-		if clique, isClique := s.engine.(*clique.Clique); isClique {
-			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
-			if wallet == nil || err != nil {
-				log.Error("Etherbase account unavailable locally", "err", err)
-				return fmt.Errorf("signer missing: %v", err)
-			}
-			clique.Authorize(eb, wallet.SignData)
 		}
 
 		if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {

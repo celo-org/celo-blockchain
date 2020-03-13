@@ -78,7 +78,7 @@ services:
 // deployExplorer deploys a new block explorer container to a remote machine via
 // SSH, docker and docker-compose. If an instance with the specified network name
 // already exists there, it will be overwritten!
-func deployExplorer(client *sshClient, network string, bootnodes []string, config *explorerInfos, nocache bool, isClique bool) ([]byte, error) {
+func deployExplorer(client *sshClient, network string, bootnodes []string, config *explorerInfos, nocache bool) ([]byte, error) {
 	// Generate the content to upload to the server
 	workdir := fmt.Sprintf("%d", rand.Int63())
 	files := make(map[string][]byte)
@@ -93,9 +93,6 @@ func deployExplorer(client *sshClient, network string, bootnodes []string, confi
 	files[filepath.Join(workdir, "Dockerfile")] = dockerfile.Bytes()
 
 	transformer := "base"
-	if isClique {
-		transformer = "clique"
-	}
 	composefile := new(bytes.Buffer)
 	template.Must(template.New("").Parse(explorerComposefile)).Execute(composefile, map[string]interface{}{
 		"Network":     network,
