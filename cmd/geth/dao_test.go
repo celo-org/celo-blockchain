@@ -32,7 +32,6 @@ import (
 var daoOldGenesis = `{
 	"alloc"      : {},
 	"coinbase"   : "0x0000000000000000000000000000000000000000",
-	"difficulty" : "0x20000",
 	"extraData"  : "",
 	"gasLimit"   : "0x2fefd8",
 	"nonce"      : "0x0000000000000042",
@@ -46,7 +45,6 @@ var daoOldGenesis = `{
 var daoNoForkGenesis = `{
 	"alloc"      : {},
 	"coinbase"   : "0x0000000000000000000000000000000000000000",
-	"difficulty" : "0x20000",
 	"extraData"  : "",
 	"gasLimit"   : "0x2fefd8",
 	"nonce"      : "0x0000000000000042",
@@ -63,7 +61,6 @@ var daoNoForkGenesis = `{
 var daoProForkGenesis = `{
 	"alloc"      : {},
 	"coinbase"   : "0x0000000000000000000000000000000000000000",
-	"difficulty" : "0x20000",
 	"extraData"  : "",
 	"gasLimit"   : "0x2fefd8",
 	"nonce"      : "0x0000000000000042",

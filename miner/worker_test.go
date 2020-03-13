@@ -30,9 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -84,7 +84,6 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	ethashChainConfig = params.TestChainConfig
 	cliqueChainConfig = params.TestChainConfig
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
@@ -125,7 +124,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		e.Authorize(testBankAddress, func(account accounts.Account, s string, data []byte) ([]byte, error) {
 			return crypto.Sign(crypto.Keccak256(data), testBankKey)
 		})
-	case *ethash.Ethash:
 	case *istanbulBackend.Backend:
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
@@ -207,10 +205,6 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	return w, backend
 }
 
-func TestGenerateBlockAndImportEthash(t *testing.T) {
-	testGenerateBlockAndImport(t, false)
-}
-
 func TestGenerateBlockAndImportClique(t *testing.T) {
 	testGenerateBlockAndImport(t, true)
 }
@@ -222,12 +216,12 @@ func testGenerateBlockAndImport(t *testing.T, isClique bool) {
 		db          = rawdb.NewMemoryDatabase()
 	)
 	if isClique {
-		chainConfig = params.AllCliqueProtocolChanges
+		chainConfig = params.TestChainConfig
 		chainConfig.Clique = &params.CliqueConfig{Period: 1, Epoch: 30000}
 		engine = clique.New(chainConfig.Clique, db)
 	} else {
-		chainConfig = params.AllEthashProtocolChanges
-		engine = ethash.NewFaker()
+		chainConfig = params.TestChainConfig
+		engine = mockEngine.NewFaker()
 	}
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
@@ -340,13 +334,6 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	return engine
 }
 
-func TestEmptyWorkEthash(t *testing.T) {
-	// TODO(nambrot): Fix this
-	t.Skip("Disabled due to flakyness")
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
-}
-
 func TestEmptyWorkClique(t *testing.T) {
 	t.Skip("Disabled due to flakyness")
 	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), true, true)
@@ -418,10 +405,6 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		t.Error("should have not received another task")
 	case <-time.NewTimer(time.Second).C:
 	}
-}
-
-func TestRegenerateMiningBlockEthash(t *testing.T) {
-	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker())
 }
 
 func TestRegenerateMiningBlockClique(t *testing.T) {
@@ -533,9 +516,6 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	}
 }
 
-func TestAdjustIntervalEthash(t *testing.T) {
-	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker())
-}
 
 func TestAdjustIntervalClique(t *testing.T) {
 	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))

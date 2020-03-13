@@ -154,7 +154,7 @@ func TestStatusMsgErrors65(t *testing.T) {
 
 func TestForkIDSplit(t *testing.T) {
 	var (
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 
 		configNoFork  = &params.ChainConfig{HomesteadBlock: big.NewInt(1)}
 		configProFork = &params.ChainConfig{

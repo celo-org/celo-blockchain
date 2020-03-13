@@ -173,7 +173,6 @@ func (b *Block) GetRoot() *Hash                 { return &Hash{b.block.Root()} }
 func (b *Block) GetTxHash() *Hash               { return &Hash{b.block.TxHash()} }
 func (b *Block) GetReceiptHash() *Hash          { return &Hash{b.block.ReceiptHash()} }
 func (b *Block) GetBloom() *Bloom               { return &Bloom{b.block.Bloom()} }
-func (b *Block) GetDifficulty() *BigInt         { return &BigInt{b.block.Difficulty()} }
 func (b *Block) GetNumber() int64               { return b.block.Number().Int64() }
 func (b *Block) GetGasLimit() int64             { return int64(b.block.GasLimit()) }
 func (b *Block) GetGasUsed() int64              { return int64(b.block.GasUsed()) }

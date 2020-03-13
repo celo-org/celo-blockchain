@@ -71,7 +71,7 @@ func (bc *testBlockChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) even
 }
 
 func (bc *testBlockChain) Engine() consensus.Engine {
-	return ethash.NewFaker()
+	return mockEngine.NewFaker()
 }
 
 func (bc *testBlockChain) GetHeader(common.Hash, uint64) *types.Header {

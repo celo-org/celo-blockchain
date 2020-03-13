@@ -434,7 +434,7 @@ var noGossip = map[int]bool{
 func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
-	for i, b := range sys.backends {
+	for _, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -501,7 +501,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
-	for i, b := range sys.backends {
+	for _, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)

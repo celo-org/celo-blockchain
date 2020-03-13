@@ -765,7 +765,6 @@ func testExternalUI(api *core.SignerAPI) {
 			Root:        common.HexToHash("0000H00H"),
 			TxHash:      common.HexToHash("0000H45H"),
 			ReceiptHash: common.HexToHash("0000H45H"),
-			Difficulty:  big.NewInt(1337),
 			Number:      big.NewInt(1337),
 			GasLimit:    1338,
 			GasUsed:     1338,

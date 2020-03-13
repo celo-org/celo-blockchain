@@ -31,27 +31,12 @@ import (
 
 func makeBlock(number int64) *types.Block {
 	header := &types.Header{
-		Difficulty: big.NewInt(0),
-		Number:     big.NewInt(number),
-		GasLimit:   0,
-		GasUsed:    0,
-		Time:       uint64(0),
+		Number:   big.NewInt(number),
+		GasLimit: 0,
+		GasUsed:  0,
+		Time:     uint64(0),
 	}
-	return types.NewBlock(header, nil, nil, nil, nil)
-}
-
-func makeBlockWithDifficulty(number, difficulty int64) *types.Block {
-	header := &types.Header{
-		Difficulty: big.NewInt(difficulty),
-		Number:     big.NewInt(number),
-		GasLimit:   0,
-		GasUsed:    0,
-		Time:       uint64(0),
-	}
-	block := &types.Block{}
-	block = block.WithRandomness(&types.EmptyRandomness)
-	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
-	return block.WithSeal(header)
+	return types.NewBlock(header, nil, nil, nil)
 }
 
 func newTestProposalWithNum(num int64) istanbul.Proposal {

@@ -22,7 +22,6 @@ var Modules = map[string]string{
 	"admin":      AdminJs,
 	"chequebook": ChequebookJs,
 	"clique":     CliqueJs,
-	"ethash":     EthashJs,
 	"debug":      DebugJs,
 	"eth":        EthJs,
 	"istanbul":   Istanbul_JS,
@@ -118,33 +117,6 @@ web3._extend({
 });
 `
 
-const EthashJs = `
-web3._extend({
-	property: 'ethash',
-	methods: [
-		new web3._extend.Method({
-			name: 'getWork',
-			call: 'ethash_getWork',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'getHashrate',
-			call: 'ethash_getHashrate',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'submitWork',
-			call: 'ethash_submitWork',
-			params: 3,
-		}),
-		new web3._extend.Method({
-			name: 'submitHashRate',
-			call: 'ethash_submitHashRate',
-			params: 2,
-		}),
-	]
-});
-`
 
 const AdminJs = `
 web3._extend({

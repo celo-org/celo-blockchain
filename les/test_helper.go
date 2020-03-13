@@ -168,9 +168,9 @@ func testIndexers(db ethdb.Database, odr light.OdrBackend, config *light.Indexer
 func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.SimulatedBackend, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, ulcServers []string, ulcFraction int) *clientHandler {
 	var (
 		evmux  = new(event.TypeMux)
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		gspec  = core.Genesis{
-			Config:   params.AllEthashProtocolChanges,
+			Config:   params.TestChainConfig,
 			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 			GasLimit: 100000000,
 		}
@@ -200,7 +200,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.AllEthashProtocolChanges,
+			chainConfig: params.TestChainConfig,
 			iConfig:     light.TestClientIndexerConfig,
 			chainDb:     db,
 			oracle:      oracle,
@@ -226,7 +226,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
-			Config:   params.AllEthashProtocolChanges,
+			Config:   params.TestChainConfig,
 			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 			GasLimit: 100000000,
 		}
@@ -263,7 +263,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.AllEthashProtocolChanges,
+			chainConfig: params.TestChainConfig,
 			iConfig:     light.TestServerIndexerConfig,
 			chainDb:     db,
 			chainReader: simulation.Blockchain(),

@@ -494,7 +494,6 @@ func testSim(t *testing.T, serverCount, clientCount int, serverDir, clientDir []
 func newLesClientService(ctx *adapters.ServiceContext) (node.Service, error) {
 	config := eth.DefaultConfig
 	config.SyncMode = downloader.LightSync
-	config.Ethash.PowMode = ethash.ModeFake
 	return New(ctx.NodeContext, &config)
 }
 

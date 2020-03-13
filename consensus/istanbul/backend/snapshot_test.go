@@ -230,7 +230,6 @@ func TestValSetChange(t *testing.T) {
 
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
-			Difficulty: defaultDifficulty,
 			Mixhash:    types.IstanbulDigest,
 			Config:     params.TestChainConfig,
 		}
@@ -326,7 +325,6 @@ func TestValSetChange(t *testing.T) {
 			header := &types.Header{
 				Number:     big.NewInt(int64(j) + 1),
 				Time:       uint64(j) * config.BlockPeriod,
-				Difficulty: defaultDifficulty,
 				MixDigest:  types.IstanbulDigest,
 			}
 

@@ -246,7 +246,6 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		Epoch:          10,
 		LookbackWindow: 2,
 	}
-	genesis.Config.Ethash = nil
 	genesis.Nonce = emptyNonce.Uint64()
 	genesis.Mixhash = types.IstanbulDigest
 
@@ -433,15 +432,6 @@ func TestVerifyHeader(t *testing.T) {
 	err = engine.VerifyHeader(chain, header, false)
 	if err != errInvalidMixDigest {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMixDigest)
-	}
-
-	// invalid difficulty
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.Difficulty = big.NewInt(2)
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidDifficulty {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidDifficulty)
 	}
 
 	// invalid timestamp

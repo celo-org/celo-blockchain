@@ -10,7 +10,6 @@
     "constantinopleBlock": 40000,
     "petersburgBlock": 40000,
     "istanbulBlock": 50000,
-    "ethash": {}
   },
   "nonce": "0x0",
   "timestamp": "0x59a4e76d",

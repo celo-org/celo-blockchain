@@ -19,6 +19,7 @@ package consensustest
 import (
 	"crypto/ecdsa"
 	"net"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -29,6 +30,28 @@ import (
 )
 
 type MockBroadcaster struct{}
+
+type Mode uint
+
+// Config are the configuration parameters of the MockEngine.
+type Config struct {
+	Mode Mode
+}
+
+type MockEngine struct {
+	config Config
+
+	fakeFail  uint64        // Block number which fails consensus even in fake mode
+	fakeDelay time.Duration // Time delay to sleep for before returning from verify
+}
+
+const (
+	_ Mode = iota
+	_
+	_
+	ModeFake
+	ModeFullFake
+)
 
 func (b *MockBroadcaster) Enqueue(id string, block *types.Block) {
 }
@@ -65,3 +88,48 @@ func (serv *MockP2PServer) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
 func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
+
+// NewFaker creates a MockEngine consensus engine that accepts
+// all blocks' seal as valid, though they still have to conform to the Ethereum
+// consensus rules.
+func NewFaker() *MockEngine {
+	return &MockEngine{
+		config: Config{
+			Mode: ModeFake,
+		},
+	}
+}
+
+// NewFakeFailer creates a MockEngine consensus engine that
+// accepts all blocks as valid apart from the single one specified, though they
+// still have to conform to the Ethereum consensus rules.
+func NewFakeFailer(fail uint64) *MockEngine {
+	return &MockEngine{
+		config: Config{
+			Mode: ModeFake,
+		},
+		fakeFail: fail,
+	}
+}
+
+// NewFakeDelayer creates a MockEngine consensus engine that
+// accepts all blocks as valid, but delays verifications by some time, though
+// they still have to conform to the Ethereum consensus rules.
+func NewFakeDelayer(delay time.Duration) *MockEngine {
+	return &MockEngine{
+		config: Config{
+			Mode: ModeFake,
+		},
+		fakeDelay: delay,
+	}
+}
+
+// NewFullFaker creates an MockEngine consensus engine with a full fake scheme that
+// accepts all blocks as valid, without checking any consensus rules whatsoever.
+func NewFullFaker() *MockEngine {
+	return &MockEngine{
+		config: Config{
+			Mode: ModeFullFake,
+		},
+	}
+}

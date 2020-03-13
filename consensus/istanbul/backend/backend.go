@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -79,6 +80,15 @@ type proxyInfo struct {
 	node         *enode.Node    // Enode for the internal network interface
 	externalNode *enode.Node    // Enode for the external network interface
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
+}
+
+func NewFaker() {
+	config := istanbul.DefaultConfig
+	config.RoundStateDBPath = ""
+	config.ValidatorEnodeDBPath = ""
+
+	engine := New(config, rawdb.NewMemoryDatabase())
+	return engine
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
