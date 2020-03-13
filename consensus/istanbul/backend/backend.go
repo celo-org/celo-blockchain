@@ -213,8 +213,9 @@ type Backend struct {
 	// or received by a proxied validator if this is a proxy.
 	// Used for proving itself as a validator in the handshake. The entire
 	// istanbul.Message is saved to keep the signature.
-	enodeCertificateMsg   *istanbul.Message
-	enodeCertificateMsgMu sync.RWMutex
+	enodeCertificateMsg        *istanbul.Message
+	enodeCertificateMsgVersion uint
+	enodeCertificateMsgMu      sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}

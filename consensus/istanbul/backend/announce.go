@@ -830,6 +830,11 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 
 	// Handle the special case where this node is a proxy and the proxied validator sent the msg
 	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
+		existingVersion := sb.getEnodeCertificateMsgVersion()
+		if enodeCertificate.Version < existingVersion {
+			logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
+			return errors.New("Version too low")
+		}
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
@@ -837,7 +842,10 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
 			return errors.New("Incorrect enode url")
 		}
-		sb.setEnodeCertificateMsg(&msg)
+		if err := sb.setEnodeCertificateMsg(&msg); err != nil {
+			logger.Warn("Error setting enode certificate msg", "err", err)
+			return err
+		}
 		return nil
 	}
 
@@ -878,10 +886,22 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 	return peer.Send(istanbulEnodeCertificateMsg, payload)
 }
 
-func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) {
+func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {
 	sb.enodeCertificateMsgMu.Lock()
+	var enodeCertificate enodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+		return err
+	}
 	sb.enodeCertificateMsg = msg
+	sb.enodeCertificateMsgVersion = enodeCertificate.Version
 	sb.enodeCertificateMsgMu.Unlock()
+	return nil
+}
+
+func (sb *Backend) getEnodeCertificateMsgVersion() uint {
+	sb.enodeCertificateMsgMu.RLock()
+	defer sb.enodeCertificateMsgMu.RUnlock()
+	return sb.enodeCertificateMsgVersion
 }
 
 func (sb *Backend) updateAnnounceVersion() {
@@ -900,7 +920,9 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	sb.setEnodeCertificateMsg(enodeCertificateMsg)
+	if err := sb.setEnodeCertificateMsg(enodeCertificateMsg); err != nil {
+		return err
+	}
 	// Send the new enode certificate msg to the proxy peer
 	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
 		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
