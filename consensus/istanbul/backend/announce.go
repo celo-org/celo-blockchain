@@ -114,7 +114,7 @@ func (sb *Backend) announceThread() {
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(1*time.Minute, func() {
-					if err := sb.generateAndGossipAnnounce(); err != nil {
+					if err := sb.generateAndGossipAnnounce(announceVersion); err != nil {
 						logger.Error("Error in gossiping announce", "err", err)
 					}
 				})
@@ -170,7 +170,8 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			go sb.generateAndGossipAnnounce()
+			updateAnnounceVersionFunc()
+			go sb.generateAndGossipAnnounce(announceVersion)
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -350,10 +351,10 @@ func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) er
 // generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
 // which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
 // validator's previous announce msgs.
-func (sb *Backend) generateAndGossipAnnounce() error {
+func (sb *Backend) generateAndGossipAnnounce(version uint) error {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, announceVersion, announceAddress, err := sb.generateAnnounce()
+	istMsg, announceAddress, err := sb.generateAnnounce(version)
 	if err != nil {
 		return err
 	}
@@ -372,13 +373,14 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	// Add the generated announce message to this node's cache
 	sb.cachedAnnounceMsgsMu.Lock()
 	defer sb.cachedAnnounceMsgsMu.Unlock()
-	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: announceVersion, MsgPayload: payload}
+	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: version, MsgPayload: payload}
 
 	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
 }
 
-// This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
-func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, error) {
+// This function is a helper function for generateAndGossipAnnounce.
+// It will create the latest announce msg for this node with a given version.
+func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, common.Address, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
 	var enodeUrl string
 	if sb.config.Proxied {
@@ -386,7 +388,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 			enodeUrl = sb.proxyNode.externalNode.URLv4()
 		} else {
 			logger.Error("Proxied node is not connected to a proxy")
-			return nil, 0, common.Address{}, errNoProxyConnection
+			return nil, common.Address{}, errNoProxyConnection
 		}
 	} else {
 		enodeUrl = sb.p2pserver.Self().URLv4()
@@ -395,7 +397,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	announceRecords := make([]*announceRecord, 0, len(validatorConnSet))
@@ -407,13 +409,13 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		Version:         newAnnounceVersion(),
+		Version:         version,
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
 		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	msg := &istanbul.Message{
@@ -426,12 +428,12 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
-	return msg, announceData.Version, msg.Address, nil
+	return msg, msg.Address, nil
 }
 
 // This function will handle an announce message.
@@ -893,7 +895,7 @@ func (sb *Backend) updateAnnounceVersion() {
 // parameter can be removed and instead have the version generated in this function.
 // Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
-	logger := sb.logger.New("func", "updateAnnounceVersion")
+	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
