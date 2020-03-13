@@ -564,13 +564,16 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 type fractionMulExp struct{}
 
 func max(x, y int64) int64 {
-    if x < y {
-        return y
-    }
-    return x
+	if x < y {
+		return y
+	}
+	return x
 }
 
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
+	if len(input) < 192 {
+		return params.FractionMulExpGas
+	}
 	exponent, parsed := math.ParseBig256(hexutil.Encode(input[128:160]))
 	if !parsed {
 		return params.FractionMulExpGas
@@ -591,9 +594,9 @@ func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
 
 	gas := params.FractionMulExpGas
 
-	for ; numbers > 10 ; {
+	for numbers > 10 {
 		gas = gas * 3
-		numbers = numbers/2
+		numbers = numbers / 2
 	}
 
 	return gas
