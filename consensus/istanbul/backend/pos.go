@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	"github.com/ethereum/go-ethereum/contract_comm/epoch_rewards"
+	"github.com/ethereum/go-ethereum/contract_comm/freezer"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
@@ -44,7 +45,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
 
 	// Check if reward distribution has been frozen and return early without error if it is.
-	if frozen, err := epoch_rewards.EpochRewardsIsFrozen(header, state); err != nil {
+	if frozen, err := freezer.IsFrozen(params.EpochRewardsRegistryId, header, state); err != nil {
 		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
 	} else if frozen {
 		logger.Debug("Epoch rewards are frozen, skipping distribution")
