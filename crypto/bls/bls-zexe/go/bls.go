@@ -134,7 +134,7 @@ func (self *PrivateKey) SignMessage(message []byte, extraData []byte, shouldUseC
 	return signature, nil
 }
 
-func (self *PrivateKey) SignPoP(message []byte, ) (*Signature, error) {
+func (self *PrivateKey) SignPoP(message []byte) (*Signature, error) {
 	signature := &Signature{}
 	messagePtr, messageLen := sliceToPtr(message)
 	success := C.sign_pop(self.ptr, messagePtr, messageLen, &signature.ptr)
@@ -171,6 +171,29 @@ func HashComposite(message []byte, extraData []byte) ([]byte, error) {
 	return hash, nil
 }
 
+func CompressSignature(signature []byte) ([]byte, error) {
+	signaturePtr, signatureLen := sliceToPtr(signature)
+	var compressedLen C.int
+	var compressedPtr *C.uchar
+	success := C.compress_signature(signaturePtr, signatureLen, &compressedPtr, &compressedLen)
+	if !success {
+		return nil, GeneralError
+	}
+	compressedSignature := C.GoBytes(unsafe.Pointer(compressedPtr), compressedLen)
+	return compressedSignature, nil
+}
+
+func CompressPublickey(pubkey []byte) ([]byte, error) {
+	pubkeyPtr, pubkeyLen := sliceToPtr(pubkey)
+	var compressedLen C.int
+	var compressedPtr *C.uchar
+	success := C.compress_pubkey(pubkeyPtr, pubkeyLen, &compressedPtr, &compressedLen)
+	if !success {
+		return nil, GeneralError
+	}
+	compressedPubkey := C.GoBytes(unsafe.Pointer(compressedPtr), compressedLen)
+	return compressedPubkey, nil
+}
 
 func (self *PrivateKey) Destroy() {
 	C.destroy_private_key(self.ptr)
@@ -212,9 +235,9 @@ func (self *PublicKey) Destroy() {
 func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signature *Signature, shouldUseCompositeHasher bool) error {
 	var verified C.bool
 
-  if signature == nil {
-    return NilPointerError
-  }
+	if signature == nil {
+		return NilPointerError
+	}
 
 	messagePtr, messageLen := sliceToPtr(message)
 	extraDataPtr, extraDataLen := sliceToPtr(extraData)
@@ -233,9 +256,9 @@ func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signatu
 func (self *PublicKey) VerifyPoP(message []byte, signature *Signature) error {
 	var verified C.bool
 
-  if signature == nil {
-    return NilPointerError
-  }
+	if signature == nil {
+		return NilPointerError
+	}
 
 	messagePtr, messageLen := sliceToPtr(message)
 	success := C.verify_pop(self.ptr, messagePtr, messageLen, signature.ptr, &verified)
@@ -282,15 +305,15 @@ func (self *Signature) Destroy() {
 }
 
 func AggregatePublicKeys(publicKeys []*PublicKey) (*PublicKey, error) {
-  if len(publicKeys) == 0 {
-    return nil, EmptySliceError
-  }
+	if len(publicKeys) == 0 {
+		return nil, EmptySliceError
+	}
 
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range publicKeys {
-    if pk == nil {
-      return nil, NilPointerError
-    }
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	aggregatedPublicKey := &PublicKey{}
@@ -303,19 +326,19 @@ func AggregatePublicKeys(publicKeys []*PublicKey) (*PublicKey, error) {
 }
 
 func AggregatePublicKeysSubtract(aggregatedPublicKey *PublicKey, publicKeys []*PublicKey) (*PublicKey, error) {
-  if aggregatedPublicKey == nil {
-      return nil, NilPointerError
-  }
+	if aggregatedPublicKey == nil {
+		return nil, NilPointerError
+	}
 
-  if len(publicKeys) == 0 {
-    return nil, EmptySliceError
-  }
+	if len(publicKeys) == 0 {
+		return nil, EmptySliceError
+	}
 
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range publicKeys {
-    if pk == nil {
-      return nil, NilPointerError
-    }
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	subtractedPublicKey := &PublicKey{}
@@ -328,15 +351,15 @@ func AggregatePublicKeysSubtract(aggregatedPublicKey *PublicKey, publicKeys []*P
 }
 
 func AggregateSignatures(signatures []*Signature) (*Signature, error) {
-  if len(signatures) == 0 {
-    return nil, EmptySliceError
-  }
+	if len(signatures) == 0 {
+		return nil, EmptySliceError
+	}
 
 	signaturesPtrs := []*C.struct_Signature{}
 	for _, sig := range signatures {
-    if sig == nil {
-      return nil, NilPointerError
-    }
+		if sig == nil {
+			return nil, NilPointerError
+		}
 		signaturesPtrs = append(signaturesPtrs, sig.ptr)
 	}
 	aggregatedSignature := &Signature{}
@@ -349,19 +372,19 @@ func AggregateSignatures(signatures []*Signature) (*Signature, error) {
 }
 
 func EncodeEpochToBytes(epochIndex uint16, maximumNonSignersPlusOne uint32, aggregatedPublicKey *PublicKey, addedPublicKeys []*PublicKey) ([]byte, error) {
-  if aggregatedPublicKey == nil {
-      return nil, NilPointerError
-  }
+	if aggregatedPublicKey == nil {
+		return nil, NilPointerError
+	}
 
-  if len(addedPublicKeys) == 0 {
-    return nil, EmptySliceError
-  }
+	if len(addedPublicKeys) == 0 {
+		return nil, EmptySliceError
+	}
 
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range addedPublicKeys {
-    if pk == nil {
-      return nil, NilPointerError
-    }
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	var bytes *C.uchar
