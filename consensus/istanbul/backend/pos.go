@@ -175,7 +175,8 @@ func (sb *Backend) distributeValidatorRewards(header *types.Header, state *state
 		sb.logger.Debug("Distributing epoch reward for validator", "address", val.Address())
 		validatorReward, err := validators.DistributeEpochReward(header, state, val.Address(), maxReward)
 		if err != nil {
-			return totalValidatorRewards, nil
+			sb.logger.Error("Error in distributing rewards to validator", "address", val.Address(), "err", err)
+			continue
 		}
 		totalValidatorRewards.Add(totalValidatorRewards, validatorReward)
 	}
