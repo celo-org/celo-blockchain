@@ -219,11 +219,11 @@ const (
 	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
 	MaxGasForGetRegisteredValidators               uint64 = 2000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
-	MaxGasForGetWhiteList                          uint64 = 20000
-	MaxGasForGetTransferWhitelist                  uint64 = 1000000
+	MaxGasForGetWhiteList                          uint64 = 200000
+	MaxGasForGetTransferWhitelist                  uint64 = 2000000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForIsFrozen                              uint64 = 20000
-	MaxGasForMedianRate                            uint64 = 20000
+	MaxGasForMedianRate                            uint64 = 100000
 	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
