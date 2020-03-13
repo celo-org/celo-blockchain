@@ -65,11 +65,6 @@ func (b *BlockGen) SetExtra(data []byte) {
 	b.header.Extra = data
 }
 
-// SetNonce sets the nonce field of the generated block.
-func (b *BlockGen) SetNonce(nonce types.BlockNonce) {
-	b.header.Nonce = nonce
-}
-
 // AddTx adds a transaction to the generated block. If no coinbase has
 // been set, the block's coinbase is set to the zero address.
 //

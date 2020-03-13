@@ -62,8 +62,6 @@ var (
 	errUnauthorized = errors.New("not an elected validator")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
 	errInvalidExtraDataFormat = errors.New("invalid extra data format")
-	// errInvalidMixDigest is returned if a block's mix digest is not Istanbul digest.
-	errInvalidMixDigest = errors.New("invalid Istanbul mix digest")
 	// errInvalidNonce is returned if a block's nonce is invalid
 	errInvalidNonce = errors.New("invalid nonce")
 	// errCoinbase is returned if a block's coinbase is invalid
@@ -139,11 +137,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
 	if header.Nonce != (emptyNonce) {
 		return errInvalidNonce
-	}
-
-	// Ensure that the mix digest is zero as we don't have fork protection currently
-	if header.MixDigest != types.IstanbulDigest {
-		return errInvalidMixDigest
 	}
 
 	return sb.verifyCascadingFields(chain, header, parents)
@@ -352,7 +345,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
 	header.Nonce = emptyNonce
-	header.MixDigest = types.IstanbulDigest
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()

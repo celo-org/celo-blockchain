@@ -19,7 +19,6 @@ func (b btHeader) MarshalJSON() ([]byte, error) {
 	type btHeader struct {
 		Bloom            types.Bloom
 		Coinbase         common.Address
-		MixHash          common.Hash
 		Nonce            types.BlockNonce
 		Number           *math.HexOrDecimal256
 		Hash             common.Hash
@@ -35,7 +34,6 @@ func (b btHeader) MarshalJSON() ([]byte, error) {
 	var enc btHeader
 	enc.Bloom = b.Bloom
 	enc.Coinbase = b.Coinbase
-	enc.MixHash = b.MixHash
 	enc.Nonce = b.Nonce
 	enc.Number = (*math.HexOrDecimal256)(b.Number)
 	enc.Hash = b.Hash
@@ -55,7 +53,6 @@ func (b *btHeader) UnmarshalJSON(input []byte) error {
 	type btHeader struct {
 		Bloom            *types.Bloom
 		Coinbase         *common.Address
-		MixHash          *common.Hash
 		Nonce            *types.BlockNonce
 		Number           *math.HexOrDecimal256
 		Hash             *common.Hash
@@ -77,9 +74,6 @@ func (b *btHeader) UnmarshalJSON(input []byte) error {
 	}
 	if dec.Coinbase != nil {
 		b.Coinbase = *dec.Coinbase
-	}
-	if dec.MixHash != nil {
-		b.MixHash = *dec.MixHash
 	}
 	if dec.Nonce != nil {
 		b.Nonce = *dec.Nonce

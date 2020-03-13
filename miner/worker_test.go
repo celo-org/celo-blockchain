@@ -118,8 +118,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				BLSPublicKey: blsPublicKey,
 			},
 		})
-
-		gspec.Mixhash = types.IstanbulDigest
 	} else {
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}

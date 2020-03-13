@@ -18,7 +18,6 @@ package types
 
 import (
 	"bytes"
-	"math/big"
 	"reflect"
 	"testing"
 
@@ -42,7 +41,6 @@ func TestBlockEncoding(t *testing.T) {
 	check("GasLimit", block.GasLimit(), uint64(3141592))
 	check("GasUsed", block.GasUsed(), uint64(21000))
 	check("Coinbase", block.Coinbase(), common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1"))
-	check("MixDigest", block.MixDigest(), common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000"))
 	check("Root", block.Root(), common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217"))
 	check("Hash", block.Hash(), common.HexToHash("f5a450266c77dce47f7698959d8e7019db860ee19a5322b16a853fdf23607100"))
 	check("Nonce", block.Nonce(), uint64(0x0))

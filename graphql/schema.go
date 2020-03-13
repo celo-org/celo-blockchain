@@ -169,8 +169,6 @@ const schema string = `
         # LogsBloom is a bloom filter that can be used to check if a block may
         # contain log entries matching a filter.
         logsBloom: Bytes!
-        # MixHash is the hash that was used as an input to the PoW process.
-        mixHash: Bytes32!
         # TotalDifficulty is the sum of all difficulty values up to and including
         # this block.
         totalDifficulty: BigInt!

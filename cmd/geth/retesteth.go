@@ -146,13 +146,12 @@ type CParamsParams struct {
 }
 
 type CParamsGenesis struct {
-	Nonce      math.HexOrDecimal64   `json:"nonce"`
-	MixHash    *math.HexOrDecimal256 `json:"mixHash"`
-	Author     common.Address        `json:"author"`
-	Timestamp  math.HexOrDecimal64   `json:"timestamp"`
-	ParentHash common.Hash           `json:"parentHash"`
-	ExtraData  hexutil.Bytes         `json:"extraData"`
-	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
+	Nonce      math.HexOrDecimal64 `json:"nonce"`
+	Author     common.Address      `json:"author"`
+	Timestamp  math.HexOrDecimal64 `json:"timestamp"`
+	ParentHash common.Hash         `json:"parentHash"`
+	ExtraData  hexutil.Bytes       `json:"extraData"`
+	GasLimit   math.HexOrDecimal64 `json:"gasLimit"`
 }
 
 type CParamsAccount struct {
@@ -362,7 +361,6 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 		Timestamp:  uint64(chainParams.Genesis.Timestamp),
 		ExtraData:  chainParams.Genesis.ExtraData,
 		GasLimit:   uint64(chainParams.Genesis.GasLimit),
-		Mixhash:    common.BigToHash((*big.Int)(chainParams.Genesis.MixHash)),
 		Coinbase:   chainParams.Genesis.Author,
 		ParentHash: chainParams.Genesis.ParentHash,
 		Alloc:      accounts,

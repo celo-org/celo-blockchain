@@ -34,7 +34,7 @@ func TestHeaderHash(t *testing.T) {
 	expectedHash := common.HexToHash("0xcefefd3ade63a5955bca4562ed840b67f39e74df217f7e5f7241a6e9552cca70")
 
 	// for istanbul consensus
-	header := &Header{MixDigest: IstanbulDigest, Extra: expectedExtra}
+	header := &Header{Extra: expectedExtra}
 	if !reflect.DeepEqual(header.Hash(), expectedHash) {
 		t.Errorf("expected: %v, but got: %v", expectedHash.Hex(), header.Hash().Hex())
 	}

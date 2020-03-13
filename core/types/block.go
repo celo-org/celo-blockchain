@@ -82,7 +82,6 @@ type Header struct {
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
-	MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
 	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
@@ -118,15 +117,10 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	// If the mix digest is equivalent to the predefined Istanbul digest, use Istanbul
-	// specific hash calculation.
-	if h.MixDigest == IstanbulDigest {
-		// Seal is reserved in extra-data. To prove block is signed by the proposer.
-		if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
-			return rlpHash(istanbulHeader)
-		}
+	// Seal is reserved in extra-data. To prove block is signed by the proposer.
+	if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
+		return rlpHash(istanbulHeader)
 	}
-	return rlpHash(h)
 }
 
 var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
@@ -372,7 +366,6 @@ func (b *Block) GasUsed() uint64  { return b.header.GasUsed }
 func (b *Block) Time() uint64     { return b.header.Time }
 
 func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
-func (b *Block) MixDigest() common.Hash   { return b.header.MixDigest }
 func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
 func (b *Block) Bloom() Bloom             { return b.header.Bloom }
 func (b *Block) Coinbase() common.Address { return b.header.Coinbase }

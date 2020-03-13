@@ -247,7 +247,6 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		LookbackWindow: 2,
 	}
 	genesis.Nonce = emptyNonce.Uint64()
-	genesis.Mixhash = types.IstanbulDigest
 
 	AppendValidatorsToGenesisBlock(genesis, validators)
 	return genesis, nodeKeys
@@ -423,15 +422,6 @@ func TestVerifyHeader(t *testing.T) {
 	err = engine.VerifyHeader(chain, header, false)
 	if err != errInvalidExtraDataFormat {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
-	}
-
-	// non zero MixDigest
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.MixDigest = common.BytesToHash([]byte("123456789"))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidMixDigest {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMixDigest)
 	}
 
 	// invalid timestamp
