@@ -36,7 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -635,6 +634,7 @@ type blockStats struct {
 	Miner       common.Address `json:"miner"`
 	GasUsed     uint64         `json:"gasUsed"`
 	GasLimit    uint64         `json:"gasLimit"`
+	TotalDiff   string         `json:"totalDifficulty"`
 	Txs         []txStats      `json:"transactions"`
 	TxHash      common.Hash    `json:"transactionsRoot"`
 	Root        common.Hash    `json:"stateRoot"`

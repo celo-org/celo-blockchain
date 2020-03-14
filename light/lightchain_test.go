@@ -122,7 +122,7 @@ func testHeaderChainImport(chain []*types.Header, lightchain *LightChain) error 
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
 		lightchain.chainmu.Lock()
-		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), lightchain.GetTdByHash(header.ParentHash))
+		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), new(big.Int).Add(header.Difficulty, lightchain.GetTdByHash(header.ParentHash)))
 		rawdb.WriteHeader(lightchain.chainDb, header)
 		lightchain.chainmu.Unlock()
 	}
@@ -241,6 +241,26 @@ func TestBrokenHeaderChain(t *testing.T) {
 	}
 }
 
+func makeHeaderChainWithDiff(genesis *types.Block, d []int, seed byte) []*types.Header {
+	var chain []*types.Header
+	for i, difficulty := range d {
+		header := &types.Header{
+			Coinbase:    common.Address{seed},
+			Number:      big.NewInt(int64(i + 1)),
+			Difficulty:  big.NewInt(int64(difficulty)),
+			TxHash:      types.EmptyRootHash,
+			ReceiptHash: types.EmptyRootHash,
+		}
+		if i == 0 {
+			header.ParentHash = genesis.Hash()
+		} else {
+			header.ParentHash = chain[i-1].Hash()
+		}
+		chain = append(chain, types.CopyHeader(header))
+	}
+	return chain
+}
+
 type dummyOdr struct {
 	OdrBackend
 	db            ethdb.Database
@@ -285,7 +305,7 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 		}
 	}
 	// Make sure the chain total difficulty is the correct one
-	want := big.NewInt(td)
+	want := new(big.Int).Add(bc.genesisBlock.Difficulty(), big.NewInt(td))
 	if have := bc.GetTdByHash(bc.CurrentHeader().Hash()); have.Cmp(want) != 0 {
 		t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
 	}

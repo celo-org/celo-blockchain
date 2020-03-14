@@ -158,7 +158,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		}
 	} else {
 		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-		externTd = header.Number
+		externTd = externTd.Add(header.Difficulty, ptd)
 	}
 
 	// Irrelevant of the canonical status, write the td and header to the database
