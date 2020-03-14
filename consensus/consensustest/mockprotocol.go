@@ -31,28 +31,6 @@ import (
 
 type MockBroadcaster struct{}
 
-type Mode uint
-
-// Config are the configuration parameters of the MockEngine.
-type Config struct {
-	Mode Mode
-}
-
-type MockEngine struct {
-	config Config
-
-	fakeFail  uint64        // Block number which fails consensus even in fake mode
-	fakeDelay time.Duration // Time delay to sleep for before returning from verify
-}
-
-const (
-	_ Mode = iota
-	_
-	_
-	ModeFake
-	ModeFullFake
-)
-
 func (b *MockBroadcaster) Enqueue(id string, block *types.Block) {
 }
 
@@ -88,6 +66,32 @@ func (serv *MockP2PServer) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
 func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
+
+// MockEngine is adapted from consensus/ethash (which has been deleted) for the purpose of
+// preserving legacy tests.
+type Mode uint
+
+// Config are the configuration parameters of the MockEngine.
+type Config struct {
+	Mode Mode
+}
+
+type MockEngine struct {
+	consensus.Engine
+
+	config Config
+
+	fakeFail  uint64        // Block number which fails consensus even in fake mode
+	fakeDelay time.Duration // Time delay to sleep for before returning from verify
+}
+
+const (
+	_ Mode = iota
+	_
+	_
+	ModeFake
+	ModeFullFake
+)
 
 // NewFaker creates a MockEngine consensus engine that accepts
 // all blocks' seal as valid, though they still have to conform to the Ethereum

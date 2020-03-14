@@ -91,6 +91,7 @@ func (h *Header) Hash() common.Hash {
 	if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
 		return rlpHash(istanbulHeader)
 	}
+	return rlpHash(h)
 }
 
 var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
