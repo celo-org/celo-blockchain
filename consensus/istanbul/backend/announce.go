@@ -189,6 +189,10 @@ func (sb *Backend) announceThread() {
 			updateAnnounceVersionFunc()
 			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
+		case <-sb.updateAnnounceVersionCh:
+			updateAnnounceVersionFunc()
+			sb.updateAnnounceVersionCompleteCh <- struct{}{}
+
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
@@ -783,6 +787,11 @@ func (sb *Backend) getEnodeURL() (string, error) {
 	return sb.p2pserver.Self().URLv4(), nil
 }
 
+func newAnnounceVersion() uint {
+	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+	return uint(time.Now().Unix())
+}
+
 type enodeCertificate struct {
 	EnodeURL string
 	Version  uint
@@ -829,9 +838,15 @@ func (sb *Backend) retrieveEnodeCertificateMsg() (*istanbul.Message, error) {
 func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateEnodeCertificateMsg")
 
-	enodeURL, err := sb.getEnodeURL()
-	if err != nil {
-		return nil, err
+	var enodeURL string
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			enodeURL = sb.proxyNode.externalNode.URLv4()
+		} else {
+			return nil, errNoProxyConnection
+		}
+	} else {
+		enodeURL = sb.p2pserver.Self().URLv4()
 	}
 
 	enodeCertificate := &enodeCertificate{
@@ -888,8 +903,15 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
+	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
+
 	// Handle the special case where this node is a proxy and the proxied validator sent the msg
-	if sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID() && msg.Address == sb.config.ProxiedValidatorAddress {
+	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
+		existingVersion := sb.getEnodeCertificateMsgVersion()
+		if enodeCertificate.Version < existingVersion {
+			logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
+			return errors.New("Version too low")
+		}
 		// There may be a difference in the URLv4 string because of `discport`,
 		// so instead compare the ID
 		selfNode := sb.p2pserver.Self()
@@ -902,6 +924,15 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 			return err
 		}
 		return nil
+	}
+
+	// If this node is not a proxied validator receiving a message from its proxy
+	// peer, or vice versa, return.
+	// TODO: remove this check to allow non-proxy peers to send this message
+	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
+	if !isFromProxiedPeer || !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
+		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
+		return errUnauthorizedAnnounceMessage
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -948,9 +979,4 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 	sb.enodeCertificateMsgMu.RLock()
 	defer sb.enodeCertificateMsgMu.RUnlock()
 	return sb.enodeCertificateMsgVersion
-}
-
-func newAnnounceVersion() uint {
-	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-	return uint(time.Now().Unix())
 }
