@@ -189,10 +189,6 @@ func (sb *Backend) announceThread() {
 			updateAnnounceVersionFunc()
 			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
-		case <-sb.updateAnnounceVersionCh:
-			updateAnnounceVersionFunc()
-			sb.updateAnnounceVersionCompleteCh <- struct{}{}
-
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			if announceGossipTicker != nil {
