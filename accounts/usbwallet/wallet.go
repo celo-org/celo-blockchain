@@ -181,7 +181,9 @@ func (w *wallet) Open(passphrase string) error {
 
 	go w.heartbeat()
 	// Derive accounts if tx signer app running
-	if err != nil {
+	if err == nil {
+		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultBaseDerivationPath
+	} else {
 		go w.selfDerive()
 	}
 	// Notify anyone listening for wallet events that a new device is accessible
@@ -549,10 +551,11 @@ func (w *wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
 func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
 	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
 	hashedHash, err := bls.HashDirect(hash, false)
+	defer w.stateLock.RUnlock()
+
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err
 	}
-	defer w.stateLock.RUnlock()
 
 	// If the wallet is closed, abort
 	if w.device == nil {

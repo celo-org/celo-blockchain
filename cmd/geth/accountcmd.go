@@ -244,6 +244,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	for _, wallet := range am.Wallets() {
 		wallet.Open("")
+		defer wallet.Close()
 	}
 	var (
 		signer  common.Address

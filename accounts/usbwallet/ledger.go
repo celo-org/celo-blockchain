@@ -133,7 +133,7 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
 	// Try to resolve the Celo app's version and app type
-	reply, err := w.ledgerVersion()
+	reply, err := w.ledgerVersionAndType()
 	if err != nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (w *ledgerDriver) Close() error {
 // Heartbeat implements usbwallet.driver, performing a sanity check against the
 // Ledger to see if it's still online.
 func (w *ledgerDriver) Heartbeat() error {
-	if _, err := w.ledgerVersion(); err != nil && err != errLedgerInvalidVersionReply {
+	if _, err := w.ledgerVersionAndType(); err != nil && err != errLedgerInvalidVersionReply {
 		w.failure = err
 		return err
 	}
@@ -248,7 +248,7 @@ func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
 //   Application major version                          | 1 byte
 //   Application minor version                          | 1 byte
 //   Application patch version                          | 1 byte
-func (w *ledgerDriver) ledgerVersion() ([4]byte, error) {
+func (w *ledgerDriver) ledgerVersionAndType() ([4]byte, error) {
 	// Send the request and wait for the response
 	reply, err := w.ledgerExchange(ledgerOpGetConfiguration, 0, 0, nil)
 	if err != nil {
@@ -440,11 +440,11 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 // The output data is:
 //
 //   Description   | Length
-//   ------------+---------
+//   --------------+---------
 //   public key pk | 192 bytes
 func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 	var (
-		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk 
 		reply []byte
 		err   error
 	)
@@ -483,13 +483,10 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 //   ------------+---------
 //   signature S | 96 bytes
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
-	var (
-		err error
-	)
-
 	// Send the request and wait for the response
 	var (
-		op    = ledgerP1FinalBLSData // hash should be less than 255 bytes
+		err error
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
 		reply []byte
 	)
 	// Send the chunk over, ensuring it's processed correctly

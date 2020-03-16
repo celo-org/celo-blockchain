@@ -550,6 +550,7 @@ func (s *Ethereum) StartMining(threads int) error {
 			// appears between registering the wallet's address and looking up blsbase
 			for _, wallet := range s.accountManager.Wallets() {
 				wallet.Open("")
+				defer wallet.Close()
 			}
 			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
 			if blswallet == nil || err != nil {
