@@ -73,6 +73,8 @@ func (sb *Backend) announceThread() {
 	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
 	// If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
+	// Occasionally share the entire signed announce version table with all peers
+	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 
 	// Create all the variables needed for the periodic gossip
 	var announceGossipTicker *time.Ticker
@@ -178,6 +180,19 @@ func (sb *Backend) announceThread() {
 			}
 
 			sb.startGossipAnnounceTask()
+
+		case <-shareSignedAnnounceVersionTicker.C:
+			// Send all signed announce versions to every peer. Only the entries
+			// that are new to a node will end up being regossiped throughout the
+			// network.
+			allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
+			if err != nil {
+				logger.Warn("Error getting all signed announce versions", "err", err)
+				break
+			}
+			if err := sb.gossipSignedAnnounceVersionsMsg(allSignedAnnounceVersions); err != nil {
+				logger.Warn("Error gossiping all signed announce versions")
+			}
 
 		case <-sb.generateAndGossipAnnounceCh:
 			if shouldAnnounce {
@@ -320,109 +335,6 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	}
 	ad.AnnounceRecords, ad.Version = msg.AnnounceRecords, msg.Version
 	return nil
-}
-
-// signedAnnounceVersion is a signed message from a validator indicating the most
-// recent version of its enode.
-type signedAnnounceVersion struct {
-	Address   common.Address
-	Version   uint
-	Signature []byte
-}
-
-func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
-	return &signedAnnounceVersion{
-		Address: entry.Address,
-		Version: entry.Version,
-		Signature: entry.Signature,
-	}
-}
-
-func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadNoSig, err := sav.payloadNoSig()
-	if err != nil {
-		return err
-	}
-	sav.Signature, err = signingFn(payloadNoSig)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (sav *signedAnnounceVersion) ECDSAPublicKey() (*ecdsa.PublicKey, error) {
-	payloadNoSig, err := sav.payloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	payloadHash := crypto.Keccak256(payloadNoSig)
-	pubkey, err := crypto.SigToPub(payloadHash, sav.Signature)
-	if err != nil {
-		return nil, err
-	}
-	return pubkey, nil
-}
-
-// ValidateSignature will return an error if a SignedAnnounceVersion's signature
-// is invalid.
-func (sav *signedAnnounceVersion) ValidateSignature() error {
-	payloadNoSig, err := sav.payloadNoSig()
-	if err != nil {
-		return err
-	}
-	address, err := istanbul.GetSignatureAddress(payloadNoSig, sav.Signature)
-	if err != nil {
-		return err
-	}
-	if address != sav.Address {
-		return errors.New("Signature does not match address")
-	}
-	return nil
-}
-
-// EncodeRLP serializes signedAnnounceVersion into the Ethereum RLP format.
-func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the signedAnnounceVersion fields from a RLP stream.
-func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Address   common.Address
-		Version   uint
-		Signature []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
-	return nil
-}
-
-func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
-	return &vet.SignedAnnounceVersionEntry{
-		Address: sav.Address,
-		Version: sav.Version,
-		Signature: sav.Signature,
-	}
-}
-
-// String gives a string representation of signedAnnounceVersion
-func (sav *signedAnnounceVersion) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sav.Address, sav.Version, len(sav.Signature))
-}
-
-func (sav *signedAnnounceVersion) payloadNoSig() ([]byte, error) {
-	savNoSig := &signedAnnounceVersion{
-		Address: sav.Address,
-		Version: sav.Version,
-	}
-	payloadNoSig, err := rlp.EncodeToBytes(savNoSig)
-	if err != nil {
-		return nil, err
-	}
-	return payloadNoSig, nil
 }
 
 func (sb *Backend) startGossipAnnounceTask() {
@@ -737,6 +649,109 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error
 	return nil
 }
 
+// signedAnnounceVersion is a signed message from a validator indicating the most
+// recent version of its enode.
+type signedAnnounceVersion struct {
+	Address   common.Address
+	Version   uint
+	Signature []byte
+}
+
+func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
+	return &signedAnnounceVersion{
+		Address: entry.Address,
+		Version: entry.Version,
+		Signature: entry.Signature,
+	}
+}
+
+func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	payloadNoSig, err := sav.payloadNoSig()
+	if err != nil {
+		return err
+	}
+	sav.Signature, err = signingFn(payloadNoSig)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sav *signedAnnounceVersion) ECDSAPublicKey() (*ecdsa.PublicKey, error) {
+	payloadNoSig, err := sav.payloadNoSig()
+	if err != nil {
+		return nil, err
+	}
+	payloadHash := crypto.Keccak256(payloadNoSig)
+	pubkey, err := crypto.SigToPub(payloadHash, sav.Signature)
+	if err != nil {
+		return nil, err
+	}
+	return pubkey, nil
+}
+
+// ValidateSignature will return an error if a SignedAnnounceVersion's signature
+// is invalid.
+func (sav *signedAnnounceVersion) ValidateSignature() error {
+	payloadNoSig, err := sav.payloadNoSig()
+	if err != nil {
+		return err
+	}
+	address, err := istanbul.GetSignatureAddress(payloadNoSig, sav.Signature)
+	if err != nil {
+		return err
+	}
+	if address != sav.Address {
+		return errors.New("Signature does not match address")
+	}
+	return nil
+}
+
+// EncodeRLP serializes signedAnnounceVersion into the Ethereum RLP format.
+func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the signedAnnounceVersion fields from a RLP stream.
+func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		Address   common.Address
+		Version   uint
+		Signature []byte
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
+	return nil
+}
+
+func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
+	return &vet.SignedAnnounceVersionEntry{
+		Address: sav.Address,
+		Version: sav.Version,
+		Signature: sav.Signature,
+	}
+}
+
+// String gives a string representation of signedAnnounceVersion
+func (sav *signedAnnounceVersion) String() string {
+	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sav.Address, sav.Version, len(sav.Signature))
+}
+
+func (sav *signedAnnounceVersion) payloadNoSig() ([]byte, error) {
+	savNoSig := &signedAnnounceVersion{
+		Address: sav.Address,
+		Version: sav.Version,
+	}
+	payloadNoSig, err := rlp.EncodeToBytes(savNoSig)
+	if err != nil {
+		return nil, err
+	}
+	return payloadNoSig, nil
+}
+
 func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
 	sav := &signedAnnounceVersion{
 		Address: sb.Address(),
@@ -760,16 +775,28 @@ func (sb *Backend) gossipSignedAnnounceVersionsMsg(signedAnnVersions []*signedAn
 	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
 }
 
+func (sb *Backend) getAllSignedAnnounceVersions() ([]*signedAnnounceVersion, error) {
+	allEntries, err := sb.signedAnnounceVersionTable.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	allSignedAnnounceVersions := make([]*signedAnnounceVersion, len(allEntries))
+	for i, entry := range allEntries {
+		allSignedAnnounceVersions[i] = newSignedAnnounceVersionFromEntry(entry)
+	}
+	return allSignedAnnounceVersions, nil
+}
+
 // sendAllSignedAnnounceVersions sends all SignedAnnounceVersions this node
 // has to a peer
 func (sb *Backend) sendAllSignedAnnounceVersions(peer consensus.Peer) error {
 	logger := sb.logger.New("func", "sendAllSignedAnnounceVersions")
-	allEntries, err := sb.signedAnnounceVersionTable.GetAll()
+	allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
 	if err != nil {
-		logger.Warn("Error getting all entries of signed announce version table", "err", err)
+		logger.Warn("Error getting all signed announce versions", "err", err)
 		return err
 	}
-	payload, err := rlp.EncodeToBytes(allEntries)
+	payload, err := rlp.EncodeToBytes(allSignedAnnounceVersions)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
