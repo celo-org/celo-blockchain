@@ -678,7 +678,7 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		validAddresses[signedAnnVersion.Address] = true
 		validEntries = append(validEntries, signedAnnVersion)
 	}
-	return sb.upsertSignedAnnounceVersions(signedAnnVersions)
+	return sb.upsertSignedAnnounceVersions(validEntries)
 }
 
 func (sb *Backend) upsertSignedAnnounceVersions(signedAnnVersions []*vet.SignedAnnounceVersion) error {

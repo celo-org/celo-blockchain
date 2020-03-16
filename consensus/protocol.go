@@ -18,8 +18,6 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
-
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -45,8 +43,6 @@ type P2PServer interface {
 	AddTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag)
 	// RemoveTrustedPeer will remove a trusted peer from the p2p server instance
 	RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag)
-	// PrivateKey will give the ecdsa private key
-	ECDSAPrivateKey() *ecdsa.PrivateKey
 }
 
 // Peer defines the interface for a p2p.peer

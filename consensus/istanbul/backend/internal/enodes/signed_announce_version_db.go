@@ -34,6 +34,10 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+const (
+	signedAnnounceVersionDBVersion = 0
+)
+
 // SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
 	db           *leveldb.DB //the actual DB
@@ -136,12 +140,11 @@ func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) 
 	var err error
 
 	logger := log.New("db", "SignedAnnounceVersionDB")
-	dbVersion := 0
 
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(int64(dbVersion), path, logger)
+		db, err = newPersistentDB(int64(signedAnnounceVersionDBVersion), path, logger)
 	}
 
 	if err != nil {

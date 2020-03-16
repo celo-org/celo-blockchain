@@ -310,7 +310,10 @@ func (sb *Backend) Close() error {
 	if err := sb.valEnodeTable.Close(); err != nil {
 		return err
 	}
-	return sb.signedAnnounceVersionTable.Close()
+	if err := sb.signedAnnounceVersionTable.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Validators implements istanbul.Backend.Validators

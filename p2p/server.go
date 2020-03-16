@@ -472,11 +472,6 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
-// ECDSAPrivateKey returns the server's ECDSA private key
-func (srv *Server) ECDSAPrivateKey() *ecdsa.PrivateKey {
-	return srv.PrivateKey
-}
-
 // DiscoverTableInfo gets information on all the buckets in the
 // discover table
 func (srv *Server) DiscoverTableInfo() *discover.TableInfo {

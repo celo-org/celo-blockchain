@@ -34,6 +34,8 @@ import (
 
 // Keys in the node database.
 const (
+	valEnodeDBVersion = 3
+
 	dbAddressPrefix = "address:" // Identifier to prefix node entries with
 	dbNodeIDPrefix  = "nodeid:"
 )
@@ -114,12 +116,11 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	var err error
 
 	logger := log.New("db", "ValidatorEnodeDB")
-	dbVersion := 3
 
 	if path == "" {
 		db, err = newMemoryDB()
 	} else {
-		db, err = newPersistentDB(int64(dbVersion), path, logger)
+		db, err = newPersistentDB(int64(valEnodeDBVersion), path, logger)
 	}
 
 	if err != nil {
