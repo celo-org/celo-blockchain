@@ -36,8 +36,7 @@ import (
 const (
 	valEnodeDBVersion = 3
 
-	dbAddressPrefix = "address:" // Identifier to prefix node entries with
-	dbNodeIDPrefix  = "nodeid:"
+	dbNodeIDPrefix  = "nodeid:" // Identifier to prefix node entries with
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
@@ -53,10 +52,6 @@ type ValidatorEnodeHandler interface {
 
 	// Clear all validator peers
 	ClearValidatorPeers()
-}
-
-func addressKey(address common.Address) []byte {
-	return append([]byte(dbAddressPrefix), address.Bytes()...)
 }
 
 func nodeIDKey(nodeID enode.ID) []byte {

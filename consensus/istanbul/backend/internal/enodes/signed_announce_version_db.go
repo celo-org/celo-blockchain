@@ -17,8 +17,6 @@
 package enodes
 
 import (
-	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -28,8 +26,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -45,92 +41,38 @@ type SignedAnnounceVersionDB struct {
 	writeOptions *opt.WriteOptions
 }
 
-// SignedAnnounceVersion is an entry in the SignedAnnounceVersionDB.
+// SignedAnnounceVersionEntry is an entry in the SignedAnnounceVersionDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
-type SignedAnnounceVersion struct {
+type SignedAnnounceVersionEntry struct {
 	Address   common.Address
 	Version   uint
 	Signature []byte
 }
 
-func (sav *SignedAnnounceVersion) PayloadNoSig() ([]byte, error) {
-	savNoSig := &SignedAnnounceVersion{
-		Address: sav.Address,
-		Version: sav.Version,
-	}
-	payloadNoSig, err := rlp.EncodeToBytes(savNoSig)
-	if err != nil {
-		return nil, err
-	}
-	return payloadNoSig, nil
+// EncodeRLP serializes SignedAnnounceVersionEntry into the Ethereum RLP format.
+func (entry *SignedAnnounceVersionEntry) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{entry.Address, entry.Version, entry.Signature})
 }
 
-func (sav *SignedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadNoSig, err := sav.PayloadNoSig()
-	if err != nil {
-		return err
-	}
-	sav.Signature, err = signingFn(payloadNoSig)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (sav *SignedAnnounceVersion) ECDSAPublicKey() (*ecdsa.PublicKey, error) {
-	payloadNoSig, err := sav.PayloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	payloadHash := crypto.Keccak256(payloadNoSig)
-	pubkey, err := crypto.SigToPub(payloadHash, sav.Signature)
-	if err != nil {
-		return nil, err
-	}
-	return pubkey, nil
-}
-
-// EncodeRLP serializes SignedAnnounceVersion into the Ethereum RLP format.
-func (sav *SignedAnnounceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the SignedAnnounceVersion fields from a RLP stream.
-func (sav *SignedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
+// DecodeRLP implements rlp.Decoder, and load the SignedAnnounceVersionEntry fields from a RLP stream.
+func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
+	var content struct {
 		Address   common.Address
 		Version   uint
 		Signature []byte
 	}
 
-	if err := s.Decode(&msg); err != nil {
+	if err := s.Decode(&content); err != nil {
 		return err
 	}
-	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
+	entry.Address, entry.Version, entry.Signature = content.Address, content.Version, content.Signature
 	return nil
 }
 
-// String gives a string representation of SignedAnnounceVersion
-func (sav *SignedAnnounceVersion) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sav.Address, sav.Version, len(sav.Signature))
-}
-
-// ValidateSignature will return an error if a SignedAnnounceVersion's signature
-// is invalid.
-func (sav *SignedAnnounceVersion) ValidateSignature() error {
-	payloadNoSig, err := sav.PayloadNoSig()
-	if err != nil {
-		return err
-	}
-	address, err := istanbul.GetSignatureAddress(payloadNoSig, sav.Signature)
-	if err != nil {
-		return err
-	}
-	if address != sav.Address {
-		return errors.New("Signature does not match address")
-	}
-	return nil
+// String gives a string representation of SignedAnnounceVersionEntry
+func (entry *SignedAnnounceVersionEntry) String() string {
+	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", entry.Address, entry.Version, len(entry.Signature))
 }
 
 // OpenSignedAnnounceVersionDB opens a signed announce version database for storing
@@ -167,7 +109,7 @@ func (svdb *SignedAnnounceVersionDB) String() string {
 	var b strings.Builder
 	b.WriteString("SignedAnnounceVersionDB:")
 
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {
+	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
 		fmt.Fprintf(&b, " [%s => %s]", address.String(), entry.String())
 		return nil
 	})
@@ -181,32 +123,32 @@ func (svdb *SignedAnnounceVersionDB) String() string {
 
 // Upsert inserts any new entries or entries with a Version higher than the
 // existing version. Returns any new or updated entries
-func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnnounceVersion) ([]*SignedAnnounceVersion, error) {
+func (svdb *SignedAnnounceVersionDB) Upsert(entries []*SignedAnnounceVersionEntry) ([]*SignedAnnounceVersionEntry, error) {
 	logger := svdb.logger.New("func", "Upsert")
 	batch := new(leveldb.Batch)
 
-	var newEntries []*SignedAnnounceVersion
+	var newEntries []*SignedAnnounceVersionEntry
 
-	for _, signedAnnVersion := range signedAnnounceVersions {
-		currentEntry, err := svdb.Get(signedAnnVersion.Address)
+	for _, entry := range entries {
+		currentEntry, err := svdb.Get(entry.Address)
 		isNew := err == leveldb.ErrNotFound
 		if !isNew && err != nil {
 			return nil, err
 		}
-		if !isNew && signedAnnVersion.Version <= currentEntry.Version {
+		if !isNew && entry.Version <= currentEntry.Version {
 			logger.Trace("Not inserting, version is not greater than the existing entry",
-				"address", signedAnnVersion.Address, "existing version", currentEntry.Version,
-				"new entry version", signedAnnVersion.Version)
+				"address", entry.Address, "existing version", currentEntry.Version,
+				"new entry version", entry.Version)
 			continue
 		}
-		entryBytes, err := rlp.EncodeToBytes(signedAnnVersion)
+		entryBytes, err := rlp.EncodeToBytes(entry)
 		if err != nil {
 			return nil, err
 		}
-		batch.Put(addressKey(signedAnnVersion.Address), entryBytes)
-		newEntries = append(newEntries, signedAnnVersion)
+		batch.Put(addressKey(entry.Address), entryBytes)
+		newEntries = append(newEntries, entry)
 		logger.Trace("Updating with new entry", "isNew", isNew,
-			"address", signedAnnVersion.Address, "new version", signedAnnVersion.Version)
+			"address", entry.Address, "new version", entry.Version)
 	}
 
 	if batch.Len() > 0 {
@@ -218,10 +160,10 @@ func (svdb *SignedAnnounceVersionDB) Upsert(signedAnnounceVersions []*SignedAnno
 	return newEntries, nil
 }
 
-// Get gets the SignedAnnounceVersion entry with address `address`.
+// Get gets the SignedAnnounceVersionEntry entry with address `address`.
 // Returns an error if no entry exists.
-func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersion, error) {
-	var entry SignedAnnounceVersion
+func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersionEntry, error) {
+	var entry SignedAnnounceVersionEntry
 	rawEntry, err := svdb.db.Get(addressKey(address), nil)
 	if err != nil {
 		return nil, err
@@ -242,17 +184,17 @@ func (svdb *SignedAnnounceVersionDB) GetVersion(address common.Address) (uint, e
 	return signedAnnVersion.Version, nil
 }
 
-// GetAll gets all SignedAnnounceVersions in the db
-func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersion, error) {
-	var signedAnnounceVersions []*SignedAnnounceVersion
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {
-		signedAnnounceVersions = append(signedAnnounceVersions, entry)
+// GetAll gets each SignedAnnounceVersionEntry in the db
+func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, error) {
+	var entries []*SignedAnnounceVersionEntry
+	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
+		entries = append(entries, entry)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return signedAnnounceVersions, nil
+	return entries, nil
 }
 
 // Remove will remove an entry from the table
@@ -265,7 +207,7 @@ func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
 // Prune will remove entries for all addresses not present in addressesToKeep
 func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bool) error {
 	batch := new(leveldb.Batch)
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {
+	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
 		if !addressesToKeep[address] {
 			svdb.logger.Trace("Deleting entry", "address", address)
 			batch.Delete(addressKey(address))
@@ -279,12 +221,12 @@ func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bo
 }
 
 // iterate will call `onEntry` for each entry in the db
-func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *SignedAnnounceVersion) error) error {
+func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *SignedAnnounceVersionEntry) error) error {
 	iter := svdb.db.NewIterator(util.BytesPrefix([]byte(dbAddressPrefix)), nil)
 	defer iter.Release()
 
 	for iter.Next() {
-		var entry SignedAnnounceVersion
+		var entry SignedAnnounceVersionEntry
 		address := common.BytesToAddress(iter.Key()[len(dbAddressPrefix):])
 		rlp.DecodeBytes(iter.Value(), &entry)
 
@@ -306,7 +248,7 @@ type SignedAnnounceVersionEntryInfo struct {
 // Intended for RPC use
 func (svdb *SignedAnnounceVersionDB) Info() (map[string]*SignedAnnounceVersionEntryInfo, error) {
 	dbInfo := make(map[string]*SignedAnnounceVersionEntryInfo)
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersion) error {
+	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
 		dbInfo[address.Hex()] = &SignedAnnounceVersionEntryInfo{
 			Address: entry.Address.Hex(),
 			Version: entry.Version,

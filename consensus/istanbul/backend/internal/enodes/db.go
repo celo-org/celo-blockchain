@@ -26,12 +26,19 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
 	dbVersionKey = "version" // Version of the database to flush if changes
+
+	dbAddressPrefix = "address:" // Identifier to prefix node entries with
 )
+
+func addressKey(address common.Address) []byte {
+	return append([]byte(dbAddressPrefix), address.Bytes()...)
+}
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.
 func newMemoryDB() (*leveldb.DB, error) {
