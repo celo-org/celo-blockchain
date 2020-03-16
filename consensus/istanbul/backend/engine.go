@@ -611,7 +611,6 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
-	sb.logger.Error("StartValidating!!!!!")
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -634,6 +633,9 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return err
 	}
 
+	// Having coreStarted as false at this point guarantees that announce versions
+	// will be updated by the time announce messages in the announceThread begin
+	// being generated
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
 			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
@@ -642,13 +644,17 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		}
 		go sb.sendValEnodesShareMsgs()
 	} else {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.updateAnnounceVersion()
-		sb.RefreshValPeers(valset)
 	}
 
 	sb.coreStarted = true
+
+	// coreStarted must be true by this point for validator peers to be successfully added
+	if !sb.config.Proxied {
+		headBlock := sb.GetCurrentHeadBlock()
+		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.RefreshValPeers(valset)
+	}
 
 	return nil
 }
@@ -679,7 +685,6 @@ func (sb *Backend) StopValidating() error {
 
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
-	sb.logger.Error("StartAnnouncing!!!!!")
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
 	if sb.announceRunning {

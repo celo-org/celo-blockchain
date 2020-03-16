@@ -886,14 +886,6 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 // If no set has ever been cached, nil is returned.
 func (sb *Backend) retrieveCachedValidatorConnSet() map[common.Address]bool {
 	sb.cachedValidatorConnSetMu.RLock()
-	if sb.cachedValidatorConnSet == nil || time.Since(sb.cachedValidatorConnSetTimestamp) > 1*time.Minute {
-		go func() {
-			err := sb.updateCachedValidatorConnSet()
-			if err != nil {
-				sb.logger.Debug("Unable to update cached validator conn set", "err", err)
-			}
-		}()
-	}
 	defer sb.cachedValidatorConnSetMu.RUnlock()
 	return sb.cachedValidatorConnSet
 }

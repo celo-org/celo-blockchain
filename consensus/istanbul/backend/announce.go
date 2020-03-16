@@ -533,7 +533,6 @@ func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, 
 		}
 
 		valEnode := allValEnodes[signedAnnVersionEntry.Address]
-		sb.logger.Warn("in generateAnnounceRecords", "valEnode", valEnode, "signedAnnVersionEntry", signedAnnVersionEntry)
 		// If the version in the val enode table is up to date with the version
 		// we are aware of (or is newer in the case the remote validator sent us
 		// a direct announce but the signed version is only now being received),
@@ -1062,15 +1061,6 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 			return err
 		}
 		return nil
-	}
-
-	// If this node is not a proxied validator receiving a message from its proxy
-	// peer, or vice versa, return.
-	// TODO: remove this check to allow non-proxy peers to send this message
-	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if !isFromProxiedPeer || !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
-		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
-		return errUnauthorizedAnnounceMessage
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
