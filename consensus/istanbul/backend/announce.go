@@ -623,8 +623,8 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 					logger.Error("Error parsing enodeURL", "enodeUrl", enodeURL)
 					return err
 				}
-				if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announceData.Version}}); err != nil {
-					logger.Warn("Error upserting a val enode entry", "AnnounceData", announceData.String(), "error", err)
+				if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
+					logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
 					return err
 				}
 				// If the announce was only intended for this node, do not regossip
@@ -638,6 +638,38 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 	// Regossip this announce message
 	return sb.regossipAnnounce(msg, payload)
+}
+
+// answerAnnounceMsg will answer a received announce message. If the target
+// node is already a peer of any kind, an enodeCertificate will be sent.
+// Regardless, the target node will be upserted into the val enode table
+// to ensure this node designates the target node as a ValidatorPurpose peer
+// with a valid version.
+func (sb *Backend) answerAnnounceMsg(address common.Address, node *enode.Node, version uint) error {
+	targetID := node.ID()
+	targetIDs := map[enode.ID]bool{
+		targetID: true,
+	}
+	// The target could be an existing peer of any purpose.
+	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
+	if matches[targetID] != nil {
+		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
+		if err != nil {
+			return err
+		}
+		if err := sb.sendEnodeCertificateMsg(matches[targetID], enodeCertificateMsg); err != nil {
+			return err
+		}
+	}
+	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
+	// peer but should be.
+	// If the target is not a peer and should be a ValidatorPurpose peer, this
+	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
+	// during the istanbul handshake.
+	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{address: {Node: node, Version: version}}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // validateAnnounce will do some validation to check the contents of the announce
