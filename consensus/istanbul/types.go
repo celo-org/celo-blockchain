@@ -402,6 +402,15 @@ func (m *Message) String() string {
 	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
 }
 
+func (m *Message) Copy() *Message {
+	return &Message{
+		Code:      m.Code,
+		Msg:       append(m.Msg[:0:0], m.Msg...),
+		Address:   m.Address,
+		Signature: append(m.Signature[:0:0], m.Signature...),
+	}
+}
+
 // MapMessagesToSenders map a list of Messages to the list of the sender addresses
 func MapMessagesToSenders(messages []Message) []common.Address {
 	returnList := make([]common.Address, len(messages))

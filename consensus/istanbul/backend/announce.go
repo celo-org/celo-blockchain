@@ -18,6 +18,7 @@ package backend
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -77,6 +78,21 @@ func (sb *Backend) announceThread() {
 	var announceGossipFrequencyState AnnounceGossipFrequencyState
 	var currentAnnounceGossipTickerDuration time.Duration
 	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceVersion uint
+	var announcing bool
+
+	updateAnnounceVersionFunc := func() {
+		version := newAnnounceVersion()
+		if version <= announceVersion {
+			logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
+			return
+		}
+		if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
+			logger.Warn("Error updating announce version", "err", err)
+			return
+		}
+		announceVersion = version
+	}
 
 	for {
 		select {
@@ -89,14 +105,16 @@ func (sb *Backend) announceThread() {
 				break
 			}
 
-			if shouldAnnounce && announceGossipTickerCh == nil {
+			if shouldAnnounce && !announcing {
+				updateAnnounceVersionFunc()
+
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(1*time.Minute, func() {
-					if err := sb.generateAndGossipAnnounce(); err != nil {
+					if err := sb.generateAndGossipAnnounce(announceVersion); err != nil {
 						logger.Error("Error in gossiping announce", "err", err)
 					}
 				})
@@ -117,11 +135,15 @@ func (sb *Backend) announceThread() {
 				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
 				announceGossipTickerCh = announceGossipTicker.C
 				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !shouldAnnounce && announceGossipTickerCh != nil {
+
+				announcing = true
+			} else if !shouldAnnounce && announcing {
 				// Disable periodic gossiping by setting announceGossipTickerCh to nil
 				announceGossipTicker.Stop()
 				announceGossipTickerCh = nil
 				logger.Trace("Disabled periodic gossiping of announce message")
+
+				announcing = false
 			}
 
 		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
@@ -148,7 +170,8 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-			go sb.generateAndGossipAnnounce()
+			updateAnnounceVersionFunc()
+			go sb.generateAndGossipAnnounce(announceVersion)
 
 			// Use this timer to also prune all announce related data structures.
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -158,6 +181,10 @@ func (sb *Backend) announceThread() {
 		case <-announceVersionsCheckTicker.C:
 			logger.Trace("Going to check peers' announce version set")
 			go sb.checkPeersAnnounceVersions()
+
+		case <-sb.updateAnnounceVersionCh:
+			updateAnnounceVersionFunc()
+			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -324,10 +351,10 @@ func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) er
 // generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
 // which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
 // validator's previous announce msgs.
-func (sb *Backend) generateAndGossipAnnounce() error {
+func (sb *Backend) generateAndGossipAnnounce(version uint) error {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, announceVersion, announceAddress, err := sb.generateAnnounce()
+	istMsg, announceAddress, err := sb.generateAnnounce(version)
 	if err != nil {
 		return err
 	}
@@ -346,13 +373,14 @@ func (sb *Backend) generateAndGossipAnnounce() error {
 	// Add the generated announce message to this node's cache
 	sb.cachedAnnounceMsgsMu.Lock()
 	defer sb.cachedAnnounceMsgsMu.Unlock()
-	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: announceVersion, MsgPayload: payload}
+	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: version, MsgPayload: payload}
 
 	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
 }
 
-// This function is a helper function for generateAndGossipAnnounce.  It will create the latest announce msg for this node.
-func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, error) {
+// This function is a helper function for generateAndGossipAnnounce.
+// It will create the latest announce msg for this node with a given version.
+func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, common.Address, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
 	var enodeUrl string
 	if sb.config.Proxied {
@@ -360,7 +388,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 			enodeUrl = sb.proxyNode.externalNode.URLv4()
 		} else {
 			logger.Error("Proxied node is not connected to a proxy")
-			return nil, 0, common.Address{}, errNoProxyConnection
+			return nil, common.Address{}, errNoProxyConnection
 		}
 	} else {
 		enodeUrl = sb.p2pserver.Self().URLv4()
@@ -369,7 +397,7 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	announceRecords := make([]*announceRecord, 0, len(validatorConnSet))
@@ -381,14 +409,13 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
-		// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-		Version: uint(time.Now().Unix()),
+		Version:         version,
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
 		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	msg := &istanbul.Message{
@@ -401,12 +428,12 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, uint, common.Address, 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, 0, common.Address{}, err
+		return nil, common.Address{}, err
 	}
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
-	return msg, announceData.Version, msg.Address, nil
+	return msg, msg.Address, nil
 }
 
 // This function will handle an announce message.
@@ -686,4 +713,228 @@ func (sb *Backend) checkPeersAnnounceVersions() {
 			sb.sendGetAnnounceVersions(peer)
 		}
 	}
+}
+
+type enodeCertificate struct {
+	EnodeURL string
+	Version  uint
+}
+
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
+
+// EncodeRLP serializes ec into the Ethereum RLP format.
+func (ec *enodeCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ec.EnodeURL, ec.Version})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ec fields from a RLP stream.
+func (ec *enodeCertificate) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EnodeURL string
+		Version  uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
+	return nil
+}
+
+// retrieveEnodeCertificateMsg gets the most recent enode certificate message.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
+func (sb *Backend) retrieveEnodeCertificateMsg() (*istanbul.Message, error) {
+	sb.enodeCertificateMsgMu.Lock()
+	defer sb.enodeCertificateMsgMu.Unlock()
+	if sb.enodeCertificateMsg == nil {
+		return nil, nil
+	}
+	return sb.enodeCertificateMsg.Copy(), nil
+}
+
+// generateEnodeCertificateMsg generates an enode certificate message with the enode
+// this node is publicly accessible at. If this node is proxied, the proxy's
+// public enode is used.
+func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message, error) {
+	logger := sb.logger.New("func", "generateEnodeCertificateMsg")
+
+	var enodeURL string
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			enodeURL = sb.proxyNode.externalNode.URLv4()
+		} else {
+			return nil, errNoProxyConnection
+		}
+	} else {
+		enodeURL = sb.p2pserver.Self().URLv4()
+	}
+
+	enodeCertificate := &enodeCertificate{
+		EnodeURL: enodeURL,
+		Version:  version,
+	}
+	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
+	if err != nil {
+		return nil, err
+	}
+	msg := &istanbul.Message{
+		Code:    istanbulEnodeCertificateMsg,
+		Address: sb.Address(),
+		Msg:     enodeCertificateBytes,
+	}
+	// Sign the message
+	if err := msg.Sign(sb.Sign); err != nil {
+		return nil, err
+	}
+	logger.Trace("Generated Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate, "address", msg.Address)
+	return msg, nil
+}
+
+// handleEnodeCertificateMsg handles an enode certificate message.
+// At the moment, this message is only supported if it's sent from a proxied
+// validator to its proxy or vice versa. If the message is sent by the proxy
+// to the proxied validator, the proxy is forwarding an enodeCertificate to the
+// proxied validator.
+// If a message is sent by a proxied validator to its proxy, it is either
+// sending its own enodeCertificate that can be used during handshakes, or sending
+// an enodeCertificate to a proxy that was forwarded by a proxy before.
+func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
+
+	var msg istanbul.Message
+	// Decode payload into msg
+	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
+	if err != nil {
+		logger.Error("Error in decoding received Istanbul Enode Certificate message", "err", err, "payload", hex.EncodeToString(payload))
+		return err
+	}
+	logger = logger.New("msg address", msg.Address)
+
+	var enodeCertificate enodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
+		return err
+	}
+	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
+
+	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
+	if err != nil {
+		logger.Warn("Malformed v4 node in received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate, "err", err)
+		return err
+	}
+
+	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
+
+	// Handle the special case where this node is a proxy and the proxied validator sent the msg
+	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
+		existingVersion := sb.getEnodeCertificateMsgVersion()
+		if enodeCertificate.Version < existingVersion {
+			logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
+			return errors.New("Version too low")
+		}
+		// There may be a difference in the URLv4 string because of `discport`,
+		// so instead compare the ID
+		selfNode := sb.p2pserver.Self()
+		if parsedNode.ID() != selfNode.ID() {
+			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+			return errors.New("Incorrect enode url")
+		}
+		if err := sb.setEnodeCertificateMsg(&msg); err != nil {
+			logger.Warn("Error setting enode certificate msg", "err", err)
+			return err
+		}
+		return nil
+	}
+
+	// If this node is not a proxied validator receiving a message from its proxy
+	// peer, or vice versa, return.
+	// TODO: remove this check to allow non-proxy peers to send this message
+	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
+	if !isFromProxiedPeer || !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
+		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
+		return errUnauthorizedAnnounceMessage
+	}
+
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	if err != nil {
+		logger.Debug("Error in retrieving registered/elected valset", "err", err)
+		return err
+	}
+
+	if !validatorConnSet[msg.Address] {
+		logger.Debug("Received Istanbul Enode Certificate message originating from a node not in the validator conn set")
+		return errUnauthorizedAnnounceMessage
+	}
+
+	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+		logger.Warn("Error in upserting a val enode table entry", "error", err)
+		return err
+	}
+	return nil
+}
+
+func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Message) error {
+	logger := sb.logger.New("func", "sendEnodeCertificateMsg")
+	payload, err := msg.Payload()
+	if err != nil {
+		logger.Error("Error getting payload of enode certificate message", "err", err)
+		return err
+	}
+	return peer.Send(istanbulEnodeCertificateMsg, payload)
+}
+
+func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {
+	sb.enodeCertificateMsgMu.Lock()
+	var enodeCertificate enodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+		return err
+	}
+	sb.enodeCertificateMsg = msg
+	sb.enodeCertificateMsgVersion = enodeCertificate.Version
+	sb.enodeCertificateMsgMu.Unlock()
+	return nil
+}
+
+func (sb *Backend) getEnodeCertificateMsgVersion() uint {
+	sb.enodeCertificateMsgMu.RLock()
+	defer sb.enodeCertificateMsgMu.RUnlock()
+	return sb.enodeCertificateMsgVersion
+}
+
+func (sb *Backend) updateAnnounceVersion() {
+	sb.updateAnnounceVersionCh <- struct{}{}
+	<-sb.updateAnnounceVersionCompleteCh
+}
+
+// setAndShareUpdatedAnnounceVersion generates a new enode certificate message and sends
+// it to this node's proxy (if applicable).
+// TODO: When a generated announce no longer creates a new version, the version
+// parameter can be removed and instead have the version generated in this function.
+// Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
+func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
+	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
+	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
+	if err != nil {
+		return err
+	}
+	if err := sb.setEnodeCertificateMsg(enodeCertificateMsg); err != nil {
+		return err
+	}
+	// Send the new enode certificate msg to the proxy peer
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
+		if err != nil {
+			logger.Error("Error in sending enode certificate msg to proxy", "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func newAnnounceVersion() uint {
+	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+	return uint(time.Now().Unix())
 }
