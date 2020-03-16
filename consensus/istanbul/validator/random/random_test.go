@@ -56,7 +56,7 @@ func TestUniform(t *testing.T) {
 				return
 			}
 		}
-		// Chance of success with correct code is (1 - (1/bound)^runs)^bound ~= 1 with runs=1e6, bound=100
+		// Chance of success with correct code is (1 - (1 - 1/bound)^runs)^bound ~= 1 with runs=1e6, bound=100
 		t.Errorf("uniform(_, %d) did not cover [0, %d)", bound, bound)
 	})
 
