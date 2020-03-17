@@ -138,7 +138,7 @@ const (
 	// Celo precompiled contracts
 	FractionMulExpGas           uint64 = 50     // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	ProofOfPossessionGas        uint64 = 350000 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas             uint64 = 10     // Cost of reading a validator's address.
+	GetValidatorGas             uint64 = 1000     // Cost of reading a validator's address.
 	GetEpochSizeGas             uint64 = 10     // Cost of querying the number of blocks in an epoch.
 	GetBlockNumberFromHeaderGas uint64 = 10     // Cost of decoding a block header.
 	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
