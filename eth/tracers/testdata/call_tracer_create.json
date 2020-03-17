@@ -1,6 +1,5 @@
 {
   "context": {
-    "gasLimit": "5401723",
     "miner": "0xd049bfd667cb46aa3ef5df0da3e57db3be39e511",
     "number": "2294702",
     "timestamp": "1513676146"
@@ -31,7 +30,6 @@
       "homesteadBlock": 0
     },
     "extraData": "0x566961425443",
-    "gasLimit": "5406414",
     "hash": "0xae107f592eebdd9ff8d6ba00363676096e6afb0e1007a7d3d0af88173077378d",
     "miner": "0xd049bfd667cb46aa3ef5df0da3e57db3be39e511",
     "nonce": "0x93363bbd2c95f410",

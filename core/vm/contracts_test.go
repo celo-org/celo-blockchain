@@ -90,7 +90,6 @@ func makeTestHeader(number *big.Int) *types.Header {
 	return &types.Header{
 		ParentHash: makeTestHeaderHash(new(big.Int).Sub(number, common.Big1)),
 		Number:     number,
-		GasLimit:   params.DefaultGasLimit,
 		GasUsed:    params.DefaultGasLimit / 2,
 		Extra:      append(make([]byte, types.IstanbulExtraVanity), extra...),
 		Time:       number.Uint64() * 5,

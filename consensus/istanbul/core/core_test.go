@@ -31,10 +31,9 @@ import (
 
 func makeBlock(number int64) *types.Block {
 	header := &types.Header{
-		Number:   big.NewInt(number),
-		GasLimit: 0,
-		GasUsed:  0,
-		Time:     uint64(0),
+		Number:  big.NewInt(number),
+		GasUsed: 0,
+		Time:    uint64(0),
 	}
 	return types.NewBlock(header, nil, nil, nil)
 }

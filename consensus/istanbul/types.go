@@ -209,10 +209,9 @@ type PreparedCertificateSummary struct {
 
 func EmptyPreparedCertificate() PreparedCertificate {
 	emptyHeader := &types.Header{
-		Number:   big.NewInt(0),
-		GasLimit: 0,
-		GasUsed:  0,
-		Time:     0,
+		Number:  big.NewInt(0),
+		GasUsed: 0,
+		Time:    0,
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)

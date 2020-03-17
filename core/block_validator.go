@@ -102,6 +102,10 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
 	header := parent.Header()
 
+	return CalcGasLimitWithHeader(header, statedb)
+}
+
+func CalcGasLimitWithHeader(header *types.Header, statedb *state.StateDB) uint64 {
 	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
 
 	if err == nil {

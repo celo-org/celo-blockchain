@@ -93,6 +93,7 @@ type environment struct {
 	ancestors mapset.Set     // ancestor set (used for checking parent validity)
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
+	gasLimit  uint64
 
 	header     *types.Header
 	txs        []*types.Transaction
@@ -604,11 +605,13 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	if err != nil {
 		return err
 	}
+
 	env := &environment{
 		signer:    types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:     state,
 		ancestors: mapset.NewSet(),
 		header:    header,
+		gasLimit:  core.CalcGasLimit(parent, state),
 	}
 
 	// when 08 is processed ancestors contain 07 (quick block)
@@ -659,7 +662,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	if w.current.gasPool == nil {
-		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit)
+		w.current.gasPool = new(core.GasPool).AddGas(w.current.gasLimit)
 	}
 
 	var coalescedLogs []*types.Log
@@ -674,7 +677,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		if interrupt != nil && atomic.LoadInt32(interrupt) != commitInterruptNone {
 			// Notify resubmit loop to increase resubmitting interval due to too frequent commits.
 			if atomic.LoadInt32(interrupt) == commitInterruptResubmit {
-				ratio := float64(w.current.header.GasLimit-w.current.gasPool.Gas()) / float64(w.current.header.GasLimit)
+				ratio := float64(w.current.gasLimit-w.current.gasPool.Gas()) / float64(w.current.gasLimit)
 				if ratio < 0.1 {
 					ratio = 0.1
 				}
@@ -802,7 +805,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
-		GasLimit:   limit,
 		Extra:      w.extra,
 		Time:       uint64(timestamp),
 	}

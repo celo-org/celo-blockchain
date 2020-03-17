@@ -67,8 +67,8 @@ type SimulatedBackend struct {
 
 // NewSimulatedBackendWithDatabase creates a new binding backend based on the given database
 // and uses a simulated blockchain for testing purposes.
-func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.GenesisAlloc, gasLimit uint64) *SimulatedBackend {
-	genesis := core.Genesis{Config: params.TestChainConfig, GasLimit: gasLimit, Alloc: alloc}
+func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.GenesisAlloc) *SimulatedBackend {
+	genesis := core.Genesis{Config: params.TestChainConfig, Alloc: alloc}
 	genesis.MustCommit(database)
 	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, mockEngine.NewFaker(), vm.Config{}, nil)
 
@@ -84,8 +84,8 @@ func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.Genesis
 
 // NewSimulatedBackend creates a new binding backend using a simulated blockchain
 // for testing purposes.
-func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64) *SimulatedBackend {
-	return NewSimulatedBackendWithDatabase(rawdb.NewMemoryDatabase(), alloc, gasLimit)
+func NewSimulatedBackend(alloc core.GenesisAlloc) *SimulatedBackend {
+	return NewSimulatedBackendWithDatabase(rawdb.NewMemoryDatabase(), alloc)
 }
 
 // Close terminates the underlying blockchain's update loop.
@@ -260,7 +260,7 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	if call.Gas >= params.TxGas {
 		hi = call.Gas
 	} else {
-		hi = b.pendingBlock.GasLimit()
+		hi = core.CalcGasLimit(b.pendingBlock, b.pendingState)
 	}
 	cap = hi
 

@@ -52,7 +52,6 @@ type Genesis struct {
 	Config    *params.ChainConfig `json:"config"`
 	Timestamp uint64              `json:"timestamp"`
 	ExtraData []byte              `json:"extraData"`
-	GasLimit  uint64              `json:"gasLimit"   gencodec:"required"`
 	Coinbase  common.Address      `json:"coinbase"`
 	Alloc     GenesisAlloc        `json:"alloc"      gencodec:"required"`
 
@@ -91,7 +90,6 @@ type GenesisAccount struct {
 type genesisSpecMarshaling struct {
 	Timestamp math.HexOrDecimal64
 	ExtraData hexutil.Bytes
-	GasLimit  math.HexOrDecimal64
 	GasUsed   math.HexOrDecimal64
 	Number    math.HexOrDecimal64
 	Alloc     map[common.UnprefixedAddress]GenesisAccount
@@ -270,13 +268,9 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Time:       g.Timestamp,
 		ParentHash: g.ParentHash,
 		Extra:      g.ExtraData,
-		GasLimit:   g.GasLimit,
 		GasUsed:    g.GasUsed,
 		Coinbase:   g.Coinbase,
 		Root:       root,
-	}
-	if g.GasLimit == 0 {
-		head.GasLimit = params.DefaultGasLimit
 	}
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
@@ -347,7 +341,6 @@ func DefaultGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:    params.MainnetChainConfig,
 		ExtraData: hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
-		GasLimit:  5000,
 		Alloc:     decodePrealloc(mainnetAllocData),
 	}
 }
@@ -357,7 +350,6 @@ func DefaultTestnetGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:    params.TestnetChainConfig,
 		ExtraData: hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
-		GasLimit:  16777216,
 		Alloc:     decodePrealloc(testnetAllocData),
 	}
 }
@@ -368,7 +360,6 @@ func DefaultOttomanGenesisBlock() *Genesis {
 		Config:    params.OttomanChainConfig,
 		Timestamp: 1496993285,
 		ExtraData: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000f89af85494475cc98b5521ab2a1335683e7567c8048bfe79ed9407d8299de61faed3686ba4c4e6c3b9083d7e2371944fe035ce99af680d89e2c4d73aca01dbfc1bd2fd94dc421209441a754f79c4a4ecd2b49c935aad0312b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0"),
-		GasLimit:  4700000,
 		Alloc:     decodePrealloc(ottomanAllocData),
 	}
 }
@@ -383,7 +374,6 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	return &Genesis{
 		Config:    &config,
 		ExtraData: append(append(make([]byte, 52), faucet[:]...), make([]byte, crypto.SignatureLength)...),
-		GasLimit:  6283185,
 		Alloc: map[common.Address]GenesisAccount{
 			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
 			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256

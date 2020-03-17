@@ -34,7 +34,6 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"gasLimit"   : "0x2fefd8",
 			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00"
@@ -48,7 +47,6 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"gasLimit"   : "0x2fefd8",
 			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
@@ -63,7 +61,6 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"gasLimit"   : "0x2fefd8",
 			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",

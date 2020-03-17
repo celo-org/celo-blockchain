@@ -51,7 +51,7 @@ func newStatePrefetcher(config *params.ChainConfig, bc *BlockChain, engine conse
 func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, cfg vm.Config, interrupt *uint32) {
 	var (
 		header  = block.Header()
-		gaspool = new(GasPool).AddGas(block.GasLimit())
+		gaspool = new(GasPool).AddGas(CalcGasLimit(block, statedb))
 	)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {

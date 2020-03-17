@@ -801,6 +801,8 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		valSet = s.assembleValidatorSet(block, state)
 	}
 
+	gasLimit := core.CalcGasLimit(block, state)
+
 	return &blockStats{
 		Number:      header.Number,
 		Hash:        header.Hash(),
@@ -808,7 +810,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Timestamp:   new(big.Int).SetUint64(header.Time),
 		Miner:       author,
 		GasUsed:     header.GasUsed,
-		GasLimit:    header.GasLimit,
+		GasLimit:    gasLimit,
 		TotalDiff:   td.String(),
 		Txs:         txs,
 		TxHash:      header.TxHash,

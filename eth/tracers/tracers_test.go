@@ -109,7 +109,6 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
 		Time:        new(big.Int).SetUint64(5),
-		GasLimit:    uint64(6000000),
 		GasPrice:    big.NewInt(1),
 	}
 	alloc := core.GenesisAlloc{}

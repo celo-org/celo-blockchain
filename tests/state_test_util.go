@@ -180,7 +180,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config) (*stat
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
 	gaspool := new(core.GasPool)
-	gaspool.AddGas(block.GasLimit())
+	gaspool.AddGas(core.CalcGasLimit(block, statedb))
 	snapshot := statedb.Snapshot()
 	if _, _, _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
 		statedb.RevertToSnapshot(snapshot)
@@ -223,7 +223,6 @@ func (t *StateTest) genesis(config *params.ChainConfig) *core.Genesis {
 	return &core.Genesis{
 		Config:    config,
 		Coinbase:  t.json.Env.Coinbase,
-		GasLimit:  t.json.Env.GasLimit,
 		Number:    t.json.Env.Number,
 		Timestamp: t.json.Env.Timestamp,
 		Alloc:     t.json.Pre,

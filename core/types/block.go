@@ -49,39 +49,18 @@ type Header struct {
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
-	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
 }
 
-/*
-type Header struct {
-	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
-	//UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
-	Coinbase    common.Address `json:"miner"            gencodec:"required"`
-	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
-	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
-	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
-	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	//Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
-	Number *big.Int `json:"number"           gencodec:"required"`
-	//GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
-	GasUsed uint64 `json:"gasUsed"          gencodec:"required"`
-	Time    uint64 `json:"timestamp"        gencodec:"required"`
-	Extra   []byte `json:"extraData"        gencodec:"required"`
-	//MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
-	//Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
-}*/
-
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Number   *hexutil.Big
-	GasLimit hexutil.Uint64
-	GasUsed  hexutil.Uint64
-	Time     hexutil.Uint64
-	Extra    hexutil.Bytes
-	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number  *hexutil.Big
+	GasUsed hexutil.Uint64
+	Time    hexutil.Uint64
+	Extra   hexutil.Bytes
+	Hash    common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -332,7 +311,6 @@ func (b *Block) Transaction(hash common.Hash) *Transaction {
 }
 
 func (b *Block) Number() *big.Int { return new(big.Int).Set(b.header.Number) }
-func (b *Block) GasLimit() uint64 { return b.header.GasLimit }
 func (b *Block) GasUsed() uint64  { return b.header.GasUsed }
 func (b *Block) Time() uint64     { return b.header.Time }
 

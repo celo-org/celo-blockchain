@@ -170,9 +170,8 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		evmux  = new(event.TypeMux)
 		engine = mockEngine.NewFaker()
 		gspec  = core.Genesis{
-			Config:   params.TestChainConfig,
-			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
-			GasLimit: 100000000,
+			Config: params.TestChainConfig,
+			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointOracle
 	)
@@ -226,9 +225,8 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
-			Config:   params.TestChainConfig,
-			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
-			GasLimit: 100000000,
+			Config: params.TestChainConfig,
+			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointOracle
 	)

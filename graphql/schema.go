@@ -160,8 +160,6 @@ const schema string = `
         miner(block: Long): Account!
         # ExtraData is an arbitrary data field supplied by the miner.
         extraData: Bytes!
-        # GasLimit is the maximum amount of gas that was available to transactions in this block.
-        gasLimit: Long!
         # GasUsed is the amount of gas that was used executing transactions in this block.
         gasUsed: Long!
         # Timestamp is the unix timestamp at which this block was mined.

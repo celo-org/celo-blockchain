@@ -151,7 +151,6 @@ type CParamsGenesis struct {
 	Timestamp  math.HexOrDecimal64 `json:"timestamp"`
 	ParentHash common.Hash         `json:"parentHash"`
 	ExtraData  hexutil.Bytes       `json:"extraData"`
-	GasLimit   math.HexOrDecimal64 `json:"gasLimit"`
 }
 
 type CParamsAccount struct {
@@ -359,7 +358,6 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 		},
 		Timestamp:  uint64(chainParams.Genesis.Timestamp),
 		ExtraData:  chainParams.Genesis.ExtraData,
-		GasLimit:   uint64(chainParams.Genesis.GasLimit),
 		Coinbase:   chainParams.Genesis.Author,
 		ParentHash: chainParams.Genesis.ParentHash,
 		Alloc:      accounts,
@@ -446,7 +444,6 @@ func (api *RetestethAPI) mineBlock() error {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     big.NewInt(int64(api.blockNumber + 1)),
-		GasLimit:   gasLimit,
 		Extra:      api.extraData,
 		Time:       timestamp,
 	}
@@ -473,7 +470,7 @@ func (api *RetestethAPI) mineBlock() error {
 	if api.chainConfig.DAOForkSupport && api.chainConfig.DAOForkBlock != nil && api.chainConfig.DAOForkBlock.Cmp(header.Number) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
-	gasPool := new(core.GasPool).AddGas(header.GasLimit)
+	gasPool := new(core.GasPool).AddGas(gasLimit)
 	txCount := 0
 	var txs []*types.Transaction
 	var receipts []*types.Receipt

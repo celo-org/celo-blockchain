@@ -74,7 +74,6 @@ type btHeader struct {
 	StateRoot        common.Hash
 	TransactionsTrie common.Hash
 	ExtraData        []byte
-	GasLimit         uint64
 	GasUsed          uint64
 	Timestamp        uint64
 }
@@ -82,7 +81,6 @@ type btHeader struct {
 type btHeaderMarshaling struct {
 	ExtraData hexutil.Bytes
 	Number    *math.HexOrDecimal256
-	GasLimit  math.HexOrDecimal64
 	GasUsed   math.HexOrDecimal64
 	Timestamp math.HexOrDecimal64
 }
@@ -136,7 +134,6 @@ func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 		Timestamp:  t.json.Genesis.Timestamp,
 		ParentHash: t.json.Genesis.ParentHash,
 		ExtraData:  t.json.Genesis.ExtraData,
-		GasLimit:   t.json.Genesis.GasLimit,
 		GasUsed:    t.json.Genesis.GasUsed,
 		Coinbase:   t.json.Genesis.Coinbase,
 		Alloc:      t.json.Pre,
@@ -214,9 +211,6 @@ func validateHeader(h *btHeader, h2 *types.Header) error {
 	}
 	if !bytes.Equal(h.ExtraData, h2.Extra) {
 		return fmt.Errorf("extra data: want: %x have: %x", h.ExtraData, h2.Extra)
-	}
-	if h.GasLimit != h2.GasLimit {
-		return fmt.Errorf("gasLimit: want: %d have: %d", h.GasLimit, h2.GasLimit)
 	}
 	if h.GasUsed != h2.GasUsed {
 		return fmt.Errorf("gasUsed: want: %d have: %d", h.GasUsed, h2.GasUsed)

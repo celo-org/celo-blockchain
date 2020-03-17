@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -137,12 +138,14 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
+	gasLimit, _ := blockchain_parameters.GetBlockGasLimit(header, state)
+
 	_, err := contract_comm.MakeCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
-			big.NewInt(int64(header.GasLimit))},
+			big.NewInt(int64(gasLimit))},
 		&updatedGasPriceMinimum,
 		params.MaxGasForUpdateGasPriceMinimum,
 		big.NewInt(0),
