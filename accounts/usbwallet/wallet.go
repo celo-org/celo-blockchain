@@ -77,6 +77,9 @@ type driver interface {
 
 	// GetPublicKeyBLS sends a request to the USB device to return its associated BLS public key
 	GetPublicKeyBLS() ([]byte, error)
+	// SignPersonalMessage sends the message to the USB device and waits for the user to confirm
+	// or deny the message.
+	SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error)
 }
 
 // wallet represents the common functionality shared by all USB hardware
@@ -636,7 +639,47 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	return nil, nil, accounts.ErrNotSupported
+	message := address.Bytes()
+	return w.signText(account, message)
+}
+
+func (w *wallet) signText(account accounts.Account, text []byte) ([]byte, []byte, error) {
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	defer w.stateLock.RUnlock()
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return nil, nil, accounts.ErrWalletClosed
+	}
+	// Make sure the requested account is contained within
+	path, ok := w.paths[account.Address]
+	if !ok {
+		return nil, nil, accounts.ErrUnknownAccount
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the message and verify the sender to avoid hardware fault surprises
+	sender, pubkey, signed, err := w.driver.SignPersonalMessage(path, text)
+	if err != nil {
+		return nil, nil, err
+	}
+	if sender != account.Address {
+		return nil, nil, fmt.Errorf("signer mismatch: expected %s, got %s", account.Address.Hex(), sender.Hex())
+	}
+	return pubkey, signed, nil
 }
 
 func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
@@ -712,7 +755,8 @@ func (w *wallet) SignDataWithPassphrase(account accounts.Account, passphrase, mi
 }
 
 func (w *wallet) SignText(account accounts.Account, text []byte) ([]byte, error) {
-	return w.signHash(account, accounts.TextHash(text))
+	_, signature, err := w.signText(account, text)
+	return signature, err
 }
 
 // SignTx implements accounts.Wallet. It sends the transaction over to the Ledger
@@ -765,7 +809,7 @@ func (w *wallet) SignTx(account accounts.Account, tx *types.Transaction, chainID
 // data is not supported for Ledger wallets, so this method will always return
 // an error.
 func (w *wallet) SignTextWithPassphrase(account accounts.Account, passphrase string, text []byte) ([]byte, error) {
-	return w.SignText(account, accounts.TextHash(text))
+	return w.SignText(account, text)
 }
 
 // SignTxWithPassphrase implements accounts.Wallet, attempting to sign the given

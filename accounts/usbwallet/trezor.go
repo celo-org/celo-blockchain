@@ -192,6 +192,11 @@ func (w *trezorDriver) SignHashBLS(hash []byte) ([]byte, error) {
 func (w *trezorDriver) GetPublicKeyBLS() ([]byte, error) {
 	return nil, accounts.ErrNotSupported
 }
+// SignPersonalMessage implements usbwallet.driver, sending the message to the Trezor and
+// waiting for the user to confirm or deny the message.
+func (w *trezorDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
+	return common.Address{}, nil, nil, accounts.ErrNotSupported
+}
 
 // trezorDerive sends a derivation request to the Trezor device and returns the
 // Ethereum address located on that path.

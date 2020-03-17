@@ -149,12 +149,3 @@ func GetCarbonOffsettingPartnerAddress(header *types.Header, state vm.StateDB) (
 	}
 	return carbonOffsettingPartner, nil
 }
-
-func EpochRewardsIsFrozen(header *types.Header, state vm.StateDB) (bool, error) {
-	var frozen bool
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "frozen", []interface{}{}, &[]interface{}{&frozen}, params.MaxGasForIsFrozen, header, state)
-	if err != nil {
-		return false, err
-	}
-	return frozen, nil
-}
