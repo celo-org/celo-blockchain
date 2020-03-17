@@ -162,9 +162,6 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	}
 
 	// Irrelevant of the canonical status, write the td and header to the database
-	if err := hc.WriteTd(hash, number, externTd); err != nil {
-		log.Crit("Failed to write header total difficulty", "err", err)
-	}
 	rawdb.WriteHeader(hc.chainDb, header)
 
 	// If the total difficulty is higher than our known, add it to the canonical chain
@@ -422,14 +419,6 @@ func (hc *HeaderChain) GetTdByHash(hash common.Hash) *big.Int {
 		return nil
 	}
 	return hc.GetTd(hash, *number)
-}
-
-// WriteTd stores a block's total difficulty into the database, also caching it
-// along the way.
-func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
-	rawdb.WriteTd(hc.chainDb, hash, number, td)
-	hc.tdCache.Add(hash, new(big.Int).Set(td))
-	return nil
 }
 
 // GetHeader retrieves a block header from the database by hash and number,
