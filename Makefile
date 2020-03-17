@@ -100,8 +100,8 @@ else
 ifeq ("$(CARGO_LIPO_exists)","")
 	cargo install cargo-lipo
 endif
-	rustup target add aarch64-apple-ios armv7-apple-ios x86_64-apple-ios i386-apple-ios
-	cd $(BLS_RS_PATH) && cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,x86_64-apple-ios,i386-apple-ios
+	rustup target add aarch64-apple-ios x86_64-apple-ios
+	cd $(BLS_RS_PATH) && cargo lipo --release --targets=aarch64-apple-ios,x86_64-apple-ios
 endif
 
 
@@ -173,7 +173,8 @@ geth-linux: geth-linux-386 geth-linux-amd64 geth-linux-arm geth-linux-mips64 get
 geth-linux-386:
 	rustup target add i686-unknown-linux-gnu
 	cd $(BLS_RS_PATH) && cargo build --target=i686-unknown-linux-gnu --release
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
+	LIB_DIR=../../target/i686-unknown-linux-gnu/release 
+	CGO_LDFLAGS="-L$LIB_DIR -lepoch_snark -ldl -lm" go build -ldflags "-w" build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
 	@echo "Linux 386 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep 386
 

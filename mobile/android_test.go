@@ -208,6 +208,10 @@ func TestAndroid(t *testing.T) {
 	}
 	// Generate the mobile bindings for Geth and add the tester class
 	gobind := exec.Command("gomobile", "bind", "-javapkg", "org.ethereum", "github.com/ethereum/go-ethereum/mobile")
+  gobind.Env = append(
+    os.Environ(),
+    "CGO_LDFLAGS=\"-L../../target/x86_64-linux-android/release -L../../target/i686-linux-android/release -L../../target/armv7-linux-androideabi/release -L../../target/aarch64-linux-android/release -lepoch_snark -ldl -lm\"",
+  )
 	if output, err := gobind.CombinedOutput(); err != nil {
 		t.Logf("%s", output)
 		t.Fatalf("failed to run gomobile bind: %v", err)
