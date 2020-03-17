@@ -112,8 +112,6 @@ func (sb *Backend) announceThread() {
 			}
 
 			if shouldAnnounce && !announcing {
-				updateAnnounceVersionFunc()
-
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -903,12 +901,6 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		logger.Trace("Not registered or elected, not updating announce version")
 		return nil
 	}
-	destAddresses := make([]common.Address, len(validatorConnSet))
-	i := 0
-	for address := range validatorConnSet {
-		destAddresses[i] = address
-		i++
-	}
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
@@ -925,6 +917,12 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	payload, err := enodeCertificateMsg.Payload()
 	if err != nil {
 		return err
+	}
+	destAddresses := make([]common.Address, len(validatorConnSet))
+	i := 0
+	for address := range validatorConnSet {
+		destAddresses[i] = address
+		i++
 	}
 	err = sb.Multicast(destAddresses, payload, istanbulEnodeCertificateMsg)
 	if err != nil {
