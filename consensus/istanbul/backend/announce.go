@@ -47,6 +47,8 @@ const (
 	// Schedule retries to be strictly later than the cooldown duration
 	// that other nodes will impose for regossiping announces from this node.
 	announceRetryDuration = announceGossipCooldownDuration + (5 * time.Second)
+
+	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
 
 // The announceThread thread function
@@ -477,7 +479,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", announceData.Version)
 
 	// Do some validation checks on the announceData
-	if isValid, err := sb.validateAnnounce(&announceData); !isValid || err != nil {
+	if isValid, err := sb.validateAnnounce(msg.Address, &announceData); !isValid || err != nil {
 		logger.Warn("Validation of announce message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -557,8 +559,16 @@ func (sb *Backend) answerAnnounceMsg(address common.Address, node *enode.Node, v
 // message. This is to force all validators that send an announce message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large announce message.
-func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
-	logger := sb.logger.New("func", "validateAnnounce")
+func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *announceData) (bool, error) {
+	logger := sb.logger.New("func", "validateAnnounce", "msg address", msgAddress)
+
+	// Ensure the version in the announceData is not older than the signed
+	// announce version known by this node
+	knownVersion, err := sb.signedAnnounceVersionTable.GetVersion(msgAddress)
+	if err == nil && knownVersion < announceData.Version {
+		logger.Info("Announce message has version older than known version from signed announce table", "msg version", announceData.Version, "known version", knownVersion)
+		return false, nil
+	}
 
 	// Check if there are any duplicates in the announce message
 	var encounteredAddresses = make(map[common.Address]bool)
@@ -835,7 +845,7 @@ func (sb *Backend) upsertSignedAnnounceVersionEntries(entries []*vet.SignedAnnou
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	for _, entry := range newEntries {
 		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
-		if !ok || time.Since(lastGossipTime) >= 5*time.Minute {
+		if !ok || time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration {
 			signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
 				Address: entry.Address,
 				Version: entry.Version,
