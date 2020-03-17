@@ -173,8 +173,7 @@ geth-linux: geth-linux-386 geth-linux-amd64 geth-linux-arm geth-linux-mips64 get
 geth-linux-386:
 	rustup target add i686-unknown-linux-gnu
 	cd $(BLS_RS_PATH) && cargo build --target=i686-unknown-linux-gnu --release
-	LIB_DIR=../../target/i686-unknown-linux-gnu/release 
-	CGO_LDFLAGS="-L$LIB_DIR -lepoch_snark -ldl -lm" go build -ldflags "-w" build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
+	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
 	@echo "Linux 386 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep 386
 
