@@ -41,19 +41,12 @@ import (
 //
 // define the constant, types, and function for the sendAnnounce thread
 
-type AnnounceGossipFrequencyState int
 
 const (
-	// In this state, send out an announce message every 1 minute until the first peer is established
-	HighFreqBeforeFirstPeerState AnnounceGossipFrequencyState = iota
-
-	// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
-	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
-	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
-	HighFreqAfterFirstPeerState
-
-	// In this state, send out an announce message every 10 minutes
-	LowFreqState
+	announceGossipCooldownDuration = 5 * time.Minute
+	// Schedule retries to be strictly later than the cooldown duration
+	// that other nodes will impose for regossiping announces from this node.
+	announceRetryDuration = announceGossipCooldownDuration + (5 * time.Second)
 )
 
 // The announceThread thread function
@@ -75,13 +68,10 @@ func (sb *Backend) announceThread() {
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 	// Occasionally share the entire signed announce version table with all peers
 	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
+	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
 
-	// Create all the variables needed for the periodic gossip
-	var announceGossipTicker *time.Ticker
-	var announceGossipTickerCh <-chan time.Time
-	var announceGossipFrequencyState AnnounceGossipFrequencyState
-	var currentAnnounceGossipTickerDuration time.Duration
-	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceRetryTimer *time.Timer
+	var announceRetryTimerCh <-chan time.Time
 	var announceVersion uint
 	var announcing bool
 	var shouldAnnounce bool
@@ -121,63 +111,22 @@ func (sb *Backend) announceThread() {
 					sb.startGossipAnnounceTask()
 				})
 
-				if sb.config.AnnounceAggressiveGossipOnEnablement {
-					announceGossipFrequencyState = HighFreqBeforeFirstPeerState
-
-					// Send an announce message once a minute
-					currentAnnounceGossipTickerDuration = 1 * time.Minute
-
-					numGossipedMsgsInHighFreqAfterFirstPeerState = 0
-				} else {
-					announceGossipFrequencyState = LowFreqState
-					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
-				}
-
-				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
-				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
-				announceGossipTickerCh = announceGossipTicker.C
-				logger.Trace("Enabled periodic gossiping of announce message")
-
 				announcing = true
+				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
-				// Disable periodic gossiping by setting announceGossipTickerCh to nil
-				announceGossipTicker.Stop()
-				announceGossipTickerCh = nil
-				logger.Trace("Disabled periodic gossiping of announce message")
-
+				if announceRetryTimer != nil {
+					announceRetryTimer.Stop()
+					announceRetryTimer = nil
+					announceRetryTimerCh = nil
+				}
 				announcing = false
+				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
-			logger.Trace("Going to gossip an announce message", "announceGossipFrequencyState", announceGossipFrequencyState, "numGossipedMsgsInHighFreqAfterFirstPeerState", numGossipedMsgsInHighFreqAfterFirstPeerState)
-			switch announceGossipFrequencyState {
-			case HighFreqBeforeFirstPeerState:
-				if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-					announceGossipFrequencyState = HighFreqAfterFirstPeerState
-				}
-
-			case HighFreqAfterFirstPeerState:
-				if numGossipedMsgsInHighFreqAfterFirstPeerState >= 10 {
-					announceGossipFrequencyState = LowFreqState
-				}
-				numGossipedMsgsInHighFreqAfterFirstPeerState += 1
-
-			case LowFreqState:
-				if currentAnnounceGossipTickerDuration != time.Duration(sb.config.AnnounceGossipPeriod)*time.Second {
-					// Reset the ticker
-					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
-					announceGossipTicker.Stop()
-					announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
-					announceGossipTickerCh = announceGossipTicker.C
-				}
-			}
-
-			// Use this timer to also prune all announce related data structures.
+		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
-
-			sb.startGossipAnnounceTask()
 
 		case <-shareSignedAnnounceVersionTicker.C:
 			// Send all signed announce versions to every peer. Only the entries
@@ -192,11 +141,27 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error gossiping all signed announce versions")
 			}
 
+		case <-announceRetryTimerCh: // If this is nil, this channel will never receive an event
+			announceRetryTimer = nil
+			announceRetryTimerCh = nil
+			sb.startGossipAnnounceTask()
+
 		case <-sb.generateAndGossipAnnounceCh:
 			if shouldAnnounce {
-				err := sb.generateAndGossipAnnounce()
+				// This node may have recently sent out an announce message within
+				// the gossip cooldown period imposed by other nodes.
+				// Regardless, send the announce so that it will at least be
+				// processed by this node's peers. This is helpful when a network
+				// is first starting up.
+				success, err := sb.generateAndGossipAnnounce()
 				if err != nil {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
+				}
+				// If a retry hasn't been scheduled already by a previous announce,
+				// schedule one.
+				if success && announceRetryTimer != nil {
+					announceRetryTimer = time.NewTimer(announceRetryDuration)
+					announceRetryTimerCh = announceRetryTimer.C
 				}
 			}
 
@@ -206,8 +171,11 @@ func (sb *Backend) announceThread() {
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
-			if announceGossipTicker != nil {
-				announceGossipTicker.Stop()
+			pruneAnnounceDataStructuresTicker.Stop()
+			if announceRetryTimer != nil {
+				announceRetryTimer.Stop()
+				announceRetryTimer = nil
+				announceRetryTimerCh = nil
 			}
 			return
 		}
@@ -346,28 +314,32 @@ func (sb *Backend) startGossipAnnounceTask() {
 
 // generateAndGossipAnnounce will generate the lastest announce msg from this node
 // and then broadcast it to it's peers, which should then gossip the announce msg
-// message throughout the p2p network, since this announce msg's timestamp should be
-// the latest among all of this validator's previous announce msgs.
-func (sb *Backend) generateAndGossipAnnounce() error {
+// message throughout the p2p network if there has not been a message sent from
+// this node within the last announceGossipCooldownDuration.
+// Returns if an announce message was multicasted and if there was an error.
+func (sb *Backend) generateAndGossipAnnounce() (bool, error) {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
 	istMsg, err := sb.generateAnnounce()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if istMsg == nil {
-		return nil
+		return false, nil
 	}
 
 	// Convert to payload
 	payload, err := istMsg.Payload()
 	if err != nil {
 		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
-		return err
+		return false, err
 	}
 
-	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
+	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // This function is a helper function for generateAndGossipAnnounce that will
@@ -627,7 +599,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error
 
 	sb.lastAnnounceGossipedMu.RLock()
 	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if time.Since(lastGossipTs) < 5*time.Minute {
+		if time.Since(lastGossipTs) < announceGossipCooldownDuration {
 			logger.Trace("Already regossiped msg from this source address within the last 5 minutes, so not regossiping.")
 			sb.lastAnnounceGossipedMu.RUnlock()
 			return nil
