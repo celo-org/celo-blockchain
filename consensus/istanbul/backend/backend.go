@@ -115,6 +115,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastAnnounceGossiped:               make(map[common.Address]*announceRegossip),
+		lastAnnounceAnswered:               make(map[common.Address]time.Time),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
@@ -201,6 +202,9 @@ type Backend struct {
 
 	lastAnnounceGossiped   map[common.Address]*announceRegossip
 	lastAnnounceGossipedMu sync.RWMutex
+
+	lastAnnounceAnswered   map[common.Address]time.Time
+	lastAnnounceAnsweredMu sync.RWMutex
 
 	scheduledAnnounceRegossips   map[common.Address]*scheduledAnnounceRegossip
 	scheduledAnnounceRegossipsMu sync.RWMutex

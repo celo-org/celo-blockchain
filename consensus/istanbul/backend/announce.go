@@ -45,7 +45,8 @@ const (
 	announceGossipCooldownDuration = 5 * time.Minute
 	// Schedule retries to be strictly later than the cooldown duration
 	// that other nodes will impose for regossiping announces from this node.
-	announceRetryDuration = announceGossipCooldownDuration + (30 * time.Second)
+	announceRetryDuration          = announceGossipCooldownDuration + (30 * time.Second)
+	announceAnswerCooldownDuration = 5 * time.Minute
 
 	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
@@ -204,9 +205,10 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
 // The data structures that it prunes are:
 // 1)  lastAnnounceGossiped
-// 2)  valEnodeTable
-// 3)  lastSignedAnnounceVersionsGossiped
-// 4)  signedAnnounceVersionTable
+// 2)  lastAnnounceAnswered
+// 3)  valEnodeTable
+// 4)  lastSignedAnnounceVersionsGossiped
+// 5)  signedAnnounceVersionTable
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
@@ -224,6 +226,15 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 		}
 	}
 	sb.lastAnnounceGossipedMu.Unlock()
+
+	sb.lastAnnounceAnsweredMu.Lock()
+	for remoteAddress := range sb.lastAnnounceAnswered {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceAnswered[remoteAddress]) >= announceAnswerCooldownDuration {
+			logger.Trace("Deleting entry from lastAnnounceAnswered", "address", remoteAddress, "answer timestamp", sb.lastAnnounceAnswered[remoteAddress])
+			delete(sb.lastAnnounceGossiped, remoteAddress)
+		}
+	}
+	sb.lastAnnounceAnsweredMu.Unlock()
 
 	if err := sb.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
@@ -521,10 +532,17 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
 				return err
 			}
-			if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
-				logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
-				return err
+			sb.lastAnnounceAnsweredMu.Lock()
+			// Don't answer an announce message that's been answered too recently
+			if lastAnswered, ok := sb.lastAnnounceAnswered[msg.Address]; !ok || time.Since(lastAnswered) < announceAnswerCooldownDuration {
+				if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
+					logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
+					sb.lastAnnounceAnsweredMu.Unlock()
+					return err
+				}
+				sb.lastAnnounceAnswered[msg.Address] = time.Now()
 			}
+			sb.lastAnnounceAnsweredMu.Unlock()
 			break
 		}
 	}
