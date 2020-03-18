@@ -294,9 +294,8 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		return istanbulBackend.New(&config.Istanbul, db)
-	} else {
-		log.Error("Only Istanbul consensus is supported")
 	}
+	log.Error("Only Istanbul consensus is supported")
 	return nil
 }
 
