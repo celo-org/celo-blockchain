@@ -652,7 +652,7 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersi
 // 5 minutes, then it won't regossip. This is to prevent a malicious validator from
 // DOS'ing the network with very frequent announce messages.
 // This opens an attack vector where any malicious node could continue to gossip
-// a previously gossiped announce message, causing other nodes to regossip and
+// a previously gossiped announce message from any validator, causing other nodes to regossip and
 // enforce the cooldown period for future messages originating from the origin validator.
 // This could result in new legitimate announce messages from the origin validator
 // not being regossiped due to the cooldown period enforced by the other nodes in
@@ -980,9 +980,9 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			return err
 		}
 	}
-	// Don't send any of the following messages if this node is not registered or elected
+	// Don't send any of the following messages if this node is not in the validator conn set
 	if !validatorConnSet[sb.Address()] {
-		logger.Trace("Not registered or elected, not updating announce version")
+		logger.Trace("Not in the validator conn set, not updating announce version")
 		return nil
 	}
 	payload, err := enodeCertificateMsg.Payload()
