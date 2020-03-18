@@ -51,14 +51,13 @@ const (
 	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
 
-// The announceThread thread function
-// It will generate and gossip it's announce message periodically.
-// It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
-//
-// The announce thread does 3 things
-// 1) It will poll to see if this node should send an announce once a minute
-// 2) If it should announce, then it will periodically gossip an announce message
-// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
+// The announceThread will:
+// 1) Periodically poll to see if this node should be announcing
+// 2) Periodically share the entire signed announce version table with all peers
+// 3) Periodically prune announce-related data structures
+// 4) Gossip announce messages when requested
+// 5) Retry sending announce messages if they go unanswered
+// 6) Update announce version when requested
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
@@ -153,9 +152,9 @@ func (sb *Backend) announceThread() {
 				// This node may have recently sent out an announce message within
 				// the gossip cooldown period imposed by other nodes.
 				// Regardless, send the announce so that it will at least be
-				// processed by this node's peers. This is helpful when a network
+				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				success, err := sb.generateAndGossipAnnounce()
+				success, err := sb.generateAndGossipAnnounce(announceVersion)
 				if err != nil {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
 				}
@@ -169,6 +168,8 @@ func (sb *Backend) announceThread() {
 
 		case <-sb.updateAnnounceVersionCh:
 			updateAnnounceVersionFunc()
+			// Show that the announce update has been completed so we can rely on
+			// it synchronously
 			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
 		case <-sb.announceThreadQuit:
@@ -329,10 +330,10 @@ func (sb *Backend) startGossipAnnounceTask() {
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Returns if an announce message was multicasted and if there was an error.
-func (sb *Backend) generateAndGossipAnnounce() (bool, error) {
+func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, err := sb.generateAnnounce()
+	istMsg, err := sb.generateAnnounce(version)
 	if err != nil {
 		return false, err
 	}
@@ -354,9 +355,8 @@ func (sb *Backend) generateAndGossipAnnounce() (bool, error) {
 	return true, nil
 }
 
-// This function is a helper function for generateAndGossipAnnounce that will
-// use the version for this node's address in the signed announce version db
-func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
+// generateAnnounce returns a announce message from this node with a given version.
+func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
 
 	enodeURL, err := sb.getEnodeURL()
@@ -373,14 +373,9 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 		logger.Trace("No announce records were generated, will not generate announce")
 		return nil, nil
 	}
-	announceVersion, err := sb.signedAnnounceVersionTable.GetVersion(sb.Address())
-	if err != nil {
-		return nil, err
-	}
-
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		Version:         announceVersion,
+		Version:         version,
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -407,9 +402,9 @@ func (sb *Backend) generateAnnounce() (*istanbul.Message, error) {
 	return msg, nil
 }
 
-// This is a helper function for generateAnnounce.
-// Returns the announce records intended for validators whose entries in the
-// val enode table do not exist or are outdated.
+// generateAnnounceRecords returns the announce records intended for validators
+// whose entries in the val enode table do not exist or are outdated when compared
+// to the signed announce version table.
 func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
 	allSignedAnnVersionEntries, err := sb.signedAnnounceVersionTable.GetAll()
 	if err != nil {
@@ -427,10 +422,13 @@ func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, 
 		}
 
 		valEnode := allValEnodes[signedAnnVersionEntry.Address]
-		// If the version in the val enode table is up to date with the version
-		// we are aware of (or is newer in the case the remote validator sent us
-		// a direct announce but the signed version is only now being received),
-		// don't send them an announce message
+		// If the version in the val enode table is up to date with the corresponding
+		// version in our signed announce version table, don't send the validator an announce
+		// message.
+		// It's also possible the version in the val enode table is newer than the version
+		// in the signed announce version table in the case that the remote validator
+		// sent us an enodeCertificate and we haven't received a signed announce version
+		// update yet.
 		if valEnode != nil && valEnode.Version >= signedAnnVersionEntry.Version {
 			continue
 		}
@@ -498,34 +496,31 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process announce", err)
-		return err
 	}
 
 	if shouldProcessAnnounce {
-		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
+		logger.Trace("Processing an announce message", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
-			if announceRecord.DestAddress == sb.Address() {
-				enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, announceRecord.EncryptedEnodeURL, nil, nil)
-				if err != nil {
-					sb.logger.Warn("Error decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
-					return err
-				}
-				enodeURL := string(enodeBytes)
-				node, err := enode.ParseV4(enodeURL)
-				if err != nil {
-					logger.Error("Error parsing enodeURL", "enodeUrl", enodeURL)
-					return err
-				}
-				if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
-					logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
-					return err
-				}
-				// If the announce was only intended for this node, do not regossip
-				if len(announceData.AnnounceRecords) == 1 {
-					return nil
-				}
-				break
+			// Only process an announceRecord intended for this node
+			if announceRecord.DestAddress != sb.Address() {
+				continue
 			}
+			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, announceRecord.EncryptedEnodeURL, nil, nil)
+			if err != nil {
+				sb.logger.Warn("Error decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
+				return err
+			}
+			enodeURL := string(enodeBytes)
+			node, err := enode.ParseV4(enodeURL)
+			if err != nil {
+				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
+				return err
+			}
+			if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
+				logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
+				return err
+			}
+			break
 		}
 	}
 
@@ -533,24 +528,22 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	return sb.regossipAnnounce(msg, announceData.Version, payload, false)
 }
 
-// answerAnnounceMsg will answer a received announce message. If the target
-// node is already a peer of any kind, an enodeCertificate will be sent.
-// Regardless, the target node will be upserted into the val enode table
-// to ensure this node designates the target node as a ValidatorPurpose peer
-// with a valid version.
+// answerAnnounceMsg will answer a received announce message from an origin
+// node. If the node is already a peer of any kind, an enodeCertificate will be sent.
+// Regardless, the origin node will be upserted into the val enode table
+// to ensure this node designates the origin node as a ValidatorPurpose peer.
 func (sb *Backend) answerAnnounceMsg(address common.Address, node *enode.Node, version uint) error {
-	targetID := node.ID()
 	targetIDs := map[enode.ID]bool{
-		targetID: true,
+		node.ID(): true,
 	}
 	// The target could be an existing peer of any purpose.
 	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
-	if matches[targetID] != nil {
+	if matches[node.ID()] != nil {
 		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 		if err != nil {
 			return err
 		}
-		if err := sb.sendEnodeCertificateMsg(matches[targetID], enodeCertificateMsg); err != nil {
+		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertificateMsg); err != nil {
 			return err
 		}
 	}
@@ -573,10 +566,10 @@ func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *ann
 	logger := sb.logger.New("func", "validateAnnounce", "msg address", msgAddress)
 
 	// Ensure the version in the announceData is not older than the signed
-	// announce version known by this node
+	// announce version if it is known by this node
 	knownVersion, err := sb.signedAnnounceVersionTable.GetVersion(msgAddress)
-	if err == nil && knownVersion < announceData.Version {
-		logger.Info("Announce message has version older than known version from signed announce table", "msg version", announceData.Version, "known version", knownVersion)
+	if err == nil && announceData.Version < knownVersion {
+		logger.Debug("Announce message has version older than known version from signed announce table", "msg version", announceData.Version, "known version", knownVersion)
 		return false, nil
 	}
 
@@ -593,8 +586,6 @@ func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *ann
 
 	// Check if the number of rows in the announcePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
-	// then verify that all of the validator connection set entries of that block number is included in the announce message.
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
@@ -805,11 +796,6 @@ func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
 	}
 }
 
-// String gives a string representation of signedAnnounceVersion
-func (sav *signedAnnounceVersion) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", sav.Address, sav.Version, len(sav.Signature))
-}
-
 func (sav *signedAnnounceVersion) payloadNoSig() ([]byte, error) {
 	savNoSig := &signedAnnounceVersion{
 		Address: sav.Address,
@@ -857,10 +843,10 @@ func (sb *Backend) getAllSignedAnnounceVersions() ([]*signedAnnounceVersion, err
 	return allSignedAnnounceVersions, nil
 }
 
-// sendAllSignedAnnounceVersions sends all SignedAnnounceVersions this node
+// sendAnnounceVersionTable sends all SignedAnnounceVersions this node
 // has to a peer
-func (sb *Backend) sendAllSignedAnnounceVersions(peer consensus.Peer) error {
-	logger := sb.logger.New("func", "sendAllSignedAnnounceVersions")
+func (sb *Backend) sendAnnounceVersionTable(peer consensus.Peer) error {
+	logger := sb.logger.New("func", "sendAnnounceVersionTable")
 	allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
 	if err != nil {
 		logger.Warn("Error getting all signed announce versions", "err", err)
@@ -928,21 +914,22 @@ func (sb *Backend) upsertSignedAnnounceVersionEntries(entries []*vet.SignedAnnou
 	// and needs to announce its own enode to the remote validator.
 	sb.startGossipAnnounceTask()
 
-	// Only regossip entries that are new to this node and do not originate
-	// from an address that we have gossiped a signed announce version for
-	// within the last 5 minutes
+	// Only regossip entries that do not originate from an address that we have
+	// gossiped a signed announce version for within the last 5 minutes, excluding
+	// our own address.
 	var signedAnnVersionsToRegossip []*signedAnnounceVersion
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	for _, entry := range newEntries {
 		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
-		if !ok || entry.Address == sb.ValidatorAddress() || time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration {
-			signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
-				Address: entry.Address,
-				Version: entry.Version,
-				Signature: entry.Signature,
-			})
-			sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
+		if ok && time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
+			continue
 		}
+		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
+			Address: entry.Address,
+			Version: entry.Version,
+			Signature: entry.Signature,
+		})
+		sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
 	}
 	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
 	if len(signedAnnVersionsToRegossip) > 0 {
@@ -951,18 +938,24 @@ func (sb *Backend) upsertSignedAnnounceVersionEntries(entries []*vet.SignedAnnou
 	return nil
 }
 
+// updateAnnounceVersion will synchronously update the announce version.
+// Must be called in a separate goroutine from the announceThread to avoid
+// a deadlock.
 func (sb *Backend) updateAnnounceVersion() {
 	sb.updateAnnounceVersionCh <- struct{}{}
 	<-sb.updateAnnounceVersionCompleteCh
 }
 
-// setAndShareUpdatedAnnounceVersion generates a new enode certificate message and sends
-// it to this node's proxy (if applicable).
-// TODO: When a generated announce no longer creates a new version, the version
-// parameter can be removed and instead have the version generated in this function.
-// Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
+// setAndShareUpdatedAnnounceVersion generates announce data structures and
+// and shares them with relevant nodes.
+// It will:
+//  1) Generate a new enode certificate
+//  2) Send the new enode certificate to this node's proxy if one exists
+//  3) Send the new enode certificate to all peers in the validator conn set
+//  4) Generate a new signed announce version
+//  5) Gossip the new signed announce version to all peers
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
-	logger := sb.logger.New("func", "updateAnnounceVersion")
+	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {

@@ -285,7 +285,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 		}
 	}
 
-	if err := sb.sendAllSignedAnnounceVersions(peer); err != nil {
+	if err := sb.sendAnnounceVersionTable(peer); err != nil {
 		logger.Error("Error sending all signed announce versions", "err", err)
 	}
 }

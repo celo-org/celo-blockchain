@@ -311,13 +311,22 @@ func (sb *Backend) Address() common.Address {
 // Close the backend
 func (sb *Backend) Close() error {
 	sb.delegateSignScope.Close()
+	var errs []error
 	if err := sb.valEnodeTable.Close(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 	if err := sb.signedAnnounceVersionTable.Close(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
-	return nil
+	var wrappedErr error
+	for i, err := range errs {
+		if i == 0 {
+			wrappedErr = err
+		} else {
+			wrappedErr = fmt.Errorf("%w; %w", err)
+		}
+	}
+	return wrappedErr
 }
 
 // Validators implements istanbul.Backend.Validators

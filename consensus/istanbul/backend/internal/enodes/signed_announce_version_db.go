@@ -17,6 +17,7 @@
 package enodes
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -72,7 +73,7 @@ func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
 
 // String gives a string representation of SignedAnnounceVersionEntry
 func (entry *SignedAnnounceVersionEntry) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature.length: %v}", entry.Address, entry.Version, len(entry.Signature))
+	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
 }
 
 // OpenSignedAnnounceVersionDB opens a signed announce version database for storing
