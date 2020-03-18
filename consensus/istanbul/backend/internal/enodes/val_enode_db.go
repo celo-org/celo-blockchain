@@ -36,7 +36,7 @@ import (
 const (
 	valEnodeDBVersion = 3
 
-	dbNodeIDPrefix  = "nodeid:" // Identifier to prefix node entries with
+	dbNodeIDPrefix = "nodeid:" // Identifier to prefix node entries with
 )
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock

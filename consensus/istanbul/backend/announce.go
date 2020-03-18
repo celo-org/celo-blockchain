@@ -41,7 +41,6 @@ import (
 //
 // define the constants and function for the sendAnnounce thread
 
-
 const (
 	announceGossipCooldownDuration = 5 * time.Minute
 	// Schedule retries to be strictly later than the cooldown duration
@@ -642,7 +641,7 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersi
 		sb.scheduledAnnounceRegossipsMu.Unlock()
 	}
 	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledAnnounceRegossip{
-		Timer: time.AfterFunc(duration, regossipFunc),
+		Timer:   time.AfterFunc(duration, regossipFunc),
 		Version: announceVersion,
 	}
 	return nil
@@ -707,7 +706,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint,
 	}
 
 	sb.lastAnnounceGossiped[msg.Address] = &announceRegossip{
-		Time: time.Now(),
+		Time:    time.Now(),
 		Version: announceVersion,
 	}
 
@@ -724,8 +723,8 @@ type signedAnnounceVersion struct {
 
 func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
 	return &signedAnnounceVersion{
-		Address: entry.Address,
-		Version: entry.Version,
+		Address:   entry.Address,
+		Version:   entry.Version,
 		Signature: entry.Signature,
 	}
 }
@@ -794,8 +793,8 @@ func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 
 func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
 	return &vet.SignedAnnounceVersionEntry{
-		Address: sav.Address,
-		Version: sav.Version,
+		Address:   sav.Address,
+		Version:   sav.Version,
 		Signature: sav.Signature,
 	}
 }
@@ -932,8 +931,8 @@ func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.Si
 			continue
 		}
 		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
-			Address: entry.Address,
-			Version: entry.Version,
+			Address:   entry.Address,
+			Version:   entry.Version,
 			Signature: entry.Signature,
 		})
 		sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
