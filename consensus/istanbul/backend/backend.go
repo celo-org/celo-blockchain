@@ -108,12 +108,13 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceRunning:                    false,
 		peerRecentMessages:                 peerRecentMessages,
 		selfRecentMessages:                 selfRecentMessages,
+		scheduledAnnounceRegossips:         make(map[common.Address]*scheduledRegossip),
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
 		generateAndGossipAnnounceCh:        make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
-		lastAnnounceGossiped:               make(map[common.Address]time.Time),
+		lastAnnounceGossiped:               make(map[common.Address]*versionedGossipTime),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
@@ -198,7 +199,10 @@ type Backend struct {
 	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
 	selfRecentMessages *lru.ARCCache // the cache of self recent messages
 
-	lastAnnounceGossiped   map[common.Address]time.Time
+	scheduledAnnounceRegossips   map[common.Address]*scheduledRegossip
+	scheduledAnnounceRegossipsMu sync.RWMutex
+
+	lastAnnounceGossiped   map[common.Address]*versionedGossipTime
 	lastAnnounceGossipedMu sync.RWMutex
 
 	valEnodeTable *enodes.ValidatorEnodeDB

@@ -39,7 +39,7 @@ import (
 
 // ==============================================
 //
-// define the constant, types, and function for the sendAnnounce thread
+// define the constants and function for the sendAnnounce thread
 
 
 const (
@@ -65,8 +65,8 @@ func (sb *Backend) announceThread() {
 	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
-	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
-	// If both conditions are true, then this node should announce.
+	// Create a ticker to poll if istanbul core is running and if this node is in
+	// the validator conn set. If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 	// Occasionally share the entire signed announce version table with all peers
 	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
@@ -244,6 +244,16 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 // ===============================================================
 //
 // define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+
+type versionedGossipTime struct {
+	Time    time.Time
+	Version uint
+}
+
+type scheduledRegossip struct {
+	Timer   *time.Timer
+	Version uint
+}
 
 type announceRecord struct {
 	DestAddress       common.Address
@@ -520,7 +530,7 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	}
 
 	// Regossip this announce message
-	return sb.regossipAnnounce(msg, payload)
+	return sb.regossipAnnounce(msg, announceData.Version, payload, false)
 }
 
 // answerAnnounceMsg will answer a received announce message. If the target
@@ -598,24 +608,101 @@ func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *ann
 	return true, nil
 }
 
-// regossipAnnounce will regossip a received announce message.
-// If this node regossiped an announce from the same source address within the last 5 minutes, then it wouldn't regossip.
-// This is to prevent a malicious validator from DOS'ing the network with very frequent announce messages.
-// Note that even if the validator is not malicious, but changing their enode very frequently, the
-// other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
-// for updated announce messages.
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address)
+// scheduleAnnounceRegossip schedules a regossip for an announce message after
+// its cooldown period. If one is already scheduled, it's overwritten.
+func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersion uint, payload []byte) error {
+	logger := sb.logger.New("func", "scheduleAnnounceRegossip", "msg address", msg.Address)
+	sb.scheduledAnnounceRegossipsMu.Lock()
+	defer sb.scheduledAnnounceRegossipsMu.Unlock()
+
+	// If another announce version regossip has been scheduled for the message
+	// address already, cancel it
+	if scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]; scheduledRegossip != nil {
+		scheduledRegossip.Timer.Stop()
+	}
 
 	sb.lastAnnounceGossipedMu.RLock()
-	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if time.Since(lastGossipTs) < announceGossipCooldownDuration {
-			logger.Trace("Already regossiped msg from this source address within the last 5 minutes, so not regossiping.")
-			sb.lastAnnounceGossipedMu.RUnlock()
+	versionedGossipTime := sb.lastAnnounceGossiped[msg.Address]
+	if versionedGossipTime == nil {
+		logger.Debug("Last announce gossiped not found")
+		sb.lastAnnounceGossipedMu.RUnlock()
+		return nil
+	}
+	scheduledTime := versionedGossipTime.Time.Add(announceGossipCooldownDuration)
+	sb.lastAnnounceGossipedMu.RUnlock()
+
+	duration := time.Until(scheduledTime)
+	// If by this time the cooldown period has ended, just regossip
+	if duration < 0 {
+		return sb.regossipAnnounce(msg, announceVersion, payload, true)
+	}
+	regossipFunc := func() {
+		if err := sb.regossipAnnounce(msg, announceVersion, payload, true); err != nil {
+			logger.Debug("Error in scheduled announce regossip", "err", err)
+		}
+		sb.scheduledAnnounceRegossipsMu.Lock()
+		delete(sb.scheduledAnnounceRegossips, msg.Address)
+		sb.scheduledAnnounceRegossipsMu.Unlock()
+	}
+	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledRegossip{
+		Timer: time.AfterFunc(duration, regossipFunc),
+		Version: announceVersion,
+	}
+	return nil
+}
+
+// regossipAnnounce will regossip a received announce message.
+// If this node regossiped an announce from the same source address within the last
+// 5 minutes, then it won't regossip. This is to prevent a malicious validator from
+// DOS'ing the network with very frequent announce messages.
+// This opens an attack vector where any malicious node could continue to gossip
+// a previously gossiped announce message, causing other nodes to regossip and
+// enforce the cooldown period for future messages originating from the origin validator.
+// This could result in new legitimate announce messages from the origin validator
+// not being regossiped due to the cooldown period enforced by the other nodes in
+// the network.
+// To ensure that a new legitimate message will eventually be gossiped to the rest
+// of the network, we schedule an announce message with a new version that is
+// received during the cooldown period to be sent after the cooldown period ends,
+// and refuse to regossip old messages from the validator during that time.
+// Providing `force` as true will skip any of the DOS checks.
+func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint, payload []byte, force bool) error {
+	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address, "announceVersion", announceVersion)
+
+	if !force {
+		sb.scheduledAnnounceRegossipsMu.RLock()
+		scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]
+		// if a regossip for this msg address has been scheduled already, override
+		// the scheduling if this version is newer. Otherwise, don't regossip this message
+		// and let the scheduled regossip occur.
+		if scheduledRegossip != nil {
+			if announceVersion > scheduledRegossip.Version {
+				sb.scheduledAnnounceRegossipsMu.RUnlock()
+				return sb.scheduleAnnounceRegossip(msg, announceVersion, payload)
+			}
+			sb.scheduledAnnounceRegossipsMu.RUnlock()
+			logger.Debug("Announce message is not greater than scheduled regossip version, not regossiping")
 			return nil
 		}
+		sb.scheduledAnnounceRegossipsMu.RUnlock()
+
+		sb.lastAnnounceGossipedMu.RLock()
+		if lastGossiped, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
+			if time.Since(lastGossiped.Time) < announceGossipCooldownDuration {
+				// If this version is newer than the previously regossiped one,
+				// schedule it to be regossiped once the cooldown period is over
+				if lastGossiped.Version < announceVersion {
+					sb.lastAnnounceGossipedMu.RUnlock()
+					logger.Trace("Already regossiped msg from this source address with an older announce version within the cooldown period, scheduling regossip for after the cooldown")
+					return sb.scheduleAnnounceRegossip(msg, announceVersion, payload)
+				}
+				sb.lastAnnounceGossipedMu.RUnlock()
+				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
+				return nil
+			}
+		}
+		sb.lastAnnounceGossipedMu.RUnlock()
 	}
-	sb.lastAnnounceGossipedMu.RUnlock()
 
 	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String())
 	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
@@ -624,7 +711,10 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error
 
 	sb.lastAnnounceGossipedMu.Lock()
 	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = time.Now()
+	sb.lastAnnounceGossiped[msg.Address] = &versionedGossipTime{
+		Time: time.Now(),
+		Version: announceVersion,
+	}
 
 	return nil
 }
