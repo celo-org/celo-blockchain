@@ -894,8 +894,7 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	return sb.cachedValidatorConnSet, nil
 }
 
-// retrieveCachedValidatorConnSet returns the most recently cached validator conn
-// set and asynchronously updates the cache if it is older than 1 minute.
+// retrieveCachedValidatorConnSet returns the most recently cached validator conn set.
 // If no set has ever been cached, nil is returned.
 func (sb *Backend) retrieveCachedValidatorConnSet() map[common.Address]bool {
 	sb.cachedValidatorConnSetMu.RLock()

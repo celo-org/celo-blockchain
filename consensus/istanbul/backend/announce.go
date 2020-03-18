@@ -103,6 +103,7 @@ func (sb *Backend) announceThread() {
 			}
 
 			if shouldAnnounce && !announcing {
+				sb.updateAnnounceVersionFunc()
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -154,13 +155,13 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the announce so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				success, err := sb.generateAndGossipAnnounce(announceVersion)
+				hasContent, err := sb.generateAndGossipAnnounce(announceVersion)
 				if err != nil {
 					logger.Warn("Error in generating and gossiping announce", "err", err)
 				}
 				// If a retry hasn't been scheduled already by a previous announce,
 				// schedule one.
-				if success && announceRetryTimer != nil {
+				if hasContent && announceRetryTimer == nil {
 					announceRetryTimer = time.NewTimer(announceRetryDuration)
 					announceRetryTimerCh = announceRetryTimer.C
 				}
@@ -329,7 +330,7 @@ func (sb *Backend) startGossipAnnounceTask() {
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
-// Returns if an announce message was multicasted and if there was an error.
+// Returns if an announce message had content (ie not empty) and if there was an error.
 func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
@@ -346,11 +347,11 @@ func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
 	payload, err := istMsg.Payload()
 	if err != nil {
 		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
-		return false, err
+		return true, err
 	}
 
 	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
-		return false, err
+		return true, err
 	}
 	return true, nil
 }
@@ -898,21 +899,23 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		validAddresses[signedAnnVersion.Address] = true
 		validEntries = append(validEntries, signedAnnVersion.Entry())
 	}
-	return sb.upsertSignedAnnounceVersionEntries(validEntries)
-}
-
-func (sb *Backend) upsertSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
-	logger := sb.logger.New("func", "upsertSignedAnnounceVersions")
-	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
-	if err != nil {
-		logger.Warn("Error in upserting entries", "err", err)
+	if err := sb.upsertAndGossipSignedAnnounceVersionEntries(validEntries); err != nil {
+		logger.Warn("Error upserting and gossiping entries", "err", err)
+		return err
 	}
-
 	// If this node is a validator (checked later as a result of this call) and it receives a signed announce
 	// version from a remote validator that is newer than the remote validator's
 	// version in the val enode table, this node did not receive a direct announce
 	// and needs to announce its own enode to the remote validator.
 	sb.startGossipAnnounceTask()
+}
+
+func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
+	logger := sb.logger.New("func", "upsertSignedAnnounceVersions")
+	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
+	if err != nil {
+		logger.Warn("Error in upserting entries", "err", err)
+	}
 
 	// Only regossip entries that do not originate from an address that we have
 	// gossiped a signed announce version for within the last 5 minutes, excluding
@@ -961,11 +964,6 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	// Don't send any messages if this node is not registered or elected
-	if !validatorConnSet[sb.Address()] {
-		logger.Trace("Not registered or elected, not updating announce version")
-		return nil
-	}
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
@@ -978,6 +976,11 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
 			return err
 		}
+	}
+	// Don't send any of the following messages if this node is not registered or elected
+	if !validatorConnSet[sb.Address()] {
+		logger.Trace("Not registered or elected, not updating announce version")
+		return nil
 	}
 	payload, err := enodeCertificateMsg.Payload()
 	if err != nil {
@@ -999,7 +1002,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	return sb.upsertSignedAnnounceVersionEntries([]*vet.SignedAnnounceVersionEntry{
+	return sb.upsertAndGossipSignedAnnounceVersionEntries([]*vet.SignedAnnounceVersionEntry{
 		newSignedAnnVersion.Entry(),
 	})
 }
