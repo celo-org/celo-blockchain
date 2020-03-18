@@ -144,11 +144,8 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	)
 
 	// In IBFT, it seems that the announced td (total difficulty) is 1 + block number.
-	totalDifficulty := big.NewInt(int64(number + 1))
-	log.Debug(fmt.Sprintf("Previous header for %d difficulty is not available, setting its difficulty to %v",
-		number, totalDifficulty))
 	localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
-	externTd = externTd.Add(externTd, totalDifficulty)
+	externTd = big.NewInt(int64(number + 1))
 
 	// Irrelevant of the canonical status, write the td and header to the database
 	rawdb.WriteHeader(hc.chainDb, header)
@@ -387,17 +384,18 @@ func (hc *HeaderChain) GetAncestor(hash common.Hash, number, ancestor uint64, ma
 // GetTd retrieves a block's total difficulty in the canonical chain from the
 // database by hash and number, caching it if found.
 func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
-	// Short circuit if the td's already in the cache, retrieve otherwise
-	if cached, ok := hc.tdCache.Get(hash); ok {
-		return cached.(*big.Int)
-	}
-	td := rawdb.ReadTd(hc.chainDb, hash, number)
-	if td == nil {
-		return nil
-	}
-	// Cache the found body for next time and return
-	hc.tdCache.Add(hash, td)
-	return td
+	// // Short circuit if the td's already in the cache, retrieve otherwise
+	// if cached, ok := hc.tdCache.Get(hash); ok {
+	// 	return cached.(*big.Int)
+	// }
+	// td := rawdb.ReadTd(hc.chainDb, hash, number)
+	// if td == nil {
+	// 	return nil
+	// }
+	// // Cache the found body for next time and return
+	// hc.tdCache.Add(hash, td)
+	// return td
+	return big.NewInt(int64(number + 1))
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the

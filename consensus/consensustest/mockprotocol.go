@@ -18,6 +18,7 @@ package consensustest
 
 import (
 	"crypto/ecdsa"
+	"math/big"
 	"net"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type MockBroadcaster struct{}
@@ -140,8 +142,23 @@ func NewFullFaker() *MockEngine {
 	}
 }
 
+func (e *MockEngine) accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header) {
+	// Simply touch miner coinbase account
+	reward := big.NewInt(0)
+	state.AddBalance(header.Coinbase, reward)
+}
+
+func (e *MockEngine) Finalize(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
+	e.accumulateRewards(chain.Config(), statedb, header)
+	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+}
+
 func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
-	return types.NewBlock(header, txs, receipts, randomness), nil
+	e.accumulateRewards(chain.Config(), statedb, header)
+	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+
+	// Header seems complete, assemble into a block and return
+	return types.NewBlock(header, txs, receipts, nil), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
@@ -151,7 +168,7 @@ func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
 func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
-	return nil
+	return consensus.Istanbul.VerifyHeader(chain, header, seal)
 }
 
 // // verifyHeader checks whether a header conforms to the consensus rules.The
