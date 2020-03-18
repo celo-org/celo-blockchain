@@ -100,8 +100,9 @@ else
 ifeq ("$(CARGO_LIPO_exists)","")
 	cargo install cargo-lipo
 endif
-	rustup target add aarch64-apple-ios x86_64-apple-ios
-	cd $(BLS_RS_PATH) && cargo lipo --release --targets=aarch64-apple-ios,x86_64-apple-ios
+	rustup toolchain install 1.41.0
+	rustup target add --toolchain 1.41.0 aarch64-apple-ios armv7-apple-ios x86_64-apple-ios i386-apple-ios
+	cd $(BLS_RS_PATH) && rustup run 1.41.0 cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,x86_64-apple-ios,i386-apple-ios
 endif
 
 
