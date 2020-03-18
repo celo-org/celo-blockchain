@@ -213,7 +213,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 
 	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
-		if !validatorConnSet[remoteAddress] {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceGossiped[remoteAddress].Time) >= announceGossipCooldownDuration {
 			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 			delete(sb.lastAnnounceGossiped, remoteAddress)
 		}
@@ -227,7 +227,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	for remoteAddress := range sb.lastSignedAnnounceVersionsGossiped {
-		if !validatorConnSet[remoteAddress] {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastSignedAnnounceVersionsGossiped[remoteAddress]) >= signedAnnounceVersionGossipCooldownDuration {
 			logger.Trace("Deleting entry from lastSignedAnnounceVersionsGossiped", "address", remoteAddress, "gossip timestamp", sb.lastSignedAnnounceVersionsGossiped[remoteAddress])
 			delete(sb.lastSignedAnnounceVersionsGossiped, remoteAddress)
 		}
