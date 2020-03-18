@@ -935,7 +935,7 @@ func (sb *Backend) upsertSignedAnnounceVersionEntries(entries []*vet.SignedAnnou
 	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
 	for _, entry := range newEntries {
 		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
-		if !ok || time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration {
+		if !ok || entry.Address == sb.ValidatorAddress() || time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration {
 			signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
 				Address: entry.Address,
 				Version: entry.Version,
