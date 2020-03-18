@@ -138,6 +138,7 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
+	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by contract_comm
 	gasLimit, _ := blockchain_parameters.GetBlockGasLimit(header, state)
 
 	_, err := contract_comm.MakeCall(
