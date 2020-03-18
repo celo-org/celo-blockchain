@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -137,3 +138,97 @@ func NewFullFaker() *MockEngine {
 		},
 	}
 }
+
+func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+	return types.NewBlock(header, txs, receipts, randomness), nil
+}
+
+// VerifyHeader checks whether a header conforms to the consensus rules of a
+// given engine. Verifies the seal regardless of given "seal" argument.
+func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+	return nil
+}
+
+// // verifyHeader checks whether a header conforms to the consensus rules.The
+// // caller may optionally pass in a batch of parents (ascending order) to avoid
+// // looking those up from the database. This is useful for concurrently verifying
+// // a batch of new headers.
+// func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// 	if header.Number == nil {
+// 		return errUnknownBlock
+// 	}
+
+// 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
+// 	// This is due to potential clock skew
+// 	allowedFutureBlockTime := uint64(now().Unix())
+// 	if !chain.Config().FullHeaderChainAvailable {
+// 		allowedFutureBlockTime = allowedFutureBlockTime + mobileAllowedClockSkew
+// 	}
+
+// 	// Don't waste time checking blocks from the future
+// 	if header.Time > allowedFutureBlockTime {
+// 		return consensus.ErrFutureBlock
+// 	}
+
+// 	// Ensure that the extra data format is satisfied
+// 	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+// 		return errInvalidExtraDataFormat
+// 	}
+
+// 	return sb.verifyCascadingFields(chain, header, parents)
+// }
+
+// // verifyCascadingFields verifies all the header fields that are not standalone,
+// // rather depend on a batch of previous headers. The caller may optionally pass
+// // in a batch of parents (ascending order) to avoid looking those up from the
+// // database. This is useful for concurrently verifying a batch of new headers.
+// func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// 	// The genesis block is the always valid dead-end
+// 	number := header.Number.Uint64()
+// 	if number == 0 {
+// 		return nil
+// 	}
+// 	// Ensure that the block's timestamp isn't too close to it's parent
+// 	var parent *types.Header
+// 	if len(parents) > 0 {
+// 		parent = parents[len(parents)-1]
+// 	} else {
+// 		parent = chain.GetHeader(header.ParentHash, number-1)
+// 	}
+// 	if chain.Config().FullHeaderChainAvailable {
+
+// 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+// 			return consensus.ErrUnknownAncestor
+// 		}
+// 		if parent.Time+sb.config.BlockPeriod > header.Time {
+// 			return errInvalidTimestamp
+// 		}
+// 		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
+// 		if err := sb.verifySigner(chain, header, parents); err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return sb.verifyAggregatedSeals(chain, header, parents)
+// }
+
+// // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
+// // concurrently. The method returns a quit channel to abort the operations and
+// // a results channel to retrieve the async verifications (the order is that of
+// // the input slice).
+// func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+// 	abort := make(chan struct{})
+// 	results := make(chan error, len(headers))
+// 	go func() {
+// 		for i, header := range headers {
+// 			err := sb.verifyHeader(chain, header, headers[:i])
+
+// 			select {
+// 			case <-abort:
+// 				return
+// 			case results <- err:
+// 			}
+// 		}
+// 	}()
+// 	return abort, results
+// }

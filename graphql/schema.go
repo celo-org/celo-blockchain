@@ -145,8 +145,6 @@ const schema string = `
         hash: Bytes32!
         # Parent is the parent block of this block.
         parent: Block
-        # Nonce is the block nonce, an 8 byte sequence determined by the miner.
-        nonce: Bytes!
         # TransactionsRoot is the keccak256 hash of the root of the trie of transactions in this block.
         transactionsRoot: Bytes32!
         # TransactionCount is the number of transactions in this block. if
