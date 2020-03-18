@@ -137,7 +137,6 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	// Try to resolve the Celo app's version and app type
 	reply, err := w.ledgerVersionAndType()
 	if err != nil {
-<<<<<<< HEAD
 		return nil
 	}
 	w.app = appType(reply[0])
@@ -151,17 +150,6 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 			}
 			return nil
 		}
-=======
-		// Celo app is not running or in browser mode, nothing more to do, return
-		if err == errLedgerReplyInvalidHeader {
-			w.browser = true
-		}
-		return nil
-	}
-	// Try to resolve the Celo app's version, will fail prior to v1.0.2
-	if w.version, err = w.ledgerVersion(); err != nil {
-		w.version = [3]byte{1, 0, 0} // Assume worst case, can't verify if v1.0.0 or v1.0.1
->>>>>>> master
 	}
 	copy(w.version[:], reply[1:])
 
@@ -212,15 +200,10 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	if w.app != ledgerTxSigner {
 		return common.Address{}, nil, errLedgerInvalidApp
 	}
-	// Ensure the wallet is capable of signing the given transaction
-	if chainID != nil && w.version[0] <= 1 && w.version[1] == 0 && w.version[2] <= 2 {
-		return common.Address{}, nil, fmt.Errorf("Ledger v%d.%d.%d doesn't support signing this transaction, please update to v1.0.3 at least", w.version[0], w.version[1], w.version[2])
-	}
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSign(path, tx, chainID)
 }
 
-<<<<<<< HEAD
 func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
 	// Abort if app not online
 	if w.offline() {
@@ -243,7 +226,7 @@ func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
 		return nil, errLedgerInvalidApp
 	}
 	return w.ledgerGetPubKeyBLS()
-=======
+}
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to confirm or deny the message.
 func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
@@ -254,7 +237,6 @@ func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message
 
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSignData(path, message)
->>>>>>> master
 }
 
 // ledgerVersion retrieves the current version of the Celo wallet app running
@@ -455,7 +437,6 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	return sender, signed, nil
 }
 
-<<<<<<< HEAD
 // ledgerGetPubKeyBLS sends a request to the Ledger wallet, and waits for the
 // response containing the BLS public key
 //
@@ -504,7 +485,31 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 //   Description                                      | Length
 //   -------------------------------------------------+----------
 //   Hash of message as serialized G1 point           | 96 bytes
-=======
+//
+// And the output data is:
+//
+//   Description | Length
+//   ------------+---------
+//   signature S | 96 bytes
+func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
+	// Send the request and wait for the response
+	var (
+		err error
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
+		reply []byte
+	)
+	// Send the chunk over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
+	if err != nil {
+		return nil, err
+	}
+	// Make sure reply is the correct length
+	if len(reply) != 96 {
+		return nil, errors.New("invalid signature reply")
+	}
+
+	return reply, nil
+}
 // ledgerSignData sends the message to the Ledger wallet, and waits for the user
 // to confirm or deny the message.
 //
@@ -531,33 +536,11 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 //   Description           | Length
 //   ----------------------+----------
 //   data chunk | arbitrary
->>>>>>> master
 //
 // And the output data is:
 //
 //   Description | Length
 //   ------------+---------
-<<<<<<< HEAD
-//   signature S | 96 bytes
-func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
-	// Send the request and wait for the response
-	var (
-		err error
-		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
-		reply []byte
-	)
-	// Send the chunk over, ensuring it's processed correctly
-	reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
-	if err != nil {
-		return nil, err
-	}
-	// Make sure reply is the correct length
-	if len(reply) != 96 {
-		return nil, errors.New("invalid signature reply")
-	}
-
-	return reply, nil
-=======
 //   signature V | 1 byte
 //   signature R | 32 bytes
 //   signature S | 32 bytes
@@ -616,7 +599,6 @@ func (w *ledgerDriver) ledgerSignData(derivationPath []uint32, data []byte) (com
 	}
 
 	return addr, pubkey, signature, nil
->>>>>>> master
 }
 
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a

@@ -246,7 +246,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 
 	stack, _ := makeConfigNode(ctx)
 	am := stack.AccountManager()
-//	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
 	var (
 		signer  common.Address
