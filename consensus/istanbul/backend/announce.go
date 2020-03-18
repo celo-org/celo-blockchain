@@ -231,7 +231,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	for remoteAddress := range sb.lastAnnounceAnswered {
 		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceAnswered[remoteAddress]) >= announceAnswerCooldownDuration {
 			logger.Trace("Deleting entry from lastAnnounceAnswered", "address", remoteAddress, "answer timestamp", sb.lastAnnounceAnswered[remoteAddress])
-			delete(sb.lastAnnounceGossiped, remoteAddress)
+			delete(sb.lastAnnounceAnswered, remoteAddress)
 		}
 	}
 	sb.lastAnnounceAnsweredMu.Unlock()
