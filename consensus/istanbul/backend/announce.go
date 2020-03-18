@@ -46,7 +46,7 @@ const (
 	announceGossipCooldownDuration = 5 * time.Minute
 	// Schedule retries to be strictly later than the cooldown duration
 	// that other nodes will impose for regossiping announces from this node.
-	announceRetryDuration = announceGossipCooldownDuration + (5 * time.Second)
+	announceRetryDuration = announceGossipCooldownDuration + (30 * time.Second)
 
 	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
@@ -67,6 +67,8 @@ func (sb *Backend) announceThread() {
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
+	// TODO: this can be removed once we have more faith in this protocol
+	updateAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 	// Occasionally share the entire signed announce version table with all peers
 	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
@@ -103,7 +105,7 @@ func (sb *Backend) announceThread() {
 			}
 
 			if shouldAnnounce && !announcing {
-				sb.updateAnnounceVersionFunc()
+				updateAnnounceVersionFunc()
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -125,11 +127,6 @@ func (sb *Backend) announceThread() {
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-pruneAnnounceDataStructuresTicker.C:
-			if err := sb.pruneAnnounceDataStructures(); err != nil {
-				logger.Warn("Error in pruning announce data structures", "err", err)
-			}
-
 		case <-shareSignedAnnounceVersionTicker.C:
 			// Send all signed announce versions to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
@@ -142,6 +139,9 @@ func (sb *Backend) announceThread() {
 			if err := sb.gossipSignedAnnounceVersionsMsg(allSignedAnnounceVersions); err != nil {
 				logger.Warn("Error gossiping all signed announce versions")
 			}
+
+		case <-updateAnnounceVersionTicker.C:
+			updateAnnounceVersionFunc()
 
 		case <-announceRetryTimerCh: // If this is nil, this channel will never receive an event
 			announceRetryTimer = nil
@@ -172,6 +172,11 @@ func (sb *Backend) announceThread() {
 			// Show that the announce update has been completed so we can rely on
 			// it synchronously
 			sb.updateAnnounceVersionCompleteCh <- struct{}{}
+
+		case <-pruneAnnounceDataStructuresTicker.C:
+			if err := sb.pruneAnnounceDataStructures(); err != nil {
+				logger.Warn("Error in pruning announce data structures", "err", err)
+			}
 
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
@@ -247,12 +252,12 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 //
 // define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
-type versionedGossipTime struct {
+type announceRegossip struct {
 	Time    time.Time
 	Version uint
 }
 
-type scheduledRegossip struct {
+type scheduledAnnounceRegossip struct {
 	Timer   *time.Timer
 	Version uint
 }
@@ -636,7 +641,7 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersi
 		delete(sb.scheduledAnnounceRegossips, msg.Address)
 		sb.scheduledAnnounceRegossipsMu.Unlock()
 	}
-	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledRegossip{
+	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledAnnounceRegossip{
 		Timer: time.AfterFunc(duration, regossipFunc),
 		Version: announceVersion,
 	}
@@ -701,9 +706,7 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint,
 		return err
 	}
 
-	sb.lastAnnounceGossipedMu.Lock()
-	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = &versionedGossipTime{
+	sb.lastAnnounceGossiped[msg.Address] = &announceRegossip{
 		Time: time.Now(),
 		Version: announceVersion,
 	}
@@ -908,6 +911,7 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 	// version in the val enode table, this node did not receive a direct announce
 	// and needs to announce its own enode to the remote validator.
 	sb.startGossipAnnounceTask()
+	return nil
 }
 
 func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {

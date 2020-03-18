@@ -108,13 +108,13 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceRunning:                    false,
 		peerRecentMessages:                 peerRecentMessages,
 		selfRecentMessages:                 selfRecentMessages,
-		scheduledAnnounceRegossips:         make(map[common.Address]*scheduledRegossip),
+		scheduledAnnounceRegossips:         make(map[common.Address]*scheduledAnnounceRegossip),
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
 		generateAndGossipAnnounceCh:        make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
-		lastAnnounceGossiped:               make(map[common.Address]*versionedGossipTime),
+		lastAnnounceGossiped:               make(map[common.Address]*announceRegossip),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
@@ -199,11 +199,11 @@ type Backend struct {
 	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
 	selfRecentMessages *lru.ARCCache // the cache of self recent messages
 
-	scheduledAnnounceRegossips   map[common.Address]*scheduledRegossip
-	scheduledAnnounceRegossipsMu sync.RWMutex
-
-	lastAnnounceGossiped   map[common.Address]*versionedGossipTime
+	lastAnnounceGossiped   map[common.Address]*announceRegossip
 	lastAnnounceGossipedMu sync.RWMutex
+
+	scheduledAnnounceRegossips   map[common.Address]*scheduledAnnounceRegossip
+	scheduledAnnounceRegossipsMu sync.RWMutex
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
