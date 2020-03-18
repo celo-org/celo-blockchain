@@ -47,8 +47,8 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
-	maxNonSignersPlusOne := uint32(newValSet.Size() - newValSet.MinQuorumSize() + 1)
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSignersPlusOne, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
+	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
+	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
 	if err != nil {
 		return nil, err
 	}
