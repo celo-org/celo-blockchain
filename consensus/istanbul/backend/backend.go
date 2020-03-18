@@ -81,15 +81,6 @@ type proxyInfo struct {
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 }
 
-// func NewFaker() consensus.Engine {
-// 	config := istanbul.DefaultConfig
-// 	config.RoundStateDBPath = ""
-// 	config.ValidatorEnodeDBPath = ""
-
-// 	engine := New(config, rawdb.NewMemoryDatabase())
-// 	return engine
-// }
-
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine

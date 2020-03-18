@@ -191,7 +191,7 @@ func (tc *testChain) receipts(hashes []common.Hash) [][]*types.Receipt {
 }
 
 // bodies returns the block bodies of the given block hashes.
-func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, [][]*types.Header, []*types.Randomness, []*types.EpochSnarkData) {
+func (tc *testChain) bodies(hashes []common.Hash) ([][]*types.Transaction, []*types.Randomness, []*types.EpochSnarkData) {
 	transactions := make([][]*types.Transaction, 0, len(hashes))
 	randomness := make([]*types.Randomness, 0, len(hashes))
 	epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))

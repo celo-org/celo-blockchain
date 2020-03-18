@@ -234,6 +234,7 @@ func testChainGen(i int, block *core.BlockGen) {
 		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001")
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, nil, nil, nil, data), signer, testBankKey)
 		block.AddTx(tx)
+	}
 }
 
 func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {

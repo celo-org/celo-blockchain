@@ -887,7 +887,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 			return 0, err
 		}
 
-		statedb, _, err := b.StateAndHeaderByNumber(ctx, blockNrOrHash)
+		statedb, _, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 		if err != nil {
 			return 0, err
 		}

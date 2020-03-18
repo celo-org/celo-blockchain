@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -159,6 +160,63 @@ func newCanonical(engine consensus.Engine, n int, full bool) (ethdb.Database, *B
 	return db, blockchain, err
 }
 
+// Test fork of length N starting from block i
+func testFork(t *testing.T, blockchain *BlockChain, i, n int, full bool, comparator func(td1, td2 *big.Int)) {
+	// Copy old chain up to #i into a new db
+	db, blockchain2, err := newCanonical(mockEngine.NewFaker(), i, full)
+	if err != nil {
+		t.Fatal("could not make new canonical in testFork", err)
+	}
+	defer blockchain2.Stop()
+
+	// Assert the chains have the same header/block at #i
+	var hash1, hash2 common.Hash
+	if full {
+		hash1 = blockchain.GetBlockByNumber(uint64(i)).Hash()
+		hash2 = blockchain2.GetBlockByNumber(uint64(i)).Hash()
+	} else {
+		hash1 = blockchain.GetHeaderByNumber(uint64(i)).Hash()
+		hash2 = blockchain2.GetHeaderByNumber(uint64(i)).Hash()
+	}
+	if hash1 != hash2 {
+		t.Errorf("chain content mismatch at %d: have hash %v, want hash %v", i, hash2, hash1)
+	}
+	// Extend the newly created chain
+	var (
+		blockChainB  []*types.Block
+		headerChainB []*types.Header
+	)
+	if full {
+		blockChainB = makeBlockChain(blockchain2.CurrentBlock(), n, mockEngine.NewFaker(), db, forkSeed)
+		if _, err := blockchain2.InsertChain(blockChainB); err != nil {
+			t.Fatalf("failed to insert forking chain: %v", err)
+		}
+	} else {
+		headerChainB = makeHeaderChain(blockchain2.CurrentHeader(), n, mockEngine.NewFaker(), db, forkSeed)
+		if _, err := blockchain2.InsertHeaderChain(headerChainB, 1, true); err != nil {
+			t.Fatalf("failed to insert forking chain: %v", err)
+		}
+	}
+	// Sanity check that the forked chain can be imported into the original
+	var tdPre, tdPost *big.Int
+
+	if full {
+		tdPre = blockchain.GetTdByHash(blockchain.CurrentBlock().Hash())
+		if err := testBlockChainImport(blockChainB, blockchain); err != nil {
+			t.Fatalf("failed to import forked block chain: %v", err)
+		}
+		tdPost = blockchain.GetTdByHash(blockChainB[len(blockChainB)-1].Hash())
+	} else {
+		tdPre = blockchain.GetTdByHash(blockchain.CurrentHeader().Hash())
+		if err := testHeaderChainImport(headerChainB, blockchain); err != nil {
+			t.Fatalf("failed to import forked header chain: %v", err)
+		}
+		tdPost = blockchain.GetTdByHash(headerChainB[len(headerChainB)-1].Hash())
+	}
+	// Compare the total difficulties of the chains
+	comparator(tdPre, tdPost)
+}
+
 // testBlockChainImport tries to process a chain of blocks, writing them into
 // the database if successful.
 func testBlockChainImport(chain types.Blocks, blockchain *BlockChain) error {
@@ -233,6 +291,119 @@ func TestLastBlock(t *testing.T) {
 func TestExtendCanonicalHeaders(t *testing.T) { testExtendCanonical(t, false) }
 func TestExtendCanonicalBlocks(t *testing.T)  { testExtendCanonical(t, true) }
 
+func testExtendCanonical(t *testing.T, full bool) {
+	length := 5
+
+	// Make first chain starting from genesis
+	_, processor, err := newCanonical(mockEngine.NewFaker(), length, full)
+	if err != nil {
+		t.Fatalf("failed to make new canonical chain: %v", err)
+	}
+	defer processor.Stop()
+
+	// Define the difficulty comparator
+	better := func(td1, td2 *big.Int) {
+		if td2.Cmp(td1) <= 0 {
+			t.Errorf("total difficulty mismatch: have %v, expected more than %v", td2, td1)
+		}
+	}
+	// Start fork from current height
+	testFork(t, processor, length, 1, full, better)
+	testFork(t, processor, length, 2, full, better)
+	testFork(t, processor, length, 5, full, better)
+	testFork(t, processor, length, 10, full, better)
+}
+
+// Tests that given a starting canonical chain of a given size, creating shorter
+// forks do not take canonical ownership.
+func TestShorterForkHeaders(t *testing.T) { testShorterFork(t, false) }
+func TestShorterForkBlocks(t *testing.T)  { testShorterFork(t, true) }
+
+func testShorterFork(t *testing.T, full bool) {
+	length := 10
+
+	// Make first chain starting from genesis
+	_, processor, err := newCanonical(mockEngine.NewFaker(), length, full)
+	if err != nil {
+		t.Fatalf("failed to make new canonical chain: %v", err)
+	}
+	defer processor.Stop()
+
+	// Define the difficulty comparator
+	worse := func(td1, td2 *big.Int) {
+		if td2.Cmp(td1) >= 0 {
+			t.Errorf("total difficulty mismatch: have %v, expected less than %v", td2, td1)
+		}
+	}
+	// Sum of numbers must be less than `length` for this to be a shorter fork
+	testFork(t, processor, 0, 3, full, worse)
+	testFork(t, processor, 0, 7, full, worse)
+	testFork(t, processor, 1, 1, full, worse)
+	testFork(t, processor, 1, 7, full, worse)
+	testFork(t, processor, 5, 3, full, worse)
+	testFork(t, processor, 5, 4, full, worse)
+}
+
+// Tests that given a starting canonical chain of a given size, creating longer
+// forks do take canonical ownership.
+func TestLongerForkHeaders(t *testing.T) { testLongerFork(t, false) }
+func TestLongerForkBlocks(t *testing.T)  { testLongerFork(t, true) }
+
+func testLongerFork(t *testing.T, full bool) {
+	length := 10
+
+	// Make first chain starting from genesis
+	_, processor, err := newCanonical(mockEngine.NewFaker(), length, full)
+	if err != nil {
+		t.Fatalf("failed to make new canonical chain: %v", err)
+	}
+	defer processor.Stop()
+
+	// Define the difficulty comparator
+	better := func(td1, td2 *big.Int) {
+		if td2.Cmp(td1) <= 0 {
+			t.Errorf("total difficulty mismatch: have %v, expected more than %v", td2, td1)
+		}
+	}
+	// Sum of numbers must be greater than `length` for this to be a longer fork
+	testFork(t, processor, 0, 11, full, better)
+	testFork(t, processor, 0, 15, full, better)
+	testFork(t, processor, 1, 10, full, better)
+	testFork(t, processor, 1, 12, full, better)
+	testFork(t, processor, 5, 6, full, better)
+	testFork(t, processor, 5, 8, full, better)
+}
+
+// Tests that given a starting canonical chain of a given size, creating equal
+// forks do take canonical ownership.
+func TestEqualForkHeaders(t *testing.T) { testEqualFork(t, false) }
+func TestEqualForkBlocks(t *testing.T)  { testEqualFork(t, true) }
+
+func testEqualFork(t *testing.T, full bool) {
+	length := 10
+
+	// Make first chain starting from genesis
+	_, processor, err := newCanonical(mockEngine.NewFaker(), length, full)
+	if err != nil {
+		t.Fatalf("failed to make new canonical chain: %v", err)
+	}
+	defer processor.Stop()
+
+	// Define the difficulty comparator
+	equal := func(td1, td2 *big.Int) {
+		if td2.Cmp(td1) != 0 {
+			t.Errorf("total difficulty mismatch: have %v, want %v", td2, td1)
+		}
+	}
+	// Sum of numbers must be equal to `length` for this to be an equal fork
+	testFork(t, processor, 0, 10, full, equal)
+	testFork(t, processor, 1, 9, full, equal)
+	testFork(t, processor, 2, 8, full, equal)
+	testFork(t, processor, 5, 5, full, equal)
+	testFork(t, processor, 6, 4, full, equal)
+	testFork(t, processor, 9, 1, full, equal)
+}
+
 // Tests that chains missing links do not get accepted by the processor.
 func TestBrokenHeaderChain(t *testing.T) { testBrokenChain(t, false) }
 func TestBrokenBlockChain(t *testing.T)  { testBrokenChain(t, true) }
@@ -272,6 +443,88 @@ func testReorgLong(t *testing.T, full bool) {
 // overwrites the canonical numbers and links in the database.
 func TestReorgShortHeaders(t *testing.T) { testReorgShort(t, false) }
 func TestReorgShortBlocks(t *testing.T)  { testReorgShort(t, true) }
+
+func testReorgShort(t *testing.T, full bool) {
+	// Create a long easy chain vs. a short heavy one. Due to difficulty adjustment
+	// we need a fairly long chain of blocks with different difficulties for a short
+	// one to become heavyer than a long one. The 96 is an empirical value.
+	easy := make([]int64, 96)
+	for i := 0; i < len(easy); i++ {
+		easy[i] = 60
+	}
+	diff := make([]int64, len(easy)-1)
+	for i := 0; i < len(diff); i++ {
+		diff[i] = -9
+	}
+	testReorg(t, easy, diff, 12615120, full)
+}
+
+func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
+	// Create a pristine chain and database
+	db, blockchain, err := newCanonical(mockEngine.NewFaker(), 0, full)
+	if err != nil {
+		t.Fatalf("failed to create pristine chain: %v", err)
+	}
+	defer blockchain.Stop()
+
+	// Insert an easy and a difficult chain afterwards
+	easyBlocks, _ := GenerateChain(params.TestChainConfig, blockchain.CurrentBlock(), mockEngine.NewFaker(), db, len(first), func(i int, b *BlockGen) {
+		b.OffsetTime(first[i])
+	})
+	diffBlocks, _ := GenerateChain(params.TestChainConfig, blockchain.CurrentBlock(), mockEngine.NewFaker(), db, len(second), func(i int, b *BlockGen) {
+		b.OffsetTime(second[i])
+	})
+	if full {
+		if _, err := blockchain.InsertChain(easyBlocks); err != nil {
+			t.Fatalf("failed to insert easy chain: %v", err)
+		}
+		if _, err := blockchain.InsertChain(diffBlocks); err != nil {
+			t.Fatalf("failed to insert difficult chain: %v", err)
+		}
+	} else {
+		easyHeaders := make([]*types.Header, len(easyBlocks))
+		for i, block := range easyBlocks {
+			easyHeaders[i] = block.Header()
+		}
+		diffHeaders := make([]*types.Header, len(diffBlocks))
+		for i, block := range diffBlocks {
+			diffHeaders[i] = block.Header()
+		}
+		if _, err := blockchain.InsertHeaderChain(easyHeaders, 1, true); err != nil {
+			t.Fatalf("failed to insert easy chain: %v", err)
+		}
+		if _, err := blockchain.InsertHeaderChain(diffHeaders, 1, true); err != nil {
+			t.Fatalf("failed to insert difficult chain: %v", err)
+		}
+	}
+	// Check that the chain is valid number and link wise
+	if full {
+		prev := blockchain.CurrentBlock()
+		for block := blockchain.GetBlockByNumber(blockchain.CurrentBlock().NumberU64() - 1); block.NumberU64() != 0; prev, block = block, blockchain.GetBlockByNumber(block.NumberU64()-1) {
+			if prev.ParentHash() != block.Hash() {
+				t.Errorf("parent block hash mismatch: have %x, want %x", prev.ParentHash(), block.Hash())
+			}
+		}
+	} else {
+		prev := blockchain.CurrentHeader()
+		for header := blockchain.GetHeaderByNumber(blockchain.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, blockchain.GetHeaderByNumber(header.Number.Uint64()-1) {
+			if prev.ParentHash != header.Hash() {
+				t.Errorf("parent header hash mismatch: have %x, want %x", prev.ParentHash, header.Hash())
+			}
+		}
+	}
+	// Make sure the chain total difficulty is the correct one
+	want := new(big.Int).Add(blockchain.genesisBlock.Difficulty(), big.NewInt(td))
+	if full {
+		if have := blockchain.GetTdByHash(blockchain.CurrentBlock().Hash()); have.Cmp(want) != 0 {
+			t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
+		}
+	} else {
+		if have := blockchain.GetTdByHash(blockchain.CurrentHeader().Hash()); have.Cmp(want) != 0 {
+			t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
+		}
+	}
+}
 
 // Tests that the insertion functions detect banned hashes.
 func TestBadHeaderHashes(t *testing.T) { testBadHashes(t, false) }
@@ -690,6 +943,8 @@ func TestChainTxReorgs(t *testing.T) {
 
 			gen.AddTx(freshDrop) // This transaction will be dropped in the fork from exactly at the split point
 			gen.AddTx(swapped)   // This transaction will be swapped out at the exact height
+
+			gen.OffsetTime(9) // Lower the block difficulty to simulate a weaker chain
 		}
 	})
 	// Import the chain. This runs all block validation rules.
@@ -876,6 +1131,8 @@ func TestLogRebirth(t *testing.T) {
 				t.Fatalf("failed to create tx: %v", err)
 			}
 			gen.AddTx(tx)
+			// Higher block difficulty
+			gen.OffsetTime(-9)
 		}
 	})
 
@@ -967,6 +1224,10 @@ func TestSideLogRebirth(t *testing.T) {
 	blockchain.SubscribeLogsEvent(logsCh)
 
 	chain, _ := GenerateChain(params.TestChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
+		if i == 1 {
+			// Higher block difficulty
+			gen.OffsetTime(-9)
+		}
 	})
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
@@ -1021,6 +1282,9 @@ func TestReorgSideEvent(t *testing.T) {
 
 	replacementBlocks, _ := GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 4, func(i int, gen *BlockGen) {
 		tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, nil), signer, key1)
+		if i == 2 {
+			gen.OffsetTime(-9)
+		}
 		if err != nil {
 			t.Fatalf("failed to create tx: %v", err)
 		}
@@ -1572,6 +1836,7 @@ func TestLowDiffLongChain(t *testing.T) {
 	// until after at least 128 blocks post tip
 	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 6*TriesInMemory, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
+		b.OffsetTime(-9)
 	})
 
 	// Import the canonical chain
@@ -1689,6 +1954,190 @@ func TestPrunedImportSide(t *testing.T) {
 	testSideImport(t, 10, 0)
 	testSideImport(t, 1, 10)
 	testSideImport(t, 1, -10)
+}
+
+func TestInsertKnownHeaders(t *testing.T)      { testInsertKnownChainData(t, "headers") }
+func TestInsertKnownReceiptChain(t *testing.T) { testInsertKnownChainData(t, "receipts") }
+func TestInsertKnownBlocks(t *testing.T)       { testInsertKnownChainData(t, "blocks") }
+
+func testInsertKnownChainData(t *testing.T, typ string) {
+	engine := mockEngine.NewFaker()
+
+	db := rawdb.NewMemoryDatabase()
+	genesis := new(Genesis).MustCommit(db)
+
+	blocks, receipts := GenerateChain(params.TestChainConfig, genesis, engine, db, 32, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+	// A longer chain but total difficulty is lower.
+	blocks2, receipts2 := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], engine, db, 65, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+	// A shorter chain but total difficulty is higher.
+	blocks3, receipts3 := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], engine, db, 64, func(i int, b *BlockGen) {
+		b.SetCoinbase(common.Address{1})
+		b.OffsetTime(-9) // A higher difficulty
+	})
+	// Import the shared chain and the original canonical one
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("failed to create temp freezer dir: %v", err)
+	}
+	defer os.Remove(dir)
+	chaindb, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), dir, "")
+	if err != nil {
+		t.Fatalf("failed to create temp freezer db: %v", err)
+	}
+	new(Genesis).MustCommit(chaindb)
+	defer os.RemoveAll(dir)
+
+	chain, err := NewBlockChain(chaindb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
+	if err != nil {
+		t.Fatalf("failed to create tester chain: %v", err)
+	}
+
+	var (
+		inserter func(blocks []*types.Block, receipts []types.Receipts) error
+		asserter func(t *testing.T, block *types.Block)
+	)
+	if typ == "headers" {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			headers := make([]*types.Header, 0, len(blocks))
+			for _, block := range blocks {
+				headers = append(headers, block.Header())
+			}
+			_, err := chain.InsertHeaderChain(headers, 1, true)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentHeader().Hash() != block.Hash() {
+				t.Fatalf("current head header mismatch, have %v, want %v", chain.CurrentHeader().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	} else if typ == "receipts" {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			headers := make([]*types.Header, 0, len(blocks))
+			for _, block := range blocks {
+				headers = append(headers, block.Header())
+			}
+			_, err := chain.InsertHeaderChain(headers, 1, true)
+			if err != nil {
+				return err
+			}
+			_, err = chain.InsertReceiptChain(blocks, receipts, 0)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentFastBlock().Hash() != block.Hash() {
+				t.Fatalf("current head fast block mismatch, have %v, want %v", chain.CurrentFastBlock().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	} else {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			_, err := chain.InsertChain(blocks)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentBlock().Hash() != block.Hash() {
+				t.Fatalf("current head block mismatch, have %v, want %v", chain.CurrentBlock().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	}
+
+	if err := inserter(blocks, receipts); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+
+	// Reimport the chain data again. All the imported
+	// chain data are regarded "known" data.
+	if err := inserter(blocks, receipts); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	asserter(t, blocks[len(blocks)-1])
+
+	// Import a long canonical chain with some known data as prefix.
+	var rollback []common.Hash
+	for i := len(blocks) / 2; i < len(blocks); i++ {
+		rollback = append(rollback, blocks[i].Hash())
+	}
+	chain.Rollback(rollback, true)
+	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	asserter(t, blocks2[len(blocks2)-1])
+
+	// Import a heavier shorter but higher total difficulty chain with some known data as prefix.
+	if err := inserter(append(blocks, blocks3...), append(receipts, receipts3...)); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	asserter(t, blocks3[len(blocks3)-1])
+
+	// Import a longer but lower total difficulty chain with some known data as prefix.
+	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	// The head shouldn't change.
+	asserter(t, blocks3[len(blocks3)-1])
+
+	// Rollback the heavier chain and re-insert the longer chain again
+	for i := 0; i < len(blocks3); i++ {
+		rollback = append(rollback, blocks3[i].Hash())
+	}
+	chain.Rollback(rollback, true)
+
+	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	asserter(t, blocks2[len(blocks2)-1])
+}
+
+// getLongAndShortChains returns two chains,
+// A is longer, B is heavier
+func getLongAndShortChains() (*BlockChain, []*types.Block, []*types.Block, error) {
+	// Generate a canonical chain to act as the main dataset
+	engine := mockEngine.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+	genesis := new(Genesis).MustCommit(db)
+
+	// Generate and import the canonical chain,
+	// Offset the time, to keep the difficulty low
+	longChain, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 80, func(i int, b *BlockGen) {
+		b.SetCoinbase(common.Address{1})
+	})
+	diskdb := rawdb.NewMemoryDatabase()
+	new(Genesis).MustCommit(diskdb)
+
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create tester chain: %v", err)
+	}
+
+	// Generate fork chain, make it shorter than canon, with common ancestor pretty early
+	parentIndex := 3
+	parent := longChain[parentIndex]
+	heavyChain, _ := GenerateChain(params.TestChainConfig, parent, engine, db, 75, func(i int, b *BlockGen) {
+		b.SetCoinbase(common.Address{2})
+		b.OffsetTime(-9)
+	})
+	// Verify that the test is sane
+	var (
+		longerTd  = new(big.Int)
+		shorterTd = new(big.Int)
+	)
+	for index, b := range longChain {
+		longerTd.Add(longerTd, b.Difficulty())
+		if index <= parentIndex {
+			shorterTd.Add(shorterTd, b.Difficulty())
+		}
+	}
+	for _, b := range heavyChain {
+		shorterTd.Add(shorterTd, b.Difficulty())
+	}
+	if shorterTd.Cmp(longerTd) <= 0 {
+		return nil, nil, nil, fmt.Errorf("Test is moot, heavyChain td (%v) must be larger than canon td (%v)", shorterTd, longerTd)
+	}
+	longerNum := longChain[len(longChain)-1].NumberU64()
+	shorterNum := heavyChain[len(heavyChain)-1].NumberU64()
+	if shorterNum >= longerNum {
+		return nil, nil, nil, fmt.Errorf("Test is moot, heavyChain num (%v) must be lower than canon num (%v)", shorterNum, longerNum)
+	}
+	return chain, longChain, heavyChain, nil
 }
 
 // TestReorgToShorterRemovesCanonMapping tests that if we

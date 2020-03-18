@@ -242,11 +242,10 @@ func TestBrokenHeaderChain(t *testing.T) {
 
 func makeHeaderChainWithDiff(genesis *types.Block, d []int, seed byte) []*types.Header {
 	var chain []*types.Header
-	for i, difficulty := range d {
+	for i, _ := range d {
 		header := &types.Header{
 			Coinbase:    common.Address{seed},
 			Number:      big.NewInt(int64(i + 1)),
-			Difficulty:  big.NewInt(int64(difficulty)),
 			TxHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
 		}

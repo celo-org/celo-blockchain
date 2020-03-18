@@ -310,10 +310,10 @@ func (b *Block) Transaction(hash common.Hash) *Transaction {
 	return nil
 }
 
-func (b *Block) Number() *big.Int { return new(big.Int).Set(b.header.Number) }
-func (b *Block) GasUsed() uint64  { return b.header.GasUsed }
-func (b *Block) Time() uint64     { return b.header.Time }
-
+func (b *Block) Number() *big.Int         { return new(big.Int).Set(b.header.Number) }
+func (b *Block) GasUsed() uint64          { return b.header.GasUsed }
+func (b *Block) Time() uint64             { return b.header.Time }
+func (b *Block) Difficulty() *big.Int     { return new(big.Int).Set(b.header.Number) }
 func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
 func (b *Block) Bloom() Bloom             { return b.header.Bloom }
 func (b *Block) Coinbase() common.Address { return b.header.Coinbase }

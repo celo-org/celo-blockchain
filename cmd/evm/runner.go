@@ -165,9 +165,6 @@ func runCmd(ctx *cli.Context) error {
 		code = common.Hex2Bytes(bin)
 	}
 	initialGas := ctx.GlobalUint64(GasFlag.Name)
-	if genesisConfig.GasLimit != 0 {
-		initialGas = genesisConfig.GasLimit
-	}
 	runtimeConfig := runtime.Config{
 		Origin:      sender,
 		State:       statedb,

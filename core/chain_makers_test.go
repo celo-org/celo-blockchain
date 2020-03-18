@@ -67,6 +67,7 @@ func ExampleGenerateChain() {
 			// Block 3 is empty but was mined by addr3.
 			gen.SetCoinbase(addr3)
 			gen.SetExtra([]byte("yeehaw"))
+		}
 	})
 
 	// Import the chain. This runs all block validation rules.

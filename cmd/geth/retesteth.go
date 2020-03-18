@@ -517,7 +517,7 @@ func (api *RetestethAPI) mineBlock() error {
 			}
 		}
 	}
-	block, err := api.engine.FinalizeAndAssemble(api.blockchain, header, statedb, txs, []*types.Header{}, receipts, nil)
+	block, err := api.engine.FinalizeAndAssemble(api.blockchain, header, statedb, txs, receipts, nil)
 	if err != nil {
 		return err
 	}

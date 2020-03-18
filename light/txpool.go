@@ -381,6 +381,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should supply enough intrinsic gas
+	header := pool.chain.GetHeaderByHash(pool.head)
 	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, header, currentState, tx.FeeCurrency(), pool.istanbul)
 	if err != nil {
 		return err

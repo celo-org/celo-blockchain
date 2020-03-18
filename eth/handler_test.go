@@ -299,6 +299,7 @@ func testGetNodeData(t *testing.T, protocol int) {
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
+		}
 	}
 	// Assemble the test environment
 	pm, db := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil)
@@ -387,6 +388,7 @@ func testGetReceipt(t *testing.T, protocol int) {
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
+		}
 	}
 	// Assemble the test environment
 	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil)
