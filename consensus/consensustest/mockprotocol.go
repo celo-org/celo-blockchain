@@ -21,6 +21,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -143,6 +144,10 @@ func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *ty
 	return types.NewBlock(header, txs, receipts, randomness), nil
 }
 
+func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
+	return common.Address{}, nil
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
 func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
@@ -212,23 +217,23 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Hea
 // 	return sb.verifyAggregatedSeals(chain, header, parents)
 // }
 
-// // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
-// // concurrently. The method returns a quit channel to abort the operations and
-// // a results channel to retrieve the async verifications (the order is that of
-// // the input slice).
-// func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
-// 	abort := make(chan struct{})
-// 	results := make(chan error, len(headers))
-// 	go func() {
-// 		for i, header := range headers {
-// 			err := sb.verifyHeader(chain, header, headers[:i])
+// VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
+// concurrently. The method returns a quit channel to abort the operations and
+// a results channel to retrieve the async verifications (the order is that of
+// the input slice).
+func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+	abort := make(chan struct{})
+	results := make(chan error, len(headers))
+	go func() {
+		for i, header := range headers {
+			err := e.VerifyHeader(chain, header, seals[i])
 
-// 			select {
-// 			case <-abort:
-// 				return
-// 			case results <- err:
-// 			}
-// 		}
-// 	}()
-// 	return abort, results
-// }
+			select {
+			case <-abort:
+				return
+			case results <- err:
+			}
+		}
+	}()
+	return abort, results
+}

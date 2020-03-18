@@ -187,7 +187,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	return w, backend
 }
 
-func testGenerateBlockAndImport(t *testing.T) {
+func TestGenerateBlockAndImport(t *testing.T) {
 	var (
 		engine      consensus.Engine
 		chainConfig *params.ChainConfig
@@ -426,6 +426,7 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	}
 }
 
+// nolint: unused
 func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
@@ -478,6 +479,7 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	}
 }
 
+// nolint: unused
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 

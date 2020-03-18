@@ -17,8 +17,6 @@
 package params
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -149,8 +147,6 @@ const (
 )
 
 var (
-	DurationLimit     = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
-
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
 
 	// Celo registered contract IDs.
