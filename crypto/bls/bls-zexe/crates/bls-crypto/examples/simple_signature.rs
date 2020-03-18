@@ -52,15 +52,15 @@ fn main() {
     println!("sig3: {}", hex::encode(to_bytes!(sig3.get_sig()).unwrap()));
 
     let apk = PublicKey::aggregate(&[
-        &sk1.to_public(),
-        &sk2.to_public(),
-        &sk3.to_public(),
-        &sk3.to_public(),
+        sk1.to_public(),
+        sk2.to_public(),
+        sk3.to_public(),
+        sk3.to_public(),
     ]);
     println!("apk: {}", hex::encode(to_bytes!(apk.get_pk()).unwrap()));
-    let asig1 = Signature::aggregate(&[&sig1, &sig3]);
-    let asig2 = Signature::aggregate(&[&sig2, &sig3]);
-    let asig = Signature::aggregate(&[&asig1, &asig2]);
+    let asig1 = Signature::aggregate(&[sig1, sig3.clone()]);
+    let asig2 = Signature::aggregate(&[sig2, sig3]);
+    let asig = Signature::aggregate(&[asig1, asig2]);
     println!("asig: {}", hex::encode(to_bytes!(asig.get_sig()).unwrap()));
     apk.verify(&message.as_bytes(), &[], &asig, &try_and_increment)
         .unwrap();

@@ -2,8 +2,8 @@ use crate::enforce_maximum_occurrences_in_bitmap;
 use algebra::{PairingEngine, PrimeField, ProjectiveCurve};
 use r1cs_core::{ConstraintSystem, SynthesisError};
 use r1cs_std::{
-    alloc::AllocGadget, boolean::Boolean, eq::EqGadget, fields::FieldGadget, groups::GroupGadget,
-    pairing::PairingGadget, select::CondSelectGadget,
+    alloc::AllocGadget, boolean::Boolean, eq::EqGadget, fields::fp::FpGadget, fields::FieldGadget,
+    groups::GroupGadget, pairing::PairingGadget, select::CondSelectGadget,
 };
 use std::marker::PhantomData;
 
@@ -40,11 +40,11 @@ where
         signed_bitmap: &[Boolean],
         message_hash: &P::G1Gadget,
         signature: &P::G1Gadget,
-        maximum_non_signers: u64,
+        maximum_non_signers: &FpGadget<F>,
     ) -> Result<(), SynthesisError> {
         // Get the message hash and the aggregated public key based on the bitmap
         // and allowed number of non-signers
-        let (prepared_message_hash, prepared_aggregated_pk) = Self::verify_partial(
+        let (prepared_message_hash, prepared_aggregated_pk) = Self::enforce_bitmap_and_prepare(
             cs.ns(|| "verify partial"),
             pub_keys,
             signed_bitmap,
@@ -71,9 +71,38 @@ where
     ///
     /// The verification equation can be found in pg.11 from
     /// https://eprint.iacr.org/2018/483.pdf: "Batch verification"
-    // TODO: This API is a little odd. It should be consistent to take either Prepared or not gadgets,
-    // but not both
     pub fn batch_verify<CS: ConstraintSystem<F>>(
+        mut cs: CS,
+        aggregated_pub_keys: &[P::G2Gadget],
+        message_hashes: &[P::G1Gadget],
+        aggregated_signature: &P::G1Gadget,
+    ) -> Result<(), SynthesisError> {
+        let prepared_message_hashes = message_hashes
+            .iter()
+            .enumerate()
+            .map(|(i, message_hash)| {
+                P::prepare_g1(
+                    cs.ns(|| format!("prepared message hash {}", i)),
+                    &message_hash,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let prepared_aggregated_pub_keys = aggregated_pub_keys
+            .iter()
+            .enumerate()
+            .map(|(i, pubkey)| P::prepare_g2(cs.ns(|| format!("prepared pubkey {}", i)), &pubkey))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Self::batch_verify_prepared(
+            cs,
+            &prepared_aggregated_pub_keys,
+            &prepared_message_hashes,
+            aggregated_signature,
+        )
+    }
+
+    /// Batch verification against prepared messages
+    pub fn batch_verify_prepared<CS: ConstraintSystem<F>>(
         mut cs: CS,
         prepared_aggregated_pub_keys: &[P::G2PreparedGadget],
         prepared_message_hashes: &[P::G1PreparedGadget],
@@ -86,8 +115,8 @@ where
         // Create the vectors which we'll batch verify
         let mut prepared_g1s = vec![prepared_signature];
         let mut prepared_g2s = vec![prepared_g2_neg_generator];
-        prepared_g1s.extend_from_slice(prepared_message_hashes);
-        prepared_g2s.extend_from_slice(prepared_aggregated_pub_keys);
+        prepared_g1s.extend_from_slice(&prepared_message_hashes);
+        prepared_g2s.extend_from_slice(&prepared_aggregated_pub_keys);
 
         // Enforce the BLS check
         // e(σ, g_2^-1) * e(H(m0), pk_0) * e(H(m1), pk_1) ...  * e(H(m_n), pk_n)) == 1_{G_T}
@@ -138,18 +167,45 @@ where
         Ok(prepared_aggregated_pk)
     }
 
+    /// Returns a gadget which checks that an aggregate pubkey is correctly calculated
+    /// by the sum of the pub keys
+    pub fn enforce_aggregated_all_pubkeys<CS: ConstraintSystem<F>>(
+        mut cs: CS,
+        pub_keys: &[P::G2Gadget],
+    ) -> Result<P::G2Gadget, SynthesisError> {
+        // Allocate the G2 Generator
+        let g2_generator = P::G2Gadget::alloc(cs.ns(|| "G2 generator"), || {
+            Ok(E::G2Projective::prime_subgroup_generator())
+        })?;
+
+        // We initialize the Aggregate Public Key as a generator point, in order to
+        // calculate the sum of all keys.
+        // This is needed since we cannot add to a Zero.
+        // After the sum is calculated, we must subtract the generator to get the
+        // correct result
+        let mut aggregated_pk = g2_generator.clone();
+        for (i, pk) in pub_keys.iter().enumerate() {
+            // Add the pubkey to the sum
+            // aggregated_pk += pk
+            aggregated_pk = aggregated_pk.add(&mut cs.ns(|| format!("add pk {}", i)), pk)?;
+        }
+        // Subtract the generator to get the correct aggregate pubkey
+        aggregated_pk = aggregated_pk.sub(cs.ns(|| "add neg generator"), &g2_generator)?;
+
+        Ok(aggregated_pk)
+    }
+
     /// Enforces that the provided bitmap contains no more than `maximum_non_signers`
     /// 0s. Also returns a gadget of the prepared message hash and a gadget for the aggregate public key
     ///
     /// # Panics
     /// If signed_bitmap length != pub_keys length (due to internal call to `enforced_aggregated_pubkeys`)
-    // TODO: The bitmap functionality should be abstracted to a standalone bitmap gadget
-    pub fn verify_partial<CS: ConstraintSystem<F>>(
+    pub fn enforce_bitmap_and_prepare<CS: ConstraintSystem<F>>(
         mut cs: CS,
         pub_keys: &[P::G2Gadget],
         signed_bitmap: &[Boolean],
         message_hash: &P::G1Gadget,
-        maximum_non_signers: u64,
+        maximum_non_signers: &FpGadget<F>,
     ) -> Result<(P::G1PreparedGadget, P::G2PreparedGadget), SynthesisError> {
         enforce_maximum_occurrences_in_bitmap(&mut cs, signed_bitmap, maximum_non_signers, false)?;
 
@@ -202,55 +258,20 @@ where
 #[cfg(test)]
 mod verify_one_message {
     use super::*;
-
-    use rand::SeedableRng;
-    use rand_xorshift::XorShiftRng;
+    use crate::test_helpers::*;
 
     use algebra::{
-        bls12_377::{
-            Bls12_377, Fr as Bls12_377Fr, G1Projective as Bls12_377G1Projective,
-            G2Projective as Bls12_377G2Projective,
-        },
+        bls12_377::{Bls12_377, Fr as Bls12_377Fr, G1Projective, G2Projective},
         sw6::Fr as SW6Fr,
         ProjectiveCurve, UniformRand, Zero,
     };
     use r1cs_core::ConstraintSystem;
     use r1cs_std::{
-        alloc::AllocGadget, bls12_377::PairingGadget as Bls12_377PairingGadget, boolean::Boolean,
+        alloc::AllocGadget,
+        bls12_377::{G1Gadget, PairingGadget as Bls12_377PairingGadget},
+        boolean::Boolean,
         test_constraint_system::TestConstraintSystem,
     };
-
-    // Same RNG for all tests
-    fn rng() -> XorShiftRng {
-        XorShiftRng::from_seed([
-            0x5d, 0xbe, 0x62, 0x59, 0x8d, 0x31, 0x3d, 0x76, 0x32, 0x37, 0xdb, 0x17, 0xe5, 0xbc,
-            0x06, 0x54,
-        ])
-    }
-
-    fn keygen<E: PairingEngine>() -> (E::Fr, E::G2Projective) {
-        let rng = &mut rng();
-        let generator = E::G2Projective::prime_subgroup_generator();
-
-        let secret_key = E::Fr::rand(rng);
-        let pubkey = generator.mul(secret_key);
-        (secret_key, pubkey)
-    }
-
-    // signs a message with a vector of secret keys and returns the list of sigs + the agg sig
-    fn sign<E: PairingEngine>(
-        message_hash: E::G1Projective,
-        secret_keys: &[E::Fr],
-    ) -> (Vec<E::G1Projective>, E::G1Projective) {
-        let sigs = secret_keys
-            .iter()
-            .map(|key| message_hash.mul(*key))
-            .collect::<Vec<_>>();
-        let asig = sigs
-            .iter()
-            .fold(E::G1Projective::zero(), |acc, sig| acc + sig);
-        (sigs, asig)
-    }
 
     // converts the arguments to constraints and checks them against the `verify` function
     fn cs_verify<E: PairingEngine, F: PrimeField, P: PairingGadget<E, F>>(
@@ -278,13 +299,16 @@ mod verify_one_message {
             .map(|b| Boolean::constant(*b))
             .collect::<Vec<_>>();
 
+        let max_occurrences =
+            &FpGadget::<F>::alloc(cs.ns(|| "num non signers"), || Ok(F::from(num_non_signers)))
+                .unwrap();
         BlsVerifyGadget::<E, F, P>::verify(
             cs.ns(|| "verify sig"),
             &pub_keys,
             &bitmap,
             &message_hash_var,
             &signature_var,
-            num_non_signers,
+            &max_occurrences,
         )
         .unwrap();
 
@@ -292,13 +316,54 @@ mod verify_one_message {
     }
 
     #[test]
+    fn batch_verify_ok() {
+        // generate 5 (aggregate sigs, message hash pairs)
+        // verify them all in 1 call
+        let batch_size = 5;
+        let num_keys = 7;
+        let rng = &mut rand::thread_rng();
+
+        // generate some random messages
+        let messages = (0..batch_size)
+            .map(|_| G1Projective::rand(rng))
+            .collect::<Vec<_>>();
+        // keygen for multiple rounds (7 keys per round)
+        let (secret_keys, public_keys_batches) = keygen_batch::<Bls12_377>(batch_size, num_keys);
+        // get the aggregate public key for each rounds
+        let aggregate_pubkeys = public_keys_batches
+            .iter()
+            .map(|pks| sum(pks))
+            .collect::<Vec<_>>();
+        // the keys from each epoch sign the messages from the corresponding epoch
+        let asigs = sign_batch::<Bls12_377>(&secret_keys, &messages);
+        // get the complete aggregate signature
+        let asig = sum(&asigs);
+
+        // allocate the constraints
+        let mut cs = TestConstraintSystem::<SW6Fr>::new();
+        let messages = alloc_vec(&mut cs.ns(|| "messages"), &messages);
+        let aggregate_pubkeys = alloc_vec(&mut cs.ns(|| "aggregate pubkeys"), &aggregate_pubkeys);
+        let asig = G1Gadget::alloc(&mut cs.ns(|| "asig"), || Ok(asig)).unwrap();
+
+        // check that verification is correct
+        BlsVerifyGadget::<Bls12_377, SW6Fr, Bls12_377PairingGadget>::batch_verify(
+            &mut cs,
+            &aggregate_pubkeys,
+            &messages,
+            &asig,
+        )
+        .unwrap();
+        assert!(cs.is_satisfied());
+    }
+
+    #[test]
     // Verifies signatures over BLS12_377 with Sw6 field (384 bits).
     fn one_signature_ok() {
         let (secret_key, pub_key) = keygen::<Bls12_377>();
         let rng = &mut rng();
-        let message_hash = Bls12_377G1Projective::rand(rng);
+        let message_hash = G1Projective::rand(rng);
         let signature = message_hash.mul(secret_key);
-        let fake_signature = Bls12_377G1Projective::rand(rng);
+        let fake_signature = G1Projective::rand(rng);
 
         // good sig passes
         let cs = cs_verify::<Bls12_377, SW6Fr, Bls12_377PairingGadget>(
@@ -309,7 +374,7 @@ mod verify_one_message {
             0,
         );
         assert!(cs.is_satisfied());
-        assert_eq!(cs.num_constraints(), 18281);
+        assert_eq!(cs.num_constraints(), 20516);
 
         // random sig fails
         let cs = cs_verify::<Bls12_377, SW6Fr, Bls12_377PairingGadget>(
@@ -325,7 +390,7 @@ mod verify_one_message {
     #[test]
     fn multiple_signatures_ok() {
         let rng = &mut rng();
-        let message_hash = Bls12_377G1Projective::rand(rng);
+        let message_hash = G1Projective::rand(rng);
         let (sk, pk) = keygen::<Bls12_377>();
         let (sk2, pk2) = keygen::<Bls12_377>();
         let (sigs, asig) = sign::<Bls12_377>(message_hash, &[sk, sk2]);
@@ -374,8 +439,8 @@ mod verify_one_message {
     #[test]
     fn zero_fails() {
         let rng = &mut rng();
-        let message_hash = Bls12_377G1Projective::rand(rng);
-        let generator = Bls12_377G2Projective::prime_subgroup_generator();
+        let message_hash = G1Projective::rand(rng);
+        let generator = G2Projective::prime_subgroup_generator();
 
         // if the first key is a bad one, it should fail, since the pubkey
         // won't be on the curve

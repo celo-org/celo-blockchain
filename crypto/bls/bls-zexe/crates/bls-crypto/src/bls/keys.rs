@@ -78,14 +78,14 @@ impl PrivateKey {
         hash_to_g1: &H,
     ) -> Result<Signature, Box<dyn Error>> {
         Ok(Signature::from_sig(
-            &hash_to_g1
+            hash_to_g1
                 .hash::<Bls12_377Parameters>(domain, message, extra_data)?
                 .mul(self.sk),
         ))
     }
 
     pub fn to_public(&self) -> PublicKey {
-        PublicKey::from_pk(&G2Projective::prime_subgroup_generator().mul(self.sk))
+        PublicKey::from_pk(G2Projective::prime_subgroup_generator().mul(self.sk))
     }
 }
 
@@ -129,8 +129,8 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
-    pub fn from_pk(pk: &G2Projective) -> PublicKey {
-        PublicKey { pk: pk.clone() }
+    pub fn from_pk(pk: G2Projective) -> PublicKey {
+        PublicKey { pk }
     }
 
     pub fn get_pk(&self) -> G2Projective {
@@ -138,10 +138,10 @@ impl PublicKey {
     }
 
     pub fn clone(&self) -> PublicKey {
-        PublicKey::from_pk(&self.pk)
+        PublicKey::from_pk(self.pk)
     }
 
-    pub fn aggregate(public_keys: &[&PublicKey]) -> PublicKey {
+    pub fn aggregate(public_keys: &[PublicKey]) -> PublicKey {
         let mut apk = G2Projective::zero();
         for i in public_keys.iter() {
             apk = apk + &(*i).pk;
@@ -181,7 +181,7 @@ impl PublicKey {
 
         let chosen_y = if y_over_half { bigger } else { smaller };
         let pk = G2Affine::new(x, chosen_y, false);
-        Ok(PublicKey::from_pk(&pk.into_projective()))
+        Ok(PublicKey::from_pk(pk.into_projective()))
     }
 
     pub fn verify<H: HashToG1>(
@@ -287,15 +287,15 @@ pub struct Signature {
 }
 
 impl Signature {
-    pub fn from_sig(sig: &G1Projective) -> Signature {
-        Signature { sig: sig.clone() }
+    pub fn from_sig(sig: G1Projective) -> Signature {
+        Signature { sig }
     }
 
     pub fn get_sig(&self) -> G1Projective {
-        self.sig.clone()
+        self.sig
     }
 
-    pub fn aggregate(signatures: &[&Signature]) -> Signature {
+    pub fn aggregate(signatures: &[Signature]) -> Signature {
         let mut asig = G1Projective::zero();
         for i in signatures.iter() {
             asig = asig + &(*i).sig;
@@ -341,7 +341,7 @@ impl FromBytes for Signature {
         let negy = -y;
         let chosen_y = if (y <= negy) ^ y_over_half { y } else { negy };
         let sig = G1Affine::new(x, chosen_y, false);
-        Ok(Signature::from_sig(&sig.into_projective()))
+        Ok(Signature::from_sig(sig.into_projective()))
     }
 }
 
@@ -392,12 +392,12 @@ impl PublicKeyCache {
         Some(cache.get(data)?.clone())
     }
 
-    pub fn aggregate(public_keys: &[&PublicKey]) -> PublicKey {
+    pub fn aggregate(public_keys: &[PublicKey]) -> PublicKey {
         // The set of validators changes slowly, so for speed we will compute the
         // difference from the last call and do an incremental update
         let mut keys: HashSet<PublicKey> = HashSet::with_capacity(public_keys.len());
-        for key in public_keys.iter() {
-            keys.insert((*key).clone());
+        for key in public_keys {
+            keys.insert(key.clone());
         }
         let mut cache = AGGREGATE_CACHE.lock().unwrap();
         let mut combined = cache.combined;
@@ -412,7 +412,7 @@ impl PublicKeyCache {
 
         cache.keys = keys;
         cache.combined = combined;
-        PublicKey::from_pk(&combined)
+        PublicKey::from_pk(combined)
     }
 }
 
@@ -514,12 +514,13 @@ mod test {
 
         let sig1 = sk1.sign(&message[..], &[], &try_and_increment).unwrap();
         let sig2 = sk2.sign(&message[..], &[], &try_and_increment).unwrap();
+        let sigs = &[sig1, sig2];
 
-        let apk = PublicKeyCache::aggregate(&[&sk1.to_public(), &sk2.to_public()]);
-        let asig = Signature::aggregate(&[&sig1, &sig2]);
+        let apk = PublicKeyCache::aggregate(&[sk1.to_public(), sk2.to_public()]);
+        let asig = Signature::aggregate(sigs);
         apk.verify(&message[..], &[], &asig, &try_and_increment)
             .unwrap();
-        apk.verify(&message[..], &[], &sig1, &try_and_increment)
+        apk.verify(&message[..], &[], &sigs[0], &try_and_increment)
             .unwrap_err();
         sk1.to_public()
             .verify(&message[..], &[], &asig, &try_and_increment)
@@ -528,22 +529,22 @@ mod test {
         apk.verify(&message2[..], &[], &asig, &try_and_increment)
             .unwrap_err();
 
-        let apk2 = PublicKeyCache::aggregate(&[&sk1.to_public()]);
+        let apk2 = PublicKeyCache::aggregate(&[sk1.to_public()]);
         apk2.verify(&message[..], &[], &asig, &try_and_increment)
             .unwrap_err();
-        apk2.verify(&message[..], &[], &sig1, &try_and_increment)
+        apk2.verify(&message[..], &[], &sigs[0], &try_and_increment)
             .unwrap();
 
-        let apk3 = PublicKeyCache::aggregate(&[&sk2.to_public(), &sk1.to_public()]);
+        let apk3 = PublicKeyCache::aggregate(&[sk2.to_public(), sk1.to_public()]);
         apk3.verify(&message[..], &[], &asig, &try_and_increment)
             .unwrap();
-        apk3.verify(&message[..], &[], &sig1, &try_and_increment)
+        apk3.verify(&message[..], &[], &sigs[0], &try_and_increment)
             .unwrap_err();
 
-        let apk4 = PublicKey::aggregate(&[&sk1.to_public(), &sk2.to_public()]);
+        let apk4 = PublicKey::aggregate(&[sk1.to_public(), sk2.to_public()]);
         apk4.verify(&message[..], &[], &asig, &try_and_increment)
             .unwrap();
-        apk4.verify(&message[..], &[], &sig1, &try_and_increment)
+        apk4.verify(&message[..], &[], &sigs[0], &try_and_increment)
             .unwrap_err();
     }
 
