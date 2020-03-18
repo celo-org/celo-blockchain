@@ -235,6 +235,7 @@ func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
 	}
 	return w.ledgerGetPubKeyBLS()
 }
+
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to confirm or deny the message.
 func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
@@ -461,7 +462,7 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 //   public key pk | 192 bytes
 func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 	var (
-		op    = ledgerP1FinalBLSData // hash should be processed in one chunk 
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
 		reply []byte
 		err   error
 	)
@@ -502,7 +503,7 @@ func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
 func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 	// Send the request and wait for the response
 	var (
-		err error
+		err   error
 		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
 		reply []byte
 	)
@@ -518,6 +519,7 @@ func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
 
 	return reply, nil
 }
+
 // ledgerSignData sends the message to the Ledger wallet, and waits for the user
 // to confirm or deny the message.
 //
