@@ -100,6 +100,7 @@ else
 ifeq ("$(CARGO_LIPO_exists)","")
 	cargo install cargo-lipo
 endif
+	# Rust 1.42 dropped support for 32-bit iOS targets, so we use 1.41
 	rustup toolchain install 1.41.0
 	rustup target add --toolchain 1.41.0 aarch64-apple-ios armv7-apple-ios x86_64-apple-ios i386-apple-ios
 	cd $(BLS_RS_PATH) && rustup run 1.41.0 cargo lipo --release --targets=aarch64-apple-ios,armv7-apple-ios,x86_64-apple-ios,i386-apple-ios
