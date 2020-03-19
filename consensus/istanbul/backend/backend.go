@@ -329,7 +329,7 @@ func (sb *Backend) Close() error {
 		if i == 0 {
 			wrappedErr = err
 		} else {
-			wrappedErr = fmt.Errorf("%w; %w", err)
+			wrappedErr = fmt.Errorf("%w; %w", wrappedErr, err)
 		}
 	}
 	return wrappedErr

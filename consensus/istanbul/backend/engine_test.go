@@ -113,7 +113,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(address, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
 
@@ -204,7 +204,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
-			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
+			b.Authorize(address, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 			break
 		}
 	}

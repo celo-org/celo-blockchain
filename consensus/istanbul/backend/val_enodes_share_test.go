@@ -31,7 +31,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	b.Authorize(getAddress(), signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(getAddress(), decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	// Set the backend's proxied validator address to itself
 	b.config.ProxiedValidatorAddress = senderAddress

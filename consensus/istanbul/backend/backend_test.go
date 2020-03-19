@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
@@ -238,6 +239,12 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
+func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+	ecdsaKey, _ := generatePrivateKey()
+	eciesKey := ecies.ImportECDSA(ecdsaKey)
+	return eciesKey.Decrypt(c, s1, s2)
+}
+
 func signerFn(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	key, _ := generatePrivateKey()
 	return crypto.Sign(crypto.Keccak256(data), key)
@@ -299,6 +306,6 @@ func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 	return
 }
