@@ -649,6 +649,13 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 
 	sb.coreStarted = true
 
+	// coreStarted must be true by this point for validator peers to be successfully added
+	if !sb.config.Proxied {
+		if err := sb.RefreshValPeers(); err != nil {
+			sb.logger.Warn("Error refreshing validator peers", "err", err)
+		}
+	}
+
 	return nil
 }
 

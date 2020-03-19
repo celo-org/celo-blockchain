@@ -76,13 +76,20 @@ func (vph *validatorPeerHandler) thread() {
 
 	refreshValidatorPeersTicker := time.NewTicker(5 * time.Minute)
 
+	refreshValPeersFunc := func() {
+		if vph.MaintainValConnections() {
+			if err := vph.sb.RefreshValPeers(); err != nil {
+				vph.sb.logger.Warn("Error refreshing validator peers", "err", err)
+			}
+		}
+	}
+
+	refreshValPeersFunc()
 	// Every 5 minute, check to see if we need to refresh the validator peers
 	for {
 		select {
 		case <-refreshValidatorPeersTicker.C:
-			if vph.MaintainValConnections() {
-				vph.sb.RefreshValPeers()
-			}
+			refreshValPeersFunc()
 
 		case <-vph.threadQuit:
 			refreshValidatorPeersTicker.Stop()

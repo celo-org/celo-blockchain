@@ -848,20 +848,20 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
 // being added or removed is already added or removed, then a no-op will be done.
-func (sb *Backend) RefreshValPeers() {
+func (sb *Backend) RefreshValPeers() error {
 	logger := sb.logger.New("func", "RefreshValPeers")
 	logger.Trace("Called RefreshValPeers")
 
 	if sb.broadcaster == nil {
-		return
+		return errors.New("Broadcaster is not set")
 	}
 
 	valConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
-		sb.valEnodeTable.RefreshValPeers(valConnSet, sb.ValidatorAddress())
-	} else {
-		logger.Error("Error in retrieving validator connection set", "err", err)
+		return err
 	}
+	sb.valEnodeTable.RefreshValPeers(valConnSet, sb.ValidatorAddress())
+	return nil
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {

@@ -100,7 +100,7 @@ type Backend interface {
 	ParentBlockValidators(proposal Proposal) ValidatorSet
 
 	// RefreshValPeers will connect with all the validators in the validator connection set and disconnect validator peers that are not in the set
-	RefreshValPeers()
+	RefreshValPeers() error
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
