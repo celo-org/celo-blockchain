@@ -81,7 +81,7 @@ func (sb *Backend) announceThread() {
 	var err error
 
 	updateAnnounceVersionFunc := func() {
-		version := newAnnounceVersion()
+		version := getTimestamp()
 		if version <= announceVersion {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
 			return
@@ -263,13 +263,13 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 // define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
 type announceRegossip struct {
-	Time    time.Time
-	Version uint
+	Time         time.Time
+	MsgTimestamp uint // the Timestamp field of the regossiped announce msg
 }
 
 type scheduledAnnounceRegossip struct {
-	Timer   *time.Timer
-	Version uint
+	Timer        *time.Timer
+	MsgTimestamp uint // the Timestamp field of the announce msg to regossip
 }
 
 type announceRecord struct {
@@ -284,10 +284,13 @@ func (ar *announceRecord) String() string {
 type announceData struct {
 	AnnounceRecords []*announceRecord
 	Version         uint
+	// The timestamp of the node when the message is generated.
+	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
+	Timestamp uint
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{Version: %v, AnnounceRecords: %v}", ad.Version, ad.AnnounceRecords)
+	return fmt.Sprintf("{Version: %v, Timestamp: %v, AnnounceRecords: %v}", ad.Version, ad.Timestamp, ad.AnnounceRecords)
 }
 
 // ==============================================
@@ -315,7 +318,7 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
 func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.Version})
+	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.Version, ad.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
@@ -323,12 +326,13 @@ func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
 		Version         uint
+		Timestamp       uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.Version = msg.AnnounceRecords, msg.Version
+	ad.AnnounceRecords, ad.Version, ad.Timestamp = msg.AnnounceRecords, msg.Version, msg.Timestamp
 	return nil
 }
 
@@ -392,6 +396,7 @@ func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, error) {
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
 		Version:         version,
+		Timestamp:       getTimestamp(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
@@ -624,34 +629,33 @@ func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *ann
 
 // scheduleAnnounceRegossip schedules a regossip for an announce message after
 // its cooldown period. If one is already scheduled, it's overwritten.
-func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersion uint, payload []byte) error {
-	logger := sb.logger.New("func", "scheduleAnnounceRegossip", "msg address", msg.Address)
+func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
+	logger := sb.logger.New("func", "scheduleAnnounceRegossip", "msg address", msg.Address, "msg timestamp", msgTimestamp)
 	sb.scheduledAnnounceRegossipsMu.Lock()
 	defer sb.scheduledAnnounceRegossipsMu.Unlock()
 
-	// If another announce version regossip has been scheduled for the message
-	// address already, cancel it
+	// If another regossip has been scheduled for the message address already, cancel it
 	if scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]; scheduledRegossip != nil {
 		scheduledRegossip.Timer.Stop()
 	}
 
 	sb.lastAnnounceGossipedMu.RLock()
-	versionedGossipTime := sb.lastAnnounceGossiped[msg.Address]
-	if versionedGossipTime == nil {
+	lastGossip := sb.lastAnnounceGossiped[msg.Address]
+	if lastGossip == nil {
 		logger.Debug("Last announce gossiped not found")
 		sb.lastAnnounceGossipedMu.RUnlock()
 		return nil
 	}
-	scheduledTime := versionedGossipTime.Time.Add(announceGossipCooldownDuration)
+	scheduledTime := lastGossip.Time.Add(announceGossipCooldownDuration)
 	sb.lastAnnounceGossipedMu.RUnlock()
 
 	duration := time.Until(scheduledTime)
 	// If by this time the cooldown period has ended, just regossip
 	if duration < 0 {
-		return sb.regossipAnnounce(msg, announceVersion, payload, true)
+		return sb.regossipAnnounce(msg, msgTimestamp, payload, true)
 	}
 	regossipFunc := func() {
-		if err := sb.regossipAnnounce(msg, announceVersion, payload, true); err != nil {
+		if err := sb.regossipAnnounce(msg, msgTimestamp, payload, true); err != nil {
 			logger.Debug("Error in scheduled announce regossip", "err", err)
 		}
 		sb.scheduledAnnounceRegossipsMu.Lock()
@@ -659,8 +663,8 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersi
 		sb.scheduledAnnounceRegossipsMu.Unlock()
 	}
 	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledAnnounceRegossip{
-		Timer:   time.AfterFunc(duration, regossipFunc),
-		Version: announceVersion,
+		Timer:        time.AfterFunc(duration, regossipFunc),
+		MsgTimestamp: msgTimestamp,
 	}
 	return nil
 }
@@ -674,25 +678,28 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, announceVersi
 // enforce the cooldown period for future messages originating from the origin validator.
 // This could result in new legitimate announce messages from the origin validator
 // not being regossiped due to the cooldown period enforced by the other nodes in
-// the network.
+// the network. This is somewhat circumvented by caching the hashes of messages that
+// are regossiped to prevent future regossips, but this isn't guaranteed fails to
+// account for situations when an announcing node expects a message to be
+// gossiped out but gets rejected due to a cooldown period.
 // To ensure that a new legitimate message will eventually be gossiped to the rest
-// of the network, we schedule an announce message with a new version that is
+// of the network, we schedule an announce message with a new timestamp that is
 // received during the cooldown period to be sent after the cooldown period ends,
-// and refuse to regossip old messages from the validator during that time.
+// and refuse to regossip older messages from the validator during that time.
 // Providing `force` as true will skip any of the DOS checks.
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint, payload []byte, force bool) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address, "announceVersion", announceVersion)
+func (sb *Backend) regossipAnnounce(msg *istanbul.Message, msgTimestamp uint, payload []byte, force bool) error {
+	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
 
 	if !force {
 		sb.scheduledAnnounceRegossipsMu.RLock()
 		scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]
 		// if a regossip for this msg address has been scheduled already, override
-		// the scheduling if this version is newer. Otherwise, don't regossip this message
+		// the scheduling if this Timestamp is newer. Otherwise, don't regossip this message
 		// and let the scheduled regossip occur.
 		if scheduledRegossip != nil {
-			if announceVersion > scheduledRegossip.Version {
+			if msgTimestamp > scheduledRegossip.MsgTimestamp {
 				sb.scheduledAnnounceRegossipsMu.RUnlock()
-				return sb.scheduleAnnounceRegossip(msg, announceVersion, payload)
+				return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
 			}
 			sb.scheduledAnnounceRegossipsMu.RUnlock()
 			logger.Debug("Announce message is not greater than scheduled regossip version, not regossiping")
@@ -703,12 +710,12 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint,
 		sb.lastAnnounceGossipedMu.RLock()
 		if lastGossiped, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
 			if time.Since(lastGossiped.Time) < announceGossipCooldownDuration {
-				// If this version is newer than the previously regossiped one,
+				// If this timestamp is newer than the previously regossiped one,
 				// schedule it to be regossiped once the cooldown period is over
-				if lastGossiped.Version < announceVersion {
+				if lastGossiped.MsgTimestamp < msgTimestamp {
 					sb.lastAnnounceGossipedMu.RUnlock()
 					logger.Trace("Already regossiped msg from this source address with an older announce version within the cooldown period, scheduling regossip for after the cooldown")
-					return sb.scheduleAnnounceRegossip(msg, announceVersion, payload)
+					return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
 				}
 				sb.lastAnnounceGossipedMu.RUnlock()
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
@@ -724,8 +731,8 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, announceVersion uint,
 	}
 
 	sb.lastAnnounceGossiped[msg.Address] = &announceRegossip{
-		Time:    time.Now(),
-		Version: announceVersion,
+		Time:         time.Now(),
+		MsgTimestamp: msgTimestamp,
 	}
 
 	return nil
@@ -1038,7 +1045,7 @@ func (sb *Backend) getEnodeURL() (string, error) {
 	return sb.p2pserver.Self().URLv4(), nil
 }
 
-func newAnnounceVersion() uint {
+func getTimestamp() uint {
 	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 	return uint(time.Now().Unix())
 }
