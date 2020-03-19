@@ -649,13 +649,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 
 	sb.coreStarted = true
 
-	// coreStarted must be true by this point for validator peers to be successfully added
-	if !sb.config.Proxied {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
-		sb.RefreshValPeers(valset)
-	}
-
 	return nil
 }
 
@@ -686,7 +679,6 @@ func (sb *Backend) StopValidating() error {
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
@@ -694,6 +686,13 @@ func (sb *Backend) StartAnnouncing() error {
 	go sb.announceThread()
 
 	sb.announceRunning = true
+	sb.announceMu.Unlock()
+
+	if err := sb.vph.startThread(); err != nil {
+		sb.StopAnnouncing()
+		return err
+	}
+
 	return nil
 }
 
@@ -710,7 +709,8 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceThreadWg.Wait()
 
 	sb.announceRunning = false
-	return nil
+
+	return sb.vph.stopThread()
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,

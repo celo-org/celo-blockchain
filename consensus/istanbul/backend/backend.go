@@ -134,8 +134,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	vph := &validatorPeerHandler{sb: backend}
-	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	backend.vph = newVPH(backend)
+	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -262,6 +262,8 @@ type Backend struct {
 	updatingCachedValidatorConnSet     bool
 	updatingCachedValidatorConnSetErr  error
 	updatingCachedValidatorConnSetCond *sync.Cond
+
+	vph *validatorPeerHandler
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -846,14 +848,20 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
 // being added or removed is already added or removed, then a no-op will be done.
-func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
-	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+func (sb *Backend) RefreshValPeers() {
+	logger := sb.logger.New("func", "RefreshValPeers")
+	logger.Trace("Called RefreshValPeers")
 
 	if sb.broadcaster == nil {
 		return
 	}
 
-	sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
+	valConnSet, err := sb.retrieveValidatorConnSet()
+	if err != nil {
+		sb.valEnodeTable.RefreshValPeers(valConnSet, sb.ValidatorAddress())
+	} else {
+		logger.Error("Error in retrieving validator connection set", "err", err)
+	}
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
@@ -864,16 +872,6 @@ func (sb *Backend) ValidatorAddress() common.Address {
 		localAddress = sb.Address()
 	}
 	return localAddress
-}
-
-func (sb *Backend) ConnectToVals() {
-	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
-	// for non proxied validators
-	if sb.config.Proxy {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
-		sb.RefreshValPeers(valset)
-	}
 }
 
 // retrieveValidatorConnSet returns the cached validator conn set if the cache

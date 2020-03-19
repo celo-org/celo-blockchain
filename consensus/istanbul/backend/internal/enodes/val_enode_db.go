@@ -26,7 +26,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -303,16 +302,16 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	return vet.db.Write(batch, nil)
 }
 
-func (vet *ValidatorEnodeDB) RefreshValPeers(valset istanbul.ValidatorSet, ourAddress common.Address) {
+func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool, ourAddress common.Address) {
 	// We use a R lock since we don't modify levelDB table
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 
-	if valset.ContainsByAddress(ourAddress) {
+	if valConnSet[ourAddress] {
 		// transform address to enodeURLs
 		newNodes := []*enode.Node{}
-		for _, val := range valset.List() {
-			entry, err := vet.getAddressEntry(val.Address())
+		for val := range valConnSet {
+			entry, err := vet.getAddressEntry(val)
 			if err == nil {
 				newNodes = append(newNodes, entry.Node)
 			} else if err != leveldb.ErrNotFound {

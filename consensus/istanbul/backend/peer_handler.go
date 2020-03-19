@@ -17,13 +17,78 @@
 package backend
 
 import (
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 type validatorPeerHandler struct {
 	sb *Backend
+
+	threadRunning   bool
+	threadRunningMu sync.RWMutex
+	threadWg        *sync.WaitGroup
+	threadQuit      chan struct{}
+}
+
+func newVPH(sb *Backend) *validatorPeerHandler {
+	return &validatorPeerHandler{
+		sb:         sb,
+		threadWg:   new(sync.WaitGroup),
+		threadQuit: make(chan struct{}),
+	}
+}
+
+func (vph *validatorPeerHandler) startThread() error {
+	vph.threadRunningMu.Lock()
+	defer vph.threadRunningMu.Unlock()
+	if vph.threadRunning {
+		return istanbul.ErrStartedVPHThread
+	}
+
+	go vph.thread()
+
+	return nil
+}
+
+func (vph *validatorPeerHandler) stopThread() error {
+	vph.threadRunningMu.Lock()
+	defer vph.threadRunningMu.Unlock()
+
+	if !vph.threadRunning {
+		return istanbul.ErrStoppedVPHThread
+	}
+
+	vph.threadQuit <- struct{}{}
+	vph.threadWg.Wait()
+
+	vph.threadRunning = false
+	return nil
+}
+
+func (vph *validatorPeerHandler) thread() {
+	vph.threadWg.Add(1)
+	defer vph.threadWg.Done()
+
+	refreshValidatorPeersTicker := time.NewTicker(5 * time.Minute)
+
+	// Every 5 minute, check to see if we need to refresh the validator peers
+	for {
+		select {
+		case <-refreshValidatorPeersTicker.C:
+			if vph.MaintainValConnections() {
+				vph.sb.RefreshValPeers()
+			}
+
+		case <-vph.threadQuit:
+			refreshValidatorPeersTicker.Stop()
+			return
+		}
+	}
 }
 
 // Returns whether this node should maintain validator connections
@@ -39,10 +104,12 @@ func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address comm
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
-
-	block := vph.sb.currentBlock()
-	valSet := vph.sb.getValidators(block.Number().Uint64(), block.Hash())
-	if valSet.ContainsByAddress(address) && valSet.ContainsByAddress(vph.sb.ValidatorAddress()) {
+	valConnSet, err := vph.sb.retrieveValidatorConnSet()
+	if err != nil {
+		vph.sb.logger.Error("Error in retrieving val conn set in AddValidatorPeer", "err", err)
+		return
+	}
+	if valConnSet[address] && valConnSet[vph.sb.ValidatorAddress()] {
 		vph.sb.p2pserver.AddPeer(node, p2p.ValidatorPurpose)
 		vph.sb.p2pserver.AddTrustedPeer(node, p2p.ValidatorPurpose)
 	}
