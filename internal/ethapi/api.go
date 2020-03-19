@@ -94,6 +94,10 @@ func (s *PublicEthereumAPI) Syncing() (interface{}, error) {
 	}, nil
 }
 
+func (s *PublicEthereumAPI) SyncBusy() bool {
+	return s.b.Downloader().Synchronising()
+}
+
 // PublicTxPoolAPI offers and API for the transaction pool. It only operates on data that is non confidential.
 type PublicTxPoolAPI struct {
 	b Backend

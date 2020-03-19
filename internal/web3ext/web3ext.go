@@ -557,6 +557,10 @@ web3._extend({
 				return formatted;
 			}
 		}),
+		new web3._extend.Property({
+			name: 'syncBusy',
+			getter: 'eth_syncBusy'
+		}),
 	]
 });
 `
