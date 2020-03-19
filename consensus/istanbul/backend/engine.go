@@ -533,7 +533,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	if sb.badBlock() {
 		// Generate bad transactions
 		tx := types.NewTransaction(uint64(100), common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, &common.Address{}, big.NewInt(50), nil)
-		block.WithBody([]*types.Transaction{tx}, nil, nil)
+		block.WithBody([]*types.Transaction{tx}, nil, nil, nil)
 	}
 
 	// get the proposed block hash and clear it if the seal() is completed.
