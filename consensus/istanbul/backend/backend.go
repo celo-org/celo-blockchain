@@ -466,14 +466,14 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 
 	// Only cache for the announceMsg, as that is the only message that is gossiped.
 	var hash common.Hash
-	if ethMsgCode == istanbulAnnounceMsg {
+	if sb.isGossipedMsgCode(ethMsgCode) {
 		hash = istanbul.RLPHash(payload)
 		sb.selfRecentMessages.Add(hash, true)
 	}
 
 	if len(peers) > 0 {
 		for _, p := range peers {
-			if ethMsgCode == istanbulAnnounceMsg {
+			if sb.isGossipedMsgCode(ethMsgCode) {
 				nodePubKey := p.Node().Pubkey()
 				nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
 				ms, ok := sb.peerRecentMessages.Get(nodeAddr)

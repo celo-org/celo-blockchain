@@ -60,6 +60,10 @@ func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
 }
 
+func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
+	return msgCode == istanbulAnnounceMsg || msgCode == istanbulSignedAnnounceVersionsMsg
+}
+
 type announceMsgHandler func(consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
@@ -88,9 +92,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for the
-		// Announce message.  That is the only message that is gossiped.
-		if msg.Code == istanbulAnnounceMsg {
+		// Only use the recent messages and known messages cache for messages
+		// that are gossiped
+		if sb.isGossipedMsgCode(msg.Code) {
 			hash := istanbul.RLPHash(data)
 
 			// Mark peer's message
