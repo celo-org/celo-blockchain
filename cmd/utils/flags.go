@@ -1861,9 +1861,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
-	if ctx.GlobalString(SyncModeFlag.Name) == "lightest" {
-		config.FullHeaderChainAvailable = false
-	}
+	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
 	if err != nil {
 		Fatalf("%v", err)
 	}
