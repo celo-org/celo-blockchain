@@ -1122,13 +1122,13 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message.
-// At the moment, this message is only supported if it's sent from a proxied
-// validator to its proxy or vice versa. If the message is sent by the proxy
-// to the proxied validator, the proxy is forwarding an enodeCertificate to the
-// proxied validator.
-// If a message is sent by a proxied validator to its proxy, it is either
-// sending its own enodeCertificate that can be used during handshakes, or sending
-// an enodeCertificate to a proxy that was forwarded by a proxy before.
+// If this node is a proxy and the enode certificate is from a remote validator
+// (ie not the proxied validator), this node will forward the enode certificate
+// to its proxied validator. If the proxied validator decides this node should process
+// the enode certificate and upsert it into its val enode table, the proxied validator
+// will send it back to this node.
+// If the proxied validator sends an enode certificate for itself to this node,
+// this node will set the enode certificate as its own for handshaking.
 func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
@@ -1154,27 +1154,39 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
-
-	// Handle the special case where this node is a proxy and the proxied validator sent the msg
-	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
-		existingVersion := sb.getEnodeCertificateMsgVersion()
-		if enodeCertificate.Version < existingVersion {
-			logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
-			return errors.New("Version too low")
+	if sb.config.Proxy && sb.proxiedPeer != nil {
+		if sb.proxiedPeer.Node().ID() == peer.Node().ID() {
+			// if this message is from the proxied peer and contains the proxied
+			// validator's enodeCertificate, save it for handshake use
+			if msg.Address == sb.config.ProxiedValidatorAddress {
+				existingVersion := sb.getEnodeCertificateMsgVersion()
+				if enodeCertificate.Version < existingVersion {
+					logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
+					return errors.New("Version too low")
+				}
+				// There may be a difference in the URLv4 string because of `discport`,
+				// so instead compare the ID
+				selfNode := sb.p2pserver.Self()
+				if parsedNode.ID() != selfNode.ID() {
+					logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+					return errors.New("Incorrect enode url")
+				}
+				if err := sb.setEnodeCertificateMsg(&msg); err != nil {
+					logger.Warn("Error setting enode certificate msg", "err", err)
+					return err
+				}
+				return nil
+			}
+		} else {
+			// If this message is not from the proxied validator, send it to the
+			// proxied validator without upserting it in this node. If the validator
+			// decides this proxy should upsert the enodeCertificate, then it
+			// will send it back to this node.
+			if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
+				logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
+			}
+			return nil
 		}
-		// There may be a difference in the URLv4 string because of `discport`,
-		// so instead compare the ID
-		selfNode := sb.p2pserver.Self()
-		if parsedNode.ID() != selfNode.ID() {
-			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-			return errors.New("Incorrect enode url")
-		}
-		if err := sb.setEnodeCertificateMsg(&msg); err != nil {
-			logger.Warn("Error setting enode certificate msg", "err", err)
-			return err
-		}
-		return nil
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
