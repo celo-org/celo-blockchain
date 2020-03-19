@@ -59,56 +59,56 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		return crypto.Sign(crypto.Keccak256(data), nodeKeys[0])
 	}
 
-	signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+	signerBLSHashFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
 		key := nodeKeys[0]
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(data, []byte{}, false)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
-		return signatureBytes, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
-	signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
+	signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 		key := nodeKeys[0]
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(data, extraData, true)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
-		return signatureBytes, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	b, _ := New(config, memDB).(*Backend)
@@ -128,6 +128,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		})
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer())
+	b.StartAnnouncing()
 	b.StartValidating(blockchain.HasBadBlock,
 		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
@@ -135,7 +136,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 		})
-	b.StartAnnouncing()
 	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
@@ -153,54 +153,54 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 			signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 				return crypto.Sign(data, key)
 			}
-			signerBLSHashFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+			signerBLSHashFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
 				privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 
 				privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 				defer privateKey.Destroy()
 
 				signature, err := privateKey.SignMessage(data, []byte{}, false)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 				defer signature.Destroy()
 				signatureBytes, err := signature.Serialize()
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 
-				return signatureBytes, nil
+				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
-			signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) ([]byte, error) {
+			signerBLSMessageFn := func(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 				privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 
 				privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 				defer privateKey.Destroy()
 
 				signature, err := privateKey.SignMessage(data, extraData, true)
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 				defer signature.Destroy()
 				signatureBytes, err := signature.Serialize()
 				if err != nil {
-					return nil, err
+					return blscrypto.SerializedSignature{}, err
 				}
 
-				return signatureBytes, nil
+				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
 			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
@@ -285,6 +285,9 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	}
 	engine.Finalize(chain, header, state, nil, nil)
 	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
+	if err != nil {
+		fmt.Printf("Error!! %v\n", err)
+	}
 	return block
 }
 
@@ -367,7 +370,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 		if !ok {
 			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 		}
-		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{})
+		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
@@ -660,31 +663,30 @@ func TestPrepareExtra(t *testing.T) {
 	oldValidators := make([]istanbul.ValidatorData, 2)
 	oldValidators[0] = istanbul.ValidatorData{
 		Address:      common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 	oldValidators[1] = istanbul.ValidatorData{
 		Address:      common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
-		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 
 	newValidators := make([]istanbul.ValidatorData, 2)
 	newValidators[0] = istanbul.ValidatorData{
 		Address:      common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 	newValidators[1] = istanbul.ValidatorData{
 		Address:      common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
-		BLSPublicKey: make([]byte, blscrypto.PUBLICKEYBYTES),
+		BLSPublicKey: blscrypto.SerializedPublicKey{},
 	}
 
 	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(0),
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	})
 	if err != nil {
 		t.Errorf("error: %v", err)
@@ -731,12 +733,11 @@ func TestWriteSeal(t *testing.T) {
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
-		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
 	if err != nil {
@@ -786,12 +787,11 @@ func TestWriteAggregatedSeal(t *testing.T) {
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
 	if err != nil {

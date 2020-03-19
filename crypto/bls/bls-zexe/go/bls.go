@@ -20,6 +20,8 @@ const SIGNATUREBYTES = 48
 var GeneralError = errors.New("General error")
 var NotVerifiedError = errors.New("Not verified")
 var IncorrectSizeError = errors.New("Input had incorrect size")
+var NilPointerError = errors.New("Pointer was nil")
+var EmptySliceError = errors.New("Slice was empty")
 
 func validatePrivateKey(privateKey []byte) error {
 	if len(privateKey) != PRIVATEKEYBYTES {
@@ -86,8 +88,10 @@ func DeserializePrivateKey(privateKeyBytes []byte) (*PrivateKey, error) {
 		return nil, err
 	}
 
+	privateKeyPtr, privateKeyLen := sliceToPtr(privateKeyBytes)
+
 	privateKey := &PrivateKey{}
-	success := C.deserialize_private_key((*C.uchar)(unsafe.Pointer(&privateKeyBytes[0])), C.int(len(privateKeyBytes)), &privateKey.ptr)
+	success := C.deserialize_private_key(privateKeyPtr, privateKeyLen, &privateKey.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -130,7 +134,7 @@ func (self *PrivateKey) SignMessage(message []byte, extraData []byte, shouldUseC
 	return signature, nil
 }
 
-func (self *PrivateKey) SignPoP(message []byte, ) (*Signature, error) {
+func (self *PrivateKey) SignPoP(message []byte) (*Signature, error) {
 	signature := &Signature{}
 	messagePtr, messageLen := sliceToPtr(message)
 	success := C.sign_pop(self.ptr, messagePtr, messageLen, &signature.ptr)
@@ -139,6 +143,56 @@ func (self *PrivateKey) SignPoP(message []byte, ) (*Signature, error) {
 	}
 
 	return signature, nil
+}
+
+func HashDirect(message []byte, usePoP bool) ([]byte, error) {
+	messagePtr, messageLen := sliceToPtr(message)
+	var hashPtr *C.uchar
+	var hashLen C.int
+	success := C.hash_direct(messagePtr, messageLen, &hashPtr, &hashLen, C.bool(usePoP))
+	defer C.free_vec(hashPtr, hashLen)
+	if !success {
+		return nil, GeneralError
+	}
+	hash := C.GoBytes(unsafe.Pointer(hashPtr), hashLen)
+	return hash, nil
+}
+
+func HashComposite(message []byte, extraData []byte) ([]byte, error) {
+	messagePtr, messageLen := sliceToPtr(message)
+	extraDataPtr, extraDataLen := sliceToPtr(extraData)
+	var hashLen C.int
+	var hashPtr *C.uchar
+	success := C.hash_composite(messagePtr, messageLen, extraDataPtr, extraDataLen, &hashPtr, &hashLen)
+	if !success {
+		return nil, GeneralError
+	}
+	hash := C.GoBytes(unsafe.Pointer(hashPtr), hashLen)
+	return hash, nil
+}
+
+func CompressSignature(signature []byte) ([]byte, error) {
+	signaturePtr, signatureLen := sliceToPtr(signature)
+	var compressedLen C.int
+	var compressedPtr *C.uchar
+	success := C.compress_signature(signaturePtr, signatureLen, &compressedPtr, &compressedLen)
+	if !success {
+		return nil, GeneralError
+	}
+	compressedSignature := C.GoBytes(unsafe.Pointer(compressedPtr), compressedLen)
+	return compressedSignature, nil
+}
+
+func CompressPublickey(pubkey []byte) ([]byte, error) {
+	pubkeyPtr, pubkeyLen := sliceToPtr(pubkey)
+	var compressedLen C.int
+	var compressedPtr *C.uchar
+	success := C.compress_pubkey(pubkeyPtr, pubkeyLen, &compressedPtr, &compressedLen)
+	if !success {
+		return nil, GeneralError
+	}
+	compressedPubkey := C.GoBytes(unsafe.Pointer(compressedPtr), compressedLen)
+	return compressedPubkey, nil
 }
 
 func (self *PrivateKey) Destroy() {
@@ -151,8 +205,10 @@ func DeserializePublicKey(publicKeyBytes []byte) (*PublicKey, error) {
 		return nil, err
 	}
 
+	publicKeyPtr, publicKeyLen := sliceToPtr(publicKeyBytes)
+
 	publicKey := &PublicKey{}
-	success := C.deserialize_public_key((*C.uchar)(unsafe.Pointer(&publicKeyBytes[0])), C.int(len(publicKeyBytes)), &publicKey.ptr)
+	success := C.deserialize_public_key(publicKeyPtr, publicKeyLen, &publicKey.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -179,6 +235,10 @@ func (self *PublicKey) Destroy() {
 func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signature *Signature, shouldUseCompositeHasher bool) error {
 	var verified C.bool
 
+	if signature == nil {
+		return NilPointerError
+	}
+
 	messagePtr, messageLen := sliceToPtr(message)
 	extraDataPtr, extraDataLen := sliceToPtr(extraData)
 
@@ -195,6 +255,11 @@ func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signatu
 
 func (self *PublicKey) VerifyPoP(message []byte, signature *Signature) error {
 	var verified C.bool
+
+	if signature == nil {
+		return NilPointerError
+	}
+
 	messagePtr, messageLen := sliceToPtr(message)
 	success := C.verify_pop(self.ptr, messagePtr, messageLen, signature.ptr, &verified)
 	if !success {
@@ -213,8 +278,10 @@ func DeserializeSignature(signatureBytes []byte) (*Signature, error) {
 		return nil, err
 	}
 
+	signaturePtr, signatureLen := sliceToPtr(signatureBytes)
+
 	signature := &Signature{}
-	success := C.deserialize_signature((*C.uchar)(unsafe.Pointer(&signatureBytes[0])), C.int(len(signatureBytes)), &signature.ptr)
+	success := C.deserialize_signature(signaturePtr, signatureLen, &signature.ptr)
 	if !success {
 		return nil, GeneralError
 	}
@@ -238,8 +305,15 @@ func (self *Signature) Destroy() {
 }
 
 func AggregatePublicKeys(publicKeys []*PublicKey) (*PublicKey, error) {
+	if len(publicKeys) == 0 {
+		return nil, EmptySliceError
+	}
+
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range publicKeys {
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	aggregatedPublicKey := &PublicKey{}
@@ -252,8 +326,19 @@ func AggregatePublicKeys(publicKeys []*PublicKey) (*PublicKey, error) {
 }
 
 func AggregatePublicKeysSubtract(aggregatedPublicKey *PublicKey, publicKeys []*PublicKey) (*PublicKey, error) {
+	if aggregatedPublicKey == nil {
+		return nil, NilPointerError
+	}
+
+	if len(publicKeys) == 0 {
+		return nil, EmptySliceError
+	}
+
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range publicKeys {
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	subtractedPublicKey := &PublicKey{}
@@ -266,9 +351,16 @@ func AggregatePublicKeysSubtract(aggregatedPublicKey *PublicKey, publicKeys []*P
 }
 
 func AggregateSignatures(signatures []*Signature) (*Signature, error) {
+	if len(signatures) == 0 {
+		return nil, EmptySliceError
+	}
+
 	signaturesPtrs := []*C.struct_Signature{}
-	for _, pk := range signatures {
-		signaturesPtrs = append(signaturesPtrs, pk.ptr)
+	for _, sig := range signatures {
+		if sig == nil {
+			return nil, NilPointerError
+		}
+		signaturesPtrs = append(signaturesPtrs, sig.ptr)
 	}
 	aggregatedSignature := &Signature{}
 	success := C.aggregate_signatures((**C.struct_Signature)(unsafe.Pointer(&signaturesPtrs[0])), C.int(len(signaturesPtrs)), &aggregatedSignature.ptr)
@@ -279,18 +371,33 @@ func AggregateSignatures(signatures []*Signature) (*Signature, error) {
 	return aggregatedSignature, nil
 }
 
-func EncodeEpochToBytes(epochIndex uint16, maximumNonSigners uint32, aggregatedPublicKey *PublicKey, addedPublicKeys []*PublicKey) ([]byte, error) {
+func encodeEpochToBytes(epochIndex uint16, maximumNonSigners uint32, addedPublicKeys []*PublicKey, shouldEncodeAggregatedPublicKey bool) ([]byte, error) {
+	if len(addedPublicKeys) == 0 {
+		return nil, EmptySliceError
+	}
+
 	publicKeysPtrs := []*C.struct_PublicKey{}
 	for _, pk := range addedPublicKeys {
+		if pk == nil {
+			return nil, NilPointerError
+		}
 		publicKeysPtrs = append(publicKeysPtrs, pk.ptr)
 	}
 	var bytes *C.uchar
 	var size C.int
-	success := C.encode_epoch_block_to_bytes(C.ushort(epochIndex), C.uint(maximumNonSigners), aggregatedPublicKey.ptr, (**C.struct_PublicKey)(unsafe.Pointer(&publicKeysPtrs[0])), C.int(len(publicKeysPtrs)), &bytes, &size)
+	success := C.encode_epoch_block_to_bytes(C.ushort(epochIndex), C.uint(maximumNonSigners), (**C.struct_PublicKey)(unsafe.Pointer(&publicKeysPtrs[0])), C.int(len(publicKeysPtrs)), C.bool(shouldEncodeAggregatedPublicKey), &bytes, &size)
 	if !success {
 		return nil, GeneralError
 	}
 	defer C.free_vec(bytes, size)
 
 	return C.GoBytes(unsafe.Pointer(bytes), size), nil
+}
+
+func EncodeEpochToBytes(epochIndex uint16, maximumNonSigners uint32, addedPublicKeys []*PublicKey) ([]byte, error) {
+	return encodeEpochToBytes(epochIndex, maximumNonSigners, addedPublicKeys, false)
+}
+
+func EncodeEpochToBytesWithAggregatedKey(epochIndex uint16, maximumNonSigners uint32, addedPublicKeys []*PublicKey) ([]byte, error) {
+	return encodeEpochToBytes(epochIndex, maximumNonSigners, addedPublicKeys, true)
 }

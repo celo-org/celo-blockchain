@@ -176,6 +176,8 @@ func main() {
 		doInstall(os.Args[2:])
 	case "test":
 		doTest(os.Args[2:])
+	case "ensure-linter":
+		doEnsureLinter(os.Args[2:])
 	case "lint":
 		doLint(os.Args[2:])
 	case "archive":
@@ -357,6 +359,16 @@ func doTest(cmdline []string) {
 	build.MustRun(gotest)
 }
 
+// doEnsureLinter ensure golangci-lint is properly installed
+func doEnsureLinter(cmdline []string) {
+	var (
+		cachedir = flag.String("cachedir", "./build/cache", "directory for caching golangci-lint binary.")
+	)
+	flag.CommandLine.Parse(cmdline)
+	linter := downloadLinter(*cachedir)
+	fmt.Printf("LinterPath=%s", linter)
+}
+
 // doLint runs golangci-lint on requested packages.
 func doLint(cmdline []string) {
 	var (
@@ -376,7 +388,7 @@ func doLint(cmdline []string) {
 
 // downloadLinter downloads and unpacks golangci-lint.
 func downloadLinter(cachedir string) string {
-	const version = "1.21.0"
+	const version = "1.23.6"
 
 	csdb := build.MustLoadChecksums("build/checksums.txt")
 	base := fmt.Sprintf("golangci-lint-%s-%s-%s", version, runtime.GOOS, runtime.GOARCH)
@@ -973,8 +985,6 @@ func doXCodeFramework(cmdline []string) {
 
 	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	// Patch gomobile to disable bitcode for now (rust generated bls lib output is not compatible)
-	build.MustRunCommand("sed", "-i", "", `/^[[:space:]]*cflags += \" -fembed-bitcode\"$/s/^/\/\//`, filepath.Join(build.GOPATH(), "src/golang.org/x/mobile/cmd/gomobile/env.go"))
 	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
 
 	if *local {

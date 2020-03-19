@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -148,10 +149,6 @@ func (api *ExternalSigner) SelfDerive(bases []accounts.DerivationPath, chain eth
 	log.Error("operation SelfDerive not supported on external signers")
 }
 
-func (api *ExternalSigner) signHash(account accounts.Account, hash []byte) ([]byte, error) {
-	return []byte{}, fmt.Errorf("operation not supported on external signers")
-}
-
 // SignData signs keccak256(data). The mimetype parameter describes the type of data being signed
 func (api *ExternalSigner) SignData(account accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	var res hexutil.Bytes
@@ -226,12 +223,12 @@ func (api *ExternalSigner) Decrypt(account accounts.Account, c, s1, s2 []byte) (
 	return nil, accounts.ErrNotSupported
 }
 
-func (api *ExternalSigner) SignHashBLS(account accounts.Account, hash []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (api *ExternalSigner) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
-func (api *ExternalSigner) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	return nil, accounts.ErrNotSupported
+func (api *ExternalSigner) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
 func (api *ExternalSigner) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {

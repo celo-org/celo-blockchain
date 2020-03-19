@@ -64,8 +64,9 @@ type testSystemBackend struct {
 }
 
 type testCommittedMsgs struct {
-	commitProposal istanbul.Proposal
-	aggregatedSeal types.IstanbulAggregatedSeal
+	commitProposal                  istanbul.Proposal
+	aggregatedSeal                  types.IstanbulAggregatedSeal
+	aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal
 }
 
 // ==============================================
@@ -86,6 +87,11 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
+func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
+	//This doesn't really return the next block validators
+	return self.peers, nil
+}
+
 func (self *testSystemBackend) EventMux() *event.TypeMux {
 	return self.events
 }
@@ -102,9 +108,12 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
-	self.sys.queuedMessage <- istanbul.MessageEvent{
-		Payload: message,
+	send := func() {
+		self.sys.queuedMessage <- istanbul.MessageEvent{
+			Payload: message,
+		}
 	}
+	go send()
 	return nil
 }
 
@@ -112,7 +121,7 @@ func (self *testSystemBackend) Multicast(validators []common.Address, message []
 	return nil
 }
 
-func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
+func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
@@ -120,14 +129,26 @@ func (self *testSystemBackend) SignBlockHeader(data []byte) ([]byte, error) {
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-	return signatureBytes, nil
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal) error {
+func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
+	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
+	defer privateKey.Destroy()
+
+	signature, _ := privateKey.SignMessage(data, []byte{}, true)
+	defer signature.Destroy()
+	signatureBytes, _ := signature.Serialize()
+
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+}
+
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
-		commitProposal: proposal,
-		aggregatedSeal: aggregatedSeal,
+		commitProposal:                  proposal,
+		aggregatedSeal:                  aggregatedSeal,
+		aggregatedEpochValidatorSetSeal: aggregatedEpochValidatorSetSeal,
 	})
 
 	// fake new head events
@@ -257,7 +278,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 
 	committedSubject := &istanbul.CommittedSubject{
 		Subject:       subject,
-		CommittedSeal: committedSeal,
+		CommittedSeal: committedSeal[:],
 	}
 
 	payload, err := Encode(committedSubject)
@@ -425,11 +446,11 @@ func (t *testSystem) Run(core bool) func() {
 	}
 
 	go t.listen()
-	closer := func() { t.stop(core) }
+	closer := func() { t.Stop(core) }
 	return closer
 }
 
-func (t *testSystem) stop(core bool) {
+func (t *testSystem) Stop(core bool) {
 	close(t.quit)
 
 	for _, b := range t.backends {

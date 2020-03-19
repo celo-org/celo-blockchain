@@ -120,15 +120,15 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
-				if err := c.handleMsg(ev.Payload); err != nil {
-					logger.Debug("Error in handling istanbul message", "err", err)
+				if err := c.handleMsg(ev.Payload); err != nil && err != errFutureMessage && err != errOldMessage {
+					logger.Info("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				if payload, err := ev.msg.Payload(); err != nil {
 					logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
 				} else {
-					if err := c.handleMsg(payload); err != nil {
-						logger.Debug("Error in handling istanbul message that was sent from a backlog event", "err", err)
+					if err := c.handleMsg(payload); err != nil && err != errFutureMessage && err != errOldMessage {
+						logger.Info("Error in handling istanbul message that was sent from a backlog event", "err", err)
 					}
 				}
 			}

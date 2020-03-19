@@ -253,18 +253,21 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round, desired *big.Int
 	var state State
+	var epoch uint64
 	if c.current != nil {
 		state = c.current.State()
 		seq = c.current.Sequence()
+		epoch = istanbul.GetEpochNumber(seq.Uint64(), c.config.Epoch)
 		round = c.current.Round()
 		desired = c.current.DesiredRound()
 	} else {
 		seq = common.Big0
+		epoch = 0
 		round = big.NewInt(-1)
 		desired = big.NewInt(-1)
 	}
 	logger := c.logger.New(ctx...)
-	return logger.New("cur_seq", seq, "cur_round", round, "desired_round", desired, "state", state, "address", c.address)
+	return logger.New("cur_seq", seq, "cur_epoch", epoch, "cur_round", round, "des_round", desired, "state", state, "address", c.address)
 }
 
 func (c *core) broadcast(msg *istanbul.Message) {
@@ -314,6 +317,7 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 }
 
 func (c *core) commit() error {
+	logger := c.newLogger("func", "commit", "proposal", c.current.Proposal())
 	err := c.current.TransitionToCommitted()
 	if err != nil {
 		return err
@@ -327,18 +331,49 @@ func (c *core) commit() error {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		if err := c.backend.Commit(proposal, aggregatedSeal); err != nil {
+		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(c.current.Commits())
+		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
 	}
+
+	logger.Info("Committed")
 	return nil
+}
+
+// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
+// to a bls aggregated signature
+func GetAggregatedEpochValidatorSetSeal(seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+	epochSeals := make([][]byte, seals.Size())
+	for i, v := range seals.Values() {
+		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
+
+		var commit *istanbul.CommittedSubject
+		err := v.Decode(&commit)
+		if err != nil {
+			return types.IstanbulEpochValidatorSetSeal{}, err
+		}
+		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
+	}
+
+	asig, err := blscrypto.AggregateSignatures(epochSeals)
+	if err != nil {
+		return types.IstanbulEpochValidatorSetSeal{}, err
+	}
+	return types.IstanbulEpochValidatorSetSeal{Signature: asig}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate
@@ -443,8 +478,6 @@ func (c *core) startNewRound(round *big.Int) error {
 		c.roundChangeSet = newRoundChangeSet(valSet)
 	}
 
-	logger = logger.New("old_proposer", c.current.Proposer())
-
 	// Calculate new proposer
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
 	err := c.resetRoundState(newView, valSet, nextProposer, roundChange)
@@ -462,13 +495,15 @@ func (c *core) startNewRound(round *big.Int) error {
 	}
 	c.resetRoundChangeTimer()
 
+	// Some round info will have changed.
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer())
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
 
 // All actions that occur when transitioning to waiting for round change state.
 func (c *core) waitForDesiredRound(r *big.Int) error {
-	logger := c.newLogger("func", "waitForDesiredRound", "old_desired_round", c.current.DesiredRound(), "new_desired_round", r)
+	logger := c.newLogger("func", "waitForDesiredRound", "new_desired_round", r)
 
 	// Don't wait for an older round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
@@ -628,7 +663,7 @@ func (c *core) resetRoundChangeTimer() {
 
 	if c.current.DesiredRound().Cmp(common.Big1) > 0 {
 		logger := c.newLogger("func", "resetRoundChangeTimer")
-		logger.Info("Reset round change timer", "timeout_ms", timeout/time.Millisecond)
+		logger.Info("Reset timer to do round change", "timeout", timeout)
 	}
 
 	c.resetResendRoundChangeTimer()
@@ -652,6 +687,9 @@ func (c *core) resetResendRoundChangeTimer() {
 		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
 			c.sendEvent(resendRoundChangeEvent{view})
 		})
+
+		logger := c.newLogger("func", "resetResendRoundChangeTimer")
+		logger.Info("Reset timer to resend RoundChange msg", "timeout", resendTimeout)
 	}
 }
 

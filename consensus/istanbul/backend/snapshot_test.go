@@ -110,7 +110,7 @@ func convertValNamesToValidatorsData(accounts *testerAccountPool, valNames []str
 	for i, valName := range valNames {
 		returnArray[i] = istanbul.ValidatorData{
 			Address:      accounts.address(valName),
-			BLSPublicKey: nil,
+			BLSPublicKey: blscrypto.SerializedPublicKey{},
 		}
 	}
 
@@ -224,7 +224,7 @@ func TestValSetChange(t *testing.T) {
 		for j, validator := range tt.validators {
 			validators[j] = istanbul.ValidatorData{
 				Address:      accounts.address(validator),
-				BLSPublicKey: nil,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			}
 		}
 
@@ -262,56 +262,56 @@ func TestValSetChange(t *testing.T) {
 			return crypto.Sign(data, privateKey)
 		}
 
-		signerBLSHashFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
+		signerBLSHashFn := func(_ ethAccounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
 			key := privateKey
 			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 
 			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 			defer privateKey.Destroy()
 
 			signature, err := privateKey.SignMessage(data, []byte{}, false)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 			defer signature.Destroy()
 			signatureBytes, err := signature.Serialize()
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 
-			return signatureBytes, nil
+			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 		}
 
-		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) ([]byte, error) {
+		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 			key := privateKey
 			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 
 			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 			defer privateKey.Destroy()
 
 			signature, err := privateKey.SignMessage(data, extraData, true)
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 			defer signature.Destroy()
 			signatureBytes, err := signature.Serialize()
 			if err != nil {
-				return nil, err
+				return blscrypto.SerializedSignature{}, err
 			}
 
-			return signatureBytes, nil
+			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 		}
 
 		engine.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
@@ -343,11 +343,10 @@ func TestValSetChange(t *testing.T) {
 
 			ist := &types.IstanbulExtra{
 				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
-				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
+				AddedValidatorsPublicKeys: make([]blscrypto.SerializedPublicKey, len(valsetdiff.addedValidators)),
 				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
 				AggregatedSeal:            types.IstanbulAggregatedSeal{},
 				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-				EpochData:                 []byte{},
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
@@ -385,7 +384,7 @@ func TestValSetChange(t *testing.T) {
 		for j, validator := range tt.results {
 			validators[j] = istanbul.ValidatorData{
 				Address:      accounts.address(validator),
-				BLSPublicKey: nil,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			}
 		}
 		result := snap.validators()
@@ -412,11 +411,11 @@ func TestSaveAndLoad(t *testing.T) {
 		ValSet: validator.NewSet([]istanbul.ValidatorData{
 			{
 				Address:      common.BytesToAddress([]byte("1234567894")),
-				BLSPublicKey: nil,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 			{
 				Address:      common.BytesToAddress([]byte("1234567895")),
-				BLSPublicKey: nil,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		}),
 	}

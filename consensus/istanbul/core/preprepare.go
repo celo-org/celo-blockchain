@@ -59,16 +59,36 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	// Decode PREPREPARE
 	var preprepare *istanbul.Preprepare
 	err := msg.Decode(&preprepare)
-	if err != nil {
+	if err != nil || preprepare.Proposal == nil || preprepare.View == nil {
 		return errFailedDecodePreprepare
 	}
 
-	// TODO(tim) Fix and Move checkMessage check up to here
+	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// Verify that the proposal is for the sequence number of the view we verified.
 	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
-		logger.Warn("Received preprepare with invalid block number", "number", preprepare.Proposal.Number(), "view_seq", preprepare.View.Sequence, "view_round", preprepare.View.Round)
+		logger.Warn("Received preprepare with invalid block number")
 		return errInvalidProposal
+	}
+
+	// Ensure we have the same view with the PREPREPARE message.
+	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
+		if err == errOldMessage {
+			// Get validator set for the given proposal
+			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+
+			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
+			// However, we log a WARN for potential future debugging value.
+			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+				logger.Warn("Would have sent a commit message for an old block")
+				return nil
+			}
+		}
+		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
+		logger.Trace("Check preprepare failed", "err", err)
+		return err
 	}
 
 	// Check proposer is valid for the message's view (this may be a subsequent round)
@@ -102,26 +122,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	} else if preprepare.HasRoundChangeCertificate() {
 		logger.Error("Preprepare for round 0 has a round change certificate.")
 		return errInvalidProposal
-	}
-
-	// Ensure we have the same view with the PREPREPARE message.
-	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
-		if err == errOldMessage {
-			// Get validator set for the given proposal
-			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
-			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
-			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
-
-			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
-			// However, we log a WARN for potential future debugging value.
-			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Warn("Would have sent a commit message for an old block", "view", preprepare.View, "block_hash", preprepare.Proposal.Hash())
-				return nil
-			}
-		}
-		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
-		logger.Trace("Check preprepare failed", "err", err)
-		return err
 	}
 
 	// Verify the proposal we received

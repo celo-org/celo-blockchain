@@ -1,14 +1,20 @@
 # BLS-ZEXE
 
-Implements BLS signatures as described in [BDN18].
+Implements SNARK-friendly BLS signatures over BLS12-377 and SW6.
 
 ## Using the code
 
-The BLS library code resides in the `bls` directory. The following commands assumed this is your current directory.
+### Rust Crates
 
-A Go package consuming the library exists in the `go` directory.
+All Rust crates live under the `crates/` directory. You can import them in your code via git paths, until they get published on `crates.io`.
 
-### Quick start
+### Go and FFI
+
+A Go package consuming the library exists in the `go` directory, using `cgo`.
+
+## Quick start
+
+The following commands assume your current directory is the root of this repository.
 
 The `simple_signature` program shows how to generate keys, sign and aggregate signatures.
 
@@ -18,33 +24,30 @@ To run it with debug logging enabled, execute:
 
 ### Building
 
-To build the project, you should use a recent stable Rust version. We test with 1.37.
+To build the project, you should use a recent stable Rust version. We test with 1.36.
 
-`cargo build`
-
-or
-
-`cargo build --release`
-
-### Running tests
-
-Most of the modules have tests.
-
- You should run tests in release mode, as some of the cryptographic operations are slow in debug mode.
-
-`cargo test`
+```bash
+# Build
+cargo build (--release)
+# Test. 
+# Consider running tests in release mode, as some of 
+# the cryptographic operations are slow in debug mode.
+cargo test (--release)
+```
 
 ## Construction
 
-We work over the $E_{CP}$ curve from [BCGMMW18].
+We work over the BLS12-377 curve from [BCGMMW18].
 
 Secret keys are elements of the scalar field *Fr*.
 
-We would like to minimize the public key size, since we expect many of them to be communicated. Therefore, public keys are in *G1* and signatures are in *G2*.
+We would like to minimize the computation required for signing, since we would also like to achieve hardware wallet compatibility. Therefore, public keys are in *G2* and signatures are in *G1*.
 
-To hash a message to *G2*, we currently use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Pedersen hash over $E_{Ed/CP}$ from [BCGMMW18] and Blake2s. First, the Pedersen hash is applied to the message, and then the try-and-increment methods attempts incrementing counters over the hashed message using Blake2s.
+For most signatures - to hash a message to *G1*, we use the try-and-increment method coupled with Blake2Xs. 
 
-We implement fast cofactor multiplication, as the *G2* cofactor is large.
+For signatures that we would like to verify in SNARKs - to hash a message to *G1*, we use the try-and-increment method coupled with a composite hash. The composite hash is composed of a Bowe-Hopwood hash over $E_{Ed/CP}$ from [BCGMMW18] and Blake2s.
+
+We perform cofactor muliplication in *G1* directly.
 
 ## License
 
@@ -53,14 +56,6 @@ BLS-ZEXE is licensed under either of the following licenses, at your discretion.
 Apache License Version 2.0 (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
 MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
 Unless you explicitly state otherwise, any contribution submitted for inclusion in BLS-ZEXE by you shall be dual licensed as above (as defined in the Apache v2 License), without any additional terms or conditions.
-
-## Third-party Libraries
-
-BLS-ZEXE distributes the Zexe source code under [zexe](zexe). Zexe's authors are listed in its [AUTHORS](zexe/AUTHORS) file.
-
-## Third-Party Software Licenses
-
-[ZEXE](https://github.com/scipr-lab/zexe) is licensed under either MIT or Apache License Version 2.0. The notices are the same as [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
 
 ## References
 

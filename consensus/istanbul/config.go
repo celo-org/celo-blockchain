@@ -111,7 +111,8 @@ type Config struct {
 	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should do aggressive gossip on announce enablement
 
 	// Fault injection config
-	FaultyMode uint64 `toml:",omitempty"` // The faulty node indicates the faulty node's behavior
+	FaultyMode                           uint64 `toml:",omitempty"` // The faulty node indicates the faulty node's behavior
+	AnnounceAdditionalValidatorsToGossip int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
 }
 
 var DefaultConfig = &Config{
@@ -129,4 +130,5 @@ var DefaultConfig = &Config{
 	Proxied:                              false,
 	AnnounceGossipPeriod:                 600,
 	AnnounceAggressiveGossipOnEnablement: false,
+	AnnounceAdditionalValidatorsToGossip: 10,
 }

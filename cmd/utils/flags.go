@@ -1461,15 +1461,6 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 }
 
-func setAnnounce(ctx *cli.Context, cfg *eth.Config) {
-	cfg.Istanbul.AnnounceGossipPeriod = ctx.GlobalUint64(AnnounceGossipPeriodFlag.Name)
-	if ctx.GlobalIsSet(AnnounceAggressiveGossipOnEnablementFlag.Name) {
-		cfg.Istanbul.AnnounceAggressiveGossipOnEnablement = true
-	} else {
-		cfg.Istanbul.AnnounceAggressiveGossipOnEnablement = istanbul.DefaultConfig.AnnounceAggressiveGossipOnEnablement
-	}
-}
-
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
 	setNodeKey(ctx, proxyCfg)
 	setNAT(ctx, proxyCfg)

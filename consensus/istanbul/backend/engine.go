@@ -326,7 +326,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 
 	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
-	publicKeys := [][]byte{}
+	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
 			pubKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
@@ -451,6 +451,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
+	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
+	logger.Trace("Finalizing")
+
 	snapshot := state.Snapshot()
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
 	if err != nil {
@@ -464,17 +467,19 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		state.RevertToSnapshot(snapshot)
 	}
 
-	sb.logger.Trace("Finalizing", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
-	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
+	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
+	if lastBlockOfEpoch {
 		snapshot = state.Snapshot()
-		err = sb.distributeEpochPaymentsAndRewards(header, state)
+		err = sb.distributeEpochRewards(header, state)
 		if err != nil {
+			sb.logger.Error("Failed to distribute epoch rewards", "blockNumber", header.Number, "err", err)
 			state.RevertToSnapshot(snapshot)
 		}
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 }
 
 // FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
@@ -496,7 +501,8 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, randomness), nil
+	block := types.NewBlock(header, txs, nil, receipts, randomness)
+	return block, nil
 }
 
 // Seal generates a new block for the given input block with the local miner's
@@ -647,6 +653,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	} else {
 		headBlock := sb.GetCurrentHeadBlock()
 		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
+		sb.updateAnnounceVersion()
 		sb.RefreshValPeers(valset)
 	}
 
@@ -860,7 +867,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Header) error {
 	number := header.Number.Uint64()
-	logger := sb.logger.New("func", "Backend.addParentSeal()", "number", number)
+	logger := sb.logger.New("func", "addParentSeal", "number", number)
 
 	// only do this for blocks which start with block 1 as a parent
 	if number <= 1 {
@@ -961,12 +968,11 @@ func ecrecover(header *types.Header) (common.Address, error) {
 func writeEmptyIstanbulExtra(header *types.Header) error {
 	extra := types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
-		AddedValidatorsPublicKeys: [][]byte{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(0),
 		Seal:                      []byte{},
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-		EpochData:                 []byte{},
 	}
 	payload, err := rlp.EncodeToBytes(&extra)
 	if err != nil {

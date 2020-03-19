@@ -31,4 +31,8 @@ bool aggregate_public_keys(const PublicKey**, int32_t, PublicKey**);
 bool aggregate_public_keys_subtract(const PublicKey*, const PublicKey**, int32_t, PublicKey**);
 bool aggregate_signatures(const Signature**, int32_t, Signature**);
 
-bool encode_epoch_block_to_bytes(uint16_t, uint32_t, const PublicKey*, const PublicKey**, int32_t, unsigned char**, int32_t*);
+bool encode_epoch_block_to_bytes(uint16_t, uint32_t, const PublicKey**, int32_t, bool, unsigned char**, int32_t*);
+bool hash_direct(const unsigned char*, int32_t, unsigned char**, int32_t*, bool);
+bool hash_composite(const unsigned char*, int32_t, const unsigned char*, int32_t, unsigned char**, int32_t*); 
+bool compress_signature(const unsigned char*, int32_t, unsigned char**, int32_t*);
+bool compress_pubkey(const unsigned char*, int32_t, unsigned char**, int32_t*);

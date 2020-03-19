@@ -29,11 +29,40 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/app
-      - run: rustup install 1.36.0
-      - run: cd bls && cargo build --release && cargo test --release
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - run:
+          name: Install clippy and cargo-audit
+          command: |
+            cargo install cargo-audit
+            rustup component add clippy
+      - restore_cache:
+          keys:
+            - v4-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Build
+          command: cargo build --release
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target/release
+          key: v4-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Run tests
+          command: cargo test --release
+          no_output_timeout: 30m
+      - run:
+          name: Check Style
+          command: |
+            cargo fmt --all -- --check
+            cargo clippy --release --all-targets --all-features -- -D warnings
+      - run:
+          name: Audit Dependencies
+          command: cargo audit --ignore RUSTSEC-2019-0019 # remove once https://github.com/scipr-lab/zexe/issues/135 is fixed
       - persist_to_workspace:
           root: .
-          paths: bls/target/release
+          paths: target/release
 
   go-module-tests:
     <<: *go_defaults
@@ -45,14 +74,6 @@ jobs:
           at: ~/app
       - run: cd ~/app/go/cmd/example && go run main.go
       - run: cd ~/app/go && go test
-
-#  zexe-tests:
-#    <<: *rust_defaults
-#    steps:
-#      - attach_workspace:
-#          at: ~/app
-#      - run: rustup install nightly
-#      - run: cd zexe && cargo +nightly test --release
 
 workflows:
   version: 2
@@ -66,6 +87,3 @@ workflows:
           requires:
             - checkout-repo
             - bls-tests
-#      - zexe-tests:
-#          requires:
-#            - checkout-repo

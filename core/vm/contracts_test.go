@@ -24,6 +24,8 @@ import (
 	"reflect"
 	"testing"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -58,7 +60,7 @@ func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Val
 	hash := sha3.Sum256(preimage)
 	var validators []istanbul.Validator
 	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
-		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), nil))
+		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), blscrypto.SerializedPublicKey{}))
 	}
 	return validators
 }
@@ -131,7 +133,6 @@ var mockEVM = &EVM{
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
-	gas             uint64
 	name            string
 	noBenchmark     bool // Benchmark primarily the worst-cases
 	errorExpected   bool

@@ -110,7 +110,6 @@ type testWorkerBackend struct {
 	db             ethdb.Database
 	txPool         *core.TxPool
 	chain          *core.BlockChain
-	testTxFeed     event.Feed
 	genesis        *core.Genesis
 	uncleBlock     *types.Block
 }
@@ -305,54 +304,54 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return crypto.Sign(data, testBankKey)
 	}
 
-	signHashBLSFn := func(_ accounts.Account, data []byte) ([]byte, error) {
+	signHashBLSFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(data, []byte{}, false)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
-		return signatureBytes, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
-	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
+	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
 		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer privateKey.Destroy()
 
 		signature, err := privateKey.SignMessage(msg, extraData, true)
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 		defer signature.Destroy()
 		signatureBytes, err := signature.Serialize()
 		if err != nil {
-			return nil, err
+			return blscrypto.SerializedSignature{}, err
 		}
 
-		return signatureBytes, nil
+		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
 
 	config := istanbul.DefaultConfig
@@ -363,6 +362,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
+	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }
 

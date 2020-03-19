@@ -25,6 +25,7 @@ import (
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"golang.org/x/crypto/sha3"
 )
@@ -148,8 +149,8 @@ type Wallet interface {
 	// SignTextWithPassphrase is identical to Signtext, but also takes a password
 	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, error)
 
-	SignHashBLS(account Account, hash []byte) ([]byte, error)
-	SignMessageBLS(account Account, msg []byte, extraData []byte) ([]byte, error)
+	SignHashBLS(account Account, hash []byte) (blscrypto.SerializedSignature, error)
+	SignMessageBLS(account Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error)
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)
 	GetPublicKey(account Account) (*ecdsa.PublicKey, error)

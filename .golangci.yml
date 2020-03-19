@@ -10,17 +10,22 @@ run:
 linters:
   disable-all: true
   enable:
-    - deadcode
-    - goconst
-    - goimports
+    # - deadcode
+    # - errcheck
     - gosimple
     - govet
     - ineffassign
-    - misspell
-    # - staticcheck
-    - unconvert
-    # - unused
+    - staticcheck
+    - unused
     - varcheck
+
+    - goconst
+    - goimports
+    - gosec
+    - misspell
+    # - prealloc
+    - unconvert
+    # - unparam
 
 linters-settings:
   gofmt:
@@ -29,8 +34,22 @@ linters-settings:
     min-len: 3 # minimum length of string constant
     min-occurrences: 6 # minimum number of occurrences
 
+
 issues:
   exclude-rules:
+    # ignore deprecation warnings for now
+    - linters:
+        - staticcheck
+      text: "SA1019:"
+    # genesis has a really long string
+    - path: core/genesis_alloc.go
+      linters:
+        - misspell
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
     - path: crypto/blake2b/
       linters:
         - deadcode
