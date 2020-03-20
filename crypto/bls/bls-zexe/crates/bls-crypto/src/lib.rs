@@ -240,7 +240,7 @@ pub extern "C" fn compress_signature(
         let x = Fq::read(&signature[0..48]).unwrap();
         let y = Fq::read(&signature[48..96]).unwrap();
         let affine = G1Affine::new(x, y, false);
-        let sig = Signature::from_sig(&affine.into_projective());
+        let sig = Signature::from_sig(affine.into_projective());
         let mut obj_bytes = vec![];
         sig.write(&mut obj_bytes)?;
         obj_bytes.shrink_to_fit();
@@ -265,7 +265,7 @@ pub extern "C" fn compress_pubkey(
         let x = Fq2::read(&pubkey[0..96]).unwrap();
         let y = Fq2::read(&pubkey[96..192]).unwrap();
         let affine = G2Affine::new(x, y, false);
-        let pk = PublicKey::from_pk(&affine.into_projective());
+        let pk = PublicKey::from_pk(affine.into_projective());
         let mut obj_bytes = vec![];
         pk.write(&mut obj_bytes)?;
         obj_bytes.shrink_to_fit();
@@ -405,8 +405,8 @@ pub extern "C" fn aggregate_public_keys(
         let public_keys = public_keys_ptrs
             .to_vec()
             .into_iter()
-            .map(|pk| unsafe { &*pk })
-            .collect::<Vec<&PublicKey>>();
+            .map(|pk| unsafe { &*pk }.clone())
+            .collect::<Vec<PublicKey>>();
         let aggregated_public_key = PublicKeyCache::aggregate(&public_keys[..]);
         unsafe {
             *out_public_key = Box::into_raw(Box::new(aggregated_public_key));
@@ -430,11 +430,11 @@ pub extern "C" fn aggregate_public_keys_subtract(
         let public_keys = public_keys_ptrs
             .to_vec()
             .into_iter()
-            .map(|pk| unsafe { &*pk })
-            .collect::<Vec<&PublicKey>>();
+            .map(|pk| unsafe { &*pk }.clone())
+            .collect::<Vec<PublicKey>>();
         let aggregated_public_key_to_subtract = PublicKeyCache::aggregate(&public_keys[..]);
         let prepared_aggregated_public_key = PublicKey::from_pk(
-            &(aggregated_public_key.get_pk() - aggregated_public_key_to_subtract.get_pk()),
+            aggregated_public_key.get_pk() - aggregated_public_key_to_subtract.get_pk(),
         );
         unsafe {
             *out_public_key = Box::into_raw(Box::new(prepared_aggregated_public_key));
@@ -456,8 +456,8 @@ pub extern "C" fn aggregate_signatures(
         let signatures = signatures_ptrs
             .to_vec()
             .into_iter()
-            .map(|sig| unsafe { &*sig })
-            .collect::<Vec<&Signature>>();
+            .map(|sig| unsafe { &*sig }.clone())
+            .collect::<Vec<Signature>>();
         let aggregated_signature = Signature::aggregate(&signatures[..]);
         unsafe {
             *out_signature = Box::into_raw(Box::new(aggregated_signature));

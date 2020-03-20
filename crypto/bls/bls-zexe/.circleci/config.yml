@@ -30,17 +30,33 @@ jobs:
       - attach_workspace:
           at: ~/app
       - run:
-          name: Install Rust & Tooling
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - run:
+          name: Install clippy and cargo-audit
           command: |
-            rustup install 1.36.0
             cargo install cargo-audit
             rustup component add clippy
-      - run: cargo build --release && cargo test --release
+      - restore_cache:
+          keys:
+            - v4-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Build
+          command: cargo build --release
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target/release
+          key: v4-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Run tests
+          command: cargo test --release
+          no_output_timeout: 30m
       - run:
           name: Check Style
           command: |
             cargo fmt --all -- --check
-            cargo clippy --all-targets --all-features -- -D warnings
+            cargo clippy --release --all-targets --all-features -- -D warnings
       - run:
           name: Audit Dependencies
           command: cargo audit --ignore RUSTSEC-2019-0019 # remove once https://github.com/scipr-lab/zexe/issues/135 is fixed
