@@ -17,6 +17,7 @@
 package enodes
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -47,19 +49,22 @@ type SignedAnnounceVersionDB struct {
 // the most recent version of its enode.
 type SignedAnnounceVersionEntry struct {
 	Address   common.Address
+	PublicKey *ecdsa.PublicKey
 	Version   uint
 	Signature []byte
 }
 
 // EncodeRLP serializes SignedAnnounceVersionEntry into the Ethereum RLP format.
 func (entry *SignedAnnounceVersionEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{entry.Address, entry.Version, entry.Signature})
+	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
+	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the SignedAnnounceVersionEntry fields from a RLP stream.
 func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
 	var content struct {
 		Address   common.Address
+		PublicKey []byte
 		Version   uint
 		Signature []byte
 	}
@@ -67,7 +72,11 @@ func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&content); err != nil {
 		return err
 	}
-	entry.Address, entry.Version, entry.Signature = content.Address, content.Version, content.Signature
+	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
+	if err != nil {
+		return err
+	}
+	entry.Address, entry.PublicKey, entry.Version, entry.Signature = content.Address, decodedPublicKey, content.Version, content.Signature
 	return nil
 }
 

@@ -454,18 +454,13 @@ func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, 
 			continue
 		}
 
-		signedAnnounceVersion := newSignedAnnounceVersionFromEntry(signedAnnVersionEntry)
-		ecdsaPubKey, err := signedAnnounceVersion.ECDSAPublicKey()
-		if err != nil {
-			return nil, err
-		}
-		publicKey := ecies.ImportECDSAPublic(ecdsaPubKey)
+		publicKey := ecies.ImportECDSAPublic(signedAnnVersionEntry.PublicKey)
 		encryptedEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
 		if err != nil {
 			return nil, err
 		}
 		announceRecords = append(announceRecords, &announceRecord{
-			DestAddress:       signedAnnounceVersion.Address,
+			DestAddress:       signedAnnVersionEntry.Address,
 			EncryptedEnodeURL: encryptedEnodeURL,
 		})
 	}
@@ -738,10 +733,18 @@ func (sb *Backend) regossipAnnounce(msg *istanbul.Message, msgTimestamp uint, pa
 	return nil
 }
 
+// Used as a salt when signing signedAnnounceVersion. This is to account for
+// the unlikely case where a different signed struct with the same field types
+// is used elsewhere and shared with other nodes. If that were to happen, a
+// malicious node could try sending the other struct where this struct is used,
+// or vice versa. This ensures that the signature is only valid for this struct.
+var signedAnnounceVersionSalt = []byte("signedAnnounceVersion")
+
 // signedAnnounceVersion is a signed message from a validator indicating the most
 // recent version of its enode.
 type signedAnnounceVersion struct {
 	Address   common.Address
+	PublicKey *ecdsa.PublicKey
 	Version   uint
 	Signature []byte
 }
@@ -749,62 +752,57 @@ type signedAnnounceVersion struct {
 func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
 	return &signedAnnounceVersion{
 		Address:   entry.Address,
+		PublicKey: entry.PublicKey,
 		Version:   entry.Version,
 		Signature: entry.Signature,
 	}
 }
 
 func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadNoSig, err := sav.payloadNoSig()
+	payloadToSign, err := sav.payloadToSign()
 	if err != nil {
 		return err
 	}
-	sav.Signature, err = signingFn(payloadNoSig)
+	sav.Signature, err = signingFn(payloadToSign)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (sav *signedAnnounceVersion) ECDSAPublicKey() (*ecdsa.PublicKey, error) {
-	payloadNoSig, err := sav.payloadNoSig()
-	if err != nil {
-		return nil, err
-	}
-	payloadHash := crypto.Keccak256(payloadNoSig)
-	pubkey, err := crypto.SigToPub(payloadHash, sav.Signature)
-	if err != nil {
-		return nil, err
-	}
-	return pubkey, nil
-}
-
-// ValidateSignature will return an error if a SignedAnnounceVersion's signature
-// is invalid.
-func (sav *signedAnnounceVersion) ValidateSignature() error {
-	payloadNoSig, err := sav.payloadNoSig()
+// RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
+// address from the Signature
+func (sav *signedAnnounceVersion) RecoverPublicKeyAndAddress() error {
+	payloadToSign, err := sav.payloadToSign()
 	if err != nil {
 		return err
 	}
-	address, err := istanbul.GetSignatureAddress(payloadNoSig, sav.Signature)
+	payloadHash := crypto.Keccak256(payloadToSign)
+	publicKey, err := crypto.SigToPub(payloadHash, sav.Signature)
 	if err != nil {
 		return err
 	}
-	if address != sav.Address {
-		return errors.New("Signature does not match address")
+	address, err := crypto.PubkeyToAddress(*publicKey), nil
+	if err != nil {
+		return err
 	}
+	sav.PublicKey = publicKey
+	sav.Address = address
 	return nil
 }
 
 // EncodeRLP serializes signedAnnounceVersion into the Ethereum RLP format.
+// Only the Version and Signature are encoded, as the public key and address
+// can be recovered from the Signature using RecoverPublicKeyAndAddress
 func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sav.Address, sav.Version, sav.Signature})
+	return rlp.Encode(w, []interface{}{sav.Version, sav.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the signedAnnounceVersion fields from a RLP stream.
+// Only the Version and Signature are encoded/decoded, as the public key and address
+// can be recovered from the Signature using RecoverPublicKeyAndAddress
 func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		Address   common.Address
 		Version   uint
 		Signature []byte
 	}
@@ -812,34 +810,33 @@ func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	sav.Address, sav.Version, sav.Signature = msg.Address, msg.Version, msg.Signature
+	sav.Version, sav.Signature = msg.Version, msg.Signature
 	return nil
 }
 
 func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
 	return &vet.SignedAnnounceVersionEntry{
 		Address:   sav.Address,
+		PublicKey: sav.PublicKey,
 		Version:   sav.Version,
 		Signature: sav.Signature,
 	}
 }
 
-func (sav *signedAnnounceVersion) payloadNoSig() ([]byte, error) {
-	savNoSig := &signedAnnounceVersion{
-		Address: sav.Address,
-		Version: sav.Version,
-	}
-	payloadNoSig, err := rlp.EncodeToBytes(savNoSig)
+func (sav *signedAnnounceVersion) payloadToSign() ([]byte, error) {
+	signedContent := []interface{}{signedAnnounceVersionSalt, sav.Version}
+	payload, err := rlp.EncodeToBytes(signedContent)
 	if err != nil {
 		return nil, err
 	}
-	return payloadNoSig, nil
+	return payload, nil
 }
 
 func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
 	sav := &signedAnnounceVersion{
-		Address: sb.Address(),
-		Version: version,
+		Address:   sb.Address(),
+		PublicKey: sb.publicKey,
+		Version:   version,
 	}
 	err := sav.Sign(sb.Sign)
 	if err != nil {
@@ -910,9 +907,10 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, signedAnnVersion := range signedAnnVersions {
-		err := signedAnnVersion.ValidateSignature()
-		if err != nil {
-			logger.Debug("Error validating signed announce version signature", "address", signedAnnVersion.Address, "err", err)
+		// The public key and address are not RLP encoded/decoded and must be
+		// explicitly recovered.
+		if err := signedAnnVersion.RecoverPublicKeyAndAddress(); err != nil {
+			logger.Warn("Error recovering signed announce version public key and address from signature", "err", err)
 			continue
 		}
 		if !validatorConnSet[signedAnnVersion.Address] {
@@ -955,11 +953,7 @@ func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.Si
 		if ok && time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
 			continue
 		}
-		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, &signedAnnounceVersion{
-			Address:   entry.Address,
-			Version:   entry.Version,
-			Signature: entry.Signature,
-		})
+		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, newSignedAnnounceVersionFromEntry(entry))
 		sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
 	}
 	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()

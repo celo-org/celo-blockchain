@@ -541,17 +541,22 @@ func (s *Ethereum) StartMining(threads int) error {
 		}
 
 		if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
-			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			ebAccount := accounts.Account{Address: eb}
+			wallet, err := s.accountManager.Find(ebAccount)
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
+			}
+			publicKey, err := wallet.GetPublicKey(ebAccount)
+			if err != nil {
+				return fmt.Errorf("ECDSA public key missing: %v", err)
 			}
 			blswallet, err := s.accountManager.Find(accounts.Account{Address: blsbase})
 			if blswallet == nil || err != nil {
 				log.Error("BLSbase account unavailable locally", "err", err)
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
-			istanbul.Authorize(eb, wallet.Decrypt, wallet.SignData, blswallet.SignHashBLS, blswallet.SignMessageBLS)
+			istanbul.Authorize(eb, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignHashBLS, blswallet.SignMessageBLS)
 		}
 
 		// If mining is started, we can disable the transaction rejection mechanism

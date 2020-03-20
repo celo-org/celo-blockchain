@@ -103,7 +103,7 @@ func TestRecentMessageCaches(t *testing.T) {
 		},
 		{
 			ethMsgCode:  istanbulSignedAnnounceVersionsMsg,
-			shouldCache: false,
+			shouldCache: true,
 		},
 		{
 			ethMsgCode:  istanbulEnodeCertificateMsg,

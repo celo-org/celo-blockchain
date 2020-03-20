@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -164,6 +165,7 @@ type Backend struct {
 	istanbulEventMux *event.TypeMux
 
 	address          common.Address              // Ethereum address of the signing key
+	publicKey        *ecdsa.PublicKey            // The signer public key
 	decryptFn        istanbul.DecryptFn          // Decrypt function to decrypt ECIES ciphertext
 	signFn           istanbul.SignerFn           // Signer function to authorize hashes with
 	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
@@ -297,11 +299,12 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
 	sb.address = address
+	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signHashBLSFn = signHashBLSFn

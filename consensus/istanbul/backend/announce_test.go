@@ -25,7 +25,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Set backend to val1
 	b.SetP2PServer(val1P2pServer)
-	b.Authorize(val1Addr, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	// Generate an ist announce message using val1
 	istMsg, err := b.generateAnnounce(getTimestamp())

@@ -306,6 +306,6 @@ func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), &key.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 	return
 }

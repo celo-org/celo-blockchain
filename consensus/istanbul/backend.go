@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"time"
 
@@ -103,5 +104,5 @@ type Backend interface {
 	RefreshValPeers() error
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
+	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
 }

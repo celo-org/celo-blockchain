@@ -314,7 +314,7 @@ func TestValSetChange(t *testing.T) {
 			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 		}
 
-		engine.Authorize(address, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+		engine.Authorize(address, &privateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 
