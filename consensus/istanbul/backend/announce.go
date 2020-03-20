@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -742,12 +741,7 @@ var signedAnnounceVersionSalt = []byte("signedAnnounceVersion")
 
 // signedAnnounceVersion is a signed message from a validator indicating the most
 // recent version of its enode.
-type signedAnnounceVersion struct {
-	Address   common.Address
-	PublicKey *ecdsa.PublicKey
-	Version   uint
-	Signature []byte
-}
+type signedAnnounceVersion vet.SignedAnnounceVersionEntry
 
 func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
 	return &signedAnnounceVersion{
