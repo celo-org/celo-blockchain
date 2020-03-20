@@ -257,44 +257,44 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	)
 
 	if ctx.IsSet(blsWalletFlag.Name) {
+		signer = accounts.BLSHardwareWalletAddress
 		message = common.HexToAddress(ctx.Args()[0])
-		account = accounts.Account{Address: accounts.BLSHardwareWalletAddress}
 	} else {
 		signer = common.HexToAddress(ctx.Args()[0])
 		message = common.HexToAddress(ctx.Args()[1])
-		account = accounts.Account{Address: signer}
-		foundAccount := false
-		for _, wallet = range am.Wallets() {
-			if wallet.URL().Scheme == keystore.KeyStoreScheme {
-				if wallet.Contains(account) {
-					foundAccount = true
-					break
+	}
+	account = accounts.Account{Address: signer}
+	foundAccount := false
+	for _, wallet = range am.Wallets() {
+		if wallet.URL().Scheme == keystore.KeyStoreScheme {
+			if wallet.Contains(account) {
+				foundAccount = true
+				break
+			}
+		} else if wallet.URL().Scheme == usbwallet.LedgerScheme {
+			if err := wallet.Open(""); err != nil {
+				if err != accounts.ErrWalletAlreadyOpen {
+					utils.Fatalf("Could not open Ledger wallet: %v", err)
 				}
-			} else if wallet.URL().Scheme == usbwallet.LedgerScheme {
-				if err := wallet.Open(""); err != nil {
-					if err != accounts.ErrWalletAlreadyOpen {
-						utils.Fatalf("Could not open Ledger wallet: %v", err)
-					}
-				} else {
-					defer wallet.Close()
-				}
+			} else {
+				defer wallet.Close()
+			}
 
-				account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
-				if err != nil {
-					return err
-				}
-				if account.Address == signer {
-					foundAccount = true
-					break
-				}
+			account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
+			if err != nil {
+				return err
+			}
+			if account.Address == signer {
+				foundAccount = true
+				break
 			}
 		}
-		if !foundAccount {
-			utils.Fatalf("Could not find signer account %x", signer)
-		}
+	}
+	if !foundAccount {
+		utils.Fatalf("Could not find signer account %x", signer)
 	}
 
-	if wallet.URL().Scheme == keystore.KeyStoreScheme {
+	if !ctx.IsSet(blsWalletFlag.Name) && wallet.URL().Scheme == keystore.KeyStoreScheme {
 		account, _ = unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
 	}
 	var key []byte
@@ -311,6 +311,7 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	}
 
 	printProofOfPossession(account, pop, keyType, key)
+	log.Warn("printed PoP")
 
 	return nil
 }
