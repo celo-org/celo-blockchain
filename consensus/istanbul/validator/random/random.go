@@ -46,7 +46,7 @@ func compress(value common.Hash) uint64 {
 	return compressed
 }
 
-// uniform produces a random integer in the range [0, k) from the provided randomness.
+// uniform produces an integer in the range [0, k) from the provided randomness.
 // Based on Algorithm 4 of https://arxiv.org/pdf/1805.10941.pdf
 func uniform(randomness common.Hash, k uint64) uint64 {
 	x := compress(randomness)
