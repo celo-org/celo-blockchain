@@ -563,8 +563,43 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 // computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions
 type fractionMulExp struct{}
 
+func max(x, y int64) int64 {
+	if x < y {
+		return y
+	}
+	return x
+}
+
 func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
-	return params.FractionMulExpGas
+	if len(input) < 192 {
+		return params.FractionMulExpGas
+	}
+	exponent, parsed := math.ParseBig256(hexutil.Encode(input[128:160]))
+	if !parsed {
+		return params.FractionMulExpGas
+	}
+	decimals, parsed := math.ParseBig256(hexutil.Encode(input[160:192]))
+	if !parsed {
+		return params.FractionMulExpGas
+	}
+	if !decimals.IsInt64() || !exponent.IsInt64() {
+		return params.FractionMulExpGas
+	}
+
+	numbers := max(decimals.Int64(), exponent.Int64())
+
+	if numbers > 100000 {
+		return params.FractionMulExpGas
+	}
+
+	gas := params.FractionMulExpGas
+
+	for numbers > 10 {
+		gas = gas * 3
+		numbers = numbers / 2
+	}
+
+	return gas
 }
 
 func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
@@ -621,6 +656,10 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	// Handle passing of zero denominators
 	if aDenominator == big.NewInt(0) || bDenominator == big.NewInt(0) {
 		return nil, gas, fmt.Errorf("Input Error: Denominator of zero provided!")
+	}
+
+	if !decimals.IsInt64() || !exponent.IsInt64() || max(decimals.Int64(), exponent.Int64()) > 100000 {
+		return nil, gas, fmt.Errorf("Input Error: Decimals or exponent too large")
 	}
 
 	numeratorExp := new(big.Int).Mul(aNumerator, new(big.Int).Exp(bNumerator, exponent, nil))
