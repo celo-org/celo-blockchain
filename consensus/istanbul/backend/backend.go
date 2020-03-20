@@ -391,22 +391,20 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
 
 			return returnMap
-		} else {
-			return nil
 		}
-	} else {
-		var targets map[enode.ID]bool = nil
+		return nil
+	}
 
-		if destAddresses != nil {
-			targets = make(map[enode.ID]bool)
-			for _, addr := range destAddresses {
-				if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
-					targets[valNode.ID()] = true
-				}
+	var targets map[enode.ID]bool
+	if destAddresses != nil {
+		targets = make(map[enode.ID]bool)
+		for _, addr := range destAddresses {
+			if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
+				targets[valNode.ID()] = true
 			}
 		}
-		return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 	}
+	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 }
 
 // BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
@@ -415,31 +413,8 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
-	payloadForOtherValidators := payload
-	var ethMsgCode uint64 = istanbulConsensusMsg
-	if sb.config.Proxied {
-		// Convert the message to a fwdMessage
-		var err error
-
-		fwdMessage := &istanbul.ForwardMessage{DestAddresses: destAddresses, Msg: payload}
-		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-		if err != nil {
-			sb.logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-			return err
-		}
-
-		// Note that we are not signing message.  The message that is being wrapped is already signed.
-		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
-		payloadForOtherValidators, err = msg.Payload()
-		if err != nil {
-			return err
-		}
-
-		ethMsgCode = istanbulFwdMsg
-	}
-
 	// Send to others
-	if err := sb.Multicast(destAddresses, payloadForOtherValidators, ethMsgCode); err != nil {
+	if err := sb.Multicast(destAddresses, payload, istanbulConsensusMsg); err != nil {
 		return err
 	}
 
@@ -454,11 +429,44 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 // Multicast implements istanbul.Backend.Multicast
 // Multicast will send the eth message (with the message's payload and msgCode field set to the params
 // payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+// If this node is proxied and destAddresses is not nil, the message will be wrapped
+// in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
+// destAddresses.
 // If the destAddresses param is set to nil, then this function will send the message to all connected
 // peers.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "Multicast")
 
+	if sb.config.Proxied && destAddresses != nil {
+		// Convert the message to a fwdMessage
+		fwdMessage := &istanbul.ForwardMessage{
+			Code:          ethMsgCode,
+			DestAddresses: destAddresses,
+			Msg:           payload,
+		}
+		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+		if err != nil {
+			logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+			return err
+		}
+
+		// Note that we are not signing message.  The message that is being wrapped is already signed.
+		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
+		fwdMsgPayload, err := msg.Payload()
+		if err != nil {
+			return err
+		}
+
+		return sb.multicast(destAddresses, fwdMsgPayload, istanbulFwdMsg)
+	}
+	return sb.multicast(destAddresses, payload, ethMsgCode)
+}
+
+// multicast will send the eth message (with the message's payload and msgCode field set to the params
+// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+// If the destAddresses param is set to nil, then this function will send the message to all connected peers.
+func (sb *Backend) multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
+	logger := sb.logger.New("func", "multicast")
 	// Get peers to send.
 	peers := sb.getPeersForMessage(destAddresses)
 

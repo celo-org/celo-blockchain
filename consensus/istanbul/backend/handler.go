@@ -203,8 +203,8 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 		return err
 	}
 
-	sb.logger.Trace("Forwarding a consensus message")
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
+	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
 	return nil
 }
 
