@@ -19,8 +19,10 @@ package consensustest
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
 	"net"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -78,27 +80,28 @@ func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.Purpo
 
 // MockEngine is adapted from consensus/ethash (which has been deleted) for the purpose of
 // preserving legacy tests.
-type Mode uint
 
-// Config are the configuration parameters of the MockEngine.
-type Config struct {
-	Mode Mode
-}
+type Mode uint
 
 type MockEngine struct {
 	consensus.Engine
 
-	config Config
+	mode Mode
 
 	fakeFail  uint64        // Block number which fails consensus even in fake mode
 	fakeDelay time.Duration // Time delay to sleep for before returning from verify
 }
 
 const (
-	ModeFake Mode = iota
-	ModeFakeFail
-	ModeDelayFake
-	ModeFullFake
+	Fake Mode = iota
+	FullFake
+)
+
+var (
+	// Max time from current time allowed for blocks, before they're considered future blocks
+	allowedFutureBlockTime = 15 * time.Second
+
+	errZeroBlockTime = errors.New("timestamp equals parent's")
 )
 
 // NewFaker creates a MockEngine consensus engine that accepts
@@ -106,21 +109,17 @@ const (
 // consensus rules.
 func NewFaker() *MockEngine {
 	return &MockEngine{
-		config: Config{
-			Mode: ModeFake,
-		},
+		mode: Fake,
 	}
 }
 
 // NewFakeFailer creates a MockEngine consensus engine that
 // accepts all blocks as valid apart from the single one specified, though they
 // still have to conform to the Ethereum consensus rules.
-func NewFakeFailer(fail uint64) *MockEngine {
+func NewFakeFailer(blockNumber uint64) *MockEngine {
 	return &MockEngine{
-		config: Config{
-			Mode: ModeFakeFail,
-		},
-		fakeFail: fail,
+		mode:     Fake,
+		fakeFail: blockNumber,
 	}
 }
 
@@ -129,9 +128,7 @@ func NewFakeFailer(fail uint64) *MockEngine {
 // they still have to conform to the Ethereum consensus rules.
 func NewFakeDelayer(delay time.Duration) *MockEngine {
 	return &MockEngine{
-		config: Config{
-			Mode: ModeDelayFake,
-		},
+		mode:      Fake,
 		fakeDelay: delay,
 	}
 }
@@ -140,14 +137,12 @@ func NewFakeDelayer(delay time.Duration) *MockEngine {
 // accepts all blocks as valid, without checking any consensus rules whatsoever.
 func NewFullFaker() *MockEngine {
 	return &MockEngine{
-		config: Config{
-			Mode: ModeFullFake,
-		},
+		mode: FullFake,
 	}
 }
 
 func (e *MockEngine) accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header) {
-	// Simply touch miner coinbase account
+	// Simply touch coinbase account
 	reward := big.NewInt(0)
 	state.AddBalance(header.Coinbase, reward)
 }
@@ -162,50 +157,165 @@ func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *ty
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, receipts, nil), nil
+	return types.NewBlock(header, txs, receipts, randomness), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
-	return common.Address{}, nil
+	return header.Coinbase, nil
 }
 
 func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
-
-	switch e.config.Mode {
-	case ModeFake:
-		return nil
-	case ModeFullFake:
-		return nil
-	case ModeDelayFake:
-		time.Sleep(e.fakeDelay)
-		return nil
-	case ModeFakeFail:
-		if header.Number.Cmp(big.NewInt(int64(e.fakeFail))) == 0 {
-			return errFakeFail
-		}
-		return nil
-	default:
+	if e.mode == FullFake {
 		return nil
 	}
+	// Short circuit if the header is known, or if its parent is unknown
+	number := header.Number.Uint64()
+	if chain.GetHeader(header.Hash(), number) != nil {
+		return nil
+	}
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+	// Sanity checks passed, do a proper verification
+	return e.verifyHeader(chain, header, parent, seal)
 }
+
+// verifyHeader checks whether a header conforms to the consensus rules
+func (e *MockEngine) verifyHeader(chain consensus.ChainReader, header, parent *types.Header, seal bool) error {
+	// Ensure that the header's extra-data section is of a reasonable size
+	if uint64(len(header.Extra)) > params.MaximumExtraDataSize {
+		return fmt.Errorf("extra-data too long: %d > %d", len(header.Extra), params.MaximumExtraDataSize)
+	}
+	// Verify the header's timestamp
+	if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
+		return consensus.ErrFutureBlock
+	}
+	if header.Time <= parent.Time {
+		return errZeroBlockTime
+	}
+	// Verify that the block number is parent's +1
+	if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(big.NewInt(1)) != 0 {
+		return consensus.ErrInvalidNumber
+	}
+	// Verify the engine specific seal securing the block
+	if seal {
+		if err := e.VerifySeal(chain, header); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *MockEngine) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+	return e.verifySeal(chain, header)
+}
+
+func (e *MockEngine) verifySeal(chain consensus.ChainReader, header *types.Header) error {
+	time.Sleep(e.fakeDelay)
+	if e.fakeFail == header.Number.Uint64() {
+		return errFakeFail
+	}
+	return nil
+}
+
+// // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
+// // concurrently. The method returns a quit channel to abort the operations and
+// // a results channel to retrieve the async verifications (the order is that of
+// // the input slice).
+// func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+// 	abort := make(chan struct{})
+// 	results := make(chan error, len(headers))
+// 	go func() {
+// 		for i, header := range headers {
+// 			err := e.VerifyHeader(chain, header, seals[i])
+
+// 			select {
+// 			case <-abort:
+// 				return
+// 			case results <- err:
+// 			}
+// 		}
+// 	}()
+// 	return abort, results
+// }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 // concurrently. The method returns a quit channel to abort the operations and
-// a results channel to retrieve the async verifications (the order is that of
-// the input slice).
+// a results channel to retrieve the async verifications.
 func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
-	abort := make(chan struct{})
-	results := make(chan error, len(headers))
-	go func() {
-		for i, header := range headers {
-			err := e.VerifyHeader(chain, header, seals[i])
+	if e.mode == FullFake || len(headers) == 0 {
+		abort, results := make(chan struct{}), make(chan error, len(headers))
+		for i := 0; i < len(headers); i++ {
+			results <- nil
+		}
+		return abort, results
+	}
 
+	// Spawn as many workers as allowed threads
+	workers := runtime.GOMAXPROCS(0)
+	if len(headers) < workers {
+		workers = len(headers)
+	}
+
+	// Create a task channel and spawn the verifiers
+	var (
+		inputs = make(chan int)
+		done   = make(chan int, workers)
+		errors = make([]error, len(headers))
+		abort  = make(chan struct{})
+	)
+	for i := 0; i < workers; i++ {
+		go func() {
+			for index := range inputs {
+				errors[index] = e.verifyHeaderWorker(chain, headers, seals, index)
+				done <- index
+			}
+		}()
+	}
+
+	errorsOut := make(chan error, len(headers))
+	go func() {
+		defer close(inputs)
+		var (
+			in, out = 0, 0
+			checked = make([]bool, len(headers))
+			inputs  = inputs
+		)
+		for {
 			select {
+			case inputs <- in:
+				if in++; in == len(headers) {
+					// Reached end of headers. Stop sending to workers.
+					inputs = nil
+				}
+			case index := <-done:
+				for checked[index] = true; checked[out]; out++ {
+					errorsOut <- errors[out]
+					if out == len(headers)-1 {
+						return
+					}
+				}
 			case <-abort:
 				return
-			case results <- err:
 			}
 		}
 	}()
-	return abort, results
+	return abort, errorsOut
+}
+
+func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainReader, headers []*types.Header, seals []bool, index int) error {
+	var parent *types.Header
+	if index == 0 {
+		parent = chain.GetHeader(headers[0].ParentHash, headers[0].Number.Uint64()-1)
+	} else if headers[index-1].Hash() == headers[index].ParentHash {
+		parent = headers[index-1]
+	}
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+	if chain.GetHeader(headers[index].Hash(), headers[index].Number.Uint64()) != nil {
+		return nil // known block
+	}
+	return e.verifyHeader(chain, headers[index], parent, seals[index])
 }
