@@ -28,7 +28,7 @@ func Permutation(randomness common.Hash, n int) []int {
 		array[i] = i
 	}
 
-	// Shuffle the array using the uniform above uniform range method.
+	// Shuffle the array using the Fisher-Yates method.
 	for i := 0; i < n-1; i++ {
 		randomness = sha3.Sum256(append(randomness[:], permutationSalt))
 		j := i + int(uniform(randomness, uint64(n-i))) // j in [i, n)
