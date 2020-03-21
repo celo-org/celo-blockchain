@@ -119,6 +119,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
+		blocksSignedInSealMeter:            metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/quorum", nil),
+		blocksSignedInSealOrChildMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/total", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -234,6 +237,13 @@ type Backend struct {
 	finalizationTimer metrics.Timer
 	// Metric timer used to record epoch reward distribution times.
 	rewardDistributionTimer metrics.Timer
+
+	// Meters for number of blocks seen for which the current validator signer has been elected,
+	// has its signature included in the seal, and has its signature included in the subsequent block's
+	// 'parentSeal' (i.e. it doesn't count for consensus, but it does count for counting uptime)
+	blocksElectedMeter             metrics.Meter
+	blocksSignedInSealMeter        metrics.Meter
+	blocksSignedInSealOrChildMeter metrics.Meter
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
