@@ -61,6 +61,16 @@ func (ec *Client) Close() {
 
 // Blockchain Access
 
+// NetworkListening indicates if the node is listening
+func (ec *Client) NetworkListening(ctx context.Context) (bool, error) {
+	var result bool
+	err := ec.c.CallContext(ctx, &result, "net_listening")
+	if err != nil {
+		return false, err
+	}
+	return result, err
+}
+
 // ChainId retrieves the current chain ID for transaction replay protection.
 func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 	var result hexutil.Big
