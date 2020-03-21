@@ -12,6 +12,7 @@ import (
 
 var _ = (*stTransactionMarshaling)(nil)
 
+// MarshalJSON marshals as JSON.
 func (s stTransaction) MarshalJSON() ([]byte, error) {
 	type stTransaction struct {
 		GasPrice   *math.HexOrDecimal256 `json:"gasPrice"`
@@ -38,6 +39,7 @@ func (s stTransaction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&enc)
 }
 
+// UnmarshalJSON unmarshals from JSON.
 func (s *stTransaction) UnmarshalJSON(input []byte) error {
 	type stTransaction struct {
 		GasPrice   *math.HexOrDecimal256 `json:"gasPrice"`

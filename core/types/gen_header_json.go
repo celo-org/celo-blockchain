@@ -132,7 +132,7 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'mixHash' for Header")
 	}
 	h.MixDigest = *dec.MixDigest
-	if dec.Nonce != nil {
+	if dec.Nonce == nil {
 		return errors.New("missing required field 'nonce' for Header")
 	}
 	h.Nonce = *dec.Nonce
