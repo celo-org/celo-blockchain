@@ -61,6 +61,16 @@ func (ec *Client) Close() {
 
 // Blockchain Access
 
+// NetworkListening indicates if the node is listening
+func (ec *Client) NetworkListening(ctx context.Context) (bool, error) {
+	var result bool
+	err := ec.c.CallContext(ctx, &result, "net_listening")
+	if err != nil {
+		return false, err
+	}
+	return result, err
+}
+
 // ChainId retrieves the current chain ID for transaction replay protection.
 func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 	var result hexutil.Big
@@ -69,6 +79,16 @@ func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 		return nil, err
 	}
 	return (*big.Int)(&result), err
+}
+
+// Coinbase retrieves full nodes coinbase
+func (ec *Client) Coinbase(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_coinbase")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
 }
 
 // BlockByHash returns the given full block.
@@ -127,6 +147,43 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 		txs[i] = tx.tx
 	}
 	return types.NewBlockWithHeader(head).WithBody(txs, body.Randomness, body.EpochSnarkData), nil
+}
+
+type ExtendedHeader struct {
+	types.Header
+	headerExtraInfo
+}
+
+type headerExtraInfo struct {
+	Transactions []common.Hash `json:"transactions,omitempty"`
+}
+
+func (rh *ExtendedHeader) UnmarshalJSON(msg []byte) error {
+	if err := json.Unmarshal(msg, &rh.Header); err != nil {
+		return err
+	}
+	return json.Unmarshal(msg, &rh.headerExtraInfo)
+}
+
+// ExtendedHeaderByHash returns the block header with the given hash.
+func (ec *Client) ExtendedHeaderByHash(ctx context.Context, hash common.Hash) (*ExtendedHeader, error) {
+	var head *ExtendedHeader
+	err := ec.c.CallContext(ctx, &head, "eth_getBlockByHash", hash, false)
+	if err == nil && head == nil {
+		err = ethereum.NotFound
+	}
+	return head, err
+}
+
+// ExtendedHeaderByNumber returns a block header from the current canonical chain. If number is
+// nil, the latest known header is returned.
+func (ec *Client) ExtendedHeaderByNumber(ctx context.Context, number *big.Int) (*ExtendedHeader, error) {
+	var head *ExtendedHeader
+	err := ec.c.CallContext(ctx, &head, "eth_getBlockByNumber", toBlockNumArg(number), false)
+	if err == nil && head == nil {
+		err = ethereum.NotFound
+	}
+	return head, err
 }
 
 // HeaderByHash returns the block header with the given hash.
@@ -485,6 +542,16 @@ func (ec *Client) SendTransaction(ctx context.Context, tx *types.Transaction) er
 		return err
 	}
 	return ec.c.CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Encode(data))
+}
+
+// SendRawTransaction injects an RLP-encoded, signed transaction into the pending pool for execution.
+func (ec *Client) SendRawTransaction(ctx context.Context, data []byte) (*common.Hash, error) {
+	var txhash common.Hash
+	err := ec.c.CallContext(ctx, &txhash, "eth_sendRawTransaction", hexutil.Encode(data))
+	if err != nil {
+		return nil, err
+	}
+	return &txhash, nil
 }
 
 func toCallArg(msg ethereum.CallMsg) interface{} {
