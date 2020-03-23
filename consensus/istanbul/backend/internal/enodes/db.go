@@ -19,6 +19,7 @@ package enodes
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -35,6 +36,10 @@ const (
 	dbVersionKey = "version" // Version of the database to flush if changes
 
 	dbAddressPrefix = "address:" // Identifier to prefix node entries with
+)
+
+var (
+	errIncorrectEntryType = errors.New("Incorrect entry type")
 )
 
 func addressKey(address common.Address) []byte {
@@ -162,13 +167,6 @@ func (vedb *versionedEntryDB) Upsert(
 
 func (vedb *versionedEntryDB) Get(key []byte) ([]byte, error) {
 	return vedb.db.Get(key, nil)
-}
-
-// Remove will remove an entry from the table
-func (vedb *versionedEntryDB) Remove(key []byte) error {
-	batch := new(leveldb.Batch)
-	batch.Delete(key)
-	return vedb.Write(batch)
 }
 
 func (vedb *versionedEntryDB) Write(batch *leveldb.Batch) error {

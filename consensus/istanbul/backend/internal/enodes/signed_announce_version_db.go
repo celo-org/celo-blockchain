@@ -19,7 +19,6 @@ package enodes
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -52,6 +51,14 @@ type SignedAnnounceVersionEntry struct {
 	PublicKey *ecdsa.PublicKey
 	Version   uint
 	Signature []byte
+}
+
+func signedAnnounceVersionEntryFromVersionedEntry(entry versionedEntry) (*SignedAnnounceVersionEntry, error) {
+	signedAnnVersionEntry, ok := entry.(*SignedAnnounceVersionEntry)
+	if !ok {
+		return nil, errIncorrectEntryType
+	}
+	return signedAnnVersionEntry, nil
 }
 
 // GetVersion gets the entry's version. This implements the GetVersion function
@@ -138,17 +145,17 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 	var newEntries []*SignedAnnounceVersionEntry
 
 	getExistingEntry := func(entry versionedEntry) (versionedEntry, error) {
-		savEntry, ok := entry.(*SignedAnnounceVersionEntry)
-		if !ok {
-			return entry, errors.New("Entry is not the correct type")
+		savEntry, err := signedAnnounceVersionEntryFromVersionedEntry(entry)
+		if err != nil {
+			return entry, err
 		}
 		return svdb.Get(savEntry.Address)
 	}
 
 	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
-		savEntry, ok := entry.(*SignedAnnounceVersionEntry)
-		if !ok {
-			return errors.New("Entry is not the correct type")
+		savEntry, err := signedAnnounceVersionEntryFromVersionedEntry(entry)
+		if err != nil {
+			return err
 		}
 		savEntryBytes, err := rlp.EncodeToBytes(savEntry)
 		if err != nil {
@@ -216,7 +223,9 @@ func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, er
 
 // Remove will remove an entry from the table
 func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
-	return svdb.vedb.Remove(addressKey(address))
+	batch := new(leveldb.Batch)
+	batch.Delete(addressKey(address))
+	return svdb.vedb.Write(batch)
 }
 
 // Prune will remove entries for all addresses not present in addressesToKeep
