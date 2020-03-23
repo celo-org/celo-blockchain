@@ -228,21 +228,6 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		return vet.getAddressEntry(addressEntry.Address)
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
-		existingAddressEntry, err := addressEntryFromVersionedEntry(existingEntry)
-		if err != nil {
-			return err
-		}
-		newAddressEntry, err := addressEntryFromVersionedEntry(newEntry)
-		if err != nil {
-			return err
-		}
-		batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
-		batch.Put(nodeIDKey(newAddressEntry.Node.ID()), newAddressEntry.Address.Bytes())
-		peersToRemove = append(peersToRemove, existingAddressEntry.Node)
-		return nil
-	}
-
 	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
 		addressEntry, err := addressEntryFromVersionedEntry(entry)
 		if err != nil {
@@ -256,6 +241,16 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		batch.Put(addressKey(addressEntry.Address), entryBytes)
 		peersToAdd[addressEntry.Address] = addressEntry.Node
 		return nil
+	}
+
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
+		existingAddressEntry, err := addressEntryFromVersionedEntry(existingEntry)
+		if err != nil {
+			return err
+		}
+		batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
+		peersToRemove = append(peersToRemove, existingAddressEntry.Node)
+		return onNewEntry(batch, newEntry)
 	}
 
 	entries := make([]versionedEntry, len(valEnodeEntries))

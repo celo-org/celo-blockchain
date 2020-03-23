@@ -43,7 +43,7 @@ func newVersionedEntryDB(dbVersion int64, path string, logger log.Logger, writeO
 		return nil, err
 	}
 	return &versionedEntryDB{
-		db: db,
+		db:           db,
 		writeOptions: writeOptions,
 	}, nil
 }
