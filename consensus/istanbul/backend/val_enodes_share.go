@@ -209,7 +209,7 @@ func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) err
 		} else {
 			upsertBatch = append(upsertBatch, &vet.AddressEntry{
 				Address: sharedValidatorEnode.Address,
-				Node: node,
+				Node:    node,
 				Version: sharedValidatorEnode.Version,
 			})
 		}

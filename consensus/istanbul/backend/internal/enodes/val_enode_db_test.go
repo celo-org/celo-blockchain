@@ -31,9 +31,9 @@ func TestSimpleCase(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Node: nodeA, Version: 1}
+	addressEntry := &AddressEntry{Address: addressA, Node: nodeA, Version: 1}
 
-	err = vet.Upsert(map[common.Address]*AddressEntry{addressA: addressEntry})
+	err = vet.Upsert([]*AddressEntry{addressEntry})
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -61,9 +61,9 @@ func TestDeleteEntry(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Node: nodeA, Version: 2}
+	addressEntry := &AddressEntry{Address: addressA, Node: nodeA, Version: 2}
 
-	err = vet.Upsert(map[common.Address]*AddressEntry{addressA: addressEntry})
+	err = vet.Upsert([]*AddressEntry{addressEntry})
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -89,10 +89,10 @@ func TestPruneEntries(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := make(map[common.Address]*AddressEntry)
-
-	batch[addressA] = &AddressEntry{Node: nodeA, Version: 2}
-	batch[addressB] = &AddressEntry{Node: nodeB, Version: 2}
+	batch := []*AddressEntry{
+		&AddressEntry{Address: addressA, Node: nodeA, Version: 2},
+		&AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+	}
 
 	vet.Upsert(batch)
 
@@ -113,7 +113,7 @@ func TestPruneEntries(t *testing.T) {
 }
 
 func TestRLPEntries(t *testing.T) {
-	original := AddressEntry{Node: nodeA, Version: 1}
+	original := AddressEntry{Address: addressA, Node: nodeA, Version: 1}
 
 	rawEntry, err := rlp.EncodeToBytes(&original)
 	if err != nil {
@@ -139,10 +139,10 @@ func TestTableToString(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := make(map[common.Address]*AddressEntry)
-
-	batch[addressA] = &AddressEntry{Node: nodeA, Version: 2}
-	batch[addressB] = &AddressEntry{Node: nodeB, Version: 2}
+	batch := []*AddressEntry{
+		&AddressEntry{Address: addressA, Node: nodeA, Version: 2},
+		&AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+	}
 
 	vet.Upsert(batch)
 

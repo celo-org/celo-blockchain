@@ -1195,7 +1195,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{ Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}

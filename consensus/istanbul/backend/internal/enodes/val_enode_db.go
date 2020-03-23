@@ -34,13 +34,7 @@ import (
 // Keys in the node database.
 const (
 	valEnodeDBVersion = 4
-
-	dbNodeIDPrefix = "nodeid:" // Identifier to prefix node entries with
 )
-
-func nodeIDKey(nodeID enode.ID) []byte {
-	return append([]byte(dbNodeIDPrefix), nodeID.Bytes()...)
-}
 
 // ValidatorEnodeHandler is handler to Add/Remove events. Events execute within write lock
 type ValidatorEnodeHandler interface {
@@ -382,7 +376,7 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 		return nil
 	}
 
-	if err := vet.vedb.iterate(keyPrefix, onDBEntry); err != nil {
+	if err := vet.vedb.Iterate(keyPrefix, onDBEntry); err != nil {
 		logger.Warn("Error iterating through db entries", "err", err)
 		return err
 	}

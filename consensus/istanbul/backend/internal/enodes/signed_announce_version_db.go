@@ -38,8 +38,8 @@ const (
 
 // SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
-	vedb         *versionedEntryDB
-	logger       log.Logger
+	vedb   *versionedEntryDB
+	logger log.Logger
 }
 
 // SignedAnnounceVersionEntry is an entry in the SignedAnnounceVersionDB.
@@ -110,8 +110,8 @@ func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) 
 	}
 
 	return &SignedAnnounceVersionDB{
-		vedb:         vedb,
-		logger:       logger,
+		vedb:   vedb,
+		logger: logger,
 	}, nil
 }
 
@@ -262,7 +262,7 @@ func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *Signe
 		return nil
 	}
 
-	if err := svdb.vedb.iterate(keyPrefix, onDBEntry); err != nil {
+	if err := svdb.vedb.Iterate(keyPrefix, onDBEntry); err != nil {
 		logger.Warn("Error iterating through db entries", "err", err)
 		return err
 	}
