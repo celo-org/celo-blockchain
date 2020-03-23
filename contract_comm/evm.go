@@ -34,9 +34,6 @@ import (
 var (
 	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
-
-	// Metrics timers to track the execution time of calls made from the system to core contracts.
-	systemCallTimers = make(map[string]metrics.Timer)
 )
 
 // An EVM handler to make calls to smart contracts from within geth
