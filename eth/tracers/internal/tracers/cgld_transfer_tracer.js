@@ -36,7 +36,20 @@
 
   handleCall(log, op) {
     const to = toAddress(log.stack.peek(1).toString(16));
-    if (isPrecompiled(to) && toHex(to) == '0x00000000000000000000000000000000000000fd') {
+    if (!isPrecompiled(to)) {
+      if (op != 'DELEGATECALL') {
+        valueBigInt = bigInt(log.stack.peek(2));
+        if (valueBigInt.gt(0)) {
+          const transfer = {
+            type: 'cGLD nested transfer',
+            from: toHex(log.contract.getAddress()),
+            to: toHex(to),
+            value: '0x' + valueBigInt.toString(16),
+          };
+          this.transfers.unshift(transfer);
+        }
+      }
+    } else if (toHex(to) == '0x00000000000000000000000000000000000000fd') {
       // This is the transfer precompile "address", inspect its arguments
       const stackOffset = 1;
       const inputOffset = log.stack.peek(2 + stackOffset).valueOf();
