@@ -30,9 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	ccerrors "github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/contract_comm/freezer"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
-	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -86,10 +84,6 @@ var (
 
 	// ErrNonWhitelistedFeeCurrency is returned if the txn fee currency is not white listed
 	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency")
-
-	// ErrTransfersFrozen is returned if a transaction attempts to transfer between
-	// non-whitelisted addresses while transfers are frozen.
-	ErrTransfersFrozen = errors.New("transfers are currently frozen")
 )
 
 var (
