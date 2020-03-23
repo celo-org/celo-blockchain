@@ -83,9 +83,7 @@
         this.transfers.unshift(transfer);
       }
     }
-    for (var i = 0; i < this.transfers.length; i++) {
-      this.transfers[i].block = ctx.block
-    }
+    // Return in same format as callTracer: -calls, +transfers, and +block
     return {
       type:      ctx.type,
       from:      toHex(ctx.from),
@@ -95,6 +93,7 @@
       gasUsed:   '0x' + bigInt(ctx.gasUsed).toString(16),
       input:     toHex(ctx.input),
       output:    toHex(ctx.output),
+      block:     ctx.block,
       time:      ctx.time,
       transfers: this.transfers,
     };
