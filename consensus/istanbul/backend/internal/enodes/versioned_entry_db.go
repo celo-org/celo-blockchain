@@ -54,10 +54,10 @@ func (vedb *versionedEntryDB) Close() error {
 }
 
 // Upsert iterates through each provided entry and determines if the entry is
-// new based off its version. If there is an existing entry and the verion on the
+// new based off its version. If there is an existing entry in the db and the version of the
 // new entry is newer, `onUpdatedEntry` is called. If there is no existing entry,
-// `onNewEntry` is called. The decision of which entries in the db to modify
-// is left to both of those functions by giving them a leveldb Batch.
+// `onNewEntry` is called. Db content modifications are left to those functions
+// by providing a leveldb Batch that is written after all entries are processed.
 func (vedb *versionedEntryDB) Upsert(
 	entries []versionedEntry,
 	getExistingEntry func(entry versionedEntry) (versionedEntry, error),
