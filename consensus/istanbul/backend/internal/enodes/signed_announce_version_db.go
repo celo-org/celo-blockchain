@@ -145,7 +145,7 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 		return svdb.Get(savEntry.Address)
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
+	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
 		savEntry, ok := entry.(*SignedAnnounceVersionEntry)
 		if !ok {
 			return errors.New("Entry is not the correct type")
@@ -161,13 +161,17 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 		return nil
 	}
 
+	onUpdatedEntry := func(batch *leveldb.Batch, _ versionedEntry, newEntry versionedEntry) error {
+		return onNewEntry(batch, newEntry)
+	}
+
 	entries := make([]versionedEntry, len(savEntries))
 	for i, sav := range savEntries {
 		entries[i] = versionedEntry(sav)
 	}
 
-	if err := svdb.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onUpdatedEntry); err != nil {
-		logger.Warn("Error upserting", "err", err)
+	if err := svdb.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
+		logger.Warn("Error upserting entries", "err", err)
 		return nil, err
 	}
 	return newEntries, nil

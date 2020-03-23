@@ -201,13 +201,17 @@ func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) err
 
 	sb.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
-	upsertBatch := make(map[common.Address]*vet.AddressEntry)
+	var upsertBatch []*vet.AddressEntry
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
 			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Version: sharedValidatorEnode.Version}
+			upsertBatch = append(upsertBatch, &vet.AddressEntry{
+				Address: sharedValidatorEnode.Address,
+				Node: node,
+				Version: sharedValidatorEnode.Version,
+			})
 		}
 	}
 

@@ -17,13 +17,14 @@
 package enodes
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -59,12 +60,17 @@ func nodeIDKey(nodeID enode.ID) []byte {
 
 // AddressEntry is an entry for the valEnodeTable
 type AddressEntry struct {
+	Address common.Address
 	Node    *enode.Node
 	Version uint
 }
 
-func (ve *AddressEntry) String() string {
-	return fmt.Sprintf("{enodeURL: %v, version: %v}", ve.Node.String(), ve.Version)
+func (ae *AddressEntry) GetVersion() uint {
+	return ae.Version
+}
+
+func (ae *AddressEntry) String() string {
+	return fmt.Sprintf("{enodeURL: %v, version: %v}", ae.Node.String(), ae.Version)
 }
 
 // Implement RLP Encode/Decode interface
@@ -97,7 +103,7 @@ func (ve *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	db      *leveldb.DB //the actual DB
+	vedb    *versionedEntryDB
 	lock    sync.RWMutex
 	handler ValidatorEnodeHandler
 	logger  log.Logger
@@ -108,13 +114,14 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	logger := log.New("db", "ValidatorEnodeDB")
 
-	db, err := newDB(int64(valEnodeDBVersion), path, logger)
+	vedb, err := newVersionedEntryDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
+
 	return &ValidatorEnodeDB{
-		db:      db,
+		vedb:    vedb,
 		handler: handler,
 		logger:  logger,
 	}, nil
@@ -122,7 +129,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 
 // Close flushes and closes the database files.
 func (vet *ValidatorEnodeDB) Close() error {
-	return vet.db.Close()
+	return vet.vedb.Close()
 }
 
 func (vet *ValidatorEnodeDB) String() string {
@@ -170,7 +177,7 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 
-	rawEntry, err := vet.db.Get(nodeIDKey(nodeID), nil)
+	rawEntry, err := vet.vedb.Get(nodeIDKey(nodeID))
 	if err != nil {
 		return common.ZeroAddress, err
 	}
@@ -201,67 +208,130 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
-func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries map[common.Address]*AddressEntry) error {
+func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
+	logger := vet.logger.New("func", "Upsert")
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
 
-	batch := new(leveldb.Batch)
 	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
 	peersToAdd := make(map[common.Address]*enode.Node)
 
-	for remoteAddress, addressEntry := range valEnodeEntries {
-		currentEntry, err := vet.getAddressEntry(remoteAddress)
-		isNew := err == leveldb.ErrNotFound
-
-		// Check errors
-		if !isNew && err != nil {
-			return err
+	getExistingEntry := func(entry versionedEntry) (versionedEntry, error) {
+		addressEntry, ok := entry.(*AddressEntry)
+		if !ok {
+			return entry, errors.New("Entry is not the correct type")
 		}
+		return vet.getAddressEntry(addressEntry.Address)
+	}
 
-		// new entry
-		rawEntry, err := rlp.EncodeToBytes(addressEntry)
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
+		existingAddressEntry, ok := existingEntry.(*AddressEntry)
+		if !ok {
+			return errors.New("Entry is not the correct type")
+		}
+		newAddressEntry, ok := newEntry.(*AddressEntry)
+		if !ok {
+			return errors.New("Entry is not the correct type")
+		}
+		batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
+		batch.Put(nodeIDKey(newAddressEntry.Node.ID()), newAddressEntry.Address.Bytes())
+		peersToRemove = append(peersToRemove, existingAddressEntry.Node)
+		return nil
+	}
+
+	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
+		addressEntry, ok := entry.(*AddressEntry)
+		if !ok {
+			return errors.New("Entry is not the correct type")
+		}
+		entryBytes, err := rlp.EncodeToBytes(addressEntry)
 		if err != nil {
 			return err
 		}
-
-		// If it's an old message, ignore it
-		if !isNew && addressEntry.Version < currentEntry.Version {
-			vet.logger.Trace("Ignoring the entry because its version is older than what is stored in the val enode db",
-				"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
-			continue
-		}
-
-		hasOldValueChanged := !isNew && currentEntry.Node.String() != addressEntry.Node.String()
-
-		if hasOldValueChanged {
-			batch.Delete(nodeIDKey(currentEntry.Node.ID()))
-			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-			peersToRemove = append(peersToRemove, currentEntry.Node)
-		} else if isNew {
-			batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
-		}
-		batch.Put(addressKey(remoteAddress), rawEntry)
-		peersToAdd[remoteAddress] = addressEntry.Node
-
-		vet.logger.Trace("Going to upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", addressEntry.Node.String())
+		batch.Put(nodeIDKey(addressEntry.Node.ID()), addressEntry.Address.Bytes())
+		batch.Put(addressKey(addressEntry.Address), entryBytes)
+		peersToAdd[addressEntry.Address] = addressEntry.Node
+		return nil
 	}
 
-	if batch.Len() > 0 {
-		err := vet.db.Write(batch, nil)
-		if err != nil {
-			return err
-		} else {
-			for _, node := range peersToRemove {
-				vet.handler.RemoveValidatorPeer(node)
-			}
-
-			for address, node := range peersToAdd {
-				vet.handler.AddValidatorPeer(node, address)
-			}
-		}
+	entries := make([]versionedEntry, len(valEnodeEntries))
+	for i, valEnodeEntry := range valEnodeEntries {
+		entries[i] = versionedEntry(valEnodeEntry)
 	}
 
+	if err := vet.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
+		logger.Warn("Error upserting entries", "err", err)
+		return err
+	}
+
+	for _, node := range peersToRemove {
+		vet.handler.RemoveValidatorPeer(node)
+	}
+
+	for address, node := range peersToAdd {
+		vet.handler.AddValidatorPeer(node, address)
+	}
 	return nil
+
+	//
+	//
+	// batch := new(leveldb.Batch)
+	// peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
+	// peersToAdd := make(map[common.Address]*enode.Node)
+	//
+	// for remoteAddress, addressEntry := range valEnodeEntries {
+	// 	currentEntry, err := vet.getAddressEntry(remoteAddress)
+	// 	isNew := err == leveldb.ErrNotFound
+	//
+	// 	// Check errors
+	// 	if !isNew && err != nil {
+	// 		return err
+	// 	}
+	//
+	// 	// new entry
+	// 	rawEntry, err := rlp.EncodeToBytes(addressEntry)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	//
+	// 	// If it's an old message, ignore it
+	// 	if !isNew && addressEntry.Version < currentEntry.Version {
+	// 		vet.logger.Trace("Ignoring the entry because its version is older than what is stored in the val enode db",
+	// 			"entryAddress", remoteAddress, "newEntry", addressEntry.String(), "currentEntry", currentEntry.String())
+	// 		continue
+	// 	}
+	//
+	// 	hasOldValueChanged := !isNew && currentEntry.Node.String() != addressEntry.Node.String()
+	//
+	// 	if hasOldValueChanged {
+	// 		batch.Delete(nodeIDKey(currentEntry.Node.ID()))
+	// 		batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
+	// 		peersToRemove = append(peersToRemove, currentEntry.Node)
+	// 	} else if isNew {
+	// 		batch.Put(nodeIDKey(addressEntry.Node.ID()), remoteAddress.Bytes())
+	// 	}
+	// 	batch.Put(addressKey(remoteAddress), rawEntry)
+	// 	peersToAdd[remoteAddress] = addressEntry.Node
+	//
+	// 	vet.logger.Trace("Going to upsert an entry in the valEnodeTable", "address", remoteAddress, "enodeURL", addressEntry.Node.String())
+	// }
+	//
+	// if batch.Len() > 0 {
+	// 	err := vet.vedb.Write(batch)
+	// 	if err != nil {
+	// 		return err
+	// 	} else {
+	// 		for _, node := range peersToRemove {
+	// 			vet.handler.RemoveValidatorPeer(node)
+	// 		}
+	//
+	// 		for address, node := range peersToAdd {
+	// 			vet.handler.AddValidatorPeer(node, address)
+	// 		}
+	// 	}
+	// }
+
+	// return nil
 }
 
 // RemoveEntry will remove an entry from the table
@@ -273,7 +343,7 @@ func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
 	if err != nil {
 		return err
 	}
-	return vet.db.Write(batch, nil)
+	return vet.vedb.Write(batch)
 }
 
 // PruneEntries will remove entries for all address not present in addressesToKeep
@@ -292,7 +362,7 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	if err != nil {
 		return err
 	}
-	return vet.db.Write(batch, nil)
+	return vet.vedb.Write(batch)
 }
 
 func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool, ourAddress common.Address) {
@@ -335,32 +405,39 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 
 func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEntry, error) {
 	var entry AddressEntry
-	rawEntry, err := vet.db.Get(addressKey(address), nil)
+	entryBytes, err := vet.vedb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
 
-	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
+	if err = rlp.DecodeBytes(entryBytes, &entry); err != nil {
 		return nil, err
 	}
 	return &entry, nil
 }
 
 func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Address, *AddressEntry) error) error {
-	iter := vet.db.NewIterator(util.BytesPrefix([]byte(dbAddressPrefix)), nil)
-	defer iter.Release()
+	logger := vet.logger.New("func", "iterateOverAddressEntries")
+	// Only target address keys
+	keyPrefix := []byte(dbAddressPrefix)
 
-	for iter.Next() {
+	onDBEntry := func(key []byte, value []byte) error {
 		var entry AddressEntry
-		address := common.BytesToAddress(iter.Key()[len(dbAddressPrefix):])
-		rlp.DecodeBytes(iter.Value(), &entry)
-
-		err := onEntry(address, &entry)
-		if err != nil {
+		if err := rlp.DecodeBytes(value, &entry); err != nil {
 			return err
 		}
+		address := common.BytesToAddress(key)
+		if err := onEntry(address, &entry); err != nil {
+			return err
+		}
+		return nil
 	}
-	return iter.Error()
+
+	if err := vet.vedb.iterate(keyPrefix, onDBEntry); err != nil {
+		logger.Warn("Error iterating through db entries", "err", err)
+		return err
+	}
+	return nil
 }
 
 // ValEnodeEntryInfo contains information for an entry of the val enode table

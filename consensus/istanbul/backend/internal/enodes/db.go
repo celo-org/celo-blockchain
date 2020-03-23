@@ -126,8 +126,8 @@ func (vedb *versionedEntryDB) Close() error {
 func (vedb *versionedEntryDB) Upsert(
 	entries []versionedEntry,
 	getExistingEntry func(entry versionedEntry) (versionedEntry, error),
+	onUpdatedEntry func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error,
 	onNewEntry func(batch *leveldb.Batch, entry versionedEntry) error,
-	onUpdatedEntry func(batch *leveldb.Batch, entry versionedEntry) error,
 ) error {
 	batch := new(leveldb.Batch)
 	for _, entry := range entries {
@@ -144,7 +144,7 @@ func (vedb *versionedEntryDB) Upsert(
 				return err
 			}
 		} else {
-			if err := onUpdatedEntry(batch, entry); err != nil {
+			if err := onUpdatedEntry(batch, existingEntry, entry); err != nil {
 				return err
 			}
 		}
