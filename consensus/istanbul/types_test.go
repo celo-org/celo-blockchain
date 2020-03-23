@@ -290,7 +290,7 @@ func TestCommittedSubjectRLPEncoding(t *testing.T) {
 func TestForwardMessageRLPEncoding(t *testing.T) {
 	var result, original *ForwardMessage
 	original = &ForwardMessage{
-		Code:          istanbulConsensusMsg,
+		Code:          0x11, // istanbulConsensusMsg, but doesn't matter what it is
 		DestAddresses: []common.Address{common.HexToAddress("123123")},
 		Msg:           []byte{23, 23, 12, 3},
 	}

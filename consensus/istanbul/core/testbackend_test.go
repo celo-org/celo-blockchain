@@ -327,7 +327,9 @@ func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
 
-func (self *testSystemBackend) RefreshValPeers(valSet istanbul.ValidatorSet) {}
+func (self *testSystemBackend) RefreshValPeers() error {
+	return nil
+}
 
 func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)) {
 	self.verifyImpl = verifyImpl

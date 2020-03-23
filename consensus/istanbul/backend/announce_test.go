@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -27,6 +28,19 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.SetP2PServer(val1P2pServer)
 	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
+	val2Address := valSet.GetByIndex(2).Address()
+
+	sav, err := b.generateSignedAnnounceVersion(1)
+	if err != nil {
+		t.Fatalf("Error generating signed announce version: %v", err)
+	}
+	// Pretend the signed announce version belongs to a different address
+	sav.Address = val2Address
+	_, err = b.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersionEntry{sav.Entry()})
+	if err != nil {
+		t.Fatalf("Error upserting signed announce version: %v", err)
+	}
+
 	// Generate an ist announce message using val1
 	istMsg, err := b.generateAnnounce(getTimestamp())
 	if err != nil {
@@ -36,7 +50,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	payload, _ := istMsg.Payload()
 
 	// Set backend to val2
-	b.address = valSet.GetByIndex(2).Address()
+	b.address = val2Address
 
 	// Handle val1's announce message
 	if err = b.handleAnnounceMsg(nil, payload); err != nil {
