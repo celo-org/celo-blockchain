@@ -100,12 +100,8 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
 	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
 	start := time.Now()
-	timer, ok := systemCallTimers[funcName]
-	if !ok {
-		timer = metrics.NewRegisteredTimer("contract_comm/systemcall/"+funcName, nil)
-		systemCallTimers[funcName] = timer
-	}
 	defer timer.UpdateSince(start)
 
 	vmevm, err := createEVM(header, state)
