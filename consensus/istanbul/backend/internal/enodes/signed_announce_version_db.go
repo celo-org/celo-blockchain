@@ -19,13 +19,13 @@ package enodes
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -39,19 +39,25 @@ const (
 
 // SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
-	db           *leveldb.DB //the actual DB
+	vedb         *versionedEntryDB
 	logger       log.Logger
-	writeOptions *opt.WriteOptions
 }
 
 // SignedAnnounceVersionEntry is an entry in the SignedAnnounceVersionDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
+// This implements the versionedEntry interface.
 type SignedAnnounceVersionEntry struct {
 	Address   common.Address
 	PublicKey *ecdsa.PublicKey
 	Version   uint
 	Signature []byte
+}
+
+// GetVersion gets the entry's version. This implements the GetVersion function
+// for the versionedEntry interface
+func (entry *SignedAnnounceVersionEntry) GetVersion() uint {
+	return entry.Version
 }
 
 // EncodeRLP serializes SignedAnnounceVersionEntry into the Ethereum RLP format.
@@ -88,30 +94,23 @@ func (entry *SignedAnnounceVersionEntry) String() string {
 // OpenSignedAnnounceVersionDB opens a signed announce version database for storing
 // SignedAnnounceVersions. If no path is given an in-memory, temporary database is constructed.
 func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) {
-	var db *leveldb.DB
-	var err error
-
 	logger := log.New("db", "SignedAnnounceVersionDB")
 
-	if path == "" {
-		db, err = newMemoryDB()
-	} else {
-		db, err = newPersistentDB(int64(signedAnnounceVersionDBVersion), path, logger)
-	}
-
+	vedb, err := newVersionedEntryDB(int64(signedAnnounceVersionDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
+		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
+
 	return &SignedAnnounceVersionDB{
-		db:           db,
+		vedb:         vedb,
 		logger:       logger,
-		writeOptions: &opt.WriteOptions{NoWriteMerge: true},
 	}, nil
 }
 
 // Close flushes and closes the database files.
 func (svdb *SignedAnnounceVersionDB) Close() error {
-	return svdb.db.Close()
+	return svdb.vedb.Close()
 }
 
 // String gives a string representation of the entire db
@@ -133,39 +132,43 @@ func (svdb *SignedAnnounceVersionDB) String() string {
 
 // Upsert inserts any new entries or entries with a Version higher than the
 // existing version. Returns any new or updated entries
-func (svdb *SignedAnnounceVersionDB) Upsert(entries []*SignedAnnounceVersionEntry) ([]*SignedAnnounceVersionEntry, error) {
+func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionEntry) ([]*SignedAnnounceVersionEntry, error) {
 	logger := svdb.logger.New("func", "Upsert")
-	batch := new(leveldb.Batch)
 
 	var newEntries []*SignedAnnounceVersionEntry
 
-	for _, entry := range entries {
-		currentEntry, err := svdb.Get(entry.Address)
-		isNew := err == leveldb.ErrNotFound
-		if !isNew && err != nil {
-			return nil, err
+	getExistingEntry := func(entry versionedEntry) (versionedEntry, error) {
+		savEntry, ok := entry.(*SignedAnnounceVersionEntry)
+		if !ok {
+			return entry, errors.New("Entry is not the correct type")
 		}
-		if !isNew && entry.Version <= currentEntry.Version {
-			logger.Trace("Not inserting, version is not greater than the existing entry",
-				"address", entry.Address, "existing version", currentEntry.Version,
-				"new entry version", entry.Version)
-			continue
-		}
-		entryBytes, err := rlp.EncodeToBytes(entry)
-		if err != nil {
-			return nil, err
-		}
-		batch.Put(addressKey(entry.Address), entryBytes)
-		newEntries = append(newEntries, entry)
-		logger.Trace("Updating with new entry", "isNew", isNew,
-			"address", entry.Address, "new version", entry.Version)
+		return svdb.Get(savEntry.Address)
 	}
 
-	if batch.Len() > 0 {
-		err := svdb.db.Write(batch, svdb.writeOptions)
-		if err != nil {
-			return nil, err
+	onUpdatedEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
+		savEntry, ok := entry.(*SignedAnnounceVersionEntry)
+		if !ok {
+			return errors.New("Entry is not the correct type")
 		}
+		savEntryBytes, err := rlp.EncodeToBytes(savEntry)
+		if err != nil {
+			return err
+		}
+		batch.Put(addressKey(savEntry.Address), savEntryBytes)
+		newEntries = append(newEntries, savEntry)
+		logger.Trace("Updating with new entry",
+			"address", savEntry.Address, "new version", savEntry.Version)
+		return nil
+	}
+
+	entries := make([]versionedEntry, len(savEntries))
+	for i, sav := range savEntries {
+		entries[i] = versionedEntry(sav)
+	}
+
+	if err := svdb.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onUpdatedEntry); err != nil {
+		logger.Warn("Error upserting", "err", err)
+		return nil, err
 	}
 	return newEntries, nil
 }
@@ -174,11 +177,11 @@ func (svdb *SignedAnnounceVersionDB) Upsert(entries []*SignedAnnounceVersionEntr
 // Returns an error if no entry exists.
 func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersionEntry, error) {
 	var entry SignedAnnounceVersionEntry
-	rawEntry, err := svdb.db.Get(addressKey(address), nil)
+	entryBytes, err := svdb.vedb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
-	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
+	if err = rlp.DecodeBytes(entryBytes, &entry); err != nil {
 		return nil, err
 	}
 	return &entry, nil
@@ -209,9 +212,7 @@ func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, er
 
 // Remove will remove an entry from the table
 func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
-	batch := new(leveldb.Batch)
-	batch.Delete(addressKey(address))
-	return svdb.db.Write(batch, svdb.writeOptions)
+	return svdb.vedb.Remove(addressKey(address))
 }
 
 // Prune will remove entries for all addresses not present in addressesToKeep
@@ -227,25 +228,32 @@ func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bo
 	if err != nil {
 		return err
 	}
-	return svdb.db.Write(batch, svdb.writeOptions)
+	return svdb.vedb.Write(batch)
 }
 
 // iterate will call `onEntry` for each entry in the db
 func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *SignedAnnounceVersionEntry) error) error {
-	iter := svdb.db.NewIterator(util.BytesPrefix([]byte(dbAddressPrefix)), nil)
-	defer iter.Release()
+	logger := svdb.logger.New("func", "iterate")
+	// Only target address keys
+	keyPrefix := []byte(dbAddressPrefix)
 
-	for iter.Next() {
+	onDBEntry := func(key []byte, value []byte) error {
 		var entry SignedAnnounceVersionEntry
-		address := common.BytesToAddress(iter.Key()[len(dbAddressPrefix):])
-		rlp.DecodeBytes(iter.Value(), &entry)
-
-		err := onEntry(address, &entry)
-		if err != nil {
+		if err := rlp.DecodeBytes(value, &entry); err != nil {
 			return err
 		}
+		address := common.BytesToAddress(key)
+		if err := onEntry(address, &entry); err != nil {
+			return err
+		}
+		return nil
 	}
-	return iter.Error()
+
+	if err := svdb.vedb.iterate(keyPrefix, onDBEntry); err != nil {
+		logger.Warn("Error iterating through db entries", "err", err)
+		return err
+	}
+	return nil
 }
 
 // SignedAnnounceVersionEntryInfo gives basic information for an entry in the DB

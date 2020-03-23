@@ -25,6 +25,7 @@ import (
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
+	"github.com/syndtr/goleveldb/leveldb/util"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,6 +39,15 @@ const (
 
 func addressKey(address common.Address) []byte {
 	return append([]byte(dbAddressPrefix), address.Bytes()...)
+}
+
+// newDB creates/opens a leveldb persistent database at the given path.
+// If no path is given, an in-memory, temporary database is constructed.
+func newDB(dbVersion int64, path string, logger log.Logger) (*leveldb.DB, error) {
+	if path == "" {
+		return newMemoryDB()
+	}
+	return newPersistentDB(int64(valEnodeDBVersion), path, logger)
 }
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.
@@ -86,4 +96,95 @@ func newPersistentDB(dbVersion int64, path string, logger log.Logger) (*leveldb.
 		}
 	}
 	return db, nil
+}
+
+type versionedEntryDB struct {
+	db           *leveldb.DB
+	writeOptions *opt.WriteOptions
+}
+
+type versionedEntry interface {
+	GetVersion() uint
+}
+
+func newVersionedEntryDB(dbVersion int64, path string, logger log.Logger, writeOptions *opt.WriteOptions) (*versionedEntryDB, error) {
+	db, err := newDB(dbVersion, path, logger)
+	if err != nil {
+		return nil, err
+	}
+	return &versionedEntryDB{
+		db: db,
+		writeOptions: writeOptions,
+	}, nil
+}
+
+// Close flushes and closes the database files.
+func (vedb *versionedEntryDB) Close() error {
+	return vedb.db.Close()
+}
+
+func (vedb *versionedEntryDB) Upsert(
+	entries []versionedEntry,
+	getExistingEntry func(entry versionedEntry) (versionedEntry, error),
+	onNewEntry func(batch *leveldb.Batch, entry versionedEntry) error,
+	onUpdatedEntry func(batch *leveldb.Batch, entry versionedEntry) error,
+) error {
+	batch := new(leveldb.Batch)
+	for _, entry := range entries {
+		existingEntry, err := getExistingEntry(entry)
+		isNew := err == leveldb.ErrNotFound
+		if !isNew && err != nil {
+			return err
+		}
+		if !isNew && entry.GetVersion() <= existingEntry.GetVersion() {
+			continue
+		}
+		if isNew {
+			if err := onNewEntry(batch, entry); err != nil {
+				return err
+			}
+		} else {
+			if err := onUpdatedEntry(batch, entry); err != nil {
+				return err
+			}
+		}
+	}
+
+	if batch.Len() > 0 {
+		err := vedb.Write(batch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+
+func (vedb *versionedEntryDB) Get(key []byte) ([]byte, error) {
+	return vedb.db.Get(key, nil)
+}
+
+// Remove will remove an entry from the table
+func (vedb *versionedEntryDB) Remove(key []byte) error {
+	batch := new(leveldb.Batch)
+	batch.Delete(key)
+	return vedb.Write(batch)
+}
+
+func (vedb *versionedEntryDB) Write(batch *leveldb.Batch) error {
+	return vedb.db.Write(batch, vedb.writeOptions)
+}
+
+func (vedb *versionedEntryDB) iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
+	iter := vedb.db.NewIterator(util.BytesPrefix([]byte(keyPrefix)), nil)
+	defer iter.Release()
+
+	for iter.Next() {
+		key := iter.Key()[len(keyPrefix):]
+		err := onEntry(key, iter.Value())
+		if err != nil {
+			return err
+		}
+	}
+	return iter.Error()
 }

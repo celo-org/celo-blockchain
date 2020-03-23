@@ -106,18 +106,11 @@ type ValidatorEnodeDB struct {
 // OpenValidatorEnodeDB opens a validator enode database for storing and retrieving infos about validator
 // enodes. If no path is given an in-memory, temporary database is constructed.
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
-	var db *leveldb.DB
-	var err error
-
 	logger := log.New("db", "ValidatorEnodeDB")
 
-	if path == "" {
-		db, err = newMemoryDB()
-	} else {
-		db, err = newPersistentDB(int64(valEnodeDBVersion), path, logger)
-	}
-
+	db, err := newDB(int64(valEnodeDBVersion), path, logger)
 	if err != nil {
+		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
 	return &ValidatorEnodeDB{
