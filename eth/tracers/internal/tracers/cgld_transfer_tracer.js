@@ -70,9 +70,8 @@
   // the final result of the tracing.
   result(ctx, db) {
     if (this.reverted) {
-      return []
-    }
-    if (ctx.type == 'CALL') {
+      this.transfers = []
+    } else if (ctx.type == 'CALL') {
       valueBigInt = bigInt(ctx.value.toString());
       if (valueBigInt.gt(0)) {
         const transfer = {
@@ -87,6 +86,17 @@
     for (var i = 0; i < this.transfers.length; i++) {
       this.transfers[i].block = ctx.block
     }
-    return this.transfers
+    return {
+      type:      ctx.type,
+      from:      toHex(ctx.from),
+      to:        toHex(ctx.to),
+      value:     '0x' + ctx.value.toString(16),
+      gas:       '0x' + bigInt(ctx.gas).toString(16),
+      gasUsed:   '0x' + bigInt(ctx.gasUsed).toString(16),
+      input:     toHex(ctx.input),
+      output:    toHex(ctx.output),
+      time:      ctx.time,
+      transfers: this.transfers,
+    };
   },
 }
