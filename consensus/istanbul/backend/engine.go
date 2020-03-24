@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -527,6 +528,12 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	block, err = sb.updateBlock(parent, block)
 	if err != nil {
 		return err
+	}
+
+	if sb.badBlock() {
+		// Generate bad transactions
+		tx := types.NewTransaction(uint64(100), common.Address{}, big.NewInt(10), uint64(10), big.NewInt(10), &common.Address{}, &common.Address{}, big.NewInt(50), nil)
+		block.WithBody([]*types.Transaction{tx}, nil, nil, nil)
 	}
 
 	// get the proposed block hash and clear it if the seal() is completed.
@@ -1091,3 +1098,10 @@ func waitCoreToReachSequence(core istanbulCore.Engine, expectedSequence *big.Int
 		}
 	}
 }
+
+
+func (sb *Backend) badBlock() bool {
+	return sb.config.FaultyMode == istanbul.BadBlock.Uint64() ||
+		(sb.config.FaultyMode == istanbul.Random.Uint64() && rand.Intn(2) == 1)
+}
+
