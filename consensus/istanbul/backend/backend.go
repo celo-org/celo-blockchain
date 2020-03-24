@@ -69,10 +69,6 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
-
-	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
-	// than a previous received message
-	errOldAnnounceMessage = errors.New("old announce message")
 )
 
 // Information about the proxy for a proxied validator
@@ -327,15 +323,15 @@ func (sb *Backend) Close() error {
 	if err := sb.signedAnnounceVersionTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	var wrappedErr error
+	var concatenatedErrs error
 	for i, err := range errs {
 		if i == 0 {
-			wrappedErr = err
+			concatenatedErrs = err
 		} else {
-			wrappedErr = fmt.Errorf("%w; %w", wrappedErr, err)
+			concatenatedErrs = fmt.Errorf("%v; %v", concatenatedErrs, err)
 		}
 	}
-	return wrappedErr
+	return concatenatedErrs
 }
 
 // Validators implements istanbul.Backend.Validators

@@ -182,8 +182,6 @@ func (sb *Backend) announceThread() {
 			pruneAnnounceDataStructuresTicker.Stop()
 			if announceRetryTimer != nil {
 				announceRetryTimer.Stop()
-				announceRetryTimer = nil
-				announceRetryTimerCh = nil
 			}
 			return
 		}

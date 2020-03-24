@@ -108,7 +108,7 @@ func (vedb *versionedEntryDB) Write(batch *leveldb.Batch) error {
 // keyPrefix, and call `onEntry` with the bytes of the key (without the prefix)
 // and the bytes of the value
 func (vedb *versionedEntryDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
-	iter := vedb.db.NewIterator(util.BytesPrefix([]byte(keyPrefix)), nil)
+	iter := vedb.db.NewIterator(util.BytesPrefix(keyPrefix), nil)
 	defer iter.Release()
 
 	for iter.Next() {
