@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -426,6 +427,9 @@ func (w *worker) mainLoop() {
 				h.NewWork()
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
+
+		case ev := <-w.chainSideCh:
+			log.Error(fmt.Sprintf("Unexpected message in chan chainSideCh: %v", ev))
 
 		case ev := <-w.txsCh:
 			// Apply transactions to the pending state if we're not mining.

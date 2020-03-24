@@ -295,7 +295,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
-	log.Error("Only Istanbul consensus is supported")
+	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
 	return nil
 }
 

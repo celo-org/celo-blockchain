@@ -395,7 +395,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	// // Cache the found body for next time and return
 	// hc.tdCache.Add(hash, td)
 	// return td
-	return big.NewInt(int64(number + 1))
+	return big.NewInt(int64(number))
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the

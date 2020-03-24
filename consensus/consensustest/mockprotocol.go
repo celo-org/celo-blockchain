@@ -219,27 +219,6 @@ func (e *MockEngine) verifySeal(chain consensus.ChainReader, header *types.Heade
 	return nil
 }
 
-// // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
-// // concurrently. The method returns a quit channel to abort the operations and
-// // a results channel to retrieve the async verifications (the order is that of
-// // the input slice).
-// func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
-// 	abort := make(chan struct{})
-// 	results := make(chan error, len(headers))
-// 	go func() {
-// 		for i, header := range headers {
-// 			err := e.VerifyHeader(chain, header, seals[i])
-
-// 			select {
-// 			case <-abort:
-// 				return
-// 			case results <- err:
-// 			}
-// 		}
-// 	}()
-// 	return abort, results
-// }
-
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 // concurrently. The method returns a quit channel to abort the operations and
 // a results channel to retrieve the async verifications.
@@ -318,4 +297,12 @@ func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainReader, headers []*
 		return nil // known block
 	}
 	return e.verifyHeader(chain, headers[index], parent, seals[index])
+}
+
+func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) error {
+	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+	return nil
 }

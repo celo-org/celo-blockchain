@@ -280,13 +280,13 @@ func (odr *dummyOdr) IndexerConfig() *IndexerConfig {
 // Tests that reorganizing a long difficult chain after a short easy one
 // overwrites the canonical numbers and links in the database.
 func TestReorgLongHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 4}, []int{1, 2, 3, 4}, 10)
+	testReorg(t, []int{1, 2, 4}, []int{1, 2, 3, 4}, 4)
 }
 
 // Tests that reorganizing a short difficult chain after a long easy one
 // overwrites the canonical numbers and links in the database.
 func TestReorgShortHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 3, 4}, []int{1, 10}, 11)
+	testReorg(t, []int{1, 2, 3, 4}, []int{1, 10}, 4)
 }
 
 func testReorg(t *testing.T, first, second []int, td int64) {

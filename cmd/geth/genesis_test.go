@@ -34,12 +34,11 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00"
 		}`,
-		query:  "eth.getBlock(0).nonce",
-		result: "0x0000000000000042",
+		query:  "eth.getBlock(0).timestamp",
+		result: "0",
 	},
 	// Genesis file with an empty chain configuration (ensure missing fields work)
 	{
@@ -47,13 +46,12 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
 			"config"     : {}
 		}`,
-		query:  "eth.getBlock(0).nonce",
-		result: "0x0000000000000042",
+		query:  "eth.getBlock(0).timestamp",
+		result: "0",
 	},
 	// Genesis file with specific chain configurations
 	{
@@ -61,7 +59,6 @@ var customGenesisTests = []struct {
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
-			"nonce"      : "0x0000000000000042",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
 			"config"     : {
@@ -70,8 +67,8 @@ var customGenesisTests = []struct {
 				"daoForkSupport" : true
 			}
 		}`,
-		query:  "eth.getBlock(0).nonce",
-		result: "0x0000000000000042",
+		query:  "eth.getBlock(0).timestamp",
+		result: "0",
 	},
 }
 

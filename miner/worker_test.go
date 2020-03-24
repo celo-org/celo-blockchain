@@ -111,6 +111,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	}
 
 	switch engine.(type) {
+	case *consensustest.MockEngine:
 	case *istanbulBackend.Backend:
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)

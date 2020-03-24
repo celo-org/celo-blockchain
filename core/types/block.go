@@ -291,7 +291,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.td, b.randomness, b.epochSnarkData = sb.Header, sb.Txs, sb.TD, sb.Randomness, sb.EpochSnarkData
+	b.header, b.transactions, b.randomness, b.epochSnarkData = sb.Header, sb.Txs, sb.Randomness, sb.EpochSnarkData
 	return nil
 }
 
