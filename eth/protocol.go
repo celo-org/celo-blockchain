@@ -178,6 +178,7 @@ func (hn *hashOrNumber) DecodeRLP(s *rlp.Stream) error {
 // newBlockData is the network packet for the block propagation message.
 type newBlockData struct {
 	Block *types.Block
+	TD    *big.Int
 }
 
 // sanityCheck verifies that the values are reasonable, as a DoS protection
