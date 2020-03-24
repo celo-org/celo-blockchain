@@ -17,16 +17,20 @@
 package backend
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -34,55 +38,49 @@ import (
 
 // ==============================================
 //
-// define the constant, types, and function for the sendAnnounce thread
-
-type AnnounceGossipFrequencyState int
+// define the constants and function for the sendAnnounce thread
 
 const (
-	// In this state, send out an announce message every 1 minute until the first peer is established
-	HighFreqBeforeFirstPeerState AnnounceGossipFrequencyState = iota
+	announceGossipCooldownDuration = 5 * time.Minute
+	// Schedule retries to be strictly later than the cooldown duration
+	// that other nodes will impose for regossiping announces from this node.
+	announceRetryDuration          = announceGossipCooldownDuration + (30 * time.Second)
+	announceAnswerCooldownDuration = 5 * time.Minute
 
-	// In this state, send out an announce message every 1 minute for the first 10 announce messages after the first peer is established.
-	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
-	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
-	HighFreqAfterFirstPeerState
-
-	// In this state, send out an announce message every 10 minutes
-	LowFreqState
+	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
 
-// The announceThread thread function
-// It will generate and gossip it's announce message periodically.
-// It will also check with it's peers for it's announce message versions, and request any updated ones if necessary.
-//
-// The announce thread does 3 things
-// 1) It will poll to see if this node should send an announce once a minute
-// 2) If it should announce, then it will periodically gossip an announce message
-// 3) Regardless of whether it should announce, it will periodically ask it's peers for their announceVersions set, and update it's own announce cache accordingly
+// The announceThread will:
+// 1) Periodically poll to see if this node should be announcing
+// 2) Periodically share the entire signed announce version table with all peers
+// 3) Periodically prune announce-related data structures
+// 4) Gossip announce messages when requested
+// 5) Retry sending announce messages if they go unanswered
+// 6) Update announce version when requested
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
 	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
-	// Create a ticker to poll if istanbul core is running and check if this is a registered/elected validator.
-	// If both conditions are true, then this node should announce.
+	// Create a ticker to poll if istanbul core is running and if this node is in
+	// the validator conn set. If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
+	// TODO: this can be removed once we have more faith in this protocol
+	updateAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
+	// Occasionally share the entire signed announce version table with all peers
+	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
+	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
 
-	// Create a ticker to check peers' announce versions one every 10 minutes
-	announceVersionsCheckTicker := time.NewTicker(10 * time.Minute)
-
-	// Create all the variables needed for the periodic gossip
-	var announceGossipTicker *time.Ticker
-	var announceGossipTickerCh <-chan time.Time
-	var announceGossipFrequencyState AnnounceGossipFrequencyState
-	var currentAnnounceGossipTickerDuration time.Duration
-	var numGossipedMsgsInHighFreqAfterFirstPeerState int
+	var announceRetryTimer *time.Timer
+	var announceRetryTimerCh <-chan time.Time
 	var announceVersion uint
 	var announcing bool
+	var shouldAnnounce bool
+	var err error
 
 	updateAnnounceVersionFunc := func() {
-		version := newAnnounceVersion()
+		version := getTimestamp()
 		if version <= announceVersion {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", announceVersion, "attempted new version", version)
 			return
@@ -99,7 +97,7 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
+			shouldAnnounce, err = sb.shouldGenerateAndProcessAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
@@ -107,90 +105,83 @@ func (sb *Backend) announceThread() {
 
 			if shouldAnnounce && !announcing {
 				updateAnnounceVersionFunc()
-
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(1*time.Minute, func() {
-					if err := sb.generateAndGossipAnnounce(announceVersion); err != nil {
-						logger.Error("Error in gossiping announce", "err", err)
-					}
+					sb.startGossipAnnounceTask()
 				})
 
-				if sb.config.AnnounceAggressiveGossipOnEnablement {
-					announceGossipFrequencyState = HighFreqBeforeFirstPeerState
-
-					// Send an announce message once a minute
-					currentAnnounceGossipTickerDuration = 1 * time.Minute
-
-					numGossipedMsgsInHighFreqAfterFirstPeerState = 0
-				} else {
-					announceGossipFrequencyState = LowFreqState
-					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
-				}
-
-				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
-				announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
-				announceGossipTickerCh = announceGossipTicker.C
-				logger.Trace("Enabled periodic gossiping of announce message")
-
 				announcing = true
+				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
-				// Disable periodic gossiping by setting announceGossipTickerCh to nil
-				announceGossipTicker.Stop()
-				announceGossipTickerCh = nil
-				logger.Trace("Disabled periodic gossiping of announce message")
-
+				if announceRetryTimer != nil {
+					announceRetryTimer.Stop()
+					announceRetryTimer = nil
+					announceRetryTimerCh = nil
+				}
 				announcing = false
+				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-announceGossipTickerCh: // If this is nil (when shouldAnnounce was most recently false), this channel will never receive an event
-			logger.Trace("Going to gossip an announce message", "announceGossipFrequencyState", announceGossipFrequencyState, "numGossipedMsgsInHighFreqAfterFirstPeerState", numGossipedMsgsInHighFreqAfterFirstPeerState)
-			switch announceGossipFrequencyState {
-			case HighFreqBeforeFirstPeerState:
-				if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-					announceGossipFrequencyState = HighFreqAfterFirstPeerState
-				}
-
-			case HighFreqAfterFirstPeerState:
-				if numGossipedMsgsInHighFreqAfterFirstPeerState >= 10 {
-					announceGossipFrequencyState = LowFreqState
-				}
-				numGossipedMsgsInHighFreqAfterFirstPeerState += 1
-
-			case LowFreqState:
-				if currentAnnounceGossipTickerDuration != time.Duration(sb.config.AnnounceGossipPeriod)*time.Second {
-					// Reset the ticker
-					currentAnnounceGossipTickerDuration = time.Duration(sb.config.AnnounceGossipPeriod) * time.Second
-					announceGossipTicker.Stop()
-					announceGossipTicker = time.NewTicker(currentAnnounceGossipTickerDuration)
-					announceGossipTickerCh = announceGossipTicker.C
-				}
+		case <-shareSignedAnnounceVersionTicker.C:
+			// Send all signed announce versions to every peer. Only the entries
+			// that are new to a node will end up being regossiped throughout the
+			// network.
+			allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
+			if err != nil {
+				logger.Warn("Error getting all signed announce versions", "err", err)
+				break
+			}
+			if err := sb.gossipSignedAnnounceVersionsMsg(allSignedAnnounceVersions); err != nil {
+				logger.Warn("Error gossiping all signed announce versions")
 			}
 
+		case <-updateAnnounceVersionTicker.C:
 			updateAnnounceVersionFunc()
-			go sb.generateAndGossipAnnounce(announceVersion)
 
-			// Use this timer to also prune all announce related data structures.
+		case <-announceRetryTimerCh: // If this is nil, this channel will never receive an event
+			announceRetryTimer = nil
+			announceRetryTimerCh = nil
+			sb.startGossipAnnounceTask()
+
+		case <-sb.generateAndGossipAnnounceCh:
+			if shouldAnnounce {
+				// This node may have recently sent out an announce message within
+				// the gossip cooldown period imposed by other nodes.
+				// Regardless, send the announce so that it will at least be
+				// processed by this node's peers. This is especially helpful when a network
+				// is first starting up.
+				hasContent, err := sb.generateAndGossipAnnounce(announceVersion)
+				if err != nil {
+					logger.Warn("Error in generating and gossiping announce", "err", err)
+				}
+				// If a retry hasn't been scheduled already by a previous announce,
+				// schedule one.
+				if hasContent && announceRetryTimer == nil {
+					announceRetryTimer = time.NewTimer(announceRetryDuration)
+					announceRetryTimerCh = announceRetryTimer.C
+				}
+			}
+
+		case <-sb.updateAnnounceVersionCh:
+			updateAnnounceVersionFunc()
+			// Show that the announce update has been completed so we can rely on
+			// it synchronously
+			sb.updateAnnounceVersionCompleteCh <- struct{}{}
+
+		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-announceVersionsCheckTicker.C:
-			logger.Trace("Going to check peers' announce version set")
-			go sb.checkPeersAnnounceVersions()
-
-		case <-sb.updateAnnounceVersionCh:
-			updateAnnounceVersionFunc()
-			sb.updateAnnounceVersionCompleteCh <- struct{}{}
-
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
-			announceVersionsCheckTicker.Stop()
-			if announceGossipTicker != nil {
-				announceGossipTicker.Stop()
+			pruneAnnounceDataStructuresTicker.Stop()
+			if announceRetryTimer != nil {
+				announceRetryTimer.Stop()
 			}
 			return
 		}
@@ -210,9 +201,11 @@ func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
 // The data structures that it prunes are:
-// 1)  cachedAnnounceMsgs
-// 2)  lastAnnounceGossiped
+// 1)  lastAnnounceGossiped
+// 2)  lastAnnounceAnswered
 // 3)  valEnodeTable
+// 4)  lastSignedAnnounceVersionsGossiped
+// 5)  signedAnnounceVersionTable
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
@@ -222,27 +215,40 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	// Prune the announce cache for entries that are not in the current validator connection set
-	sb.cachedAnnounceMsgsMu.Lock()
-	for cachedValAddress := range sb.cachedAnnounceMsgs {
-		if !validatorConnSet[cachedValAddress] {
-			logger.Trace("Deleting entry from cachedAnnounceMsgs", "cachedValAddress", cachedValAddress, "cachedAnnounceVersion", sb.cachedAnnounceMsgs[cachedValAddress].MsgVersion)
-			delete(sb.cachedAnnounceMsgs, cachedValAddress)
-		}
-	}
-	sb.cachedAnnounceMsgsMu.Unlock()
-
 	sb.lastAnnounceGossipedMu.Lock()
 	for remoteAddress := range sb.lastAnnounceGossiped {
-		if !validatorConnSet[remoteAddress] {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceGossiped[remoteAddress].Time) >= announceGossipCooldownDuration {
 			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
 			delete(sb.lastAnnounceGossiped, remoteAddress)
 		}
 	}
 	sb.lastAnnounceGossipedMu.Unlock()
 
+	sb.lastAnnounceAnsweredMu.Lock()
+	for remoteAddress := range sb.lastAnnounceAnswered {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceAnswered[remoteAddress]) >= announceAnswerCooldownDuration {
+			logger.Trace("Deleting entry from lastAnnounceAnswered", "address", remoteAddress, "answer timestamp", sb.lastAnnounceAnswered[remoteAddress])
+			delete(sb.lastAnnounceAnswered, remoteAddress)
+		}
+	}
+	sb.lastAnnounceAnsweredMu.Unlock()
+
 	if err := sb.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
+		return err
+	}
+
+	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
+	for remoteAddress := range sb.lastSignedAnnounceVersionsGossiped {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastSignedAnnounceVersionsGossiped[remoteAddress]) >= signedAnnounceVersionGossipCooldownDuration {
+			logger.Trace("Deleting entry from lastSignedAnnounceVersionsGossiped", "address", remoteAddress, "gossip timestamp", sb.lastSignedAnnounceVersionsGossiped[remoteAddress])
+			delete(sb.lastSignedAnnounceVersionsGossiped, remoteAddress)
+		}
+	}
+	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
+
+	if err := sb.signedAnnounceVersionTable.Prune(validatorConnSet); err != nil {
+		logger.Trace("Error in pruning signedAnnounceVersionTable", "err", err)
 		return err
 	}
 
@@ -252,6 +258,16 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 // ===============================================================
 //
 // define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+
+type announceRegossip struct {
+	Time         time.Time
+	MsgTimestamp uint // the Timestamp field of the regossiped announce msg
+}
+
+type scheduledAnnounceRegossip struct {
+	Timer        *time.Timer
+	MsgTimestamp uint // the Timestamp field of the announce msg to regossip
+}
 
 type announceRecord struct {
 	DestAddress       common.Address
@@ -264,12 +280,14 @@ func (ar *announceRecord) String() string {
 
 type announceData struct {
 	AnnounceRecords []*announceRecord
-	EnodeURLHash    common.Hash
 	Version         uint
+	// The timestamp of the node when the message is generated.
+	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
+	Timestamp uint
 }
 
 func (ad *announceData) String() string {
-	return fmt.Sprintf("{Version: %v, EnodeURLHash: %v, AnnounceRecords: %v}", ad.Version, ad.EnodeURLHash.Hex(), ad.AnnounceRecords)
+	return fmt.Sprintf("{Version: %v, Timestamp: %v, AnnounceRecords: %v}", ad.Version, ad.Timestamp, ad.AnnounceRecords)
 }
 
 // ==============================================
@@ -297,125 +315,91 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
 func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.EnodeURLHash, ad.Version})
+	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.Version, ad.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
 func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		AnnounceRecords []*announceRecord
-		EnodeURLHash    common.Hash
 		Version         uint
+		Timestamp       uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.EnodeURLHash, ad.Version = msg.AnnounceRecords, msg.EnodeURLHash, msg.Version
+	ad.AnnounceRecords, ad.Version, ad.Timestamp = msg.AnnounceRecords, msg.Version, msg.Timestamp
 	return nil
 }
 
-// Define the announce msg cache entry.
-// The latest version (dictated by the announce's version field) will always be cached
-// by this node.  Note that it will only cache the announce msgs from the validators within
-// the validator connection set.
-type announceMsgCachedEntry struct {
-	MsgVersion uint
-	MsgPayload []byte
+func (sb *Backend) startGossipAnnounceTask() {
+	// sb.generateAndGossipAnnounceCh has a buffer of 1. If there is a value
+	// already sent to the channel that has not been read from, don't block.
+	select {
+	case sb.generateAndGossipAnnounceCh <- struct{}{}:
+	default:
+	}
 }
 
-// This function will reply from a GetAnnounce message.  It will retrieve the requested announce messages
-// from it's announceMsgCache.
-func (sb *Backend) handleGetAnnouncesMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleGetAnnouncesMsg")
-	var valAddresses []common.Address
-
-	if err := rlp.DecodeBytes(payload, &valAddresses); err != nil {
-		logger.Error("Error in decoding valAddresses", "err", err)
-		return err
-	}
-
-	sb.cachedAnnounceMsgsMu.RLock()
-	defer sb.cachedAnnounceMsgsMu.RUnlock()
-	// TODO:  Add support for the AnnounceMsg to contain multiple announce messages within it's payload
-	for _, valAddress := range valAddresses {
-		if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[valAddress]; ok {
-			logger.Trace("Sending announce msg", "peer", peer, "valAddress", valAddress)
-			go peer.Send(istanbulAnnounceMsg, cachedAnnounceMsgEntry.MsgPayload)
-		}
-	}
-
-	return nil
-}
-
-// generateAndGossipAnnounce will generate the lastest announce msg from this node (as opposed to retrieving from the announceMsgCache) and then broadcast it to it's peers,
-// which should then gossip the announce msg message throughout the p2p network, since this announce msg's timestamp should be the latest among all of this
-// validator's previous announce msgs.
-func (sb *Backend) generateAndGossipAnnounce(version uint) error {
+// generateAndGossipAnnounce will generate the lastest announce msg from this node
+// and then broadcast it to it's peers, which should then gossip the announce msg
+// message throughout the p2p network if there has not been a message sent from
+// this node within the last announceGossipCooldownDuration.
+// Returns if an announce message had content (ie not empty) and if there was an error.
+func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
 	logger := sb.logger.New("func", "generateAndGossipAnnounce")
 	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, announceAddress, err := sb.generateAnnounce(version)
+	istMsg, err := sb.generateAnnounce(version)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if istMsg == nil {
-		return nil
+		return false, nil
 	}
 
 	// Convert to payload
 	payload, err := istMsg.Payload()
 	if err != nil {
 		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
-		return err
+		return true, err
 	}
 
-	// Add the generated announce message to this node's cache
-	sb.cachedAnnounceMsgsMu.Lock()
-	defer sb.cachedAnnounceMsgsMu.Unlock()
-	sb.cachedAnnounceMsgs[announceAddress] = &announceMsgCachedEntry{MsgVersion: version, MsgPayload: payload}
-
-	return sb.Multicast(nil, payload, istanbulAnnounceMsg)
+	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
-// This function is a helper function for generateAndGossipAnnounce.
-// It will create the latest announce msg for this node with a given version.
-func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, common.Address, error) {
+// generateAnnounce returns a announce message from this node with a given version.
+func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateAnnounce")
-	var enodeUrl string
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			enodeUrl = sb.proxyNode.externalNode.URLv4()
-		} else {
-			logger.Error("Proxied node is not connected to a proxy")
-			return nil, common.Address{}, errNoProxyConnection
-		}
-	} else {
-		enodeUrl = sb.p2pserver.Self().URLv4()
-	}
 
-	// Retrieve the set of remote validators' public key to encrypt the enodeUrl
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	enodeURL, err := sb.getEnodeURL()
 	if err != nil {
-		return nil, common.Address{}, err
+		logger.Error("Error getting enode URL", "err", err)
+		return nil, err
 	}
-
-	announceRecords := make([]*announceRecord, 0, len(validatorConnSet))
-	for addr := range validatorConnSet {
-		// TODO - Need to encrypt using the remote validator's validator key
-		announceRecords = append(announceRecords, &announceRecord{DestAddress: addr, EncryptedEnodeURL: []byte(enodeUrl)})
+	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
+	if err != nil {
+		logger.Warn("Error generating announce records", "err", err)
+		return nil, err
 	}
-
+	if len(announceRecords) == 0 {
+		logger.Trace("No announce records were generated, will not generate announce")
+		return nil, nil
+	}
 	announceData := &announceData{
 		AnnounceRecords: announceRecords,
-		EnodeURLHash:    istanbul.RLPHash(enodeUrl),
 		Version:         version,
+		Timestamp:       getTimestamp(),
 	}
 
 	announceBytes, err := rlp.EncodeToBytes(announceData)
 	if err != nil {
 		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, common.Address{}, err
+		return nil, err
 	}
 
 	msg := &istanbul.Message{
@@ -428,12 +412,56 @@ func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, common.Add
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, common.Address{}, err
+		return nil, err
 	}
 
 	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
 
-	return msg, msg.Address, nil
+	return msg, nil
+}
+
+// generateAnnounceRecords returns the announce records intended for validators
+// whose entries in the val enode table do not exist or are outdated when compared
+// to the signed announce version table.
+func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
+	allSignedAnnVersionEntries, err := sb.signedAnnounceVersionTable.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	allValEnodes, err := sb.valEnodeTable.GetAllValEnodes()
+	if err != nil {
+		return nil, err
+	}
+	var announceRecords []*announceRecord
+	for _, signedAnnVersionEntry := range allSignedAnnVersionEntries {
+		// Don't generate an announce record for ourselves
+		if signedAnnVersionEntry.Address == sb.Address() {
+			continue
+		}
+
+		valEnode := allValEnodes[signedAnnVersionEntry.Address]
+		// If the version in the val enode table is up to date with the corresponding
+		// version in our signed announce version table, don't send the validator an announce
+		// message.
+		// It's also possible the version in the val enode table is newer than the version
+		// in the signed announce version table in the case that the remote validator
+		// sent us an enodeCertificate and we haven't received a signed announce version
+		// update yet.
+		if valEnode != nil && valEnode.Version >= signedAnnVersionEntry.Version {
+			continue
+		}
+
+		publicKey := ecies.ImportECDSAPublic(signedAnnVersionEntry.PublicKey)
+		encryptedEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		announceRecords = append(announceRecords, &announceRecord{
+			DestAddress:       signedAnnVersionEntry.Address,
+			EncryptedEnodeURL: encryptedEnodeURL,
+		})
+	}
+	return announceRecords, nil
 }
 
 // This function will handle an announce message.
@@ -471,17 +499,8 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", announceData.Version)
 
-	// Ignore the message if it's older than the one that this node currently has persisted and return from this function
-	sb.cachedAnnounceMsgsMu.Lock()
-	if cachedAnnounceMsgEntry, ok := sb.cachedAnnounceMsgs[msg.Address]; ok && cachedAnnounceMsgEntry.MsgVersion >= announceData.Version {
-		sb.cachedAnnounceMsgsMu.Unlock()
-		logger.Trace("Received announce message that has older or same version than the one cached", "cached_timestamp", cachedAnnounceMsgEntry.MsgVersion)
-		return errOldAnnounceMessage
-	}
-	sb.cachedAnnounceMsgsMu.Unlock()
-
 	// Do some validation checks on the announceData
-	if isValid, err := sb.validateAnnounce(&announceData); !isValid || err != nil {
+	if isValid, err := sb.validateAnnounce(msg.Address, &announceData); !isValid || err != nil {
 		logger.Warn("Validation of announce message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -490,45 +509,89 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process announce", err)
-		return err
 	}
 
 	if shouldProcessAnnounce {
-		logger.Trace("Going to process an announce msg", "announce records", announceData.AnnounceRecords)
+		logger.Trace("Processing an announce message", "announce records", announceData.AnnounceRecords)
 		for _, announceRecord := range announceData.AnnounceRecords {
-			if announceRecord.DestAddress == sb.Address() {
-				// TODO: Decrypt the enodeURL using this validator's validator key after making changes to encrypt it
-				enodeUrl := string(announceRecord.EncryptedEnodeURL)
-				node, err := enode.ParseV4(enodeUrl)
-				if err != nil {
-					logger.Error("Error in parsing enodeURL", "enodeUrl", enodeUrl)
-					return err
-				}
-
-				if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: announceData.Version}}); err != nil {
-					logger.Warn("Error in upserting a valenode entry", "AnnounceData", announceData.String(), "error", err)
-					return err
-				}
-
-				break
+			// Only process an announceRecord intended for this node
+			if announceRecord.DestAddress != sb.Address() {
+				continue
 			}
+			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, announceRecord.EncryptedEnodeURL, nil, nil)
+			if err != nil {
+				sb.logger.Warn("Error decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
+				return err
+			}
+			enodeURL := string(enodeBytes)
+			node, err := enode.ParseV4(enodeURL)
+			if err != nil {
+				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
+				return err
+			}
+			sb.lastAnnounceAnsweredMu.Lock()
+			// Don't answer an announce message that's been answered too recently
+			if lastAnswered, ok := sb.lastAnnounceAnswered[msg.Address]; !ok || time.Since(lastAnswered) < announceAnswerCooldownDuration {
+				if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
+					logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
+					sb.lastAnnounceAnsweredMu.Unlock()
+					return err
+				}
+				sb.lastAnnounceAnswered[msg.Address] = time.Now()
+			}
+			sb.lastAnnounceAnsweredMu.Unlock()
+			break
 		}
 	}
 
-	sb.cachedAnnounceMsgsMu.Lock()
-	sb.cachedAnnounceMsgs[msg.Address] = &announceMsgCachedEntry{MsgVersion: announceData.Version, MsgPayload: payload}
-	sb.cachedAnnounceMsgsMu.Unlock()
-
 	// Regossip this announce message
-	return sb.regossipAnnounce(msg, payload)
+	return sb.regossipAnnounce(msg, announceData.Version, payload, false)
+}
+
+// answerAnnounceMsg will answer a received announce message from an origin
+// node. If the node is already a peer of any kind, an enodeCertificate will be sent.
+// Regardless, the origin node will be upserted into the val enode table
+// to ensure this node designates the origin node as a ValidatorPurpose peer.
+func (sb *Backend) answerAnnounceMsg(address common.Address, node *enode.Node, version uint) error {
+	targetIDs := map[enode.ID]bool{
+		node.ID(): true,
+	}
+	// The target could be an existing peer of any purpose.
+	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
+	if matches[node.ID()] != nil {
+		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
+		if err != nil {
+			return err
+		}
+		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertificateMsg); err != nil {
+			return err
+		}
+	}
+	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
+	// peer but should be.
+	// If the target is not a peer and should be a ValidatorPurpose peer, this
+	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
+	// during the istanbul handshake.
+	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // validateAnnounce will do some validation to check the contents of the announce
 // message. This is to force all validators that send an announce message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large announce message.
-func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
-	logger := sb.logger.New("func", "validateAnnounce")
+func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *announceData) (bool, error) {
+	logger := sb.logger.New("func", "validateAnnounce", "msg address", msgAddress)
+
+	// Ensure the version in the announceData is not older than the signed
+	// announce version if it is known by this node
+	knownVersion, err := sb.signedAnnounceVersionTable.GetVersion(msgAddress)
+	if err == nil && announceData.Version < knownVersion {
+		logger.Debug("Announce message has version older than known version from signed announce table", "msg version", announceData.Version, "known version", knownVersion)
+		return false, nil
+	}
 
 	// Check if there are any duplicates in the announce message
 	var encounteredAddresses = make(map[common.Address]bool)
@@ -543,8 +606,6 @@ func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
 
 	// Check if the number of rows in the announcePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	// Ideally, this should be changed so that as part of the generate announce message, the block number is included, and this node will
-	// then verify that all of the validator connection set entries of that block number is included in the announce message.
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
@@ -558,161 +619,421 @@ func (sb *Backend) validateAnnounce(announceData *announceData) (bool, error) {
 	return true, nil
 }
 
-// regossipAnnounce will regossip a received announce message.
-// If this node regossiped an announce from the same source address within the last 5 minutes, then it wouldn't regossip.
-// This is to prevent a malicious validator from DOS'ing the network with very frequent announce messages.
-// Note that even if the validator is not malicious, but changing their enode very frequently, the
-// other validators will eventually get that validator's latest enode, since all nodes will periodically check it's neighbors
-// for updated announce messages.
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, payload []byte) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address)
+// scheduleAnnounceRegossip schedules a regossip for an announce message after
+// its cooldown period. If one is already scheduled, it's overwritten.
+func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
+	logger := sb.logger.New("func", "scheduleAnnounceRegossip", "msg address", msg.Address, "msg timestamp", msgTimestamp)
+	sb.scheduledAnnounceRegossipsMu.Lock()
+	defer sb.scheduledAnnounceRegossipsMu.Unlock()
+
+	// If another regossip has been scheduled for the message address already, cancel it
+	if scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]; scheduledRegossip != nil {
+		scheduledRegossip.Timer.Stop()
+	}
 
 	sb.lastAnnounceGossipedMu.RLock()
-	if lastGossipTs, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-		if time.Since(lastGossipTs) < 5*time.Minute {
-			logger.Trace("Already regossiped msg from this source address within the last 5 minutes, so not regossiping.")
-			sb.lastAnnounceGossipedMu.RUnlock()
+	lastGossip := sb.lastAnnounceGossiped[msg.Address]
+	if lastGossip == nil {
+		logger.Debug("Last announce gossiped not found")
+		sb.lastAnnounceGossipedMu.RUnlock()
+		return nil
+	}
+	scheduledTime := lastGossip.Time.Add(announceGossipCooldownDuration)
+	sb.lastAnnounceGossipedMu.RUnlock()
+
+	duration := time.Until(scheduledTime)
+	// If by this time the cooldown period has ended, just regossip
+	if duration < 0 {
+		return sb.regossipAnnounce(msg, msgTimestamp, payload, true)
+	}
+	regossipFunc := func() {
+		if err := sb.regossipAnnounce(msg, msgTimestamp, payload, true); err != nil {
+			logger.Debug("Error in scheduled announce regossip", "err", err)
+		}
+		sb.scheduledAnnounceRegossipsMu.Lock()
+		delete(sb.scheduledAnnounceRegossips, msg.Address)
+		sb.scheduledAnnounceRegossipsMu.Unlock()
+	}
+	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledAnnounceRegossip{
+		Timer:        time.AfterFunc(duration, regossipFunc),
+		MsgTimestamp: msgTimestamp,
+	}
+	return nil
+}
+
+// regossipAnnounce will regossip a received announce message.
+// If this node regossiped an announce from the same source address within the last
+// 5 minutes, then it won't regossip. This is to prevent a malicious validator from
+// DOS'ing the network with very frequent announce messages.
+// This opens an attack vector where any malicious node could continue to gossip
+// a previously gossiped announce message from any validator, causing other nodes to regossip and
+// enforce the cooldown period for future messages originating from the origin validator.
+// This could result in new legitimate announce messages from the origin validator
+// not being regossiped due to the cooldown period enforced by the other nodes in
+// the network. This is somewhat circumvented by caching the hashes of messages that
+// are regossiped to prevent future regossips, but this isn't guaranteed fails to
+// account for situations when an announcing node expects a message to be
+// gossiped out but gets rejected due to a cooldown period.
+// To ensure that a new legitimate message will eventually be gossiped to the rest
+// of the network, we schedule an announce message with a new timestamp that is
+// received during the cooldown period to be sent after the cooldown period ends,
+// and refuse to regossip older messages from the validator during that time.
+// Providing `force` as true will skip any of the DOS checks.
+func (sb *Backend) regossipAnnounce(msg *istanbul.Message, msgTimestamp uint, payload []byte, force bool) error {
+	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
+
+	if !force {
+		sb.scheduledAnnounceRegossipsMu.RLock()
+		scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]
+		// if a regossip for this msg address has been scheduled already, override
+		// the scheduling if this Timestamp is newer. Otherwise, don't regossip this message
+		// and let the scheduled regossip occur.
+		if scheduledRegossip != nil {
+			if msgTimestamp > scheduledRegossip.MsgTimestamp {
+				sb.scheduledAnnounceRegossipsMu.RUnlock()
+				return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
+			}
+			sb.scheduledAnnounceRegossipsMu.RUnlock()
+			logger.Debug("Announce message is not greater than scheduled regossip version, not regossiping")
 			return nil
 		}
+		sb.scheduledAnnounceRegossipsMu.RUnlock()
+
+		sb.lastAnnounceGossipedMu.RLock()
+		if lastGossiped, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
+			if time.Since(lastGossiped.Time) < announceGossipCooldownDuration {
+				// If this timestamp is newer than the previously regossiped one,
+				// schedule it to be regossiped once the cooldown period is over
+				if lastGossiped.MsgTimestamp < msgTimestamp {
+					sb.lastAnnounceGossipedMu.RUnlock()
+					logger.Trace("Already regossiped msg from this source address with an older announce version within the cooldown period, scheduling regossip for after the cooldown")
+					return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
+				}
+				sb.lastAnnounceGossipedMu.RUnlock()
+				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
+				return nil
+			}
+		}
+		sb.lastAnnounceGossipedMu.RUnlock()
 	}
-	sb.lastAnnounceGossipedMu.RUnlock()
 
 	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String())
 	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
 		return err
 	}
 
-	sb.lastAnnounceGossipedMu.Lock()
-	defer sb.lastAnnounceGossipedMu.Unlock()
-	sb.lastAnnounceGossiped[msg.Address] = time.Now()
+	sb.lastAnnounceGossiped[msg.Address] = &announceRegossip{
+		Time:         time.Now(),
+		MsgTimestamp: msgTimestamp,
+	}
 
 	return nil
 }
 
-// ===============================================================
-//
-// define the AnnounceVersion messge format, the getAnnounceVersions send and handle function, and the announceVersions handle function
+// Used as a salt when signing signedAnnounceVersion. This is to account for
+// the unlikely case where a different signed struct with the same field types
+// is used elsewhere and shared with other nodes. If that were to happen, a
+// malicious node could try sending the other struct where this struct is used,
+// or vice versa. This ensures that the signature is only valid for this struct.
+var signedAnnounceVersionSalt = []byte("signedAnnounceVersion")
 
-type announceVersion struct {
-	ValAddress         common.Address
-	AnnounceMsgVersion uint
+// signedAnnounceVersion is a signed message from a validator indicating the most
+// recent version of its enode.
+type signedAnnounceVersion vet.SignedAnnounceVersionEntry
+
+func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
+	return &signedAnnounceVersion{
+		Address:   entry.Address,
+		PublicKey: entry.PublicKey,
+		Version:   entry.Version,
+		Signature: entry.Signature,
+	}
 }
 
-// EncodeRLP serializes announceVersion into the Ethereum RLP format.
-func (av *announceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{av.ValAddress, av.AnnounceMsgVersion})
+func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	payloadToSign, err := sav.payloadToSign()
+	if err != nil {
+		return err
+	}
+	sav.Signature, err = signingFn(payloadToSign)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-// DecodeRLP implements rlp.Decoder, and load the announceVerion fields from a RLP stream.
-func (av *announceVersion) DecodeRLP(s *rlp.Stream) error {
+// RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
+// address from the Signature
+func (sav *signedAnnounceVersion) RecoverPublicKeyAndAddress() error {
+	payloadToSign, err := sav.payloadToSign()
+	if err != nil {
+		return err
+	}
+	payloadHash := crypto.Keccak256(payloadToSign)
+	publicKey, err := crypto.SigToPub(payloadHash, sav.Signature)
+	if err != nil {
+		return err
+	}
+	address, err := crypto.PubkeyToAddress(*publicKey), nil
+	if err != nil {
+		return err
+	}
+	sav.PublicKey = publicKey
+	sav.Address = address
+	return nil
+}
+
+// EncodeRLP serializes signedAnnounceVersion into the Ethereum RLP format.
+// Only the Version and Signature are encoded, as the public key and address
+// can be recovered from the Signature using RecoverPublicKeyAndAddress
+func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sav.Version, sav.Signature})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the signedAnnounceVersion fields from a RLP stream.
+// Only the Version and Signature are encoded/decoded, as the public key and address
+// can be recovered from the Signature using RecoverPublicKeyAndAddress
+func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		ValAddress         common.Address
-		AnnounceMsgVersion uint
+		Version   uint
+		Signature []byte
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	av.ValAddress, av.AnnounceMsgVersion = msg.ValAddress, msg.AnnounceMsgVersion
+	sav.Version, sav.Signature = msg.Version, msg.Signature
 	return nil
 }
 
-// String returns the string representation of announceVersion.
-func (av *announceVersion) String() string {
-	return fmt.Sprintf("{ValAddress: %s, AnnounceMsgTimstamp: %d}", av.ValAddress.String(), av.AnnounceMsgVersion)
-}
-
-// sendGetAnnounceVersions will send a GetAnnounceVersions message to a specific peer to request it's announceVersion set
-func (sb *Backend) sendGetAnnounceVersions(peer consensus.Peer) {
-	sb.logger.Trace("Sending a GetAnnounceVersions message", "func", "sendGetAnnounceVersions", "peer", peer)
-	go peer.Send(istanbulGetAnnounceVersionsMsg, []byte{})
-}
-
-// handleGetAnnounceVersionsMsg will handle a GetAnnounceVersions message.  Specifically, it will return to the peer
-// all of this node's cached announce msgs' version.
-func (sb *Backend) handleGetAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleGetAnnounceVersionsMsg", "peer", peer)
-
-	logger.Trace("Handling a GetAnnounceVersions message")
-
-	sb.cachedAnnounceMsgsMu.RLock()
-	defer sb.cachedAnnounceMsgsMu.RUnlock()
-
-	announceVersions := make([]*announceVersion, 0, len(sb.cachedAnnounceMsgs))
-
-	for valAddress, cachedAnnounceEntry := range sb.cachedAnnounceMsgs {
-		announceVersions = append(announceVersions, &announceVersion{ValAddress: valAddress, AnnounceMsgVersion: cachedAnnounceEntry.MsgVersion})
+func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
+	return &vet.SignedAnnounceVersionEntry{
+		Address:   sav.Address,
+		PublicKey: sav.PublicKey,
+		Version:   sav.Version,
+		Signature: sav.Signature,
 	}
+}
 
-	announceVersionsBytes, err := rlp.EncodeToBytes(announceVersions)
+func (sav *signedAnnounceVersion) payloadToSign() ([]byte, error) {
+	signedContent := []interface{}{signedAnnounceVersionSalt, sav.Version}
+	payload, err := rlp.EncodeToBytes(signedContent)
 	if err != nil {
-		logger.Error("Error encoding announce versions array", "AnnounceVersions", announceVersions, "err", err)
+		return nil, err
+	}
+	return payload, nil
+}
+
+func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
+	sav := &signedAnnounceVersion{
+		Address:   sb.Address(),
+		PublicKey: sb.publicKey,
+		Version:   version,
+	}
+	err := sav.Sign(sb.Sign)
+	if err != nil {
+		return nil, err
+	}
+	return sav, nil
+}
+
+func (sb *Backend) gossipSignedAnnounceVersionsMsg(signedAnnVersions []*signedAnnounceVersion) error {
+	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
+
+	payload, err := rlp.EncodeToBytes(signedAnnVersions)
+	if err != nil {
+		logger.Warn("Error encoding entries", "err", err)
 		return err
 	}
-
-	logger.Trace("Sending an AnnounceVersions message", "announceVersions", announceVersions, "peer", peer)
-	go peer.Send(istanbulAnnounceVersionsMsg, announceVersionsBytes)
-
-	return nil
+	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
 }
 
-// handleAnnounceVersionsMsg will handle a received AnnounceVersions message.
-// Specifically, this node will compare the received version set with it's own,
-// and request announce messages that have a higher version that it's own.
-func (sb *Backend) handleAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleAnnounceVersionsMsg", "peer", peer)
-	var announceVersions []announceVersion
-
-	if err := rlp.DecodeBytes(payload, &announceVersions); err != nil {
-		logger.Error("Error in decoding announce versions array", "err", err)
+func (sb *Backend) getAllSignedAnnounceVersions() ([]*signedAnnounceVersion, error) {
+	allEntries, err := sb.signedAnnounceVersionTable.GetAll()
+	if err != nil {
+		return nil, err
 	}
+	allSignedAnnounceVersions := make([]*signedAnnounceVersion, len(allEntries))
+	for i, entry := range allEntries {
+		allSignedAnnounceVersions[i] = newSignedAnnounceVersionFromEntry(entry)
+	}
+	return allSignedAnnounceVersions, nil
+}
 
-	logger.Trace("Handling an AnnounceVersions message", "announceVersions", fmt.Sprintf("%v", announceVersions))
+// sendAnnounceVersionTable sends all SignedAnnounceVersions this node
+// has to a peer
+func (sb *Backend) sendAnnounceVersionTable(peer consensus.Peer) error {
+	logger := sb.logger.New("func", "sendAnnounceVersionTable")
+	allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
+	if err != nil {
+		logger.Warn("Error getting all signed announce versions", "err", err)
+		return err
+	}
+	payload, err := rlp.EncodeToBytes(allSignedAnnounceVersions)
+	if err != nil {
+		logger.Warn("Error encoding entries", "err", err)
+		return err
+	}
+	return peer.Send(istanbulSignedAnnounceVersionsMsg, payload)
+}
+
+func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleSignedAnnounceVersionsMsg")
+	logger.Trace("Handling signed announce version msg")
+	var signedAnnVersions []*signedAnnounceVersion
+
+	err := rlp.DecodeBytes(payload, &signedAnnVersions)
+	if err != nil {
+		logger.Warn("Error in decoding received Signed Announce Versions msg", "err", err)
+		return err
+	}
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
+		logger.Trace("Error in retrieving validator conn set", "err", err)
 		return err
 	}
 
-	announcesToRequest := make([]common.Address, 0)
-	for _, announceVersion := range announceVersions {
-		// Ignore this announceVersion entry if it's val address is not in the current validator connection set.
-		if !validatorConnSet[announceVersion.ValAddress] {
-			logger.Trace("Ignoring announceVersion since it's not in active/elected valset", "valAddress", announceVersion.ValAddress)
+	var validEntries []*vet.SignedAnnounceVersionEntry
+	validAddresses := make(map[common.Address]bool)
+	// Verify all entries are valid and remove duplicates
+	for _, signedAnnVersion := range signedAnnVersions {
+		// The public key and address are not RLP encoded/decoded and must be
+		// explicitly recovered.
+		if err := signedAnnVersion.RecoverPublicKeyAndAddress(); err != nil {
+			logger.Warn("Error recovering signed announce version public key and address from signature", "err", err)
 			continue
 		}
-
-		sb.cachedAnnounceMsgsMu.RLock()
-		if cachedEntry, ok := sb.cachedAnnounceMsgs[announceVersion.ValAddress]; !ok || cachedEntry.MsgVersion < announceVersion.AnnounceMsgVersion {
-			announcesToRequest = append(announcesToRequest, announceVersion.ValAddress)
+		if !validatorConnSet[signedAnnVersion.Address] {
+			logger.Debug("Found signed announce version from an address not in the validator conn set", "address", signedAnnVersion.Address)
+			continue
 		}
-		sb.cachedAnnounceMsgsMu.RUnlock()
-	}
-
-	if len(announcesToRequest) > 0 {
-		announcesToRequestBytes, err := rlp.EncodeToBytes(announcesToRequest)
-		if err != nil {
-			logger.Error("Error encoding announce to request array", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "err", err)
-			return err
+		if _, ok := validAddresses[signedAnnVersion.Address]; ok {
+			logger.Debug("Found duplicate signed announce version in message", "address", signedAnnVersion.Address)
+			continue
 		}
-
-		logger.Trace("Going to send a GetAnnounces", "announcesToRequest", common.ConvertToStringSlice(announcesToRequest), "peer", peer)
-
-		go peer.Send(istanbulGetAnnouncesMsg, announcesToRequestBytes)
+		validAddresses[signedAnnVersion.Address] = true
+		validEntries = append(validEntries, signedAnnVersion.Entry())
 	}
-
+	if err := sb.upsertAndGossipSignedAnnounceVersionEntries(validEntries); err != nil {
+		logger.Warn("Error upserting and gossiping entries", "err", err)
+		return err
+	}
+	// If this node is a validator (checked later as a result of this call) and it receives a signed announce
+	// version from a remote validator that is newer than the remote validator's
+	// version in the val enode table, this node did not receive a direct announce
+	// and needs to announce its own enode to the remote validator.
+	sb.startGossipAnnounceTask()
 	return nil
 }
 
-func (sb *Backend) checkPeersAnnounceVersions() {
-	peers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
+func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
+	logger := sb.logger.New("func", "upsertSignedAnnounceVersions")
+	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
+	if err != nil {
+		logger.Warn("Error in upserting entries", "err", err)
+	}
 
-	for _, peer := range peers {
-		if peer.Version() >= 65 {
-			sb.sendGetAnnounceVersions(peer)
+	// Only regossip entries that do not originate from an address that we have
+	// gossiped a signed announce version for within the last 5 minutes, excluding
+	// our own address.
+	var signedAnnVersionsToRegossip []*signedAnnounceVersion
+	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
+	for _, entry := range newEntries {
+		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
+		if ok && time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
+			continue
+		}
+		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, newSignedAnnounceVersionFromEntry(entry))
+		sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
+	}
+	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
+	if len(signedAnnVersionsToRegossip) > 0 {
+		return sb.gossipSignedAnnounceVersionsMsg(signedAnnVersionsToRegossip)
+	}
+	return nil
+}
+
+// updateAnnounceVersion will synchronously update the announce version.
+// Must be called in a separate goroutine from the announceThread to avoid
+// a deadlock.
+func (sb *Backend) updateAnnounceVersion() {
+	sb.updateAnnounceVersionCh <- struct{}{}
+	<-sb.updateAnnounceVersionCompleteCh
+}
+
+// setAndShareUpdatedAnnounceVersion generates announce data structures and
+// and shares them with relevant nodes.
+// It will:
+//  1) Generate a new enode certificate
+//  2) Send the new enode certificate to this node's proxy if one exists
+//  3) Send the new enode certificate to all peers in the validator conn set
+//  4) Generate a new signed announce version
+//  5) Gossip the new signed announce version to all peers
+func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
+	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
+	// Send new versioned enode msg to all other registered or elected validators
+	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	if err != nil {
+		return err
+	}
+	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
+	if err != nil {
+		return err
+	}
+	sb.setEnodeCertificateMsg(enodeCertificateMsg)
+	// Send the new versioned enode msg to the proxy peer
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
+		if err != nil {
+			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
+			return err
 		}
 	}
+	// Don't send any of the following messages if this node is not in the validator conn set
+	if !validatorConnSet[sb.Address()] {
+		logger.Trace("Not in the validator conn set, not updating announce version")
+		return nil
+	}
+	payload, err := enodeCertificateMsg.Payload()
+	if err != nil {
+		return err
+	}
+	destAddresses := make([]common.Address, len(validatorConnSet))
+	i := 0
+	for address := range validatorConnSet {
+		destAddresses[i] = address
+		i++
+	}
+	err = sb.Multicast(destAddresses, payload, istanbulEnodeCertificateMsg)
+	if err != nil {
+		return err
+	}
+
+	// Generate and gossip a new signed announce version
+	newSignedAnnVersion, err := sb.generateSignedAnnounceVersion(version)
+	if err != nil {
+		return err
+	}
+	return sb.upsertAndGossipSignedAnnounceVersionEntries([]*vet.SignedAnnounceVersionEntry{
+		newSignedAnnVersion.Entry(),
+	})
+}
+
+func (sb *Backend) getEnodeURL() (string, error) {
+	if sb.config.Proxied {
+		if sb.proxyNode != nil {
+			return sb.proxyNode.externalNode.URLv4(), nil
+		}
+		return "", errNoProxyConnection
+	}
+	return sb.p2pserver.Self().URLv4(), nil
+}
+
+func getTimestamp() uint {
+	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
+	return uint(time.Now().Unix())
 }
 
 type enodeCertificate struct {
@@ -794,13 +1115,13 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message.
-// At the moment, this message is only supported if it's sent from a proxied
-// validator to its proxy or vice versa. If the message is sent by the proxy
-// to the proxied validator, the proxy is forwarding an enodeCertificate to the
-// proxied validator.
-// If a message is sent by a proxied validator to its proxy, it is either
-// sending its own enodeCertificate that can be used during handshakes, or sending
-// an enodeCertificate to a proxy that was forwarded by a proxy before.
+// If this node is a proxy and the enode certificate is from a remote validator
+// (ie not the proxied validator), this node will forward the enode certificate
+// to its proxied validator. If the proxied validator decides this node should process
+// the enode certificate and upsert it into its val enode table, the proxied validator
+// will send it back to this node.
+// If the proxied validator sends an enode certificate for itself to this node,
+// this node will set the enode certificate as its own for handshaking.
 func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
@@ -826,36 +1147,39 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	isFromProxiedPeer := sb.config.Proxy && sb.proxiedPeer != nil && sb.proxiedPeer.Node().ID() == peer.Node().ID()
-
-	// Handle the special case where this node is a proxy and the proxied validator sent the msg
-	if isFromProxiedPeer && msg.Address == sb.config.ProxiedValidatorAddress {
-		existingVersion := sb.getEnodeCertificateMsgVersion()
-		if enodeCertificate.Version < existingVersion {
-			logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
-			return errors.New("Version too low")
+	if sb.config.Proxy && sb.proxiedPeer != nil {
+		if sb.proxiedPeer.Node().ID() == peer.Node().ID() {
+			// if this message is from the proxied peer and contains the proxied
+			// validator's enodeCertificate, save it for handshake use
+			if msg.Address == sb.config.ProxiedValidatorAddress {
+				existingVersion := sb.getEnodeCertificateMsgVersion()
+				if enodeCertificate.Version < existingVersion {
+					logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
+					return errors.New("Version too low")
+				}
+				// There may be a difference in the URLv4 string because of `discport`,
+				// so instead compare the ID
+				selfNode := sb.p2pserver.Self()
+				if parsedNode.ID() != selfNode.ID() {
+					logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
+					return errors.New("Incorrect enode url")
+				}
+				if err := sb.setEnodeCertificateMsg(&msg); err != nil {
+					logger.Warn("Error setting enode certificate msg", "err", err)
+					return err
+				}
+				return nil
+			}
+		} else {
+			// If this message is not from the proxied validator, send it to the
+			// proxied validator without upserting it in this node. If the validator
+			// decides this proxy should upsert the enodeCertificate, then it
+			// will send it back to this node.
+			if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
+				logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
+			}
+			return nil
 		}
-		// There may be a difference in the URLv4 string because of `discport`,
-		// so instead compare the ID
-		selfNode := sb.p2pserver.Self()
-		if parsedNode.ID() != selfNode.ID() {
-			logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-			return errors.New("Incorrect enode url")
-		}
-		if err := sb.setEnodeCertificateMsg(&msg); err != nil {
-			logger.Warn("Error setting enode certificate msg", "err", err)
-			return err
-		}
-		return nil
-	}
-
-	// If this node is not a proxied validator receiving a message from its proxy
-	// peer, or vice versa, return.
-	// TODO: remove this check to allow non-proxy peers to send this message
-	// Issue tracked here: https://github.com/celo-org/celo-blockchain/issues/884
-	if !isFromProxiedPeer || !sb.config.Proxied || sb.proxyNode == nil || sb.proxyNode.peer == nil || sb.proxyNode.peer.Node().ID() != peer.Node().ID() {
-		logger.Warn("Received Istanbul Enode Certificate message from invalid peer")
-		return errUnauthorizedAnnounceMessage
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -869,7 +1193,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
@@ -902,39 +1226,4 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 	sb.enodeCertificateMsgMu.RLock()
 	defer sb.enodeCertificateMsgMu.RUnlock()
 	return sb.enodeCertificateMsgVersion
-}
-
-func (sb *Backend) updateAnnounceVersion() {
-	sb.updateAnnounceVersionCh <- struct{}{}
-	<-sb.updateAnnounceVersionCompleteCh
-}
-
-// setAndShareUpdatedAnnounceVersion generates a new enode certificate message and sends
-// it to this node's proxy (if applicable).
-// TODO: When a generated announce no longer creates a new version, the version
-// parameter can be removed and instead have the version generated in this function.
-// Tracked here: https://github.com/celo-org/celo-monorepo/issues/2668
-func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
-	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
-	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
-	if err != nil {
-		return err
-	}
-	if err := sb.setEnodeCertificateMsg(enodeCertificateMsg); err != nil {
-		return err
-	}
-	// Send the new enode certificate msg to the proxy peer
-	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
-		if err != nil {
-			logger.Error("Error in sending enode certificate msg to proxy", "err", err)
-			return err
-		}
-	}
-	return nil
-}
-
-func newAnnounceVersion() uint {
-	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-	return uint(time.Now().Unix())
 }

@@ -102,15 +102,15 @@ func TestRecentMessageCaches(t *testing.T) {
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulGetAnnouncesMsg,
+			ethMsgCode:  istanbulSignedAnnounceVersionsMsg,
+			shouldCache: true,
+		},
+		{
+			ethMsgCode:  istanbulEnodeCertificateMsg,
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulGetAnnounceVersionsMsg,
-			shouldCache: false,
-		},
-		{
-			ethMsgCode:  istanbulAnnounceVersionsMsg,
+			ethMsgCode:  istanbulValidatorHandshakeMsg,
 			shouldCache: false,
 		},
 	}
