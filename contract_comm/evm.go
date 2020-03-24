@@ -34,9 +34,6 @@ import (
 var (
 	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
-
-	// Metrics timers to track the execution time of calls made from the system to core contracts.
-	systemCallTimers = make(map[string]metrics.Timer)
 )
 
 // An EVM handler to make calls to smart contracts from within geth
@@ -100,12 +97,8 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
 	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
 	start := time.Now()
-	timer, ok := systemCallTimers[funcName]
-	if !ok {
-		timer = metrics.NewRegisteredTimer("contract_comm/systemcall/"+funcName, nil)
-		systemCallTimers[funcName] = timer
-	}
 	defer timer.UpdateSince(start)
 
 	vmevm, err := createEVM(header, state)
