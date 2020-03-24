@@ -303,6 +303,9 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	if inChildsParentSeal {
 		sb.blocksSignedInSealOrChildMeter.Mark(1)
 	}
+	if elected && !inSeal && !inChildsParentSeal {
+		sb.blocksElectedButNotSignedMeter.Mark(1)
+	}
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.

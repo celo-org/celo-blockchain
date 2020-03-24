@@ -122,6 +122,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
 		blocksSignedInSealMeter:            metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/quorum", nil),
 		blocksSignedInSealOrChildMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/total", nil),
+		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/missed", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -244,6 +245,7 @@ type Backend struct {
 	blocksElectedMeter             metrics.Meter
 	blocksSignedInSealMeter        metrics.Meter
 	blocksSignedInSealOrChildMeter metrics.Meter
+	blocksElectedButNotSignedMeter metrics.Meter
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
