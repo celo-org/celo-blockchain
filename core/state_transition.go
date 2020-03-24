@@ -249,9 +249,9 @@ func (st *StateTransition) debitGas(address common.Address, amount *big.Int, fee
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	// Run only primary evm.Call() with tracer
-	debug := evm.VmConfig.Debug
-	evm.VmConfig.Debug = false
-	defer func() { evm.VmConfig.Debug = debug }()
+	debug := evm.GetDebug()
+	evm.SetDebug(false)
+	defer func() { evm.SetDebug(debug) }()
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
@@ -277,9 +277,9 @@ func (st *StateTransition) creditGasFees(
 	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(*communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
 
 	// Run only primary evm.Call() with tracer
-	debug := evm.VmConfig.Debug
-	evm.VmConfig.Debug = false
-	defer func() { evm.VmConfig.Debug = debug }()
+	debug := evm.GetDebug()
+	evm.SetDebug(false)
+	defer func() { evm.SetDebug(debug) }()
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
