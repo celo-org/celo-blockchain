@@ -1,4 +1,4 @@
-// Package random inplements a langauge independent method of producing random validator orderings.
+// Package random implements a language independent method of producing random validator orderings.
 // It is designed to use standard methods that could be implemented in any language or platform.
 package random
 
