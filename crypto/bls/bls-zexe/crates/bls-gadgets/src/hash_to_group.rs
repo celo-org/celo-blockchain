@@ -24,20 +24,21 @@ use algebra::{
 use bls_crypto::{
     bls::keys::SIG_DOMAIN,
     curve::hash::try_and_increment::get_point_from_x_g1,
-    hash::composite::{CompositeHasher, CRH},
+    hash::{
+        composite::{CompositeHasher, CRH},
+        XOF,
+    },
 };
 use crypto_primitives::{
     crh::bowe_hopwood::constraints::BoweHopwoodPedersenCRHGadget as BHHash, FixedLengthCRHGadget,
 };
 use r1cs_std::edwards_sw6::EdwardsSWGadget;
 
-use crate::YToBitGadget;
+use crate::{bits_to_bytes, bytes_to_bits, constrain_bool, is_setup, YToBitGadget};
 
 /// Pedersen Gadget instantiated over the Edwards SW6 curve over BLS12-377 Fq (384 bits)
 type BHHashSW6 = BHHash<EdwardsProjective, Bls12_377_Fq, EdwardsSWGadget>;
 
-/// Hash to curve requires 378 bits (377 for field element, 1 for y)
-///
 /// Parameters for Blake2x as specified in: https://blake2.net/blake2x.pdf
 /// • “Key length” is set to 0 (even if the root hash was keyed)
 /// • “Fanout” is set to 0 (unlimited)
@@ -75,11 +76,16 @@ pub struct HashToGroupGadget<P> {
 // by taking the input, compressing it via an instantiation of Pedersen Hash with a CRH over Edwards SW6
 // and then hashing it to bits and to group
 impl HashToGroupGadget<Bls12_377_Parameters> {
+    /// Returns the G1 constrained hash of the message with the provided counter.
+    /// We do not generate constraints for the CRH -> XOF conversion in this case,
+    /// because it is expensive to do inside SW6. We provide auxiliary date which can be
+    /// used to generate an outer proof that ensures this calculation is done correctly
+    #[allow(clippy::type_complexity)]
     pub fn enforce_hash_to_group<CS: ConstraintSystem<Bls12_377_Fq>>(
         cs: &mut CS,
         counter: UInt8,
         message: &[UInt8],
-    ) -> Result<G1Gadget<Bls12_377_Parameters>, SynthesisError> {
+    ) -> Result<(G1Gadget<Bls12_377_Parameters>, Vec<Boolean>, Vec<Boolean>), SynthesisError> {
         // combine the counter with the message
         let mut input = vec![counter];
         input.extend_from_slice(message);
@@ -90,13 +96,18 @@ impl HashToGroupGadget<Bls12_377_Parameters> {
         let mut personalization = [0; 8];
         personalization.copy_from_slice(SIG_DOMAIN);
         // We want 378 random bits for hashing to curve, so we get 512 from the hash and will
-        // discard any unneeded ones
-        let xof_bits =
-            Self::hash_to_bits(cs.ns(|| "hash to bits"), &crh_bits, 512, personalization)?;
+        // discard any unneeded ones. We do not generate constraints.
+        let xof_bits = hash_to_bits(
+            cs.ns(|| "hash to bits"),
+            &crh_bits,
+            512,
+            personalization,
+            false,
+        )?;
 
         let hash = Self::hash_to_group(cs.ns(|| "hash to group"), &xof_bits)?;
 
-        Ok(hash)
+        Ok((hash, crh_bits, xof_bits))
     }
 
     /// Compress the input by passing it through a Pedersen hash
@@ -128,36 +139,35 @@ impl HashToGroupGadget<Bls12_377_Parameters> {
     }
 }
 
-impl<P: Bls12Parameters> HashToGroupGadget<P> {
-    /// Hashes the message to produce a `hash_length` hash with the provided personalization
-    ///
-    /// This uses Blake2s under the hood and is expensive for large messages.
-    /// Consider reducing the input size by passing it through a Collision Resistant Hash function
-    /// such as Pedersen.
-    ///
-    /// # Panics
-    ///
-    /// If the provided hash_length is not a multiple of 256.
-    pub fn hash_to_bits<F: PrimeField, CS: ConstraintSystem<F>>(
-        mut cs: CS,
-        message: &[Boolean],
-        hash_length: u16,
-        personalization: [u8; 8],
-    ) -> Result<Vec<Boolean>, SynthesisError> {
+/// Hashes the message to produce a `hash_length` hash with the provided personalization
+///
+/// This uses Blake2s under the hood and is expensive for large messages.
+/// Consider reducing the input size by passing it through a Collision Resistant Hash function
+/// such as Pedersen.
+///
+/// # Panics
+///
+/// If the provided hash_length is not a multiple of 256.
+pub fn hash_to_bits<F: PrimeField, CS: ConstraintSystem<F>>(
+    mut cs: CS,
+    message: &[Boolean],
+    hash_length: u16,
+    personalization: [u8; 8],
+    generate_constraints: bool,
+) -> Result<Vec<Boolean>, SynthesisError> {
+    let xof_bits = if generate_constraints {
+        // Reverse the message to LE
+        let mut message = message.to_vec();
+        message.reverse();
         // Blake2s outputs 256 bit hashes so the desired output hash length
         // must be a multiple of that.
         assert_eq!(hash_length % 256, 0, "invalid hash length size");
         let iterations = hash_length / 256;
-
-        // Reverse the message to LE
-        let mut message = message.to_vec();
-        message.reverse();
-
         let mut xof_bits = Vec::new();
         // Run Blake on the message N times, each time offset by `i`
         // to get a `hash_length` hash. The hash is in LE.
         for i in 0..iterations {
-            // calculate the hash
+            // calculate the hash (Vec<Boolean>)
             let blake2s_parameters = blake2xs_params(hash_length, i.into(), personalization);
             let xof_result = blake2s_gadget_with_parameters(
                 cs.ns(|| format!("xof result {}", i)),
@@ -172,10 +182,29 @@ impl<P: Bls12Parameters> HashToGroupGadget<P> {
                 .collect::<Vec<Boolean>>();
             xof_bits.extend_from_slice(&xof_bits_i);
         }
+        xof_bits
+    } else {
+        let bits = if is_setup(&message) {
+            vec![false; 512]
+        } else {
+            let message = message
+                .iter()
+                .map(|m| m.get_value().get())
+                .collect::<Result<Vec<_>, _>>()?;
+            let message = bits_to_bytes(&message);
+            let hasher = bls_crypto::DirectHasher::new().unwrap();
+            let hash_result = hasher.xof(&personalization, &message, 64).unwrap();
+            let mut bits = bytes_to_bits(&hash_result, 512);
+            bits.reverse();
+            bits
+        };
+        constrain_bool(&mut cs, &bits)?
+    };
 
-        Ok(xof_bits)
-    }
+    Ok(xof_bits)
+}
 
+impl<P: Bls12Parameters> HashToGroupGadget<P> {
     // Receives the output of `HashToBitsGadget::hash_to_bits` in Little Endian
     // decodes the G1 point and then multiplies it by the curve's cofactor to
     // get the hash
@@ -183,16 +212,16 @@ impl<P: Bls12Parameters> HashToGroupGadget<P> {
         mut cs: CS,
         xof_bits: &[Boolean],
     ) -> Result<G1Gadget<P>, SynthesisError> {
-        // if we're in setup mode, just return an error
-        if xof_bits.iter().any(|x| x.get_value().is_none()) {
-            return Err(SynthesisError::AssignmentMissing);
-        }
-
-        let x_bits = &xof_bits[..377];
-        let greatest = xof_bits[377];
-
         let expected_point_before_cofactor =
             G1Gadget::<P>::alloc(cs.ns(|| "expected point before cofactor"), || {
+                // if we're in setup mode, just return an error
+                if is_setup(&xof_bits) {
+                    return Err(SynthesisError::AssignmentMissing);
+                }
+
+                let x_bits = &xof_bits[..377];
+                let greatest = xof_bits[377];
+
                 // get the bits from the Boolean constraints
                 // we assume that these are already encoded as LE
                 let mut bits = x_bits
@@ -301,6 +330,7 @@ mod test {
             let mut input = vec![0; *length];
             rng.fill_bytes(&mut input);
             // check that they get hashed properly
+            dbg!(length);
             hash_to_group(&input);
         }
     }
@@ -328,7 +358,8 @@ mod test {
             counter,
             &input,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
         assert!(cs.is_satisfied());
         assert_eq!(expected_hash, hash.get_value().unwrap());

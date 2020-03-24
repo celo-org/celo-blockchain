@@ -41,17 +41,17 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: 
+      - run:
           name: Build Geth
           command: go run build/ci.go install
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
-            - "/go/pkg/mod"          
+            - "/go/pkg/mod"
       - persist_to_workspace:
           root: ~/repos
           paths:
-            - geth          
+            - geth
   unit-tests:
     executor: golang
     steps:
@@ -182,61 +182,89 @@ jobs:
             - celo-monorepo
             - golang
 
-  end-to-end-transfer-test:
+  end-to-end-blockchain-parameters-test:
     executor: e2e
+    resource_class: large
     steps:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth transfer test
+          name: End-to-end test of governable blockchain parameters
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_blockchain_parameters.sh local ~/repos/geth
+
+  end-to-end-governance-test:
+    executor: e2e
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of proof-of-stake
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_governance.sh local ~/repos/geth
+
+  end-to-end-sync-test:
+    executor: e2e
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of syncing
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_sync.sh local ~/repos/geth
+
+  end-to-end-slashing-test:
+    executor: e2e
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of slashing
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_slashing.sh local ~/repos/geth
+
+  end-to-end-transfer-test:
+    executor: e2e
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of transfers
           no_output_timeout: 15m
           command: |
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_transfers.sh local ~/repos/geth
 
-  end-to-end-sync-test:
+  end-to-end-validator-order-test:
     executor: e2e
-    resource_class: medium+
+    resource_class: large
     steps:
       - attach_workspace:
           at: ~/repos
       - run:
-          name: Geth sync with a standalone node test
+          name: End-to-end test of random validator order
+          no_output_timeout: 15m
           command: |
             export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_sync.sh local ~/repos/geth
-
-  end-to-end-blockchain-parameters-test:
-    executor: e2e
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run:
-          name: Geth sync with a standalone nod~e test
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_blockchain_parameters.sh local ~/repos/geth
-
-  end-to-end-geth-governance-test:
-    executor: e2e
-    # Source: https://circleci.com/docs/2.0/configuration-reference/#resource_class
-    resource_class: medium+
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run:
-          name: Geth goverenance with a standalone node
-          no_output_timeout: "1200s"
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_governance.sh local ~/repos/geth
+            ./ci_test_validator_order.sh local ~/repos/geth
 
 workflows:
   version: 2
   build:
     jobs:
       - build-bls-zexe
-      - checkout-monorepo      
+      - checkout-monorepo
       - build-geth:
           requires:
             - build-bls-zexe
@@ -259,15 +287,24 @@ workflows:
             # Though these are not using the mobile built binaries
             # they should be a good indicator
             - unit-tests
-            - end-to-end-transfer-test
-            - end-to-end-sync-test
             - end-to-end-blockchain-parameters-test
-            - end-to-end-geth-governance-test
+            - end-to-end-governance-test
+            - end-to-end-slashing-test
+            - end-to-end-sync-test
+            - end-to-end-transfer-test
+            - end-to-end-validator-order-test
           filters:
             branches:
               only: master
-      
-      - end-to-end-transfer-test:
+      - end-to-end-blockchain-parameters-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-governance-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-slashing-test:
           requires:
             - checkout-monorepo
             - build-geth
@@ -275,11 +312,11 @@ workflows:
           requires:
             - checkout-monorepo
             - build-geth
-      - end-to-end-blockchain-parameters-test:
+      - end-to-end-transfer-test:
           requires:
             - checkout-monorepo
             - build-geth
-      - end-to-end-geth-governance-test:
+      - end-to-end-validator-order-test:
           requires:
             - checkout-monorepo
             - build-geth

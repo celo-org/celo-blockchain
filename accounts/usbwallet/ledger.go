@@ -122,10 +122,20 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 		}
 		return nil
 	}
-	// Try to resolve the Celo app's version, will fail prior to v1.0.2
+
+	// Try to resolve the Celo app's version
 	if w.version, err = w.ledgerVersion(); err != nil {
-		w.version = [3]byte{1, 0, 0} // Assume worst case, can't verify if v1.0.0 or v1.0.1
+		w.version = [3]byte{1, 0, 0} // Assume worst case
 	}
+
+	/*
+	  This is an example of how to enforce version numbers for features
+
+	  // Ensure the wallet is capable of signing the given transaction
+	  if chainID != nil && w.version[0] <= 1 && w.version[1] == 0 && w.version[2] <= 2 {
+	    return common.Address{}, nil, fmt.Errorf("Ledger v%d.%d.%d doesn't support signing this transaction, please update to v1.0.3 at least", w.version[0], w.version[1], w.version[2])
+	  }
+	*/
 	return nil
 }
 
@@ -162,10 +172,6 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	// If the Celo app doesn't run, abort
 	if w.offline() {
 		return common.Address{}, nil, accounts.ErrWalletClosed
-	}
-	// Ensure the wallet is capable of signing the given transaction
-	if chainID != nil && w.version[0] <= 1 && w.version[1] == 0 && w.version[2] <= 2 {
-		return common.Address{}, nil, fmt.Errorf("Ledger v%d.%d.%d doesn't support signing this transaction, please update to v1.0.3 at least", w.version[0], w.version[1], w.version[2])
 	}
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSign(path, tx, chainID)
