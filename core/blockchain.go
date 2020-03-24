@@ -1354,15 +1354,13 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 	}
 
-	// Calculate the total difficulty of the block
-	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
-	if ptd == nil {
+	if !bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
 	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
-	externTd := new(big.Int).Add(block.Difficulty(), ptd)
+	externTd := big.NewInt(int64(block.NumberU64() + 1))
 
 	// Irrelevant of the canonical status, write the block itself to the database
 	rawdb.WriteBlock(bc.db, block)
@@ -1581,10 +1579,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		var (
 			current  = bc.CurrentBlock()
 			localTd  = bc.GetTd(current.Hash(), current.NumberU64())
-			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1) // The first block can't be nil
+			externTd *big.Int
 		)
 		for block != nil && err == ErrKnownBlock {
-			externTd = new(big.Int).Add(externTd, block.Difficulty())
+			externTd = big.NewInt(int64(block.NumberU64() + 1))
 			if localTd.Cmp(externTd) < 0 {
 				break
 			}
@@ -1852,10 +1850,8 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 				return it.index, nil, nil, errors.New("sidechain ghost-state attack")
 			}
 		}
-		if externTd == nil {
-			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1)
-		}
-		externTd = new(big.Int).Add(externTd, block.Difficulty())
+
+		externTd = big.NewInt(int64(block.NumberU64() + 1))
 
 		if !bc.HasBlock(block.Hash(), block.NumberU64()) {
 			start := time.Now()

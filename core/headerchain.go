@@ -143,11 +143,14 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		externTd *big.Int
 	)
 
-	// In IBFT, it seems that the announced td (total difficulty) is 1 + block number.
-	localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
+	if !hc.HasHeader(header.ParentHash, number-1) && hc.config.FullHeaderChainAvailable {
+		return NonStatTy, consensus.ErrUnknownAncestor
+	}
+
+	// In IBFT, the announced td (total difficulty) is 1 + block number.
+	localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 	externTd = big.NewInt(int64(number + 1))
 
-	// Irrelevant of the canonical status, write the td and header to the database
 	rawdb.WriteHeader(hc.chainDb, header)
 
 	// If the total difficulty is higher than our known, add it to the canonical chain
@@ -395,7 +398,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	// // Cache the found body for next time and return
 	// hc.tdCache.Add(hash, td)
 	// return td
-	return big.NewInt(int64(number))
+	return big.NewInt(int64(number + 1))
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the
