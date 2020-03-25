@@ -248,8 +248,15 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		if err != nil {
 			return err
 		}
-		batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
-		peersToRemove = append(peersToRemove, existingAddressEntry.Node)
+		newAddressEntry, err := addressEntryFromVersionedEntry(newEntry)
+		if err != nil {
+			return err
+		}
+		hasOldValueChanged := existingAddressEntry.Node.String() != newAddressEntry.Node.String()
+		if hasOldValueChanged {
+			batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
+			peersToRemove = append(peersToRemove, existingAddressEntry.Node)
+		}
 		return onNewEntry(batch, newEntry)
 	}
 
