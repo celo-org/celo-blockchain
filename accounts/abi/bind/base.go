@@ -116,6 +116,11 @@ func DeployContract(opts *TransactOpts, abi abi.ABI, bytecode []byte, backend Co
 	return c.address, tx, c, nil
 }
 
+// ABI returns the bound contract parsed ABI
+func (c *BoundContract) ABI() abi.ABI {
+	return c.abi
+}
+
 // Call invokes the (constant) contract method with params as input values and
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
@@ -259,6 +264,19 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 		return nil, err
 	}
 	return signedTx, nil
+}
+
+// LogEventName will verify is log belongs to the contract and return the eventName for it
+func (c *BoundContract) LogEventName(log types.Log) (eventName string, ok bool, err error) {
+	if log.Address != c.address || len(log.Topics) < 1 {
+		return "", false, err
+	}
+
+	event, err := c.abi.EventByID(log.Topics[0])
+	if err != nil {
+		return "", false, err
+	}
+	return event.Name, true, nil
 }
 
 // FilterLogs filters contract logs for past blocks, returning the necessary

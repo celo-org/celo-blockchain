@@ -255,6 +255,15 @@ var (
 	  return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 	}
 
+	// Parse{{.Type}}ABI parses the ABI
+	func Parse{{.Type}}ABI() (*abi.ABI, error) {
+	  parsed, err := abi.JSON(strings.NewReader({{.Type}}ABI))
+	  if err != nil {
+	    return nil, err
+	  }
+	  return &parsed, nil
+	}
+
 	// Call invokes the (constant) contract method with params as input values and
 	// sets the output to result. The result type might be a single field for simple
 	// returns, a slice of interfaces for anonymous returns and a struct for named
@@ -350,6 +359,24 @@ var (
 		  return _{{$contract.Type}}.Contract.{{.Normalized.Name}}(&_{{$contract.Type}}.TransactOpts {{range $i, $_ := .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
 	{{end}}
+
+	// TryParseLog attemps to parse a log. Returns the parsed log, evenName and wether it was succesfull
+ 	func (_{{$contract.Type}} *{{$contract.Type}}Filterer) TryParseLog(log types.Log) (eventName string, event interface{}, ok bool, err error) {
+		eventName, ok, err = _{{$contract.Type}}.contract.LogEventName(log)
+		if err != nil || !ok {
+			return "", nil, false, err
+		}
+	
+		switch eventName { {{range .Events}}
+		case "{{.Normalized.Name}}":
+			event, err = _{{$contract.Type}}.Parse{{.Normalized.Name}}(log){{end}}
+		}
+		if err != nil {
+			return "", nil, false, err
+		}
+	
+		return eventName, event, ok, nil
+	}
 
 	{{range .Events}}
 		// {{$contract.Type}}{{.Normalized.Name}}Iterator is returned from Filter{{.Normalized.Name}} and is used to iterate over the raw logs and unpacked data for {{.Normalized.Name}} events raised by the {{$contract.Type}} contract.
