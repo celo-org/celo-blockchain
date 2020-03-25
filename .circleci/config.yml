@@ -63,6 +63,7 @@ jobs:
       - run: go get github.com/jstemmer/go-junit-report
       - run: 
           name: Run Tests
+          no_output_timeout: 15m
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
