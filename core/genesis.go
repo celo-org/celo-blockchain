@@ -152,7 +152,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig
 }
 
 func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideIstanbul *big.Int) (*params.ChainConfig, common.Hash, error) {
-	if genesis != nil && genesis.Config == nil {
+	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.TestChainConfig, common.Hash{}, errGenesisNoConfig
 	}
 	// Just commit the new block if there is no stored genesis block.
