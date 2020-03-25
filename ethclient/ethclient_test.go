@@ -17,9 +17,11 @@
 package ethclient
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/rlp"
 	"math/big"
 	"reflect"
 	"testing"
@@ -32,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
@@ -194,15 +197,31 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 func generateTestChain() (*core.Genesis, []*types.Block) {
 	db := rawdb.NewMemoryDatabase()
 	config := params.TestChainConfig
+
+	fakeSig := bytes.Repeat([]byte{0x00}, types.IstanbulExtraBlsSignature)
+	fakeSeal := bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal)
+	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
+	istExtra := &types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      fakeSeal,
+		AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: fakeSig, Round: big.NewInt(0)},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: fakeSig, Round: big.NewInt(0)},
+	}
+	istExtraRaw, _ := rlp.EncodeToBytes(&istExtra)
+
+	extra := append(vanity, istExtraRaw...)
+
 	genesis := &core.Genesis{
 		Config:    config,
 		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
-		ExtraData: []byte("test genesis"),
+		ExtraData: extra,
 		Timestamp: 9000,
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
-		g.SetExtra([]byte("test"))
+		g.SetExtra(extra)
 	}
 	gblock := genesis.ToBlock(db)
 	engine := mockEngine.NewFaker()

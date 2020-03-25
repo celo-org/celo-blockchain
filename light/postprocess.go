@@ -199,10 +199,7 @@ func (c *ChtIndexerBackend) Process(ctx context.Context, header *types.Header) e
 	hash, num := header.Hash(), header.Number.Uint64()
 	c.lastHash = hash
 
-	td := rawdb.ReadTd(c.diskdb, hash, num)
-	if td == nil {
-		panic(nil)
-	}
+	td := big.NewInt(int64(header.Number.Uint64() + 1))
 	var encNumber [8]byte
 	binary.BigEndian.PutUint64(encNumber[:], num)
 	data, _ := rlp.EncodeToBytes(ChtNode{hash, td})

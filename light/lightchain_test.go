@@ -280,13 +280,13 @@ func (odr *dummyOdr) IndexerConfig() *IndexerConfig {
 // Tests that reorganizing a long difficult chain after a short easy one
 // overwrites the canonical numbers and links in the database.
 func TestReorgLongHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 4}, []int{1, 2, 3, 4}, 4)
+	testReorg(t, []int{1, 2, 4}, []int{1, 2, 3, 4}, 5)
 }
 
 // Tests that reorganizing a short difficult chain after a long easy one
 // overwrites the canonical numbers and links in the database.
 func TestReorgShortHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 3, 4}, []int{1, 10}, 4)
+	testReorg(t, []int{1, 2, 3, 4}, []int{1, 10}, 5)
 }
 
 func testReorg(t *testing.T, first, second []int, td int64) {
@@ -317,6 +317,7 @@ func TestBadHeaderHashes(t *testing.T) {
 	var err error
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
+	defer func() { delete(core.BadHashes, headers[2].Hash()) }()
 	if _, err = bc.InsertHeaderChain(headers, 1, true); err != core.ErrBlacklistedHash {
 		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
 	}
