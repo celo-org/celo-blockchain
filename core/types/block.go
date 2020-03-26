@@ -67,8 +67,10 @@ type headerMarshaling struct {
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
 	// Seal is reserved in extra-data. To prove block is signed by the proposer.
-	if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
-		return rlpHash(istanbulHeader)
+	if len(h.Extra) >= IstanbulExtraVanity {
+		if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
+			return rlpHash(istanbulHeader)
+		}
 	}
 	return rlpHash(h)
 }

@@ -198,8 +198,11 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 	db := rawdb.NewMemoryDatabase()
 	config := params.TestChainConfig
 
+	engine := mockEngine.NewFaker()
+
 	fakeSig := bytes.Repeat([]byte{0x00}, types.IstanbulExtraBlsSignature)
-	fakeSeal := bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal)
+	fakeSeal, _ := crypto.Sign(bytes.Repeat([]byte{0x00}, crypto.SignatureLength), testKey)
+
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istExtra := &types.IstanbulExtra{
 		AddedValidators:           []common.Address{},
@@ -224,7 +227,6 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 		g.SetExtra(extra)
 	}
 	gblock := genesis.ToBlock(db)
-	engine := mockEngine.NewFaker()
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks

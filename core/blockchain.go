@@ -1650,7 +1650,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			bc.reportBlock(block, nil, ErrBlacklistedHash)
 			return it.index, events, coalescedLogs, ErrBlacklistedHash
 		}
-		// In this case, just skip the block (we already validated it once fully
+		// In this case, just skip the block we already validated it once fully
 		// (and crashed), since its header and body was already in the database).
 		if err == ErrKnownBlock {
 			logger := log.Warn
