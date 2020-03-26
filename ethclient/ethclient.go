@@ -81,6 +81,16 @@ func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 	return (*big.Int)(&result), err
 }
 
+// Coinbase retrieves full nodes coinbase
+func (ec *Client) Coinbase(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_coinbase")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
+}
+
 // BlockByHash returns the given full block.
 //
 // Note that loading full blocks requires two requests. Use HeaderByHash
