@@ -363,7 +363,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	config := istanbul.DefaultConfig
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
-	config.SignedAnnounceVersionDBPath = ""
+	config.VersionCertificateDBPath = ""
 
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})

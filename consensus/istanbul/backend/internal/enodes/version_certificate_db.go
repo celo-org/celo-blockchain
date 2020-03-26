@@ -33,41 +33,41 @@ import (
 )
 
 const (
-	signedAnnounceVersionDBVersion = 0
+	versionCertificateDBVersion = 0
 )
 
-// SignedAnnounceVersionDB stores
-type SignedAnnounceVersionDB struct {
+// VersionCertificateDB stores
+type VersionCertificateDB struct {
 	gdb    *genericDB
 	logger log.Logger
 }
 
-// SignedAnnounceVersionEntry is an entry in the SignedAnnounceVersionDB.
+// VersionCertificateEntry is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
-type SignedAnnounceVersionEntry struct {
+type VersionCertificateEntry struct {
 	Address   common.Address
 	PublicKey *ecdsa.PublicKey
 	Version   uint
 	Signature []byte
 }
 
-func signedAnnounceVersionEntryFromGenericEntry(entry genericEntry) (*SignedAnnounceVersionEntry, error) {
-	signedAnnVersionEntry, ok := entry.(*SignedAnnounceVersionEntry)
+func versionCertificateEntryFromGenericEntry(entry genericEntry) (*VersionCertificateEntry, error) {
+	signedAnnVersionEntry, ok := entry.(*VersionCertificateEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
 	}
 	return signedAnnVersionEntry, nil
 }
 
-// EncodeRLP serializes SignedAnnounceVersionEntry into the Ethereum RLP format.
-func (entry *SignedAnnounceVersionEntry) EncodeRLP(w io.Writer) error {
+// EncodeRLP serializes VersionCertificateEntry into the Ethereum RLP format.
+func (entry *VersionCertificateEntry) EncodeRLP(w io.Writer) error {
 	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
 	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the SignedAnnounceVersionEntry fields from a RLP stream.
-func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the VersionCertificateEntry fields from a RLP stream.
+func (entry *VersionCertificateEntry) DecodeRLP(s *rlp.Stream) error {
 	var content struct {
 		Address   common.Address
 		PublicKey []byte
@@ -86,39 +86,39 @@ func (entry *SignedAnnounceVersionEntry) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// String gives a string representation of SignedAnnounceVersionEntry
-func (entry *SignedAnnounceVersionEntry) String() string {
+// String gives a string representation of VersionCertificateEntry
+func (entry *VersionCertificateEntry) String() string {
 	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
 }
 
-// OpenSignedAnnounceVersionDB opens a signed announce version database for storing
-// SignedAnnounceVersions. If no path is given an in-memory, temporary database is constructed.
-func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) {
-	logger := log.New("db", "SignedAnnounceVersionDB")
+// OpenVersionCertificateDB opens a signed announce version database for storing
+// VersionCertificates. If no path is given an in-memory, temporary database is constructed.
+func OpenVersionCertificateDB(path string) (*VersionCertificateDB, error) {
+	logger := log.New("db", "VersionCertificateDB")
 
-	gdb, err := newGenericDB(int64(signedAnnounceVersionDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := newGenericDB(int64(versionCertificateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
 
-	return &SignedAnnounceVersionDB{
+	return &VersionCertificateDB{
 		gdb:    gdb,
 		logger: logger,
 	}, nil
 }
 
 // Close flushes and closes the database files.
-func (svdb *SignedAnnounceVersionDB) Close() error {
+func (svdb *VersionCertificateDB) Close() error {
 	return svdb.gdb.Close()
 }
 
 // String gives a string representation of the entire db
-func (svdb *SignedAnnounceVersionDB) String() string {
+func (svdb *VersionCertificateDB) String() string {
 	var b strings.Builder
-	b.WriteString("SignedAnnounceVersionDB:")
+	b.WriteString("VersionCertificateDB:")
 
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
+	err := svdb.iterate(func(address common.Address, entry *VersionCertificateEntry) error {
 		fmt.Fprintf(&b, " [%s => %s]", address.String(), entry.String())
 		return nil
 	})
@@ -132,13 +132,13 @@ func (svdb *SignedAnnounceVersionDB) String() string {
 
 // Upsert inserts any new entries or entries with a Version higher than the
 // existing version. Returns any new or updated entries
-func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionEntry) ([]*SignedAnnounceVersionEntry, error) {
+func (svdb *VersionCertificateDB) Upsert(savEntries []*VersionCertificateEntry) ([]*VersionCertificateEntry, error) {
 	logger := svdb.logger.New("func", "Upsert")
 
-	var newEntries []*SignedAnnounceVersionEntry
+	var newEntries []*VersionCertificateEntry
 
 	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
-		savEntry, err := signedAnnounceVersionEntryFromGenericEntry(entry)
+		savEntry, err := versionCertificateEntryFromGenericEntry(entry)
 		if err != nil {
 			return entry, err
 		}
@@ -146,7 +146,7 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 	}
 
 	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
-		savEntry, err := signedAnnounceVersionEntryFromGenericEntry(entry)
+		savEntry, err := versionCertificateEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
 		}
@@ -162,11 +162,11 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 	}
 
 	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
-		existingSav, err := signedAnnounceVersionEntryFromGenericEntry(existingEntry)
+		existingSav, err := versionCertificateEntryFromGenericEntry(existingEntry)
 		if err != nil {
 			return err
 		}
-		newSav, err := signedAnnounceVersionEntryFromGenericEntry(newEntry)
+		newSav, err := versionCertificateEntryFromGenericEntry(newEntry)
 		if err != nil {
 			return err
 		}
@@ -189,10 +189,10 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 	return newEntries, nil
 }
 
-// Get gets the SignedAnnounceVersionEntry entry with address `address`.
+// Get gets the VersionCertificateEntry entry with address `address`.
 // Returns an error if no entry exists.
-func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersionEntry, error) {
-	var entry SignedAnnounceVersionEntry
+func (svdb *VersionCertificateDB) Get(address common.Address) (*VersionCertificateEntry, error) {
+	var entry VersionCertificateEntry
 	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounc
 
 // GetVersion gets the version for the entry with address `address`
 // Returns an error if no entry exists
-func (svdb *SignedAnnounceVersionDB) GetVersion(address common.Address) (uint, error) {
+func (svdb *VersionCertificateDB) GetVersion(address common.Address) (uint, error) {
 	signedAnnVersion, err := svdb.Get(address)
 	if err != nil {
 		return 0, err
@@ -213,10 +213,10 @@ func (svdb *SignedAnnounceVersionDB) GetVersion(address common.Address) (uint, e
 	return signedAnnVersion.Version, nil
 }
 
-// GetAll gets each SignedAnnounceVersionEntry in the db
-func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, error) {
-	var entries []*SignedAnnounceVersionEntry
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
+// GetAll gets each VersionCertificateEntry in the db
+func (svdb *VersionCertificateDB) GetAll() ([]*VersionCertificateEntry, error) {
+	var entries []*VersionCertificateEntry
+	err := svdb.iterate(func(address common.Address, entry *VersionCertificateEntry) error {
 		entries = append(entries, entry)
 		return nil
 	})
@@ -227,16 +227,16 @@ func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, er
 }
 
 // Remove will remove an entry from the table
-func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
+func (svdb *VersionCertificateDB) Remove(address common.Address) error {
 	batch := new(leveldb.Batch)
 	batch.Delete(addressKey(address))
 	return svdb.gdb.Write(batch)
 }
 
 // Prune will remove entries for all addresses not present in addressesToKeep
-func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bool) error {
+func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool) error {
 	batch := new(leveldb.Batch)
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
+	err := svdb.iterate(func(address common.Address, entry *VersionCertificateEntry) error {
 		if !addressesToKeep[address] {
 			svdb.logger.Trace("Deleting entry", "address", address)
 			batch.Delete(addressKey(address))
@@ -250,13 +250,13 @@ func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bo
 }
 
 // iterate will call `onEntry` for each entry in the db
-func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *SignedAnnounceVersionEntry) error) error {
+func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *VersionCertificateEntry) error) error {
 	logger := svdb.logger.New("func", "iterate")
 	// Only target address keys
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-		var entry SignedAnnounceVersionEntry
+		var entry VersionCertificateEntry
 		if err := rlp.DecodeBytes(value, &entry); err != nil {
 			return err
 		}
@@ -274,18 +274,18 @@ func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *Signe
 	return nil
 }
 
-// SignedAnnounceVersionEntryInfo gives basic information for an entry in the DB
-type SignedAnnounceVersionEntryInfo struct {
+// VersionCertificateEntryInfo gives basic information for an entry in the DB
+type VersionCertificateEntryInfo struct {
 	Address string `json:"address"`
 	Version uint   `json:"version"`
 }
 
-// Info gives a map SignedAnnounceVersionEntryInfo where each key is the address.
+// Info gives a map VersionCertificateEntryInfo where each key is the address.
 // Intended for RPC use
-func (svdb *SignedAnnounceVersionDB) Info() (map[string]*SignedAnnounceVersionEntryInfo, error) {
-	dbInfo := make(map[string]*SignedAnnounceVersionEntryInfo)
-	err := svdb.iterate(func(address common.Address, entry *SignedAnnounceVersionEntry) error {
-		dbInfo[address.Hex()] = &SignedAnnounceVersionEntryInfo{
+func (svdb *VersionCertificateDB) Info() (map[string]*VersionCertificateEntryInfo, error) {
+	dbInfo := make(map[string]*VersionCertificateEntryInfo)
+	err := svdb.iterate(func(address common.Address, entry *VersionCertificateEntry) error {
+		dbInfo[address.Hex()] = &VersionCertificateEntryInfo{
 			Address: entry.Address.Hex(),
 			Version: entry.Version,
 		}

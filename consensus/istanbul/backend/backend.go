@@ -111,7 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
-		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
+		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
@@ -136,17 +136,17 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = valEnodeTable
 
-	signedAnnounceVersionTable, err := enodes.OpenSignedAnnounceVersionDB(config.SignedAnnounceVersionDBPath)
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
 	if err != nil {
-		logger.Crit("Can't open SignedAnnounceVersionDB", "err", err, "dbpath", config.SignedAnnounceVersionDBPath)
+		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
 	}
-	backend.signedAnnounceVersionTable = signedAnnounceVersionTable
+	backend.versionCertificateTable = versionCertificateTable
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
 	backend.istanbulAnnounceMsgHandlers[istanbulQueryEnodeMsg] = backend.handleQueryEnodeMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulSignedAnnounceVersionsMsg] = backend.handleSignedAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulVersionCertificatesMsg] = backend.handleVersionCertificatesMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
 
 	return backend
@@ -201,9 +201,9 @@ type Backend struct {
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	signedAnnounceVersionTable           *enodes.SignedAnnounceVersionDB
-	lastSignedAnnounceVersionsGossiped   map[common.Address]time.Time
-	lastSignedAnnounceVersionsGossipedMu sync.RWMutex
+	versionCertificateTable           *enodes.VersionCertificateDB
+	lastVersionCertificatesGossiped   map[common.Address]time.Time
+	lastVersionCertificatesGossipedMu sync.RWMutex
 
 	announceRunning               bool
 	announceMu                    sync.RWMutex
@@ -312,7 +312,7 @@ func (sb *Backend) Close() error {
 	if err := sb.valEnodeTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.signedAnnounceVersionTable.Close(); err != nil {
+	if err := sb.versionCertificateTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	var concatenatedErrs error

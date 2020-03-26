@@ -43,10 +43,10 @@ import (
 
 const (
 	queryEnodeGossipCooldownDuration            = 5 * time.Minute
-	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
+	versionCertificateGossipCooldownDuration = 5 * time.Minute
 )
 
-// QueryEnodeFrequencyState specifies how frequently to gossip query enode messages
+// QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
 type QueryEnodeGossipFrequencyState int
 
 const (
@@ -64,7 +64,7 @@ const (
 
 // The announceThread will:
 // 1) Periodically poll to see if this node should be announcing
-// 2) Periodically share the entire signed announce version table with all peers
+// 2) Periodically share the entire version certificate table with all peers
 // 3) Periodically prune announce-related data structures
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
@@ -79,8 +79,8 @@ func (sb *Backend) announceThread() {
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 	// TODO: this can be removed once we have more faith in this protocol
 	updateAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
-	// Occasionally share the entire signed announce version table with all peers
-	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
+	// Occasionally share the entire version certificate table with all peers
+	shareVersionCertificatesTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
 
 	var queryEnodeTicker *time.Ticker
@@ -153,17 +153,17 @@ func (sb *Backend) announceThread() {
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-shareSignedAnnounceVersionTicker.C:
-			// Send all signed announce versions to every peer. Only the entries
+		case <-shareVersionCertificatesTicker.C:
+			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
+			allVersionCertificates, err := sb.getAllVersionCertificates()
 			if err != nil {
-				logger.Warn("Error getting all signed announce versions", "err", err)
+				logger.Warn("Error getting all version certificates", "err", err)
 				break
 			}
-			if err := sb.gossipSignedAnnounceVersionsMsg(allSignedAnnounceVersions); err != nil {
-				logger.Warn("Error gossiping all signed announce versions")
+			if err := sb.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
+				logger.Warn("Error gossiping all version certificates")
 			}
 
 		case <-updateAnnounceVersionTicker.C:
@@ -250,8 +250,8 @@ func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 // The data structures that it prunes are:
 // 1)  lastQueryEnodeGossiped
 // 2)  valEnodeTable
-// 3)  lastSignedAnnounceVersionsGossiped
-// 4)  signedAnnounceVersionTable
+// 3)  lastVersionCertificatesGossiped
+// 4)  versionCertificateTable
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
@@ -275,17 +275,17 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
-	for remoteAddress := range sb.lastSignedAnnounceVersionsGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastSignedAnnounceVersionsGossiped[remoteAddress]) >= signedAnnounceVersionGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastSignedAnnounceVersionsGossiped", "address", remoteAddress, "gossip timestamp", sb.lastSignedAnnounceVersionsGossiped[remoteAddress])
-			delete(sb.lastSignedAnnounceVersionsGossiped, remoteAddress)
+	sb.lastVersionCertificatesGossipedMu.Lock()
+	for remoteAddress := range sb.lastVersionCertificatesGossiped {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastVersionCertificatesGossiped[remoteAddress]) >= versionCertificateGossipCooldownDuration {
+			logger.Trace("Deleting entry from lastVersionCertificatesGossiped", "address", remoteAddress, "gossip timestamp", sb.lastVersionCertificatesGossiped[remoteAddress])
+			delete(sb.lastVersionCertificatesGossiped, remoteAddress)
 		}
 	}
-	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
+	sb.lastVersionCertificatesGossipedMu.Unlock()
 
-	if err := sb.signedAnnounceVersionTable.Prune(validatorConnSet); err != nil {
-		logger.Trace("Error in pruning signedAnnounceVersionTable", "err", err)
+	if err := sb.versionCertificateTable.Prune(validatorConnSet); err != nil {
+		logger.Trace("Error in pruning versionCertificateTable", "err", err)
 		return err
 	}
 
@@ -440,7 +440,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint) (*istanbul.Message, []*ve
 
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
 // whose entries in the val enode table do not exist or are outdated when compared
-// to the signed announce version table.
+// to the version certificate table.
 func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnodeURL, []*vet.AddressEntry, error) {
 	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
 	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
@@ -674,19 +674,19 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	return nil
 }
 
-// Used as a salt when signing signedAnnounceVersion. This is to account for
+// Used as a salt when signing versionCertificate. This is to account for
 // the unlikely case where a different signed struct with the same field types
 // is used elsewhere and shared with other nodes. If that were to happen, a
 // malicious node could try sending the other struct where this struct is used,
 // or vice versa. This ensures that the signature is only valid for this struct.
-var signedAnnounceVersionSalt = []byte("signedAnnounceVersion")
+var versionCertificateSalt = []byte("versionCertificate")
 
-// signedAnnounceVersion is a signed message from a validator indicating the most
+// versionCertificate is a signed message from a validator indicating the most
 // recent version of its enode.
-type signedAnnounceVersion vet.SignedAnnounceVersionEntry
+type versionCertificate vet.VersionCertificateEntry
 
-func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *signedAnnounceVersion {
-	return &signedAnnounceVersion{
+func newVersionCertificateFromEntry(entry *vet.VersionCertificateEntry) *versionCertificate {
+	return &versionCertificate{
 		Address:   entry.Address,
 		PublicKey: entry.PublicKey,
 		Version:   entry.Version,
@@ -694,12 +694,12 @@ func newSignedAnnounceVersionFromEntry(entry *vet.SignedAnnounceVersionEntry) *s
 	}
 }
 
-func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadToSign, err := sav.payloadToSign()
+func (vc *versionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	payloadToSign, err := vc.payloadToSign()
 	if err != nil {
 		return err
 	}
-	sav.Signature, err = signingFn(payloadToSign)
+	vc.Signature, err = signingFn(payloadToSign)
 	if err != nil {
 		return err
 	}
@@ -708,13 +708,13 @@ func (sav *signedAnnounceVersion) Sign(signingFn func(data []byte) ([]byte, erro
 
 // RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
 // address from the Signature
-func (sav *signedAnnounceVersion) RecoverPublicKeyAndAddress() error {
-	payloadToSign, err := sav.payloadToSign()
+func (vc *versionCertificate) RecoverPublicKeyAndAddress() error {
+	payloadToSign, err := vc.payloadToSign()
 	if err != nil {
 		return err
 	}
 	payloadHash := crypto.Keccak256(payloadToSign)
-	publicKey, err := crypto.SigToPub(payloadHash, sav.Signature)
+	publicKey, err := crypto.SigToPub(payloadHash, vc.Signature)
 	if err != nil {
 		return err
 	}
@@ -722,22 +722,22 @@ func (sav *signedAnnounceVersion) RecoverPublicKeyAndAddress() error {
 	if err != nil {
 		return err
 	}
-	sav.PublicKey = publicKey
-	sav.Address = address
+	vc.PublicKey = publicKey
+	vc.Address = address
 	return nil
 }
 
-// EncodeRLP serializes signedAnnounceVersion into the Ethereum RLP format.
+// EncodeRLP serializes versionCertificate into the Ethereum RLP format.
 // Only the Version and Signature are encoded, as the public key and address
 // can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (sav *signedAnnounceVersion) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sav.Version, sav.Signature})
+func (vc *versionCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{vc.Version, vc.Signature})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the signedAnnounceVersion fields from a RLP stream.
+// DecodeRLP implements rlp.Decoder, and load the versionCertificate fields from a RLP stream.
 // Only the Version and Signature are encoded/decoded, as the public key and address
 // can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
+func (vc *versionCertificate) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		Version   uint
 		Signature []byte
@@ -746,21 +746,21 @@ func (sav *signedAnnounceVersion) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	sav.Version, sav.Signature = msg.Version, msg.Signature
+	vc.Version, vc.Signature = msg.Version, msg.Signature
 	return nil
 }
 
-func (sav *signedAnnounceVersion) Entry() *vet.SignedAnnounceVersionEntry {
-	return &vet.SignedAnnounceVersionEntry{
-		Address:   sav.Address,
-		PublicKey: sav.PublicKey,
-		Version:   sav.Version,
-		Signature: sav.Signature,
+func (vc *versionCertificate) Entry() *vet.VersionCertificateEntry {
+	return &vet.VersionCertificateEntry{
+		Address:   vc.Address,
+		PublicKey: vc.PublicKey,
+		Version:   vc.Version,
+		Signature: vc.Signature,
 	}
 }
 
-func (sav *signedAnnounceVersion) payloadToSign() ([]byte, error) {
-	signedContent := []interface{}{signedAnnounceVersionSalt, sav.Version}
+func (vc *versionCertificate) payloadToSign() ([]byte, error) {
+	signedContent := []interface{}{versionCertificateSalt, vc.Version}
 	payload, err := rlp.EncodeToBytes(signedContent)
 	if err != nil {
 		return nil, err
@@ -768,67 +768,67 @@ func (sav *signedAnnounceVersion) payloadToSign() ([]byte, error) {
 	return payload, nil
 }
 
-func (sb *Backend) generateSignedAnnounceVersion(version uint) (*signedAnnounceVersion, error) {
-	sav := &signedAnnounceVersion{
+func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
+	vc := &versionCertificate{
 		Address:   sb.Address(),
 		PublicKey: sb.publicKey,
 		Version:   version,
 	}
-	err := sav.Sign(sb.Sign)
+	err := vc.Sign(sb.Sign)
 	if err != nil {
 		return nil, err
 	}
-	return sav, nil
+	return vc, nil
 }
 
-func (sb *Backend) gossipSignedAnnounceVersionsMsg(signedAnnVersions []*signedAnnounceVersion) error {
-	logger := sb.logger.New("func", "gossipSignedAnnounceVersionsMsg")
+func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
+	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := rlp.EncodeToBytes(signedAnnVersions)
+	payload, err := rlp.EncodeToBytes(versionCertificates)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
 	}
-	return sb.Multicast(nil, payload, istanbulSignedAnnounceVersionsMsg)
+	return sb.Multicast(nil, payload, istanbulVersionCertificatesMsg)
 }
 
-func (sb *Backend) getAllSignedAnnounceVersions() ([]*signedAnnounceVersion, error) {
-	allEntries, err := sb.signedAnnounceVersionTable.GetAll()
+func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
+	allEntries, err := sb.versionCertificateTable.GetAll()
 	if err != nil {
 		return nil, err
 	}
-	allSignedAnnounceVersions := make([]*signedAnnounceVersion, len(allEntries))
+	allVersionCertificates := make([]*versionCertificate, len(allEntries))
 	for i, entry := range allEntries {
-		allSignedAnnounceVersions[i] = newSignedAnnounceVersionFromEntry(entry)
+		allVersionCertificates[i] = newVersionCertificateFromEntry(entry)
 	}
-	return allSignedAnnounceVersions, nil
+	return allVersionCertificates, nil
 }
 
-// sendAnnounceVersionTable sends all SignedAnnounceVersions this node
+// sendAnnounceVersionTable sends all VersionCertificates this node
 // has to a peer
 func (sb *Backend) sendAnnounceVersionTable(peer consensus.Peer) error {
 	logger := sb.logger.New("func", "sendAnnounceVersionTable")
-	allSignedAnnounceVersions, err := sb.getAllSignedAnnounceVersions()
+	allVersionCertificates, err := sb.getAllVersionCertificates()
 	if err != nil {
-		logger.Warn("Error getting all signed announce versions", "err", err)
+		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := rlp.EncodeToBytes(allSignedAnnounceVersions)
+	payload, err := rlp.EncodeToBytes(allVersionCertificates)
 	if err != nil {
 		logger.Warn("Error encoding entries", "err", err)
 		return err
 	}
-	return peer.Send(istanbulSignedAnnounceVersionsMsg, payload)
+	return peer.Send(istanbulVersionCertificatesMsg, payload)
 }
 
-func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleSignedAnnounceVersionsMsg")
-	logger.Trace("Handling signed announce version msg")
-	var signedAnnVersions []*signedAnnounceVersion
+func (sb *Backend) handleVersionCertificatesMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
+	logger.Trace("Handling version certificates msg")
+	var versionCertificates []*versionCertificate
 
-	err := rlp.DecodeBytes(payload, &signedAnnVersions)
+	err := rlp.DecodeBytes(payload, &versionCertificates)
 	if err != nil {
-		logger.Warn("Error in decoding received Signed Announce Versions msg", "err", err)
+		logger.Warn("Error in decoding received version certificates msg", "err", err)
 		return err
 	}
 
@@ -839,36 +839,36 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		return err
 	}
 
-	var validEntries []*vet.SignedAnnounceVersionEntry
+	var validEntries []*vet.VersionCertificateEntry
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
-	for _, signedAnnVersion := range signedAnnVersions {
+	for _, versionCertificate := range versionCertificates {
 		// The public key and address are not RLP encoded/decoded and must be
 		// explicitly recovered.
-		if err := signedAnnVersion.RecoverPublicKeyAndAddress(); err != nil {
-			logger.Warn("Error recovering signed announce version public key and address from signature", "err", err)
+		if err := versionCertificate.RecoverPublicKeyAndAddress(); err != nil {
+			logger.Warn("Error recovering version certificates public key and address from signature", "err", err)
 			continue
 		}
-		if !validatorConnSet[signedAnnVersion.Address] {
-			logger.Debug("Found signed announce version from an address not in the validator conn set", "address", signedAnnVersion.Address)
+		if !validatorConnSet[versionCertificate.Address] {
+			logger.Debug("Found version certificate from an address not in the validator conn set", "address", versionCertificate.Address)
 			continue
 		}
-		if _, ok := validAddresses[signedAnnVersion.Address]; ok {
-			logger.Debug("Found duplicate signed announce version in message", "address", signedAnnVersion.Address)
+		if _, ok := validAddresses[versionCertificate.Address]; ok {
+			logger.Debug("Found duplicate version certificate in message", "address", versionCertificate.Address)
 			continue
 		}
-		validAddresses[signedAnnVersion.Address] = true
-		validEntries = append(validEntries, signedAnnVersion.Entry())
+		validAddresses[versionCertificate.Address] = true
+		validEntries = append(validEntries, versionCertificate.Entry())
 	}
-	if err := sb.upsertAndGossipSignedAnnounceVersionEntries(validEntries); err != nil {
+	if err := sb.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
 	return nil
 }
 
-func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
-	logger := sb.logger.New("func", "upsertAndGossipSignedAnnounceVersionEntries")
+func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
+	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 
 	shouldProcess, err := sb.shouldSaveAndPublishValEnodeURLs()
 	if err != nil {
@@ -897,27 +897,27 @@ func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.Si
 		}
 	}
 
-	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
+	newEntries, err := sb.versionCertificateTable.Upsert(entries)
 	if err != nil {
-		logger.Warn("Error upserting signed announce version table entries", "err", err)
+		logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
 
 	// Only regossip entries that do not originate from an address that we have
-	// gossiped a signed announce version for within the last 5 minutes, excluding
+	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
-	var signedAnnVersionsToRegossip []*signedAnnounceVersion
-	sb.lastSignedAnnounceVersionsGossipedMu.Lock()
+	var versionCertificatesToRegossip []*versionCertificate
+	sb.lastVersionCertificatesGossipedMu.Lock()
 	for _, entry := range newEntries {
-		lastGossipTime, ok := sb.lastSignedAnnounceVersionsGossiped[entry.Address]
-		if ok && time.Since(lastGossipTime) >= signedAnnounceVersionGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
+		lastGossipTime, ok := sb.lastVersionCertificatesGossiped[entry.Address]
+		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
 			continue
 		}
-		signedAnnVersionsToRegossip = append(signedAnnVersionsToRegossip, newSignedAnnounceVersionFromEntry(entry))
-		sb.lastSignedAnnounceVersionsGossiped[entry.Address] = time.Now()
+		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
+		sb.lastVersionCertificatesGossiped[entry.Address] = time.Now()
 	}
-	sb.lastSignedAnnounceVersionsGossipedMu.Unlock()
-	if len(signedAnnVersionsToRegossip) > 0 {
-		return sb.gossipSignedAnnounceVersionsMsg(signedAnnVersionsToRegossip)
+	sb.lastVersionCertificatesGossipedMu.Unlock()
+	if len(versionCertificatesToRegossip) > 0 {
+		return sb.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
 	}
 	return nil
 }
@@ -936,8 +936,8 @@ func (sb *Backend) updateAnnounceVersion() {
 //  1) Generate a new enode certificate
 //  2) Send the new enode certificate to this node's proxy if one exists
 //  3) Send the new enode certificate to all peers in the validator conn set
-//  4) Generate a new signed announce version
-//  5) Gossip the new signed announce version to all peers
+//  4) Generate a new version certificate
+//  5) Gossip the new version certificate to all peers
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
@@ -978,13 +978,13 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		return err
 	}
 
-	// Generate and gossip a new signed announce version
-	newSignedAnnVersion, err := sb.generateSignedAnnounceVersion(version)
+	// Generate and gossip a new version certificate
+	newVersionCertificate, err := sb.generateVersionCertificate(version)
 	if err != nil {
 		return err
 	}
-	return sb.upsertAndGossipSignedAnnounceVersionEntries([]*vet.SignedAnnounceVersionEntry{
-		newSignedAnnVersion.Entry(),
+	return sb.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
+		newVersionCertificate.Entry(),
 	})
 }
 

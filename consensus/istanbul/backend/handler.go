@@ -49,7 +49,7 @@ const (
 	istanbulValEnodesShareMsg         = 0x13
 	istanbulFwdMsg                    = 0x14
 	istanbulDelegateSign              = 0x15
-	istanbulSignedAnnounceVersionsMsg = 0x16
+	istanbulVersionCertificatesMsg = 0x16
 	istanbulEnodeCertificateMsg       = 0x17
 	istanbulValidatorHandshakeMsg     = 0x18
 
@@ -61,7 +61,7 @@ func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 }
 
 func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
-	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulSignedAnnounceVersionsMsg
+	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -292,7 +292,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	}
 
 	if err := sb.sendAnnounceVersionTable(peer); err != nil {
-		logger.Error("Error sending all signed announce versions", "err", err)
+		logger.Error("Error sending all version certificates", "err", err)
 	}
 }
 
