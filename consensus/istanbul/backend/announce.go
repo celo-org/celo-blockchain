@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -31,7 +32,6 @@ import (
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -41,11 +41,10 @@ import (
 // define the constants and function for the sendAnnounce thread
 
 const (
-	announceGossipCooldownDuration = 5 * time.Minute
+	queryEnodeGossipCooldownDuration = 5 * time.Minute
 	// Schedule retries to be strictly later than the cooldown duration
 	// that other nodes will impose for regossiping announces from this node.
-	announceRetryDuration          = announceGossipCooldownDuration + (30 * time.Second)
-	announceAnswerCooldownDuration = 5 * time.Minute
+	queryEnodeRetryDuration = queryEnodeGossipCooldownDuration + (30 * time.Second)
 
 	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
 )
@@ -72,8 +71,11 @@ func (sb *Backend) announceThread() {
 	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
 
-	var announceRetryTimer *time.Timer
-	var announceRetryTimerCh <-chan time.Time
+	// Periodically check to see if queryEnode Messages need to be sent
+	queryEnodeTicker := time.NewTicker(6 * time.Minute)
+
+	var queryEnodeRetryTimer *time.Timer
+	var queryEnodeRetryTimerCh <-chan time.Time
 	var announceVersion uint
 	var announcing bool
 	var shouldAnnounce bool
@@ -97,7 +99,7 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldAnnounce, err = sb.shouldGenerateAndProcessAnnounce()
+			shouldAnnounce, err = sb.shouldSaveAndPublishValEnodeURLs()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
@@ -111,16 +113,16 @@ func (sb *Backend) announceThread() {
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				time.AfterFunc(1*time.Minute, func() {
-					sb.startGossipAnnounceTask()
+					sb.startGossipQueryEnodeTask()
 				})
 
 				announcing = true
 				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
-				if announceRetryTimer != nil {
-					announceRetryTimer.Stop()
-					announceRetryTimer = nil
-					announceRetryTimerCh = nil
+				if queryEnodeRetryTimer != nil {
+					queryEnodeRetryTimer.Stop()
+					queryEnodeRetryTimer = nil
+					queryEnodeRetryTimerCh = nil
 				}
 				announcing = false
 				logger.Trace("Disabled periodic gossiping of announce message")
@@ -142,27 +144,27 @@ func (sb *Backend) announceThread() {
 		case <-updateAnnounceVersionTicker.C:
 			updateAnnounceVersionFunc()
 
-		case <-announceRetryTimerCh: // If this is nil, this channel will never receive an event
-			announceRetryTimer = nil
-			announceRetryTimerCh = nil
-			sb.startGossipAnnounceTask()
+		case <-queryEnodeRetryTimerCh: // If this is nil, this channel will never receive an event
+			queryEnodeRetryTimer = nil
+			queryEnodeRetryTimerCh = nil
+			sb.startGossipQueryEnodeTask()
 
-		case <-sb.generateAndGossipAnnounceCh:
+		case <-sb.generateAndGossipQueryEnodeCh:
 			if shouldAnnounce {
 				// This node may have recently sent out an announce message within
 				// the gossip cooldown period imposed by other nodes.
-				// Regardless, send the announce so that it will at least be
+				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				hasContent, err := sb.generateAndGossipAnnounce(announceVersion)
+				hasContent, err := sb.generateAndGossipQueryEnode(announceVersion)
 				if err != nil {
-					logger.Warn("Error in generating and gossiping announce", "err", err)
+					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 				// If a retry hasn't been scheduled already by a previous announce,
 				// schedule one.
-				if hasContent && announceRetryTimer == nil {
-					announceRetryTimer = time.NewTimer(announceRetryDuration)
-					announceRetryTimerCh = announceRetryTimer.C
+				if hasContent && queryEnodeRetryTimer == nil {
+					queryEnodeRetryTimer = time.NewTimer(queryEnodeRetryDuration)
+					queryEnodeRetryTimerCh = queryEnodeRetryTimer.C
 				}
 			}
 
@@ -177,18 +179,23 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
+		case <-queryEnodeTicker.C:
+			if shouldAnnounce {
+				sb.startGossipQueryEnodeTask()
+			}
+
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
-			if announceRetryTimer != nil {
-				announceRetryTimer.Stop()
+			if queryEnodeRetryTimer != nil {
+				queryEnodeRetryTimer.Stop()
 			}
 			return
 		}
 	}
 }
 
-func (sb *Backend) shouldGenerateAndProcessAnnounce() (bool, error) {
+func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 
 	// Check if this node is in the validator connection set
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -215,23 +222,14 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	sb.lastAnnounceGossipedMu.Lock()
-	for remoteAddress := range sb.lastAnnounceGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceGossiped[remoteAddress].Time) >= announceGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastAnnounceGossiped", "address", remoteAddress, "gossip timestamp", sb.lastAnnounceGossiped[remoteAddress])
-			delete(sb.lastAnnounceGossiped, remoteAddress)
+	sb.lastQueryEnodeGossipedMu.Lock()
+	for remoteAddress := range sb.lastQueryEnodeGossiped {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastQueryEnodeGossiped[remoteAddress].Time) >= queryEnodeGossipCooldownDuration {
+			logger.Trace("Deleting entry from lastQueryEnodeGossiped", "address", remoteAddress, "gossip timestamp", sb.lastQueryEnodeGossiped[remoteAddress])
+			delete(sb.lastQueryEnodeGossiped, remoteAddress)
 		}
 	}
-	sb.lastAnnounceGossipedMu.Unlock()
-
-	sb.lastAnnounceAnsweredMu.Lock()
-	for remoteAddress := range sb.lastAnnounceAnswered {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastAnnounceAnswered[remoteAddress]) >= announceAnswerCooldownDuration {
-			logger.Trace("Deleting entry from lastAnnounceAnswered", "address", remoteAddress, "answer timestamp", sb.lastAnnounceAnswered[remoteAddress])
-			delete(sb.lastAnnounceAnswered, remoteAddress)
-		}
-	}
-	sb.lastAnnounceAnsweredMu.Unlock()
+	sb.lastQueryEnodeGossipedMu.Unlock()
 
 	if err := sb.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
@@ -257,37 +255,32 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 
 // ===============================================================
 //
-// define the IstanbulAnnounce message format, the AnnounceMsgCache entries, the announce send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
-type announceRegossip struct {
+type queryEnodeRegossip struct {
 	Time         time.Time
 	MsgTimestamp uint // the Timestamp field of the regossiped announce msg
 }
 
-type scheduledAnnounceRegossip struct {
-	Timer        *time.Timer
-	MsgTimestamp uint // the Timestamp field of the announce msg to regossip
-}
-
-type announceRecord struct {
+type encryptedEnodeURL struct {
 	DestAddress       common.Address
 	EncryptedEnodeURL []byte
 }
 
-func (ar *announceRecord) String() string {
-	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ar.DestAddress.String(), len(ar.EncryptedEnodeURL))
+func (ee *encryptedEnodeURL) String() string {
+	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
 }
 
-type announceData struct {
-	AnnounceRecords []*announceRecord
-	Version         uint
+type queryEnodeData struct {
+	EncryptedEnodeURLs []*encryptedEnodeURL
+	Version            uint
 	// The timestamp of the node when the message is generated.
 	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
 	Timestamp uint
 }
 
-func (ad *announceData) String() string {
-	return fmt.Sprintf("{Version: %v, Timestamp: %v, AnnounceRecords: %v}", ad.Version, ad.Timestamp, ad.AnnounceRecords)
+func (qed *queryEnodeData) String() string {
+	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
 }
 
 // ==============================================
@@ -295,12 +288,12 @@ func (ad *announceData) String() string {
 // define the functions that needs to be provided for rlp Encoder/Decoder.
 
 // EncodeRLP serializes ar into the Ethereum RLP format.
-func (ar *announceRecord) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ar.DestAddress, ar.EncryptedEnodeURL})
+func (ee *encryptedEnodeURL) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
+func (ee *encryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
 		DestAddress       common.Address
 		EncryptedEnodeURL []byte
@@ -309,35 +302,35 @@ func (ar *announceRecord) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ar.DestAddress, ar.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
+	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
 	return nil
 }
 
 // EncodeRLP serializes ad into the Ethereum RLP format.
-func (ad *announceData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ad.AnnounceRecords, ad.Version, ad.Timestamp})
+func (qed *queryEnodeData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (ad *announceData) DecodeRLP(s *rlp.Stream) error {
+func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 	var msg struct {
-		AnnounceRecords []*announceRecord
-		Version         uint
-		Timestamp       uint
+		EncryptedEnodeURLs []*encryptedEnodeURL
+		Version            uint
+		Timestamp          uint
 	}
 
 	if err := s.Decode(&msg); err != nil {
 		return err
 	}
-	ad.AnnounceRecords, ad.Version, ad.Timestamp = msg.AnnounceRecords, msg.Version, msg.Timestamp
+	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
 	return nil
 }
 
-func (sb *Backend) startGossipAnnounceTask() {
-	// sb.generateAndGossipAnnounceCh has a buffer of 1. If there is a value
+func (sb *Backend) startGossipQueryEnodeTask() {
+	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
 	// already sent to the channel that has not been read from, don't block.
 	select {
-	case sb.generateAndGossipAnnounceCh <- struct{}{}:
+	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
 	default:
 	}
 }
@@ -347,10 +340,10 @@ func (sb *Backend) startGossipAnnounceTask() {
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Returns if an announce message had content (ie not empty) and if there was an error.
-func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
-	logger := sb.logger.New("func", "generateAndGossipAnnounce")
-	logger.Trace("generateAndGossipAnnounce called")
-	istMsg, err := sb.generateAnnounce(version)
+func (sb *Backend) generateAndGossipQueryEnode(version uint) (bool, error) {
+	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
+	logger.Trace("generateAndGossipQueryEnode called")
+	istMsg, updatedValEnodeEntries, err := sb.generateQueryEnodeMsg(version)
 	if err != nil {
 		return false, err
 	}
@@ -362,111 +355,125 @@ func (sb *Backend) generateAndGossipAnnounce(version uint) (bool, error) {
 	// Convert to payload
 	payload, err := istMsg.Payload()
 	if err != nil {
-		logger.Error("Error in converting Istanbul Announce Message to payload", "AnnounceMsg", istMsg.String(), "err", err)
+		logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", istMsg.String(), "err", err)
 		return true, err
 	}
 
-	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
+	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
 		return true, err
 	}
+
+	sb.valEnodeTable.Upsert(updatedValEnodeEntries)
+
 	return true, nil
 }
 
-// generateAnnounce returns a announce message from this node with a given version.
-func (sb *Backend) generateAnnounce(version uint) (*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateAnnounce")
+// generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
+func (sb *Backend) generateQueryEnodeMsg(version uint) (*istanbul.Message, []*vet.AddressEntry, error) {
+	logger := sb.logger.New("func", "generateQueryEnodeMsg")
 
 	enodeURL, err := sb.getEnodeURL()
 	if err != nil {
 		logger.Error("Error getting enode URL", "err", err)
-		return nil, err
+		return nil, nil, err
 	}
-	announceRecords, err := sb.generateAnnounceRecords(enodeURL)
+	encryptedEnodeURLs, updatedValEnodeEntries, err := sb.generateEncryptedEnodeURLs(enodeURL)
 	if err != nil {
-		logger.Warn("Error generating announce records", "err", err)
-		return nil, err
+		logger.Warn("Error generating encrypted enodeURLs", "err", err)
+		return nil, nil, err
 	}
-	if len(announceRecords) == 0 {
-		logger.Trace("No announce records were generated, will not generate announce")
-		return nil, nil
+	if len(encryptedEnodeURLs) == 0 {
+		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
+		return nil, nil, nil
 	}
-	announceData := &announceData{
-		AnnounceRecords: announceRecords,
-		Version:         version,
-		Timestamp:       getTimestamp(),
+	queryEnodeData := &queryEnodeData{
+		EncryptedEnodeURLs: encryptedEnodeURLs,
+		Version:            version,
+		Timestamp:          getTimestamp(),
 	}
 
-	announceBytes, err := rlp.EncodeToBytes(announceData)
+	queryEnodeBytes, err := rlp.EncodeToBytes(queryEnodeData)
 	if err != nil {
-		logger.Error("Error encoding announce content", "AnnounceData", announceData.String(), "err", err)
-		return nil, err
+		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
+		return nil, nil, err
 	}
 
 	msg := &istanbul.Message{
-		Code:      istanbulAnnounceMsg,
-		Msg:       announceBytes,
+		Code:      istanbulQueryEnodeMsg,
+		Msg:       queryEnodeBytes,
 		Address:   sb.Address(),
 		Signature: []byte{},
 	}
 
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
-		logger.Error("Error in signing an Announce Message", "AnnounceMsg", msg.String(), "err", err)
-		return nil, err
+		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
+		return nil, nil, err
 	}
 
-	logger.Debug("Generated an announce message", "IstanbulMsg", msg.String(), "AnnounceData", announceData.String())
+	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", queryEnodeData.String())
 
-	return msg, nil
+	return msg, updatedValEnodeEntries, nil
 }
 
-// generateAnnounceRecords returns the announce records intended for validators
+// generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
 // whose entries in the val enode table do not exist or are outdated when compared
 // to the signed announce version table.
-func (sb *Backend) generateAnnounceRecords(enodeURL string) ([]*announceRecord, error) {
-	allSignedAnnVersionEntries, err := sb.signedAnnounceVersionTable.GetAll()
+func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnodeURL, []*vet.AddressEntry, error) {
+	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	allValEnodes, err := sb.valEnodeTable.GetAllValEnodes()
-	if err != nil {
-		return nil, err
-	}
-	var announceRecords []*announceRecord
-	for _, signedAnnVersionEntry := range allSignedAnnVersionEntries {
+
+	encryptedEnodeURLs := make([]*encryptedEnodeURL, 1)
+	updatedValEnodeEntries := make([]*vet.AddressEntry, 1)
+	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
-		if signedAnnVersionEntry.Address == sb.Address() {
+		if address == sb.Address() {
 			continue
 		}
 
-		valEnode := allValEnodes[signedAnnVersionEntry.Address]
-		// If the version in the val enode table is up to date with the corresponding
-		// version in our signed announce version table, don't send the validator an announce
-		// message.
-		// It's also possible the version in the val enode table is newer than the version
-		// in the signed announce version table in the case that the remote validator
-		// sent us an enodeCertificate and we haven't received a signed announce version
-		// update yet.
-		if valEnode != nil && valEnode.Version >= signedAnnVersionEntry.Version {
+		if valEnodeEntry.Version == valEnodeEntry.HighestKnownVersion {
 			continue
 		}
 
-		publicKey := ecies.ImportECDSAPublic(signedAnnVersionEntry.PublicKey)
-		encryptedEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
+		if valEnodeEntry.PublicKey == nil {
+			continue
+		}
+
+		if valEnodeEntry.NumQueryAttemptsForVersion > 0 {
+			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForVersion), 5)
+			timeoutMinutes := int64(math.Pow(2, timeoutFactorPow) * 5)
+			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
+
+			if time.Since(*valEnodeEntry.LastQueryTimestamp) < timeoutForQuery {
+				continue
+			}
+		}
+
+		publicKey := ecies.ImportECDSAPublic(valEnodeEntry.PublicKey)
+		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		announceRecords = append(announceRecords, &announceRecord{
-			DestAddress:       signedAnnVersionEntry.Address,
-			EncryptedEnodeURL: encryptedEnodeURL,
+
+		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
+			DestAddress:       address,
+			EncryptedEnodeURL: encEnodeURL,
 		})
+
+		currentTime := time.Now()
+
+		updatedValEnodeEntries = append(updatedValEnodeEntries, &vet.AddressEntry{Address: address,
+			NumQueryAttemptsForVersion: valEnodeEntry.NumQueryAttemptsForVersion + 1,
+			LastQueryTimestamp:         &currentTime})
 	}
-	return announceRecords, nil
+	return encryptedEnodeURLs, updatedValEnodeEntries, nil
 }
 
-// This function will handle an announce message.
-func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleAnnounceMsg")
+// This function will handle a queryEnode message.
+func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) error {
+	logger := sb.logger.New("func", "handleQueryEnodeMsg")
 
 	msg := new(istanbul.Message)
 
@@ -490,37 +497,37 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var announceData announceData
-	err = rlp.DecodeBytes(msg.Msg, &announceData)
+	var qeData queryEnodeData
+	err = rlp.DecodeBytes(msg.Msg, &qeData)
 	if err != nil {
-		logger.Warn("Error in decoding received Istanbul Announce message content", "err", err, "IstanbulMsg", msg.String())
+		logger.Warn("Error in decoding received Istanbul QueryEnode message content", "err", err, "IstanbulMsg", msg.String())
 		return err
 	}
 
-	logger = logger.New("msgAddress", msg.Address, "msgVersion", announceData.Version)
+	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
-	// Do some validation checks on the announceData
-	if isValid, err := sb.validateAnnounce(msg.Address, &announceData); !isValid || err != nil {
-		logger.Warn("Validation of announce message failed", "isValid", isValid, "err", err)
+	// Do some validation checks on the queryEnodeData
+	if isValid, err := sb.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
+		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
 
-	// If this is an elected or nearly elected validator, then process the announce message
-	shouldProcessAnnounce, err := sb.shouldGenerateAndProcessAnnounce()
+	// If this is an elected or nearly elected validator and core is started, then process the queryEnode message
+	shouldProcess, err := sb.shouldSaveAndPublishValEnodeURLs()
 	if err != nil {
-		logger.Warn("Error in checking if should process announce", err)
+		logger.Warn("Error in checking if should process queryEnode", err)
 	}
 
-	if shouldProcessAnnounce {
-		logger.Trace("Processing an announce message", "announce records", announceData.AnnounceRecords)
-		for _, announceRecord := range announceData.AnnounceRecords {
-			// Only process an announceRecord intended for this node
-			if announceRecord.DestAddress != sb.Address() {
+	if shouldProcess {
+		logger.Trace("Processing an queryEnode message", "queryEnode records", qeData.EncryptedEnodeURLs)
+		for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
+			// Only process an encEnodURL intended for this node
+			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, announceRecord.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
-				sb.logger.Warn("Error decrypting endpoint", "err", err, "announceRecord.EncryptedEnodeURL", announceRecord.EncryptedEnodeURL)
+				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
 			}
 			enodeURL := string(enodeBytes)
@@ -529,140 +536,54 @@ func (sb *Backend) handleAnnounceMsg(peer consensus.Peer, payload []byte) error 
 				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
 				return err
 			}
-			sb.lastAnnounceAnsweredMu.Lock()
-			// Don't answer an announce message that's been answered too recently
-			if lastAnswered, ok := sb.lastAnnounceAnswered[msg.Address]; !ok || time.Since(lastAnswered) < announceAnswerCooldownDuration {
-				if err := sb.answerAnnounceMsg(msg.Address, node, announceData.Version); err != nil {
-					logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
-					sb.lastAnnounceAnsweredMu.Unlock()
-					return err
-				}
-				sb.lastAnnounceAnswered[msg.Address] = time.Now()
+
+			if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{&vet.AddressEntry{Address: msg.Address, Node: node, Version: qeData.Version}}); err != nil {
+				return err
 			}
-			sb.lastAnnounceAnsweredMu.Unlock()
+
 			break
 		}
 	}
 
-	// Regossip this announce message
-	return sb.regossipAnnounce(msg, announceData.Version, payload, false)
+	// Regossip this queryEnode message
+	return sb.regossipQueryEnode(msg, qeData.Version, payload)
 }
 
-// answerAnnounceMsg will answer a received announce message from an origin
-// node. If the node is already a peer of any kind, an enodeCertificate will be sent.
-// Regardless, the origin node will be upserted into the val enode table
-// to ensure this node designates the origin node as a ValidatorPurpose peer.
-func (sb *Backend) answerAnnounceMsg(address common.Address, node *enode.Node, version uint) error {
-	targetIDs := map[enode.ID]bool{
-		node.ID(): true,
-	}
-	// The target could be an existing peer of any purpose.
-	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
-	if matches[node.ID()] != nil {
-		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
-		if err != nil {
-			return err
-		}
-		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertificateMsg); err != nil {
-			return err
-		}
-	}
-	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
-	// peer but should be.
-	// If the target is not a peer and should be a ValidatorPurpose peer, this
-	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
-	// during the istanbul handshake.
-	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
-		return err
-	}
-	return nil
-}
-
-// validateAnnounce will do some validation to check the contents of the announce
-// message. This is to force all validators that send an announce message to
+// validateQueryEnode will do some validation to check the contents of the queryEnode
+// message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large announce message.
-func (sb *Backend) validateAnnounce(msgAddress common.Address, announceData *announceData) (bool, error) {
-	logger := sb.logger.New("func", "validateAnnounce", "msg address", msgAddress)
+func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
+	logger := sb.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
-	// Ensure the version in the announceData is not older than the signed
-	// announce version if it is known by this node
-	knownVersion, err := sb.signedAnnounceVersionTable.GetVersion(msgAddress)
-	if err == nil && announceData.Version < knownVersion {
-		logger.Debug("Announce message has version older than known version from signed announce table", "msg version", announceData.Version, "known version", knownVersion)
-		return false, nil
-	}
-
-	// Check if there are any duplicates in the announce message
+	// Check if there are any duplicates in the queryEnode message
 	var encounteredAddresses = make(map[common.Address]bool)
-	for _, announceRecord := range announceData.AnnounceRecords {
-		if encounteredAddresses[announceRecord.DestAddress] {
-			logger.Info("Announce message has duplicate entries", "address", announceRecord.DestAddress)
+	for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
+		if encounteredAddresses[encEnodeURL.DestAddress] {
+			logger.Info("QueryEnode message has duplicate entries", "address", encEnodeURL.DestAddress)
 			return false, nil
 		}
 
-		encounteredAddresses[announceRecord.DestAddress] = true
+		encounteredAddresses[encEnodeURL.DestAddress] = true
 	}
 
-	// Check if the number of rows in the announcePayload is at most 2 times the size of the current validator connection set.
+	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
 
-	if len(announceData.AnnounceRecords) > 2*len(validatorConnSet) {
-		logger.Info("Number of announce message encrypted enodes is more than two times the size of the current validator connection set", "num announce enodes", len(announceData.AnnounceRecords), "reg/elected val set size", len(validatorConnSet))
+	if len(qeData.EncryptedEnodeURLs) > 2*len(validatorConnSet) {
+		logger.Info("Number of queryEnode message encrypted enodes is more than two times the size of the current validator connection set", "num queryEnode enodes", len(qeData.EncryptedEnodeURLs), "reg/elected val set size", len(validatorConnSet))
 		return false, err
 	}
 
 	return true, nil
 }
 
-// scheduleAnnounceRegossip schedules a regossip for an announce message after
-// its cooldown period. If one is already scheduled, it's overwritten.
-func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
-	logger := sb.logger.New("func", "scheduleAnnounceRegossip", "msg address", msg.Address, "msg timestamp", msgTimestamp)
-	sb.scheduledAnnounceRegossipsMu.Lock()
-	defer sb.scheduledAnnounceRegossipsMu.Unlock()
-
-	// If another regossip has been scheduled for the message address already, cancel it
-	if scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]; scheduledRegossip != nil {
-		scheduledRegossip.Timer.Stop()
-	}
-
-	sb.lastAnnounceGossipedMu.RLock()
-	lastGossip := sb.lastAnnounceGossiped[msg.Address]
-	if lastGossip == nil {
-		logger.Debug("Last announce gossiped not found")
-		sb.lastAnnounceGossipedMu.RUnlock()
-		return nil
-	}
-	scheduledTime := lastGossip.Time.Add(announceGossipCooldownDuration)
-	sb.lastAnnounceGossipedMu.RUnlock()
-
-	duration := time.Until(scheduledTime)
-	// If by this time the cooldown period has ended, just regossip
-	if duration < 0 {
-		return sb.regossipAnnounce(msg, msgTimestamp, payload, true)
-	}
-	regossipFunc := func() {
-		if err := sb.regossipAnnounce(msg, msgTimestamp, payload, true); err != nil {
-			logger.Debug("Error in scheduled announce regossip", "err", err)
-		}
-		sb.scheduledAnnounceRegossipsMu.Lock()
-		delete(sb.scheduledAnnounceRegossips, msg.Address)
-		sb.scheduledAnnounceRegossipsMu.Unlock()
-	}
-	sb.scheduledAnnounceRegossips[msg.Address] = &scheduledAnnounceRegossip{
-		Timer:        time.AfterFunc(duration, regossipFunc),
-		MsgTimestamp: msgTimestamp,
-	}
-	return nil
-}
-
-// regossipAnnounce will regossip a received announce message.
-// If this node regossiped an announce from the same source address within the last
+// regossipQueryEnode will regossip a received querEnode message.
+// If this node regossiped a queryEnode from the same source address within the last
 // 5 minutes, then it won't regossip. This is to prevent a malicious validator from
 // DOS'ing the network with very frequent announce messages.
 // This opens an attack vector where any malicious node could continue to gossip
@@ -678,51 +599,25 @@ func (sb *Backend) scheduleAnnounceRegossip(msg *istanbul.Message, msgTimestamp 
 // of the network, we schedule an announce message with a new timestamp that is
 // received during the cooldown period to be sent after the cooldown period ends,
 // and refuse to regossip older messages from the validator during that time.
-// Providing `force` as true will skip any of the DOS checks.
-func (sb *Backend) regossipAnnounce(msg *istanbul.Message, msgTimestamp uint, payload []byte, force bool) error {
-	logger := sb.logger.New("func", "regossipAnnounce", "announceSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
+func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
+	logger := sb.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
 
-	if !force {
-		sb.scheduledAnnounceRegossipsMu.RLock()
-		scheduledRegossip := sb.scheduledAnnounceRegossips[msg.Address]
-		// if a regossip for this msg address has been scheduled already, override
-		// the scheduling if this Timestamp is newer. Otherwise, don't regossip this message
-		// and let the scheduled regossip occur.
-		if scheduledRegossip != nil {
-			if msgTimestamp > scheduledRegossip.MsgTimestamp {
-				sb.scheduledAnnounceRegossipsMu.RUnlock()
-				return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
-			}
-			sb.scheduledAnnounceRegossipsMu.RUnlock()
-			logger.Debug("Announce message is not greater than scheduled regossip version, not regossiping")
+	sb.lastQueryEnodeGossipedMu.RLock()
+	if lastGossiped, ok := sb.lastQueryEnodeGossiped[msg.Address]; ok {
+		if time.Since(lastGossiped.Time) < queryEnodeGossipCooldownDuration {
+			sb.lastQueryEnodeGossipedMu.RUnlock()
+			logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 			return nil
 		}
-		sb.scheduledAnnounceRegossipsMu.RUnlock()
-
-		sb.lastAnnounceGossipedMu.RLock()
-		if lastGossiped, ok := sb.lastAnnounceGossiped[msg.Address]; ok {
-			if time.Since(lastGossiped.Time) < announceGossipCooldownDuration {
-				// If this timestamp is newer than the previously regossiped one,
-				// schedule it to be regossiped once the cooldown period is over
-				if lastGossiped.MsgTimestamp < msgTimestamp {
-					sb.lastAnnounceGossipedMu.RUnlock()
-					logger.Trace("Already regossiped msg from this source address with an older announce version within the cooldown period, scheduling regossip for after the cooldown")
-					return sb.scheduleAnnounceRegossip(msg, msgTimestamp, payload)
-				}
-				sb.lastAnnounceGossipedMu.RUnlock()
-				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
-				return nil
-			}
-		}
-		sb.lastAnnounceGossipedMu.RUnlock()
 	}
+	sb.lastQueryEnodeGossipedMu.RUnlock()
 
-	logger.Trace("Regossiping the istanbul announce message", "IstanbulMsg", msg.String())
-	if err := sb.Multicast(nil, payload, istanbulAnnounceMsg); err != nil {
+	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
+	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
 		return err
 	}
 
-	sb.lastAnnounceGossiped[msg.Address] = &announceRegossip{
+	sb.lastQueryEnodeGossiped[msg.Address] = &queryEnodeRegossip{
 		Time:         time.Now(),
 		MsgTimestamp: msgTimestamp,
 	}
@@ -920,11 +815,11 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
-	// If this node is a validator (checked later as a result of this call) and it receives a signed announce
+	// If this node is a validator (checked later as a result of this call) and it receives a signed annouunce
 	// version from a remote validator that is newer than the remote validator's
 	// version in the val enode table, this node did not receive a direct announce
 	// and needs to announce its own enode to the remote validator.
-	sb.startGossipAnnounceTask()
+	sb.startGossipQueryEnodeTask()
 	return nil
 }
 

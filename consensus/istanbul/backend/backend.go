@@ -105,14 +105,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceRunning:                    false,
 		peerRecentMessages:                 peerRecentMessages,
 		selfRecentMessages:                 selfRecentMessages,
-		scheduledAnnounceRegossips:         make(map[common.Address]*scheduledAnnounceRegossip),
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
-		generateAndGossipAnnounceCh:        make(chan struct{}, 1),
+		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
-		lastAnnounceGossiped:               make(map[common.Address]*announceRegossip),
-		lastAnnounceAnswered:               make(map[common.Address]time.Time),
+		lastQueryEnodeGossiped:             make(map[common.Address]*queryEnodeRegossip),
 		lastSignedAnnounceVersionsGossiped: make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
@@ -146,7 +144,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulQueryEnodeMsg] = backend.handleQueryEnodeMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulSignedAnnounceVersionsMsg] = backend.handleSignedAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
@@ -198,14 +196,11 @@ type Backend struct {
 	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
 	selfRecentMessages *lru.ARCCache // the cache of self recent messages
 
-	lastAnnounceGossiped   map[common.Address]*announceRegossip
-	lastAnnounceGossipedMu sync.RWMutex
+	lastQueryEnodeGossiped   map[common.Address]*queryEnodeRegossip
+	lastQueryEnodeGossipedMu sync.RWMutex
 
 	lastAnnounceAnswered   map[common.Address]time.Time
 	lastAnnounceAnsweredMu sync.RWMutex
-
-	scheduledAnnounceRegossips   map[common.Address]*scheduledAnnounceRegossip
-	scheduledAnnounceRegossipsMu sync.RWMutex
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -213,11 +208,11 @@ type Backend struct {
 	lastSignedAnnounceVersionsGossiped   map[common.Address]time.Time
 	lastSignedAnnounceVersionsGossipedMu sync.RWMutex
 
-	announceRunning             bool
-	announceMu                  sync.RWMutex
-	announceThreadWg            *sync.WaitGroup
-	announceThreadQuit          chan struct{}
-	generateAndGossipAnnounceCh chan struct{}
+	announceRunning               bool
+	announceMu                    sync.RWMutex
+	announceThreadWg              *sync.WaitGroup
+	announceThreadQuit            chan struct{}
+	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh         chan struct{}
 	updateAnnounceVersionCompleteCh chan struct{}

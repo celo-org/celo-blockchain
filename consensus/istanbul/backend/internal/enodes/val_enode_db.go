@@ -17,15 +17,18 @@
 package enodes
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -54,9 +57,13 @@ type ValidatorEnodeHandler interface {
 // AddressEntry is an entry for the valEnodeTable.
 // This implements the versionedEntry interface.
 type AddressEntry struct {
-	Address common.Address
-	Node    *enode.Node
-	Version uint
+	Address                    common.Address
+	PublicKey                  *ecdsa.PublicKey
+	Node                       *enode.Node
+	Version                    uint
+	HighestKnownVersion        uint
+	NumQueryAttemptsForVersion uint
+	LastQueryTimestamp         *time.Time
 }
 
 func addressEntryFromVersionedEntry(entry versionedEntry) (*AddressEntry, error) {
@@ -74,19 +81,23 @@ func (ae *AddressEntry) GetVersion() uint {
 }
 
 func (ae *AddressEntry) String() string {
-	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v}", ae.Address.String(), ae.Node.String(), ae.Version)
+	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), ae.Node.String(), ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
-	Address  common.Address
-	EnodeURL string
-	Version  uint
+	Address                    common.Address
+	CompressedPublicKey        []byte
+	EnodeURL                   string
+	Version                    uint
+	HighestKnownVersion        uint
+	NumQueryAttemptsForVersion uint
+	LastQueryTimestamp         int64 // enoded as a unix timestamp
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ae.Address, ae.Node.String(), ae.Version})
+	return rlp.Encode(w, rlpEntry{ae.Address, crypto.CompressPubkey(ae.PublicKey), ae.Node.String(), ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp.Unix()})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -100,7 +111,20 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	*ae = AddressEntry{Address: entry.Address, Node: node, Version: entry.Version}
+	publicKey, err := crypto.DecompressPubkey(entry.CompressedPublicKey)
+	if err != nil {
+		return err
+	}
+
+	lastQueryTimestamp := time.Unix(entry.LastQueryTimestamp, 0)
+
+	*ae = AddressEntry{Address: entry.Address,
+		PublicKey:                  publicKey,
+		Node:                       node,
+		Version:                    entry.Version,
+		HighestKnownVersion:        entry.HighestKnownVersion,
+		NumQueryAttemptsForVersion: entry.NumQueryAttemptsForVersion,
+		LastQueryTimestamp:         &lastQueryTimestamp}
 	return nil
 }
 
@@ -188,6 +212,18 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	return common.BytesToAddress(entryBytes), nil
 }
 
+// GetHighestKnownVersion will return the highest known version for an address if it's known
+func (vet *ValidatorEnodeDB) GetHighestKnownVersionFromAddress(address common.Address) (uint, error) {
+	vet.lock.RLock()
+	defer vet.lock.RUnlock()
+
+	entry, err := vet.getAddressEntry(address)
+	if err != nil {
+		return 0, err
+	}
+	return entry.HighestKnownVersion, nil
+}
+
 // GetAllValEnodes will return all entries in the valEnodeDB
 func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
@@ -252,12 +288,39 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		if err != nil {
 			return err
 		}
-		hasOldValueChanged := existingAddressEntry.Node.String() != newAddressEntry.Node.String()
-		if hasOldValueChanged {
+
+		// "Backfill" fields in the entry with the previously saved entry
+		if newAddressEntry.PublicKey == nil {
+			newAddressEntry.PublicKey = existingAddressEntry.PublicKey
+		}
+
+		if newAddressEntry.Node == nil {
+			newAddressEntry.Node = existingAddressEntry.Node
+		}
+
+		if newAddressEntry.Version == 0 {
+			newAddressEntry.Version = existingAddressEntry.Version
+		}
+
+		if newAddressEntry.HighestKnownVersion == 0 {
+			newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
+		}
+
+		if newAddressEntry.LastQueryTimestamp == nil {
+			newAddressEntry.LastQueryTimestamp = existingAddressEntry.LastQueryTimestamp
+		}
+
+		// If the highest known verion has changed, then reset NumQueryAttemptsForVersion
+		if existingAddressEntry.HighestKnownVersion != newAddressEntry.HighestKnownVersion {
+			newAddressEntry.NumQueryAttemptsForVersion = 0
+		}
+
+		hasEnodeURLChanged := existingAddressEntry.Node.String() != newAddressEntry.Node.String()
+		if hasEnodeURLChanged {
 			batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
 			peersToRemove = append(peersToRemove, existingAddressEntry.Node)
 		}
-		return onNewEntry(batch, newEntry)
+		return onNewEntry(batch, newAddressEntry)
 	}
 
 	entries := make([]versionedEntry, len(valEnodeEntries))

@@ -45,7 +45,7 @@ var (
 const (
 	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg               = 0x12
+	istanbulQueryEnodeMsg             = 0x12
 	istanbulValEnodesShareMsg         = 0x13
 	istanbulFwdMsg                    = 0x14
 	istanbulDelegateSign              = 0x15
@@ -61,7 +61,7 @@ func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 }
 
 func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
-	return msgCode == istanbulAnnounceMsg || msgCode == istanbulSignedAnnounceVersionsMsg
+	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulSignedAnnounceVersionsMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
