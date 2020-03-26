@@ -781,12 +781,28 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 	return vc, nil
 }
 
+func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCertificate) ([]byte, error) {
+	payload, err := rlp.EncodeToBytes(versionCertificates)
+	if err != nil {
+		return nil, err
+	}
+	msg := &istanbul.Message{
+		Code: istanbulVersionCertificatesMsg,
+		Msg: payload,
+	}
+	msgPayload, err := msg.Payload()
+	if err != nil {
+		return nil, err
+	}
+	return msgPayload, nil
+}
+
 func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
 	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := rlp.EncodeToBytes(versionCertificates)
+	payload, err := sb.encodeVersionCertificatesMsg(versionCertificates)
 	if err != nil {
-		logger.Warn("Error encoding entries", "err", err)
+		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
 	return sb.Multicast(nil, payload, istanbulVersionCertificatesMsg)
@@ -804,18 +820,18 @@ func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
 	return allVersionCertificates, nil
 }
 
-// sendAnnounceVersionTable sends all VersionCertificates this node
+// sendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
-func (sb *Backend) sendAnnounceVersionTable(peer consensus.Peer) error {
-	logger := sb.logger.New("func", "sendAnnounceVersionTable")
+func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
+	logger := sb.logger.New("func", "sendVersionCertificateTable")
 	allVersionCertificates, err := sb.getAllVersionCertificates()
 	if err != nil {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := rlp.EncodeToBytes(allVersionCertificates)
+	payload, err := sb.encodeVersionCertificatesMsg(allVersionCertificates)
 	if err != nil {
-		logger.Warn("Error encoding entries", "err", err)
+		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
 	return peer.Send(istanbulVersionCertificatesMsg, payload)
@@ -824,10 +840,16 @@ func (sb *Backend) sendAnnounceVersionTable(peer consensus.Peer) error {
 func (sb *Backend) handleVersionCertificatesMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
-	var versionCertificates []*versionCertificate
 
-	err := rlp.DecodeBytes(payload, &versionCertificates)
-	if err != nil {
+	var msg istanbul.Message
+	if err := msg.FromPayload(payload, nil); err != nil {
+		logger.Error("Error in decoding version certificates message", "err", err, "payload", hex.EncodeToString(payload))
+		return err
+	}
+	logger = logger.New("msg address", msg.Address)
+
+	var versionCertificates []*versionCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &versionCertificates); err != nil {
 		logger.Warn("Error in decoding received version certificates msg", "err", err)
 		return err
 	}
