@@ -52,26 +52,26 @@ type Config struct {
 	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 
 	// Announce Configs
-	AnnounceGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped announce messages
-	AnnounceAggressiveGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should do aggressive gossip on announce enablement
-	AnnounceAdditionalValidatorsToGossip int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
+	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
+	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
+	AnnounceAdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
 }
 
 var DefaultConfig = &Config{
-	RequestTimeout:                       3000,
-	TimeoutBackoffFactor:                 1000,
-	MinResendRoundChangeTimeout:          15 * 1000,
-	MaxResendRoundChangeTimeout:          2 * 60 * 1000,
-	BlockPeriod:                          1,
-	ProposerPolicy:                       ShuffledRoundRobin,
-	Epoch:                                30000,
-	LookbackWindow:                       12,
-	ValidatorEnodeDBPath:                 "validatorenodes",
-	SignedAnnounceVersionDBPath:          "signedannounceversions",
-	RoundStateDBPath:                     "roundstates",
-	Proxy:                                false,
-	Proxied:                              false,
-	AnnounceGossipPeriod:                 300, // 5 minutes
-	AnnounceAggressiveGossipOnEnablement: false,
-	AnnounceAdditionalValidatorsToGossip: 10,
+	RequestTimeout:                 3000,
+	TimeoutBackoffFactor:           1000,
+	MinResendRoundChangeTimeout:    15 * 1000,
+	MaxResendRoundChangeTimeout:    2 * 60 * 1000,
+	BlockPeriod:                    1,
+	ProposerPolicy:                 ShuffledRoundRobin,
+	Epoch:                          30000,
+	LookbackWindow:                 12,
+	ValidatorEnodeDBPath:           "validatorenodes",
+	SignedAnnounceVersionDBPath:    "signedannounceversions",
+	RoundStateDBPath:               "roundstates",
+	Proxy:                          false,
+	Proxied:                        false,
+	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
+	AnnounceAggressiveQueryEnodeGossipOnEnablement: false,
+	AnnounceAdditionalValidatorsToGossip:           10,
 }

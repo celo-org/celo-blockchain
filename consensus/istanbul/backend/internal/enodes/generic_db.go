@@ -30,7 +30,7 @@ type genericDB struct {
 	writeOptions *opt.WriteOptions
 }
 
-type genericEntry interface {}
+type genericEntry interface{}
 
 // newGenericDB will open a new db at the given file path with the given version.
 // If the path is empty, the db will be created in memory.

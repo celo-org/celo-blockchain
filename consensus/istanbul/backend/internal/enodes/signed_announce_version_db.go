@@ -38,7 +38,7 @@ const (
 
 // SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
-	gdb   *genericDB
+	gdb    *genericDB
 	logger log.Logger
 }
 
@@ -103,7 +103,7 @@ func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) 
 	}
 
 	return &SignedAnnounceVersionDB{
-		gdb:   gdb,
+		gdb:    gdb,
 		logger: logger,
 	}, nil
 }

@@ -157,7 +157,7 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	gdb    *genericDB
+	gdb     *genericDB
 	lock    sync.RWMutex
 	handler ValidatorEnodeHandler
 	logger  log.Logger
@@ -175,7 +175,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 	}
 
 	return &ValidatorEnodeDB{
-		gdb:    gdb,
+		gdb:     gdb,
 		handler: handler,
 		logger:  logger,
 	}, nil

@@ -42,21 +42,32 @@ import (
 // define the constants and function for the sendAnnounce thread
 
 const (
-	queryEnodeGossipCooldownDuration = 5 * time.Minute
-	// Schedule retries to be strictly later than the cooldown duration
-	// that other nodes will impose for regossiping announces from this node.
-	queryEnodeRetryDuration = queryEnodeGossipCooldownDuration + (30 * time.Second)
-
+	queryEnodeGossipCooldownDuration            = 5 * time.Minute
 	signedAnnounceVersionGossipCooldownDuration = 5 * time.Minute
+)
+
+// QueryEnodeFrequencyState specifies how frequently to gossip query enode messages
+type QueryEnodeGossipFrequencyState int
+
+const (
+	// HighFreqBeforeFirstPeerState will send out a query enode message every 1 minute until the first peer is established
+	HighFreqBeforeFirstPeerState QueryEnodeGossipFrequencyState = iota
+
+	// HighFreqAfterFirstPeerState will send out an query enode message every 1 minute for the first 10 query enode messages after the first peer is established.
+	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
+	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
+	HighFreqAfterFirstPeerState
+
+	// LowFreqState will send out an query every config.AnnounceQueryEnodeGossipPeriod seconds
+	LowFreqState
 )
 
 // The announceThread will:
 // 1) Periodically poll to see if this node should be announcing
 // 2) Periodically share the entire signed announce version table with all peers
 // 3) Periodically prune announce-related data structures
-// 4) Gossip announce messages when requested
-// 5) Retry sending announce messages if they go unanswered
-// 6) Update announce version when requested
+// 4) Gossip announce messages periodically when requested
+// 5) Update announce version when requested
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
@@ -72,11 +83,12 @@ func (sb *Backend) announceThread() {
 	shareSignedAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
 
-	// Periodically check to see if queryEnode Messages need to be sent
-	queryEnodeTicker := time.NewTicker(6 * time.Minute)
+	var queryEnodeTicker *time.Ticker
+	var queryEnodeTickerCh <-chan time.Time
+	var queryEnodeFrequencyState QueryEnodeGossipFrequencyState
+	var currentQueryEnodeTickerDuration time.Duration
+	var numQueryEnodesInHighFreqAfterFirstPeerState int
 
-	var queryEnodeRetryTimer *time.Timer
-	var queryEnodeRetryTimerCh <-chan time.Time
 	var announceVersion uint
 	var announcing bool
 	var shouldAnnounce bool
@@ -117,14 +129,26 @@ func (sb *Backend) announceThread() {
 					sb.startGossipQueryEnodeTask()
 				})
 
+				if sb.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
+					queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
+					// Send an query enode message once a minute
+					currentQueryEnodeTickerDuration = 1 * time.Minute
+					numQueryEnodesInHighFreqAfterFirstPeerState = 0
+				} else {
+					queryEnodeFrequencyState = LowFreqState
+					currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
+				}
+
+				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
+				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
+				queryEnodeTickerCh = queryEnodeTicker.C
+
 				announcing = true
 				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
-				if queryEnodeRetryTimer != nil {
-					queryEnodeRetryTimer.Stop()
-					queryEnodeRetryTimer = nil
-					queryEnodeRetryTimerCh = nil
-				}
+				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
+				queryEnodeTicker.Stop()
+				queryEnodeTickerCh = nil
 				announcing = false
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
@@ -145,27 +169,39 @@ func (sb *Backend) announceThread() {
 		case <-updateAnnounceVersionTicker.C:
 			updateAnnounceVersionFunc()
 
-		case <-queryEnodeRetryTimerCh: // If this is nil, this channel will never receive an event
-			queryEnodeRetryTimer = nil
-			queryEnodeRetryTimerCh = nil
+		case <-queryEnodeTickerCh:
 			sb.startGossipQueryEnodeTask()
 
 		case <-sb.generateAndGossipQueryEnodeCh:
 			if shouldAnnounce {
+				switch queryEnodeFrequencyState {
+				case HighFreqBeforeFirstPeerState:
+					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+						queryEnodeFrequencyState = HighFreqAfterFirstPeerState
+					}
+
+				case HighFreqAfterFirstPeerState:
+					if numQueryEnodesInHighFreqAfterFirstPeerState >= 10 {
+						queryEnodeFrequencyState = LowFreqState
+					}
+					numQueryEnodesInHighFreqAfterFirstPeerState++
+
+				case LowFreqState:
+					if currentQueryEnodeTickerDuration != time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod)*time.Second {
+						// Reset the ticker
+						currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
+						queryEnodeTicker.Stop()
+						queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
+						queryEnodeTickerCh = queryEnodeTicker.C
+					}
+				}
 				// This node may have recently sent out an announce message within
 				// the gossip cooldown period imposed by other nodes.
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				hasContent, err := sb.generateAndGossipQueryEnode(announceVersion)
-				if err != nil {
+				if err := sb.generateAndGossipQueryEnode(announceVersion); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
-				}
-				// If a retry hasn't been scheduled already by a previous announce,
-				// schedule one.
-				if hasContent && queryEnodeRetryTimer == nil {
-					queryEnodeRetryTimer = time.NewTimer(queryEnodeRetryDuration)
-					queryEnodeRetryTimerCh = queryEnodeRetryTimer.C
 				}
 			}
 
@@ -180,19 +216,22 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-queryEnodeTicker.C:
-			if shouldAnnounce {
-				sb.startGossipQueryEnodeTask()
-			}
-
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
-			if queryEnodeRetryTimer != nil {
-				queryEnodeRetryTimer.Stop()
-			}
 			return
 		}
+	}
+}
+
+// startGossipQueryEnodeTask will schedule a task for the announceThread to
+// generate and gossip a queryEnode message
+func (sb *Backend) startGossipQueryEnodeTask() {
+	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
+	// already sent to the channel that has not been read from, don't block.
+	select {
+	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -321,46 +360,34 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (sb *Backend) startGossipQueryEnodeTask() {
-	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
-	// already sent to the channel that has not been read from, don't block.
-	select {
-	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
-	default:
-	}
-}
-
 // generateAndGossipAnnounce will generate the lastest announce msg from this node
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
-// Returns if an announce message had content (ie not empty) and if there was an error.
-func (sb *Backend) generateAndGossipQueryEnode(version uint) (bool, error) {
+func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 	istMsg, updatedValEnodeEntries, err := sb.generateQueryEnodeMsg(version)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if istMsg == nil {
-		return false, nil
+		return nil
 	}
 
 	// Convert to payload
 	payload, err := istMsg.Payload()
 	if err != nil {
 		logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", istMsg.String(), "err", err)
-		return true, err
+		return err
 	}
 
 	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
-		return true, err
+		return err
 	}
 
-	sb.valEnodeTable.Upsert(updatedValEnodeEntries)
-
-	return true, nil
+	return sb.valEnodeTable.Upsert(updatedValEnodeEntries)
 }
 
 // generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
@@ -837,11 +864,6 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
-	// If this node is a validator (checked later as a result of this call) and it receives a signed annouunce
-	// version from a remote validator that is newer than the remote validator's
-	// version in the val enode table, this node did not receive a direct announce
-	// and needs to announce its own enode to the remote validator.
-	sb.startGossipQueryEnodeTask()
 	return nil
 }
 
@@ -865,8 +887,8 @@ func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.Si
 			// than the existing one.
 			// Also store the PublicKey for future encryption in queryEnode msgs
 			valEnodeEntries = append(valEnodeEntries, &vet.AddressEntry{
-				Address: entry.Address,
-				PublicKey: entry.PublicKey,
+				Address:             entry.Address,
+				PublicKey:           entry.PublicKey,
 				HighestKnownVersion: entry.Version,
 			})
 		}
