@@ -420,13 +420,14 @@ func (sb *Backend) generateQueryEnodeMsg(version uint) (*istanbul.Message, []*ve
 // whose entries in the val enode table do not exist or are outdated when compared
 // to the signed announce version table.
 func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnodeURL, []*vet.AddressEntry, error) {
+	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
 	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	encryptedEnodeURLs := make([]*encryptedEnodeURL, 1)
-	updatedValEnodeEntries := make([]*vet.AddressEntry, 1)
+	var encryptedEnodeURLs []*encryptedEnodeURL
+	var updatedValEnodeEntries []*vet.AddressEntry
 	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
 		if address == sb.Address() {
@@ -438,10 +439,11 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnod
 		}
 
 		if valEnodeEntry.PublicKey == nil {
+			logger.Warn("Cannot generate encrypted enode URL for a val enode entry without a PublicKey", "address", address)
 			continue
 		}
 
-		if valEnodeEntry.NumQueryAttemptsForVersion > 0 {
+		if valEnodeEntry.NumQueryAttemptsForVersion > 1 {
 			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForVersion), 5)
 			timeoutMinutes := int64(math.Pow(2, timeoutFactorPow) * 5)
 			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
@@ -464,9 +466,12 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnod
 
 		currentTime := time.Now()
 
-		updatedValEnodeEntries = append(updatedValEnodeEntries, &vet.AddressEntry{Address: address,
+		updatedValEnodeEntries = append(updatedValEnodeEntries, &vet.AddressEntry{
+			Address:                    address,
+			Version:                    valEnodeEntry.Version, // provide version to avoid a race condition by ensuring the query fields are meant for this version
 			NumQueryAttemptsForVersion: valEnodeEntry.NumQueryAttemptsForVersion + 1,
-			LastQueryTimestamp:         &currentTime})
+			LastQueryTimestamp:         &currentTime,
+		})
 	}
 	return encryptedEnodeURLs, updatedValEnodeEntries, nil
 }
@@ -824,10 +829,32 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 }
 
 func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
-	logger := sb.logger.New("func", "upsertSignedAnnounceVersions")
+	logger := sb.logger.New("func", "upsertAndGossipSignedAnnounceVersionEntries")
+
+	// Update entries in val enode db
+	var valEnodeEntries []*vet.AddressEntry
+	for _, entry := range entries {
+		// Don't add ourselves into the val enode table
+		if entry.Address == sb.Address() {
+			continue
+		}
+		// Update the HighestKnownVersion for this address. Upsert will
+		// only update this entry if the HighestKnownVersion is greater
+		// than the existing one.
+		// Also store the PublicKey for future encryption in queryEnode msgs
+		valEnodeEntries = append(valEnodeEntries, &vet.AddressEntry{
+			Address: entry.Address,
+			PublicKey: entry.PublicKey,
+			HighestKnownVersion: entry.Version,
+		})
+	}
+	if err := sb.valEnodeTable.Upsert(valEnodeEntries); err != nil {
+		logger.Warn("Error upserting val enode table entries", "err", err)
+	}
+
 	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
 	if err != nil {
-		logger.Warn("Error in upserting entries", "err", err)
+		logger.Warn("Error upserting signed announce version table entries", "err", err)
 	}
 
 	// Only regossip entries that do not originate from an address that we have

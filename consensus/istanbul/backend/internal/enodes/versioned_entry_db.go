@@ -71,9 +71,6 @@ func (vedb *versionedEntryDB) Upsert(
 		if !isNew && err != nil {
 			return err
 		}
-		if !isNew && entry.GetVersion() <= existingEntry.GetVersion() {
-			continue
-		}
 		if isNew {
 			if err := onNewEntry(batch, entry); err != nil {
 				return err

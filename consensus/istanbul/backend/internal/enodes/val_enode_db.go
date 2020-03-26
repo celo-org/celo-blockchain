@@ -28,6 +28,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -81,7 +82,11 @@ func (ae *AddressEntry) GetVersion() uint {
 }
 
 func (ae *AddressEntry) String() string {
-	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), ae.Node.String(), ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp)
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp)
 }
 
 // Implement RLP Encode/Decode interface
@@ -92,31 +97,59 @@ type rlpEntry struct {
 	Version                    uint
 	HighestKnownVersion        uint
 	NumQueryAttemptsForVersion uint
-	LastQueryTimestamp         int64 // enoded as a unix timestamp
+	LastQueryTimestamp         []byte
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
 func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, rlpEntry{ae.Address, crypto.CompressPubkey(ae.PublicKey), ae.Node.String(), ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp.Unix()})
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	var publicKeyBytes []byte
+	if ae.PublicKey != nil {
+		publicKeyBytes = crypto.CompressPubkey(ae.PublicKey)
+	}
+	var lastQueryTimestampBytes []byte
+	if ae.LastQueryTimestamp != nil {
+		var err error
+		lastQueryTimestampBytes, err = ae.LastQueryTimestamp.MarshalBinary()
+		if err != nil {
+			return err
+		}
+	}
+
+	return rlp.Encode(w, rlpEntry{ae.Address, publicKeyBytes, nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, lastQueryTimestampBytes})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
 func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 	var entry rlpEntry
+	var err error
 	if err := s.Decode(&entry); err != nil {
 		return err
 	}
-	node, err := enode.ParseV4(entry.EnodeURL)
-	if err != nil {
-		return err
+	var node *enode.Node
+	if len(entry.EnodeURL) > 0 {
+		node, err = enode.ParseV4(entry.EnodeURL)
+		if err != nil {
+			return err
+		}
 	}
-
-	publicKey, err := crypto.DecompressPubkey(entry.CompressedPublicKey)
-	if err != nil {
-		return err
+	var publicKey *ecdsa.PublicKey
+	if len(entry.CompressedPublicKey) > 0 {
+		publicKey, err = crypto.DecompressPubkey(entry.CompressedPublicKey)
+		if err != nil {
+			return err
+		}
 	}
-
-	lastQueryTimestamp := time.Unix(entry.LastQueryTimestamp, 0)
+	lastQueryTimestamp := &time.Time{}
+	if len(entry.LastQueryTimestamp) > 0 {
+		err := lastQueryTimestamp.UnmarshalBinary(entry.LastQueryTimestamp)
+		if err != nil {
+			return err
+		}
+	}
 
 	*ae = AddressEntry{Address: entry.Address,
 		PublicKey:                  publicKey,
@@ -124,7 +157,7 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 		Version:                    entry.Version,
 		HighestKnownVersion:        entry.HighestKnownVersion,
 		NumQueryAttemptsForVersion: entry.NumQueryAttemptsForVersion,
-		LastQueryTimestamp:         &lastQueryTimestamp}
+		LastQueryTimestamp:         lastQueryTimestamp}
 	return nil
 }
 
@@ -212,7 +245,7 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	return common.BytesToAddress(entryBytes), nil
 }
 
-// GetHighestKnownVersion will return the highest known version for an address if it's known
+// GetHighestKnownVersionFromAddress will return the highest known version for an address if it's known
 func (vet *ValidatorEnodeDB) GetHighestKnownVersionFromAddress(address common.Address) (uint, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
@@ -273,13 +306,18 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		if err != nil {
 			return err
 		}
-		batch.Put(nodeIDKey(addressEntry.Node.ID()), addressEntry.Address.Bytes())
+		if addressEntry.Node != nil {
+			batch.Put(nodeIDKey(addressEntry.Node.ID()), addressEntry.Address.Bytes())
+			peersToAdd[addressEntry.Address] = addressEntry.Node
+		}
 		batch.Put(addressKey(addressEntry.Address), entryBytes)
-		peersToAdd[addressEntry.Address] = addressEntry.Node
 		return nil
 	}
 
 	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
+		if newEntry.GetVersion() < existingEntry.GetVersion() {
+			return nil
+		}
 		existingAddressEntry, err := addressEntryFromVersionedEntry(existingEntry)
 		if err != nil {
 			return err
@@ -302,20 +340,19 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 			newAddressEntry.Version = existingAddressEntry.Version
 		}
 
-		if newAddressEntry.HighestKnownVersion == 0 {
-			newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
-		}
+		// Backfill when not provided, and ensure the HighestKnownVersion is always the maximum version
+		newAddressEntry.HighestKnownVersion = max(max(existingAddressEntry.HighestKnownVersion, newAddressEntry.HighestKnownVersion), newAddressEntry.Version)
 
 		if newAddressEntry.LastQueryTimestamp == nil {
 			newAddressEntry.LastQueryTimestamp = existingAddressEntry.LastQueryTimestamp
 		}
 
-		// If the highest known verion has changed, then reset NumQueryAttemptsForVersion
+		// If the highest known version has changed, then reset NumQueryAttemptsForVersion
 		if existingAddressEntry.HighestKnownVersion != newAddressEntry.HighestKnownVersion {
 			newAddressEntry.NumQueryAttemptsForVersion = 0
 		}
 
-		hasEnodeURLChanged := existingAddressEntry.Node.String() != newAddressEntry.Node.String()
+		hasEnodeURLChanged := existingAddressEntry.Node != nil && newAddressEntry.Node != nil && existingAddressEntry.Node.String() != newAddressEntry.Node.String()
 		if hasEnodeURLChanged {
 			batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
 			peersToRemove = append(peersToRemove, existingAddressEntry.Node)
@@ -383,7 +420,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool,
 		newNodes := []*enode.Node{}
 		for val := range valConnSet {
 			entry, err := vet.getAddressEntry(val)
-			if err == nil {
+			if err == nil && entry.Node != nil {
 				newNodes = append(newNodes, entry.Node)
 			} else if err != leveldb.ErrNotFound {
 				vet.logger.Error("Error reading valEnodeTable: GetEnodeURLFromAddress", "err", err)
@@ -450,8 +487,12 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 
 // ValEnodeEntryInfo contains information for an entry of the val enode table
 type ValEnodeEntryInfo struct {
-	Enode   string `json:"enode"`
-	Version uint   `json:"version"`
+	PublicKey                  string `json:"publicKey"`
+	Enode                      string `json:"enode"`
+	Version                    uint   `json:"version"`
+	HighestKnownVersion        uint   `json:"highestKnownVersion"`
+	NumQueryAttemptsForVersion uint   `json:"numQueryAttemptsForVersion"`
+	LastQueryTimestamp         string `json:"lastQueryTimestamp"` // Unix timestamp
 }
 
 // ValEnodeTableInfo gives basic information for each entry of the table
@@ -461,12 +502,32 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 	valEnodeTable, err := vet.GetAllValEnodes()
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
-			valEnodeTableInfo[address.Hex()] = &ValEnodeEntryInfo{
-				Enode:   valEnodeEntry.Node.String(),
-				Version: valEnodeEntry.Version,
+			entryInfo := &ValEnodeEntryInfo{
+				Version:                    valEnodeEntry.Version,
+				HighestKnownVersion:        valEnodeEntry.HighestKnownVersion,
+				NumQueryAttemptsForVersion: valEnodeEntry.NumQueryAttemptsForVersion,
 			}
+			if valEnodeEntry.PublicKey != nil {
+				publicKeyBytes := crypto.CompressPubkey(valEnodeEntry.PublicKey)
+				entryInfo.PublicKey = hexutil.Encode(publicKeyBytes)
+			}
+			if valEnodeEntry.Node != nil {
+				entryInfo.Enode = valEnodeEntry.Node.String()
+			}
+			if valEnodeEntry.LastQueryTimestamp != nil {
+				entryInfo.LastQueryTimestamp = valEnodeEntry.LastQueryTimestamp.String()
+			}
+
+			valEnodeTableInfo[address.Hex()] = entryInfo
 		}
 	}
 
 	return valEnodeTableInfo, err
+}
+
+func max(a, b uint) uint {
+	if a < b {
+		return b
+	}
+	return a
 }

@@ -168,7 +168,10 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, _ versionedEntry, newEntry versionedEntry) error {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
+		if newEntry.GetVersion() <= existingEntry.GetVersion() {
+			return nil
+		}
 		return onNewEntry(batch, newEntry)
 	}
 
