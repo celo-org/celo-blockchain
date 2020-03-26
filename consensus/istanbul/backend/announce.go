@@ -32,6 +32,7 @@ import (
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -208,11 +209,10 @@ func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
 // The data structures that it prunes are:
-// 1)  lastAnnounceGossiped
-// 2)  lastAnnounceAnswered
-// 3)  valEnodeTable
-// 4)  lastSignedAnnounceVersionsGossiped
-// 5)  signedAnnounceVersionTable
+// 1)  lastQueryEnodeGossiped
+// 2)  valEnodeTable
+// 3)  lastSignedAnnounceVersionsGossiped
+// 4)  signedAnnounceVersionTable
 func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
@@ -224,7 +224,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 
 	sb.lastQueryEnodeGossipedMu.Lock()
 	for remoteAddress := range sb.lastQueryEnodeGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastQueryEnodeGossiped[remoteAddress].Time) >= queryEnodeGossipCooldownDuration {
+		if !validatorConnSet[remoteAddress] && time.Since(sb.lastQueryEnodeGossiped[remoteAddress]) >= queryEnodeGossipCooldownDuration {
 			logger.Trace("Deleting entry from lastQueryEnodeGossiped", "address", remoteAddress, "gossip timestamp", sb.lastQueryEnodeGossiped[remoteAddress])
 			delete(sb.lastQueryEnodeGossiped, remoteAddress)
 		}
@@ -256,11 +256,6 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 // ===============================================================
 //
 // define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
-
-type queryEnodeRegossip struct {
-	Time         time.Time
-	MsgTimestamp uint // the Timestamp field of the regossiped announce msg
-}
 
 type encryptedEnodeURL struct {
 	DestAddress       common.Address
@@ -542,7 +537,10 @@ func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) erro
 				return err
 			}
 
-			if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{&vet.AddressEntry{Address: msg.Address, Node: node, Version: qeData.Version}}); err != nil {
+			// queryEnode messages should only be processed once because selfRecentMessages
+			// will cache seen queryEnode messages, so it's safe to answer without any throttling
+			if err := sb.answerQueryEnodeMsg(msg.Address, node, qeData.Version); err != nil {
+				logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
 				return err
 			}
 
@@ -554,10 +552,40 @@ func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) erro
 	return sb.regossipQueryEnode(msg, qeData.Version, payload)
 }
 
+// answerQueryEnodeMsg will answer a received queryEnode message from an origin
+// node. If the origin node is already a peer of any kind, an enodeCertificate will be sent.
+// Regardless, the origin node will be upserted into the val enode table
+// to ensure this node designates the origin node as a ValidatorPurpose peer.
+func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
+	targetIDs := map[enode.ID]bool{
+		node.ID(): true,
+	}
+	// The target could be an existing peer of any purpose.
+	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
+	if matches[node.ID()] != nil {
+		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
+		if err != nil {
+			return err
+		}
+		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertificateMsg); err != nil {
+			return err
+		}
+	}
+	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
+	// peer but should be.
+	// If the target is not a peer and should be a ValidatorPurpose peer, this
+	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
+	// during the istanbul handshake.
+	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+		return err
+	}
+	return nil
+}
+
 // validateQueryEnode will do some validation to check the contents of the queryEnode
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
-// via extremely large announce message.
+// via extremely large queryEnode message.
 func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
 	logger := sb.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
@@ -594,22 +622,14 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 // This opens an attack vector where any malicious node could continue to gossip
 // a previously gossiped announce message from any validator, causing other nodes to regossip and
 // enforce the cooldown period for future messages originating from the origin validator.
-// This could result in new legitimate announce messages from the origin validator
-// not being regossiped due to the cooldown period enforced by the other nodes in
-// the network. This is somewhat circumvented by caching the hashes of messages that
-// are regossiped to prevent future regossips, but this isn't guaranteed fails to
-// account for situations when an announcing node expects a message to be
-// gossiped out but gets rejected due to a cooldown period.
-// To ensure that a new legitimate message will eventually be gossiped to the rest
-// of the network, we schedule an announce message with a new timestamp that is
-// received during the cooldown period to be sent after the cooldown period ends,
-// and refuse to regossip older messages from the validator during that time.
+// This is circumvented by caching the hashes of messages that are regossiped
+// with sb.selfRecentMessages to prevent future regossips.
 func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
 	logger := sb.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
 
 	sb.lastQueryEnodeGossipedMu.RLock()
 	if lastGossiped, ok := sb.lastQueryEnodeGossiped[msg.Address]; ok {
-		if time.Since(lastGossiped.Time) < queryEnodeGossipCooldownDuration {
+		if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
 			sb.lastQueryEnodeGossipedMu.RUnlock()
 			logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 			return nil
@@ -622,10 +642,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 		return err
 	}
 
-	sb.lastQueryEnodeGossiped[msg.Address] = &queryEnodeRegossip{
-		Time:         time.Now(),
-		MsgTimestamp: msgTimestamp,
-	}
+	sb.lastQueryEnodeGossiped[msg.Address] = time.Now()
 
 	return nil
 }
@@ -831,25 +848,31 @@ func (sb *Backend) handleSignedAnnounceVersionsMsg(peer consensus.Peer, payload 
 func (sb *Backend) upsertAndGossipSignedAnnounceVersionEntries(entries []*vet.SignedAnnounceVersionEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipSignedAnnounceVersionEntries")
 
-	// Update entries in val enode db
-	var valEnodeEntries []*vet.AddressEntry
-	for _, entry := range entries {
-		// Don't add ourselves into the val enode table
-		if entry.Address == sb.Address() {
-			continue
-		}
-		// Update the HighestKnownVersion for this address. Upsert will
-		// only update this entry if the HighestKnownVersion is greater
-		// than the existing one.
-		// Also store the PublicKey for future encryption in queryEnode msgs
-		valEnodeEntries = append(valEnodeEntries, &vet.AddressEntry{
-			Address: entry.Address,
-			PublicKey: entry.PublicKey,
-			HighestKnownVersion: entry.Version,
-		})
+	shouldProcess, err := sb.shouldSaveAndPublishValEnodeURLs()
+	if err != nil {
+		logger.Warn("Error in checking if should process queryEnode", err)
 	}
-	if err := sb.valEnodeTable.Upsert(valEnodeEntries); err != nil {
-		logger.Warn("Error upserting val enode table entries", "err", err)
+	if shouldProcess {
+		// Update entries in val enode db
+		var valEnodeEntries []*vet.AddressEntry
+		for _, entry := range entries {
+			// Don't add ourselves into the val enode table
+			if entry.Address == sb.Address() {
+				continue
+			}
+			// Update the HighestKnownVersion for this address. Upsert will
+			// only update this entry if the HighestKnownVersion is greater
+			// than the existing one.
+			// Also store the PublicKey for future encryption in queryEnode msgs
+			valEnodeEntries = append(valEnodeEntries, &vet.AddressEntry{
+				Address: entry.Address,
+				PublicKey: entry.PublicKey,
+				HighestKnownVersion: entry.Version,
+			})
+		}
+		if err := sb.valEnodeTable.Upsert(valEnodeEntries); err != nil {
+			logger.Warn("Error upserting val enode table entries", "err", err)
+		}
 	}
 
 	newEntries, err := sb.signedAnnounceVersionTable.Upsert(entries)
