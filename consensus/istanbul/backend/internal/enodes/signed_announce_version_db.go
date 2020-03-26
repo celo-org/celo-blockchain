@@ -38,14 +38,13 @@ const (
 
 // SignedAnnounceVersionDB stores
 type SignedAnnounceVersionDB struct {
-	vedb   *versionedEntryDB
+	gdb   *genericDB
 	logger log.Logger
 }
 
 // SignedAnnounceVersionEntry is an entry in the SignedAnnounceVersionDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
-// This implements the versionedEntry interface.
 type SignedAnnounceVersionEntry struct {
 	Address   common.Address
 	PublicKey *ecdsa.PublicKey
@@ -53,18 +52,12 @@ type SignedAnnounceVersionEntry struct {
 	Signature []byte
 }
 
-func signedAnnounceVersionEntryFromVersionedEntry(entry versionedEntry) (*SignedAnnounceVersionEntry, error) {
+func signedAnnounceVersionEntryFromGenericEntry(entry genericEntry) (*SignedAnnounceVersionEntry, error) {
 	signedAnnVersionEntry, ok := entry.(*SignedAnnounceVersionEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
 	}
 	return signedAnnVersionEntry, nil
-}
-
-// GetVersion gets the entry's version. This implements the GetVersion function
-// for the versionedEntry interface
-func (entry *SignedAnnounceVersionEntry) GetVersion() uint {
-	return entry.Version
 }
 
 // EncodeRLP serializes SignedAnnounceVersionEntry into the Ethereum RLP format.
@@ -103,21 +96,21 @@ func (entry *SignedAnnounceVersionEntry) String() string {
 func OpenSignedAnnounceVersionDB(path string) (*SignedAnnounceVersionDB, error) {
 	logger := log.New("db", "SignedAnnounceVersionDB")
 
-	vedb, err := newVersionedEntryDB(int64(signedAnnounceVersionDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := newGenericDB(int64(signedAnnounceVersionDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
 
 	return &SignedAnnounceVersionDB{
-		vedb:   vedb,
+		gdb:   gdb,
 		logger: logger,
 	}, nil
 }
 
 // Close flushes and closes the database files.
 func (svdb *SignedAnnounceVersionDB) Close() error {
-	return svdb.vedb.Close()
+	return svdb.gdb.Close()
 }
 
 // String gives a string representation of the entire db
@@ -144,16 +137,16 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 
 	var newEntries []*SignedAnnounceVersionEntry
 
-	getExistingEntry := func(entry versionedEntry) (versionedEntry, error) {
-		savEntry, err := signedAnnounceVersionEntryFromVersionedEntry(entry)
+	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
+		savEntry, err := signedAnnounceVersionEntryFromGenericEntry(entry)
 		if err != nil {
 			return entry, err
 		}
 		return svdb.Get(savEntry.Address)
 	}
 
-	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
-		savEntry, err := signedAnnounceVersionEntryFromVersionedEntry(entry)
+	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+		savEntry, err := signedAnnounceVersionEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
 		}
@@ -168,19 +161,28 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
-		if newEntry.GetVersion() <= existingEntry.GetVersion() {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+		existingSav, err := signedAnnounceVersionEntryFromGenericEntry(existingEntry)
+		if err != nil {
+			return err
+		}
+		newSav, err := signedAnnounceVersionEntryFromGenericEntry(newEntry)
+		if err != nil {
+			return err
+		}
+		if newSav.Version <= existingSav.Version {
+			logger.Trace("Skipping new entry whose version is not greater than the existing entry", "existing version", existingSav.Version, "new version", newSav.Version)
 			return nil
 		}
 		return onNewEntry(batch, newEntry)
 	}
 
-	entries := make([]versionedEntry, len(savEntries))
+	entries := make([]genericEntry, len(savEntries))
 	for i, sav := range savEntries {
-		entries[i] = versionedEntry(sav)
+		entries[i] = genericEntry(sav)
 	}
 
-	if err := svdb.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
+	if err := svdb.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
 		logger.Warn("Error upserting entries", "err", err)
 		return nil, err
 	}
@@ -191,7 +193,7 @@ func (svdb *SignedAnnounceVersionDB) Upsert(savEntries []*SignedAnnounceVersionE
 // Returns an error if no entry exists.
 func (svdb *SignedAnnounceVersionDB) Get(address common.Address) (*SignedAnnounceVersionEntry, error) {
 	var entry SignedAnnounceVersionEntry
-	entryBytes, err := svdb.vedb.Get(addressKey(address))
+	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +230,7 @@ func (svdb *SignedAnnounceVersionDB) GetAll() ([]*SignedAnnounceVersionEntry, er
 func (svdb *SignedAnnounceVersionDB) Remove(address common.Address) error {
 	batch := new(leveldb.Batch)
 	batch.Delete(addressKey(address))
-	return svdb.vedb.Write(batch)
+	return svdb.gdb.Write(batch)
 }
 
 // Prune will remove entries for all addresses not present in addressesToKeep
@@ -244,7 +246,7 @@ func (svdb *SignedAnnounceVersionDB) Prune(addressesToKeep map[common.Address]bo
 	if err != nil {
 		return err
 	}
-	return svdb.vedb.Write(batch)
+	return svdb.gdb.Write(batch)
 }
 
 // iterate will call `onEntry` for each entry in the db
@@ -265,7 +267,7 @@ func (svdb *SignedAnnounceVersionDB) iterate(onEntry func(common.Address, *Signe
 		return nil
 	}
 
-	if err := svdb.vedb.Iterate(keyPrefix, onDBEntry); err != nil {
+	if err := svdb.gdb.Iterate(keyPrefix, onDBEntry); err != nil {
 		logger.Warn("Error iterating through db entries", "err", err)
 		return err
 	}

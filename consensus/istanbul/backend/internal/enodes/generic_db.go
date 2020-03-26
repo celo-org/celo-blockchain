@@ -24,45 +24,42 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// versionedEntryDB manages a levelDB database whose entries are versioned.
-type versionedEntryDB struct {
+// genericDB manages a levelDB database
+type genericDB struct {
 	db           *leveldb.DB
 	writeOptions *opt.WriteOptions
 }
 
-type versionedEntry interface {
-	GetVersion() uint
-}
+type genericEntry interface {}
 
-// newVersionedEntryDB will open a new db at the given file path with the given version.
+// newGenericDB will open a new db at the given file path with the given version.
 // If the path is empty, the db will be created in memory.
 // If there is a version mismatch in the existing db, the contents are flushed.
-func newVersionedEntryDB(dbVersion int64, path string, logger log.Logger, writeOptions *opt.WriteOptions) (*versionedEntryDB, error) {
+func newGenericDB(dbVersion int64, path string, logger log.Logger, writeOptions *opt.WriteOptions) (*genericDB, error) {
 	db, err := newDB(dbVersion, path, logger)
 	if err != nil {
 		return nil, err
 	}
-	return &versionedEntryDB{
+	return &genericDB{
 		db:           db,
 		writeOptions: writeOptions,
 	}, nil
 }
 
 // Close flushes and closes the database files.
-func (vedb *versionedEntryDB) Close() error {
+func (vedb *genericDB) Close() error {
 	return vedb.db.Close()
 }
 
 // Upsert iterates through each provided entry and determines if the entry is
-// new based off its version. If there is an existing entry in the db and the version of the
-// new entry is newer, `onUpdatedEntry` is called. If there is no existing entry,
-// `onNewEntry` is called. Db content modifications are left to those functions
+// new. If there is an existing entry in the db, `onUpdatedEntry` is called.
+// If there is no existing entry, `onNewEntry` is called. Db content modifications are left to those functions
 // by providing a leveldb Batch that is written after all entries are processed.
-func (vedb *versionedEntryDB) Upsert(
-	entries []versionedEntry,
-	getExistingEntry func(entry versionedEntry) (versionedEntry, error),
-	onUpdatedEntry func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error,
-	onNewEntry func(batch *leveldb.Batch, entry versionedEntry) error,
+func (vedb *genericDB) Upsert(
+	entries []genericEntry,
+	getExistingEntry func(entry genericEntry) (genericEntry, error),
+	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error,
+	onNewEntry func(batch *leveldb.Batch, entry genericEntry) error,
 ) error {
 	batch := new(leveldb.Batch)
 	for _, entry := range entries {
@@ -92,19 +89,19 @@ func (vedb *versionedEntryDB) Upsert(
 }
 
 // Get gets the bytes at a given key in the db
-func (vedb *versionedEntryDB) Get(key []byte) ([]byte, error) {
+func (vedb *genericDB) Get(key []byte) ([]byte, error) {
 	return vedb.db.Get(key, nil)
 }
 
 // Write writes a Batch to modify the db
-func (vedb *versionedEntryDB) Write(batch *leveldb.Batch) error {
+func (vedb *genericDB) Write(batch *leveldb.Batch) error {
 	return vedb.db.Write(batch, vedb.writeOptions)
 }
 
 // Iterate will iterate through each entry in the db whose key has the prefix
 // keyPrefix, and call `onEntry` with the bytes of the key (without the prefix)
 // and the bytes of the value
-func (vedb *versionedEntryDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
+func (vedb *genericDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
 	iter := vedb.db.NewIterator(util.BytesPrefix(keyPrefix), nil)
 	defer iter.Release()
 

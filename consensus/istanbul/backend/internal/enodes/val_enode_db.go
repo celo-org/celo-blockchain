@@ -56,7 +56,6 @@ type ValidatorEnodeHandler interface {
 }
 
 // AddressEntry is an entry for the valEnodeTable.
-// This implements the versionedEntry interface.
 type AddressEntry struct {
 	Address                    common.Address
 	PublicKey                  *ecdsa.PublicKey
@@ -67,18 +66,12 @@ type AddressEntry struct {
 	LastQueryTimestamp         *time.Time
 }
 
-func addressEntryFromVersionedEntry(entry versionedEntry) (*AddressEntry, error) {
+func addressEntryFromGenericEntry(entry genericEntry) (*AddressEntry, error) {
 	addressEntry, ok := entry.(*AddressEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
 	}
 	return addressEntry, nil
-}
-
-// GetVersion gets the entry's version. This implements the GetVersion function
-// for the versionedEntry interface
-func (ae *AddressEntry) GetVersion() uint {
-	return ae.Version
 }
 
 func (ae *AddressEntry) String() string {
@@ -164,7 +157,7 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	vedb    *versionedEntryDB
+	gdb    *genericDB
 	lock    sync.RWMutex
 	handler ValidatorEnodeHandler
 	logger  log.Logger
@@ -175,14 +168,14 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	logger := log.New("db", "ValidatorEnodeDB")
 
-	vedb, err := newVersionedEntryDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := newGenericDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
 	}
 
 	return &ValidatorEnodeDB{
-		vedb:    vedb,
+		gdb:    gdb,
 		handler: handler,
 		logger:  logger,
 	}, nil
@@ -190,7 +183,7 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 
 // Close flushes and closes the database files.
 func (vet *ValidatorEnodeDB) Close() error {
-	return vet.vedb.Close()
+	return vet.gdb.Close()
 }
 
 func (vet *ValidatorEnodeDB) String() string {
@@ -238,7 +231,7 @@ func (vet *ValidatorEnodeDB) GetAddressFromNodeID(nodeID enode.ID) (common.Addre
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 
-	entryBytes, err := vet.vedb.Get(nodeIDKey(nodeID))
+	entryBytes, err := vet.gdb.Get(nodeIDKey(nodeID))
 	if err != nil {
 		return common.ZeroAddress, err
 	}
@@ -289,16 +282,16 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
 	peersToAdd := make(map[common.Address]*enode.Node)
 
-	getExistingEntry := func(entry versionedEntry) (versionedEntry, error) {
-		addressEntry, err := addressEntryFromVersionedEntry(entry)
+	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
+		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return entry, err
 		}
 		return vet.getAddressEntry(addressEntry.Address)
 	}
 
-	onNewEntry := func(batch *leveldb.Batch, entry versionedEntry) error {
-		addressEntry, err := addressEntryFromVersionedEntry(entry)
+	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
 		}
@@ -314,19 +307,19 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry versionedEntry, newEntry versionedEntry) error {
-		if newEntry.GetVersion() < existingEntry.GetVersion() {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
+		if err != nil {
+			return err
+		}
+		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
+		if err != nil {
+			return err
+		}
+		if newAddressEntry.Version < existingAddressEntry.Version {
+			logger.Trace("Skipping new entry whose version is less than the existing entry", "existing version", existingAddressEntry.Version, "new version", newAddressEntry.Version)
 			return nil
 		}
-		existingAddressEntry, err := addressEntryFromVersionedEntry(existingEntry)
-		if err != nil {
-			return err
-		}
-		newAddressEntry, err := addressEntryFromVersionedEntry(newEntry)
-		if err != nil {
-			return err
-		}
-
 		// "Backfill" fields in the entry with the previously saved entry
 		if newAddressEntry.PublicKey == nil {
 			newAddressEntry.PublicKey = existingAddressEntry.PublicKey
@@ -360,12 +353,12 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		return onNewEntry(batch, newAddressEntry)
 	}
 
-	entries := make([]versionedEntry, len(valEnodeEntries))
+	entries := make([]genericEntry, len(valEnodeEntries))
 	for i, valEnodeEntry := range valEnodeEntries {
-		entries[i] = versionedEntry(valEnodeEntry)
+		entries[i] = genericEntry(valEnodeEntry)
 	}
 
-	if err := vet.vedb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
+	if err := vet.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
 		logger.Warn("Error upserting entries", "err", err)
 		return err
 	}
@@ -389,7 +382,7 @@ func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
 	if err != nil {
 		return err
 	}
-	return vet.vedb.Write(batch)
+	return vet.gdb.Write(batch)
 }
 
 // PruneEntries will remove entries for all address not present in addressesToKeep
@@ -407,7 +400,7 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	if err != nil {
 		return err
 	}
-	return vet.vedb.Write(batch)
+	return vet.gdb.Write(batch)
 }
 
 func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool, ourAddress common.Address) {
@@ -450,7 +443,7 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 
 func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEntry, error) {
 	var entry AddressEntry
-	entryBytes, err := vet.vedb.Get(addressKey(address))
+	entryBytes, err := vet.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +471,7 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 		return nil
 	}
 
-	if err := vet.vedb.Iterate(keyPrefix, onDBEntry); err != nil {
+	if err := vet.gdb.Iterate(keyPrefix, onDBEntry); err != nil {
 		logger.Warn("Error iterating through db entries", "err", err)
 		return err
 	}
