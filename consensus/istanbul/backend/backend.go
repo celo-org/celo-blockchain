@@ -120,9 +120,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
-		blocksSignedInSealMeter:            metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/quorum", nil),
-		blocksSignedInSealOrChildMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/total", nil),
-		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/signed/missed", nil),
+		blocksElectedAndSignedMeter:        metrics.NewRegisteredMeter("consensus/istanbul/blocks/signedbyus", nil),
+		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedbyus", nil),
+		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
+		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -240,12 +241,16 @@ type Backend struct {
 	rewardDistributionTimer metrics.Timer
 
 	// Meters for number of blocks seen for which the current validator signer has been elected,
-	// has its signature included in the seal, and has its signature included in the subsequent block's
-	// 'parentSeal' (i.e. it doesn't count for consensus, but it does count for counting uptime)
+	// for which it was elected and has signed, and elected but not signed.
 	blocksElectedMeter             metrics.Meter
-	blocksSignedInSealMeter        metrics.Meter
-	blocksSignedInSealOrChildMeter metrics.Meter
+	blocksElectedAndSignedMeter    metrics.Meter
 	blocksElectedButNotSignedMeter metrics.Meter
+
+	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
+	blocksTotalSigsGauge metrics.Gauge
+
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
+	blocksTotalMissedRoundsMeter metrics.Meter
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 

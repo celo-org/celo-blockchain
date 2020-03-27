@@ -594,6 +594,9 @@ func (rs *roundStateImpl) DecodeRLP(stream *rlp.Stream) error {
 
 	rs.logger = log.New()
 	rs.mu = new(sync.RWMutex)
+	rs.roundGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/round", nil)
+	rs.desiredRoundGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/desiredround", nil)
+	rs.sequenceGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/sequence", nil)
 	rs.state = data.State
 	rs.round = data.Round
 	rs.desiredRound = data.DesiredRound

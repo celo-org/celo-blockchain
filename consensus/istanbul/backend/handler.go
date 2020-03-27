@@ -243,10 +243,15 @@ func (sb *Backend) NewWork() error {
 
 // Determine if this validator signed the parent of the supplied block:
 // First check the grandparent's validator set. If not elected, it didn't.
-// Then, check the seal on the parent block. Finally, check the parent seal on the supplied block.
-func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inSeal bool, inParentSeal bool) {
+// Then, check the parent seal on the supplied block.
+// We cannot determine any specific info from the validators in the seal of
+// the parent block, because different nodes circulate different versions.
+// It only becomes canonical when the child block is proposed.
+func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
+
+	countInParentSeal = -1
 
 	// Check the parent is not the genesis block.
 	number := child.Number().Uint64()
@@ -265,25 +270,23 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 	}
 	elected = true
 
-	// Now check if in the actual seal (on the parent block, used for consensus).
-	parentExtra, err := types.ExtractIstanbulExtra(parentHeader)
-	if err != nil {
-		return
-	}
-	inSeal = parentExtra.AggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
-
 	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
-	pValSet := sb.getValidators(number-1, childHeader.ParentHash)
-	pValSetIndex, _ := pValSet.GetByAddress(sb.ValidatorAddress())
-	if pValSetIndex < 0 {
-		return
-	}
-
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
 	if err != nil {
 		return
 	}
-	inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(pValSetIndex) != 0
+
+	pValSet := sb.getValidators(number-1, childHeader.ParentHash)
+	pValSetIndex, _ := pValSet.GetByAddress(sb.ValidatorAddress())
+	if pValSetIndex >= 0 {
+		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(pValSetIndex) != 0
+	}
+
+	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
+	countInParentSeal = 0
+	for i := 0; i < gpValSet.Size(); i++ {
+		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
+	}
 	return
 }
 
@@ -293,18 +296,20 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
-	elected, inSeal, inChildsParentSeal := sb.ValidatorElectedAndSignedParentBlock(newBlock)
-	if elected {
-		sb.blocksElectedMeter.Mark(1)
-	}
-	if inSeal {
-		sb.blocksSignedInSealMeter.Mark(1)
-	}
-	if inChildsParentSeal {
-		sb.blocksSignedInSealOrChildMeter.Mark(1)
-	}
-	if elected && !inSeal && !inChildsParentSeal {
-		sb.blocksElectedButNotSignedMeter.Mark(1)
+	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
+	if countInParentSeal >= 0 {
+		if elected {
+			sb.blocksElectedMeter.Mark(1)
+			if inChildsParentSeal {
+				sb.blocksElectedAndSignedMeter.Mark(1)
+			} else {
+				sb.blocksElectedButNotSignedMeter.Mark(1)
+			}
+		}
+		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+		if missedRounds > 0 {
+			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+		}
 	}
 
 	// If this is the last block of the epoch:
