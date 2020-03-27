@@ -1165,7 +1165,19 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	if sb.config.Proxy && sb.proxiedPeer != nil {
+	upsertVersionAndEnode := func() error {
+		if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+			logger.Warn("Error in upserting a val enode table entry", "error", err)
+			return err
+		}
+		return nil
+	}
+
+	if sb.config.Proxy {
+		if sb.proxiedPeer == nil {
+			logger.Warn("No proxied peer, ignoring message")
+			return nil
+		}
 		if sb.proxiedPeer.Node().ID() == peer.Node().ID() {
 			// if this message is from the proxied peer and contains the proxied
 			// validator's enodeCertificate, save it for handshake use
@@ -1188,16 +1200,29 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 				}
 				return nil
 			}
-		} else {
-			// If this message is not from the proxied validator, send it to the
-			// proxied validator without upserting it in this node. If the validator
-			// decides this proxy should upsert the enodeCertificate, then it
-			// will send it back to this node.
-			if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
-				logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
-			}
-			return nil
+			// Otherwise, this enode certificate originates from a remote validator
+			// but was sent by the proxied validator to be upserted
+			return upsertVersionAndEnode()
 		}
+		// If this message is not from the proxied validator, send it to the
+		// proxied validator without upserting it in this node. If the validator
+		// decides this proxy should upsert the enodeCertificate, then it
+		// will send it back to this node.
+		if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
+			logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
+			return err
+		}
+		return nil
+	}
+	// Ensure this node is a validator in the validator conn set
+	shouldSave, err := sb.shouldSaveAndPublishValEnodeURLs()
+	if err != nil {
+		logger.Debug("Error checking if should save val enode url", "err", err)
+		return err
+	}
+	if !shouldSave {
+		logger.Debug("This node should not save val enode urls, ignoring enodeCertificate")
+		return nil
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -1211,11 +1236,14 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
-		logger.Warn("Error in upserting a val enode table entry", "error", err)
-		return err
+	// Send enode certificate to proxy
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		if err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, &msg); err != nil {
+			logger.Warn("Error sending enodeCertificate back to proxy peer", "err", err)
+		}
 	}
-	return nil
+
+	return upsertVersionAndEnode()
 }
 
 func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Message) error {

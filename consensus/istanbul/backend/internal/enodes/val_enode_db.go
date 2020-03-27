@@ -385,7 +385,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEnt
 			newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
 		}
 
-		enodeChanged := newAddressEntry.Node != existingAddressEntry.Node && existingAddressEntry.Node != nil
+		enodeChanged := existingAddressEntry.Node != nil && newAddressEntry.Node != nil && existingAddressEntry.Node.String() != newAddressEntry.Node.String()
 		if enodeChanged {
 			batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
 			peersToRemove = append(peersToRemove, existingAddressEntry.Node)
