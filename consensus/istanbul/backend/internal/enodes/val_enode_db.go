@@ -382,7 +382,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEnt
 			newAddressEntry.HighestKnownVersion = newAddressEntry.Version
 			newAddressEntry.NumQueryAttemptsForHKVersion = 0
 		} else {
-		        newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
+			newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
 		}
 
 		enodeChanged := newAddressEntry.Node != existingAddressEntry.Node && existingAddressEntry.Node != nil

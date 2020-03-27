@@ -201,7 +201,7 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if err := sb.generateAndGossipQueryEnode(announceVersion); err != nil {
+				if err := sb.generateAndGossipQueryEnode(announceVersion, queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -366,13 +366,13 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
+func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) error {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries()
+	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
 	if err != nil {
 		return err
 	}
@@ -415,7 +415,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
 	return err
 }
 
-func (sb *Backend) getQueryEnodeValEnodeEntries() ([]*vet.AddressEntry, error) {
+func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*vet.AddressEntry, error) {
 	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
 	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
 	if err != nil {
@@ -438,9 +438,9 @@ func (sb *Backend) getQueryEnodeValEnodeEntries() ([]*vet.AddressEntry, error) {
 			continue
 		}
 
-		if valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
+		if enforceRetryBackoff && valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
 			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForHKVersion-1), 5)
-			timeoutMinutes := int64(math.Pow(2, timeoutFactorPow) * 5)
+			timeoutMinutes := int64(math.Pow(1.5, timeoutFactorPow) * 5)
 			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
 
 			if time.Since(*valEnodeEntry.LastQueryTimestamp) < timeoutForQuery {
