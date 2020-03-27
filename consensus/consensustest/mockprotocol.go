@@ -348,12 +348,12 @@ type API struct {
 // APIs implements consensus.Engine, returning the user facing RPC APIs.
 func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
 	return []rpc.API{
-		{
-			Namespace: "eth",
-			Version:   "1.0",
-			Service:   &API{e},
-			Public:    true,
-		},
+		// {
+		// 	Namespace: "eth",
+		// 	Version:   "1.0",
+		// 	Service:   &API{e},
+		// 	Public:    true,
+		// },
 	}
 }
 
