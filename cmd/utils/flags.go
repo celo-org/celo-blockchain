@@ -1045,6 +1045,9 @@ func setLes(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
 		cfg.LightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
 	}
+	if ctx.GlobalIsSet(LightGatewayFeeFlag.Name) {
+		cfg.GatewayFee = GlobalBig(ctx, LightGatewayFeeFlag.Name)
+	}
 	if ctx.GlobalIsSet(UltraLightServersFlag.Name) {
 		cfg.UltraLightServers = strings.Split(ctx.GlobalString(UltraLightServersFlag.Name), ",")
 	}
@@ -1656,10 +1659,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
-	}
-
-	if ctx.GlobalIsSet(LightGatewayFeeFlag.Name) {
-		cfg.GatewayFee = GlobalBig(ctx, LightGatewayFeeFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.
