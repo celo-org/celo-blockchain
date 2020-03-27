@@ -4,20 +4,15 @@ package random
 
 import (
 	"encoding/binary"
+	"io"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/crypto/sha3"
 )
 
-const (
-	// Arbitrary locally unique salts to prevent collisions.
-	uniformSalt     = 0xe0
-	permutationSalt = 0xe1
-)
-
 // Permutation produces an array with a random permutation of [0, 1, ... n-1]
 // Based on the Fisher-Yates method https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-func Permutation(randomness common.Hash, n int) []int {
+func Permutation(seed common.Hash, n int) []int {
 	if n <= 0 {
 		return nil
 	}
@@ -28,32 +23,40 @@ func Permutation(randomness common.Hash, n int) []int {
 		array[i] = i
 	}
 
+	// Create the Shake256 pseudo random stream.
+	randomness := sha3.NewShake256()
+	_, err := randomness.Write(seed[:])
+	if err != nil {
+		// ShakeHash never returns an error.
+		panic(err)
+	}
+
 	// Shuffle the array using the Fisher-Yates method.
 	for i := 0; i < n-1; i++ {
-		randomness = sha3.Sum256(append(randomness[:], permutationSalt))
-		j := i + int(uniform(randomness, uint64(n-i))) // j in [i, n)
+		j := i + int(uniform(randomness.(io.Reader), uint64(n-i))) // j in [i, n)
 		array[i], array[j] = array[j], array[i]
 	}
 	return array
 }
 
-// compress produces a 64-bit random value from a 256-bit random value.
-func compress(value common.Hash) uint64 {
-	var compressed uint64 = 0
-	for i := 0; i < common.HashLength; i += 8 {
-		compressed ^= binary.BigEndian.Uint64(value[i : i+8])
+// compress produces a 64-bit random value from a byte stream.
+func randUint64(randomness io.Reader) uint64 {
+	raw := make([]byte, 8)
+	_, err := randomness.Read(raw)
+	if err != nil {
+		// Random stream should never return an error.
+		panic(err)
 	}
-	return compressed
+	return binary.BigEndian.Uint64(raw)
 }
 
 // uniform produces an integer in the range [0, k) from the provided randomness.
 // Based on Algorithm 4 of https://arxiv.org/pdf/1805.10941.pdf
-func uniform(randomness common.Hash, k uint64) uint64 {
-	x := compress(randomness)
+func uniform(randomness io.Reader, k uint64) uint64 {
+	x := randUint64(randomness)
 	r := x % k
 	for x-r > (-k) {
-		randomness = sha3.Sum256(append(randomness[:], uniformSalt))
-		x = compress(randomness)
+		x = randUint64(randomness)
 		r = x % k
 	}
 	return r

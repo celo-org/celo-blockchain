@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func randomness() common.Hash {
+func randomHash() common.Hash {
 	var value common.Hash
 	// Always returns nil https://golang.org/pkg/math/rand/#Read
 	rand.Read(value[:])
@@ -18,7 +18,7 @@ func BenchmarkPermutation(b *testing.B) {
 	// Setup the random values that will be fed in to the method.
 	seeds := make([]common.Hash, b.N)
 	for i := range seeds {
-		seeds[i] = randomness()
+		seeds[i] = randomHash()
 	}
 
 	b.ResetTimer()
@@ -28,12 +28,13 @@ func BenchmarkPermutation(b *testing.B) {
 }
 
 func TestUniform(t *testing.T) {
+	randomness := rand.New(rand.NewSource(rand.Int63()))
+
 	// Verify that the returned value is always in the desired range.
 	t.Run("bounds", func(t *testing.T) {
 		for i := uint64(1); i < 10000; i++ {
-			seed := randomness()
-			if got := uniform(seed, i); got > i {
-				t.Errorf("uniform(%s, %d) = %d, want < %d", seed.String(), i, got, i)
+			if got := uniform(randomness, i); got > i {
+				t.Errorf("uniform(_, %d) = %d, want < %d", i, got, i)
 			}
 		}
 	})
@@ -44,8 +45,7 @@ func TestUniform(t *testing.T) {
 		coverage := make([]bool, bound)
 		var count uint64
 		for i := 0; i < 1_000_000; i++ {
-			seed := randomness()
-			sample := uniform(seed, bound)
+			sample := uniform(randomness, bound)
 			if !coverage[sample] {
 				count++
 				coverage[sample] = true
@@ -59,5 +59,4 @@ func TestUniform(t *testing.T) {
 		// Chance of success with correct code is (1 - (1 - 1/bound)^runs)^bound ~= 1 with runs=1e6, bound=100
 		t.Errorf("uniform(_, %d) did not cover [0, %d)", bound, bound)
 	})
-
 }
