@@ -201,7 +201,7 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if err := sb.generateAndGossipQueryEnode(announceVersion); err != nil {
+				if err := sb.generateAndGossipQueryEnode(announceVersion, queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -366,13 +366,13 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
+func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) error {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries()
+	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
 	if err != nil {
 		return err
 	}
@@ -415,7 +415,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
 	return err
 }
 
-func (sb *Backend) getQueryEnodeValEnodeEntries() ([]*vet.AddressEntry, error) {
+func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*vet.AddressEntry, error) {
 	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
 	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
 	if err != nil {
@@ -438,9 +438,9 @@ func (sb *Backend) getQueryEnodeValEnodeEntries() ([]*vet.AddressEntry, error) {
 			continue
 		}
 
-		if valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
+		if enforceRetryBackoff && valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
 			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForHKVersion-1), 5)
-			timeoutMinutes := int64(math.Pow(2, timeoutFactorPow) * 5)
+			timeoutMinutes := int64(math.Pow(1.5, timeoutFactorPow) * 5)
 			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
 
 			if time.Since(*valEnodeEntry.LastQueryTimestamp) < timeoutForQuery {
@@ -510,7 +510,7 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string, queryEnodeDestAdd
 
 	var encryptedEnodeURLs []*encryptedEnodeURL
 	for i, destAddress := range queryEnodeDestAddresses {
-	        logger.Info("encrypting enodeURL", "enodeURL", enodeURL, "publicKey", queryEnodePublicKeys[i])
+		logger.Info("encrypting enodeURL", "enodeURL", enodeURL, "publicKey", queryEnodePublicKeys[i])
 		publicKey := ecies.ImportECDSAPublic(queryEnodePublicKeys[i])
 		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
 		if err != nil {
@@ -1165,7 +1165,19 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return err
 	}
 
-	if sb.config.Proxy && sb.proxiedPeer != nil {
+	upsertVersionAndEnode := func() error {
+		if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+			logger.Warn("Error in upserting a val enode table entry", "error", err)
+			return err
+		}
+		return nil
+	}
+
+	if sb.config.Proxy {
+		if sb.proxiedPeer == nil {
+			logger.Warn("No proxied peer, ignoring message")
+			return nil
+		}
 		if sb.proxiedPeer.Node().ID() == peer.Node().ID() {
 			// if this message is from the proxied peer and contains the proxied
 			// validator's enodeCertificate, save it for handshake use
@@ -1188,16 +1200,29 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 				}
 				return nil
 			}
-		} else {
-			// If this message is not from the proxied validator, send it to the
-			// proxied validator without upserting it in this node. If the validator
-			// decides this proxy should upsert the enodeCertificate, then it
-			// will send it back to this node.
-			if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
-				logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
-			}
-			return nil
+			// Otherwise, this enode certificate originates from a remote validator
+			// but was sent by the proxied validator to be upserted
+			return upsertVersionAndEnode()
 		}
+		// If this message is not from the proxied validator, send it to the
+		// proxied validator without upserting it in this node. If the validator
+		// decides this proxy should upsert the enodeCertificate, then it
+		// will send it back to this node.
+		if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
+			logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
+			return err
+		}
+		return nil
+	}
+	// Ensure this node is a validator in the validator conn set
+	shouldSave, err := sb.shouldSaveAndPublishValEnodeURLs()
+	if err != nil {
+		logger.Debug("Error checking if should save val enode url", "err", err)
+		return err
+	}
+	if !shouldSave {
+		logger.Debug("This node should not save val enode urls, ignoring enodeCertificate")
+		return nil
 	}
 
 	validatorConnSet, err := sb.retrieveValidatorConnSet()
@@ -1211,11 +1236,14 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
-		logger.Warn("Error in upserting a val enode table entry", "error", err)
-		return err
+	// Send enode certificate to proxy
+	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
+		if err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, &msg); err != nil {
+			logger.Warn("Error sending enodeCertificate back to proxy peer", "err", err)
+		}
 	}
-	return nil
+
+	return upsertVersionAndEnode()
 }
 
 func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Message) error {

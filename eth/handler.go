@@ -337,7 +337,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 		forcePeer = isValidator
-		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
+		p.Log().Debug("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer

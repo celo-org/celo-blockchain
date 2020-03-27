@@ -347,11 +347,18 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
+			// Share this node's enodeCertificate for the proxy to use for handshakes
 			enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 			if err != nil {
 				logger.Warn("Error getting enode certificate message", "err", err)
 			} else if enodeCertificateMsg != nil {
-				go sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg)
+				if err := sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg); err != nil {
+					logger.Warn("Error sending enode certificate message to proxy peer", "err", err)
+				}
+			}
+			// Share the whole val enode table
+			if err := sb.sendValEnodesShareMsg(); err != nil {
+				logger.Warn("Error sending val enodes share message to proxy peer", "err", err)
 			}
 		} else {
 			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())

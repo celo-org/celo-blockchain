@@ -111,6 +111,9 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 
 	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
+		if vetEntry.Node == nil {
+			continue
+		}
 		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
 			Address:  address,
 			EnodeURL: vetEntry.Node.String(),
