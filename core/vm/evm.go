@@ -594,7 +594,15 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-			log.Error("Error in unpacking EVM call return bytes", "err", err)
+
+			// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
+			// `ErrEmptyArguments` is expected when when syncing & importing blocks
+			// before a contract has been deployed
+			if err == abipkg.ErrEmptyArguments {
+				log.Trace("Error in unpacking EVM call return bytes", "err", err)
+			} else {
+				log.Error("Error in unpacking EVM call return bytes", "err", err)
+			}
 			return leftoverGas, err
 		}
 	}
