@@ -1862,12 +1862,10 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
-	if ctx.GlobalString(SyncModeFlag.Name) == "lightest" {
-		config.FullHeaderChainAvailable = false
-	}
 	if err != nil {
 		Fatalf("%v", err)
 	}
+	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
 	var engine consensus.Engine
 	if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
