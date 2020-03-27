@@ -39,17 +39,10 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
-	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
-		return nil, errors.ErrRegistryContractNotDeployed
-	}
-
 	var contractAddress common.Address
 	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
 
-	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
-	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments || err == errExecutionReverted {
+	if err == errExecutionReverted {
 		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err

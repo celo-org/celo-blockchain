@@ -580,7 +580,13 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
+		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
+		if funcName == "getAddressFor" {
+			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		} else {
+			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		}
 		return leftoverGas, err
 	}
 
@@ -588,15 +594,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 
 	if returnObj != nil {
 		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-
-			// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
-			// `ErrEmptyArguments` is expected when when syncing & importing blocks
-			// before a contract has been deployed
-			if err == abipkg.ErrEmptyArguments {
-				log.Trace("Error in unpacking EVM call return bytes", "err", err)
-			} else {
-				log.Error("Error in unpacking EVM call return bytes", "err", err)
-			}
+			log.Error("Error in unpacking EVM call return bytes", "err", err)
 			return leftoverGas, err
 		}
 	}
