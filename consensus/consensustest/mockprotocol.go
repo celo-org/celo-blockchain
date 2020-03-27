@@ -341,20 +341,9 @@ func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, resul
 	return nil
 }
 
-type API struct {
-	e *MockEngine
-}
-
 // APIs implements consensus.Engine, returning the user facing RPC APIs.
 func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
-	return []rpc.API{
-		// {
-		// 	Namespace: "eth",
-		// 	Version:   "1.0",
-		// 	Service:   &API{e},
-		// 	Public:    true,
-		// },
-	}
+	return []rpc.API{}
 }
 
 // Close closes the exit channel to notify all backend threads exiting.

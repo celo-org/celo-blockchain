@@ -100,5 +100,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 	if dec.Extra == nil {
 		return errors.New("missing required field 'extraData' for Header")
 	}
+	h.Extra = *dec.Extra
 	return nil
 }
