@@ -216,7 +216,7 @@ func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) err
 	}
 
 	if len(upsertBatch) > 0 {
-		if err := sb.valEnodeTable.Upsert(upsertBatch); err != nil {
+		if err := sb.valEnodeTable.UpsertVersionAndEnode(upsertBatch); err != nil {
 			sb.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
 		}
 	}

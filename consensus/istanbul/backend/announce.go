@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -42,7 +43,7 @@ import (
 // define the constants and function for the sendAnnounce thread
 
 const (
-	queryEnodeGossipCooldownDuration            = 5 * time.Minute
+	queryEnodeGossipCooldownDuration         = 5 * time.Minute
 	versionCertificateGossipCooldownDuration = 5 * time.Minute
 )
 
@@ -364,92 +365,64 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
+// Note that this function must ONLY be called by the announceThread.
 func (sb *Backend) generateAndGossipQueryEnode(version uint) error {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
-	istMsg, updatedValEnodeEntries, err := sb.generateQueryEnodeMsg(version)
+
+	// Retrieve the set valEnodeEntries (and their publicKeys)
+	// for the queryEnode message
+	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries()
 	if err != nil {
 		return err
 	}
 
-	if istMsg == nil {
-		return nil
+	queryEnodeDestAddresses := make([]common.Address, 0)
+	queryEnodePublicKeys := make([]*ecdsa.PublicKey, 0)
+	for _, valEnodeEntry := range valEnodeEntries {
+		if valEnodeEntry.PublicKey != nil {
+			queryEnodeDestAddresses = append(queryEnodeDestAddresses, valEnodeEntry.Address)
+			queryEnodePublicKeys = append(queryEnodePublicKeys, valEnodeEntry.PublicKey)
+		}
 	}
 
-	// Convert to payload
-	payload, err := istMsg.Payload()
-	if err != nil {
-		logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", istMsg.String(), "err", err)
-		return err
+	if len(queryEnodeDestAddresses) > 0 {
+		istMsg, err := sb.generateQueryEnodeMsg(version, queryEnodeDestAddresses, queryEnodePublicKeys)
+		if err != nil {
+			return err
+		}
+
+		if istMsg == nil {
+			return nil
+		}
+
+		// Convert to payload
+		payload, err := istMsg.Payload()
+		if err != nil {
+			logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", istMsg.String(), "err", err)
+			return err
+		}
+
+		if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
+			return err
+		}
+
+		if err := sb.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
+			return err
+		}
 	}
 
-	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
-		return err
-	}
-
-	return sb.valEnodeTable.Upsert(updatedValEnodeEntries)
+	return err
 }
 
-// generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
-func (sb *Backend) generateQueryEnodeMsg(version uint) (*istanbul.Message, []*vet.AddressEntry, error) {
-	logger := sb.logger.New("func", "generateQueryEnodeMsg")
-
-	enodeURL, err := sb.getEnodeURL()
-	if err != nil {
-		logger.Error("Error getting enode URL", "err", err)
-		return nil, nil, err
-	}
-	encryptedEnodeURLs, updatedValEnodeEntries, err := sb.generateEncryptedEnodeURLs(enodeURL)
-	if err != nil {
-		logger.Warn("Error generating encrypted enodeURLs", "err", err)
-		return nil, nil, err
-	}
-	if len(encryptedEnodeURLs) == 0 {
-		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
-		return nil, nil, nil
-	}
-	queryEnodeData := &queryEnodeData{
-		EncryptedEnodeURLs: encryptedEnodeURLs,
-		Version:            version,
-		Timestamp:          getTimestamp(),
-	}
-
-	queryEnodeBytes, err := rlp.EncodeToBytes(queryEnodeData)
-	if err != nil {
-		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
-		return nil, nil, err
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbulQueryEnodeMsg,
-		Msg:       queryEnodeBytes,
-		Address:   sb.Address(),
-		Signature: []byte{},
-	}
-
-	// Sign the announce message
-	if err := msg.Sign(sb.Sign); err != nil {
-		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
-		return nil, nil, err
-	}
-
-	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", queryEnodeData.String())
-
-	return msg, updatedValEnodeEntries, nil
-}
-
-// generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
-// whose entries in the val enode table do not exist or are outdated when compared
-// to the version certificate table.
-func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnodeURL, []*vet.AddressEntry, error) {
-	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
+func (sb *Backend) getQueryEnodeValEnodeEntries() ([]*vet.AddressEntry, error) {
+	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
 	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	var encryptedEnodeURLs []*encryptedEnodeURL
-	var updatedValEnodeEntries []*vet.AddressEntry
+	var queryEnodeValEnodeEntries []*vet.AddressEntry
 	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
 		if address == sb.Address() {
@@ -465,8 +438,8 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnod
 			continue
 		}
 
-		if valEnodeEntry.NumQueryAttemptsForVersion > 1 {
-			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForVersion), 5)
+		if valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
+			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForHKVersion-1), 5)
 			timeoutMinutes := int64(math.Pow(2, timeoutFactorPow) * 5)
 			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
 
@@ -475,27 +448,83 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string) ([]*encryptedEnod
 			}
 		}
 
-		publicKey := ecies.ImportECDSAPublic(valEnodeEntry.PublicKey)
+		queryEnodeValEnodeEntries = append(queryEnodeValEnodeEntries, valEnodeEntry)
+	}
+
+	return queryEnodeValEnodeEntries, nil
+}
+
+// generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
+func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeDestAddresses []common.Address, queryEnodePublicKeys []*ecdsa.PublicKey) (*istanbul.Message, error) {
+	logger := sb.logger.New("func", "generateQueryEnodeMsg")
+
+	enodeURL, err := sb.getEnodeURL()
+	if err != nil {
+		logger.Error("Error getting enode URL", "err", err)
+		return nil, err
+	}
+	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(enodeURL, queryEnodeDestAddresses, queryEnodePublicKeys)
+	if err != nil {
+		logger.Warn("Error generating encrypted enodeURLs", "err", err)
+		return nil, err
+	}
+	if len(encryptedEnodeURLs) == 0 {
+		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
+		return nil, nil
+	}
+	queryEnodeData := &queryEnodeData{
+		EncryptedEnodeURLs: encryptedEnodeURLs,
+		Version:            version,
+		Timestamp:          getTimestamp(),
+	}
+
+	queryEnodeBytes, err := rlp.EncodeToBytes(queryEnodeData)
+	if err != nil {
+		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
+		return nil, err
+	}
+
+	msg := &istanbul.Message{
+		Code:      istanbulQueryEnodeMsg,
+		Msg:       queryEnodeBytes,
+		Address:   sb.Address(),
+		Signature: []byte{},
+	}
+
+	// Sign the announce message
+	if err := msg.Sign(sb.Sign); err != nil {
+		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
+		return nil, err
+	}
+
+	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", queryEnodeData.String())
+
+	return msg, nil
+}
+
+// generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
+// whose entries in the val enode table do not exist or are outdated when compared
+// to the version certificate table.
+func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string, queryEnodeDestAddresses []common.Address, queryEnodePublicKeys []*ecdsa.PublicKey) ([]*encryptedEnodeURL, error) {
+	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
+
+	var encryptedEnodeURLs []*encryptedEnodeURL
+	for i, destAddress := range queryEnodeDestAddresses {
+	        logger.Info("encrypting enodeURL", "enodeURL", enodeURL, "publicKey", queryEnodePublicKeys[i])
+		publicKey := ecies.ImportECDSAPublic(queryEnodePublicKeys[i])
 		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(enodeURL), nil, nil)
 		if err != nil {
-			return nil, nil, err
+			logger.Error("Error in encrypting enodeURL", "enodeURL", enodeURL, "publicKey", publicKey)
+			return nil, err
 		}
 
 		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
-			DestAddress:       address,
+			DestAddress:       destAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
-
-		currentTime := time.Now()
-
-		updatedValEnodeEntries = append(updatedValEnodeEntries, &vet.AddressEntry{
-			Address:                    address,
-			Version:                    valEnodeEntry.Version, // provide version to avoid a race condition by ensuring the query fields are meant for this version
-			NumQueryAttemptsForVersion: valEnodeEntry.NumQueryAttemptsForVersion + 1,
-			LastQueryTimestamp:         &currentTime,
-		})
 	}
-	return encryptedEnodeURLs, updatedValEnodeEntries, nil
+
+	return encryptedEnodeURLs, nil
 }
 
 // This function will handle a queryEnode message.
@@ -603,7 +632,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// If the target is not a peer and should be a ValidatorPurpose peer, this
 	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
 	// during the istanbul handshake.
-	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
 		return err
 	}
 	return nil
@@ -788,7 +817,7 @@ func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCe
 	}
 	msg := &istanbul.Message{
 		Code: istanbulVersionCertificatesMsg,
-		Msg: payload,
+		Msg:  payload,
 	}
 	msgPayload, err := msg.Payload()
 	if err != nil {
@@ -914,7 +943,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 				HighestKnownVersion: entry.Version,
 			})
 		}
-		if err := sb.valEnodeTable.Upsert(valEnodeEntries); err != nil {
+		if err := sb.valEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
 			logger.Warn("Error upserting val enode table entries", "err", err)
 		}
 	}
@@ -1182,7 +1211,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}

@@ -45,13 +45,13 @@ var (
 const (
 	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulQueryEnodeMsg             = 0x12
-	istanbulValEnodesShareMsg         = 0x13
-	istanbulFwdMsg                    = 0x14
-	istanbulDelegateSign              = 0x15
+	istanbulQueryEnodeMsg          = 0x12
+	istanbulValEnodesShareMsg      = 0x13
+	istanbulFwdMsg                 = 0x14
+	istanbulDelegateSign           = 0x15
 	istanbulVersionCertificatesMsg = 0x16
-	istanbulEnodeCertificateMsg       = 0x17
-	istanbulValidatorHandshakeMsg     = 0x18
+	istanbulEnodeCertificateMsg    = 0x17
+	istanbulValidatorHandshakeMsg  = 0x18
 
 	handshakeTimeout = 5 * time.Second
 )
@@ -455,7 +455,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 
 	// By this point, this node and the peer are both validators and we update
 	// our val enode table accordingly. Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert([]*vet.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
+	err = sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}

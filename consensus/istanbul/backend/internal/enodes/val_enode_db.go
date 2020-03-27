@@ -57,13 +57,13 @@ type ValidatorEnodeHandler interface {
 
 // AddressEntry is an entry for the valEnodeTable.
 type AddressEntry struct {
-	Address                    common.Address
-	PublicKey                  *ecdsa.PublicKey
-	Node                       *enode.Node
-	Version                    uint
-	HighestKnownVersion        uint
-	NumQueryAttemptsForVersion uint
-	LastQueryTimestamp         *time.Time
+	Address                      common.Address
+	PublicKey                    *ecdsa.PublicKey
+	Node                         *enode.Node
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           *time.Time
 }
 
 func addressEntryFromGenericEntry(entry genericEntry) (*AddressEntry, error) {
@@ -79,18 +79,18 @@ func (ae *AddressEntry) String() string {
 	if ae.Node != nil {
 		nodeString = ae.Node.String()
 	}
-	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, ae.LastQueryTimestamp)
+	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForHKVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForHKVersion, ae.LastQueryTimestamp)
 }
 
 // Implement RLP Encode/Decode interface
 type rlpEntry struct {
-	Address                    common.Address
-	CompressedPublicKey        []byte
-	EnodeURL                   string
-	Version                    uint
-	HighestKnownVersion        uint
-	NumQueryAttemptsForVersion uint
-	LastQueryTimestamp         []byte
+	Address                      common.Address
+	CompressedPublicKey          []byte
+	EnodeURL                     string
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           []byte
 }
 
 // EncodeRLP serializes AddressEntry into the Ethereum RLP format.
@@ -112,7 +112,13 @@ func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
 		}
 	}
 
-	return rlp.Encode(w, rlpEntry{ae.Address, publicKeyBytes, nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForVersion, lastQueryTimestampBytes})
+	return rlp.Encode(w, rlpEntry{Address: ae.Address,
+		CompressedPublicKey:          publicKeyBytes,
+		EnodeURL:                     nodeString,
+		Version:                      ae.Version,
+		HighestKnownVersion:          ae.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: ae.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestampBytes})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
@@ -145,12 +151,12 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 	}
 
 	*ae = AddressEntry{Address: entry.Address,
-		PublicKey:                  publicKey,
-		Node:                       node,
-		Version:                    entry.Version,
-		HighestKnownVersion:        entry.HighestKnownVersion,
-		NumQueryAttemptsForVersion: entry.NumQueryAttemptsForVersion,
-		LastQueryTimestamp:         lastQueryTimestamp}
+		PublicKey:                    publicKey,
+		Node:                         node,
+		Version:                      entry.Version,
+		HighestKnownVersion:          entry.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: entry.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestamp}
 	return nil
 }
 
@@ -269,26 +275,71 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 	return entries, nil
 }
 
-// Upsert will update or insert a validator enode entry given that the existing entry
-// is older (determined by the version) than the new one
-// TODO - In addition to modifying the val_enode_db, this function also will disconnect
-//        and/or connect the corresponding validator connenctions.  The validator connections
-//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
-func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
-	logger := vet.logger.New("func", "Upsert")
-	vet.lock.Lock()
-	defer vet.lock.Unlock()
+// UpsertHighestKnownVersion function will do the following
+// 1. Check if the updated HighestKnownVersion is higher than the existing HighestKnownVersion
+// 2. Update the fields HighestKnownVersion, NumQueryAttempsForHKVersion, and PublicKey
+func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*AddressEntry) error {
+	logger := vet.logger.New("func", "UpsertHighestKnownVersion")
+
+	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+		addressEntry, err := addressEntryFromGenericEntry(entry)
+		if err != nil {
+			return err
+		}
+		entryBytes, err := rlp.EncodeToBytes(addressEntry)
+		if err != nil {
+			return err
+		}
+		if addressEntry.Node != nil {
+			batch.Put(nodeIDKey(addressEntry.Node.ID()), addressEntry.Address.Bytes())
+		}
+		batch.Put(addressKey(addressEntry.Address), entryBytes)
+		return nil
+	}
+
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
+		if err != nil {
+			return err
+		}
+		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
+		if err != nil {
+			return err
+		}
+
+		if newAddressEntry.HighestKnownVersion < existingAddressEntry.HighestKnownVersion {
+			logger.Trace("Skipping entry whose HighestKnownVersion is less than the existing entry's", "existing HighestKnownVersion", existingAddressEntry.HighestKnownVersion, "new version", newAddressEntry.HighestKnownVersion)
+			return nil
+		}
+
+		// "Backfill" all other fields
+		newAddressEntry.Node = existingAddressEntry.Node
+		newAddressEntry.Version = existingAddressEntry.Version
+		newAddressEntry.LastQueryTimestamp = existingAddressEntry.LastQueryTimestamp
+
+		// Set NumQueryAttemptsForHKVersion to 0
+		newAddressEntry.NumQueryAttemptsForHKVersion = 0
+
+		return onNewEntry(batch, newAddressEntry)
+	}
+
+	if err := vet.upsert(valEnodeEntries, onNewEntry, onUpdatedEntry); err != nil {
+		logger.Warn("Error upserting entries", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+// UpsertVersionAndEnode will do the following
+// 1. Check if the updated Version higher than the existing Version
+// 2. Update Node, Version, HighestKnownVersion (if it's less than the new Version)
+// 3. If the Node has been updated, establish new validator peer
+func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEntry) error {
+	logger := vet.logger.New("func", "UpsertVersionAndEnode")
 
 	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
 	peersToAdd := make(map[common.Address]*enode.Node)
-
-	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
-		addressEntry, err := addressEntryFromGenericEntry(entry)
-		if err != nil {
-			return entry, err
-		}
-		return vet.getAddressEntry(addressEntry.Address)
-	}
 
 	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
 		addressEntry, err := addressEntryFromGenericEntry(entry)
@@ -316,41 +367,123 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 		if err != nil {
 			return err
 		}
+
 		if newAddressEntry.Version < existingAddressEntry.Version {
-			logger.Trace("Skipping new entry whose version is less than the existing entry", "existing version", existingAddressEntry.Version, "new version", newAddressEntry.Version)
+			logger.Trace("Skipping entry whose Version is less than the existing entry's", "existing Version", existingAddressEntry.Version, "new version", newAddressEntry.Version)
 			return nil
 		}
-		// "Backfill" fields in the entry with the previously saved entry
-		if newAddressEntry.PublicKey == nil {
-			newAddressEntry.PublicKey = existingAddressEntry.PublicKey
+
+		// "Backfill" all other fields
+		newAddressEntry.PublicKey = existingAddressEntry.PublicKey
+		newAddressEntry.LastQueryTimestamp = existingAddressEntry.LastQueryTimestamp
+
+		// Update HighestKnownVersion, if needed
+		if newAddressEntry.Version > existingAddressEntry.HighestKnownVersion {
+			newAddressEntry.HighestKnownVersion = newAddressEntry.Version
+			newAddressEntry.NumQueryAttemptsForHKVersion = 0
+		} else {
+		        newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
 		}
 
-		if newAddressEntry.Node == nil {
-			newAddressEntry.Node = existingAddressEntry.Node
-		}
-
-		if newAddressEntry.Version == 0 {
-			newAddressEntry.Version = existingAddressEntry.Version
-		}
-
-		// Backfill when not provided, and ensure the HighestKnownVersion is always the maximum version
-		newAddressEntry.HighestKnownVersion = max(max(existingAddressEntry.HighestKnownVersion, newAddressEntry.HighestKnownVersion), newAddressEntry.Version)
-
-		if newAddressEntry.LastQueryTimestamp == nil {
-			newAddressEntry.LastQueryTimestamp = existingAddressEntry.LastQueryTimestamp
-		}
-
-		// If the highest known version has changed, then reset NumQueryAttemptsForVersion
-		if existingAddressEntry.HighestKnownVersion != newAddressEntry.HighestKnownVersion {
-			newAddressEntry.NumQueryAttemptsForVersion = 0
-		}
-
-		hasEnodeURLChanged := existingAddressEntry.Node != nil && newAddressEntry.Node != nil && existingAddressEntry.Node.String() != newAddressEntry.Node.String()
-		if hasEnodeURLChanged {
+		enodeChanged := newAddressEntry.Node != existingAddressEntry.Node && existingAddressEntry.Node != nil
+		if enodeChanged {
 			batch.Delete(nodeIDKey(existingAddressEntry.Node.ID()))
 			peersToRemove = append(peersToRemove, existingAddressEntry.Node)
 		}
+
 		return onNewEntry(batch, newAddressEntry)
+	}
+
+	if err := vet.upsert(valEnodeEntries, onNewEntry, onUpdatedEntry); err != nil {
+		logger.Warn("Error upserting entries", "err", err)
+		return err
+	}
+
+	for _, node := range peersToRemove {
+		vet.handler.RemoveValidatorPeer(node)
+	}
+
+	for address, node := range peersToAdd {
+		vet.handler.AddValidatorPeer(node, address)
+	}
+
+	return nil
+}
+
+// UpdateQueryEnodeStats function will do the following
+// 1. Increment each entry's NumQueryAttemptsForHKVersion by 1 is existing HighestKnownVersion is the same
+// 2. Set each entry's LastQueryTimestamp to the current time
+func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*AddressEntry) error {
+	logger := vet.logger.New("func", "UpdateEnodeQueryStats")
+
+	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+		addressEntry, err := addressEntryFromGenericEntry(entry)
+		if err != nil {
+			return err
+		}
+		entryBytes, err := rlp.EncodeToBytes(addressEntry)
+		if err != nil {
+			return err
+		}
+		if addressEntry.Node != nil {
+			batch.Put(nodeIDKey(addressEntry.Node.ID()), addressEntry.Address.Bytes())
+		}
+		batch.Put(addressKey(addressEntry.Address), entryBytes)
+		return nil
+	}
+
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
+		if err != nil {
+			return err
+		}
+		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
+		if err != nil {
+			return err
+		}
+
+		if existingAddressEntry.HighestKnownVersion == newAddressEntry.HighestKnownVersion {
+			newAddressEntry.NumQueryAttemptsForHKVersion = existingAddressEntry.NumQueryAttemptsForHKVersion + 1
+		}
+
+		currentTime := time.Now()
+		newAddressEntry.LastQueryTimestamp = &currentTime
+
+		// "Backfill" all other fields
+		newAddressEntry.PublicKey = existingAddressEntry.PublicKey
+		newAddressEntry.Node = existingAddressEntry.Node
+		newAddressEntry.Version = existingAddressEntry.Version
+		newAddressEntry.HighestKnownVersion = existingAddressEntry.HighestKnownVersion
+
+		return onNewEntry(batch, newAddressEntry)
+	}
+
+	if err := vet.upsert(valEnodeEntries, onNewEntry, onUpdatedEntry); err != nil {
+		logger.Warn("Error upserting entries", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+// upsert will update or insert a validator enode entry given that the existing entry
+// is older (determined by the version) than the new one
+// TODO - In addition to modifying the val_enode_db, this function also will disconnect
+//        and/or connect the corresponding validator connenctions.  The validator connections
+//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
+func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
+	onNewEntry func(batch *leveldb.Batch, entry genericEntry) error,
+	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error) error {
+	logger := vet.logger.New("func", "Upsert")
+	vet.lock.Lock()
+	defer vet.lock.Unlock()
+
+	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
+		addressEntry, err := addressEntryFromGenericEntry(entry)
+		if err != nil {
+			return entry, err
+		}
+		return vet.getAddressEntry(addressEntry.Address)
 	}
 
 	entries := make([]genericEntry, len(valEnodeEntries))
@@ -361,13 +494,6 @@ func (vet *ValidatorEnodeDB) Upsert(valEnodeEntries []*AddressEntry) error {
 	if err := vet.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
 		logger.Warn("Error upserting entries", "err", err)
 		return err
-	}
-
-	for _, node := range peersToRemove {
-		vet.handler.RemoveValidatorPeer(node)
-	}
-	for address, node := range peersToAdd {
-		vet.handler.AddValidatorPeer(node, address)
 	}
 
 	return nil
@@ -480,12 +606,12 @@ func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Addre
 
 // ValEnodeEntryInfo contains information for an entry of the val enode table
 type ValEnodeEntryInfo struct {
-	PublicKey                  string `json:"publicKey"`
-	Enode                      string `json:"enode"`
-	Version                    uint   `json:"version"`
-	HighestKnownVersion        uint   `json:"highestKnownVersion"`
-	NumQueryAttemptsForVersion uint   `json:"numQueryAttemptsForVersion"`
-	LastQueryTimestamp         string `json:"lastQueryTimestamp"` // Unix timestamp
+	PublicKey                    string `json:"publicKey"`
+	Enode                        string `json:"enode"`
+	Version                      uint   `json:"version"`
+	HighestKnownVersion          uint   `json:"highestKnownVersion"`
+	NumQueryAttemptsForHKVersion uint   `json:"numQueryAttemptsForHKVersion"`
+	LastQueryTimestamp           string `json:"lastQueryTimestamp"` // Unix timestamp
 }
 
 // ValEnodeTableInfo gives basic information for each entry of the table
@@ -496,9 +622,9 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
 			entryInfo := &ValEnodeEntryInfo{
-				Version:                    valEnodeEntry.Version,
-				HighestKnownVersion:        valEnodeEntry.HighestKnownVersion,
-				NumQueryAttemptsForVersion: valEnodeEntry.NumQueryAttemptsForVersion,
+				Version:                      valEnodeEntry.Version,
+				HighestKnownVersion:          valEnodeEntry.HighestKnownVersion,
+				NumQueryAttemptsForHKVersion: valEnodeEntry.NumQueryAttemptsForHKVersion,
 			}
 			if valEnodeEntry.PublicKey != nil {
 				publicKeyBytes := crypto.CompressPubkey(valEnodeEntry.PublicKey)
@@ -516,11 +642,4 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 	}
 
 	return valEnodeTableInfo, err
-}
-
-func max(a, b uint) uint {
-	if a < b {
-		return b
-	}
-	return a
 }
