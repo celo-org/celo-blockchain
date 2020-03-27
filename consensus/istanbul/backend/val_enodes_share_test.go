@@ -52,7 +52,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 
 	// Test that a validator enode share message will result in the enode
 	// being inserted into the valEnodeTable
-	b.valEnodeTable.Upsert([]*vet.AddressEntry{
+	b.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{
 		&vet.AddressEntry{
 			Address: testAddress,
 			Node:    testNode,

@@ -11,17 +11,17 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-func TestSignedAnnounceVersionDBUpsert(t *testing.T) {
-	table, err := OpenSignedAnnounceVersionDB("")
+func TestVersionCertificateDBUpsert(t *testing.T) {
+	table, err := OpenVersionCertificateDB("")
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
-	entryA := &SignedAnnounceVersionEntry{
+	entryA := &VersionCertificateEntry{
 		Address:   addressA,
 		Version:   1,
 		PublicKey: nodeA.Pubkey(),
 	}
-	entriesToUpsert := []*SignedAnnounceVersionEntry{entryA}
+	entriesToUpsert := []*VersionCertificateEntry{entryA}
 	newEntries, err := table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
@@ -34,17 +34,17 @@ func TestSignedAnnounceVersionDBUpsert(t *testing.T) {
 	if err != nil {
 		t.Errorf("got %v", err)
 	}
-	if !signedAnnounceVersionEntriesEqual(entry, entryA) {
+	if !versionCertificateEntriesEqual(entry, entryA) {
 		t.Error("The upserted entry is not deep equal to the original")
 	}
 
-	entryAOld := &SignedAnnounceVersionEntry{
+	entryAOld := &VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   0,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert = []*SignedAnnounceVersionEntry{entryAOld}
+	entriesToUpsert = []*VersionCertificateEntry{entryAOld}
 	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
@@ -57,17 +57,17 @@ func TestSignedAnnounceVersionDBUpsert(t *testing.T) {
 	if err != nil {
 		t.Errorf("got %v", err)
 	}
-	if !signedAnnounceVersionEntriesEqual(entry, entryA) {
+	if !versionCertificateEntriesEqual(entry, entryA) {
 		t.Error("Upserting an old version gave a new entry")
 	}
 
-	entryANew := &SignedAnnounceVersionEntry{
+	entryANew := &VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   2,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert = []*SignedAnnounceVersionEntry{entryANew}
+	entriesToUpsert = []*VersionCertificateEntry{entryANew}
 	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
@@ -85,19 +85,19 @@ func TestSignedAnnounceVersionDBUpsert(t *testing.T) {
 	}
 }
 
-func TestSignedAnnounceVersionDBRemove(t *testing.T) {
-	table, err := OpenSignedAnnounceVersionDB("")
+func TestVersionCertificateDBRemove(t *testing.T) {
+	table, err := OpenVersionCertificateDB("")
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
-	entryA := &SignedAnnounceVersionEntry{
+	entryA := &VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   1,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert := []*SignedAnnounceVersionEntry{entryA}
+	entriesToUpsert := []*VersionCertificateEntry{entryA}
 	_, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
@@ -117,20 +117,20 @@ func TestSignedAnnounceVersionDBRemove(t *testing.T) {
 	}
 }
 
-func TestSignedAnnounceVersionDBPrune(t *testing.T) {
-	table, err := OpenSignedAnnounceVersionDB("")
+func TestVersionCertificateDBPrune(t *testing.T) {
+	table, err := OpenVersionCertificateDB("")
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := []*SignedAnnounceVersionEntry{
-		&SignedAnnounceVersionEntry{
+	batch := []*VersionCertificateEntry{
+		&VersionCertificateEntry{
 			Address:   addressA,
 			PublicKey: nodeA.Pubkey(),
 			Version:   1,
 			Signature: []byte("foo"),
 		},
-		&SignedAnnounceVersionEntry{
+		&VersionCertificateEntry{
 			Address:   addressB,
 			PublicKey: nodeB.Pubkey(),
 			Version:   1,
@@ -159,8 +159,8 @@ func TestSignedAnnounceVersionDBPrune(t *testing.T) {
 
 }
 
-func TestSignedAnnounceVersionEntryRLP(t *testing.T) {
-	original := &SignedAnnounceVersionEntry{
+func TestVersionCertificateEntryRLP(t *testing.T) {
+	original := &VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   1,
@@ -172,7 +172,7 @@ func TestSignedAnnounceVersionEntryRLP(t *testing.T) {
 		t.Errorf("Error %v", err)
 	}
 
-	var result SignedAnnounceVersionEntry
+	var result VersionCertificateEntry
 	if err = rlp.DecodeBytes(rawEntry, &result); err != nil {
 		t.Errorf("Error %v", err)
 	}
@@ -188,8 +188,8 @@ func TestSignedAnnounceVersionEntryRLP(t *testing.T) {
 	}
 }
 
-// Compares the field values of two SignedAnnounceVersionEntrys
-func signedAnnounceVersionEntriesEqual(a, b *SignedAnnounceVersionEntry) bool {
+// Compares the field values of two VersionCertificateEntrys
+func versionCertificateEntriesEqual(a, b *VersionCertificateEntry) bool {
 	return a.Address == b.Address &&
 		bytes.Equal(crypto.FromECDSAPub(a.PublicKey), crypto.FromECDSAPub(b.PublicKey)) &&
 		a.Version == b.Version &&

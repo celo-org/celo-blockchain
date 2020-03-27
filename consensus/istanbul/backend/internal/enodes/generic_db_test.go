@@ -67,32 +67,31 @@ func TestVersionedEntryUpsert(t *testing.T) {
 			t.Errorf("Unexpected onExistingEntryCalled value. Expected %v, got %v", testCase.ExpectedOnNewEntryCalled, onNewEntryCalled)
 		}
 	}
-	// t.Errorf("hey")
 }
 
-func upsertEntry(vedb *versionedEntryDB, existingEntry *mockVersionedEntry, newEntry *mockVersionedEntry) (bool, bool, error) {
+func upsertEntry(vedb *genericDB, existingEntry *mockVersionedEntry, newEntry *mockVersionedEntry) (bool, bool, error) {
 	var (
 		onExistingEntryCalled bool
 		onNewEntryCalled      bool
 	)
 
-	getExistingEntry := func(_ versionedEntry) (versionedEntry, error) {
+	getExistingEntry := func(_ genericEntry) (genericEntry, error) {
 		if existingEntry == nil {
 			return nil, leveldb.ErrNotFound
 		}
 		return existingEntry, nil
 	}
-	onExistingEntry := func(_ *leveldb.Batch, _ versionedEntry, _ versionedEntry) error {
+	onExistingEntry := func(_ *leveldb.Batch, _ genericEntry, _ genericEntry) error {
 		onExistingEntryCalled = true
 		return nil
 	}
-	onNewEntry := func(_ *leveldb.Batch, _ versionedEntry) error {
+	onNewEntry := func(_ *leveldb.Batch, _ genericEntry) error {
 		onNewEntryCalled = true
 		return nil
 	}
 
 	err := vedb.Upsert(
-		[]versionedEntry{versionedEntry(newEntry)},
+		[]genericEntry{genericEntry(newEntry)},
 		getExistingEntry,
 		onExistingEntry,
 		onNewEntry,
