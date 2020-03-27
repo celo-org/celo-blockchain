@@ -197,7 +197,7 @@ func runCmd(ctx *cli.Context) error {
 	if chainConfig != nil {
 		runtimeConfig.ChainConfig = chainConfig
 	} else {
-		runtimeConfig.ChainConfig = params.TestChainConfig
+		runtimeConfig.ChainConfig = params.DefaultChainConfig
 	}
 	tstart := time.Now()
 	var leftOverGas uint64

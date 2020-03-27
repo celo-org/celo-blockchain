@@ -82,7 +82,7 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.TestChainConfig
+	istanbulChainConfig = params.DefaultChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
@@ -194,7 +194,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.TestChainConfig
+	chainConfig = params.DefaultChainConfig
 	engine = mockEngine.NewFaker()
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)

@@ -29,8 +29,8 @@ func TestCheckCompatible(t *testing.T) {
 		wantErr     *ConfigCompatError
 	}
 	tests := []test{
-		{stored: TestChainConfig, new: TestChainConfig, head: 0, wantErr: nil},
-		{stored: TestChainConfig, new: TestChainConfig, head: 100, wantErr: nil},
+		{stored: DefaultChainConfig, new: DefaultChainConfig, head: 0, wantErr: nil},
+		{stored: DefaultChainConfig, new: DefaultChainConfig, head: 100, wantErr: nil},
 		{
 			stored:  &ChainConfig{EIP150Block: big.NewInt(10)},
 			new:     &ChainConfig{EIP150Block: big.NewInt(20)},
@@ -38,7 +38,7 @@ func TestCheckCompatible(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			stored: TestChainConfig,
+			stored: DefaultChainConfig,
 			new:    &ChainConfig{HomesteadBlock: nil},
 			head:   3,
 			wantErr: &ConfigCompatError{
@@ -49,7 +49,7 @@ func TestCheckCompatible(t *testing.T) {
 			},
 		},
 		{
-			stored: TestChainConfig,
+			stored: DefaultChainConfig,
 			new:    &ChainConfig{HomesteadBlock: big.NewInt(1)},
 			head:   3,
 			wantErr: &ConfigCompatError{

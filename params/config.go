@@ -228,13 +228,16 @@ var (
 		},
 	}
 
-	TestIstanbulChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true}
+	}, true, false}
 
-	TestChainConfig = TestIstanbulChainConfig
-	TestRules       = TestChainConfig.Rules(new(big.Int))
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+		Epoch:          30000,
+		ProposerPolicy: 0,
+	}, true, true}
+	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -312,6 +315,9 @@ type ChainConfig struct {
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
 	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
+
+	// Requests mock engine if true
+	Faker bool `json:"faker,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
@@ -329,10 +335,14 @@ func (c *IstanbulConfig) String() string {
 // String implements the fmt.Stringer interface.
 func (c *ChainConfig) String() string {
 	var engine interface{}
-	if c.Istanbul != nil {
-		engine = c.Istanbul
+	if c.Faker == false {
+		if c.Istanbul != nil {
+			engine = c.Istanbul
+		} else {
+			engine = "unknown"
+		}
 	} else {
-		engine = "unknown"
+		engine = "MockEngine"
 	}
 	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Engine: %v}",
 		c.ChainID,

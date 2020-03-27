@@ -237,7 +237,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
-	genesis.Config = params.TestChainConfig
+	genesis.Config = params.DefaultChainConfig
 	if !isFullChain {
 		genesis.Config.FullHeaderChainAvailable = false
 	}

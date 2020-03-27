@@ -230,7 +230,7 @@ func TestValSetChange(t *testing.T) {
 
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
-			Config: params.TestChainConfig,
+			Config: params.DefaultChainConfig,
 		}
 		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
 		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)

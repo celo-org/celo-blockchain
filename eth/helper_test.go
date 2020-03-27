@@ -58,7 +58,7 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 		engine = mockEngine.NewFaker()
 		db     = rawdb.NewMemoryDatabase()
 		gspec  = &core.Genesis{
-			Config: params.TestChainConfig,
+			Config: params.DefaultChainConfig,
 			Alloc:  core.GenesisAlloc{testBank: {Balance: big.NewInt(1000000)}},
 		}
 		genesis       = gspec.MustCommit(db)

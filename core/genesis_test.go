@@ -66,7 +66,7 @@ func TestSetupGenesis(t *testing.T) {
 				return SetupGenesisBlock(db, new(Genesis))
 			},
 			wantErr:    errGenesisNoConfig,
-			wantConfig: params.TestChainConfig,
+			wantConfig: params.DefaultChainConfig,
 		},
 		{
 			name: "no block in DB, genesis == nil",

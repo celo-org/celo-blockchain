@@ -171,7 +171,7 @@ func (callmsg) CheckNonce() bool { return false }
 
 func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	data := common.Hex2Bytes("60CD26850000000000000000000000000000000000000000000000000000000000000000")
-	config := params.TestChainConfig
+	config := params.DefaultChainConfig
 
 	var res []byte
 	for i := 0; i < 3; i++ {
@@ -246,14 +246,14 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	)
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
-	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.DefaultChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
+	gchain, _ := core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)
 	}
 
 	odr := &testOdr{sdb: sdb, ldb: ldb, indexerConfig: TestClientIndexerConfig}
-	lightchain, err := NewLightChain(odr, params.TestChainConfig, mockEngine.NewFullFaker(), nil)
+	lightchain, err := NewLightChain(odr, params.DefaultChainConfig, mockEngine.NewFullFaker(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

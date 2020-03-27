@@ -153,7 +153,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig
 
 func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideIstanbul *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
-		return params.TestChainConfig, common.Hash{}, errGenesisNoConfig
+		return params.DefaultChainConfig, common.Hash{}, errGenesisNoConfig
 	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
@@ -243,7 +243,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	case ghash == params.TestnetGenesisHash:
 		return params.TestnetChainConfig
 	default:
-		return params.TestChainConfig
+		return params.DefaultChainConfig
 	}
 }
 
@@ -300,7 +300,7 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	}
 	config := g.Config
 	if config == nil {
-		config = params.TestChainConfig
+		config = params.DefaultChainConfig
 	}
 	if err := config.CheckConfigForkOrder(); err != nil {
 		return nil, err
@@ -388,7 +388,7 @@ func DefaultOttomanGenesisBlock() *Genesis {
 // be seeded with the
 func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Override the default period to the user requested one
-	config := *params.TestChainConfig
+	config := *params.DefaultChainConfig
 
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{

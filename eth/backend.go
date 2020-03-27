@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/contract_comm"
@@ -280,6 +281,9 @@ func makeExtraData(extra []byte) []byte {
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
+	if chainConfig.Faker == true {
+		return mockEngine.NewFaker()
+	}
 	// If Istanbul is requested, set it up
 	if chainConfig.Istanbul != nil {
 		log.Debug("Setting up Istanbul consensus engine")

@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -337,5 +338,26 @@ func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, resul
 	default:
 		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
 	}
+	return nil
+}
+
+type API struct {
+	e *MockEngine
+}
+
+// APIs implements consensus.Engine, returning the user facing RPC APIs.
+func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
+	return []rpc.API{
+		{
+			Namespace: "eth",
+			Version:   "1.0",
+			Service:   &API{e},
+			Public:    true,
+		},
+	}
+}
+
+// Close closes the exit channel to notify all backend threads exiting.
+func (e *MockEngine) Close() error {
 	return nil
 }

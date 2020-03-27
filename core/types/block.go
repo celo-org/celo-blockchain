@@ -255,6 +255,9 @@ func NewBlockWithHeader(header *Header) *Block {
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {
 	cpy := *h
+	// if cpy.Time = new(big.Int); h.Time != nil {
+	// 	cpy.Time.Set(h.Time)
+	// }
 	if cpy.Number = new(big.Int); h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
