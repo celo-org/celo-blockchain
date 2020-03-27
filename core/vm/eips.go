@@ -45,6 +45,8 @@ func EnableEIP(eipNum int, jt *JumpTable) error {
 // - Define SELFBALANCE, with cost GasFastStep (5)
 func enable1884(jt *JumpTable) {
 	// Gas cost changes
+	// Celo does not include these gas changes at genesis.
+	// It is planned to apply them at a later date.
 	// jt[BALANCE].constantGas = params.BalanceGasEIP1884
 	// jt[EXTCODEHASH].constantGas = params.ExtcodeHashGasEIP1884
 	// jt[SLOAD].constantGas = params.SloadGasEIP1884
