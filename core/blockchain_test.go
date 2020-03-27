@@ -1887,10 +1887,10 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 	genesis := new(Genesis).MustCommit(db)
 
 	// Generate and import the canonical chain
-	blocks, _ := GenerateChain(params.DefaultChainConfig, genesis, engine, db, 2*TriesInMemory, nil)
+	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 2*TriesInMemory, nil)
 	diskdb := rawdb.NewMemoryDatabase()
 	new(Genesis).MustCommit(diskdb)
-	chain, err := NewBlockChain(diskdb, nil, params.DefaultChainConfig, engine, vm.Config{}, nil)
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
@@ -1917,7 +1917,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 	// Generate fork chain, make it longer than canon
 	parentIndex := lastPrunedIndex + blocksBetweenCommonAncestorAndPruneblock
 	parent := blocks[parentIndex]
-	fork, _ := GenerateChain(params.DefaultChainConfig, parent, engine, db, 2*TriesInMemory, func(i int, b *BlockGen) {
+	fork, _ := GenerateChain(params.TestChainConfig, parent, engine, db, 2*TriesInMemory, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{2})
 	})
 	// Prepend the parent(s)
@@ -1966,13 +1966,12 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	db := rawdb.NewMemoryDatabase()
 	genesis := new(Genesis).MustCommit(db)
 
-	blocks, receipts := GenerateChain(params.DefaultChainConfig, genesis, engine, db, 32, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
-	// A longer chain but total difficulty is lower.
-	blocks2, receipts2 := GenerateChain(params.DefaultChainConfig, blocks[len(blocks)-1], engine, db, 65, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
-	// A shorter chain but total difficulty is higher.
-	blocks3, receipts3 := GenerateChain(params.DefaultChainConfig, blocks[len(blocks)-1], engine, db, 64, func(i int, b *BlockGen) {
+	blocks, receipts := GenerateChain(params.TestChainConfig, genesis, engine, db, 32, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+	blocks2, receipts2 := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], engine, db, 65, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+	// Total difficulty is higher.
+	blocks3, receipts3 := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], engine, db, 66, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
-		b.OffsetTime(-9) // A higher difficulty
+		b.OffsetTime(-9)
 	})
 	// Import the shared chain and the original canonical one
 	dir, err := ioutil.TempDir("", "")
@@ -1987,7 +1986,7 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	new(Genesis).MustCommit(chaindb)
 	defer os.RemoveAll(dir)
 
-	chain, err := NewBlockChain(chaindb, nil, params.DefaultChainConfig, engine, vm.Config{}, nil)
+	chain, err := NewBlockChain(chaindb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
@@ -2138,73 +2137,6 @@ func getLongAndShortChains() (*BlockChain, []*types.Block, []*types.Block, error
 		return nil, nil, nil, fmt.Errorf("Test is moot, heavyChain num (%v) must be lower than canon num (%v)", shorterNum, longerNum)
 	}
 	return chain, longChain, heavyChain, nil
-}
-
-// TestReorgToShorterRemovesCanonMapping tests that if we
-// 1. Have a chain [0 ... N .. X]
-// 2. Reorg to shorter but heavier chain [0 ... N ... Y]
-// 3. Then there should be no canon mapping for the block at height X
-func TestReorgToShorterRemovesCanonMapping(t *testing.T) {
-	chain, canonblocks, sideblocks, err := getLongAndShortChains()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n, err := chain.InsertChain(canonblocks); err != nil {
-		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
-	}
-	canonNum := chain.CurrentBlock().NumberU64()
-	_, err = chain.InsertChain(sideblocks)
-	if err != nil {
-		t.Errorf("Got error, %v", err)
-	}
-	head := chain.CurrentBlock()
-	if got := sideblocks[len(sideblocks)-1].Hash(); got != head.Hash() {
-		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
-	}
-	// We have now inserted a sidechain.
-	if blockByNum := chain.GetBlockByNumber(canonNum); blockByNum != nil {
-		t.Errorf("expected block to be gone: %v", blockByNum.NumberU64())
-	}
-	if headerByNum := chain.GetHeaderByNumber(canonNum); headerByNum != nil {
-		t.Errorf("expected header to be gone: %v", headerByNum.Number.Uint64())
-	}
-}
-
-// TestReorgToShorterRemovesCanonMappingHeaderChain is the same scenario
-// as TestReorgToShorterRemovesCanonMapping, but applied on headerchain
-// imports -- that is, for fast sync
-func TestReorgToShorterRemovesCanonMappingHeaderChain(t *testing.T) {
-	chain, canonblocks, sideblocks, err := getLongAndShortChains()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Convert into headers
-	canonHeaders := make([]*types.Header, len(canonblocks))
-	for i, block := range canonblocks {
-		canonHeaders[i] = block.Header()
-	}
-	if n, err := chain.InsertHeaderChain(canonHeaders, 0, true); err != nil {
-		t.Fatalf("header %d: failed to insert into chain: %v", n, err)
-	}
-	canonNum := chain.CurrentHeader().Number.Uint64()
-	sideHeaders := make([]*types.Header, len(sideblocks))
-	for i, block := range sideblocks {
-		sideHeaders[i] = block.Header()
-	}
-	if n, err := chain.InsertHeaderChain(sideHeaders, 0, true); err != nil {
-		t.Fatalf("header %d: failed to insert into chain: %v", n, err)
-	}
-	head := chain.CurrentHeader()
-	if got := sideblocks[len(sideblocks)-1].Hash(); got != head.Hash() {
-		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
-	}
-	// We have now inserted a sidechain.
-	if blockByNum := chain.GetBlockByNumber(canonNum); blockByNum != nil {
-		t.Errorf("expected block to be gone: %v", blockByNum.NumberU64())
-	}
-	if headerByNum := chain.GetHeaderByNumber(canonNum); headerByNum != nil {
-		t.Errorf("expected header to be gone: %v", headerByNum.Number.Uint64())
-	}
 }
 
 // Benchmarks large blocks with value transfers to non-existing accounts
