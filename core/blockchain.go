@@ -1356,7 +1356,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			// Get the bitmap from the previous block
 			extra, err := types.ExtractIstanbulExtra(block.Header())
 			if err != nil {
-				log.Error("Unable to extrace istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
+				log.Error("Unable to extract istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
 				return NonStatTy, errors.New("could not extract block header extra")
 			}
 			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
