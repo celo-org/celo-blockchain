@@ -429,6 +429,17 @@ func DeleteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64) {
 	}
 }
 
+// WriteTd stores the total difficulty of a block into the database.
+func WriteTd(db ethdb.KeyValueWriter, hash common.Hash, number uint64, td *big.Int) {
+	data, err := rlp.EncodeToBytes(td)
+	if err != nil {
+		log.Crit("Failed to RLP encode block total difficulty", "err", err)
+	}
+	if err := db.Put(headerTDKey(number, hash), data); err != nil {
+		log.Crit("Failed to store block total difficulty", "err", err)
+	}
+}
+
 // DeleteTd removes all block total difficulty data associated with a hash.
 func DeleteTd(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	if err := db.Delete(headerTDKey(number, hash)); err != nil {

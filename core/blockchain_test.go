@@ -1124,8 +1124,8 @@ func TestLogRebirth(t *testing.T) {
 	}
 
 	// Generate long reorg chain
-	forkChain, _ := GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
-		if i == 1 {
+	forkChain, _ := GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
+		if i > 0 {
 			tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, code), signer, key1)
 			if err != nil {
 				t.Fatalf("failed to create tx: %v", err)
@@ -1154,7 +1154,7 @@ func TestLogRebirth(t *testing.T) {
 		t.Fatal("Timeout. There is no RemovedLogsEvent has been sent.")
 	}
 
-	newBlocks, _ := GenerateChain(params.DefaultChainConfig, chain[len(chain)-1], mockEngine.NewFaker(), db, 1, func(i int, gen *BlockGen) {})
+	newBlocks, _ := GenerateChain(params.DefaultChainConfig, chain[len(chain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
 	go listenNewLog(logsCh, 1)
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
