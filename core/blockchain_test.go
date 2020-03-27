@@ -1125,7 +1125,7 @@ func TestLogRebirth(t *testing.T) {
 
 	// Generate long reorg chain
 	forkChain, _ := GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
-		if i > 0 {
+		if i == 2 {
 			tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, code), signer, key1)
 			if err != nil {
 				t.Fatalf("failed to create tx: %v", err)
