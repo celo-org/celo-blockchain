@@ -257,7 +257,7 @@ func (s *Service) loop() {
 				var statsPayload StatsPayload
 				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
 				if err != nil {
-					log.Error("Error in unmarshalling selegate sign payload", "err", err, "payload", delegateSignMsg.Payload)
+					log.Error("Error in unmarshalling delegate sign payload", "err", err, "payload", delegateSignMsg.Payload)
 					continue
 				}
 				var channel chan *StatsPayload
