@@ -175,6 +175,13 @@ func (hc *httpConn) doRequest(ctx context.Context, msg interface{}) (io.ReadClos
 	req.Body = ioutil.NopCloser(bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 
+	// And also add the same thing to `Request.GetBody`, which allows
+	// `net/http` to get a new body in cases like a redirect.
+	req.GetBody = func() (io.ReadCloser, error) {
+		reader := bytes.NewReader(body)
+		return ioutil.NopCloser(reader), nil
+	}
+
 	resp, err := hc.client.Do(req)
 	if err != nil {
 		return nil, err
