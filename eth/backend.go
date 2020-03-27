@@ -237,7 +237,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				return eth.blockchain.StateAt(stateRoot)
 			})
 
-		chainHeadCh := make(chan core.ChainHeadEvent)
+		chainHeadCh := make(chan core.ChainHeadEvent, 10)
 		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
 
 		go func() {
