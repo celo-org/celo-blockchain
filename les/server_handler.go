@@ -1002,6 +1002,11 @@ func (h *serverHandler) verifyGatewayFee(gatewayFeeRecipient *common.Address, ga
 		return nil
 	}
 
+	// If this node does not specify a non-zero gateway fee accept any value.
+	if h.gatewayFee == nil || h.gatewayFee.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+
 	// Otherwise, reject transactions that don't pay gas fees to this node.
 	if gatewayFeeRecipient == nil {
 		return fmt.Errorf("gateway fee recipient must be %s, got <nil>", h.etherbase.String())
@@ -1011,10 +1016,8 @@ func (h *serverHandler) verifyGatewayFee(gatewayFeeRecipient *common.Address, ga
 	}
 
 	// Check that the value of the supplied gateway fee is at least the minimum.
-	if h.gatewayFee != nil && h.gatewayFee.Cmp(common.Big0) > 0 {
-		if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
-			return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
-		}
+	if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
+		return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
 	}
 	return nil
 }
