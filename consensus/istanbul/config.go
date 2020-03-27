@@ -39,7 +39,7 @@ type Config struct {
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	LookbackWindow              uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
 	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
-	VersionCertificateDBPath string         `toml:",omitempty"` // The location for the signed announce version DB
+	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
 	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
 
 	// Proxy Configs
@@ -67,7 +67,7 @@ var DefaultConfig = &Config{
 	Epoch:                          30000,
 	LookbackWindow:                 12,
 	ValidatorEnodeDBPath:           "validatorenodes",
-	VersionCertificateDBPath:    "versioncertificates",
+	VersionCertificateDBPath:       "versioncertificates",
 	RoundStateDBPath:               "roundstates",
 	Proxy:                          false,
 	Proxied:                        false,

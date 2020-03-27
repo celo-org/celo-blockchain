@@ -111,7 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
-		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
