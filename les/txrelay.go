@@ -90,14 +90,18 @@ func (self *lesTxRelay) HasPeerWithEtherbase(etherbase *common.Address) error {
 func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) error {
 	// TODO(nategraf) self.gatewayFee is used in place of the minimum gateway fee among peers.
 	// When it is possible to query peers for their gateway fee, this should be replaced.
-	if self.gatewayFee.Cmp(common.Big0) > 0 {
-		// Should have a peer that will accept and broadcast our transaction.
-		if err := self.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
-			return err
-		}
-		if tx.GatewayFee().Cmp(self.gatewayFee) < 0 {
-			return errGatewayFeeTooLow
-		}
+
+	// Check if there we have peer accepting transactions without a gateway fee.
+	if self.gatewayFee.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+
+	// Should have a peer that will accept and broadcast our transaction.
+	if err := self.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
+		return err
+	}
+	if tx.GatewayFee().Cmp(self.gatewayFee) < 0 {
+		return errGatewayFeeTooLow
 	}
 	return nil
 }
