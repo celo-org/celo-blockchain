@@ -190,6 +190,7 @@ func (s *Service) loop() {
 
 	txEventCh := make(chan core.NewTxsEvent, txChanSize)
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
+	defer txSub.Unsubscribe()
 
 	istDelegateSignCh := make(chan istanbul.MessageEvent, istDelegateSignChanSize)
 	istDelegateSignSub := s.backend.SubscribeNewDelegateSignEvent(istDelegateSignCh)
@@ -203,20 +204,15 @@ func (s *Service) loop() {
 		signCh = make(chan *StatsPayload, 1)
 		sendCh = make(chan *StatsPayload, 1)
 	)
-
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
-
-	// Create a seperate loop to watch for chain head and tx subcription events.
-	// Warning: If this loop ever blocks, the consensus engine may stall.
 	go func() {
+		var lastTx mclock.AbsTime
+
+		chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
+		headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
 		defer headSub.Unsubscribe()
-		defer txSub.Unsubscribe()
-		defer func() { close(quitCh) }()
 
+	HandleLoop:
 		for {
-			var lastTx mclock.AbsTime
-
 			select {
 			// Notify of chain head events, but drop if too frequent
 			case head := <-chainHeadCh:
@@ -224,6 +220,7 @@ func (s *Service) loop() {
 				case headCh <- head.Block:
 				default:
 				}
+
 			// Notify of new transaction events, but drop if too frequent
 			case <-txEventCh:
 				if time.Duration(mclock.Now()-lastTx) < time.Second {
@@ -236,29 +233,15 @@ func (s *Service) loop() {
 				default:
 				}
 			// node stopped
-			case err := <-txSub.Err():
-				if err != nil {
-					log.Error("Error in ethstats subscription to the transaction event", "err", err)
-				}
-				return
-			case err := <-headSub.Err():
-				if err != nil {
-					log.Error("Error in ethstats subscription to the chainhead event", "err", err)
-				}
-				return
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
+			case <-txSub.Err():
+				break HandleLoop
+			case <-headSub.Err():
+				break HandleLoop
 			case delegateSignMsg := <-istDelegateSignCh:
 				var statsPayload StatsPayload
 				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
 				if err != nil {
-					log.Error("Error in unmarshalling delegate sign payload", "err", err, "payload", delegateSignMsg.Payload)
-					continue
+					break HandleLoop
 				}
 				var channel chan *StatsPayload
 				if s.backend.IsProxy() {
@@ -268,15 +251,16 @@ func (s *Service) loop() {
 					// proxied validator should sign
 					channel = signCh
 				}
-				// Avoid blocking here if the channel is not consuming
+				// TODO: This is a hacky measure to avoid blocking here if the
+				// channel is not consuming
 				select {
 				case channel <- &statsPayload:
 				default:
 				}
-			case <-quitCh:
-				return
+
 			}
 		}
+		close(quitCh)
 	}()
 
 	// Loop reporting until termination
