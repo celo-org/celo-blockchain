@@ -235,7 +235,7 @@ func (sb *Backend) NewWork() error {
 		return istanbul.ErrStoppedEngine
 	}
 
-	sb.logger.Debug("Posting FinalCommittedEvent 2", "func", "NewWork")
+	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
 
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
