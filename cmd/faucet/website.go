@@ -20,7 +20,7 @@ import (
 func bindataRead(data []byte, name string) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewBuffer(data))
 	if err != nil {
-		return nil, fmt.Errorf("read %q: %w", name, err)
+		return nil, fmt.Errorf("read %q: %v", name, err)
 	}
 
 	var buf bytes.Buffer
@@ -28,7 +28,7 @@ func bindataRead(data []byte, name string) ([]byte, error) {
 	clErr := gz.Close()
 
 	if err != nil {
-		return nil, fmt.Errorf("read %q: %w", name, err)
+		return nil, fmt.Errorf("read %q: %v", name, err)
 	}
 	if clErr != nil {
 		return nil, err
@@ -105,14 +105,14 @@ func Asset(name string) ([]byte, error) {
 }
 
 // AssetString returns the asset contents as a string (instead of a []byte).
-func AssetString(name string) (string, error) {
+func AssetString(name string) (string, error) { //nolint:unused
 	data, err := Asset(name)
 	return string(data), err
 }
 
 // MustAsset is like Asset but panics when Asset would return an error.
 // It simplifies safe initialization of global variables.
-func MustAsset(name string) []byte {
+func MustAsset(name string) []byte { //nolint:unused
 	a, err := Asset(name)
 	if err != nil {
 		panic("asset: Asset(" + name + "): " + err.Error())
@@ -123,14 +123,14 @@ func MustAsset(name string) []byte {
 
 // MustAssetString is like AssetString but panics when Asset would return an
 // error. It simplifies safe initialization of global variables.
-func MustAssetString(name string) string {
+func MustAssetString(name string) string { //nolint:unused
 	return string(MustAsset(name))
 }
 
 // AssetInfo loads and returns the asset info for the given name.
 // It returns an error if the asset could not be found or
 // could not be loaded.
-func AssetInfo(name string) (os.FileInfo, error) {
+func AssetInfo(name string) (os.FileInfo, error) { //nolint:unused
 	canonicalName := strings.Replace(name, "\\", "/", -1)
 	if f, ok := _bindata[canonicalName]; ok {
 		a, err := f()
@@ -144,7 +144,7 @@ func AssetInfo(name string) (os.FileInfo, error) {
 
 // AssetDigest returns the digest of the file with the given name. It returns an
 // error if the asset could not be found or the digest could not be loaded.
-func AssetDigest(name string) ([sha256.Size]byte, error) {
+func AssetDigest(name string) ([sha256.Size]byte, error) { //nolint:unused
 	canonicalName := strings.Replace(name, "\\", "/", -1)
 	if f, ok := _bindata[canonicalName]; ok {
 		a, err := f()
@@ -157,7 +157,7 @@ func AssetDigest(name string) ([sha256.Size]byte, error) {
 }
 
 // Digests returns a map of all known files and their checksums.
-func Digests() (map[string][sha256.Size]byte, error) {
+func Digests() (map[string][sha256.Size]byte, error) { //nolint:unused
 	mp := make(map[string][sha256.Size]byte, len(_bindata))
 	for name := range _bindata {
 		a, err := _bindata[name]()
@@ -170,7 +170,7 @@ func Digests() (map[string][sha256.Size]byte, error) {
 }
 
 // AssetNames returns the names of the assets.
-func AssetNames() []string {
+func AssetNames() []string { //nolint:unused
 	names := make([]string, 0, len(_bindata))
 	for name := range _bindata {
 		names = append(names, name)
@@ -196,7 +196,7 @@ var _bindata = map[string]func() (*asset, error){
 // AssetDir("data/img") would return []string{"a.png", "b.png"},
 // AssetDir("foo.txt") and AssetDir("notexist") would return an error, and
 // AssetDir("") will return []string{"data"}.
-func AssetDir(name string) ([]string, error) {
+func AssetDir(name string) ([]string, error) { //nolint:unused
 	node := _bintree
 	if len(name) != 0 {
 		canonicalName := strings.Replace(name, "\\", "/", -1)
@@ -223,12 +223,13 @@ type bintree struct {
 	Children map[string]*bintree
 }
 
+//nolint:unused
 var _bintree = &bintree{nil, map[string]*bintree{
 	"faucet.html": {faucetHtml, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory.
-func RestoreAsset(dir, name string) error {
+func RestoreAsset(dir, name string) error { //nolint:unused
 	data, err := Asset(name)
 	if err != nil {
 		return err
@@ -249,7 +250,7 @@ func RestoreAsset(dir, name string) error {
 }
 
 // RestoreAssets restores an asset under the given directory recursively.
-func RestoreAssets(dir, name string) error {
+func RestoreAssets(dir, name string) error { //nolint:unused
 	children, err := AssetDir(name)
 	// File
 	if err != nil {
@@ -265,7 +266,7 @@ func RestoreAssets(dir, name string) error {
 	return nil
 }
 
-func _filePath(dir, name string) string {
+func _filePath(dir, name string) string { //nolint:unused
 	canonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(canonicalName, "/")...)...)
 }
