@@ -18,12 +18,18 @@ package les
 
 import (
 	"context"
+	"errors"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+)
+
+var (
+	errGatewayFeeTooLow = errors.New("gateway fee too low to broadcast to peers")
 )
 
 type ltrInfo struct {
@@ -40,15 +46,19 @@ type lesTxRelay struct {
 	stop      chan struct{}
 
 	retriever *retrieveManager
+
+	// TODO(nategraf) Replace this field with the ability to query peers for gateway fee.
+	gatewayFee *big.Int
 }
 
-func newLesTxRelay(ps *peerSet, retriever *retrieveManager) *lesTxRelay {
+func newLesTxRelay(ps *peerSet, retriever *retrieveManager, gatewayFee *big.Int) *lesTxRelay {
 	r := &lesTxRelay{
-		txSent:    make(map[common.Hash]*ltrInfo),
-		txPending: make(map[common.Hash]struct{}),
-		ps:        ps,
-		retriever: retriever,
-		stop:      make(chan struct{}),
+		txSent:     make(map[common.Hash]*ltrInfo),
+		txPending:  make(map[common.Hash]struct{}),
+		ps:         ps,
+		retriever:  retriever,
+		stop:       make(chan struct{}),
+		gatewayFee: gatewayFee,
 	}
 	ps.notify(r)
 	return r
@@ -75,6 +85,25 @@ func (self *lesTxRelay) unregisterPeer(p *peer) {
 func (self *lesTxRelay) HasPeerWithEtherbase(etherbase *common.Address) error {
 	_, err := self.ps.getPeerWithEtherbase(etherbase)
 	return err
+}
+
+func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) error {
+	// TODO(nategraf) self.gatewayFee is used in place of the minimum gateway fee among peers.
+	// When it is possible to query peers for their gateway fee, this should be replaced.
+
+	// Check if there we have peer accepting transactions without a gateway fee.
+	if self.gatewayFee.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+
+	// Should have a peer that will accept and broadcast our transaction.
+	if err := self.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
+		return err
+	}
+	if tx.GatewayFee().Cmp(self.gatewayFee) < 0 {
+		return errGatewayFeeTooLow
+	}
+	return nil
 }
 
 // send sends a list of transactions to at most a given number of peers at

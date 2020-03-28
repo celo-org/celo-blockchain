@@ -135,7 +135,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	log.Info("Allocated trie memory caches", "clean", common.StorageSize(config.TrieCleanCache)*1024*1024, "dirty", common.StorageSize(config.TrieDirtyCache)*1024*1024)
 
-	if config.GatewayFee == nil || config.GatewayFee.Cmp(common.Big0) <= 0 {
+	if config.GatewayFee == nil || config.GatewayFee.Cmp(common.Big0) < 0 {
 		log.Warn("Sanitizing invalid gateway fee", "provided", config.GatewayFee, "updated", DefaultConfig.GatewayFee)
 		config.GatewayFee = new(big.Int).Set(DefaultConfig.GatewayFee)
 	}
@@ -237,7 +237,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				return eth.blockchain.StateAt(stateRoot)
 			})
 
-		chainHeadCh := make(chan core.ChainHeadEvent)
+		chainHeadCh := make(chan core.ChainHeadEvent, 10)
 		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
 
 		go func() {

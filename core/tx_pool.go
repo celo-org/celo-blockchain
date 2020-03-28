@@ -22,6 +22,7 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -130,6 +131,21 @@ const (
 	TxStatusPending
 	TxStatusIncluded
 )
+
+func (s TxStatus) String() string {
+	switch s {
+	case TxStatusUnknown:
+		return "TxStatusUnknown"
+	case TxStatusQueued:
+		return "TxStatusQueued"
+	case TxStatusPending:
+		return "TxStatusPending"
+	case TxStatusIncluded:
+		return "TxStatusIncluded"
+	default:
+		return strconv.FormatUint(uint64(s), 10)
+	}
+}
 
 // blockChain provides the state of blockchain and current gas limit to do
 // some pre checks in tx pool and event subscribers.
