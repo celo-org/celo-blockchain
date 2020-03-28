@@ -264,7 +264,8 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
-	if !gpValSet.ContainsByAddress(sb.ValidatorAddress()) {
+	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
+	if gpValSetIndex < 0 {
 		return
 	}
 	elected = true
