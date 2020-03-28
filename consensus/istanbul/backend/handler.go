@@ -265,10 +265,7 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
 	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
-	if gpValSetIndex < 0 {
-		return
-	}
-	elected = true
+	elected = gpValSetIndex >= 0
 
 	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
@@ -276,10 +273,8 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 		return
 	}
 
-	pValSet := sb.getValidators(number-1, childHeader.ParentHash)
-	pValSetIndex, _ := pValSet.GetByAddress(sb.ValidatorAddress())
-	if pValSetIndex >= 0 {
-		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(pValSetIndex) != 0
+	if elected {
+		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
 	}
 
 	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
