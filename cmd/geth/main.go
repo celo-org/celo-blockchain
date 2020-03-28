@@ -95,6 +95,7 @@ var (
 		utils.LightEgressFlag,
 		utils.LightMaxPeersFlag,
 		utils.LightKDFFlag,
+		utils.LightGatewayFeeFlag,
 		utils.UltraLightServersFlag,
 		utils.UltraLightFractionFlag,
 		utils.UltraLightOnlyAnnounceFlag,
