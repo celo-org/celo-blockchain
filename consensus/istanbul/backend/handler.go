@@ -227,7 +227,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 
 // This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
-	sb.logger.Debug("Posting FinalCommittedEvent 1", "func", "NewWork")
+	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
