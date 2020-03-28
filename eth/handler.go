@@ -770,7 +770,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// calculate the head hash and TD that the peer truly must have.
 		var (
 			trueHead = request.Block.ParentHash()
-			trueTD   = request.Block.Difficulty()
+			trueTD   = big.NewInt(int64(request.Block.NumberU64() + 1))
 		)
 		// Update the peer's total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
@@ -825,7 +825,7 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
 		if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = new(big.Int).Add(block.Difficulty(), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
+			td = block.TotalDifficulty()
 		} else {
 			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 			return

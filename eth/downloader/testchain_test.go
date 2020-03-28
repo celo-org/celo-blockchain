@@ -69,7 +69,7 @@ func newTestChain(length int, genesis *types.Block) *testChain {
 	tc.genesis = genesis
 	tc.chain = append(tc.chain, genesis.Hash())
 	tc.headerm[tc.genesis.Hash()] = tc.genesis.Header()
-	tc.tdm[tc.genesis.Hash()] = tc.genesis.Difficulty()
+	tc.tdm[tc.genesis.Hash()] = tc.genesis.TotalDifficulty()
 	tc.blockm[tc.genesis.Hash()] = tc.genesis
 	tc.generate(length-1, 0, genesis, false)
 	return tc
@@ -135,9 +135,8 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 	})
 
 	// Convert the block-chain into a hash-chain and header/block maps
-	td := new(big.Int).Set(tc.td(parent.Hash()))
 	for i, b := range blocks {
-		td := td.Add(td, b.Difficulty())
+		td := b.TotalDifficulty()
 		hash := b.Hash()
 		tc.chain = append(tc.chain, hash)
 		tc.blockm[hash] = b

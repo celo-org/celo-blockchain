@@ -303,7 +303,7 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 		}
 	}
 	// Make sure the chain total difficulty is the correct one
-	want := new(big.Int).Add(bc.genesisBlock.Difficulty(), big.NewInt(td))
+	want := big.NewInt(td)
 	if have := bc.GetTdByHash(bc.CurrentHeader().Hash()); have.Cmp(want) != 0 {
 		t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
 	}

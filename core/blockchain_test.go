@@ -17,7 +17,6 @@
 package core
 
 import (
-	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -514,7 +513,7 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 		}
 	}
 	// Make sure the chain total difficulty is the correct one
-	want := new(big.Int).Add(blockchain.genesisBlock.Difficulty(), big.NewInt(td))
+	want := big.NewInt(td)
 	if full {
 		if have := blockchain.GetTdByHash(blockchain.CurrentBlock().Hash()); have.Cmp(want) != 0 {
 			t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
@@ -1898,7 +1897,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
 
-	lastPrunedIndex := len(blocks) - TriesInMemory - 2
+	lastPrunedIndex := len(blocks) - TriesInMemory - 1
 	lastPrunedBlock := blocks[lastPrunedIndex]
 	firstNonPrunedBlock := blocks[len(blocks)-TriesInMemory]
 
