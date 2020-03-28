@@ -2086,59 +2086,6 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	asserter(t, blocks2[len(blocks2)-1])
 }
 
-// getLongAndShortChains returns two chains,
-// A is longer, B is heavier
-func getLongAndShortChains() (*BlockChain, []*types.Block, []*types.Block, error) {
-	// Generate a canonical chain to act as the main dataset
-	engine := mockEngine.NewFaker()
-	db := rawdb.NewMemoryDatabase()
-	genesis := new(Genesis).MustCommit(db)
-
-	// Generate and import the canonical chain,
-	// Offset the time, to keep the difficulty low
-	longChain, _ := GenerateChain(params.DefaultChainConfig, genesis, engine, db, 80, func(i int, b *BlockGen) {
-		b.SetCoinbase(common.Address{1})
-	})
-	diskdb := rawdb.NewMemoryDatabase()
-	new(Genesis).MustCommit(diskdb)
-
-	chain, err := NewBlockChain(diskdb, nil, params.DefaultChainConfig, engine, vm.Config{}, nil)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create tester chain: %v", err)
-	}
-
-	// Generate fork chain, make it shorter than canon, with common ancestor pretty early
-	parentIndex := 3
-	parent := longChain[parentIndex]
-	heavyChain, _ := GenerateChain(params.DefaultChainConfig, parent, engine, db, 75, func(i int, b *BlockGen) {
-		b.SetCoinbase(common.Address{2})
-		b.OffsetTime(-9)
-	})
-	// Verify that the test is sane
-	var (
-		longerTd  = new(big.Int)
-		shorterTd = new(big.Int)
-	)
-	for index, b := range longChain {
-		longerTd.Add(longerTd, b.Difficulty())
-		if index <= parentIndex {
-			shorterTd.Add(shorterTd, b.Difficulty())
-		}
-	}
-	for _, b := range heavyChain {
-		shorterTd.Add(shorterTd, b.Difficulty())
-	}
-	if shorterTd.Cmp(longerTd) <= 0 {
-		return nil, nil, nil, fmt.Errorf("Test is moot, heavyChain td (%v) must be larger than canon td (%v)", shorterTd, longerTd)
-	}
-	longerNum := longChain[len(longChain)-1].NumberU64()
-	shorterNum := heavyChain[len(heavyChain)-1].NumberU64()
-	if shorterNum >= longerNum {
-		return nil, nil, nil, fmt.Errorf("Test is moot, heavyChain num (%v) must be lower than canon num (%v)", shorterNum, longerNum)
-	}
-	return chain, longChain, heavyChain, nil
-}
-
 // Benchmarks large blocks with value transfers to non-existing accounts
 func benchmarkLargeNumberOfValueToNonexisting(b *testing.B, numTxs, numBlocks int, recipientFn func(uint64) common.Address, dataFn func(uint64) []byte) {
 	var (

@@ -281,7 +281,7 @@ func makeExtraData(extra []byte) []byte {
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
-	if chainConfig.Faker == true {
+	if chainConfig.Faker {
 		return mockEngine.NewFaker()
 	}
 	// If Istanbul is requested, set it up

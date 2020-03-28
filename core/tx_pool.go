@@ -446,7 +446,7 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 // pool, and drops all transactions above this threshold.
 //
 // Note: Only useful for testing, as this call will have no effect if
-// communication with the blockchain_parameters contract is succesful.
+// communication with the blockchain_parameters contract is successful.
 func (pool *TxPool) SetGasLimit(gasLimit uint64) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()

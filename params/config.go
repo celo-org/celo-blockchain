@@ -335,7 +335,7 @@ func (c *IstanbulConfig) String() string {
 // String implements the fmt.Stringer interface.
 func (c *ChainConfig) String() string {
 	var engine interface{}
-	if c.Faker == false {
+	if !c.Faker {
 		if c.Istanbul != nil {
 			engine = c.Istanbul
 		} else {
