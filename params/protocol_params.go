@@ -134,16 +134,15 @@ const (
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
 	// Celo precompiled contracts
-	// TODO: make this cost variable- https://github.com/celo-org/geth/issues/250
-	FractionMulExpGas uint64 = 1050 // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
-	// TODO(kobigurk):  Figure out what the actual gas cost of this contract should be.
-	ProofOfPossessionGas        uint64 = 50000 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas             uint64 = 5000  // Cost of reading a validator's address.
-	GetEpochSizeGas             uint64 = 1000  // Cost of querying the number of blocks in an epoch.
-	GetBlockNumberFromHeaderGas uint64 = 10000 // Cost of decoding a block header.
-	HashHeaderGas               uint64 = 20000 // Cost of hashing a block header.
-	GetParentSealBitmapGas      uint64 = 500   // Cost of reading the parent seal bitmap from the chain.
-	GetVerifiedSealBitmapGas    uint64 = 55000 // Cost of verifying the seal on a given RLP encoded header.
+	FractionMulExpGas           uint64 = 50     // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
+	ProofOfPossessionGas        uint64 = 350000 // Cost of verifying a BLS proof of possession.
+	GetValidatorGas             uint64 = 1000   // Cost of reading a validator's address.
+	GetEpochSizeGas             uint64 = 10     // Cost of querying the number of blocks in an epoch.
+	GetBlockNumberFromHeaderGas uint64 = 10     // Cost of decoding a block header.
+	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
+	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
+	// May take a bit more time with 100 validators, need to bench that
+	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
 )
 
 var (
@@ -212,11 +211,11 @@ const (
 	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
 	MaxGasForGetRegisteredValidators               uint64 = 2000000
 	MaxGasForGetValidator                          uint64 = 100 * 1000
-	MaxGasForGetWhiteList                          uint64 = 20000
-	MaxGasForGetTransferWhitelist                  uint64 = 1000000
+	MaxGasForGetWhiteList                          uint64 = 200000
+	MaxGasForGetTransferWhitelist                  uint64 = 2000000
 	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
 	MaxGasForIsFrozen                              uint64 = 20000
-	MaxGasForMedianRate                            uint64 = 20000
+	MaxGasForMedianRate                            uint64 = 100000
 	MaxGasForReadBlockchainParameter               uint64 = 20000
 	MaxGasForRevealAndCommit                       uint64 = 2000000
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000

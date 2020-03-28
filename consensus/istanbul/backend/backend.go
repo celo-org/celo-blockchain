@@ -98,24 +98,27 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                  config,
-		istanbulEventMux:        new(event.TypeMux),
-		logger:                  logger,
-		db:                      db,
-		commitCh:                make(chan *types.Block, 1),
-		recentSnapshots:         recentSnapshots,
-		coreStarted:             false,
-		announceRunning:         false,
-		peerRecentMessages:      peerRecentMessages,
-		selfRecentMessages:      selfRecentMessages,
-		announceThreadWg:        new(sync.WaitGroup),
-		announceThreadQuit:      make(chan struct{}),
-		lastAnnounceGossiped:    make(map[common.Address]time.Time),
-		cachedAnnounceMsgs:      make(map[common.Address]*announceMsgCachedEntry),
-		valEnodesShareWg:        new(sync.WaitGroup),
-		valEnodesShareQuit:      make(chan struct{}),
-		finalizationTimer:       metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
-		rewardDistributionTimer: metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		config:                             config,
+		istanbulEventMux:                   new(event.TypeMux),
+		logger:                             logger,
+		db:                                 db,
+		commitCh:                           make(chan *types.Block, 1),
+		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
+		announceRunning:                    false,
+		peerRecentMessages:                 peerRecentMessages,
+		selfRecentMessages:                 selfRecentMessages,
+		announceThreadWg:                   new(sync.WaitGroup),
+		announceThreadQuit:                 make(chan struct{}),
+		updateAnnounceVersionCh:            make(chan struct{}),
+		updateAnnounceVersionCompleteCh:    make(chan struct{}),
+		lastAnnounceGossiped:               make(map[common.Address]time.Time),
+		cachedAnnounceMsgs:                 make(map[common.Address]*announceMsgCachedEntry),
+		valEnodesShareWg:                   new(sync.WaitGroup),
+		valEnodesShareQuit:                 make(chan struct{}),
+		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
+		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
+		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -141,6 +144,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
 
 	return backend
@@ -198,9 +202,20 @@ type Backend struct {
 	announceThreadWg   *sync.WaitGroup
 	announceThreadQuit chan struct{}
 
+	updateAnnounceVersionCh         chan struct{}
+	updateAnnounceVersionCompleteCh chan struct{}
+
 	// Map of the received announce message where key is originating address and value is the msg byte array
 	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
 	cachedAnnounceMsgsMu sync.RWMutex
+
+	// The enode certificate message most recently generated if this is a validator
+	// or received by a proxied validator if this is a proxy.
+	// Used for proving itself as a validator in the handshake. The entire
+	// istanbul.Message is saved to keep the signature.
+	enodeCertificateMsg        *istanbul.Message
+	enodeCertificateMsgVersion uint
+	enodeCertificateMsgMu      sync.RWMutex
 
 	valEnodesShareWg   *sync.WaitGroup
 	valEnodesShareQuit chan struct{}
@@ -225,7 +240,13 @@ type Backend struct {
 	// Cache for the return values of the method retrieveValidatorConnSet
 	cachedValidatorConnSet          map[common.Address]bool
 	cachedValidatorConnSetTimestamp time.Time
-	cachedValidatorConnSetMu        sync.Mutex
+	cachedValidatorConnSetMu        sync.RWMutex
+
+	// Used for ensuring that only one goroutine is doing the work of updating
+	// the validator conn set cache at a time.
+	updatingCachedValidatorConnSet     bool
+	updatingCachedValidatorConnSetErr  error
+	updatingCachedValidatorConnSetCond *sync.Cond
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -772,10 +793,9 @@ func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
 	if sb.proxyNode != nil {
 		return errProxyAlreadySet
 	}
-
-	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
-
 	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
+	sb.updateAnnounceVersion()
+	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }
 
@@ -821,19 +841,75 @@ func (sb *Backend) ConnectToVals() {
 	}
 }
 
+// retrieveValidatorConnSet returns the cached validator conn set if the cache
+// is younger than 1 minute. In the event of a cache miss, this may block for a
+// couple seconds while retrieving the uncached set.
 func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
-	logger := sb.logger.New("func", "retrieveValidatorConnSet")
+	sb.cachedValidatorConnSetMu.RLock()
 
-	sb.cachedValidatorConnSetMu.Lock()
-	defer sb.cachedValidatorConnSetMu.Unlock()
-
-	// Check to see if there is a cached registered/elected validator set, and if it's for the current block
+	// Check to see if there is a cached validator conn set, and if it's for the current block
 	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= 1*time.Minute {
+		defer sb.cachedValidatorConnSetMu.RUnlock()
 		return sb.cachedValidatorConnSet, nil
 	}
+	sb.cachedValidatorConnSetMu.RUnlock()
 
-	// Retrieve the registered/elected valset from the smart contract (for the registered validators) and headers (for the elected validators).
+	if err := sb.updateCachedValidatorConnSet(); err != nil {
+		return nil, err
+	}
 
+	sb.cachedValidatorConnSetMu.RLock()
+	defer sb.cachedValidatorConnSetMu.RUnlock()
+	return sb.cachedValidatorConnSet, nil
+}
+
+// updateCachedValidatorConnSet updates the cached validator conn set. If another
+// goroutine is simultaneously updating the cached set, this goroutine will wait
+// for the update to be finished to prevent the update work from occurring
+// simultaneously.
+func (sb *Backend) updateCachedValidatorConnSet() (err error) {
+	logger := sb.logger.New("func", "updateCachedValidatorConnSet")
+	var waited bool
+	sb.updatingCachedValidatorConnSetCond.L.Lock()
+	// Checking the condition in a for loop as recommended to prevent a race
+	for sb.updatingCachedValidatorConnSet {
+		waited = true
+		logger.Trace("Waiting for another goroutine to update the set")
+		// If another goroutine is updating, wait for it to finish
+		sb.updatingCachedValidatorConnSetCond.Wait()
+	}
+	if waited {
+		defer sb.updatingCachedValidatorConnSetCond.L.Unlock()
+		return sb.updatingCachedValidatorConnSetErr
+	}
+	// If we didn't wait, we show that we will start updating the cache
+	sb.updatingCachedValidatorConnSet = true
+	sb.updatingCachedValidatorConnSetCond.L.Unlock()
+
+	defer func() {
+		sb.updatingCachedValidatorConnSetCond.L.Lock()
+		sb.updatingCachedValidatorConnSet = false
+		// Share the error with other goroutines that are waiting on this one
+		sb.updatingCachedValidatorConnSetErr = err
+		// Broadcast to any waiting goroutines that the update is complete
+		sb.updatingCachedValidatorConnSetCond.Broadcast()
+		sb.updatingCachedValidatorConnSetCond.L.Unlock()
+	}()
+
+	validatorConnSet, err := sb.retrieveUncachedValidatorConnSet()
+	if err != nil {
+		return err
+	}
+	sb.cachedValidatorConnSetMu.Lock()
+	sb.cachedValidatorConnSet = validatorConnSet
+	sb.cachedValidatorConnSetTimestamp = time.Now()
+	sb.cachedValidatorConnSetMu.Unlock()
+	return nil
+}
+
+func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, error) {
+	logger := sb.logger.New("func", "retrieveUncachedValidatorConnSet")
+	// Retrieve the validator conn set from the election smart contract
 	validatorsSet := make(map[common.Address]bool)
 
 	currentBlock := sb.currentBlock()
@@ -861,10 +937,6 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 		validatorsSet[val.Address()] = true
 	}
 
-	sb.cachedValidatorConnSet = validatorsSet
-	sb.cachedValidatorConnSetTimestamp = time.Now()
-
 	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
-
 	return validatorsSet, nil
 }

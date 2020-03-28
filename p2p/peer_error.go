@@ -62,6 +62,7 @@ const (
 	DiscProtocolError
 	DiscUselessPeer
 	DiscTooManyPeers
+	DiscTooManyInboundPeers
 	DiscAlreadyConnected
 	DiscIncompatibleVersion
 	DiscInvalidIdentity
@@ -78,6 +79,7 @@ var discReasonToString = [...]string{
 	DiscProtocolError:       "breach of protocol",
 	DiscUselessPeer:         "useless peer",
 	DiscTooManyPeers:        "too many peers",
+	DiscTooManyInboundPeers: "too many inbound peers",
 	DiscAlreadyConnected:    "already connected",
 	DiscIncompatibleVersion: "incompatible p2p protocol version",
 	DiscInvalidIdentity:     "invalid node identity",

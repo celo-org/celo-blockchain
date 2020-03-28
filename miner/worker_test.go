@@ -304,6 +304,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
 	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
+	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }
 

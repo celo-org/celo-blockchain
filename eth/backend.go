@@ -148,7 +148,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
-	fullHeaderChainAvailable := config.SyncMode.SyncFullHeaderChain()
+	chainConfig.FullHeaderChainAvailable = config.SyncMode.SyncFullHeaderChain()
 
 	eth := &Ethereum{
 		config:         config,
@@ -163,7 +163,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		gatewayFee:     config.GatewayFee,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, fullHeaderChainAvailable),
+		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, chainConfig.FullHeaderChainAvailable),
 	}
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)

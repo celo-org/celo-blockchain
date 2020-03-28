@@ -320,10 +320,6 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	// Ignore maxPeers if this is a trusted or statically dialed peer or if the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
-	if pm.peers.Len() >= pm.maxPeers && !(p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static) && p.Peer.Server != pm.proxyServer {
-		return p2p.DiscTooManyPeers
-	}
 	p.Log().Info("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
@@ -338,6 +334,36 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Info("Ethereum handshake failed", "err", err)
 		return err
 	}
+	forcePeer := false
+	if handler, ok := pm.engine.(consensus.Handler); ok {
+		isValidator, err := handler.Handshake(p)
+		if err != nil {
+			p.Log().Warn("Istanbul handshake failed", "err", err)
+			return err
+		}
+		forcePeer = isValidator
+		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
+	}
+	// Ignore max peer and max inbound peer check if:
+	//  - this is a trusted or statically dialed peer
+	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	//  - forcePeer is true
+	if !forcePeer {
+		// KJUE - Remove the server not nil check after restoring peer check in server.go
+		if p.Peer.Server != nil {
+			if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
+				return err
+			}
+		}
+		// The p2p server CheckPeerCounts only checks if the total peer count
+		// (eth and les) exceeds the total max peers. This checks if the number
+		// of eth peers exceeds the eth max peers.
+		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
+		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && p.Peer.Server != pm.proxyServer {
+			return p2p.DiscTooManyPeers
+		}
+	}
+
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
 	}
@@ -400,12 +426,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 // peer. The remote connection is torn down upon returning any error.
 func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
-	msg, err := p.rw.ReadMsg()
+	msg, err := p.ReadMsg()
 	if err != nil {
 		return err
-	}
-	if msg.Size > protocolMaxMsgSize {
-		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
 	}
 	defer msg.Discard()
 
@@ -901,7 +924,7 @@ func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.Purp
 	for _, p := range pm.peers.Peers() {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
-			if purpose == p2p.AnyPurpose || p.Peer.StaticNodePurposes.IsSet(purpose) || p.Peer.TrustedNodePurposes.IsSet(purpose) {
+			if p.PurposeIsSet(purpose) {
 				m[id] = p
 			}
 		}
