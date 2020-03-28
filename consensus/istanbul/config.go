@@ -72,6 +72,6 @@ var DefaultConfig = &Config{
 	Proxy:                          false,
 	Proxied:                        false,
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
-	AnnounceAggressiveQueryEnodeGossipOnEnablement: false,
+	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,
 }
