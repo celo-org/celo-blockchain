@@ -1,11 +1,12 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"net"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -30,19 +31,13 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	val2Address := valSet.GetByIndex(2).Address()
 
-	sav, err := b.generateSignedAnnounceVersion(1)
-	if err != nil {
-		t.Fatalf("Error generating signed announce version: %v", err)
-	}
 	// Pretend the signed announce version belongs to a different address
-	sav.Address = val2Address
-	_, err = b.signedAnnounceVersionTable.Upsert([]*enodes.SignedAnnounceVersionEntry{sav.Entry()})
-	if err != nil {
-		t.Fatalf("Error upserting signed announce version: %v", err)
-	}
+	// but use val 1's public key so we can decrypt it using val 1's private key
+	destAddresses := []common.Address{val2Address}
+	publicKeys := []*ecdsa.PublicKey{b.publicKey}
 
 	// Generate an ist announce message using val1
-	istMsg, err := b.generateAnnounce(getTimestamp())
+	istMsg, err := b.generateQueryEnodeMsg(getTimestamp(), destAddresses, publicKeys)
 	if err != nil {
 		t.Fatalf("Error on generateAnnounce: %s", err)
 	}
@@ -53,7 +48,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = val2Address
 
 	// Handle val1's announce message
-	if err = b.handleAnnounceMsg(nil, payload); err != nil {
+	if err = b.handleQueryEnodeMsg(nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

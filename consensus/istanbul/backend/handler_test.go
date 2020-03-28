@@ -70,7 +70,7 @@ func TestIstanbulMessage(t *testing.T) {
 
 	// generate one msg
 	data := []byte("data1")
-	msg := makeMsg(istanbulAnnounceMsg, data)
+	msg := makeMsg(istanbulQueryEnodeMsg, data)
 	addr := common.BytesToAddress([]byte("address"))
 
 	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
@@ -90,7 +90,7 @@ func TestRecentMessageCaches(t *testing.T) {
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulAnnounceMsg,
+			ethMsgCode:  istanbulQueryEnodeMsg,
 			shouldCache: true,
 		},
 		{
@@ -135,7 +135,7 @@ func TestRecentMessageCaches(t *testing.T) {
 			t.Fatalf("the cache of messages should be nil")
 		}
 
-		// 2. this message should be in cache only when ethMsgCode == istanbulAnnounceMsg
+		// 2. this message should be in cache only when ethMsgCode == istanbulQueryEnodeMsg || ethMsgCode == istanbulVersionCertificatesMsg
 		_, err := backend.HandleMsg(addr, msg, &MockPeer{})
 		if err != nil {
 			t.Fatalf("handle message failed: %v", err)

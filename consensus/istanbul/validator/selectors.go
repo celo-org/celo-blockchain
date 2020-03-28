@@ -17,12 +17,11 @@
 package validator
 
 import (
-	"encoding/binary"
 	"fmt"
-	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator/random"
 )
 
 func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64 {
@@ -32,16 +31,6 @@ func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64
 	return 0
 }
 
-// TODO: Pull ordering from smart contract and deprecate this function.
-func randFromHash(hash common.Hash) *rand.Rand {
-	// Reduce the hash to 64 bits to use as the seed.
-	var seed uint64
-	for i := 0; i < common.HashLength; i += 8 {
-		seed ^= binary.BigEndian.Uint64(hash[i : i+8])
-	}
-	return rand.New(rand.NewSource(int64(seed)))
-}
-
 // ShuffledRoundRobinProposer selects the next proposer with a round robin strategy according to a shuffled order.
 func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
 	if valSet.Size() == 0 {
@@ -49,7 +38,7 @@ func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Ad
 	}
 	seed := valSet.GetRandomness()
 
-	shuffle := randFromHash(seed).Perm(valSet.Size())
+	shuffle := random.Permutation(seed, valSet.Size())
 	reverse := make([]int, len(shuffle))
 	for i, n := range shuffle {
 		reverse[n] = i

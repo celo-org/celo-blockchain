@@ -16,7 +16,7 @@ func (mve *mockVersionedEntry) GetVersion() uint {
 }
 
 func TestVersionedEntryUpsert(t *testing.T) {
-	vedb, err := newVersionedEntryDB(int64(0), "", log.New(), nil)
+	vedb, err := newGenericDB(int64(0), "", log.New(), nil)
 	if err != nil {
 		t.Fatal("Failed to create versioned entry DB")
 	}
@@ -55,44 +55,43 @@ func TestVersionedEntryUpsert(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for i, testCase := range testCases {
 		onExistingEntryCalled, onNewEntryCalled, err := upsertEntry(vedb, testCase.ExistingEntry, testCase.NewEntry)
 		if err != nil {
 			t.Fatal("Failed to upsert entry")
 		}
 		if testCase.ExpectedOnExistingEntryCalled != onExistingEntryCalled {
-			t.Errorf("Unexpected onExistingEntryCalled value. Expected %v, got %v", testCase.ExpectedOnExistingEntryCalled, onExistingEntryCalled)
+			t.Errorf("Unexpected onExistingEntryCalled value for test case %d. Expected %v, got %v", i, testCase.ExpectedOnExistingEntryCalled, onExistingEntryCalled)
 		}
 		if testCase.ExpectedOnNewEntryCalled != onNewEntryCalled {
-			t.Errorf("Unexpected onExistingEntryCalled value. Expected %v, got %v", testCase.ExpectedOnNewEntryCalled, onNewEntryCalled)
+			t.Errorf("Unexpected onExistingEntryCalled value for test case %d. Expected %v, got %v", i, testCase.ExpectedOnNewEntryCalled, onNewEntryCalled)
 		}
 	}
-	// t.Errorf("hey")
 }
 
-func upsertEntry(vedb *versionedEntryDB, existingEntry *mockVersionedEntry, newEntry *mockVersionedEntry) (bool, bool, error) {
+func upsertEntry(vedb *genericDB, existingEntry *mockVersionedEntry, newEntry *mockVersionedEntry) (bool, bool, error) {
 	var (
 		onExistingEntryCalled bool
 		onNewEntryCalled      bool
 	)
 
-	getExistingEntry := func(_ versionedEntry) (versionedEntry, error) {
+	getExistingEntry := func(_ genericEntry) (genericEntry, error) {
 		if existingEntry == nil {
 			return nil, leveldb.ErrNotFound
 		}
 		return existingEntry, nil
 	}
-	onExistingEntry := func(_ *leveldb.Batch, _ versionedEntry, _ versionedEntry) error {
+	onExistingEntry := func(_ *leveldb.Batch, _ genericEntry, _ genericEntry) error {
 		onExistingEntryCalled = true
 		return nil
 	}
-	onNewEntry := func(_ *leveldb.Batch, _ versionedEntry) error {
+	onNewEntry := func(_ *leveldb.Batch, _ genericEntry) error {
 		onNewEntryCalled = true
 		return nil
 	}
 
 	err := vedb.Upsert(
-		[]versionedEntry{versionedEntry(newEntry)},
+		[]genericEntry{genericEntry(newEntry)},
 		getExistingEntry,
 		onExistingEntry,
 		onNewEntry,
