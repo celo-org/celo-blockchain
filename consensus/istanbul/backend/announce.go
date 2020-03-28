@@ -78,8 +78,6 @@ func (sb *Backend) announceThread() {
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
-	// TODO: this can be removed once we have more faith in this protocol
-	updateAnnounceVersionTicker := time.NewTicker(5 * time.Minute)
 	// Occasionally share the entire version certificate table with all peers
 	shareVersionCertificatesTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
@@ -89,6 +87,9 @@ func (sb *Backend) announceThread() {
 	var queryEnodeFrequencyState QueryEnodeGossipFrequencyState
 	var currentQueryEnodeTickerDuration time.Duration
 	var numQueryEnodesInHighFreqAfterFirstPeerState int
+	// TODO: this can be removed once we have more faith in this protocol
+	var updateAnnounceVersionTicker *time.Ticker
+	var updateAnnounceVersionTickerCh <-chan time.Time
 
 	var announceVersion uint
 	var announcing bool
@@ -144,12 +145,19 @@ func (sb *Backend) announceThread() {
 				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
 				queryEnodeTickerCh = queryEnodeTicker.C
 
+				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
+				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
+
 				announcing = true
 				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
 				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
 				queryEnodeTicker.Stop()
 				queryEnodeTickerCh = nil
+				// Disable periodic updating of announce version
+				updateAnnounceVersionTicker.Stop()
+				updateAnnounceVersionTickerCh = nil
+
 				announcing = false
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
@@ -167,7 +175,7 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error gossiping all version certificates")
 			}
 
-		case <-updateAnnounceVersionTicker.C:
+		case <-updateAnnounceVersionTickerCh:
 			updateAnnounceVersionFunc()
 
 		case <-queryEnodeTickerCh:
@@ -220,6 +228,10 @@ func (sb *Backend) announceThread() {
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
+			if announcing {
+				queryEnodeTicker.Stop()
+				updateAnnounceVersionTicker.Stop()
+			}
 			return
 		}
 	}
