@@ -407,7 +407,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		}
 	}
 
-	if pool.relay.CanRelayTransaction(tx) != nil {
+	if err := pool.relay.CanRelayTransaction(tx); err != nil {
 		return err
 	}
 	return currentState.Error()
