@@ -227,39 +227,106 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 
 // This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
+	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
+
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
 
+	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
+
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }
 
-// This function is called by all nodes.
-// At the end of each epoch, this function will
-//    1)  Output if it is or isn't an elected validator if it has mining turned on.
-//    2)  Refresh the validator connections if it's a proxy or non proxied validator
+// Determine if this validator signed the parent of the supplied block:
+// First check the grandparent's validator set. If not elected, it didn't.
+// Then, check the parent seal on the supplied block.
+// We cannot determine any specific info from the validators in the seal of
+// the parent block, because different nodes circulate different versions.
+// It only becomes canonical when the child block is proposed.
+func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+
+	countInParentSeal = -1
+
+	// Check the parent is not the genesis block.
+	number := child.Number().Uint64()
+	if number <= 1 {
+		return
+	}
+
+	childHeader := child.Header()
+	parentHeader := sb.chain.GetHeader(childHeader.ParentHash, number-1)
+
+	// Check validator in grandparent valset.
+	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
+	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
+	elected = gpValSetIndex >= 0
+
+	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
+	childExtra, err := types.ExtractIstanbulExtra(child.Header())
+	if err != nil {
+		return
+	}
+
+	if elected {
+		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
+	}
+
+	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
+	countInParentSeal = 0
+	for i := 0; i < gpValSet.Size(); i++ {
+		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
+	}
+	return
+}
+
+// Actions triggered by a new block being added to the chain.
 func (sb *Backend) NewChainHead(newBlock *types.Block) {
+
+	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
+
+	// Update metrics for whether we were elected and signed the parent of this block.
+	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
+	if countInParentSeal >= 0 {
+		if elected {
+			sb.blocksElectedMeter.Mark(1)
+			if inChildsParentSeal {
+				sb.blocksElectedAndSignedMeter.Mark(1)
+			} else {
+				sb.blocksElectedButNotSignedMeter.Mark(1)
+			}
+		}
+		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+		if missedRounds > 0 {
+			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+		}
+	}
+
+	// If this is the last block of the epoch:
+	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
+	// * if this is a proxy or a non proxied validator, refresh the validator enode table.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
+
 		sb.coreMu.RLock()
 		defer sb.coreMu.RUnlock()
 
-		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+		valSet := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+		valSetIndex, _ := valSet.GetByAddress(sb.ValidatorAddress())
 
-		// Output whether this validator was or wasn't elected for the
-		// new epoch's validator set
-		if sb.coreStarted {
-			_, val := valset.GetByAddress(sb.ValidatorAddress())
-			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
+		sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", valSetIndex >= 0, "number", newBlock.Number().Uint64())
+
+		if sb.announceRunning {
+			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
+			sb.RefreshValPeers(valSet)
 		}
-
-		// If this is a proxy or a non proxied validator and a
-		// new epoch just started, then refresh the validator enode table
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
-		sb.RefreshValPeers(valset)
 	}
+
+	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {

@@ -119,6 +119,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
+		blocksElectedAndSignedMeter:        metrics.NewRegisteredMeter("consensus/istanbul/blocks/signedbyus", nil),
+		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedbyus", nil),
+		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
+		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -234,6 +239,18 @@ type Backend struct {
 	finalizationTimer metrics.Timer
 	// Metric timer used to record epoch reward distribution times.
 	rewardDistributionTimer metrics.Timer
+
+	// Meters for number of blocks seen for which the current validator signer has been elected,
+	// for which it was elected and has signed, and elected but not signed.
+	blocksElectedMeter             metrics.Meter
+	blocksElectedAndSignedMeter    metrics.Meter
+	blocksElectedButNotSignedMeter metrics.Meter
+
+	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
+	blocksTotalSigsGauge metrics.Gauge
+
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
+	blocksTotalMissedRoundsMeter metrics.Meter
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
