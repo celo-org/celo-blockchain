@@ -17,7 +17,6 @@
 package ethclient
 
 import (
-	//"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,11 +32,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	//blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	//"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Verify that Client implements the ethereum interfaces.
@@ -200,34 +197,15 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 
 	engine := mockEngine.NewFaker()
 
-	// fakeSig := bytes.Repeat([]byte{0x00}, types.IstanbulExtraBlsSignature)
-	// fakeSeal, _ := crypto.Sign(bytes.Repeat([]byte{0x00}, crypto.SignatureLength), testKey)
-
-	// vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	// istExtra := &types.IstanbulExtra{
-	// 	AddedValidators:           []common.Address{},
-	// 	AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
-	// 	RemovedValidators:         big.NewInt(0),
-	// 	Seal:                      fakeSeal,
-	// 	AggregatedSeal:            types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: fakeSig, Round: big.NewInt(0)},
-	// 	ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: fakeSig, Round: big.NewInt(0)},
-	// }
-	// istExtraRaw, _ := rlp.EncodeToBytes(&istExtra)
-
-	// extra := append(vanity, istExtraRaw...)
-
-	extraGen := []byte("test genesis")
-	extra := []byte("test")
-
 	genesis := &core.Genesis{
 		Config:    config,
 		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
-		ExtraData: extraGen,
+		ExtraData: []byte("test genesis"),
 		Timestamp: 9000,
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
-		g.SetExtra(extra)
+		g.SetExtra([]byte("test"))
 	}
 	gblock := genesis.ToBlock(db)
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
@@ -269,9 +247,6 @@ func TestHeader(t *testing.T) {
 			if tt.wantErr != nil && (err == nil || err.Error() != tt.wantErr.Error()) {
 				t.Fatalf("HeaderByNumber(%v) error = %q, want %q", tt.block, err, tt.wantErr)
 			}
-			// if err != nil {
-			// 	t.Fatalf("HeaderByNumber(%v) returned unexpected error = %q", tt.block, err)
-			// }
 			if got != nil && got.Number.Sign() == 0 {
 				got.Number = big.NewInt(0) // hack to make DeepEqual work
 			}

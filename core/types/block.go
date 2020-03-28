@@ -80,7 +80,7 @@ var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (h *Header) Size() common.StorageSize {
-	return headerSize + common.StorageSize(len(h.Extra)+h.Number.BitLen()/8)
+	return headerSize + common.StorageSize(len(h.Extra)+(h.Number.BitLen()/8))
 }
 
 // SanityCheck checks a few basic things -- these checks are way beyond what
@@ -255,9 +255,6 @@ func NewBlockWithHeader(header *Header) *Block {
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {
 	cpy := *h
-	// if cpy.Time = new(big.Int); h.Time != nil {
-	// 	cpy.Time.Set(h.Time)
-	// }
 	if cpy.Number = new(big.Int); h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
@@ -318,7 +315,7 @@ func (b *Block) Transaction(hash common.Hash) *Transaction {
 func (b *Block) Number() *big.Int         { return new(big.Int).Set(b.header.Number) }
 func (b *Block) GasUsed() uint64          { return b.header.GasUsed }
 func (b *Block) Time() uint64             { return b.header.Time }
-func (b *Block) Difficulty() *big.Int     { return new(big.Int).Set(b.header.Number) }
+func (b *Block) Difficulty() *big.Int     { return new(big.Int).Add(b.header.Number, big.NewInt(1)) }
 func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
 func (b *Block) Bloom() Bloom             { return b.header.Bloom }
 func (b *Block) Coinbase() common.Address { return b.header.Coinbase }

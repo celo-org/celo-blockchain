@@ -810,13 +810,14 @@ func (bc *BlockChain) Stop() {
 	bc.wg.Wait()
 
 	// Ensure the state of a recent block is also stored to disk before exiting.
-	// We're writing two different states to catch different restart scenarios:
+	// We're writing three different states to catch different restart scenarios:
 	//  - HEAD:     So we don't need to reprocess any blocks in the general case
+	//  - HEAD-1:   So we don't do large reorgs if our HEAD becomes an uncle
 	//  - HEAD-127: So we have a hard limit on the number of blocks reexecuted
 	if !bc.cacheConfig.TrieDirtyDisabled {
 		triedb := bc.stateCache.TrieDB()
 
-		for _, offset := range []uint64{0, TriesInMemory - 1} {
+		for _, offset := range []uint64{0, 1, TriesInMemory - 1} {
 			if number := bc.CurrentBlock().NumberU64(); number > offset {
 				recent := bc.GetBlockByNumber(number - offset)
 
@@ -1828,9 +1829,6 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 			if canonical != nil && canonical.Hash() == block.Hash() {
 				// Not a sidechain block, this is a re-import of a canon block which has it's state pruned
 
-				// Collect the TD of the block. Since we know it's a canon one,
-				// we can get it directly, and not (like further below) use
-				// the parent and then add the block on top
 				externTd = bc.GetTd(block.Hash(), block.NumberU64())
 				continue
 			}
