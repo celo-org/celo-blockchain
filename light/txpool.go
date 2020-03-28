@@ -18,7 +18,6 @@ package light
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -31,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -47,8 +45,6 @@ const (
 // txPermanent is the number of mined blocks after a mined transaction is
 // considered permanent and no rollback is expected
 var txPermanent = uint64(500)
-
-var errGatewayFeeTooLow = errors.New("gateway fee too low to broadcast to peers")
 
 // TxPool implements the transaction pool for light clients, which keeps track
 // of the status of locally created transactions, detecting if they are included
@@ -90,7 +86,7 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
-	HasPeerWithEtherbase(etherbase *common.Address) error
+	CanRelayTransaction(txs *types.Transaction) error
 }
 
 // NewTxPool creates a new light transaction pool
@@ -411,17 +407,9 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		}
 	}
 
-	// Should have a peer that will accept and broadcast our transaction
-	if err := pool.relay.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
+	if err := pool.relay.CanRelayTransaction(tx); err != nil {
 		return err
 	}
-
-	// TODO(nategraf): Support fetching the gateway fee from our peers.
-	// For now we assume our peer is using the default.
-	if tx.GatewayFeeRecipient() != nil && tx.GatewayFee().Cmp(eth.DefaultConfig.GatewayFee) < 0 {
-		return errGatewayFeeTooLow
-	}
-
 	return currentState.Error()
 }
 

@@ -231,11 +231,6 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
-	GatewayFeeFlag = BigFlag{
-		Name:  "gatewayfee",
-		Usage: "Minimum value of gateway fee to serve a light client transaction",
-		Value: eth.DefaultConfig.GatewayFee,
-	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
@@ -261,6 +256,11 @@ var (
 		Name:  "light.maxpeers",
 		Usage: "Maximum number of light clients to serve, or light servers to attach to",
 		Value: eth.DefaultConfig.LightPeers,
+	}
+	LightGatewayFeeFlag = BigFlag{
+		Name:  "light.gatewayfee",
+		Usage: "Minimum value of gateway fee to serve a light client transaction",
+		Value: eth.DefaultConfig.GatewayFee,
 	}
 	UltraLightServersFlag = cli.StringFlag{
 		Name:  "ulc.servers",
@@ -1045,6 +1045,9 @@ func setLes(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
 		cfg.LightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
 	}
+	if ctx.GlobalIsSet(LightGatewayFeeFlag.Name) {
+		cfg.GatewayFee = GlobalBig(ctx, LightGatewayFeeFlag.Name)
+	}
 	if ctx.GlobalIsSet(UltraLightServersFlag.Name) {
 		cfg.UltraLightServers = strings.Split(ctx.GlobalString(UltraLightServersFlag.Name), ",")
 	}
@@ -1657,10 +1660,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
-	}
-
-	if ctx.GlobalIsSet(GatewayFeeFlag.Name) {
-		cfg.GatewayFee = GlobalBig(ctx, GatewayFeeFlag.Name)
 	}
 
 	// Override any default configs for hard coded networks.

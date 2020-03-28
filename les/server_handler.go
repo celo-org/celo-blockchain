@@ -761,6 +761,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+
 				stats := make([]light.TxStatus, len(req.Txs))
 				for i, tx := range req.Txs {
 					if i != 0 && !task.waitOrStop() {
@@ -769,15 +770,15 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					hash := tx.Hash()
 					stats[i] = h.txStatus(hash)
 					if stats[i].Status == core.TxStatusUnknown {
-						// Only include tx that have a validat gateway fee recipient & fee
+						// Only include transactions that have a valid gateway fee recipient & fee
 						if err := h.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
-							fmt.Printf("Will respond with %s\n", err.Error())
+							p.Log().Trace("Rejected transaction from light peer for invalid gateway fee", "hash", hash.String(), "err", err)
 							stats[i].Error = err.Error()
 							continue
 						}
 
 						addFn := h.txpool.AddRemotes
-						// Add txs synchronously for testing purpose
+						// Add transactions synchronously for testing purpose
 						if h.addTxsSync {
 							addFn = h.txpool.AddRemotesSync
 						}
@@ -786,10 +787,11 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 							continue
 						}
 						stats[i] = h.txStatus(hash)
+						p.Log().Trace("Added transaction from light peer to pool", "hash", hash.String(), "tx", tx)
 					}
 				}
+
 				reply := p.ReplyTxStatus(req.ReqID, stats)
-				fmt.Printf("Sending Response! %v %d %v\n", req.ReqID, uint64(reqCnt), reply)
 				sendResponse(req.ReqID, uint64(reqCnt), reply, task.done())
 				if metrics.EnabledExpensive {
 					miscOutTxsPacketsMeter.Mark(1)
@@ -1002,6 +1004,11 @@ func (h *serverHandler) verifyGatewayFee(gatewayFeeRecipient *common.Address, ga
 		return nil
 	}
 
+	// If this node does not specify a non-zero gateway fee accept any value.
+	if h.gatewayFee == nil || h.gatewayFee.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+
 	// Otherwise, reject transactions that don't pay gas fees to this node.
 	if gatewayFeeRecipient == nil {
 		return fmt.Errorf("gateway fee recipient must be %s, got <nil>", h.etherbase.String())
@@ -1011,10 +1018,8 @@ func (h *serverHandler) verifyGatewayFee(gatewayFeeRecipient *common.Address, ga
 	}
 
 	// Check that the value of the supplied gateway fee is at least the minimum.
-	if h.gatewayFee != nil && h.gatewayFee.Cmp(common.Big0) > 0 {
-		if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
-			return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
-		}
+	if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
+		return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
 	}
 	return nil
 }
