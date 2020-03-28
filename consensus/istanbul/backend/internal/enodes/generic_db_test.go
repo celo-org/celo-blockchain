@@ -7,23 +7,17 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-type mockVersionedEntry struct {
-	Version uint
-}
+type mockEntry struct{}
 
-func (mve *mockVersionedEntry) GetVersion() uint {
-	return mve.Version
-}
-
-func TestVersionedEntryUpsert(t *testing.T) {
+func TestUpsert(t *testing.T) {
 	vedb, err := newGenericDB(int64(0), "", log.New(), nil)
 	if err != nil {
-		t.Fatal("Failed to create versioned entry DB")
+		t.Fatal("Failed to create DB")
 	}
 
 	type testCase struct {
-		ExistingEntry                 *mockVersionedEntry
-		NewEntry                      *mockVersionedEntry
+		ExistingEntry                 *mockEntry
+		NewEntry                      *mockEntry
 		ExpectedOnExistingEntryCalled bool
 		ExpectedOnNewEntryCalled      bool
 	}
@@ -31,26 +25,14 @@ func TestVersionedEntryUpsert(t *testing.T) {
 	testCases := []*testCase{
 		&testCase{
 			ExistingEntry:                 nil,
-			NewEntry:                      &mockVersionedEntry{Version: 1},
+			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: false,
 			ExpectedOnNewEntryCalled:      true,
 		},
 		&testCase{
-			ExistingEntry:                 &mockVersionedEntry{Version: 1},
-			NewEntry:                      &mockVersionedEntry{Version: 2},
+			ExistingEntry:                 &mockEntry{},
+			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: true,
-			ExpectedOnNewEntryCalled:      false,
-		},
-		&testCase{
-			ExistingEntry:                 &mockVersionedEntry{Version: 1},
-			NewEntry:                      &mockVersionedEntry{Version: 1},
-			ExpectedOnExistingEntryCalled: false,
-			ExpectedOnNewEntryCalled:      false,
-		},
-		&testCase{
-			ExistingEntry:                 &mockVersionedEntry{Version: 1},
-			NewEntry:                      &mockVersionedEntry{Version: 0},
-			ExpectedOnExistingEntryCalled: false,
 			ExpectedOnNewEntryCalled:      false,
 		},
 	}
@@ -69,7 +51,7 @@ func TestVersionedEntryUpsert(t *testing.T) {
 	}
 }
 
-func upsertEntry(vedb *genericDB, existingEntry *mockVersionedEntry, newEntry *mockVersionedEntry) (bool, bool, error) {
+func upsertEntry(vedb *genericDB, existingEntry *mockEntry, newEntry *mockEntry) (bool, bool, error) {
 	var (
 		onExistingEntryCalled bool
 		onNewEntryCalled      bool
