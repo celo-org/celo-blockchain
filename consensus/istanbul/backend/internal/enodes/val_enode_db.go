@@ -539,7 +539,7 @@ func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool,
 		newNodes := []*enode.Node{}
 		for val := range valConnSet {
 			entry, err := vet.getAddressEntry(val)
-			if entry.Node != nil {
+			if entry && entry.Node != nil {
 				if err == nil {
 					newNodes = append(newNodes, entry.Node)
 				} else if err != leveldb.ErrNotFound {
