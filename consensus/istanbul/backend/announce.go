@@ -694,16 +694,19 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 // with sb.selfRecentMessages to prevent future regossips.
 func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
 	logger := sb.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
+	sb.lastQueryEnodeGossipedMu.Lock()
+	defer sb.lastQueryEnodeGossipedMu.Unlock()
 
-	sb.lastQueryEnodeGossipedMu.RLock()
-	if lastGossiped, ok := sb.lastQueryEnodeGossiped[msg.Address]; ok {
-		if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
-			sb.lastQueryEnodeGossipedMu.RUnlock()
-			logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
-			return nil
+	// Don't throttle messages from our own address so that proxies always regossip
+	// query enode messages sent from the proxied validator
+	if msg.Address != sb.ValidatorAddress() {
+		if lastGossiped, ok := sb.lastQueryEnodeGossiped[msg.Address]; ok {
+			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
+				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
+				return nil
+			}
 		}
 	}
-	sb.lastQueryEnodeGossipedMu.RUnlock()
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
 	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
