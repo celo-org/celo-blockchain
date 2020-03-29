@@ -560,9 +560,11 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 	}
 
 	batch.Delete(addressKey(address))
-	batch.Delete(nodeIDKey(entry.Node.ID()))
-	if vet.handler != nil {
-		vet.handler.RemoveValidatorPeer(entry.Node)
+	if entry.Node != nil {
+		batch.Delete(nodeIDKey(entry.Node.ID()))
+		if vet.handler != nil {
+			vet.handler.RemoveValidatorPeer(entry.Node)
+		}
 	}
 	return nil
 }
@@ -616,6 +618,9 @@ type ValEnodeEntryInfo struct {
 
 // ValEnodeTableInfo gives basic information for each entry of the table
 func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo, error) {
+	vet.lock.RLock()
+	defer vet.lock.RUnlock()
+
 	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
 
 	valEnodeTable, err := vet.GetAllValEnodes()
