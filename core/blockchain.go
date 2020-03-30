@@ -1355,11 +1355,11 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 	}
 
+	currentBlock := bc.CurrentBlock()
 	if !bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
-	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 	externTd := big.NewInt(int64(block.NumberU64() + 1))
 
