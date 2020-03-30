@@ -110,8 +110,9 @@ func (sb *Backend) announceThread() {
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
-				time.AfterFunc(1*time.Minute, func() {
-					sb.startGossipAnnounceTask()
+				// time.AfterFunc(1*time.Minute, func() {
+				time.AfterFunc(5*time.Second, func() {
+						sb.startGossipAnnounceTask()
 				})
 
 				announcing = true

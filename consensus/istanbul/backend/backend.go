@@ -892,7 +892,7 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
 	// Check to see if there is a cached validator conn set, and if it's for the current block
-	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= 1*time.Minute {
+	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= 1*time.Second {
 		defer sb.cachedValidatorConnSetMu.RUnlock()
 		return sb.cachedValidatorConnSet, nil
 	}
