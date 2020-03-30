@@ -2204,7 +2204,7 @@ func BenchmarkBlockChain_1x1000Executions(b *testing.B) {
 //   2. Downloader starts to sync again
 //   3. The blocks fetched are all known and canonical blocks
 func TestSideImportPrunedBlocks(t *testing.T) {
-	t.Skip("disabled temporarily, do not merge.")
+	//t.Skip("disabled temporarily, do not merge.")
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()
 	db := rawdb.NewMemoryDatabase()

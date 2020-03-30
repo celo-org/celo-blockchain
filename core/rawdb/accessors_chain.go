@@ -353,33 +353,35 @@ func DeleteBody(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 
 // ReadTdRLP retrieves a block's total difficulty corresponding to the hash in RLP encoding.
 func ReadTdRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
-	// First try to look up the data in ancient database. Extra hash
-	// comparison is necessary since ancient database only maintains
-	// the canonical data.
-	data, _ := db.Ancient(freezerDifficultyTable, number)
-	if len(data) > 0 {
-		h, _ := db.Ancient(freezerHashTable, number)
-		if common.BytesToHash(h) == hash {
-			return data
-		}
-	}
-	// Then try to look up the data in leveldb.
-	data, _ = db.Get(headerTDKey(number, hash))
-	if len(data) > 0 {
-		return data
-	}
-	// In the background freezer is moving data from leveldb to flatten files.
-	// So during the first check for ancient db, the data is not yet in there,
-	// but when we reach into leveldb, the data was already moved. That would
-	// result in a not found error.
-	data, _ = db.Ancient(freezerDifficultyTable, number)
-	if len(data) > 0 {
-		h, _ := db.Ancient(freezerHashTable, number)
-		if common.BytesToHash(h) == hash {
-			return data
-		}
-	}
-	return nil // Can't find the data anywhere.
+	res, _ := rlp.EncodeToBytes(big.NewInt(int64(number + 1)))
+	return res
+	// // First try to look up the data in ancient database. Extra hash
+	// // comparison is necessary since ancient database only maintains
+	// // the canonical data.
+	// data, _ := db.Ancient(freezerDifficultyTable, number)
+	// if len(data) > 0 {
+	// 	h, _ := db.Ancient(freezerHashTable, number)
+	// 	if common.BytesToHash(h) == hash {
+	// 		return data
+	// 	}
+	// }
+	// // Then try to look up the data in leveldb.
+	// data, _ = db.Get(headerTDKey(number, hash))
+	// if len(data) > 0 {
+	// 	return data
+	// }
+	// // In the background freezer is moving data from leveldb to flatten files.
+	// // So during the first check for ancient db, the data is not yet in there,
+	// // but when we reach into leveldb, the data was already moved. That would
+	// // result in a not found error.
+	// data, _ = db.Ancient(freezerDifficultyTable, number)
+	// if len(data) > 0 {
+	// 	h, _ := db.Ancient(freezerHashTable, number)
+	// 	if common.BytesToHash(h) == hash {
+	// 		return data
+	// 	}
+	// }
+	// return nil // Can't find the data anywhere.
 }
 
 // ReadTd retrieves a block's total difficulty corresponding to the hash.
