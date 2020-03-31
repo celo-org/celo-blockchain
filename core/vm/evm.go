@@ -217,6 +217,14 @@ func (evm *EVM) GetHeader() *types.Header {
 	return evm.Context.Header
 }
 
+func (evm *EVM) GetDebug() bool {
+	return evm.vmConfig.Debug
+}
+
+func (evm *EVM) SetDebug(value bool) {
+	evm.vmConfig.Debug = value
+}
+
 // Call executes the contract associated with the addr with the given input as
 // parameters. It also handles any necessary value transfer required and takes
 // the necessary steps to create accounts and reverses the state in case of an
