@@ -839,11 +839,15 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
-		}),				
+		}),
+		new web3._extend.Property({
+			name: 'versionCertificateTableInfo',
+			getter: 'istanbul_getVersionCertificateTableInfo',
+		}),
 		new web3._extend.Property({
 			name: 'currentRoundState',
 			getter: 'istanbul_getCurrentRoundState',
-		}),				
+		}),
 	],
 	properties:
 	[

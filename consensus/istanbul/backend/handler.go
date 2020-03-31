@@ -45,21 +45,23 @@ var (
 const (
 	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg            = 0x12
+	istanbulQueryEnodeMsg          = 0x12
 	istanbulValEnodesShareMsg      = 0x13
 	istanbulFwdMsg                 = 0x14
 	istanbulDelegateSign           = 0x15
-	istanbulGetAnnouncesMsg        = 0x16
-	istanbulGetAnnounceVersionsMsg = 0x17
-	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulEnodeCertificateMsg    = 0x19
-	istanbulValidatorHandshakeMsg  = 0x1a
+	istanbulVersionCertificatesMsg = 0x16
+	istanbulEnodeCertificateMsg    = 0x17
+	istanbulValidatorHandshakeMsg  = 0x18
 
 	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
+}
+
+func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
+	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -90,9 +92,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for the
-		// Announce message.  That is the only message that is gossiped.
-		if msg.Code == istanbulAnnounceMsg {
+		// Only use the recent messages and known messages cache for messages
+		// that are gossiped
+		if sb.isGossipedMsgCode(msg.Code) {
 			hash := istanbul.RLPHash(data)
 
 			// Mark peer's message
@@ -201,8 +203,8 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 		return err
 	}
 
-	sb.logger.Trace("Forwarding a consensus message")
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
+	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
 	return nil
 }
 
@@ -322,7 +324,9 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 		if sb.announceRunning {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
-			sb.RefreshValPeers(valSet)
+			if err := sb.RefreshValPeers(); err != nil {
+				sb.logger.Warn("Error refreshing validator peers", "err", err)
+			}
 		}
 	}
 
@@ -343,19 +347,26 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
+			// Share this node's enodeCertificate for the proxy to use for handshakes
 			enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 			if err != nil {
 				logger.Warn("Error getting enode certificate message", "err", err)
 			} else if enodeCertificateMsg != nil {
-				go sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg)
+				if err := sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg); err != nil {
+					logger.Warn("Error sending enode certificate message to proxy peer", "err", err)
+				}
+			}
+			// Share the whole val enode table
+			if err := sb.sendValEnodesShareMsg(); err != nil {
+				logger.Warn("Error sending val enodes share message to proxy peer", "err", err)
 			}
 		} else {
 			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
 		}
 	}
 
-	if peer.Version() >= 65 {
-		sb.sendGetAnnounceVersions(peer)
+	if err := sb.sendVersionCertificateTable(peer); err != nil {
+		logger.Info("Error sending all version certificates", "err", err)
 	}
 }
 
@@ -476,14 +487,24 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 		return false, errors.New("Incorrect node in enodeCertificate")
 	}
 
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	if !valSet.ContainsByAddress(sb.ValidatorAddress()) {
-		logger.Trace("This validator is not in the validator set")
+	// Check if the peer is within the validator conn set.
+	validatorConnSet := sb.retrieveCachedValidatorConnSet()
+	// If no set has ever been cached, update it and try again. This is an expensive
+	// operation and risks the handshake timing out, but will happen at most once
+	// and is unlikely to occur.
+	if validatorConnSet == nil {
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			logger.Trace("Error updating cached validator conn set")
+			return false, err
+		}
+		validatorConnSet = sb.retrieveCachedValidatorConnSet()
+	}
+	if !validatorConnSet[sb.ValidatorAddress()] {
+		logger.Trace("This validator is not in the validator conn set")
 		return false, nil
 	}
-	if !valSet.ContainsByAddress(msg.Address) {
-		logger.Debug("Received a validator handshake message from peer not in the validator set", "msg.Address", msg.Address)
+	if !validatorConnSet[msg.Address] {
+		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
 
@@ -508,7 +529,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 
 	// By this point, this node and the peer are both validators and we update
 	// our val enode table accordingly. Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: enodeCertificate.Version}})
+	err = sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}

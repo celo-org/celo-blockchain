@@ -765,14 +765,14 @@ var (
 	}
 
 	// Announce settings
-	AnnounceGossipPeriodFlag = cli.Uint64Flag{
-		Name:  "announce.gossipperiod",
-		Usage: "Time duration (in seconds) between gossiped announce messages",
-		Value: eth.DefaultConfig.Istanbul.AnnounceGossipPeriod,
+	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
+		Name:  "announce.queryenodegossipperiod",
+		Usage: "Time duration (in seconds) between gossiped query enode messages",
+		Value: eth.DefaultConfig.Istanbul.AnnounceQueryEnodeGossipPeriod,
 	}
-	AnnounceAggressiveGossipOnEnablementFlag = cli.BoolFlag{
-		Name:  "announce.aggressivegossiponenablement",
-		Usage: "Specifies if this node should do aggressive gossip on announce enablement",
+	AnnounceAggressiveQueryEnodeGossipOnEnablementFlag = cli.BoolFlag{
+		Name:  "announce.aggressivequeryenodegossiponenablement",
+		Usage: "Specifies if this node should aggressively query enodes on announce enablement",
 	}
 
 	// Proxy node settings
@@ -1453,6 +1453,7 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
+	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 }
 
