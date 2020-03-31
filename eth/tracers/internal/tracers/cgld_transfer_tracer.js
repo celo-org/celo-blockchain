@@ -143,7 +143,7 @@
     if (this.callStack.length != 1) {
       this.assertionFailed = true;
     } else {
-      if (ctx.type == 'CALL') {
+      if (ctx.type == 'CALL' || ctx.type == 'CREATE' || ctx.type == 'CREATE2') {
         valueBigInt = bigInt(ctx.value.toString());
         if (valueBigInt.gt(0)) {
           transfers.push({
