@@ -614,15 +614,19 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		} else if isFrozen {
 			log.Info("Transfers are frozen")
 			if tx.To() == nil {
-				log.Debug("Attempt to transfer to new contract", "hash", tx.Hash(), "from", from)
-				return ErrTransfersFrozen
+				if !transfer_whitelist.IsWhitelisted(from, from, nil, nil) {
+					log.Debug("Attempt to transfer to new contract from non-whitelisted address", "hash", tx.Hash(), "from", from)
+					return ErrTransfersFrozen
+				}
+				log.Info("New contract transfer is whitelisted", "hash", tx.Hash(), "from", from)
+			} else {
+				to := *tx.To()
+				if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
+					log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
+					return ErrTransfersFrozen
+				}
+				log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
 			}
-			to := *tx.To()
-			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-				return ErrTransfersFrozen
-			}
-			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
 		}
 	}
 
