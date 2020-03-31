@@ -52,9 +52,11 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
+	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
 	// Use the first key as private key
-	address := crypto.PubkeyToAddress(nodeKeys[0].PublicKey)
+	publicKey := nodeKeys[0].PublicKey
+	address := crypto.PubkeyToAddress(publicKey)
 	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 		return crypto.Sign(crypto.Keccak256(data), nodeKeys[0])
 	}
@@ -112,7 +114,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	}
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 
 	genesis.MustCommit(memDB)
 
@@ -203,7 +205,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 				return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 			}
 
-			b.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
+			b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
 			break
 		}
 	}

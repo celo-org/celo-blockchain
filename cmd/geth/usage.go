@@ -247,8 +247,8 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "ANNOUNCE",
 		Flags: []cli.Flag{
-			utils.AnnounceGossipPeriodFlag,
-			utils.AnnounceAggressiveGossipOnEnablementFlag,
+			utils.AnnounceQueryEnodeGossipPeriodFlag,
+			utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		},
 	},
 	{

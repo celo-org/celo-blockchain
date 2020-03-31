@@ -281,11 +281,6 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
-
-	// Reconnect all the peer connections from the on-disk val enode table
-	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.ConnectToVals()
-	}
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -342,7 +337,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 		forcePeer = isValidator
-		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
+		p.Log().Debug("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer

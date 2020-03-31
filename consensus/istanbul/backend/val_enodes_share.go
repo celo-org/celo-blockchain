@@ -111,6 +111,9 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 
 	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
+		if vetEntry.Node == nil {
+			continue
+		}
 		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
 			Address:  address,
 			EnodeURL: vetEntry.Node.String(),
@@ -201,18 +204,22 @@ func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) err
 
 	sb.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
-	upsertBatch := make(map[common.Address]*vet.AddressEntry)
+	var upsertBatch []*vet.AddressEntry
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
 			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Version: sharedValidatorEnode.Version}
+			upsertBatch = append(upsertBatch, &vet.AddressEntry{
+				Address: sharedValidatorEnode.Address,
+				Node:    node,
+				Version: sharedValidatorEnode.Version,
+			})
 		}
 	}
 
 	if len(upsertBatch) > 0 {
-		if err := sb.valEnodeTable.Upsert(upsertBatch); err != nil {
+		if err := sb.valEnodeTable.UpsertVersionAndEnode(upsertBatch); err != nil {
 			sb.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
 		}
 	}
