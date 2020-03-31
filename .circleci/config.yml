@@ -6,7 +6,7 @@ executors:
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud
+      - image: celohq/node10-gcloud:v2
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"

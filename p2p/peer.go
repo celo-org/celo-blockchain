@@ -249,6 +249,14 @@ loop:
 		}
 	}
 
+	if !(p.StaticNodePurposes.NoPurpose() && p.TrustedNodePurposes.NoPurpose()) {
+		if err != nil {
+			p.log.Info("Disconnecting from static or trusted peer", "static", p.StaticNodePurposes, "trusted", p.TrustedNodePurposes, "reason", reason, "remoteRequested", remoteRequested, "err", err)
+		} else {
+			p.log.Info("Disconnecting from static or trusted peer", "static", p.StaticNodePurposes, "trusted", p.TrustedNodePurposes, "reason", reason, "remoteRequested", remoteRequested)
+		}
+	}
+
 	close(p.closed)
 	p.rw.close(reason)
 	p.wg.Wait()

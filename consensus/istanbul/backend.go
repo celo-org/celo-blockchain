@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"time"
 
@@ -28,6 +29,10 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+type DecryptFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
+
 // SignerFn is a signer callback function to request a header to be signed by a
 // backing account.
 type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
@@ -36,7 +41,7 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 // backing account using BLS.
 type BLSSignerFn func(accounts.Account, []byte) (blscrypto.SerializedSignature, error)
 
-// MessageSignerFn is a signer callback function to request a raw message to
+// BLSMessageSignerFn is a signer callback function to request a raw message to
 // be signed by a backing account.
 type BLSMessageSignerFn func(accounts.Account, []byte, []byte) (blscrypto.SerializedSignature, error)
 
@@ -95,9 +100,9 @@ type Backend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal Proposal) ValidatorSet
 
-	// RefreshValPeers will connect with all the validators in the valset and disconnect validator peers that are not in the set
-	RefreshValPeers(valset ValidatorSet)
+	// RefreshValPeers will connect with all the validators in the validator connection set and disconnect validator peers that are not in the set
+	RefreshValPeers() error
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
+	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
 }

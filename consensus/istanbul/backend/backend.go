@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -68,10 +69,6 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
-
-	// errOldAnnounceMessage is returned when the received announce message's block number is earlier
-	// than a previous received message
-	errOldAnnounceMessage = errors.New("old announce message")
 )
 
 // Information about the proxy for a proxied validator
@@ -110,15 +107,21 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		selfRecentMessages:                 selfRecentMessages,
 		announceThreadWg:                   new(sync.WaitGroup),
 		announceThreadQuit:                 make(chan struct{}),
+		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}),
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
-		lastAnnounceGossiped:               make(map[common.Address]time.Time),
-		cachedAnnounceMsgs:                 make(map[common.Address]*announceMsgCachedEntry),
+		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
+		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
+		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
+		blocksElectedAndSignedMeter:        metrics.NewRegisteredMeter("consensus/istanbul/blocks/signedbyus", nil),
+		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedbyus", nil),
+		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
+		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -131,21 +134,25 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	vph := &validatorPeerHandler{sb: backend}
-	table, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, vph)
+	backend.vph = newVPH(backend)
+	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
-	backend.valEnodeTable = table
+	backend.valEnodeTable = valEnodeTable
+
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
+	if err != nil {
+		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
+	}
+	backend.versionCertificateTable = versionCertificateTable
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnouncesMsg] = backend.handleGetAnnouncesMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceMsg] = backend.handleAnnounceMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulGetAnnounceVersionsMsg] = backend.handleGetAnnounceVersionsMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulAnnounceVersionsMsg] = backend.handleAnnounceVersionsMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulQueryEnodeMsg] = backend.handleQueryEnodeMsg
 	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulVersionCertificatesMsg] = backend.handleVersionCertificatesMsg
+	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
 
 	return backend
 }
@@ -157,6 +164,8 @@ type Backend struct {
 	istanbulEventMux *event.TypeMux
 
 	address          common.Address              // Ethereum address of the signing key
+	publicKey        *ecdsa.PublicKey            // The signer public key
+	decryptFn        istanbul.DecryptFn          // Decrypt function to decrypt ECIES ciphertext
 	signFn           istanbul.SignerFn           // Signer function to authorize hashes with
 	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.BLSMessageSignerFn // Signer function to authorize messages using BLS with
@@ -192,22 +201,23 @@ type Backend struct {
 	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
 	selfRecentMessages *lru.ARCCache // the cache of self recent messages
 
-	lastAnnounceGossiped   map[common.Address]time.Time
-	lastAnnounceGossipedMu sync.RWMutex
+	lastQueryEnodeGossiped   map[common.Address]time.Time
+	lastQueryEnodeGossipedMu sync.RWMutex
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	announceRunning    bool
-	announceMu         sync.RWMutex
-	announceThreadWg   *sync.WaitGroup
-	announceThreadQuit chan struct{}
+	versionCertificateTable           *enodes.VersionCertificateDB
+	lastVersionCertificatesGossiped   map[common.Address]time.Time
+	lastVersionCertificatesGossipedMu sync.RWMutex
+
+	announceRunning               bool
+	announceMu                    sync.RWMutex
+	announceThreadWg              *sync.WaitGroup
+	announceThreadQuit            chan struct{}
+	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh         chan struct{}
 	updateAnnounceVersionCompleteCh chan struct{}
-
-	// Map of the received announce message where key is originating address and value is the msg byte array
-	cachedAnnounceMsgs   map[common.Address]*announceMsgCachedEntry
-	cachedAnnounceMsgsMu sync.RWMutex
 
 	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
@@ -235,6 +245,18 @@ type Backend struct {
 	// Metric timer used to record epoch reward distribution times.
 	rewardDistributionTimer metrics.Timer
 
+	// Meters for number of blocks seen for which the current validator signer has been elected,
+	// for which it was elected and has signed, and elected but not signed.
+	blocksElectedMeter             metrics.Meter
+	blocksElectedAndSignedMeter    metrics.Meter
+	blocksElectedButNotSignedMeter metrics.Meter
+
+	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
+	blocksTotalSigsGauge metrics.Gauge
+
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
+	blocksTotalMissedRoundsMeter metrics.Meter
+
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
 	// Cache for the return values of the method retrieveValidatorConnSet
@@ -247,6 +269,8 @@ type Backend struct {
 	updatingCachedValidatorConnSet     bool
 	updatingCachedValidatorConnSetErr  error
 	updatingCachedValidatorConnSetCond *sync.Cond
+
+	vph *validatorPeerHandler
 }
 
 func (sb *Backend) IsProxy() bool {
@@ -280,11 +304,13 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
 	sb.address = address
+	sb.publicKey = publicKey
+	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signHashBLSFn = signHashBLSFn
 	sb.signMessageBLSFn = signMessageBLSFn
@@ -299,7 +325,22 @@ func (sb *Backend) Address() common.Address {
 // Close the backend
 func (sb *Backend) Close() error {
 	sb.delegateSignScope.Close()
-	return sb.valEnodeTable.Close()
+	var errs []error
+	if err := sb.valEnodeTable.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := sb.versionCertificateTable.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	var concatenatedErrs error
+	for i, err := range errs {
+		if i == 0 {
+			concatenatedErrs = err
+		} else {
+			concatenatedErrs = fmt.Errorf("%v; %v", concatenatedErrs, err)
+		}
+	}
+	return concatenatedErrs
 }
 
 // Validators implements istanbul.Backend.Validators
@@ -358,22 +399,20 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
 
 			return returnMap
-		} else {
-			return nil
 		}
-	} else {
-		var targets map[enode.ID]bool = nil
+		return nil
+	}
 
-		if destAddresses != nil {
-			targets = make(map[enode.ID]bool)
-			for _, addr := range destAddresses {
-				if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
-					targets[valNode.ID()] = true
-				}
+	var targets map[enode.ID]bool
+	if destAddresses != nil {
+		targets = make(map[enode.ID]bool)
+		for _, addr := range destAddresses {
+			if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
+				targets[valNode.ID()] = true
 			}
 		}
-		return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 	}
+	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 }
 
 // BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
@@ -382,31 +421,8 @@ func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.
 func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
 	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
 
-	payloadForOtherValidators := payload
-	var ethMsgCode uint64 = istanbulConsensusMsg
-	if sb.config.Proxied {
-		// Convert the message to a fwdMessage
-		var err error
-
-		fwdMessage := &istanbul.ForwardMessage{DestAddresses: destAddresses, Msg: payload}
-		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-		if err != nil {
-			sb.logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-			return err
-		}
-
-		// Note that we are not signing message.  The message that is being wrapped is already signed.
-		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
-		payloadForOtherValidators, err = msg.Payload()
-		if err != nil {
-			return err
-		}
-
-		ethMsgCode = istanbulFwdMsg
-	}
-
 	// Send to others
-	if err := sb.Multicast(destAddresses, payloadForOtherValidators, ethMsgCode); err != nil {
+	if err := sb.Multicast(destAddresses, payload, istanbulConsensusMsg); err != nil {
 		return err
 	}
 
@@ -421,11 +437,44 @@ func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload
 // Multicast implements istanbul.Backend.Multicast
 // Multicast will send the eth message (with the message's payload and msgCode field set to the params
 // payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+// If this node is proxied and destAddresses is not nil, the message will be wrapped
+// in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
+// destAddresses.
 // If the destAddresses param is set to nil, then this function will send the message to all connected
 // peers.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "Multicast")
 
+	if sb.config.Proxied && destAddresses != nil {
+		// Convert the message to a fwdMessage
+		fwdMessage := &istanbul.ForwardMessage{
+			Code:          ethMsgCode,
+			DestAddresses: destAddresses,
+			Msg:           payload,
+		}
+		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+		if err != nil {
+			logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+			return err
+		}
+
+		// Note that we are not signing message.  The message that is being wrapped is already signed.
+		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
+		fwdMsgPayload, err := msg.Payload()
+		if err != nil {
+			return err
+		}
+
+		return sb.multicast(destAddresses, fwdMsgPayload, istanbulFwdMsg)
+	}
+	return sb.multicast(destAddresses, payload, ethMsgCode)
+}
+
+// multicast will send the eth message (with the message's payload and msgCode field set to the params
+// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+// If the destAddresses param is set to nil, then this function will send the message to all connected peers.
+func (sb *Backend) multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
+	logger := sb.logger.New("func", "multicast")
 	// Get peers to send.
 	peers := sb.getPeersForMessage(destAddresses)
 
@@ -433,14 +482,14 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 
 	// Only cache for the announceMsg, as that is the only message that is gossiped.
 	var hash common.Hash
-	if ethMsgCode == istanbulAnnounceMsg {
+	if sb.isGossipedMsgCode(ethMsgCode) {
 		hash = istanbul.RLPHash(payload)
 		sb.selfRecentMessages.Add(hash, true)
 	}
 
 	if len(peers) > 0 {
 		for _, p := range peers {
-			if ethMsgCode == istanbulAnnounceMsg {
+			if sb.isGossipedMsgCode(ethMsgCode) {
 				nodePubKey := p.Node().Pubkey()
 				nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
 				ms, ok := sb.peerRecentMessages.Get(nodeAddr)
@@ -815,14 +864,20 @@ func (sb *Backend) removeProxy(node *enode.Node) {
 // It will also disconnect all validator connections if this node is not a validator.
 // Note that adding and removing validators are idempotent operations.  If the validator
 // being added or removed is already added or removed, then a no-op will be done.
-func (sb *Backend) RefreshValPeers(valset istanbul.ValidatorSet) {
-	sb.logger.Trace("Called RefreshValPeers", "valset length", valset.Size())
+func (sb *Backend) RefreshValPeers() error {
+	logger := sb.logger.New("func", "RefreshValPeers")
+	logger.Trace("Called RefreshValPeers")
 
 	if sb.broadcaster == nil {
-		return
+		return errors.New("Broadcaster is not set")
 	}
 
-	sb.valEnodeTable.RefreshValPeers(valset, sb.ValidatorAddress())
+	valConnSet, err := sb.retrieveValidatorConnSet()
+	if err != nil {
+		return err
+	}
+	sb.valEnodeTable.RefreshValPeers(valConnSet, sb.ValidatorAddress())
+	return nil
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
@@ -833,16 +888,6 @@ func (sb *Backend) ValidatorAddress() common.Address {
 		localAddress = sb.Address()
 	}
 	return localAddress
-}
-
-func (sb *Backend) ConnectToVals() {
-	// If this is a proxy, then refresh the val peers.  Note that this will be done within Backend.Start
-	// for non proxied validators
-	if sb.config.Proxy {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
-		sb.RefreshValPeers(valset)
-	}
 }
 
 // retrieveValidatorConnSet returns the cached validator conn set if the cache
@@ -865,6 +910,14 @@ func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 	defer sb.cachedValidatorConnSetMu.RUnlock()
 	return sb.cachedValidatorConnSet, nil
+}
+
+// retrieveCachedValidatorConnSet returns the most recently cached validator conn set.
+// If no set has ever been cached, nil is returned.
+func (sb *Backend) retrieveCachedValidatorConnSet() map[common.Address]bool {
+	sb.cachedValidatorConnSetMu.RLock()
+	defer sb.cachedValidatorConnSetMu.RUnlock()
+	return sb.cachedValidatorConnSet
 }
 
 // updateCachedValidatorConnSet updates the cached validator conn set. If another
