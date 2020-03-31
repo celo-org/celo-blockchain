@@ -433,7 +433,4 @@ func TestAncientStorage(t *testing.T) {
 	if blob := ReadReceiptsRLP(db, fakeHash, number); len(blob) != 0 {
 		t.Fatalf("invalid receipts returned")
 	}
-	if blob := ReadTdRLP(db, fakeHash, number); len(blob) != 0 {
-		t.Fatalf("invalid td returned")
-	}
 }
