@@ -41,6 +41,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -242,6 +243,11 @@ func TestGenerateBlockAndImport(t *testing.T) {
 
 func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
+	decryptFn := func(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+		eciesKey := ecies.ImportECDSA(testBankKey)
+		return eciesKey.Decrypt(c, s1, s2)
+	}
+
 	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
 		return crypto.Sign(data, testBankKey)
 	}
@@ -299,11 +305,12 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	config := istanbul.DefaultConfig
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
+	config.VersionCertificateDBPath = ""
 
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), &testBankKey.PublicKey, decryptFn, signerFn, signHashBLSFn, signMessageBLSFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }

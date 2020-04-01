@@ -321,6 +321,7 @@ type CommittedSubject struct {
 // ## ForwardMessage #################################################################
 
 type ForwardMessage struct {
+	Code          uint64
 	Msg           []byte
 	DestAddresses []common.Address
 }

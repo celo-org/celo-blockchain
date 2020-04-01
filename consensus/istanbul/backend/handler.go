@@ -45,21 +45,23 @@ var (
 const (
 	istanbulConsensusMsg = 0x11
 	// TODO:  Support sending multiple announce messages withone one message
-	istanbulAnnounceMsg            = 0x12
+	istanbulQueryEnodeMsg          = 0x12
 	istanbulValEnodesShareMsg      = 0x13
 	istanbulFwdMsg                 = 0x14
 	istanbulDelegateSign           = 0x15
-	istanbulGetAnnouncesMsg        = 0x16
-	istanbulGetAnnounceVersionsMsg = 0x17
-	istanbulAnnounceVersionsMsg    = 0x18
-	istanbulEnodeCertificateMsg    = 0x19
-	istanbulValidatorHandshakeMsg  = 0x1a
+	istanbulVersionCertificatesMsg = 0x16
+	istanbulEnodeCertificateMsg    = 0x17
+	istanbulValidatorHandshakeMsg  = 0x18
 
 	handshakeTimeout = 5 * time.Second
 )
 
 func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
+}
+
+func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
+	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
 }
 
 type announceMsgHandler func(consensus.Peer, []byte) error
@@ -90,9 +92,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for the
-		// Announce message.  That is the only message that is gossiped.
-		if msg.Code == istanbulAnnounceMsg {
+		// Only use the recent messages and known messages cache for messages
+		// that are gossiped
+		if sb.isGossipedMsgCode(msg.Code) {
 			hash := istanbul.RLPHash(data)
 
 			// Mark peer's message
@@ -201,8 +203,8 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 		return err
 	}
 
-	sb.logger.Trace("Forwarding a consensus message")
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, istanbulConsensusMsg)
+	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
 	return nil
 }
 
@@ -227,39 +229,108 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 
 // This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
+	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
+
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
 
+	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
+
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }
 
-// This function is called by all nodes.
-// At the end of each epoch, this function will
-//    1)  Output if it is or isn't an elected validator if it has mining turned on.
-//    2)  Refresh the validator connections if it's a proxy or non proxied validator
+// Determine if this validator signed the parent of the supplied block:
+// First check the grandparent's validator set. If not elected, it didn't.
+// Then, check the parent seal on the supplied block.
+// We cannot determine any specific info from the validators in the seal of
+// the parent block, because different nodes circulate different versions.
+// It only becomes canonical when the child block is proposed.
+func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+
+	countInParentSeal = -1
+
+	// Check the parent is not the genesis block.
+	number := child.Number().Uint64()
+	if number <= 1 {
+		return
+	}
+
+	childHeader := child.Header()
+	parentHeader := sb.chain.GetHeader(childHeader.ParentHash, number-1)
+
+	// Check validator in grandparent valset.
+	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
+	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
+	elected = gpValSetIndex >= 0
+
+	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
+	childExtra, err := types.ExtractIstanbulExtra(child.Header())
+	if err != nil {
+		return
+	}
+
+	if elected {
+		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
+	}
+
+	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
+	countInParentSeal = 0
+	for i := 0; i < gpValSet.Size(); i++ {
+		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
+	}
+	return
+}
+
+// Actions triggered by a new block being added to the chain.
 func (sb *Backend) NewChainHead(newBlock *types.Block) {
+
+	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
+
+	// Update metrics for whether we were elected and signed the parent of this block.
+	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
+	if countInParentSeal >= 0 {
+		if elected {
+			sb.blocksElectedMeter.Mark(1)
+			if inChildsParentSeal {
+				sb.blocksElectedAndSignedMeter.Mark(1)
+			} else {
+				sb.blocksElectedButNotSignedMeter.Mark(1)
+			}
+		}
+		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+		if missedRounds > 0 {
+			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+		}
+	}
+
+	// If this is the last block of the epoch:
+	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
+	// * if this is a proxy or a non proxied validator, refresh the validator enode table.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
+
 		sb.coreMu.RLock()
 		defer sb.coreMu.RUnlock()
 
-		valset := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+		valSet := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
+		valSetIndex, _ := valSet.GetByAddress(sb.ValidatorAddress())
 
-		// Output whether this validator was or wasn't elected for the
-		// new epoch's validator set
-		if sb.coreStarted {
-			_, val := valset.GetByAddress(sb.ValidatorAddress())
-			sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", (val != nil), "number", newBlock.Number().Uint64())
+		sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", valSetIndex >= 0, "number", newBlock.Number().Uint64())
+
+		if sb.announceRunning {
+			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
+			if err := sb.RefreshValPeers(); err != nil {
+				sb.logger.Warn("Error refreshing validator peers", "err", err)
+			}
 		}
-
-		// If this is a proxy or a non proxied validator and a
-		// new epoch just started, then refresh the validator enode table
-		sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
-		sb.RefreshValPeers(valset)
 	}
+
+	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
@@ -276,19 +347,26 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	} else if sb.config.Proxied {
 		if sb.proxyNode != nil && peer.Node().ID() == sb.proxyNode.node.ID() {
 			sb.proxyNode.peer = peer
+			// Share this node's enodeCertificate for the proxy to use for handshakes
 			enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
 			if err != nil {
 				logger.Warn("Error getting enode certificate message", "err", err)
 			} else if enodeCertificateMsg != nil {
-				go sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg)
+				if err := sb.sendEnodeCertificateMsg(peer, enodeCertificateMsg); err != nil {
+					logger.Warn("Error sending enode certificate message to proxy peer", "err", err)
+				}
+			}
+			// Share the whole val enode table
+			if err := sb.sendValEnodesShareMsg(); err != nil {
+				logger.Warn("Error sending val enodes share message to proxy peer", "err", err)
 			}
 		} else {
 			logger.Error("Unauthorized connected peer to the proxied validator", "peer", peer.Node().ID())
 		}
 	}
 
-	if peer.Version() >= 65 {
-		sb.sendGetAnnounceVersions(peer)
+	if err := sb.sendVersionCertificateTable(peer); err != nil {
+		logger.Info("Error sending all version certificates", "err", err)
 	}
 }
 
@@ -409,14 +487,24 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 		return false, errors.New("Incorrect node in enodeCertificate")
 	}
 
-	block := sb.currentBlock()
-	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	if !valSet.ContainsByAddress(sb.ValidatorAddress()) {
-		logger.Trace("This validator is not in the validator set")
+	// Check if the peer is within the validator conn set.
+	validatorConnSet := sb.retrieveCachedValidatorConnSet()
+	// If no set has ever been cached, update it and try again. This is an expensive
+	// operation and risks the handshake timing out, but will happen at most once
+	// and is unlikely to occur.
+	if validatorConnSet == nil {
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			logger.Trace("Error updating cached validator conn set")
+			return false, err
+		}
+		validatorConnSet = sb.retrieveCachedValidatorConnSet()
+	}
+	if !validatorConnSet[sb.ValidatorAddress()] {
+		logger.Trace("This validator is not in the validator conn set")
 		return false, nil
 	}
-	if !valSet.ContainsByAddress(msg.Address) {
-		logger.Debug("Received a validator handshake message from peer not in the validator set", "msg.Address", msg.Address)
+	if !validatorConnSet[msg.Address] {
+		logger.Debug("Received a validator handshake message from peer not in the validator conn set", "msg.Address", msg.Address)
 		return false, nil
 	}
 
@@ -441,7 +529,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 
 	// By this point, this node and the peer are both validators and we update
 	// our val enode table accordingly. Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.Upsert(map[common.Address]*vet.AddressEntry{msg.Address: {Node: node, Version: enodeCertificate.Version}})
+	err = sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}

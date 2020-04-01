@@ -93,6 +93,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightIngressFlag,
 			utils.LightEgressFlag,
 			utils.LightMaxPeersFlag,
+			utils.LightGatewayFeeFlag,
 			utils.UltraLightServersFlag,
 			utils.UltraLightFractionFlag,
 			utils.UltraLightOnlyAnnounceFlag,
@@ -235,8 +236,8 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "ANNOUNCE",
 		Flags: []cli.Flag{
-			utils.AnnounceGossipPeriodFlag,
-			utils.AnnounceAggressiveGossipOnEnablementFlag,
+			utils.AnnounceQueryEnodeGossipPeriodFlag,
+			utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		},
 	},
 	{

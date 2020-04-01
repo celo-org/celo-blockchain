@@ -215,6 +215,14 @@ func (evm *EVM) GetHeader() *types.Header {
 	return evm.Context.Header
 }
 
+func (evm *EVM) GetDebug() bool {
+	return evm.vmConfig.Debug
+}
+
+func (evm *EVM) SetDebug(value bool) {
+	evm.vmConfig.Debug = value
+}
+
 // Call executes the contract associated with the addr with the given input as
 // parameters. It also handles any necessary value transfer required and takes
 // the necessary steps to create accounts and reverses the state in case of an
@@ -578,7 +586,13 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
+		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
+		if funcName == "getAddressFor" {
+			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		} else {
+			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+		}
 		return leftoverGas, err
 	}
 
