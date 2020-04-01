@@ -261,7 +261,7 @@ func (f *Fetcher) FilterBodies(peer string, headerHashes []common.Hash, transact
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, headerHashes: headerHashes, transactions: transactions, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
 	case <-f.quit:
 		return nil, nil, nil, nil
 	}
