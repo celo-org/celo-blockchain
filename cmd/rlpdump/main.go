@@ -27,20 +27,17 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
 	hexMode = flag.String("hex", "", "dump given hex data")
 	noASCII = flag.Bool("noascii", false, "don't print ASCII strings readably")
 	single  = flag.Bool("single", false, "print only the first element, discard the rest")
-	tx  = flag.Bool("tx", false, "decode a transaction")
-	txencode  = flag.Bool("txencode", false, "encode a transaction")
 )
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "[-noascii] [-hex <data>] [-tx] [filename]")
+		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "[-noascii] [-hex <data>] [filename]")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, `
 Dumps RLP data from the given file in readable form.
@@ -77,39 +74,19 @@ func main() {
 		os.Exit(2)
 	}
 
-  if *txencode {
-      s := rlp.NewStream(r, 0)
-      txOld := types.Transaction {}
-      txOld.DecodeRLP(s)
-      fmt.Printf("tx data: %x\n", txOld.Data())
-      fmt.Printf("tx amount: %v\n", txOld.Value())
-
-      tx := types.NewTransaction(0, *txOld.To(), txOld.Value(), txOld.Gas(), txOld.GasPrice(), txOld.FeeCurrency(), txOld.GatewayFeeRecipient(), txOld.GatewayFee(), []byte("hello"))
-      var b bytes.Buffer
-      tx.EncodeRLP(&b)
-      fmt.Printf("tx: %x\n", b.Bytes())
-  } else {
-    if *tx {
-      s := rlp.NewStream(r, 0)
-      tx := types.Transaction {}
-      tx.DecodeRLP(s)
-      fmt.Printf("tx data: %x", tx.Data())
-    } else {
-      s := rlp.NewStream(r, 0)
-      for {
-        if err := dump(s, 0); err != nil {
-          if err != io.EOF {
-            die(err)
-          }
-          break
-        }
-        fmt.Println()
-        if *single {
-          break
-        }
-      }
-    }
-  }
+	s := rlp.NewStream(r, 0)
+	for {
+		if err := dump(s, 0); err != nil {
+			if err != io.EOF {
+				die(err)
+			}
+			break
+		}
+		fmt.Println()
+		if *single {
+			break
+		}
+	}
 }
 
 func dump(s *rlp.Stream, depth int) error {
