@@ -144,9 +144,6 @@ func (ec *Client) HeaderByHash(ctx context.Context, hash common.Hash) (*types.He
 func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	var head *types.Header
 	err := ec.c.CallContext(ctx, &head, "eth_getBlockByNumber", toBlockNumArg(number), false)
-	if err != nil {
-		return head, err
-	}
 	if err == nil && head == nil {
 		err = ethereum.NotFound
 	}
