@@ -408,6 +408,9 @@ func TestAncientStorage(t *testing.T) {
 	if blob := ReadReceiptsRLP(db, hash, number); len(blob) > 0 {
 		t.Fatalf("non existent receipts returned")
 	}
+	if blob := ReadTdRLP(db, hash, number); len(blob) > 0 {
+		t.Fatalf("non existent td returned")
+	}
 	// Write and verify the header in the database
 	WriteAncientBlock(db, block, nil, big.NewInt(100))
 	if blob := ReadHeaderRLP(db, hash, number); len(blob) == 0 {
@@ -432,5 +435,8 @@ func TestAncientStorage(t *testing.T) {
 	}
 	if blob := ReadReceiptsRLP(db, fakeHash, number); len(blob) != 0 {
 		t.Fatalf("invalid receipts returned")
+	}
+	if blob := ReadTdRLP(db, fakeHash, number); len(blob) != 0 {
+		t.Fatalf("invalid td returned")
 	}
 }
