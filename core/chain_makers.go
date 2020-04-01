@@ -145,6 +145,9 @@ func (b *BlockGen) PrevBlock(index int) *types.Block {
 
 // OffsetTime modifies the time instance of a block. It's useful to test
 // scenarios where forking is not tied to chain length directly.
+// NOTE: `gen.OffsetTime(int)` is used throughout the code in this test file to adjust the total difficulty.
+// This made sense with Ethhash, but is no longer relevant to Istanbul consensus because difficulty is constant.
+// These calls can likely be removed, but have not been as a matter of simplicity.
 func (b *BlockGen) OffsetTime(seconds int64) {
 	b.header.Time += uint64(seconds)
 	if b.header.Time <= b.parent.Header().Time {
