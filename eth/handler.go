@@ -765,7 +765,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// calculate the head hash and TD that the peer truly must have.
 		var (
 			trueHead = request.Block.ParentHash()
-			trueTD   = big.NewInt(int64(request.TD - 1))
+			trueTD   = new(big.Int).Sub(request.TD, big.NewInt(1))
 		)
 		// Update the peer's total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
