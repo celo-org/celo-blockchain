@@ -82,11 +82,9 @@ func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeF
 
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
-// MockEngine is adapted from consensus/ethash (which has been deleted) for the purpose of
-// preserving legacy tests.
-
 type Mode uint
 
+// MockEngine provides a minimal fake implementation of a consensus engine for use in blockchain tests.
 type MockEngine struct {
 	consensus.Engine
 
