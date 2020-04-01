@@ -104,11 +104,10 @@ func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
 
 	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
 
-	if err == nil {
-		return limit
+	// Already logged a warning in GetBlockGasLimit, just return.
+	if err != nil {
+		return params.DefaultGasLimit
 	}
 
-	// Already logged a warning in GetBlockGasLimit, just return.
-
-	return params.DefaultGasLimit
+	return limit
 }
