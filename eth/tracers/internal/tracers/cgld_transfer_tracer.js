@@ -58,6 +58,16 @@
 
     if (this.callStack.length - 1 == depth) {
       const successfulCall = this.callStack.pop();
+
+      // Find to address for nested contract create with value.
+      if ((successfulCall.op == 'CREATE' || successfulCall.op == 'CREATE2') &&
+          successfulCall.transfers.length > 0 && !successfulCall.transfers[0].to) {
+        const createCall = successfulCall.transfers[0];
+        const ret = log.stack.peek(0);
+        createCall.to = toHex(toAddress(ret.toString(16)));
+        createCall.status = ret.equals(0) ? this.statusRevert : this.statusSuccess;
+      }
+
       // Propogate transfers made during the successful call.
       this.pushTransfers(this.topCall().transfers, successfulCall, this.statusSuccess);
     }
@@ -73,7 +83,7 @@
       switch (op) {
         case 'CREATE':
         case 'CREATE2':
-          this.callStack.push({ transfers: [] })
+          this.callStack.push({ op, transfers: [] })
           this.handleCreate(log, op);
           break;
 
@@ -99,8 +109,8 @@
     valueBigInt = bigInt(log.stack.peek(0));
     if (valueBigInt.gt(0)) {
       this.topCall().transfers.push({
-        type: 'cGLD create contract transfer',
-        to: toHex(log.contract.getAddress()),
+        type: 'nested cGLD create contract transfer',
+        from: toHex(log.contract.getAddress()),
         value: '0x' + valueBigInt.toString(16),
       });
     }
@@ -154,13 +164,14 @@
   // the final result of the tracing.
   result(ctx, db) {
     this.assertEqual(this.callStack.length, 1);
+    const create = ctx.type == 'CREATE' || ctx.type == 'CREATE2';
     const transfers = [];
 
-    if (ctx.type == 'CALL' || ctx.type == 'CREATE' || ctx.type == 'CREATE2') {
+    if (ctx.type == 'CALL' || create) {
       valueBigInt = bigInt(ctx.value.toString());
       if (valueBigInt.gt(0)) {
         transfers.push({
-          type: 'cGLD transfer',
+          type: create ? 'cGLD create contract transfer' : 'cGLD transfer',
           from: toHex(ctx.from),
           to: toHex(ctx.to),
           value: '0x' + valueBigInt.toString(16),
@@ -170,7 +181,7 @@
     }
     this.pushTransfers(transfers, this.callStack.pop(), this.statusSuccess);
 
-    // Return in same format as callTracer: -calls, +transfers, +block, and +status.
+    // Return in same format as callTracer: -calls, +transfers, and +block.
     return {
       type:      ctx.type,
       from:      toHex(ctx.from),
