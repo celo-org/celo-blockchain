@@ -1811,7 +1811,11 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("%v", err)
 	}
 	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
+	if !ctx.GlobalBool(FakePoWFlag.Name) {
+		Fatalf("Only fake PoW engine is available")
+	}
 	engine := mockEngine.NewFaker()
+
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}

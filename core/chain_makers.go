@@ -49,6 +49,10 @@ type BlockGen struct {
 
 // SetCoinbase sets the coinbase of the generated block.
 // It can be called at most once.
+//
+// Note: This must be called after the parent and statedb
+// are set or CalcGasLimit will return the wrong amount
+// without throwing an error.
 func (b *BlockGen) SetCoinbase(addr common.Address) {
 	if b.gasPool != nil {
 		if len(b.txs) > 0 {
