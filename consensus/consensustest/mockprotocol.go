@@ -41,7 +41,7 @@ import (
 )
 
 var (
-	errFakeFail = errors.New("MockEngine Fake Fail")
+	errFakeFail = errors.New("mockEngine fake fail")
 )
 
 type MockBroadcaster struct{}
