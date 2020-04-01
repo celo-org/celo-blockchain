@@ -281,11 +281,6 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
-
-	// Reconnect all the peer connections from the on-disk val enode table
-	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.ConnectToVals()
-	}
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -342,7 +337,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 		forcePeer = isValidator
-		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
+		p.Log().Debug("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer
@@ -770,7 +765,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// calculate the head hash and TD that the peer truly must have.
 		var (
 			trueHead = request.Block.ParentHash()
-			trueTD   = big.NewInt(int64(request.Block.NumberU64() + 1))
+			trueTD   = new(big.Int).Sub(request.TD, big.NewInt(1))
 		)
 		// Update the peer's total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
@@ -825,7 +820,7 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
 		if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = block.TotalDifficulty()
+			td = new(big.Int).Add(big.NewInt(1), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
 		} else {
 			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 			return

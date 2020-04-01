@@ -586,6 +586,7 @@ func (api *RetestethAPI) GetBlockByNumber(ctx context.Context, blockNr math.HexO
 			return nil, err
 		}
 		response["author"] = response["miner"]
+		response["totalDifficulty"] = (*hexutil.Big)(api.blockchain.GetTd(block.Hash(), uint64(blockNr)))
 		return response, err
 	}
 	return nil, fmt.Errorf("block %d not found", blockNr)

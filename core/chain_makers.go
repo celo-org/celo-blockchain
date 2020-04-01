@@ -49,6 +49,10 @@ type BlockGen struct {
 
 // SetCoinbase sets the coinbase of the generated block.
 // It can be called at most once.
+//
+// Note: This must be called after the parent and statedb
+// are set or CalcGasLimit will return the wrong amount
+// without throwing an error.
 func (b *BlockGen) SetCoinbase(addr common.Address) {
 	if b.gasPool != nil {
 		if len(b.txs) > 0 {
@@ -57,7 +61,7 @@ func (b *BlockGen) SetCoinbase(addr common.Address) {
 		panic("coinbase can only be set once")
 	}
 	b.header.Coinbase = addr
-	b.gasPool = new(GasPool).AddGas(CalcGasLimit(b.parent, b.statedb))
+	b.gasPool = new(GasPool).AddGas(CalcGasLimit(b.parent, b.statedb)) //TODO: fix this
 }
 
 // SetExtra sets the extra data field of the generated block.
@@ -145,6 +149,9 @@ func (b *BlockGen) PrevBlock(index int) *types.Block {
 
 // OffsetTime modifies the time instance of a block. It's useful to test
 // scenarios where forking is not tied to chain length directly.
+// NOTE: `gen.OffsetTime(int)` is used throughout the code in this test file to adjust the total difficulty.
+// This made sense with Ethhash, but is no longer relevant to Istanbul consensus because difficulty is constant.
+// These calls can likely be removed, but have not been as a matter of simplicity.
 func (b *BlockGen) OffsetTime(seconds int64) {
 	b.header.Time += uint64(seconds)
 	if b.header.Time <= b.parent.Header().Time {

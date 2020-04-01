@@ -227,6 +227,29 @@ func TestUptimeStorage(t *testing.T) {
 	}
 }
 
+// Tests block total difficulty storage and retrieval operations.
+func TestTdStorage(t *testing.T) {
+	db := NewMemoryDatabase()
+
+	// Create a test TD to move around the database and make sure it's really new
+	hash, td := common.Hash{}, big.NewInt(314)
+	if entry := ReadTd(db, hash, 0); entry != nil {
+		t.Fatalf("Non existent TD returned: %v", entry)
+	}
+	// Write and verify the TD in the database
+	WriteTd(db, hash, 0, td)
+	if entry := ReadTd(db, hash, 0); entry == nil {
+		t.Fatalf("Stored TD not found")
+	} else if entry.Cmp(td) != 0 {
+		t.Fatalf("Retrieved TD mismatch: have %v, want %v", entry, td)
+	}
+	// Delete the TD and verify the execution
+	DeleteTd(db, hash, 0)
+	if entry := ReadTd(db, hash, 0); entry != nil {
+		t.Fatalf("Deleted TD returned: %v", entry)
+	}
+}
+
 // Tests that canonical numbers can be mapped to hashes and retrieved.
 func TestCanonicalMappingStorage(t *testing.T) {
 	db := NewMemoryDatabase()
@@ -408,6 +431,9 @@ func TestAncientStorage(t *testing.T) {
 	if blob := ReadReceiptsRLP(db, hash, number); len(blob) > 0 {
 		t.Fatalf("non existent receipts returned")
 	}
+	if blob := ReadTdRLP(db, hash, number); len(blob) > 0 {
+		t.Fatalf("non existent td returned")
+	}
 	// Write and verify the header in the database
 	WriteAncientBlock(db, block, nil, big.NewInt(100))
 	if blob := ReadHeaderRLP(db, hash, number); len(blob) == 0 {
@@ -432,5 +458,8 @@ func TestAncientStorage(t *testing.T) {
 	}
 	if blob := ReadReceiptsRLP(db, fakeHash, number); len(blob) != 0 {
 		t.Fatalf("invalid receipts returned")
+	}
+	if blob := ReadTdRLP(db, fakeHash, number); len(blob) != 0 {
+		t.Fatalf("invalid td returned")
 	}
 }

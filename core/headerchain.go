@@ -143,14 +143,26 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		externTd *big.Int
 	)
 
-	if !hc.HasHeader(header.ParentHash, number-1) && hc.config.FullHeaderChainAvailable {
-		return NonStatTy, consensus.ErrUnknownAncestor
+	// Calculate the total difficulty of the header.
+	// ptd seems to be abbreviation of "parent total difficulty".
+	// In IBFT, the announced td (total difficulty) is 1 + block number.
+	ptd := hc.GetTd(header.ParentHash, number-1)
+	if ptd == nil {
+		if hc.config.FullHeaderChainAvailable {
+			return NonStatTy, consensus.ErrUnknownAncestor
+		} else {
+			localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
+		}
+	} else {
+		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
 	}
 
-	// In IBFT, the announced td (total difficulty) is 1 + block number.
-	localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 	externTd = big.NewInt(int64(number + 1))
 
+	// Irrelevant of the canonical status, write the td and header to the database
+	if err := hc.WriteTd(hash, number, externTd); err != nil {
+		log.Crit("Failed to write header total difficulty", "err", err)
+	}
 	rawdb.WriteHeader(hc.chainDb, header)
 
 	// If the total difficulty is higher than our known, add it to the canonical chain
@@ -387,18 +399,18 @@ func (hc *HeaderChain) GetAncestor(hash common.Hash, number, ancestor uint64, ma
 // GetTd retrieves a block's total difficulty in the canonical chain from the
 // database by hash and number, caching it if found.
 func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
-	// // Short circuit if the td's already in the cache, retrieve otherwise
-	// if cached, ok := hc.tdCache.Get(hash); ok {
-	// 	return cached.(*big.Int)
-	// }
-	// td := rawdb.ReadTd(hc.chainDb, hash, number)
-	// if td == nil {
-	// 	return nil
-	// }
-	// // Cache the found body for next time and return
-	// hc.tdCache.Add(hash, td)
-	// return td
-	return big.NewInt(int64(number + 1))
+	// Short circuit if the td's already in the cache, retrieve otherwise
+	if cached, ok := hc.tdCache.Get(hash); ok {
+		return cached.(*big.Int)
+	}
+	td := rawdb.ReadTd(hc.chainDb, hash, number)
+	if td == nil {
+		return nil
+	}
+	// Cache the found body for next time and return
+	hc.tdCache.Add(hash, td)
+	return td
+	//return big.NewInt(int64(number + 1))
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the
@@ -409,6 +421,14 @@ func (hc *HeaderChain) GetTdByHash(hash common.Hash) *big.Int {
 		return nil
 	}
 	return hc.GetTd(hash, *number)
+}
+
+// WriteTd stores a block's total difficulty into the database, also caching it
+// along the way.
+func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
+	rawdb.WriteTd(hc.chainDb, hash, number, td)
+	hc.tdCache.Add(hash, new(big.Int).Set(td))
+	return nil
 }
 
 // GetHeader retrieves a block header from the database by hash and number,

@@ -45,7 +45,7 @@ var DefaultConfig = Config{
 		GasPrice: big.NewInt(1),
 		Recommit: 3 * time.Second,
 	},
-	GatewayFee: big.NewInt(10000),
+	GatewayFee: big.NewInt(0),
 
 	TxPool: core.DefaultTxPoolConfig,
 

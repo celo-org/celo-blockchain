@@ -540,6 +540,9 @@ func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
 	defer bc.chainmu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
+	if err := bc.hc.WriteTd(genesis.Hash(), genesis.NumberU64(), genesis.TotalDifficulty()); err != nil {
+		log.Crit("Failed to write genesis block TD", "err", err)
+	}
 	rawdb.WriteBlock(bc.db, genesis)
 
 	bc.genesisBlock = genesis
@@ -1219,6 +1222,9 @@ func (bc *BlockChain) writeBlockWithoutState(block *types.Block, td *big.Int) (e
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
+	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), td); err != nil {
+		return err
+	}
 	rawdb.WriteBlock(bc.db, block)
 
 	return nil
@@ -1333,7 +1339,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			// Get the bitmap from the previous block
 			extra, err := types.ExtractIstanbulExtra(block.Header())
 			if err != nil {
-				log.Error("Unable to extrace istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
+				log.Error("Unable to extract istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
 				return NonStatTy, errors.New("could not extract block header extra")
 			}
 			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
@@ -1355,15 +1361,20 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 	}
 
-	currentBlock := bc.CurrentBlock()
-	if !bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
+	// Calculate the total difficulty of the block
+	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
+	if ptd == nil {
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
+	currentBlock := bc.CurrentBlock()
 	localTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 	externTd := big.NewInt(int64(block.NumberU64() + 1))
 
 	// Irrelevant of the canonical status, write the block itself to the database
+	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), externTd); err != nil {
+		return NonStatTy, err
+	}
 	rawdb.WriteBlock(bc.db, block)
 
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
@@ -1580,10 +1591,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		var (
 			current  = bc.CurrentBlock()
 			localTd  = bc.GetTd(current.Hash(), current.NumberU64())
-			externTd *big.Int
+			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1) // The first block can't be nil
 		)
 		for block != nil && err == ErrKnownBlock {
-			externTd = big.NewInt(int64(block.NumberU64() + 1))
+			externTd = new(big.Int).Add(externTd, big.NewInt(1))
 			if localTd.Cmp(externTd) < 0 {
 				break
 			}
