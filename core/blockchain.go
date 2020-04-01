@@ -1591,10 +1591,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		var (
 			current  = bc.CurrentBlock()
 			localTd  = bc.GetTd(current.Hash(), current.NumberU64())
-			externTd *big.Int
+			externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1) // The first block can't be nil
 		)
 		for block != nil && err == ErrKnownBlock {
-			externTd = big.NewInt(int64(block.NumberU64() + 1))
+			externTd = new(big.Int).Add(externTd, big.NewInt(1))
 			if localTd.Cmp(externTd) < 0 {
 				break
 			}

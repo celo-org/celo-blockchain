@@ -143,12 +143,20 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		externTd *big.Int
 	)
 
-	if !hc.HasHeader(header.ParentHash, number-1) && hc.config.FullHeaderChainAvailable {
-		return NonStatTy, consensus.ErrUnknownAncestor
+	// Calculate the total difficulty of the header.
+	// ptd seems to be abbreviation of "parent total difficulty".
+	// In IBFT, the announced td (total difficulty) is 1 + block number.
+	ptd := hc.GetTd(header.ParentHash, number-1)
+	if ptd == nil {
+		if hc.config.FullHeaderChainAvailable {
+			return NonStatTy, consensus.ErrUnknownAncestor
+		} else {
+			localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
+		}
+	} else {
+		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
 	}
 
-	// In IBFT, the announced td (total difficulty) is 1 + block number.
-	localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 	externTd = big.NewInt(int64(number + 1))
 
 	// Irrelevant of the canonical status, write the td and header to the database

@@ -289,9 +289,6 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
 func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
-	if costLimit == nil {
-		costLimit = l.costcap
-	}
 	// If all transactions are below the threshold, short circuit
 	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
 		return nil, nil
