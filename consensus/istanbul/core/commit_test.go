@@ -20,7 +20,7 @@ import (
 	"math/big"
 	"testing"
 
-	bls "github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"

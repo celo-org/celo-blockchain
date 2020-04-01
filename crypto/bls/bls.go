@@ -9,7 +9,7 @@ import (
 	"math/big"
 
 	//nolint:goimports
-	bls "github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 

@@ -24,7 +24,7 @@ import (
 	"sort"
 	"testing"
 
-	bls "github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/bls-zexe/go/bls"
 	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
