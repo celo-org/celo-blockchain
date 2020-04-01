@@ -110,7 +110,7 @@ var (
 		PetersburgBlock:     big.NewInt(4939394),
 		IstanbulBlock:       big.NewInt(6485846),
 		Istanbul: &IstanbulConfig{
-			Epoch:          30000,
+			Epoch:          17280,
 			ProposerPolicy: 0,
 		},
 	}
