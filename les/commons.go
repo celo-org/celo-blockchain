@@ -18,12 +18,10 @@ package les
 
 import (
 	"fmt"
-	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -72,12 +70,11 @@ type lesCommons struct {
 // NodeInfo represents a short summary of the Ethereum sub-protocol metadata
 // known about the host peer.
 type NodeInfo struct {
-	Network    uint64                   `json:"network"`    // Ethereum network ID (1=Frontier, 2=Morden, Ropsten=3, Rinkeby=4)
-	Difficulty *big.Int                 `json:"difficulty"` // Total difficulty of the host's blockchain
-	Genesis    common.Hash              `json:"genesis"`    // SHA3 hash of the host's genesis block
-	Config     *params.ChainConfig      `json:"config"`     // Chain configuration for the fork rules
-	Head       common.Hash              `json:"head"`       // SHA3 hash of the host's best owned block
-	CHT        params.TrustedCheckpoint `json:"cht"`        // Trused CHT checkpoint for fast catchup
+	Network uint64                   `json:"network"` // Ethereum network ID (1=Frontier, 2=Morden, Ropsten=3, Rinkeby=4)
+	Genesis common.Hash              `json:"genesis"` // SHA3 hash of the host's genesis block
+	Config  *params.ChainConfig      `json:"config"`  // Chain configuration for the fork rules
+	Head    common.Hash              `json:"head"`    // SHA3 hash of the host's best owned block
+	CHT     params.TrustedCheckpoint `json:"cht"`     // Trused CHT checkpoint for fast catchup
 }
 
 // makeProtocols creates protocol descriptors for the given LES versions.
@@ -104,12 +101,11 @@ func (c *lesCommons) nodeInfo() interface{} {
 	head := c.chainReader.CurrentHeader()
 	hash := head.Hash()
 	return &NodeInfo{
-		Network:    c.config.NetworkId,
-		Difficulty: rawdb.ReadTd(c.chainDb, hash, head.Number.Uint64()),
-		Genesis:    c.genesis,
-		Config:     c.chainConfig,
-		Head:       hash,
-		CHT:        c.latestLocalCheckpoint(),
+		Network: c.config.NetworkId,
+		Genesis: c.genesis,
+		Config:  c.chainConfig,
+		Head:    hash,
+		CHT:     c.latestLocalCheckpoint(),
 	}
 }
 

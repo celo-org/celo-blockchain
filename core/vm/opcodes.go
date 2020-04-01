@@ -99,8 +99,6 @@ const (
 	COINBASE
 	TIMESTAMP
 	NUMBER
-	DIFFICULTY
-	GASLIMIT
 	CHAINID     = 0x46
 	SELFBALANCE = 0x47
 )
@@ -277,8 +275,6 @@ var opCodeToString = map[OpCode]string{
 	COINBASE:    "COINBASE",
 	TIMESTAMP:   "TIMESTAMP",
 	NUMBER:      "NUMBER",
-	DIFFICULTY:  "DIFFICULTY",
-	GASLIMIT:    "GASLIMIT",
 	CHAINID:     "CHAINID",
 	SELFBALANCE: "SELFBALANCE",
 
@@ -447,8 +443,6 @@ var stringToOp = map[string]OpCode{
 	"COINBASE":       COINBASE,
 	"TIMESTAMP":      TIMESTAMP,
 	"NUMBER":         NUMBER,
-	"DIFFICULTY":     DIFFICULTY,
-	"GASLIMIT":       GASLIMIT,
 	"SELFBALANCE":    SELFBALANCE,
 	"POP":            POP,
 	"MLOAD":          MLOAD,

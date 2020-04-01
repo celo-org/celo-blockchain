@@ -620,23 +620,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		// Deliver them all to the downloader for queuing
 		transactions := make([][]*types.Transaction, len(request))
-		uncles := make([][]*types.Header, len(request))
 		randomness := make([]*types.Randomness, len(request))
 		epochSnarkData := make([]*types.EpochSnarkData, len(request))
 
 		for i, body := range request {
 			transactions[i] = body.Transactions
-			uncles[i] = body.Uncles
 			randomness[i] = body.Randomness
 			epochSnarkData[i] = body.EpochSnarkData
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
+		filter := len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 		if filter {
-			transactions, uncles, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, epochSnarkData, time.Now())
+			transactions, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, transactions, randomness, epochSnarkData, time.Now())
 		}
-		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness, epochSnarkData)
+		if len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
+			err := pm.downloader.DeliverBodies(p.id, transactions, randomness, epochSnarkData)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
 			}
@@ -767,7 +765,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// calculate the head hash and TD that the peer truly must have.
 		var (
 			trueHead = request.Block.ParentHash()
-			trueTD   = new(big.Int).Sub(request.TD, request.Block.Difficulty())
+			trueTD   = new(big.Int).Sub(request.TD, big.NewInt(1))
 		)
 		// Update the peer's total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
@@ -822,7 +820,7 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
 		if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = new(big.Int).Add(block.Difficulty(), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
+			td = new(big.Int).Add(big.NewInt(1), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
 		} else {
 			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 			return

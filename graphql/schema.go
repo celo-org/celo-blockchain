@@ -145,8 +145,6 @@ const schema string = `
         hash: Bytes32!
         # Parent is the parent block of this block.
         parent: Block
-        # Nonce is the block nonce, an 8 byte sequence determined by the miner.
-        nonce: Bytes!
         # TransactionsRoot is the keccak256 hash of the root of the trie of transactions in this block.
         transactionsRoot: Bytes32!
         # TransactionCount is the number of transactions in this block. if
@@ -160,8 +158,6 @@ const schema string = `
         miner(block: Long): Account!
         # ExtraData is an arbitrary data field supplied by the miner.
         extraData: Bytes!
-        # GasLimit is the maximum amount of gas that was available to transactions in this block.
-        gasLimit: Long!
         # GasUsed is the amount of gas that was used executing transactions in this block.
         gasUsed: Long!
         # Timestamp is the unix timestamp at which this block was mined.
@@ -169,29 +165,9 @@ const schema string = `
         # LogsBloom is a bloom filter that can be used to check if a block may
         # contain log entries matching a filter.
         logsBloom: Bytes!
-        # MixHash is the hash that was used as an input to the PoW process.
-        mixHash: Bytes32!
-        # Difficulty is a measure of the difficulty of mining this block.
-        difficulty: BigInt!
         # TotalDifficulty is the sum of all difficulty values up to and including
         # this block.
         totalDifficulty: BigInt!
-        # OmmerCount is the number of ommers (AKA uncles) associated with this
-        # block. If ommers are unavailable, this field will be null.
-        ommerCount: Int
-        # Ommers is a list of ommer (AKA uncle) blocks associated with this block.
-        # If ommers are unavailable, this field will be null. Depending on your
-        # node, the transactions, transactionAt, transactionCount, ommers,
-        # ommerCount and ommerAt fields may not be available on any ommer blocks.
-        ommers: [Block]
-        # OmmerAt returns the ommer (AKA uncle) at the specified index. If ommers
-        # are unavailable, or the index is out of bounds, this field will be null.
-        ommerAt(index: Int!): Block
-        # OmmerHash is the keccak256 hash of all the ommers (AKA uncles)
-        # associated with this block.
-        ommerHash: Bytes32!
-        # Transactions is a list of transactions associated with this block. If
-        # transactions are unavailable for this block, this field will be null.
         transactions: [Transaction!]
         # TransactionAt returns the transaction at the specified index. If
         # transactions are unavailable for this block, or if the index is out of

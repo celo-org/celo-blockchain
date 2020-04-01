@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	ccerrors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/freezer"
@@ -455,6 +456,33 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 		pool.removeTx(tx.Hash(), false)
 	}
 	log.Info("Transaction pool price threshold updated", "price", price)
+}
+
+// SetGasLimit updates the maximum allowed gas for a new transaction in the
+// pool, and drops all transactions above this threshold.
+//
+// Note: Only useful for testing, as this call will have no effect if
+// communication with the blockchain_parameters contract is successful.
+func (pool *TxPool) SetGasLimit(gasLimit uint64) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	limitFromContract, err := blockchain_parameters.GetBlockGasLimit(pool.chain.CurrentBlock().Header(), pool.currentState)
+	if err == nil {
+		pool.currentMaxGas = limitFromContract
+		return
+	}
+
+	pool.currentMaxGas = gasLimit
+
+	pool.demoteUnexecutables()
+
+	for _, list := range pool.queue {
+		rm, _ := list.Filter(nil, gasLimit)
+		for _, tx := range rm {
+			pool.removeTx(tx.Hash(), false)
+		}
+	}
 }
 
 // Nonce returns the next nonce of an account, with all transactions executable
@@ -1220,7 +1248,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
-	pool.currentMaxGas = newHead.GasLimit
+	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))

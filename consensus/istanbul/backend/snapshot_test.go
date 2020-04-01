@@ -230,9 +230,7 @@ func TestValSetChange(t *testing.T) {
 
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
-			Difficulty: defaultDifficulty,
-			Mixhash:    types.IstanbulDigest,
-			Config:     params.TestChainConfig,
+			Config: params.DefaultChainConfig,
 		}
 		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
 		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
@@ -324,10 +322,8 @@ func TestValSetChange(t *testing.T) {
 		var snap *Snapshot
 		for j, valsetdiff := range tt.valsetdiffs {
 			header := &types.Header{
-				Number:     big.NewInt(int64(j) + 1),
-				Time:       uint64(j) * config.BlockPeriod,
-				Difficulty: defaultDifficulty,
-				MixDigest:  types.IstanbulDigest,
+				Number: big.NewInt(int64(j) + 1),
+				Time:   uint64(j) * config.BlockPeriod,
 			}
 
 			var buf bytes.Buffer

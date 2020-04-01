@@ -180,11 +180,6 @@ func (lc *LightChain) SetHead(head uint64) error {
 	return lc.loadLastState()
 }
 
-// GasLimit returns the gas limit of the current HEAD block.
-func (lc *LightChain) GasLimit() uint64 {
-	return lc.hc.CurrentHeader().GasLimit
-}
-
 // Reset purges the entire blockchain, restoring it to its genesis state.
 func (lc *LightChain) Reset() {
 	lc.ResetWithGenesisBlock(lc.genesisBlock)
@@ -200,7 +195,7 @@ func (lc *LightChain) ResetWithGenesisBlock(genesis *types.Block) {
 	defer lc.chainmu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	rawdb.WriteTd(lc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
+	rawdb.WriteTd(lc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.TotalDifficulty())
 	rawdb.WriteBlock(lc.chainDb, genesis)
 
 	lc.genesisBlock = genesis
@@ -227,7 +222,7 @@ func (lc *LightChain) StateCache() state.Database {
 	panic("not implemented")
 }
 
-// GetBody retrieves a block body (transactions and uncles) from the database
+// GetBody retrieves a block body (transactions) from the database
 // or ODR service by hash, caching it if found.
 func (lc *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.Body, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
@@ -494,17 +489,11 @@ func (lc *LightChain) Config() *params.ChainConfig { return lc.hc.Config() }
 
 // SyncCheckpoint fetches the checkpoint point block header according to
 // the checkpoint provided by the remote peer.
-//
-// Note if we are running the clique, fetches the last epoch snapshot header
-// which covered by checkpoint.
 func (lc *LightChain) SyncCheckpoint(ctx context.Context, checkpoint *params.TrustedCheckpoint) bool {
 	// Ensure the remote checkpoint head is ahead of us
 	head := lc.CurrentHeader().Number.Uint64()
 
 	latest := (checkpoint.SectionIndex+1)*lc.indexerConfig.ChtSize - 1
-	if clique := lc.hc.Config().Clique; clique != nil {
-		latest -= latest % clique.Epoch // epoch snapshot for clique
-	}
 	if head >= latest {
 		return true
 	}

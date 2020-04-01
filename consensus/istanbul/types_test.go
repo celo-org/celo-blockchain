@@ -90,18 +90,15 @@ func dummySubject() *Subject {
 
 func dummyBlock(number int64) *types.Block {
 	header := &types.Header{
-		Difficulty: big.NewInt(5),
-		Number:     big.NewInt(number),
-		GasLimit:   1002121,
-		GasUsed:    123213,
-		Time:       100,
-		Extra:      []byte{01, 02},
+		Number:  big.NewInt(number),
+		GasUsed: 123213,
+		Time:    100,
+		Extra:   []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")
 	gatewayFeeRecipientAddr := common.HexToAddress("03")
 	tx := types.NewTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, &gatewayFeeRecipientAddr, big.NewInt(34), []byte{04})
-	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil, nil)
-
+	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
 }
 func dummyMessage(code uint64) *Message {
 	return &Message{
