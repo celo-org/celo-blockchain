@@ -24,7 +24,7 @@ pub struct EpochTransition {
     pub bitmap: Vec<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EpochBlock {
     pub index: u16,
     pub maximum_non_signers: u32,

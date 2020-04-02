@@ -8,7 +8,7 @@ use crate::{
 use bench_utils::{end_timer, start_timer};
 use byteorder::WriteBytesExt;
 use hex;
-use log::debug;
+use log::trace;
 
 use algebra::{
     bytes::FromBytes,
@@ -160,7 +160,7 @@ impl<'a, H: XOF> TryAndIncrement<'a, H> {
             match get_point_from_x_g1::<P>(possible_x, greatest) {
                 None => continue,
                 Some(x) => {
-                    debug!(
+                    trace!(
                         "succeeded hashing \"{}\" to G1 in {} tries",
                         hex::encode(message),
                         c
@@ -228,7 +228,7 @@ impl<'a, H: XOF> HashToG2 for TryAndIncrement<'a, H> {
             match get_point_from_x::<P>(possible_x, greatest) {
                 None => continue,
                 Some(x) => {
-                    debug!(
+                    trace!(
                         "succeeded hashing \"{}\" to G2 in {} tries",
                         hex::encode(message),
                         c

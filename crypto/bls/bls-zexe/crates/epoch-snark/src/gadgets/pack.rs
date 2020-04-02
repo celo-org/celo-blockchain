@@ -2,6 +2,7 @@ use algebra::{BigInteger, FpParameters, PrimeField};
 use bls_gadgets::is_setup;
 use r1cs_core::SynthesisError;
 use r1cs_std::{fields::fp::FpGadget, prelude::*, Assignment};
+use tracing::{span, trace, Level};
 
 pub struct MultipackGadget;
 
@@ -12,9 +13,12 @@ impl MultipackGadget {
         target_capacity: usize,
         should_alloc_input: bool,
     ) -> Result<Vec<FpGadget<F>>, SynthesisError> {
+        let span = span!(Level::TRACE, "multipack_gadget");
+        let _enter = span.enter();
         let mut packed = vec![];
         let fp_chunks = bits.chunks(target_capacity);
         for (i, chunk) in fp_chunks.enumerate() {
+            trace!(iteration = i);
             let alloc = if should_alloc_input {
                 FpGadget::<F>::alloc_input
             } else {

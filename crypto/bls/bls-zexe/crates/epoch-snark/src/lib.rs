@@ -19,7 +19,7 @@ use std::{
 fn convert_result_to_bool<T, E: Display, F: Fn() -> Result<T, E>>(f: F) -> bool {
     match f() {
         Err(e) => {
-            error!("SNARK library error: {}", e.to_string());
+            error!("SNARK library error: {}", e);
             false
         }
         _ => true,
