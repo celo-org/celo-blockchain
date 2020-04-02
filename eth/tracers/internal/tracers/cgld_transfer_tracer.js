@@ -5,7 +5,6 @@
 
 {
   callStack: [ { transfers: [] } ],
-  reverted: false,
   statusRevert: 'revert',
   statusSuccess: 'success',
 
@@ -19,14 +18,14 @@
     }
   },
 
-  pushTransfers(transfers, call, transferStatus) {
-    for (var index in call.transfers) {
-      const transfer = call.transfers[index];
+  pushTransfers(targetTransfers, sourceTransfers, transferStatus) {
+    for (var index in sourceTransfers) {
+      const transfer = sourceTransfers[index];
       // Successful transfers become reverted if any ancestor call reverts.
       if (transfer.status != this.statusRevert) {
         transfer.status = transferStatus;
       }
-      transfers.push(transfer);
+      targetTransfers.push(transfer);
     }
   },
 
@@ -38,11 +37,11 @@
       const failedCall = this.callStack.pop();
 
       // Revert all transfers that are descendents of the failed call.
-      this.pushTransfers(this.topCall().transfers, failedCall, this.statusRevert);
+      this.pushTransfers(this.topCall().transfers, failedCall.transfers, this.statusRevert);
     } else {
       // Outermost call reverted.
-      this.reverted = true
       const call = this.callStack[0]
+      call.reverted = true
 
       // Revert all transfers
       for (var index in call.transfers) {
@@ -69,7 +68,7 @@
       }
 
       // Propogate transfers made during the successful call.
-      this.pushTransfers(this.topCall().transfers, successfulCall, this.statusSuccess);
+      this.pushTransfers(this.topCall().transfers, successfulCall.transfers, this.statusSuccess);
     }
 
     this.assertEqual(this.callStack.length, depth);
@@ -165,23 +164,22 @@
   result(ctx, db) {
     this.assertEqual(this.callStack.length, 1);
     const create = ctx.type == 'CREATE' || ctx.type == 'CREATE2';
-    const transfers = [];
+    const transfers = this.topCall().transfers;
 
     if (ctx.type == 'CALL' || create) {
       valueBigInt = bigInt(ctx.value.toString());
       if (valueBigInt.gt(0)) {
-        transfers.push({
+        transfers.unshift({
           type: create ? 'cGLD create contract transfer' : 'cGLD transfer',
           from: toHex(ctx.from),
           to: toHex(ctx.to),
           value: '0x' + valueBigInt.toString(16),
-          status: this.reverted ? this.statusRevert : this.statusSuccess,
+          status: this.topCall().reverted ? this.statusRevert : this.statusSuccess,
         });
       }
     }
-    this.pushTransfers(transfers, this.callStack.pop(), this.statusSuccess);
 
-    // Return in same format as callTracer: -calls, +transfers, and +block.
+    // Return in same format as callTracer: -calls, +transfers.
     return {
       type:      ctx.type,
       from:      toHex(ctx.from),
@@ -189,8 +187,6 @@
       value:     '0x' + ctx.value.toString(16),
       gas:       '0x' + bigInt(ctx.gas).toString(16),
       gasUsed:   '0x' + bigInt(ctx.gasUsed).toString(16),
-      input:     toHex(ctx.input),
-      output:    toHex(ctx.output),
       block:     ctx.block,
       time:      ctx.time,
       transfers: transfers,
