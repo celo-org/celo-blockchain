@@ -11,11 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-var _ = (*TxdataMarshaling)(nil)
+var _ = (*txdataMarshaling)(nil)
 
 // MarshalJSON marshals as JSON.
-func (t Txdata) MarshalJSON() ([]byte, error) {
-	type Txdata struct {
+func (t txdata) MarshalJSON() ([]byte, error) {
+	type txdata struct {
 		AccountNonce        hexutil.Uint64  `json:"nonce"    gencodec:"required"`
 		Price               *hexutil.Big    `json:"gasPrice" gencodec:"required"`
 		GasLimit            hexutil.Uint64  `json:"gas"      gencodec:"required"`
@@ -30,7 +30,7 @@ func (t Txdata) MarshalJSON() ([]byte, error) {
 		S                   *hexutil.Big    `json:"s" gencodec:"required"`
 		Hash                *common.Hash    `json:"hash" rlp:"-"`
 	}
-	var enc Txdata
+	var enc txdata
 	enc.AccountNonce = hexutil.Uint64(t.AccountNonce)
 	enc.Price = (*hexutil.Big)(t.Price)
 	enc.GasLimit = hexutil.Uint64(t.GasLimit)
@@ -48,8 +48,8 @@ func (t Txdata) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON unmarshals from JSON.
-func (t *Txdata) UnmarshalJSON(input []byte) error {
-	type Txdata struct {
+func (t *txdata) UnmarshalJSON(input []byte) error {
+	type txdata struct {
 		AccountNonce        *hexutil.Uint64 `json:"nonce"    gencodec:"required"`
 		Price               *hexutil.Big    `json:"gasPrice" gencodec:"required"`
 		GasLimit            *hexutil.Uint64 `json:"gas"      gencodec:"required"`
@@ -64,20 +64,20 @@ func (t *Txdata) UnmarshalJSON(input []byte) error {
 		S                   *hexutil.Big    `json:"s" gencodec:"required"`
 		Hash                *common.Hash    `json:"hash" rlp:"-"`
 	}
-	var dec Txdata
+	var dec txdata
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
 	if dec.AccountNonce == nil {
-		return errors.New("missing required field 'nonce' for Txdata")
+		return errors.New("missing required field 'nonce' for txdata")
 	}
 	t.AccountNonce = uint64(*dec.AccountNonce)
 	if dec.Price == nil {
-		return errors.New("missing required field 'gasPrice' for Txdata")
+		return errors.New("missing required field 'gasPrice' for txdata")
 	}
 	t.Price = (*big.Int)(dec.Price)
 	if dec.GasLimit == nil {
-		return errors.New("missing required field 'gas' for Txdata")
+		return errors.New("missing required field 'gas' for txdata")
 	}
 	t.GasLimit = uint64(*dec.GasLimit)
 	if dec.FeeCurrency != nil {
@@ -93,23 +93,23 @@ func (t *Txdata) UnmarshalJSON(input []byte) error {
 		t.Recipient = dec.Recipient
 	}
 	if dec.Amount == nil {
-		return errors.New("missing required field 'value' for Txdata")
+		return errors.New("missing required field 'value' for txdata")
 	}
 	t.Amount = (*big.Int)(dec.Amount)
 	if dec.Payload == nil {
-		return errors.New("missing required field 'input' for Txdata")
+		return errors.New("missing required field 'input' for txdata")
 	}
 	t.Payload = *dec.Payload
 	if dec.V == nil {
-		return errors.New("missing required field 'v' for Txdata")
+		return errors.New("missing required field 'v' for txdata")
 	}
 	t.V = (*big.Int)(dec.V)
 	if dec.R == nil {
-		return errors.New("missing required field 'r' for Txdata")
+		return errors.New("missing required field 'r' for txdata")
 	}
 	t.R = (*big.Int)(dec.R)
 	if dec.S == nil {
-		return errors.New("missing required field 's' for Txdata")
+		return errors.New("missing required field 's' for txdata")
 	}
 	t.S = (*big.Int)(dec.S)
 	if dec.Hash != nil {

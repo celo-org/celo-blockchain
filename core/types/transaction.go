@@ -29,21 +29,21 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-//go:generate gencodec -type Txdata -field-override txdataMarshaling -out gen_tx_json.go
+//go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
 )
 
 type Transaction struct {
-	data Txdata
+	data txdata
 	// caches
 	hash atomic.Value
 	size atomic.Value
 	from atomic.Value
 }
 
-type Txdata struct {
+type txdata struct {
 	AccountNonce        uint64          `json:"nonce"    gencodec:"required"`
 	Price               *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit            uint64          `json:"gas"      gencodec:"required"`
@@ -89,7 +89,7 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 	if len(data) > 0 {
 		data = common.CopyBytes(data)
 	}
-	d := Txdata{
+	d := txdata{
 		AccountNonce:        nonce,
 		Recipient:           to,
 		Payload:             data,
@@ -161,7 +161,7 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON decodes the web3 RPC transaction format.
 func (tx *Transaction) UnmarshalJSON(input []byte) error {
-	var dec Txdata
+	var dec txdata
 	if err := dec.UnmarshalJSON(input); err != nil {
 		return err
 	}
