@@ -266,7 +266,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	return signedTx, nil
 }
 
-// LogEventName will verify is log belongs to the contract and return the eventName for it
+// LogEventName will verify the log belongs to the contract and return the eventName for it
 func (c *BoundContract) LogEventName(log types.Log) (eventName string, ok bool, err error) {
 	if log.Address != c.address || len(log.Topics) < 1 {
 		return "", false, err
