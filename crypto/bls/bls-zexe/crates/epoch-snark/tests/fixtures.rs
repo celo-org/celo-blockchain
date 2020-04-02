@@ -22,7 +22,7 @@ pub fn generate_test_data(
         .iter()
         .map(|pk| PublicKey::from_pk(*pk))
         .collect::<Vec<_>>();
-    let first_epoch = generate_block(0, faults + 1, &initial_pubkeys);
+    let first_epoch = generate_block(0, faults, &initial_pubkeys);
 
     // Generate keys for the validators of each epoch
     let validators = keygen_batch::<Bls12_377>(num_epochs, num_validators as usize);
@@ -44,7 +44,7 @@ pub fn generate_test_data(
     // sign each state transition
     let mut transitions = vec![];
     for (i, signers_epoch) in signers.iter().enumerate() {
-        let block: EpochBlock = generate_block(i + 1, faults + 1, &pubkeys[i]);
+        let block: EpochBlock = generate_block(i + 1, faults, &pubkeys[i]);
         let hash = block.hash_to_g1().unwrap();
 
         // A subset of the i-th validator set, signs on the i+1th epoch's G1 hash

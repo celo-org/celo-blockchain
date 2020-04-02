@@ -23,7 +23,7 @@ pub struct Window;
 
 impl PedersenWindow for Window {
     const WINDOW_SIZE: usize = 93;
-    const NUM_WINDOWS: usize = 280;
+    const NUM_WINDOWS: usize = 560;
 }
 
 pub struct CompositeHasher {
@@ -184,7 +184,7 @@ mod test {
             0x2d, 0xbe, 0x62, 0x59, 0x8d, 0x31, 0x3d, 0x76, 0x32, 0x37, 0xdb, 0x17, 0xe5, 0xbc,
             0x06, 0x54,
         ]);
-        let mut msg: Vec<u8> = vec![0; 100_000];
+        let mut msg: Vec<u8> = vec![0; 100_000_0];
         for i in msg.iter_mut() {
             *i = rng.gen();
         }

@@ -10,6 +10,7 @@ use r1cs_std::{
     fields::fp::FpGadget,
     Assignment,
 };
+use tracing::{debug, span, Level};
 
 use r1cs_core::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 
@@ -32,6 +33,14 @@ pub struct ValidatorSetUpdate<E: PairingEngine> {
     pub epochs: Vec<SingleUpdate<E>>,
     /// The aggregated signature of all the validators over all the epoch changes
     pub aggregated_signature: Option<E::G1Projective>,
+    /// The optional hash to bits proof data. If provided, the circuit **will not**
+    /// constrain the inner CRH->XOF hashes in SW6 and instead it will be verified
+    /// via the helper's proof which is in BLS12-377.
+    pub hash_helper: Option<HashToBitsHelper<E>>,
+}
+
+#[derive(Clone)]
+pub struct HashToBitsHelper<E: PairingEngine> {
     /// The Groth16 proof satisfying the statement
     pub proof: Proof<E>,
     /// The VK produced by the trusted setup
@@ -43,18 +52,20 @@ impl<E: PairingEngine> ValidatorSetUpdate<E> {
         num_validators: usize,
         num_epochs: usize,
         maximum_non_signers: usize,
-        vk: VerifyingKey<E>,
+        vk: Option<VerifyingKey<E>>,
     ) -> Self {
         let empty_update = SingleUpdate::empty(num_validators, maximum_non_signers);
-        let empty_hash_proof = Proof::<E>::default();
+        let hash_helper = vk.map(|vk| HashToBitsHelper {
+            proof: Proof::<E>::default(),
+            verifying_key: vk,
+        });
 
         ValidatorSetUpdate {
             initial_epoch: EpochData::empty(num_validators, maximum_non_signers),
             num_validators: num_validators as u32,
             epochs: vec![empty_update; num_epochs],
             aggregated_signature: None,
-            proof: empty_hash_proof,
-            verifying_key: vk,
+            hash_helper,
         }
     }
 }
@@ -66,12 +77,14 @@ impl ConstraintSynthesizer<Fr> for ValidatorSetUpdate<Bls12_377> {
         self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
+        let span = span!(Level::TRACE, "ValidatorSetUpdate");
+        let _enter = span.enter();
+        info!("generating constraints");
         let proof_of_compression = self.enforce(&mut cs.ns(|| "check signature"))?;
-        proof_of_compression.compress_public_inputs(
-            &mut cs.ns(|| "compress public inputs"),
-            &self.proof,
-            &self.verifying_key,
-        )?;
+        proof_of_compression
+            .compress_public_inputs(&mut cs.ns(|| "compress public inputs"), self.hash_helper)?;
+
+        info!("constraints generated");
 
         Ok(())
     }
@@ -82,12 +95,17 @@ impl ValidatorSetUpdate<Bls12_377> {
         &self,
         cs: &mut CS,
     ) -> Result<ProofOfCompression, SynthesisError> {
+        let span = span!(Level::TRACE, "ValidatorSetUpdate_enforce");
+        let _enter = span.enter();
+
+        debug!("converting initial EpochData to_bits");
         // Constrain the initial epoch and get its bits
         let (first_epoch_bits, first_epoch_index, initial_maximum_non_signers, initial_pubkey_vars) =
             self.initial_epoch.to_bits(&mut cs.ns(|| "initial epoch"))?;
 
         // Constrain all intermediate epochs, and get the aggregate pubkey and epoch hash
         // from each one, to be used for the batch verification
+        debug!("verifying intermediate epochs");
         let (
             last_epoch_bits,
             crh_bits,
@@ -102,6 +120,7 @@ impl ValidatorSetUpdate<Bls12_377> {
         )?;
 
         // Verify the aggregate BLS signature
+        debug!("verifying bls signature");
         self.verify_signature(
             &mut cs.ns(|| "verify aggregated signature"),
             &prepared_aggregated_public_keys,
@@ -136,6 +155,9 @@ impl ValidatorSetUpdate<Bls12_377> {
         ),
         SynthesisError,
     > {
+        let span = span!(Level::TRACE, "verify_intermediate_epochs");
+        let _enter = span.enter();
+
         let mut prepared_aggregated_public_keys = vec![];
         let mut prepared_message_hashes = vec![];
         let mut last_epoch_bits = vec![];
@@ -145,12 +167,15 @@ impl ValidatorSetUpdate<Bls12_377> {
         let mut all_crh_bits = vec![];
         let mut all_xof_bits = vec![];
         for (i, epoch) in self.epochs.iter().enumerate() {
+            let span = span!(Level::TRACE, "index", i);
+            let _enter = span.enter();
             let constrained_epoch = epoch.constrain(
                 &mut cs.ns(|| format!("epoch {}", i)),
                 &previous_pubkey_vars,
                 &previous_epoch_index,
                 &previous_max_non_signers,
                 self.num_validators,
+                self.hash_helper.is_none(), // generate constraints in SW6 if no helper was provided
             )?;
 
             // Update the pubkeys for the next iteration
@@ -175,7 +200,10 @@ impl ValidatorSetUpdate<Bls12_377> {
                 last_epoch_bits = constrained_epoch.bits;
                 last_epoch_bits.extend_from_slice(&last_apk_bits);
             }
+            debug!("epoch {} constrained", i);
         }
+
+        debug!("intermediate epochs verified");
 
         Ok((
             last_epoch_bits,
@@ -284,15 +312,12 @@ mod tests {
             let asigs = sign_batch::<Bls12_377>(&signers_filtered, &epoch_hashes);
             let aggregated_signature = sum(&asigs);
 
-            let proof = Proof::default();
-            let vk = VerifyingKey::default();
             let valset = ValidatorSetUpdate::<Curve> {
                 initial_epoch,
                 epochs,
                 num_validators,
                 aggregated_signature: Some(aggregated_signature),
-                proof,
-                verifying_key: vk,
+                hash_helper: None,
             };
 
             let mut cs = TestConstraintSystem::<Fr>::new();
