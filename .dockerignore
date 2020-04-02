@@ -1,6 +1,8 @@
 **/*_test.go
-
-build/_workspace
-build/_bin
+.git
+/build/_workspace
+/build/bin
 tests/testdata
-.git*
+
+/crypto/bls/bls-zexe/bls/target
+/crypto/bls/bls-zexe/target
