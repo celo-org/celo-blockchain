@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-//go:generate gencodec -type Txdata -field-override TxdataMarshaling -out gen_tx_json.go
+//go:generate gencodec -type Txdata -field-override txdataMarshaling -out gen_tx_json.go
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
@@ -63,7 +63,7 @@ type Txdata struct {
 	Hash *common.Hash `json:"hash" rlp:"-"`
 }
 
-type TxdataMarshaling struct {
+type txdataMarshaling struct {
 	AccountNonce        hexutil.Uint64
 	Price               *hexutil.Big
 	GasLimit            hexutil.Uint64
