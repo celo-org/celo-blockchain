@@ -21,6 +21,7 @@ tracing = "0.1.13"
 rand_xorshift = { version = "0.2" }
 rand = { version = "0.7" }
 groth16 = { git = "https://github.com/scipr-lab/zexe" }
+bls-crypto = { path = "../bls-crypto", features = ["test-helpers"] }
 
 [features]
 test-helpers = ["rand", "rand_xorshift"]

@@ -265,7 +265,8 @@ where
 #[cfg(test)]
 mod verify_one_message {
     use super::*;
-    use crate::test_helpers::*;
+    use crate::test_helpers::alloc_vec;
+    use bls_crypto::test_helpers::*;
 
     use algebra::{
         bls12_377::{Bls12_377, Fr as Bls12_377Fr, G1Projective, G2Projective},

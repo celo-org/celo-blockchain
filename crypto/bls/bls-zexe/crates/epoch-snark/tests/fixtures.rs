@@ -3,8 +3,8 @@ use algebra::{
     ProjectiveCurve, Zero,
 };
 
+use bls_crypto::test_helpers::{keygen_batch, keygen_mul};
 use bls_crypto::{PublicKey, Signature};
-use bls_gadgets::test_helpers::{keygen_batch, keygen_mul};
 use epoch_snark::epoch_block::{EpochBlock, EpochTransition};
 
 // Returns the initial epoch and a list of signed `num_epochs` state transitions

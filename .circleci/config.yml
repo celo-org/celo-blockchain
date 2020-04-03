@@ -167,8 +167,7 @@ jobs:
             yarn build --scope @celo/utils
             yarn build --scope @celo/protocol
             yarn build --scope docs
-            yarn build --scope @celo/walletkit
-            yarn build --ignore @celo/protocol --ignore docs --ignore @celo/walletkit --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
+            yarn build --ignore @celo/protocol --ignore docs --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
       - run:
           name: Setup Go language
           command: |
