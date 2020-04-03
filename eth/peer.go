@@ -294,11 +294,6 @@ func (p *peer) SendBlockHeaders(headers []*types.Header) error {
 	return p2p.Send(p.rw, BlockHeadersMsg, headers)
 }
 
-// SendBlockBodies sends a batch of block contents to the remote peer.
-func (p *peer) SendBlockBodies(bodies []*types.Body) error {
-	return p2p.Send(p.rw, BlockBodiesMsg, blockBodiesData(bodies))
-}
-
 // SendBlockBodiesRLP sends a batch of block contents to the remote peer from
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
