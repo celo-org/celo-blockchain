@@ -408,6 +408,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 	}
+
 	// Handle incoming messages until the connection is torn down
 	for {
 		if err := pm.handleMsg(p); err != nil {
@@ -425,6 +426,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	if err != nil {
 		return err
 	}
+
 	defer msg.Discard()
 
 	// Send messages to the consensus engine first. If they are consensus related,
@@ -593,11 +595,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		// Gather blocks until the fetch or network limits is reached
 		var (
-			hash                  common.Hash
-			bytes                 int
-			bodiesAndHeaderHashes []rlp.RawValue
+			hash                 common.Hash
+			bytes                int
+			bodiesAndBlockHashes []rlp.RawValue
 		)
-		for bytes < softResponseLimit && len(bodiesAndHeaderHashes) < downloader.MaxBlockFetch {
+		for bytes < softResponseLimit && len(bodiesAndBlockHashes) < downloader.MaxBlockFetch {
 			// Retrieve the hash of the next block
 			if err := msgStream.Decode(&hash); err == rlp.EOL {
 				break
@@ -606,16 +608,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 			// Retrieve the requested block body, stopping if enough was found
 			if body := pm.blockchain.GetBody(hash); body != nil {
-				bh := &blockBodyWithHeaderHash{HeaderHash: hash, BlockBody: body}
-				bhRLP, err := rlp.EncodeToBytes(bh)
+				bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
+				bhRLPbytes, err := rlp.EncodeToBytes(bh)
 				if err != nil {
 					return err
 				}
-				bodiesAndHeaderHashes = append(bodiesAndHeaderHashes, bhRLP)
+				bhRLP := rlp.RawValue(bhRLPbytes)
+				bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
 				bytes += len(bhRLP)
 			}
 		}
-		return p.SendBlockBodiesRLP(bodiesAndHeaderHashes)
+		return p.SendBlockBodiesRLP(bodiesAndBlockHashes)
 
 	case msg.Code == BlockBodiesMsg:
 		// A batch of block bodies arrived to one of our previous requests
@@ -624,23 +627,23 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Deliver them all to the downloader for queuing
-		headerHashes := make([]common.Hash, len(request))
+		blockHashes := make([]common.Hash, len(request))
 		transactions := make([][]*types.Transaction, len(request))
 		randomness := make([]*types.Randomness, len(request))
 		epochSnarkData := make([]*types.EpochSnarkData, len(request))
 
-		for i, blockBodyWithHeaderHash := range request {
-			headerHashes[i] = blockBodyWithHeaderHash.HeaderHash
-			transactions[i] = blockBodyWithHeaderHash.BlockBody.Transactions
-			randomness[i] = blockBodyWithHeaderHash.BlockBody.Randomness
-			epochSnarkData[i] = blockBodyWithHeaderHash.BlockBody.EpochSnarkData
+		for i, blockBodyWithBlockHash := range request {
+			blockHashes[i] = blockBodyWithBlockHash.BlockHash
+			transactions[i] = blockBodyWithBlockHash.BlockBody.Transactions
+			randomness[i] = blockBodyWithBlockHash.BlockBody.Randomness
+			epochSnarkData[i] = blockBodyWithBlockHash.BlockBody.EpochSnarkData
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(headerHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
+		filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 		if filter {
-			headerHashes, transactions, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, headerHashes, transactions, randomness, epochSnarkData, time.Now())
+			blockHashes, transactions, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, blockHashes, transactions, randomness, epochSnarkData, time.Now())
 		}
-		if len(headerHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
+		if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
 			err := pm.downloader.DeliverBodies(p.id, transactions, randomness, epochSnarkData)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
