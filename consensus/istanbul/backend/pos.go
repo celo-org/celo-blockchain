@@ -103,7 +103,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	// Validator rewards were payed in cUSD, convert that amount to cGLD and add it to the Reserve
+	// Validator rewards were paid in cUSD, convert that amount to cGLD and add it to the Reserve
 	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
 	if err != nil {
 		return err
