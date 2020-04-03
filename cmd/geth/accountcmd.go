@@ -110,9 +110,9 @@ Print a short summary of all accounts`,
 			},
 			{
 				Name:      "proof-of-possession",
-				Usage:     "Generate a proof-of-possession for the given account",
+				Usage:     "Generate a proof-of-possession for the given account.",
 				Action:    utils.MigrateFlags(accountProofOfPossession),
-				ArgsUsage: "<address> <address>",
+				ArgsUsage: "<signer address> <message>",
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
@@ -122,6 +122,11 @@ Print a short summary of all accounts`,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
+
+Creates a signature over the given message, for example an account address,
+with the private key corresponding to a given signer address. The signature
+can then be used to prove possession of the signing key, for example to
+authorize a the signer to act as a validator in the Celo protocol.
 `,
 			},
 			{
