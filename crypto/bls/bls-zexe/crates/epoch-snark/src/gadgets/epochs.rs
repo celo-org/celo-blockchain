@@ -241,7 +241,7 @@ mod tests {
 
     use crate::gadgets::single_update::test_helpers::generate_single_update;
     use algebra::bls12_377::G1Projective;
-    use bls_gadgets::test_helpers::{keygen_batch, keygen_mul, sign_batch, sum};
+    use bls_crypto::test_helpers::{keygen_batch, keygen_mul, sign_batch, sum};
     use r1cs_std::test_constraint_system::TestConstraintSystem;
 
     type Curve = Bls12_377;
