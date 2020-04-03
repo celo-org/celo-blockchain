@@ -123,7 +123,7 @@ impl Error for BLSError {
     }
 }
 
-#[derive(Clone, Eq)]
+#[derive(Clone, Eq, Debug)]
 pub struct PublicKey {
     pk: G2Projective,
 }

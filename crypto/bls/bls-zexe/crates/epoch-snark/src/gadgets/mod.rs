@@ -12,7 +12,7 @@ pub use pack::MultipackGadget;
 mod proof_of_compression;
 pub use proof_of_compression::ProofOfCompression;
 
-mod epochs;
+pub mod epochs;
 pub use epochs::ValidatorSetUpdate;
 
 // some helpers
