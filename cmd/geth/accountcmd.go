@@ -124,9 +124,9 @@ Print a short summary of all accounts`,
 Print a proof-of-possession signature for the given account.
 
 Creates a signature over the given message, for example an account address,
-with the private key corrosponsding to a given signer address. The singature
-can then be used to prove possession of the signing key, for exmaple to
-authrorize a the signer to act as a validator in the Celo protocol.
+with the private key corresponding to a given signer address. The signature
+can then be used to prove possession of the signing key, for example to
+authorize a the signer to act as a validator in the Celo protocol.
 `,
 			},
 			{
