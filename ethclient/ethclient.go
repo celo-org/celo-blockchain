@@ -149,7 +149,7 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 	return types.NewBlockWithHeader(head).WithBody(txs, body.Randomness, body.EpochSnarkData), nil
 }
 
-type ExtendedHeader struct {
+type HeaderAndTxnHashes struct {
 	types.Header
 	headerExtraInfo
 }
@@ -158,16 +158,16 @@ type headerExtraInfo struct {
 	Transactions []common.Hash `json:"transactions,omitempty"`
 }
 
-func (rh *ExtendedHeader) UnmarshalJSON(msg []byte) error {
+func (rh *HeaderAndTxnHashes) UnmarshalJSON(msg []byte) error {
 	if err := json.Unmarshal(msg, &rh.Header); err != nil {
 		return err
 	}
 	return json.Unmarshal(msg, &rh.headerExtraInfo)
 }
 
-// ExtendedHeaderByHash returns the block header with the given hash.
-func (ec *Client) ExtendedHeaderByHash(ctx context.Context, hash common.Hash) (*ExtendedHeader, error) {
-	var head *ExtendedHeader
+// HeaderAndTxnHashesByHash returns the block header with the given hash.
+func (ec *Client) HeaderAndTxnHashesByHash(ctx context.Context, hash common.Hash) (*HeaderAndTxnHashes, error) {
+	var head *HeaderAndTxnHashes
 	err := ec.c.CallContext(ctx, &head, "eth_getBlockByHash", hash, false)
 	if err == nil && head == nil {
 		err = ethereum.NotFound
@@ -175,10 +175,10 @@ func (ec *Client) ExtendedHeaderByHash(ctx context.Context, hash common.Hash) (*
 	return head, err
 }
 
-// ExtendedHeaderByNumber returns a block header from the current canonical chain. If number is
+// HeaderAndTxnHashesByNumber returns a block header from the current canonical chain. If number is
 // nil, the latest known header is returned.
-func (ec *Client) ExtendedHeaderByNumber(ctx context.Context, number *big.Int) (*ExtendedHeader, error) {
-	var head *ExtendedHeader
+func (ec *Client) HeaderAndTxnHashesByNumber(ctx context.Context, number *big.Int) (*HeaderAndTxnHashes, error) {
+	var head *HeaderAndTxnHashes
 	err := ec.c.CallContext(ctx, &head, "eth_getBlockByNumber", toBlockNumArg(number), false)
 	if err == nil && head == nil {
 		err = ethereum.NotFound
