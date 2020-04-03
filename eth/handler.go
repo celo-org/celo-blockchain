@@ -408,7 +408,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 	}
-
 	// Handle incoming messages until the connection is torn down
 	for {
 		if err := pm.handleMsg(p); err != nil {
@@ -426,7 +425,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	if err != nil {
 		return err
 	}
-
 	defer msg.Discard()
 
 	// Send messages to the consensus engine first. If they are consensus related,
