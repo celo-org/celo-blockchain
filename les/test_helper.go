@@ -30,7 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/contracts/checkpointoracle/contract"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -169,11 +169,10 @@ func testIndexers(db ethdb.Database, odr light.OdrBackend, config *light.Indexer
 func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.SimulatedBackend, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, ulcServers []string, ulcFraction int) *clientHandler {
 	var (
 		evmux  = new(event.TypeMux)
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		gspec  = core.Genesis{
-			Config:   params.AllEthashProtocolChanges,
-			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
-			GasLimit: 100000000,
+			Config: params.DefaultChainConfig,
+			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointOracle
 	)
@@ -201,7 +200,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.AllEthashProtocolChanges,
+			chainConfig: params.DefaultChainConfig,
 			iConfig:     light.TestClientIndexerConfig,
 			chainDb:     db,
 			oracle:      oracle,
@@ -227,16 +226,15 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
-			Config:   params.AllEthashProtocolChanges,
-			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
-			GasLimit: 100000000,
+			Config: params.DefaultChainConfig,
+			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointOracle
 	)
 	genesis := gspec.MustCommit(db)
 
 	// create a simulation backend and pre-commit several customized block to the database.
-	simulation := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc, 100000000)
+	simulation := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc)
 	prepare(blocks, simulation)
 
 	txpoolConfig := core.DefaultTxPoolConfig
@@ -264,7 +262,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.AllEthashProtocolChanges,
+			chainConfig: params.DefaultChainConfig,
 			iConfig:     light.TestServerIndexerConfig,
 			chainDb:     db,
 			chainReader: simulation.Blockchain(),

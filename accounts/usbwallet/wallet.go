@@ -542,8 +542,8 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	message := address.Bytes()
-	return w.signText(account, message)
+	hash := crypto.Keccak256(address.Bytes())
+	return w.signText(account, hash)
 }
 
 func (w *wallet) signText(account accounts.Account, text []byte) ([]byte, []byte, error) {

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	bls "github.com/celo-org/bls-zexe/go"
+	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -239,7 +239,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
-	genesis.Config = params.TestChainConfig
+	genesis.Config = params.DefaultChainConfig
 	if !isFullChain {
 		genesis.Config.FullHeaderChainAvailable = false
 	}
@@ -248,10 +248,6 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 		Epoch:          10,
 		LookbackWindow: 2,
 	}
-	genesis.Config.Ethash = nil
-	genesis.Difficulty = defaultDifficulty
-	genesis.Nonce = emptyNonce.Uint64()
-	genesis.Mixhash = types.IstanbulDigest
 
 	AppendValidatorsToGenesisBlock(genesis, validators)
 	return genesis, nodeKeys
@@ -261,11 +257,9 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     parent.Number().Add(parent.Number(), common.Big1),
-		GasLimit:   core.CalcGasLimit(parent, nil),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       parent.Time() + config.BlockPeriod,
-		Difficulty: defaultDifficulty,
 	}
 	return header
 }
@@ -285,8 +279,8 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
-	engine.Finalize(chain, header, state, nil, nil)
-	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil, nil)
+	engine.Finalize(chain, header, state, nil)
+	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil)
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
@@ -430,33 +424,6 @@ func TestVerifyHeader(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
 	}
 
-	// non zero MixDigest
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.MixDigest = common.BytesToHash([]byte("123456789"))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidMixDigest {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidMixDigest)
-	}
-
-	// invalid uncles hash
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.UncleHash = common.BytesToHash([]byte("123456789"))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidUncleHash {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidUncleHash)
-	}
-
-	// invalid difficulty
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.Difficulty = big.NewInt(2)
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidDifficulty {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidDifficulty)
-	}
-
 	// invalid timestamp
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
@@ -473,16 +440,6 @@ func TestVerifyHeader(t *testing.T) {
 	err = engine.VerifyHeader(chain, header, false)
 	if err != consensus.ErrFutureBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
-	}
-
-	// invalid nonce
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	copy(header.Nonce[:], hexutil.MustDecode("0x111111111111"))
-	header.Number = big.NewInt(int64(engine.config.Epoch))
-	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidNonce {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidNonce)
 	}
 }
 

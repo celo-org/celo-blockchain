@@ -20,13 +20,12 @@ use crypto_primitives::{
     prf::blake2s::{constraints::blake2s_gadget_with_parameters, Blake2sWithParameterBlock},
 };
 
-use groth16::{Proof, VerifyingKey};
-
 pub static OUT_DOMAIN: &[u8] = b"ULforout";
 
 use r1cs_std::fields::fp::FpGadget;
 type FrGadget = FpGadget<Fr>;
 
+use super::epochs::HashToBitsHelper;
 use crate::gadgets::{HashToBits, MultipackGadget};
 
 /// Parameters for compressing the public inputs of the R1CS system
@@ -43,10 +42,12 @@ impl ProofOfCompression {
     pub fn compress_public_inputs<CS: ConstraintSystem<Fr>>(
         &self,
         cs: &mut CS,
-        proof: &Proof<Bls12_377>,
-        verifying_key: &VerifyingKey<Bls12_377>,
+        helper: Option<HashToBitsHelper<Bls12_377>>,
     ) -> Result<(), SynthesisError> {
-        self.verify_proof(&mut cs.ns(|| "verify proof"), proof, verifying_key)?;
+        // Only verify the proof if it was provided
+        if let Some(helper) = helper {
+            self.verify_proof(&mut cs.ns(|| "verify proof"), &helper)?;
+        }
         self.verify_edges(&mut cs.ns(|| "verify edges"))?;
         Ok(())
     }
@@ -109,17 +110,17 @@ impl ProofOfCompression {
     fn verify_proof<CS: ConstraintSystem<Fr>>(
         &self,
         cs: &mut CS,
-        proof: &Proof<Bls12_377>,
-        verifying_key: &VerifyingKey<Bls12_377>,
+        helper: &HashToBitsHelper<Bls12_377>,
     ) -> Result<(), SynthesisError> {
         // Verify the proof
-        let proof =
-            ProofGadget::<_, _, PairingGadget>::alloc(cs.ns(|| "alloc proof"), || Ok(proof))?;
+        let proof = ProofGadget::<_, _, PairingGadget>::alloc(cs.ns(|| "alloc proof"), || {
+            Ok(helper.proof.clone())
+        })?;
 
         // Allocate the VK
         let verifying_key = VerifyingKeyGadget::<_, _, PairingGadget>::alloc(
             cs.ns(|| "allocate verifying key"),
-            || Ok(verifying_key),
+            || Ok(helper.verifying_key.clone()),
         )?;
 
         // The public inputs are the CRH and XOF bits split in `Fr::CAPACITY` chunks

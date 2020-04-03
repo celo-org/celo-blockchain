@@ -137,29 +137,27 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, err error) {
 	// Cache some values to prevent constant recalculation
 	var (
-		hash    = header.Hash()
-		number  = header.Number.Uint64()
-		localTd *big.Int
+		hash     = header.Hash()
+		number   = header.Number.Uint64()
+		localTd  *big.Int
+		externTd *big.Int
 	)
+
 	// Calculate the total difficulty of the header.
 	// ptd seems to be abbreviation of "parent total difficulty".
+	// In IBFT, the announced td (total difficulty) is 1 + block number.
 	ptd := hc.GetTd(header.ParentHash, number-1)
-	externTd := new(big.Int)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else {
-			// In IBFT, it seems that the announced td (total difficulty) is 1 + block number.
-			totalDifficulty := big.NewInt(int64(number + 1))
-			log.Debug(fmt.Sprintf("Previous header for %d difficulty is not available, setting its difficulty to %v",
-				number, totalDifficulty))
-			localTd = big.NewInt(hc.CurrentHeader().Number.Int64())
-			externTd = externTd.Add(externTd, totalDifficulty)
+			localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 		}
 	} else {
 		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-		externTd = externTd.Add(header.Difficulty, ptd)
 	}
+
+	externTd = big.NewInt(int64(number + 1))
 
 	// Irrelevant of the canonical status, write the td and header to the database
 	if err := hc.WriteTd(hash, number, externTd); err != nil {
@@ -412,6 +410,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	// Cache the found body for next time and return
 	hc.tdCache.Add(hash, td)
 	return td
+	//return big.NewInt(int64(number + 1))
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the

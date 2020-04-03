@@ -1,7 +1,5 @@
 {
   "context": {
-    "difficulty": "3665057456",
-    "gasLimit": "5232723",
     "miner": "0xf4d8e706cfb25c0decbbdd4d2e2cc10c66376a3f",
     "number": "2294501",
     "timestamp": "1513673601"
@@ -29,15 +27,11 @@
       "eip150Hash": "0x41941023680923e0fe4d74a34bdac8141f2540e3ae90623718e47d66d1ca4a2d",
       "eip155Block": 10,
       "eip158Block": 10,
-      "ethash": {},
       "homesteadBlock": 0
     },
-    "difficulty": "3672229776",
     "extraData": "0x4554482e45544846414e532e4f52472d4641313738394444",
-    "gasLimit": "5227619",
     "hash": "0xa07b3d6c6bf63f5f981016db9f2d1d93033833f2c17e8bf7209e85f1faf08076",
     "miner": "0xbbf5029fd710d227630c8b7d338051b8e76d50b3",
-    "mixHash": "0x806e151ce2817be922e93e8d5921fa0f0d0fd213d6b2b9a3fa17458e74a163d0",
     "nonce": "0xbc5d43adc2c30c7d",
     "number": "2294500",
     "stateRoot": "0xca645b335888352ef9d8b1ef083e9019648180b259026572e3139717270de97d",

@@ -31,13 +31,12 @@ import (
 )
 
 func TestSimulatedBackend(t *testing.T) {
-	var gasLimit uint64 = 8000029
 	key, _ := crypto.GenerateKey() // nolint: gosec
 	auth := bind.NewKeyedTransactor(key)
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
 
-	sim := backends.NewSimulatedBackend(genAlloc, gasLimit)
+	sim := backends.NewSimulatedBackend(genAlloc)
 	defer sim.Close()
 
 	// should return an error if the tx is not found

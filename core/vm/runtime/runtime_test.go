@@ -33,10 +33,6 @@ func TestDefaults(t *testing.T) {
 	cfg := new(Config)
 	setDefaults(cfg)
 
-	if cfg.Difficulty == nil {
-		t.Error("expected difficulty to be non nil")
-	}
-
 	if cfg.Time == nil {
 		t.Error("expected time to be non nil")
 	}
@@ -65,9 +61,7 @@ func TestEVM(t *testing.T) {
 	}()
 
 	Execute([]byte{
-		byte(vm.DIFFICULTY),
 		byte(vm.TIMESTAMP),
-		byte(vm.GASLIMIT),
 		byte(vm.PUSH1),
 		byte(vm.ORIGIN),
 		byte(vm.BLOCKHASH),
@@ -162,7 +156,6 @@ func benchmarkEVM_Create(bench *testing.B, code string) {
 		Origin:      sender,
 		State:       statedb,
 		GasLimit:    10000000,
-		Difficulty:  big.NewInt(0x200000),
 		Time:        new(big.Int).SetUint64(0),
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(1),

@@ -64,7 +64,7 @@ jobs:
           root: .
           paths: target/release
 
-  go-module-tests:
+  go-tests:
     <<: *go_defaults
     working_directory: ~/app
     docker:
@@ -72,8 +72,21 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/app
-      - run: cd ~/app/go/cmd/example && go run main.go
-      - run: cd ~/app/go && go test
+      - run: 
+          name: Run Tests
+          command: |
+            cd ~/app/go
+            go test ./bls ./snark
+      - run:
+          name: Build and run example
+          command: |
+            cd ~/app/
+            LIB_DIR=`pwd`/target/release
+            cd ./go/cmd
+            CGO_LDFLAGS="-L$LIB_DIR -lepoch_snark -ldl -lm" go build -ldflags "-w" bls_example.go
+            ./bls_example
+ 
+
 
 workflows:
   version: 2
@@ -83,7 +96,7 @@ workflows:
       - bls-tests:
           requires:
             - checkout-repo
-      - go-module-tests:
+      - go-tests:
           requires:
             - checkout-repo
             - bls-tests
