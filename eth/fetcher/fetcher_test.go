@@ -182,6 +182,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 	// Create a function that returns blocks from the closure
 	return func(hashes []common.Hash) error {
 		// Gather the block bodies to return
+		blockHashes := make([]common.Hash, 0, len(hashes))
 		transactions := make([][]*types.Transaction, 0, len(hashes))
 		uncles := make([][]*types.Header, 0, len(hashes))
 		randomness := make([]*types.Randomness, 0, len(hashes))
@@ -189,6 +190,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
+				blockHashes = append(blockHashes, hash)
 				transactions = append(transactions, block.Transactions())
 				uncles = append(uncles, block.Uncles())
 				randomness = append(randomness, block.Randomness())
@@ -196,7 +198,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, epochSnarkData, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, blockHashes, transactions, uncles, randomness, epochSnarkData, time.Now().Add(drift))
 
 		return nil
 	}
