@@ -137,7 +137,14 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
 
 	uptimes := make([]*big.Int, 0, len(valSet))
-	for i, entry := range rawdb.ReadAccumulatedEpochUptime(sb.db, epoch).Entries {
+	accumulated := rawdb.ReadAccumulatedEpochUptime(sb.db, epoch)
+	if accumulated == nil {
+		err := errors.New("Accumulated uptimes not found, cannot update validator scores")
+		logger.Error(err.Error())
+		return nil, err
+	}
+
+	for i, entry := range accumulated.Entries {
 		if i >= len(valSet) {
 			break
 		}
