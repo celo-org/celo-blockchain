@@ -892,9 +892,9 @@ func (sb *Backend) ValidatorAddress() common.Address {
 func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
-	waitPeriod := 1*time.Minute
+	waitPeriod := 1 * time.Minute
 	if sb.config.Epoch <= 10 {
-		waitPeriod = 1*time.Second
+		waitPeriod = 1 * time.Second
 	}
 	// Check to see if there is a cached validator conn set, and if it's for the current block
 	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= waitPeriod {

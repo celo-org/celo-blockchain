@@ -127,9 +127,9 @@ func (sb *Backend) announceThread() {
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
-				waitPeriod := 1*time.Minute
+				waitPeriod := 1 * time.Minute
 				if sb.config.Epoch <= 10 {
-					waitPeriod = 5*time.Second
+					waitPeriod = 5 * time.Second
 				}
 				time.AfterFunc(waitPeriod, func() {
 					sb.startGossipQueryEnodeTask()
