@@ -3,6 +3,9 @@ pub mod bls;
 pub mod curve;
 pub mod hash;
 
+#[cfg(any(test, feature = "test-helpers"))]
+pub mod test_helpers;
+
 // Clean public API
 pub use bls::keys::{PrivateKey, PublicKey, Signature};
 pub use curve::hash::try_and_increment::TryAndIncrement;
@@ -12,7 +15,10 @@ use lazy_static::lazy_static;
 use log::error;
 
 use crate::{
-    bls::keys::{PublicKeyCache, POP_DOMAIN, SIG_DOMAIN},
+    bls::{
+        ffi::{Message, MessageFFI},
+        keys::{BLSError, PublicKeyCache, POP_DOMAIN, SIG_DOMAIN},
+    },
     curve::hash::HashToG1,
 };
 use algebra::{
@@ -368,6 +374,57 @@ pub extern "C" fn verify_signature(
         };
         unsafe { *out_verified = verified };
 
+        Ok(())
+    })
+}
+
+#[no_mangle]
+/// Receives a list of messages composed of:
+/// 1. the data
+/// 1. the public keys which signed on the data
+/// 1. the signature produced by the public keys
+///
+/// It will create the aggregate signature from all messages and execute batch
+/// verification against each (data, publickey) pair. Internally calls `Signature::batch_verify`
+///
+/// The verification equation can be found in pg.11 from
+/// https://eprint.iacr.org/2018/483.pdf: "Batch verification"
+pub extern "C" fn batch_verify_signature(
+    messages_ptr: *const MessageFFI,
+    messages_len: usize,
+    should_use_composite: bool,
+    verified: *mut bool,
+) -> bool {
+    convert_result_to_bool::<_, BLSError, _>(|| {
+        // Get the pointers slice
+        let messages: &[MessageFFI] = unsafe { slice::from_raw_parts(messages_ptr, messages_len) };
+
+        // Get the data from the underlying pointers in the right format
+        let messages = messages
+            .iter()
+            .map(|m| Message::from(m))
+            .collect::<Vec<_>>();
+
+        let asig = {
+            let sigs = messages.iter().map(|m| m.sig).collect::<Vec<_>>();
+            Signature::aggregate(&sigs)
+        };
+
+        let pubkeys = messages.iter().map(|m| m.public_key).collect::<Vec<_>>();
+        let messages = messages
+            .iter()
+            .map(|m| (m.data, m.extra))
+            .collect::<Vec<_>>();
+
+        let is_verified = if should_use_composite {
+            asig.batch_verify(&pubkeys, SIG_DOMAIN, &messages, &*COMPOSITE_HASH_TO_G1)
+                .is_ok()
+        } else {
+            asig.batch_verify(&pubkeys, SIG_DOMAIN, &messages, &*DIRECT_HASH_TO_G1)
+                .is_ok()
+        };
+
+        unsafe { *verified = is_verified };
         Ok(())
     })
 }

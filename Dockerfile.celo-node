@@ -3,8 +3,10 @@
 # * geth_label arg is used specify which geth image to build from
 #
 # CELO_NETWORK=baklavastaging
-# docker build . -f Dockerfile.celo-node --build-arg celo_env=$CELO_NETWORK --build-arg geth_label=$(git rev-parse HEAD) -t us.gcr.io/celo-testnet/celo-node:$CELO_NETWORK
+# COMMIT_HASH=$(git rev-parse HEAD)
+# docker build . -f Dockerfile.celo-node --build-arg celo_env=$CELO_NETWORK --build-arg geth_label=$COMMIT_HASH -t us.gcr.io/celo-testnet/celo-node:$CELO_NETWORK -t us.gcr.io/celo-testnet/celo-node:$COMMIT_HASH
 # docker push us.gcr.io/celo-testnet/celo-node:$CELO_NETWORK
+# docker push us.gcr.io/celo-testnet/celo-node:$COMMIT_HASH
 
 ARG geth_label
 

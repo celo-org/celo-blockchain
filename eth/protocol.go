@@ -189,5 +189,10 @@ func (request *newBlockData) sanityCheck() error {
 	return nil
 }
 
+type blockBodyWithBlockHash struct {
+	BlockHash common.Hash
+	BlockBody *types.Body
+}
+
 // blockBodiesData is the network packet for block content distribution.
-type blockBodiesData []*types.Body
+type blockBodiesData []*blockBodyWithBlockHash
