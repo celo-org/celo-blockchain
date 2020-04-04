@@ -303,7 +303,7 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(c.current.Commits())
+		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
@@ -323,8 +323,11 @@ func (c *core) commit() error {
 }
 
 // GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature
-func GetAggregatedEpochValidatorSetSeal(seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
+func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
+		return types.IstanbulEpochValidatorSetSeal{}, nil
+	}
 	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
