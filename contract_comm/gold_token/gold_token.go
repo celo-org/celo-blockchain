@@ -121,13 +121,17 @@ func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) erro
 }
 
 func Mint(header *types.Header, state vm.StateDB, benficiary common.Address, value *big.Int) error {
+	if value.Cmp(new(big.Int)) <= 0 {
+		return nil
+	}
+
 	_, err := contract_comm.MakeCall(
 		params.GoldTokenRegistryId,
 		mintFuncABI,
 		"mint",
 		[]interface{}{benficiary, value},
 		nil,
-		params.MaxGasForIncreaseSupply,
+		params.MaxGasForMintGas,
 		common.Big0,
 		header,
 		state,
