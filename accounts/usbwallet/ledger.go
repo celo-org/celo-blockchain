@@ -57,6 +57,7 @@ const (
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
+	ledgerOpGetAppType       ledgerOpcode = 0x0C // Returns the Celo app being run on the Ledger device
 
 	ledgerOpSignHashBLS ledgerOpcode = 0x02 // Signs hash for BLS validator app
 
@@ -134,12 +135,16 @@ func (w *ledgerDriver) offline() bool {
 func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
-	// Try to resolve the Celo app's version and app type
-	reply, err := w.ledgerVersionAndType()
+	// Try to resolve the Celo app's type
+	appTypeReply, err := w.ledgerAppType()
 	if err != nil {
 		return nil
 	}
-	w.app = appType(reply[0])
+	versionReply, err := w.ledgerVersion()
+	if err != nil {
+		return nil
+	}
+	w.app = appType(appTypeReply[0])
 
 	if w.app == ledgerTxSigner {
 		_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
@@ -151,7 +156,7 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 			return nil
 		}
 	}
-	copy(w.version[:], reply[1:])
+	copy(w.version[:], versionReply[1:])
 
 	/*
 	  This is an example of how to enforce version numbers for features
@@ -174,7 +179,7 @@ func (w *ledgerDriver) Close() error {
 // Heartbeat implements usbwallet.driver, performing a sanity check against the
 // Ledger to see if it's still online.
 func (w *ledgerDriver) Heartbeat() error {
-	if _, err := w.ledgerVersionAndType(); err != nil && err != errLedgerInvalidVersionReply {
+	if _, err := w.ledgerVersion(); err != nil && err != errLedgerInvalidVersionReply {
 		w.failure = err
 		return err
 	}
@@ -262,21 +267,49 @@ func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message
 //   Description                                        | Length
 //   ---------------------------------------------------+--------
 //   Flags 01: arbitrary data signature enabled by user | 1 byte
-//   App type						| 1 byte
 //   Application major version                          | 1 byte
 //   Application minor version                          | 1 byte
 //   Application patch version                          | 1 byte
-func (w *ledgerDriver) ledgerVersionAndType() ([4]byte, error) {
+func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 	// Send the request and wait for the response
 	reply, err := w.ledgerExchange(ledgerOpGetConfiguration, 0, 0, nil)
 	if err != nil {
-		return [4]byte{}, err
+		return [3]byte{}, err
 	}
-	if len(reply) != 5 {
-		return [4]byte{}, errLedgerInvalidVersionReply
+	if len(reply) != 4 {
+		return [3]byte{}, errLedgerInvalidVersionReply
 	}
 	// Cache the version for future reference
-	var result [4]byte
+	var result [3]byte
+	copy(result[:], reply[1:])
+	return result, nil
+}
+
+// ledgerAppType retrieves the current version of the Celo wallet app running
+// on the Ledger wallet.
+//
+// The app type retrieval protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc | Le
+//   ----+-----+----+----+----+---
+//    E0 | 06  | 00 | 00 | 00 | 04
+//
+// With no input data, and the output data being:
+//
+//   Description                                        | Length
+//   ---------------------------------------------------+--------
+//   Application Type                                   | 1 byte
+func (w *ledgerDriver) ledgerAppType() ([1]byte, error) {
+	// Send the request and wait for the response
+	reply, err := w.ledgerExchange(ledgerOpGetAppType, 0, 0, nil)
+	if err != nil {
+		return [1]byte{}, err
+	}
+	if len(reply) != 1 {
+		return [1]byte{}, errLedgerInvalidVersionReply
+	}
+	// Cache the version for future reference
+	var result [1]byte
 	copy(result[:], reply[1:])
 	return result, nil
 }
