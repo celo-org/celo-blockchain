@@ -285,8 +285,24 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 		return errInvalidAggregatedSeal
 	}
 
-	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
+	publicKeys, err := hasQuorum(validators, aggregatedSeal)
+	if err != nil {
+		return err
+	}
+
+	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
+	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
+	if err != nil {
+		logger.Error("Unable to verify aggregated signature", "err", err)
+		return errInvalidSignature
+	}
+
+	return nil
+}
+
+// Find which public keys signed from the provided validator set
+func hasQuorum(validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) ([]blscrypto.SerializedPublicKey, error) {
 	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
@@ -294,18 +310,13 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 			publicKeys = append(publicKeys, pubKey)
 		}
 	}
+
 	// The length of a valid seal should be greater than the minimum quorum size
 	if len(publicKeys) < validators.MinQuorumSize() {
-		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
-		return errInsufficientSeals
-	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
-	if err != nil {
-		logger.Error("Unable to verify aggregated signature", "err", err)
-		return errInvalidSignature
+		return nil, errInsufficientSeals
 	}
 
-	return nil
+	return publicKeys, nil
 }
 
 // VerifySeal checks whether the crypto seal on a header is valid according to
