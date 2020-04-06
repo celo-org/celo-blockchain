@@ -312,7 +312,7 @@ func (w *ledgerDriver) ledgerAppType() ([1]byte, error) {
 	}
 	// Cache the version for future reference
 	var result [1]byte
-	copy(result[:], reply[1:])
+	result[0] = reply[0]
 	return result, nil
 }
 
