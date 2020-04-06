@@ -30,6 +30,31 @@ const (
 		}]`
 
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	mintABI = `[{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "mint",
+		"outputs": [
+			{
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}]`
+
+	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
 	totalSupplyABI = `[{
 		"constant": true,
 		"inputs": [],
@@ -46,10 +71,23 @@ const (
 	  }]`
 )
 
-var (
-	increaseSupplyFuncABI, _ = abi.JSON(strings.NewReader(increaseSupplyABI))
-	totalSupplyFuncABI, _    = abi.JSON(strings.NewReader(totalSupplyABI))
-)
+var mintFuncABI, totalSupplyFuncABI, increaseSupplyFuncABI abi.ABI
+
+func init() {
+	var err error
+	increaseSupplyFuncABI, err = abi.JSON(strings.NewReader(increaseSupplyABI))
+	if err != nil {
+		panic(err)
+	}
+	mintFuncABI, err = abi.JSON(strings.NewReader(mintABI))
+	if err != nil {
+		panic(err)
+	}
+	totalSupplyFuncABI, err = abi.JSON(strings.NewReader(totalSupplyABI))
+	if err != nil {
+		panic(err)
+	}
+}
 
 func GetTotalSupply(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var totalSupply *big.Int
@@ -74,6 +112,26 @@ func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) erro
 		[]interface{}{value},
 		nil,
 		params.MaxGasForIncreaseSupply,
+		common.Big0,
+		header,
+		state,
+		false,
+	)
+	return err
+}
+
+func Mint(header *types.Header, state vm.StateDB, benficiary common.Address, value *big.Int) error {
+	if value.Cmp(new(big.Int)) <= 0 {
+		return nil
+	}
+
+	_, err := contract_comm.MakeCall(
+		params.GoldTokenRegistryId,
+		mintFuncABI,
+		"mint",
+		[]interface{}{benficiary, value},
+		nil,
+		params.MaxGasForMintGas,
 		common.Big0,
 		header,
 		state,
