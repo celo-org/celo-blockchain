@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -354,6 +355,51 @@ OUT3:
 			break OUT3
 		}
 	}
+}
+
+// Executes batch BLS signature verification. Note that this becomes more efficient
+// as the number of blocks becomes bigger
+func TestBatchedBLS(t *testing.T) {
+	numHeaders := 15
+	numValidators := 50
+
+	headers, chain, engine := populateBlocks(numValidators, numHeaders, false)
+	now = func() time.Time {
+		return time.Unix(int64(headers[len(headers)-1].Time), 0)
+	}
+
+	_, results := engine.VerifyHeaders(chain, headers, nil)
+	err := <-results
+	if err != nil {
+		t.Fatalf("error mismatch: have %v, want %v", err, nil)
+	}
+}
+
+// helper which creates a list of signed blocks
+func populateBlocks(numValidators int, numHeaders int, fullHeaderChainAvailable bool) ([]*types.Header, *core.BlockChain, *Backend) {
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, fullHeaderChainAvailable)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
+	genesis := chain.Genesis()
+
+	// initialize with the first header being the genesis block
+	headers := []*types.Header{}
+	blocks := []*types.Block{}
+
+	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
+	blocks = append(blocks, block)
+	headers = append(headers, block.Header())
+
+	// ... and append the rest
+	for i := 1; i < numHeaders; i++ {
+		block, err := makeBlock(nodeKeys, chain, engine, blocks[i-1])
+		if err != nil {
+			panic(err)
+		}
+		blocks = append(blocks, block)
+		headers = append(headers, block.Header())
+	}
+
+	return headers, chain, engine
 }
 
 func TestVerifyHeaderWithoutFullChain(t *testing.T) {
