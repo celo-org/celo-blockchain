@@ -267,8 +267,11 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 	results := make(chan *types.Block)
+
 	go func() { engine.Seal(chain, block, results, nil) }()
+
 	block = <-results
+
 	return block
 }
 
@@ -304,6 +307,7 @@ func TestPrepare(t *testing.T) {
 func TestSealReturns(t *testing.T) {
 	chain, engine := newBlockChain(2, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+
 	stop := make(chan struct{}, 1)
 	results := make(chan *types.Block)
 	returns := make(chan struct{}, 1)
@@ -321,7 +325,18 @@ func TestSealReturns(t *testing.T) {
 		t.Errorf("Never returned from seal")
 	}
 
+	block = <-results
+	extra, err := types.ExtractIstanbulExtra(block.Header())
+	if err != nil {
+		t.Fatalf("failed to extract istanbul data: %v", err)
+	}
+
+	// 2 validators -> 000011 bitmap -> 3
+	if extra.AggregatedSeal.Bitmap.Cmp(big.NewInt(3)) != 0 {
+		t.Fatalf("wrong bitmap")
+	}
 }
+
 func TestSealStopChannel(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -444,7 +459,7 @@ func TestVerifyHeader(t *testing.T) {
 }
 
 func TestVerifySeal(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
+	chain, engine := newBlockChain(2, true)
 	genesis := chain.Genesis()
 	// cannot verify genesis
 	err := engine.VerifySeal(chain, genesis.Header())
