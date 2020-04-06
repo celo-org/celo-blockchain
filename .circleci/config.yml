@@ -10,7 +10,7 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"
-      CELO_MONOREPO_BRANCH_TO_TEST: mc/gold-mint
+      CELO_MONOREPO_BRANCH_TO_TEST: master
 jobs:
   build-bls-zexe:
     docker:
