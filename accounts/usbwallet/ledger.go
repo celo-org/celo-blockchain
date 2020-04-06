@@ -136,15 +136,17 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
 	// Try to resolve the Celo app's type
-	appTypeReply, err := w.ledgerAppType()
-	if err != nil {
-		return nil
-	}
 	versionReply, err := w.ledgerVersion()
 	if err != nil {
 		return nil
 	}
-	w.app = appType(appTypeReply[0])
+	// Assume spend app if error occurs for backwards compatibility with older versions of spend TxSigner app
+	appTypeReply, err := w.ledgerAppType()
+	if err != nil {
+		w.app = ledgerTxSigner
+	} else {
+		w.app = appType(appTypeReply[0])
+	}
 
 	if w.app == ledgerTxSigner {
 		_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
