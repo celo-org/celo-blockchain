@@ -129,6 +129,24 @@ can then be used to prove possession of the signing key, for example to
 authorize a the signer to act as a validator in the Celo protocol.
 `,
 			},
+      {
+				Name:      "confirm-address",
+				Usage:     "Confirm the entered address appears on the hardware wallet.",
+				Action:    utils.MigrateFlags(accountConfirmHardwareAddress),
+				ArgsUsage: "<address>",
+				Flags: []cli.Flag{
+					utils.DataDirFlag,
+					utils.KeyStoreDirFlag,
+					utils.PasswordFileFlag,
+					utils.LightKDFFlag,
+				},
+				Description: `
+Confirms the address exists in the hardware wallet.
+
+The hardware wallet will not display an address that can't be derived from the stored private key.
+`,
+			},
+
 			{
 				Name:   "new",
 				Usage:  "Create a new account",
@@ -299,6 +317,55 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	}
 
 	printProofOfPossession(account, pop, keyType, key)
+
+	return nil
+}
+
+func accountConfirmHardwareAddress(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		utils.Fatalf("Please specify the address to confirm on the hardware wallet.")
+	}
+
+	stack, _ := makeConfigNode(ctx)
+	am := stack.AccountManager()
+
+	address := common.HexToAddress(ctx.Args()[0])
+
+	var err error
+	var wallet accounts.Wallet
+	account := accounts.Account{Address: address}
+	foundAccount := false
+
+	for _, wallet = range am.Wallets() {
+    if wallet.URL().Scheme == usbwallet.LedgerScheme {
+			if err := wallet.Open(""); err != nil {
+				if err != accounts.ErrWalletAlreadyOpen {
+					utils.Fatalf("Could not open Ledger wallet: %v", err)
+				}
+			} else {
+				defer wallet.Close()
+			}
+
+			account, err = wallet.Derive(accounts.DefaultBaseDerivationPath, true)
+			if err != nil {
+				return err
+			}
+			if account.Address == address {
+				foundAccount = true
+        receivedAddress, err := wallet.ConfirmAddress(accounts.DefaultBaseDerivationPath)
+        if err != nil {
+          return err
+        }
+        if receivedAddress != address {
+          utils.Fatalf("Address %x is different in the ledger %x", address, receivedAddress)
+        }
+				break
+			}
+		}
+	}
+	if !foundAccount {
+		utils.Fatalf("Could not find account %x", account)
+	}
 
 	return nil
 }

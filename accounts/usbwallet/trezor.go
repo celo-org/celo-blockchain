@@ -153,6 +153,12 @@ func (w *trezorDriver) Open(device io.ReadWriter, passphrase string) error {
 	return nil
 }
 
+
+// ConfirmAddress implements usbwallet.driver, showing the address on the device.
+func (w *trezorDriver) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, accounts.ErrNotSupported
+}
+
 // Close implements usbwallet.driver, cleaning up and metadata maintained within
 // the Trezor driver.
 func (w *trezorDriver) Close() error {
