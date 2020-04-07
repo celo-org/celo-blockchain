@@ -274,11 +274,11 @@ type Backend struct {
 }
 
 func (sb *Backend) IsProxy() bool {
-	return sb.proxiedPeer != nil
+	return sb.config.Proxy || sb.proxiedPeer != nil
 }
 
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.proxyNode != nil && sb.proxyNode.peer != nil
+	return sb.config.Proxied || sb.proxyNode != nil && sb.proxyNode.peer != nil
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy

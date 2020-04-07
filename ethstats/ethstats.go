@@ -102,7 +102,6 @@ type Service struct {
 	les       *les.LightEthereum       // Light Ethereum service if monitoring a light node
 	engine    consensus.Engine         // Consensus engine to retrieve variadic block fields
 	backend   *istanbulBackend.Backend // Istanbul consensus backend
-	etherBase common.Address
 	node      string // Name of the node to display on the monitoring page
 	host      string // Remote address of the monitoring service
 
@@ -121,13 +120,11 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	// Assemble and return the stats service
 	var (
 		engine    consensus.Engine
-		etherBase common.Address
 		id        string
 	)
 	id = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
-		etherBase, _ = ethServ.Etherbase()
 	} else {
 		engine = lesServ.Engine()
 	}
@@ -139,7 +136,6 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		les:       lesServ,
 		engine:    engine,
 		backend:   backend,
-		etherBase: etherBase,
 		node:      id,
 		host:      parts[2],
 		pongCh:    make(chan struct{}),
@@ -272,88 +268,81 @@ func (s *Service) loop() {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
-			wallet, err := s.eth.AccountManager().Find(accounts.Account{Address: s.etherBase})
-			if err != nil {
-				break
-			}
+            // Resolve the URL, defaulting to TLS, but falling back to none too
+            path := fmt.Sprintf("%s/api", s.host)
+            urls := []string{path}
 
-			if status, _ := wallet.Status(); status == "Unlocked" {
-				// Resolve the URL, defaulting to TLS, but falling back to none too
-				path := fmt.Sprintf("%s/api", s.host)
-				urls := []string{path}
+            // url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+            if !strings.Contains(path, "://") {
+                urls = []string{"wss://" + path, "ws://" + path}
+            }
+            // Establish a websocket connection to the server on any supported URL
+            var (
+                conn *websocket.Conn
+                err  error
+            )
+            dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+            header := make(http.Header)
+            for _, url := range urls {
+                conn, _, err = dialer.Dial(url, header)
+                if err == nil {
+                    break
+                }
+            }
 
-				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-				if !strings.Contains(path, "://") {
-					urls = []string{"wss://" + path, "ws://" + path}
-				}
-				// Establish a websocket connection to the server on any supported URL
-				var (
-					conn *websocket.Conn
-					err  error
-				)
-				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-				header := make(http.Header)
-				for _, url := range urls {
-					conn, _, err = dialer.Dial(url, header)
-					if err == nil {
-						break
-					}
-				}
+            if err != nil {
+                log.Warn("Stats server unreachable", "err", err)
+                time.Sleep(connectionTimeout * time.Second)
+                continue
+            }
+            // Authenticate the client with the server
+            if err = s.login(conn, sendCh); err != nil {
+                log.Warn("Stats login failed", "err", err)
+                conn.Close()
+                time.Sleep(connectionTimeout * time.Second)
+                continue
+            }
+            go s.readLoop(conn)
 
-				if err != nil {
-					log.Warn("Stats server unreachable", "err", err)
-					time.Sleep(connectionTimeout * time.Second)
-					continue
-				}
-				// Authenticate the client with the server
-				if err = s.login(conn, sendCh); err != nil {
-					log.Warn("Stats login failed", "err", err)
-					conn.Close()
-					time.Sleep(connectionTimeout * time.Second)
-					continue
-				}
-				go s.readLoop(conn)
+            // Send the initial stats so our node looks decent from the get go
+            if err = s.report(conn, sendCh); err != nil {
+                log.Warn("Initial stats report failed", "err", err)
+                conn.Close()
+                continue
+            }
+            // Keep sending status updates until the connection breaks
+            fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
-				// Send the initial stats so our node looks decent from the get go
-				if err = s.report(conn, sendCh); err != nil {
-					log.Warn("Initial stats report failed", "err", err)
-					conn.Close()
-					continue
-				}
-				// Keep sending status updates until the connection breaks
-				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+            for err == nil {
+                select {
+                case <-quitCh:
+                    conn.Close()
+                    return
 
-				for err == nil {
-					select {
-					case <-quitCh:
-						conn.Close()
-						return
-
-					case <-fullReport.C:
-						if err = s.report(conn, sendCh); err != nil {
-							log.Warn("Full stats report failed", "err", err)
-						}
-					case list := <-s.histCh:
-						if err = s.reportHistory(conn, list); err != nil {
-							log.Warn("Requested history report failed", "err", err)
-						}
-					case head := <-headCh:
-						if err = s.reportBlock(conn, head); err != nil {
-							log.Warn("Block stats report failed", "err", err)
-						}
-					case <-txCh:
-						if err = s.reportPending(conn); err != nil {
-							log.Warn("Transaction stats report failed", "err", err)
-						}
-					case signedMessage := <-sendCh:
-						if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-							log.Warn("Delegate send failed", "err", err)
-						}
-					}
-				}
-				// Make sure the connection is closed
-				conn.Close()
-			}
+                case <-fullReport.C:
+                    if err = s.report(conn, sendCh); err != nil {
+                        log.Warn("Full stats report failed", "err", err)
+                    }
+                case list := <-s.histCh:
+                    if err = s.reportHistory(conn, list); err != nil {
+                        log.Warn("Requested history report failed", "err", err)
+                    }
+                case head := <-headCh:
+                    if err = s.reportBlock(conn, head); err != nil {
+                        log.Warn("Block stats report failed", "err", err)
+                    }
+                case <-txCh:
+                    if err = s.reportPending(conn); err != nil {
+                        log.Warn("Transaction stats report failed", "err", err)
+                    }
+                case signedMessage := <-sendCh:
+                    if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+                        log.Warn("Delegate send failed", "err", err)
+                    }
+                }
+            }
+            // Make sure the connection is closed
+            conn.Close()
 		}
 	}
 }
@@ -387,51 +376,56 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
 
-	auth := &authMsg{
-		ID:      s.node,
-		Info: nodeInfo{
-			Name:     s.node,
-			Node:     infos.Name,
-			Port:     infos.Ports.Listener,
-			Network:  network,
-			Protocol: protocol,
-			API:      "No",
-			Os:       runtime.GOOS,
-			OsVer:    runtime.GOARCH,
-			Client:   "0.1.1",
-			History:  true,
-		},
-	}
-	if err := s.sendStats(conn, actionHello, auth); err != nil {
-		return err
-	}
-
-	// Proxy needs a delegate send here to get ACK
 	if s.backend.IsProxy() {
-		select {
-		case signedMessage := <-sendCh:
-			err := s.handleDelegateSend(conn, signedMessage)
-			if err != nil {
-				return err
-			}
-		case <-time.After(delegateSendTimeout * time.Second):
-			// Login timeout, abort
-			return errors.New("login timed out")
-		}
+        // Proxy needs a delegate send here to get ACK
+        select {
+        case signedMessage := <-sendCh:
+            err := s.handleDelegateSend(conn, signedMessage)
+            if err != nil {
+                return err
+            }
+        case <-time.After(delegateSendTimeout * time.Second):
+            // Login timeout, abort
+            return errors.New("login timed out")
+        }
+	} else if s.backend.IsProxiedValidator() {
+        auth := &authMsg{
+            ID:      s.node,
+            Info: nodeInfo{
+                Name:     s.node,
+                Node:     infos.Name,
+                Port:     infos.Ports.Listener,
+                Network:  network,
+                Protocol: protocol,
+                API:      "No",
+                Os:       runtime.GOOS,
+                OsVer:    runtime.GOARCH,
+                Client:   "0.1.1",
+                History:  true,
+            },
+        }
+        if err := s.sendStats(conn, actionHello, auth); err != nil {
+            return err
+        }
 	}
 
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
+
 	if err := conn.ReadJSON(&ack); err != nil {
 		return errors.New("unauthorized, try registering your validator to get whitelisted")
 	}
+
 	emit, ok := ack["emit"]
+
 	if !ok {
 		return errors.New("emit not in ack")
 	}
+
 	if len(emit) != 1 || emit[0] != "ready" {
 		return errors.New("unauthorized")
 	}
+
 	return nil
 }
 
