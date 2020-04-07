@@ -388,7 +388,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
             // Login timeout, abort
             return errors.New("login timed out")
         }
-	} else if s.backend.IsProxiedValidator() {
+	} else {
         auth := &authMsg{
             ID:      s.node,
             Info: nodeInfo{
