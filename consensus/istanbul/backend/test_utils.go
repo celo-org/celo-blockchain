@@ -36,8 +36,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	// Use the first key as private key
 	publicKey := nodeKeys[0].PublicKey
 	address := crypto.PubkeyToAddress(publicKey)
-	signerFn signFn(nodeKeys[0])
-	signerBLSFn := signBLSFn(nodeKeys[0])
+	signerFn := SignFn(nodeKeys[0])
+	signerBLSFn := SignBLSFn(nodeKeys[0])
 
 	b, _ := New(config, memDB).(*Backend)
 	b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSFn)
@@ -78,8 +78,8 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	for _, key := range nodeKeys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		if addr.String() == proposerAddr.String() {
-            signerFn := signFn(key)
-			signerBLSFn := signBLSFn(key)
+			signerFn := SignFn(key)
+			signerBLSFn := SignBLSFn(key)
 			b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSFn)
 			break
 		}
@@ -219,7 +219,7 @@ func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
 	return eciesKey.Decrypt(c, s1, s2)
 }
 
-func signFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
+func SignFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
 	if key == nil {
 		key, _ = generatePrivateKey()
 	}
@@ -229,7 +229,7 @@ func signFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
 	}
 }
 
-func signBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
+func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 	if key == nil {
 		key, _ = generatePrivateKey()
 	}
@@ -264,6 +264,6 @@ func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), &key.PublicKey, decryptFn, signFn(key), signBLSFn(key))
+	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
 	return
 }

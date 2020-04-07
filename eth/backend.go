@@ -503,7 +503,7 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("BLSbase account unavailable locally", "err", err)
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
-			istanbul.Authorize(eb, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignHashBLS, blswallet.SignMessageBLS)
+			istanbul.Authorize(eb, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS)
 		}
 
 		// If mining is started, we can disable the transaction rejection mechanism
