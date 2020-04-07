@@ -32,23 +32,7 @@
   // fault() is invoked when the actual execution of an opcode fails.
   fault(log, db) {
     this.assertEqual(this.callStack.length, log.getDepth());
-    if (this.callStack.length > 1) {
-      // Nested call reverted.
-      const failedCall = this.callStack.pop();
-
-      // Revert all transfers that are descendents of the failed call.
-      this.pushTransfers(this.topCall().transfers, failedCall.transfers, this.statusRevert);
-    } else {
-      // Outermost call reverted.
-      const call = this.callStack[0]
-      call.reverted = true
-
-      // Revert all transfers
-      for (var index in call.transfers) {
-        const transfer = call.transfers[index];
-        transfer.status = this.statusRevert;
-      }
-    }
+    this.topCall().reverted = true;
   },
 
   // step() is invoked for every opcode that the VM executes.
@@ -56,19 +40,20 @@
     const depth = log.getDepth()
 
     if (this.callStack.length - 1 == depth) {
-      const successfulCall = this.callStack.pop();
+      const finishedCall = this.callStack.pop();
 
       // Find to address for nested contract create with value.
-      if ((successfulCall.op == 'CREATE' || successfulCall.op == 'CREATE2') &&
-          successfulCall.transfers.length > 0 && !successfulCall.transfers[0].to) {
-        const createCall = successfulCall.transfers[0];
+      if ((finishedCall.op == 'CREATE' || finishedCall.op == 'CREATE2') &&
+          finishedCall.transfers.length > 0 && !finishedCall.transfers[0].to) {
+        const createTransfer = finishedCall.transfers[0];
         const ret = log.stack.peek(0);
-        createCall.to = toHex(toAddress(ret.toString(16)));
-        createCall.status = ret.equals(0) ? this.statusRevert : this.statusSuccess;
+        createTransfer.to = toHex(toAddress(ret.toString(16)));
+        createTransfer.status = ret.equals(0) ? this.statusRevert : this.statusSuccess;
       }
 
       // Propogate transfers made during the successful call.
-      this.pushTransfers(this.topCall().transfers, successfulCall.transfers, this.statusSuccess);
+      this.pushTransfers(this.topCall().transfers, finishedCall.transfers,
+                         finishedCall.reverted ? this.statusRevert : this.statusSuccess);
     }
 
     this.assertEqual(this.callStack.length, depth);
@@ -80,6 +65,10 @@
     } else {
       const op = log.op.toString();
       switch (op) {
+        case 'REVERT':
+          this.fault(log, db);
+          break;
+
         case 'CREATE':
         case 'CREATE2':
           this.callStack.push({ op, transfers: [] })
@@ -163,9 +152,12 @@
   // the final result of the tracing.
   result(ctx, db) {
     this.assertEqual(this.callStack.length, 1);
-    const create = ctx.type == 'CREATE' || ctx.type == 'CREATE2';
-    const transfers = this.topCall().transfers;
+    const rootCall = this.topCall();
+    const transfers = []
+    this.pushTransfers(transfers, rootCall.transfers,
+                       rootCall.reverted ? this.statusRevert : this.statusSuccess);
 
+    const create = ctx.type == 'CREATE' || ctx.type == 'CREATE2';
     if (ctx.type == 'CALL' || create) {
       valueBigInt = bigInt(ctx.value.toString());
       if (valueBigInt.gt(0)) {
@@ -174,7 +166,7 @@
           from: toHex(ctx.from),
           to: toHex(ctx.to),
           value: '0x' + valueBigInt.toString(16),
-          status: this.topCall().reverted ? this.statusRevert : this.statusSuccess,
+          status: rootCall.reverted ? this.statusRevert : this.statusSuccess,
         });
       }
     }
