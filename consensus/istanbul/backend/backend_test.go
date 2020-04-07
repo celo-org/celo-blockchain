@@ -171,8 +171,11 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
-	block := makeBlock(chain, engine, chain.Genesis())
+	numValidators := 1
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
+
+	block, _ := makeBlock(nodeKeys, chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()

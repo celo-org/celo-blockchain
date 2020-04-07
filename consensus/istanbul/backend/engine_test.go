@@ -46,27 +46,27 @@ func TestPrepare(t *testing.T) {
 	}
 }
 
-func TestSealReturns(t *testing.T) {
-	chain, engine := newBlockChain(2, true)
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	stop := make(chan struct{}, 1)
-	results := make(chan *types.Block)
-	returns := make(chan struct{}, 1)
-	go func() {
-		err := engine.Seal(chain, block, results, stop)
-		if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
-		returns <- struct{}{}
-	}()
-
-	select {
-	case <-returns:
-	case <-time.After(time.Second):
-		t.Errorf("Never returned from seal")
+func TestMakeBlockWithSignature(t *testing.T) {
+	numValidators := 4
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
+	genesis := chain.Genesis()
+	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
+	block2, err := makeBlock(nodeKeys, chain, engine, block)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
+
+	_, err = makeBlock(nodeKeys, chain, engine, block2)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
 }
+
 func TestSealStopChannel(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -99,29 +99,37 @@ func TestSealStopChannel(t *testing.T) {
 // TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
 // different block hash, it will abort
 func TestSealCommittedOtherHash(t *testing.T) {
-	chain, engine := newBlockChain(4, true)
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-
-	// create a second block which will have a different hash
-	otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
-	eventLoop := func() {
-		ev := <-eventSub.Chan()
-		_, ok := ev.Data.(istanbul.RequestEvent)
-		if !ok {
-			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
-		}
-		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
-		eventSub.Unsubscribe()
+	for numValidators := 1; numValidators < 5; numValidators++ {
+		testSealCommittedOtherHash(t, numValidators)
 	}
-	go eventLoop()
-	results := make(chan *types.Block)
+}
 
-	go func() { engine.Seal(chain, block, results, nil) }()
+func testSealCommittedOtherHash(t *testing.T, numValidators int) {
+	chain, engine := newBlockChain(numValidators, true)
+	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	// create a second block which will have a different hash
+	h := block.Header()
+	h.ParentHash = block.Hash()
+	otherBlock := types.NewBlock(h, nil, nil, nil)
+	if block.Hash() == otherBlock.Hash() {
+		t.Fatalf("did not create different blocks")
+	}
+
+	results := make(chan *types.Block)
+	engine.Seal(chain, block, results, nil)
+
+	// in the single validator case, the result will instantly be processed
+	// so we should discard it and check that the Commit will not do anything
+	if numValidators == 1 {
+		<-results
+	}
+	// this commit should _NOT_ push a new message to the queue
+	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+
 	select {
-	case <-results:
-		t.Error("seal should not be completed")
-	case <-time.After(2 * time.Second):
+	case res := <-results:
+		t.Fatal("seal should not be completed", res)
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -189,18 +197,25 @@ func TestVerifyHeader(t *testing.T) {
 }
 
 func TestVerifySeal(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
+	numValidators := 4
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
 	genesis := chain.Genesis()
+
 	// cannot verify genesis
 	err := engine.VerifySeal(chain, genesis.Header())
 	if err != errUnknownBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, errUnknownBlock)
 	}
 
-	block := makeBlock(chain, engine, genesis)
+	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
+	header := block.Header()
+	err = engine.VerifySeal(chain, header)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
 
 	// change header content and expect to invalidate signature
-	header := block.Header()
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(chain, header)
 	if err != errInvalidSignature {
