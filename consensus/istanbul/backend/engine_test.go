@@ -373,7 +373,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 
 	// create a second block which will have a different hash
-	otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	// otherBlock := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
 	eventLoop := func() {
 		ev := <-eventSub.Chan()
@@ -381,7 +381,7 @@ func TestSealCommittedOtherHash(t *testing.T) {
 		if !ok {
 			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 		}
-		engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+		engine.Commit(block, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
