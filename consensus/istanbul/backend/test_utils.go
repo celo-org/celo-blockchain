@@ -64,26 +64,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 		})
-	snap, err := b.snapshot(blockchain, 0, common.Hash{}, nil)
-	if err != nil {
-		panic(err)
-	}
-	if snap == nil {
-		panic("failed to get snapshot")
-	}
-	proposerAddr := b.AuthorForBlock(snap.Number)
-	// proposerAddr := snap.ValSet.GetProposer().Address()
-
-	// find proposer key
-	for _, key := range nodeKeys {
-		addr := crypto.PubkeyToAddress(key.PublicKey)
-		if addr.String() == proposerAddr.String() {
-			signerFn := SignFn(key)
-			signerBLSFn := SignBLSFn(key)
-			b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSFn)
-			break
-		}
-	}
 
 	contract_comm.SetInternalEVMHandler(blockchain)
 
