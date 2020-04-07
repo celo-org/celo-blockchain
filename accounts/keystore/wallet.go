@@ -123,24 +123,14 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 	return w.keystore.GetPublicKey(account)
 }
 
-func (w *keystoreWallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
+func (w *keystoreWallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
 		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
-	return w.keystore.SignHashBLS(account, hash)
-}
-
-func (w *keystoreWallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-	// Make sure the requested account is contained within
-	if !w.Contains(account) {
-		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
-		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
-	}
-	// Account seems valid, request the keystore to sign
-	return w.keystore.SignMessageBLS(account, msg, extraData)
+	return w.keystore.SignBLS(account, msg, extraData, useComposite)
 }
 
 func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
