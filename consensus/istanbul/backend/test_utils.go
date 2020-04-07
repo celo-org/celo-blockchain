@@ -3,6 +3,7 @@ package backend
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/celo-org/bls-zexe/go/bls"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
@@ -28,6 +30,11 @@ import (
 // other fake events to process Istanbul.
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
+
+	return newBlockChainWithKeys(genesis, nodeKeys)
+}
+
+func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ValidatorEnodeDBPath = ""
@@ -49,11 +56,14 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 		panic(err)
 	}
 
-	b.SetChain(blockchain, blockchain.CurrentBlock,
+	b.SetChain(
+		blockchain,
+		blockchain.CurrentBlock,
 		func(hash common.Hash) (*state.StateDB, error) {
 			stateRoot := blockchain.GetHeaderByHash(hash).Root
 			return blockchain.StateAt(stateRoot)
-		})
+		},
+	)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer())
 	b.StartAnnouncing()
@@ -119,26 +129,50 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	return header
 }
 
-func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
+func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
+	block, _ = engine.updateBlock(parent.Header(), block)
+
+	// start the sealing procedure
 	results := make(chan *types.Block)
-	go func() { engine.Seal(chain, block, results, nil) }()
+	go func() {
+		err := engine.Seal(chain, block, results, nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// create the sig and call Commit so that the result is pushed to the channel
+	aggregatedSeal := signBlock(keys, block)
+	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
+	if err != nil {
+		return nil, err
+	}
 	block = <-results
-	return block
+
+	// insert the block to the chain so that we can make multiple calls to this function
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err != nil {
+		return nil, err
+	}
+	return block, nil
 }
 
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	engine.Prepare(chain, header)
+
 	state, err := chain.StateAt(parent.Root())
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
 	engine.Finalize(chain, header, state, nil)
+
 	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil)
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}
+
 	return block
 }
 
@@ -238,6 +272,46 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 
 		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 	}
+}
+
+// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
+// block's hash, on consensus round 0, without a composite hasher
+func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
+	extraData := []byte{}
+	useComposite := false
+	round := big.NewInt(0)
+	headerHash := block.Header().Hash()
+	signatures := make([][]byte, len(keys))
+
+	msg := istanbulCore.PrepareCommittedSeal(headerHash, round)
+
+	for i, key := range keys {
+		signFn := SignBLSFn(key)
+		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite)
+		if err != nil {
+			panic("could not sign msg")
+		}
+		signatures[i] = sig[:]
+	}
+
+	asigBytes, err := blscrypto.AggregateSignatures(signatures)
+	if err != nil {
+		panic("could not aggregate sigs")
+	}
+
+	// create the bitmap from the validators
+	bitmap := big.NewInt(0)
+	for i := 0; i < len(keys); i++ {
+		bitmap.SetBit(bitmap, i, 1)
+	}
+
+	asig := types.IstanbulAggregatedSeal{
+		Bitmap:    bitmap,
+		Round:     round,
+		Signature: asigBytes,
+	}
+
+	return asig
 }
 
 func newBackend() (b *Backend) {
