@@ -364,10 +364,8 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	infos := s.server.NodeInfo()
 
 	var (
-		etherBase common.Address
 		network   string
 		protocol  string
-		err       error
 	)
 	if info := infos.Protocols[eth.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
@@ -388,15 +386,9 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
-	if s.eth != nil {
-		etherBase, err = s.eth.Etherbase()
-		if err != nil {
-			return err
-		}
-	}
+
 	auth := &authMsg{
 		ID:      s.node,
-		Address: etherBase,
 		Info: nodeInfo{
 			Name:     s.node,
 			Node:     infos.Name,
@@ -568,7 +560,6 @@ type nodeInfo struct {
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
 	ID      string         `json:"id"`
-	Address common.Address `json:"address"`
 	Info    nodeInfo       `json:"info"`
 }
 
