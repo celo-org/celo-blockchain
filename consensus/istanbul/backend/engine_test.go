@@ -364,10 +364,6 @@ func TestBatchedBLS(t *testing.T) {
 	numValidators := 50
 
 	headers, chain, engine := populateBlocks(numValidators, numHeaders, false)
-	now = func() time.Time {
-		return time.Unix(int64(headers[len(headers)-1].Time), 0)
-	}
-
 	_, results := engine.VerifyHeaders(chain, headers, nil)
 	err := <-results
 	if err != nil {
@@ -388,6 +384,11 @@ func populateBlocks(numValidators int, numHeaders int, fullHeaderChainAvailable 
 	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
 	blocks = append(blocks, block)
 	headers = append(headers, block.Header())
+
+    // redefine the `now` function to always pass
+	now = func() time.Time {
+		return time.Unix(int64(headers[len(headers)-1].Time), 0)
+	}
 
 	// ... and append the rest
 	for i := 1; i < numHeaders; i++ {
