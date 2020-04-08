@@ -56,7 +56,7 @@ const (
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
-	ledgerP1ShowFetchAddress        ledgerParam1 = 0x01 // Return address from the wallet after showing it 
+	ledgerP1ShowFetchAddress        ledgerParam1 = 0x01 // Return address from the wallet after showing it
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
@@ -266,10 +266,10 @@ func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) 
 		binary.BigEndian.PutUint32(path[1+4*i:], component)
 	}
 	// Send the request and wait for the response
-  p1 := ledgerP1DirectlyFetchAddress
-  if showOnWallet {
-    p1 = ledgerP1ShowFetchAddress
-  }
+	p1 := ledgerP1DirectlyFetchAddress
+	if showOnWallet {
+		p1 = ledgerP1ShowFetchAddress
+	}
 	reply, err := w.ledgerExchange(ledgerOpRetrieveAddress, p1, ledgerP2DiscardAddressChainCode, path)
 	if err != nil {
 		return common.Address{}, err
@@ -293,7 +293,6 @@ func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) 
 	}
 	return address, nil
 }
-
 
 // ledgerSign sends the transaction to the Ledger wallet, and waits for the user
 // to confirm or deny the transaction.

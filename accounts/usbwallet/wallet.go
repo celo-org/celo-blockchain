@@ -56,7 +56,7 @@ type driver interface {
 	// or may not be used by the implementation of a particular wallet instance.
 	Open(device io.ReadWriter, passphrase string) error
 
-  // ConfirmAddress shows the address of the given path on the wallet's display.
+	// ConfirmAddress shows the address of the given path on the wallet's display.
 	ConfirmAddress(path accounts.DerivationPath) (common.Address, error)
 
 	// Close releases any resources held by an open wallet instance.
@@ -519,7 +519,7 @@ func (w *wallet) ConfirmAddress(path accounts.DerivationPath) (common.Address, e
 		return common.Address{}, err
 	}
 
-  return address, nil
+	return address, nil
 }
 
 // SelfDerive sets a base account derivation path from which the wallet attempts

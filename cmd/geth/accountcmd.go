@@ -129,7 +129,7 @@ can then be used to prove possession of the signing key, for example to
 authorize a the signer to act as a validator in the Celo protocol.
 `,
 			},
-      {
+			{
 				Name:      "confirm-address",
 				Usage:     "Confirm the entered address appears on the hardware wallet.",
 				Action:    utils.MigrateFlags(accountConfirmHardwareAddress),
@@ -337,7 +337,7 @@ func accountConfirmHardwareAddress(ctx *cli.Context) error {
 	foundAccount := false
 
 	for _, wallet = range am.Wallets() {
-    if wallet.URL().Scheme == usbwallet.LedgerScheme {
+		if wallet.URL().Scheme == usbwallet.LedgerScheme {
 			if err := wallet.Open(""); err != nil {
 				if err != accounts.ErrWalletAlreadyOpen {
 					utils.Fatalf("Could not open Ledger wallet: %v", err)
@@ -352,13 +352,13 @@ func accountConfirmHardwareAddress(ctx *cli.Context) error {
 			}
 			if account.Address == address {
 				foundAccount = true
-        receivedAddress, err := wallet.ConfirmAddress(accounts.DefaultBaseDerivationPath)
-        if err != nil {
-          return err
-        }
-        if receivedAddress != address {
-          utils.Fatalf("Address %x is different in the ledger %x", address, receivedAddress)
-        }
+				receivedAddress, err := wallet.ConfirmAddress(accounts.DefaultBaseDerivationPath)
+				if err != nil {
+					return err
+				}
+				if receivedAddress != address {
+					utils.Fatalf("Address %x is different in the ledger %x", address, receivedAddress)
+				}
 				break
 			}
 		}
