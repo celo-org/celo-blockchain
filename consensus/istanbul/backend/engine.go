@@ -195,8 +195,15 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 	} else {
 		go func() {
 			err := sb.batchVerifyHeaders(chain, headers)
-			// only 1 result will be returned by the channel
-			results <- err
+			// even though we get 1 return value from the batched verification
+			// method, we need to fill the whole channel of results with return values
+			for i := 0; i < len(headers); i++ {
+				select {
+				case <-abort:
+					return
+				case results <- err:
+				}
+			}
 		}()
 	}
 	return abort, results

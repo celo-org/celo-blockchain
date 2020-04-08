@@ -385,7 +385,7 @@ func populateBlocks(numValidators int, numHeaders int, fullHeaderChainAvailable 
 	blocks = append(blocks, block)
 	headers = append(headers, block.Header())
 
-    // redefine the `now` function to always pass
+	// redefine the `now` function so that we do not get future block errors
 	now = func() time.Time {
 		return time.Unix(int64(headers[len(headers)-1].Time), 0)
 	}
