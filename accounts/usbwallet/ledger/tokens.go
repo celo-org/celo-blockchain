@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -12,6 +13,7 @@ import (
 const TokensBlob = "AAAAZwRjVVNE7iH659QixVHlnsaPVraJnhSVN8EAAAASAAAETTBEAiB4Uyieo7mV/ccnAQHuAQ9LH1rwI15/a2KaKnH/ALbOnwIgec491raPRuRxrMkcVDYBdE36mpe/Bm7G1FDlBkL4AhE=" // #nosec
 
 var ErrCouldNotFindToken = errors.New("could not find token")
+var ErrNotAnERC20Transfer = errors.New("not an ERC20 transfer")
 
 type Token struct {
 	Ticker    string
@@ -85,4 +87,16 @@ func (t *Tokens) ByContractAddressAndChainID(address common.Address, chainID *bi
 	}
 
 	return nil, ErrCouldNotFindToken
+}
+
+func IsERC20Transfer(data []byte) bool {
+	if len(data) < 4 {
+		return false
+	}
+
+	if !bytes.Equal(data[:4], []byte{0xa9, 0x05, 0x9c, 0xbb}) {
+		return false
+	}
+
+	return true
 }

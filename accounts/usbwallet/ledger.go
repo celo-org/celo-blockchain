@@ -338,15 +338,17 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		err   error
 	)
 
-	err = w.ledgerProvideERC20(*tx.To(), chainID)
-	if err != nil && err != ledger.ErrCouldNotFindToken {
-		return common.Address{}, nil, err
-	}
-
-	if tx.FeeCurrency() != nil {
-		err = w.ledgerProvideERC20(*tx.FeeCurrency(), chainID)
+	if ledger.IsERC20Transfer(tx.Data()) {
+		err = w.ledgerProvideERC20(*tx.To(), chainID)
 		if err != nil && err != ledger.ErrCouldNotFindToken {
 			return common.Address{}, nil, err
+		}
+
+		if tx.FeeCurrency() != nil {
+			err = w.ledgerProvideERC20(*tx.FeeCurrency(), chainID)
+			if err != nil && err != ledger.ErrCouldNotFindToken {
+				return common.Address{}, nil, err
+			}
 		}
 	}
 
