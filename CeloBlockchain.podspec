@@ -11,6 +11,6 @@ Pod::Spec.new do |s|
   s.summary         = package['description']
   s.source          = { :git => package['repository']['url'], :tag => s.version }
   s.source_files    = 'build/bin/Geth.framework/**/*.h', 'Empty.m'
-  s.vendored_libraries  = 'libGeth.a', 'crypto/bls/bls-zexe/target/universal/release/libepoch_snark.a'
+  s.vendored_libraries  = 'libGeth.a', 'crypto/bls/bls-zexe/target/universal/release/libbls_crypto.a', 'crypto/bls/bls-zexe/target/universal/release/libepoch_snark.a'
   s.pod_target_xcconfig = { 'OTHER_LDFLAGS' => '-ObjC' }
 end
